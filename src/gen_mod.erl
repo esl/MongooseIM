@@ -84,11 +84,13 @@
 -include("mongoose.hrl").
 
 -record(ejabberd_module, {
-          module_host, % {module(), jid:server()},
+          module_host_type, % {module(), host_type()},
           opts % list()
          }).
 
 -type module_feature() :: atom().
+-type domain_name() :: jid:server().
+-type host_type() :: binary().
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -96,11 +98,10 @@
 %%      {stop, 1}];
 %% behaviour_info(_Other) ->
 %%     undefined.
--callback start(Host :: jid:server(), Opts :: list()) -> any().
--callback stop(Host :: jid:server()) -> any().
+-callback start(HostType :: host_type(), Opts :: list()) -> any().
+-callback stop(HostType :: host_type()) -> any().
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().
--optional_callbacks([config_spec/0, supported_features/0]).
 
 %% Optional callback specifying module dependencies.
 %% The dependent module can specify parameters with which the dependee should be
@@ -110,37 +111,45 @@
 %% case of cycle (in that case soft dependency may be started after the
 %% dependent module).
 %%
-%% -callback deps(Host :: jid:server(), Opts :: proplists:list()) ->
-%%     deps_list().
+%% TODO: think about getting rid of HostType param for deps/2 interface, currently
+%% it's used only by global_distrib modules (see mod_global_distrib_utils:deps/4
+%% function).
+-callback deps(HostType :: binary(), Opts :: proplists:list()) -> deps_list().
+
+-optional_callbacks([config_spec/0, supported_features/0, deps/2]).
 
 -spec start() -> 'ok'.
 start() ->
-    ets:new(ejabberd_modules, [named_table, public, {keypos, #ejabberd_module.module_host},
-                               {read_concurrency, true}]),
+    ets:new(ejabberd_modules, [named_table, public, {read_concurrency, true},
+                               {keypos, #ejabberd_module.module_host_type}]),
     ok.
 
 
--spec start_module(Host :: jid:server(),
+-spec start_module(HostType :: host_type(),
                    Module :: module(),
                    Opts :: [any()]) -> {ok, term()} | {error, already_started}.
-start_module(Host, Module, Opts) ->
-    case is_loaded(Host, Module) of
+start_module(HostType, Module, Opts) ->
+    case is_loaded(HostType, Module) of
         true -> {error, already_started};
-        false -> start_module_for_host(Host, Module, Opts)
+        false -> start_module_for_host_type(HostType, Module, Opts)
     end.
 
-start_module_for_host(Host, Module, Opts0) ->
+start_module_for_host_type(HostType, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = proplists:unfold(Opts0),
-    set_module_opts_mnesia(Host, Module, Opts),
-    ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
+    set_module_opts_mnesia(HostType, Module, Opts),
+    ets:insert(ejabberd_modules, #ejabberd_module{module_host_type = {Module, HostType},
+                                                  opts = Opts}),
     try
-        lists:map(fun mongoose_service:assert_loaded/1, get_required_services(Host, Module, Opts)),
-        Res = Module:start(Host, Opts),
+        lists:map(fun mongoose_service:assert_loaded/1,
+                  get_required_services(HostType, Module, Opts)),
+        Res = Module:start(HostType, Opts),
         {links, LinksAfter} = erlang:process_info(self(), links),
         case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
             true -> ok;
             false ->
+                %% TODO: grepping for "fail_ci_build=true" is bad option
+                %% for ci testing, rework this.
                 TravisInfo = "fail_ci_build=true ",
                 %% Note for programmers:
                 %% Never call start_link directly from your_module:start/2 function!
@@ -148,7 +157,7 @@ start_module_for_host(Host, Module, Opts0) ->
                 ?LOG_ERROR(#{what => unexpected_links, travis_info => TravisInfo,
                              links_before => LinksBefore, links_after => LinksAfter})
         end,
-        ?LOG_DEBUG(#{what => module_started, module => Module, server => Host}),
+        ?LOG_DEBUG(#{what => module_started, module => Module, host_type => HostType}),
         % normalise result
         case Res of
             {ok, R} -> {ok, R};
@@ -156,14 +165,14 @@ start_module_for_host(Host, Module, Opts0) ->
         end
     catch
         Class:Reason:StackTrace ->
-            del_module_mnesia(Host, Module),
-            ets:delete(ejabberd_modules, {Module, Host}),
+            del_module_mnesia(HostType, Module),
+            ets:delete(ejabberd_modules, {Module, HostType}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
-                                      "host ~p~n options: ~p~n ~p: ~p~n~p",
-                                      [Module, Host, Opts, Class, Reason,
+                                      "host_type ~p~n options: ~p~n ~p: ~p~n~p",
+                                      [Module, HostType, Opts, Class, Reason,
                                        StackTrace]),
             ?LOG_CRITICAL(#{what => module_start_failed, module => Module,
-                            server => Host, opts => Opts, class => Class,
+                            host_type => HostType, opts => Opts, class => Class,
                             reason => Reason, stacktrace => StackTrace}),
             case is_mim_or_ct_running() of
                 true ->
@@ -207,19 +216,19 @@ is_app_running(AppName) ->
     lists:keymember(AppName, 1, application:which_applications(Timeout)).
 
 
-%% @doc Stop the module in a host, and forget its configuration.
--spec stop_module(jid:server(), module()) ->
+%% @doc Stop the module for host type, and forget its configuration.
+-spec stop_module(host_type(), module()) ->
     {ok, list()} | {error, not_loaded} | {error, term()}.
-stop_module(Host, Module) ->
-    case is_loaded(Host, Module) of
+stop_module(HostType, Module) ->
+    case is_loaded(HostType, Module) of
         false -> {error, not_loaded};
-        true -> stop_module_for_host(Host, Module)
+        true -> stop_module_for_host_type(HostType, Module)
     end.
 
-stop_module_for_host(Host, Module) ->
-    case stop_module_keep_config(Host, Module) of
+stop_module_for_host_type(HostType, Module) ->
+    case stop_module_keep_config(HostType, Module) of
         {ok, Opts} ->
-            case del_module_mnesia(Host, Module) of
+            case del_module_mnesia(HostType, Module) of
                 {atomic, _} -> {ok, Opts};
                 E -> {error, E}
             end;
@@ -227,36 +236,37 @@ stop_module_for_host(Host, Module) ->
             {error, E}
     end.
 
-%% @doc Stop the module in a host, but keep its configuration. As the module
+%% @doc Stop the module for a host type, but keep its configuration. As the module
 %% configuration is kept in the Mnesia local_config table, when ejabberd is
 %% restarted the module will be started again. This function is useful when
 %% ejabberd is being stopped and it stops all modules.
--spec stop_module_keep_config(jid:server(), module()) -> {error, term()} | {ok, list()}.
-stop_module_keep_config(Host, Module) ->
-    Opts = opts_for_module(Host, Module),
-    try Module:stop(Host) of
+-spec stop_module_keep_config(host_type(), module()) -> {error, term()} | {ok, list()}.
+stop_module_keep_config(HostType, Module) ->
+    Opts = opts_for_module(HostType, Module),
+    try Module:stop(HostType) of
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList),
-            ets:delete(ejabberd_modules, {Module, Host}),
+            ets:delete(ejabberd_modules, {Module, HostType}),
             {ok, Opts};
         {wait, Process} ->
             wait_for_process(Process),
-            ets:delete(ejabberd_modules, {Module, Host}),
+            ets:delete(ejabberd_modules, {Module, HostType}),
             {ok, Opts};
         _ ->
-            ets:delete(ejabberd_modules, {Module, Host}),
+            ets:delete(ejabberd_modules, {Module, HostType}),
             {ok, Opts}
     catch Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => module_stopping_failed,
-                         server => Host, stop_module => Module,
+                         host_type => HostType, stop_module => Module,
                          class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, Reason}
     end.
 
--spec reload_module(jid:server(), module(), [any()]) -> {ok, term()} | {error, already_started}.
-reload_module(Host, Module, Opts) ->
-    stop_module_keep_config(Host, Module),
-    start_module(Host, Module, Opts).
+-spec reload_module(host_type(), module(), [any()]) ->
+    {ok, term()} | {error, already_started}.
+reload_module(HostType, Module, Opts) ->
+    stop_module_keep_config(HostType, Module),
+    start_module(HostType, Module, Opts).
 
 -spec does_module_support(module(), module_feature()) -> boolean().
 does_module_support(Module, Feature) ->
@@ -277,27 +287,21 @@ config_spec(Module) ->
 -spec wait_for_process(atom() | pid() | {atom(), atom()}) -> 'ok'.
 wait_for_process(Process) ->
     MonitorReference = erlang:monitor(process, Process),
-    wait_for_stop(Process, MonitorReference).
-
-
--spec wait_for_stop(atom() | pid() | {atom(), atom()}, reference()) -> 'ok'.
-wait_for_stop(Process, MonitorReference) ->
-    receive
-        {'DOWN', MonitorReference, _Type, _Object, _Info} ->
-            ok
-    after 5000 ->
+    case wait_for_stop(MonitorReference) of
+        ok -> ok;
+        timeout ->
             catch exit(whereis(Process), kill),
-            wait_for_stop1(MonitorReference)
+            wait_for_stop(MonitorReference),
+            ok
     end.
 
-
--spec wait_for_stop1(reference()) -> 'ok'.
-wait_for_stop1(MonitorReference) ->
+-spec wait_for_stop(reference()) -> 'ok' | timeout.
+wait_for_stop(MonitorReference) ->
     receive
         {'DOWN', MonitorReference, _Type, _Object, _Info} ->
             ok
     after 5000 ->
-            ok
+            timeout
     end.
 
 get_opt(Opt, Opts) ->
@@ -329,23 +333,13 @@ set_opt(Opt, Opts, Value) ->
     lists:keystore(Opt, 1, Opts, {Opt, Value}).
 
 
-get_module_opt(global, Module, Opt, Default) ->
-    [Value | Values] = [get_module_opt(Host, Module, Opt, Default)
-                        || Host <- ?MYHOSTS],
-    AllSame = lists:all(fun(Other) -> Other == Value end, Values),
-    case AllSame of
-        true ->
-            Value;
-        false ->
-            Default
-    end;
-get_module_opt(Host, Module, Opt, Default) ->
-    ModuleOpts = get_module_opts(Host, Module),
+get_module_opt(HostType, Module, Opt, Default) ->
+    ModuleOpts = get_module_opts(HostType, Module),
     get_opt(Opt, ModuleOpts, Default).
 
 
-get_module_opts(Host, Module) ->
-    OptsList = ets:lookup(ejabberd_modules, {Module, Host}),
+get_module_opts(HostType, Module) ->
+    OptsList = ets:lookup(ejabberd_modules, {Module, HostType}),
     case OptsList of
         [] -> [];
         [#ejabberd_module{opts = Opts} | _] -> Opts
@@ -353,102 +347,121 @@ get_module_opts(Host, Module) ->
 
 
 -spec get_module_opt_by_subhost(
-        SubHost :: jid:server(),
+        SubHost :: domain_name(),
         Module :: module(),
         Opt :: term(),
         Default :: term()) -> term().
 get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
+    %% TODO: try to get rid of this interface or at least
+    %% refactor it with mongoose_subhosts module
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     get_module_opt(Host, Module, Opt, Default).
 
 
-%% @doc Non-atomic! You have been warned.
--spec set_module_opt(jid:server(), module(), _Opt, _Value) -> boolean().
-set_module_opt(Host, Module, Opt, Value) ->
-    case ets:lookup(ejabberd_modules, {Module, Host}) of
+%% @doc use this function only on init stage
+%% Non-atomic! You have been warned.
+-spec set_module_opt(host_type(), module(), _Opt, _Value) -> boolean().
+set_module_opt(HostType, Module, Opt, Value) ->
+    case ets:lookup(ejabberd_modules, {Module, HostType}) of
         [] ->
             false;
         [#ejabberd_module{opts = Opts}] ->
             Updated = set_opt(Opt, Opts, Value),
-            set_module_opts(Host, Module, Updated)
+            set_module_opts(HostType, Module, Updated)
     end.
 
 
-%% @doc Replaces all module options
--spec set_module_opts(jid:server(), module(), _Opts) -> true.
-set_module_opts(Host, Module, Opts0) ->
+%% @doc Replaces all module options, use  this function
+%% for integration tests only
+-spec set_module_opts(host_type(), module(), _Opts) -> true.
+set_module_opts(HostType, Module, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(ejabberd_modules,
-               #ejabberd_module{module_host = {Module, Host},
+               #ejabberd_module{module_host_type = {Module, HostType},
                                 opts = Opts}).
 
 
 -spec set_module_opt_by_subhost(
-        SubHost :: jid:server(),
+        SubHost :: domain_name(),
         Module :: module(),
         Opt :: term(),
         Value :: term()) -> boolean().
 set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
+    %% TODO: try to get rid of this interface or at least
+    %% refactor it with mongoose_subhosts module
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     set_module_opt(Host, Module, Opt, Value).
 
--spec make_subhost(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> jid:server().
+-spec make_subhost(Spec :: iodata() | unicode:charlist(), Host :: domain_name()) ->
+    domain_name().
 make_subhost(Spec, Host) ->
+    %% TODO: try to get rid of this interface
     re:replace(Spec, "@HOST@", Host, [global, {return, binary}]).
 
--spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: jid:server()) -> [jid:server()].
+-spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: domain_name()) ->
+    [domain_name()].
 make_subhosts(Spec, Host) ->
+    %% TODO: try to get rid of this interface
     [make_subhost(S, Host) || S <- expand_hosts(Spec)].
 
 -spec expand_hosts(iodata()) -> [iodata()].
 expand_hosts(Spec) ->
+    %% TODO: try to get rid of this interface
     case re:run(Spec, "@HOSTS@") of
         nomatch -> [Spec];
         {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
     end.
 
--spec get_opt_subhost(jid:server(), list(), list() | binary()) -> jid:server().
+-spec get_opt_subhost(domain_name(), list(), list() | binary()) -> domain_name().
 get_opt_subhost(Host, Opts, Default) ->
+    %% TODO: try to get rid of this interface
     get_opt_subhost(Host, host, Opts, Default).
 
--spec get_opt_subhost(jid:server(), atom(), list(), list() | binary()) -> jid:server().
+-spec get_opt_subhost(domain_name(), atom(), list(), list() | binary()) ->
+    domain_name().
 get_opt_subhost(Host, OptName, Opts, Default) ->
+    %% TODO: try to get rid of this interface
     Val = get_opt(OptName, Opts, Default),
     make_subhost(Val, Host).
 
--spec get_module_opt_subhost(jid:server(), module(), list() | binary()) -> jid:server().
+-spec get_module_opt_subhost(domain_name(), module(), list() | binary()) ->
+    domain_name().
 get_module_opt_subhost(Host, Module, Default) ->
+    %% TODO: try to get rid of this interface
+    %% note that get_module_opt/4 requires host_type(),
+    %% while make_subhost expects domain_name()
     Spec = get_module_opt(Host, Module, host, Default),
     make_subhost(Spec, Host).
 
 -spec loaded_modules() -> [module()].
 loaded_modules() ->
-    ModSet = ets:foldl(fun(#ejabberd_module{module_host = {Mod, _}}, Set) ->
+    ModSet = ets:foldl(fun(#ejabberd_module{module_host_type = {Mod, _}}, Set) ->
                                gb_sets:add_element(Mod, Set)
                        end, gb_sets:new(), ejabberd_modules),
     gb_sets:to_list(ModSet).
 
--spec loaded_modules(jid:server()) -> [module()].
-loaded_modules(Host) ->
+-spec loaded_modules(host_type()) -> [module()].
+loaded_modules(HostType) ->
     ets:select(ejabberd_modules,
-               [{#ejabberd_module{_ = '_', module_host = {'$1', Host}},
+               [{#ejabberd_module{_ = '_', module_host_type = {'$1', HostType}},
                  [],
                  ['$1']}]).
 
 
--spec loaded_modules_with_opts(jid:server()) -> [{module(), list()}].
-loaded_modules_with_opts(Host) ->
+-spec loaded_modules_with_opts(host_type()) -> [{module(), list()}].
+loaded_modules_with_opts(HostType) ->
     ets:select(ejabberd_modules,
-               [{#ejabberd_module{_ = '_', module_host = {'$1', Host},
+               [{#ejabberd_module{_ = '_', module_host_type = {'$1', HostType},
                                   opts = '$2'},
                  [],
                  [{{'$1', '$2'}}]}]).
 
--spec opts_for_module(jid:server(), module()) -> list().
-opts_for_module(Host, Module) ->
+-spec opts_for_module(host_type(), module()) -> list().
+opts_for_module(HostType, Module) ->
+    %% TODO: get rid of this interface, it's the same as get_module_opts/2
     case ets:select(ejabberd_modules,
                     [{#ejabberd_module{_ = '_',
-                                       module_host = {Module, Host},
+                                       module_host_type = {Module, HostType},
                                        opts = '$1'},
                       [],
                       [{{'$1'}}]}]) of
@@ -456,11 +469,12 @@ opts_for_module(Host, Module) ->
         []       -> []
     end.
 
--spec set_module_opts_mnesia(jid:server(), module(), [any()]
-                            ) -> {'aborted', _} | {'atomic', _}.
-set_module_opts_mnesia(Host, Module, Opts0) ->
+-spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
+    {'aborted', _} | {'atomic', _}.
+set_module_opts_mnesia(HostType, Module, Opts0) ->
+    %% this function is not atomic!
     Opts = proplists:unfold(Opts0),
-    Modules = case ejabberd_config:get_local_option({modules, Host}) of
+    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
         undefined ->
             [];
         Ls ->
@@ -468,12 +482,13 @@ set_module_opts_mnesia(Host, Module, Opts0) ->
     end,
     Modules1 = lists:keydelete(Module, 1, Modules),
     Modules2 = [{Module, Opts} | Modules1],
-    ejabberd_config:add_local_option({modules, Host}, Modules2).
+    ejabberd_config:add_local_option({modules, HostType}, Modules2).
 
 
--spec del_module_mnesia(jid:server(), module()) -> {'aborted', _} | {'atomic', _}.
-del_module_mnesia(Host, Module) ->
-    Modules = case ejabberd_config:get_local_option({modules, Host}) of
+-spec del_module_mnesia(host_type(), module()) -> {'aborted', _} | {'atomic', _}.
+del_module_mnesia(HostType, Module) ->
+    %% this function is not atomic!
+    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
                   undefined ->
                       [];
                   Ls ->
@@ -481,44 +496,49 @@ del_module_mnesia(Host, Module) ->
               end,
     case lists:keydelete(Module, 1, Modules) of
         [] ->
-            ejabberd_config:del_local_option({modules, Host});
+            ejabberd_config:del_local_option({modules, HostType});
         OtherModules ->
-            ejabberd_config:add_local_option({modules, Host}, OtherModules)
+            ejabberd_config:add_local_option({modules, HostType}, OtherModules)
     end.
 
 -spec get_module_proc(binary() | string(), module()) -> atom().
+%% TODO:
+%% split this interface into 2:
+%%   * create_module_proc_name/2 - which can create new atoms by calling list_to_atom/1
+%%   * get_module_proc_name/2 - which should use safe list_to_existing_atom/1 function
 get_module_proc(Host, Base) when is_binary(Host) ->
     get_module_proc(binary_to_list(Host), Base);
 get_module_proc(Host, Base) ->
     list_to_atom(atom_to_list(Base) ++ "_" ++ Host).
 
 
--spec is_loaded(Host :: binary(), Module :: atom()) -> boolean().
-is_loaded(Host, Module) ->
-    ets:member(ejabberd_modules, {Module, Host}).
+-spec is_loaded(HostType :: binary(), Module :: atom()) -> boolean().
+is_loaded(HostType, Module) ->
+    ets:member(ejabberd_modules, {Module, HostType}).
 
--spec get_deps(Host :: jid:server(), Module :: module(),
+-spec get_deps(HostType :: host_type(), Module :: module(),
                Opts :: proplists:proplist()) -> module_deps_list().
-get_deps(Host, Module, Opts) ->
+get_deps(HostType, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
     case erlang:function_exported(Module, deps, 2) of
         true ->
-            Deps = Module:deps(Host, Opts),
+            Deps = Module:deps(HostType, Opts),
             lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
         _ ->
             []
     end.
 
--spec get_required_services(jid:server(), module(), proplists:proplist()) -> service_deps_list().
-get_required_services(Host, Module, Options) ->
+-spec get_required_services(host_type(), module(), proplists:proplist()) ->
+    service_deps_list().
+get_required_services(HostType, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
     case erlang:function_exported(Module, deps, 2) of
         true ->
-            [Service || {service, Service} <- Module:deps(Host, Options)];
+            [Service || {service, Service} <- Module:deps(HostType, Options)];
         _ ->
             []
     end.
