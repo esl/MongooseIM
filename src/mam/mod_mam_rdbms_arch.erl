@@ -94,34 +94,25 @@ uniform_to_gdpr({MessID, RemoteJID, Packet}) ->
 
 -spec start_hooks(jid:server(), _) -> ok.
 start_hooks(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(remove_domain, Host, ?MODULE, remove_domain, 50),
-    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
-
+    ejabberd_hooks:add(hooks(Host)).
 
 -spec stop_hooks(jid:server()) -> ok.
 stop_hooks(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+    ejabberd_hooks:delete(hooks(Host)).
+
+hooks(Host) ->
+    NoWriter = gen_mod:get_module_opt(Host, ?MODULE, no_writer, false),
+    case NoWriter of
         true ->
-            ok;
+            [];
         false ->
-            ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(remove_domain, Host, ?MODULE, remove_domain, 50),
-    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
+            [{mam_archive_message, Host, ?MODULE, archive_message, 50}]
+    end ++
+    [{mam_archive_size, Host, ?MODULE, archive_size, 50},
+     {mam_lookup_messages, Host, ?MODULE, lookup_messages, 50},
+     {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {remove_domain, Host, ?MODULE, remove_domain, 50},
+     {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
 %% ----------------------------------------------------------------------
 %% SQL queries
