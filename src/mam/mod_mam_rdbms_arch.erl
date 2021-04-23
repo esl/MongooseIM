@@ -126,6 +126,10 @@ register_prepared_queries() ->
                            <<"DELETE FROM mam_message "
                              "WHERE user_id IN "
                              "(SELECT id from mam_server_user WHERE server = ?)">>),
+    mongoose_rdbms:prepare(mam_remove_domain_prefs, mam_config, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_config "
+                             "WHERE user_id IN "
+                             "(SELECT id from mam_server_user WHERE server = ?)">>),
     mongoose_rdbms:prepare(mam_remove_domain_users, mam_server_user, [server],
                            <<"DELETE FROM mam_server_user WHERE server = ?">>),
     mongoose_rdbms:prepare(mam_make_tombstone, mam_message, [message, user_id, id],
@@ -318,6 +322,7 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
 remove_domain(Acc, HostType, Domain) ->
     {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
             mongoose_rdbms:execute_successfully(HostType, mam_remove_domain, [Domain]),
+            mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_prefs, [Domain]),
             mongoose_rdbms:execute_successfully(HostType, mam_remove_domain_users, [Domain])
         end),
     Acc.
