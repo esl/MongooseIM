@@ -39,9 +39,7 @@
     modMucMamLookups,
     modMucMamForwarded,
     modMucMamArchived,
-    modMucMamFlushed,
-    modMucMamSinglePurges,
-    modMucMamMultiplePurges
+    modMucMamFlushed
 ]).
 
 -define(TOTAL_COUNTERS, [

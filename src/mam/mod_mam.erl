@@ -703,6 +703,4 @@ spirals() ->
      modMamFlushed,
      modMamDropped,
      modMamDropped2,
-     modMamDroppedIQ,
-     modMamSinglePurges,
-     modMamMultiplePurges].
+     modMamDroppedIQ].
