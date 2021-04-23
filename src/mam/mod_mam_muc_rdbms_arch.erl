@@ -23,7 +23,8 @@
 -export([archive_size/4,
          archive_message/3,
          lookup_messages/3,
-         remove_archive/4]).
+         remove_archive/4,
+         remove_domain/3]).
 
 -export([get_mam_muc_gdpr_data/2]).
 
@@ -77,32 +78,25 @@ get_mam_muc_gdpr_data(Acc, #jid{luser = User, lserver = Host} = _UserJID) ->
 
 -spec start_hooks(jid:server(), _) -> ok.
 start_hooks(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
-    ok.
-
+    ejabberd_hooks:add(hooks(Host)).
 
 -spec stop_hooks(jid:server()) -> ok.
 stop_hooks(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+    ejabberd_hooks:delete(hooks(Host)).
+
+hooks(Host) ->
+    NoWriter = gen_mod:get_module_opt(Host, ?MODULE, no_writer, false),
+    case NoWriter of
         true ->
-            ok;
+            [];
         false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
-    ok.
+            [{mam_muc_archive_message, Host, ?MODULE, archive_message, 50}]
+    end ++
+    [{mam_muc_archive_size, Host, ?MODULE, archive_size, 50},
+     {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50},
+     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {remove_domain, Host, ?MODULE, remove_domain, 50},
+     {get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50}].
 
 %% ----------------------------------------------------------------------
 %% SQL queries
@@ -112,6 +106,11 @@ register_prepared_queries() ->
     mongoose_rdbms:prepare(mam_muc_archive_remove, mam_muc_message, [room_id],
                            <<"DELETE FROM mam_muc_message "
                              "WHERE room_id = ?">>),
+    mongoose_rdbms:prepare(mam_muc_remove_domain, mam_muc_message, ['mam_server_user.server'],
+                           <<"DELETE FROM mam_muc_message "
+                             "WHERE room_id IN (SELECT id FROM mam_server_user where server = ?)">>),
+    mongoose_rdbms:prepare(mam_muc_remove_domain_users, mam_server_user, [server],
+                           <<"DELETE FROM mam_server_user WHERE server = ?">>),
     mongoose_rdbms:prepare(mam_muc_make_tombstone, mam_muc_message, [message, room_id, id],
                            <<"UPDATE mam_muc_message SET message = ?, search_body = '' "
                              "WHERE room_id = ? AND id = ?">>),
@@ -289,6 +288,25 @@ prepare_insert(Name, NumRows) ->
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     mongoose_rdbms:execute_successfully(Host, mam_muc_archive_remove, [ArcID]),
     Acc.
+
+-spec remove_domain(mongoose_acc:t(), binary(), jid:lserver()) -> mongoose_acc:t().
+remove_domain(Acc, HostType, Domain) ->
+    SubHosts = get_subhosts(Domain),
+    {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
+            [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
+        end),
+    Acc.
+
+remove_domain_trans(HostType, MucHost) ->
+    mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain, [MucHost]),
+    mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain_users, [MucHost]).
+
+get_subhosts(Domain) ->
+    MucHost = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
+                                        mod_muc_light:default_host()),
+    LightHost = gen_mod:get_module_opt_subhost(Domain, mod_muc,
+                                        mod_muc:default_host()),
+    lists:usort([MucHost, LightHost]).
 
 %% GDPR logic
 extract_gdpr_messages(Host, SenderID) ->

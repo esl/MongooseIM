@@ -60,6 +60,9 @@
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
 
+%% Hook handlers
+-export([remove_domain/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -81,7 +84,7 @@ start() ->
 -spec start(HostType :: binary()) -> 'ok'.
 start(HostType) ->
     ensure_metrics(HostType),
-    ejabberd_hooks:add(remove_domain, global, fun remove_domain/3, 50),
+    ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
     lists:foreach(
       fun(M) ->
               M:start(HostType)
@@ -89,7 +92,7 @@ start(HostType) ->
 
 -spec stop(HostType :: binary()) -> 'ok'.
 stop(HostType) ->
-    ejabberd_hooks:delete(remove_domain, global, fun remove_domain/3, 50),
+    ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
     lists:foreach(
       fun(M) ->
               M:stop(HostType)
