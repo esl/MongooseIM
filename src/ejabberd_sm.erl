@@ -33,7 +33,7 @@
          route/3,
          route/4,
          make_new_sid/0,
-         open_session/3, open_session/4,
+         open_session/4, open_session/5,
          close_session/4,
          store_info/2,
          get_info/2,
@@ -185,24 +185,26 @@ route(From, To, Acc, El) ->
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.
 
--spec open_session(SID, JID, Info) -> ReplacedPids when
+-spec open_session(HostType, SID, JID, Info) -> ReplacedPids when
+      HostType :: binary(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Info :: info(),
       ReplacedPids :: [pid()].
-open_session(SID, JID, Info) ->
-    open_session(SID, JID, undefined, Info).
+open_session(HostType, SID, JID, Info) ->
+    open_session(HostType, SID, JID, undefined, Info).
 
--spec open_session(SID, JID, Priority, Info) -> ReplacedPids when
+-spec open_session(HostType, SID, JID, Priority, Info) -> ReplacedPids when
+      HostType :: binary(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Priority :: integer() | undefined,
       Info :: info(),
       ReplacedPids :: [pid()].
-open_session(SID, JID, Priority, Info) ->
+open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(JID),
-    mongoose_hooks:sm_register_connection_hook(JID#jid.lserver, SID, JID, Info),
+    mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
     ReplacedPIDs.
 
 -spec close_session(Acc, SID, JID, Reason) -> Acc1 when

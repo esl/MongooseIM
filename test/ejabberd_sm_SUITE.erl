@@ -407,7 +407,7 @@ given_session_opened(Sid, {U, S, R}, Priority) ->
 
 given_session_opened(Sid, {U, S, R}, Priority, Info) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:open_session(Sid, JID, Priority, maps:from_list(Info)).
+    ejabberd_sm:open_session(S, Sid, JID, Priority, maps:from_list(Info)).
 
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).

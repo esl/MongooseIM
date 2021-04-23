@@ -16,12 +16,13 @@ init(_InitArgs, _LastEvtId, Req) ->
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State#{id => 1}).
 
-maybe_init(true, Req, #{jid := JID} = State) ->
+maybe_init(true, Req, #{jid := JID, creds := Creds} = State) ->
     SID = ejabberd_sm:make_new_sid(),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Resource = <<"sse-", UUID/binary>>,
     NewJid = jid:replace_resource(JID, Resource),
-    ejabberd_sm:open_session(SID, NewJid, 1, #{}),
+    HostType = mongoose_credentials:host_type(Creds),
+    ejabberd_sm:open_session(HostType, SID, NewJid, 1, #{}),
     {ok, Req, State#{sid => SID, jid => NewJid}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method

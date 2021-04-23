@@ -786,7 +786,7 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     Conn = get_conn_type(NewStateData0),
     Info = #{ip => NewStateData0#state.ip, conn => Conn,
              auth_module => NewStateData0#state.auth_module },
-    ReplacedPids = ejabberd_sm:open_session(SID, JID, Info),
+    ReplacedPids = ejabberd_sm:open_session(HostType, SID, JID, Info),
 
     RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
     case RefsAndPids of
@@ -855,7 +855,7 @@ session_established({xmlstreamelement, El}, StateData) ->
             El1 = fix_message_from_user(El, StateData#state.lang),
             Acc0 = element_to_origin_accum(El1, StateData),
             Acc1 = mongoose_hooks:c2s_preprocessing_hook(StateData#state.host_type,
-                                           Acc0, NewState),
+                                                         Acc0, NewState),
             case mongoose_acc:get(hook, result, undefined, Acc1) of
                 drop -> fsm_next_state(session_established, NewState);
                 _ -> process_outgoing_stanza(Acc1, NewState)
@@ -2051,8 +2051,7 @@ process_presence_subscription_and_route(Acc, Type, StateData) ->
     From = mongoose_acc:from_jid(Acc),
     HostType = StateData#state.host_type,
     To = mongoose_acc:to_jid(Acc),
-    Acc1 = mongoose_hooks:roster_out_subscription(
-             HostType, Acc, From, To, Type),
+    Acc1 = mongoose_hooks:roster_out_subscription(HostType, Acc, From, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
@@ -3090,7 +3089,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Priority = get_priority_from_presence(NSD#state.pres_last),
                 Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
                          auth_module => NSD#state.auth_module },
-                ejabberd_sm:open_session(SID, NSD#state.jid, Priority, Info),
+                ejabberd_sm:open_session(NSD#state.host_type, SID, NSD#state.jid, Priority, Info),
                 ok = mod_stream_management:register_smid(SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,

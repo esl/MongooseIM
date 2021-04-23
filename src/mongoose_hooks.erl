@@ -735,14 +735,14 @@ sm_filter_offline_message(LServer, From, To, Packet) ->
     ejabberd_hooks:run_for_host_type(sm_filter_offline_message, LServer, false,
                                      [From, To, Packet]).
 
--spec sm_register_connection_hook(LServer, SID, JID, Info) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
+    HostType :: binary(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Result :: ok.
-sm_register_connection_hook(LServer, SID, JID, Info) ->
-    ejabberd_hooks:run_for_host_type(sm_register_connection_hook, LServer, ok,
+sm_register_connection_hook(HostType, SID, JID, Info) ->
+    ejabberd_hooks:run_for_host_type(sm_register_connection_hook, HostType, ok,
                                      [SID, JID, Info]).
 
 -spec sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) -> Result when
