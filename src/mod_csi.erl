@@ -22,6 +22,7 @@
 start(Host, _Opts) ->
     [ejabberd_hooks:add(Name, Host, Module, Function, Priority) ||
      {Name, Module, Function, Priority} <- hooks()],
+    ensure_metrics(Host),
     ok.
 
 stop(Host) ->
@@ -38,6 +39,10 @@ config_spec() ->
 
 hooks() ->
     [{c2s_stream_features, ?MODULE, add_csi_feature, 60}].
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral),
+    mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral).
 
 add_csi_feature(Acc, _Host) ->
     lists:keystore(<<"csi">>, #xmlel.name, Acc, csi()).

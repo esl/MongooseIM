@@ -43,9 +43,7 @@
     modMucMamArchived,
     modMucMamFlushed,
     modMucMamSinglePurges,
-    modMucMamMultiplePurges,
-    modCSIInactive,
-    modCSIActive
+    modMucMamMultiplePurges
 ]).
 
 -define(TOTAL_COUNTERS, [
