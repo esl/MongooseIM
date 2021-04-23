@@ -60,6 +60,9 @@
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
 
+%% Hook handlers
+-export([remove_domain/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
