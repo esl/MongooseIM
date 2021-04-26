@@ -89,7 +89,7 @@ maybe_prepare_queries(rdbms) ->
 
 -spec execute_cluster_insert_new(binary()) -> mongoose_rdbms:query_result().
 execute_cluster_insert_new(ID) ->
-    mongoose_rdbms:execute(global, cluster_insert_new, [ID]).
+    mongoose_rdbms:execute_successfully(global, cluster_insert_new, [ID]).
 
 -spec make_cluster_id() -> cluster_id().
 make_cluster_id() ->
@@ -110,8 +110,16 @@ store_cluster_id(ID) ->
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
 set_new_cluster_id(ID, rdbms) ->
-    Res = execute_cluster_insert_new(ID),
-    convert_insert_response(Res, ID);
+    try execute_cluster_insert_new(ID) of
+        {updated, 1} -> {ok, ID}
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => cluster_id_set_failed,
+                           text => <<"Error inserting cluster ID into RDBMS">>,
+                           cluster_id => ID,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, {Class, Reason}}
+    end;
 set_new_cluster_id(ID, mnesia) ->
     T = fun() -> mnesia:write(#mongoose_cluster_id{key = cluster_id, value = ID}) end,
     case mnesia:transaction(T) of
@@ -124,9 +132,15 @@ set_new_cluster_id(ID, mnesia) ->
 %% Get cluster ID
 -spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
 get_backend_cluster_id(rdbms) ->
-    case mongoose_rdbms:execute_successfully(global, cluster_select, []) of
+    try mongoose_rdbms:execute_successfully(global, cluster_select, []) of
         {selected, [{Row}]} -> {ok, Row};
         {selected, []} -> {error, no_value_in_backend}
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_WARNING(#{what => cluster_id_get_failed,
+                           text => <<"Error getting cluster ID from RDBMS">>,
+                           class => Class, reason => Reason, stacktrace => Stacktrace}),
+            {error, {Class, Reason}}
     end;
 get_backend_cluster_id(mnesia) ->
     get_cached_cluster_id().
@@ -150,8 +164,3 @@ clean_table(rdbms) ->
             {error, {Class, Reason}}
     end;
 clean_table(_) -> ok.
-
-%% Helpers
-convert_insert_response({updated, 1}, ID) -> {ok, ID};
-convert_insert_response({error, _} = Err, _ID) -> Err.
-
