@@ -668,8 +668,7 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
-            Res = mongoose_hooks:roster_in_subscription(To#jid.lserver,
-                                         Acc, To, From, Type, Reason),
+            Res = mongoose_hooks:roster_in_subscription(Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
@@ -728,7 +727,8 @@ do_route_no_resource(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
-    Drop = mongoose_hooks:sm_filter_offline_message(To#jid.lserver, From, To, Packet),
+    HostType = mongoose_acc:host_type(Acc),
+    Drop = mongoose_hooks:sm_filter_offline_message(HostType, From, To, Packet),
     case Drop of
         false ->
             route_message(From, To, Acc, Packet);
@@ -758,8 +758,8 @@ do_route_offline(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
-    Server = To#jid.server,
-    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, To),
+    HostType = mongoose_acc:host_type(Acc),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(HostType, To),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 
@@ -808,8 +808,7 @@ route_message(From, To, Acc, Packet) ->
 route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
-    LServer = To#jid.lserver,
-    mongoose_hooks:offline_groupchat_message_hook(LServer, Acc, From, To, Packet);
+    mongoose_hooks:offline_groupchat_message_hook(Acc, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;

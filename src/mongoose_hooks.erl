@@ -62,7 +62,7 @@
          privacy_iq_set/5,
          privacy_updated_list/3]).
 
--export([offline_groupchat_message_hook/5,
+-export([offline_groupchat_message_hook/4,
          offline_message_hook/5,
          set_presence_hook/3,
          sm_broadcast/5,
@@ -77,7 +77,7 @@
          roster_get_subscription_lists/3,
          roster_get_versioning_feature/2,
          roster_groups/1,
-         roster_in_subscription/6,
+         roster_in_subscription/5,
          roster_out_subscription/5,
          roster_process_item/2,
          roster_push/3,
@@ -683,15 +683,15 @@ privacy_updated_list(HostType, OldList, NewList) ->
 
 %% Session management related hooks
 
--spec offline_groupchat_message_hook(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec offline_groupchat_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_groupchat_message_hook(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, LServer, Acc,
+offline_groupchat_message_hook(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, HostType, Acc,
                                      [From, To, Packet]).
 
 -spec offline_message_hook(LServer, Acc, From, To, Packet) -> Result when
@@ -727,14 +727,14 @@ sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
     ejabberd_hooks:run_for_host_type(sm_broadcast, HostType, Acc,
                                      [From, To, Broadcast, SessionCount]).
 
--spec sm_filter_offline_message(LServer, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
+    HostType :: binary(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: boolean().
-sm_filter_offline_message(LServer, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(sm_filter_offline_message, LServer, false,
+sm_filter_offline_message(HostType, From, To, Packet) ->
+    ejabberd_hooks:run_for_host_type(sm_filter_offline_message, HostType, false,
                                      [From, To, Packet]).
 
 -spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
@@ -834,16 +834,16 @@ roster_get_versioning_feature(HostType, Server) ->
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
--spec roster_in_subscription(LServer, Acc, To, From, Type, Reason) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_in_subscription(Acc, To, From, Type, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     To :: jid:jid(),
     From :: jid:jid(),
     Type :: mod_roster:sub_presence(),
     Reason :: any(),
     Result :: mongoose_acc:t().
-roster_in_subscription(LServer, Acc, To, From, Type, Reason) ->
-    ejabberd_hooks:run_for_host_type(roster_in_subscription, LServer, Acc,
+roster_in_subscription(Acc, To, From, Type, Reason) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(roster_in_subscription, HostType, Acc,
                                      [jid:to_bare(To), From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called
