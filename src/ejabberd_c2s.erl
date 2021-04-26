@@ -2090,7 +2090,6 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
-                                          StateData#state.host_type,
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
                                           To,
@@ -2104,7 +2103,6 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet({Acc, Packet},
-                                          StateData#state.host_type,
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
                                           From,
