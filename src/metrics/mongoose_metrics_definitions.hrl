@@ -1,6 +1,5 @@
 -define(GENERAL_SPIRALS, [
     sessionSuccessfulLogins,
-    sessionAuthAnonymous,
     sessionAuthFails,
     sessionLogouts,
     xmppMessageSent,
