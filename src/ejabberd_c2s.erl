@@ -1033,10 +1033,11 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 
 
 %%% system events
-handle_info({exit, Reason}, _StateName, StateData) ->
-    Lang = StateData#state.lang,
+handle_info({exit, Reason}, _StateName,
+            StateData = #state{lang = Lang, server = LServer, host_type = HostType}) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => ejabberd_c2s_state:server(StateData),
+                              host_type => HostType,
+                              lserver => LServer,
                               element => undefined }),
     send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, Reason), StateData),
     send_trailer(StateData),
@@ -1048,9 +1049,11 @@ handle_info(replaced, _StateName, StateData) ->
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established,
-            #state{pres_last = Presence, pres_invis = Invisible, jid = JID} = StateData)
+            #state{pres_last = Presence, pres_invis = Invisible, jid = JID,
+                   host_type = HostType} = StateData)
   when Presence =/= undefined orelse Invisible ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              host_type => HostType,
                               lserver => JID#jid.lserver,
                               element => undefined }),
     resend_offline_messages(Acc, StateData),
@@ -1133,8 +1136,9 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                               lserver => StateData#state.server,
-                               element => undefined }),
+                              host_type => StateData#state.host_type,
+                              lserver => StateData#state.server,
+                              element => undefined }),
     ?LOG_DEBUG(#{what => c2s_broadcast,
                  brodcast_data => Broadcast,
                  state_name => StateName, c2s_state => StateData}),
@@ -1144,12 +1148,13 @@ handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
+    #state{server = Server, host_type = HostType} = StateData,
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => From,
                               to_jid => To,
+                              host_type => HostType,
                               lserver => To#jid.lserver,
                               element => Packet }),
-    #state{server = Server, host_type = HostType} = StateData,
     Drop = mongoose_hooks:c2s_filter_packet(HostType, Server, StateData,
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
@@ -1510,7 +1515,10 @@ terminate({handover_session, From}, StateName, StateData, UnreadMessages) ->
     terminate(normal, StateName, NewStateData, []);
 terminate(_Reason, StateName, StateData, UnreadMessages) ->
     InitialAcc0 = mongoose_acc:new(
-             #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
+             #{location => ?LOCATION,
+               host_type => StateData#state.host_type,
+               lserver => StateData#state.server,
+               element => undefined}),
     Acc = case StateData#state.stream_mgmt of
               true -> mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0);
               _ -> InitialAcc0
@@ -1651,6 +1659,7 @@ send_element_from_server_jid(no_acc, #state{server = Server} = StateData, #xmlel
     Acc = mongoose_acc:new(#{location => ?LOCATION,
                              from_jid => jid:make_noprep(<<>>, Server, <<>>),
                              to_jid => StateData#state.jid,
+                             host_type => StateData#state.host_type,
                              lserver => Server,
                              element => El }),
     send_element_from_server_jid(Acc, StateData, El);
@@ -2090,6 +2099,7 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => From,
                               to_jid => To,
+                              host_type => StateData#state.host_type,
                               lserver => StateData#state.server,
                               element => Packet }),
     {_, Res} = privacy_check_packet(Acc, To, Dir, StateData),
@@ -3176,7 +3186,10 @@ stream_mgmt_resumed(SMID, Handled) ->
 handover_session(SD, From)->
     true = SD#state.stream_mgmt,
     Acc = mongoose_acc:new(
-        #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+        #{location => ?LOCATION,
+          host_type => SD#state.host_type,
+          lserver => SD#state.server,
+          element => undefined}),
     ejabberd_sm:close_session(Acc,
                               SD#state.sid,
                               SD#state.jid,
@@ -3323,9 +3336,10 @@ terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
 %% @doc This function is executed when c2s receives a stanza from TCP connection.
 -spec element_to_origin_accum(jlib:xmlel(), StateData :: state()) ->
     mongoose_acc:t().
-element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
+element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server, host_type = HostType}) ->
     BaseParams = #{
       location => ?LOCATION,
+      host_type => HostType,
       lserver => Server,
       element => El,
       from_jid => JID
