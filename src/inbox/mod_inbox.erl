@@ -277,8 +277,7 @@ maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
     case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
-            TS = mongoose_acc:timestamp(Acc),
-            maybe_process_acceptable_message(Host, From, To, Msg, TS, Dir, Type);
+            maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, Type);
         false ->
             ok
     end.
@@ -291,27 +290,27 @@ inbox_owner_exists(From, _To, outgoing) ->
 inbox_owner_exists(_From, To, incoming) ->
     ejabberd_users:does_user_exist(To).
 
-maybe_process_acceptable_message(Host, From, To, Msg, TS, Dir, one2one) ->
-            process_message(Host, From, To, Msg, TS, Dir, one2one);
-maybe_process_acceptable_message(Host, From, To, Msg, TS, Dir, groupchat) ->
+maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, one2one) ->
+            process_message(Host, From, To, Msg, Acc, Dir, one2one);
+maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, groupchat) ->
             muclight_enabled(Host) andalso
-            process_message(Host, From, To, Msg, TS, Dir, groupchat).
+            process_message(Host, From, To, Msg, Acc, Dir, groupchat).
 
 -spec process_message(Host :: host(),
                       From :: jid:jid(),
                       To :: jid:jid(),
                       Message :: exml:element(),
-                      TS :: integer(),
+                      Acc :: mongoose_acc:t(),
                       Dir :: outgoing | incoming,
                       Type :: one2one | groupchat) -> ok | {ok, integer()}.
-process_message(Host, From, To, Message, TS, outgoing, one2one) ->
-    mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message, TS);
-process_message(Host, From, To, Message, TS, incoming, one2one) ->
-    mod_inbox_one2one:handle_incoming_message(Host, From, To, Message, TS);
-process_message(Host, From, To, Message, TS, outgoing, groupchat) ->
-    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message, TS);
-process_message(Host, From, To, Message, TS, incoming, groupchat) ->
-    mod_inbox_muclight:handle_incoming_message(Host, From, To, Message, TS);
+process_message(Host, From, To, Message, Acc, outgoing, one2one) ->
+    mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message, Acc);
+process_message(Host, From, To, Message, Acc, incoming, one2one) ->
+    mod_inbox_one2one:handle_incoming_message(Host, From, To, Message, Acc);
+process_message(Host, From, To, Message, Acc, outgoing, groupchat) ->
+    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message, Acc);
+process_message(Host, From, To, Message, Acc, incoming, groupchat) ->
+    mod_inbox_muclight:handle_incoming_message(Host, From, To, Message, Acc);
 process_message(Host, From, To, Message, _TS, Dir, Type) ->
     ?LOG_WARNING(#{what => inbox_unknown_message,
                    text => <<"Unknown message was not written into inbox">>,
