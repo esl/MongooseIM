@@ -5,6 +5,7 @@
 %%% make sure they pass the expected arguments.
 -module(mongoose_hooks).
 
+-include("jlib.hrl").
 -include("mod_privacy.hrl").
 
 -export([adhoc_local_items/4,
@@ -63,12 +64,12 @@
 
 -export([offline_groupchat_message_hook/5,
          offline_message_hook/5,
-         set_presence_hook/5,
+         set_presence_hook/3,
          sm_broadcast/6,
          sm_filter_offline_message/4,
          sm_register_connection_hook/4,
          sm_remove_connection_hook/5,
-         unset_presence_hook/5,
+         unset_presence_hook/3,
          xmpp_bounce_message/1]).
 
 -export([roster_get/3,
@@ -704,13 +705,14 @@ offline_message_hook(LServer, Acc, From, To, Packet) ->
     ejabberd_hooks:run_for_host_type(offline_message_hook, LServer, Acc,
                                      [From, To, Packet]).
 
--spec set_presence_hook(LServer, Acc, LUser, LResource, Presence) -> Result when
-    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), LUser :: jid:luser(),
-    LResource :: jid:lresource(),
+-spec set_presence_hook(Acc, JID, Presence) -> Result when
+    Acc :: mongoose_acc:t(),
+    JID :: jid:jid(),
     Presence :: any(),
     Result :: mongoose_acc:t().
-set_presence_hook(LServer, Acc, LUser, LResource, Presence) ->
-    ejabberd_hooks:run_for_host_type(set_presence_hook, LServer, Acc,
+set_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Presence) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(set_presence_hook, HostType, Acc,
                                      [LUser, LServer, LResource, Presence]).
 
 -spec sm_broadcast(LServer, Acc, From, To, Broadcast, SessionCount) -> Result when
@@ -757,15 +759,14 @@ sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, HostType, Acc,
                                      [SID, JID, Info, Reason]).
 
--spec unset_presence_hook(LServer, Acc, LUser, LResource, Status) -> Result when
-    LServer :: jid:lserver(),
+-spec unset_presence_hook(Acc, JID, Status) -> Result when
     Acc :: mongoose_acc:t(),
-    LUser :: jid:luser(),
-    LResource :: jid:lresource(),
+    JID:: jid:jid(),
     Status :: binary(),
     Result :: mongoose_acc:t().
-unset_presence_hook(LServer, Acc, LUser, LResource, Status) ->
-    ejabberd_hooks:run_for_host_type(unset_presence_hook, LServer, Acc,
+unset_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Status) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(unset_presence_hook, HostType, Acc,
                                      [LUser, LServer, LResource, Status]).
 
 -spec xmpp_bounce_message(Acc) -> Result when

@@ -295,7 +295,7 @@ check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
       From :: jid:jid(),
       To :: jid:jid(),
       Packet :: exml:element().
-bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
+bounce_offline_message(Acc, From, To, Packet) ->
     Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
     {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
     Acc3 = ejabberd_router:route(To, From, Acc2, Err),
@@ -353,9 +353,8 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
       Presence :: any(),
       Info :: info().
 set_presence(Acc, SID, JID, Priority, Presence, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, Priority, Info),
-    mongoose_hooks:set_presence_hook(LServer, Acc, LUser, LResource, Presence).
+    mongoose_hooks:set_presence_hook(Acc, JID, Presence).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
@@ -366,9 +365,8 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Status :: binary(),
       Info :: info().
 unset_presence(Acc, SID, JID, Status, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, undefined, Info),
-    mongoose_hooks:unset_presence_hook(LServer, Acc, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(Acc, JID, Status).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
@@ -379,9 +377,8 @@ unset_presence(Acc, SID, JID, Status, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
-    mongoose_hooks:unset_presence_hook(LServer, Acc1, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(Acc1, JID, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
