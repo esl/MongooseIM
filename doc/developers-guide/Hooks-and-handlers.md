@@ -89,7 +89,7 @@ Rs = mongoose_acc:get(offline, messages, Acc1, []),
 
 In the past you may have found some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
 Under the hood it called the same handlers with `ok` as the initial accumulator.
-This is deprecated and some day will be removed.
+This is deprecated, and some day will be removed.
 
 ### Error handling in hooks
 
@@ -157,7 +157,7 @@ The arguments are exactly the same as passed to `ejabberd_hooks:add/5`.
 
 Every time a hook is run, a corresponding metric of the same name in the same host is incremented by one.
 There are some exceptions though as some metrics were implemented before the generic hook metrics.
-List of hooks not updating generic metrics can be found in the `mongoose_metrics:hook_to_name/1` function.
+List of hooks not updating generic metrics can be found in the `mongoose_metrics:filter_hook/1` function.
 Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module.
 
 ## Writing handlers

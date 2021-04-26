@@ -685,7 +685,7 @@ subscribe(Bob, Alice) ->
     PushReq = escalus:wait_for_stanza(Bob),
     escalus:assert(is_roster_set, PushReq),
     escalus:send(Bob, escalus_stanza:iq_result(PushReq)),
-    %% Alice receives subscription reqest
+    %% Alice receives subscription request
     Received = escalus:wait_for_stanza(Alice),
     escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
     %% Alice adds new contact to his roster

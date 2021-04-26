@@ -228,7 +228,7 @@ invisible_presence(Config) ->
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
@@ -400,7 +400,7 @@ subscribe(Config) ->
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
@@ -456,7 +456,7 @@ subscribe_decline(Config) ->
         escalus_assert:is_roster_set(PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
@@ -484,7 +484,7 @@ subscribe_relog(Config) ->
         escalus:assert(is_roster_set, PushReq),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
@@ -565,7 +565,7 @@ unsubscribe(Config) ->
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus:assert(is_presence_with_type, [<<"subscribe">>],
                        escalus:wait_for_stanza(Bob)),
         %% Bob adds new contact to his roster
@@ -620,7 +620,7 @@ remove_unsubscribe(Config) ->
         PushReq = escalus:wait_for_stanza(Alice),
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus:assert(is_presence_with_type, [<<"subscribe">>],
                        escalus:wait_for_stanza(Bob)),
         %% Bob adds new contact to his roster

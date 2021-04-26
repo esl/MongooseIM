@@ -867,7 +867,7 @@ subscribe(Who, Whom) ->
     escalus:assert(is_roster_set, PushReq),
     escalus:send(Who, escalus_stanza:iq_result(PushReq)),
 
-    %% 'Whom' receives subscription reqest
+    %% 'Whom' receives subscription request
     Received = escalus:wait_for_stanza(Whom),
     escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
