@@ -813,14 +813,13 @@ route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
-    LServer = To#jid.lserver,
     case ejabberd_auth:does_user_exist(To) of
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
-                    mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet);
+                    mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
                 false ->
-                    mongoose_hooks:failed_to_store_message(LServer, Acc)
+                    mongoose_hooks:failed_to_store_message(Acc)
             end;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(

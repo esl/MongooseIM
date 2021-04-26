@@ -15,7 +15,7 @@
          anonymous_purge_hook/3,
          auth_failed/3,
          ejabberd_ctl_process/2,
-         failed_to_store_message/2,
+         failed_to_store_message/1,
          filter_local_packet/2,
          filter_packet/1,
          inbox_unread_count/3,
@@ -63,7 +63,7 @@
          privacy_updated_list/3]).
 
 -export([offline_groupchat_message_hook/4,
-         offline_message_hook/5,
+         offline_message_hook/4,
          set_presence_hook/3,
          sm_broadcast/5,
          sm_filter_offline_message/4,
@@ -252,12 +252,12 @@ node_cleanup(Node) ->
 ejabberd_ctl_process(Acc, Args) ->
     ejabberd_hooks:run_global(ejabberd_ctl_process, Acc, [Args]).
 
--spec failed_to_store_message(LServer, Acc) -> Result when
-    LServer :: jid:lserver(),
+-spec failed_to_store_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-failed_to_store_message(LServer, Acc) ->
-    ejabberd_hooks:run_for_host_type(failed_to_store_message, LServer, Acc, []).
+failed_to_store_message(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(failed_to_store_message, HostType, Acc, []).
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
@@ -694,15 +694,15 @@ offline_groupchat_message_hook(Acc, From, To, Packet) ->
     ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, HostType, Acc,
                                      [From, To, Packet]).
 
--spec offline_message_hook(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec offline_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_message_hook(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(offline_message_hook, LServer, Acc,
+offline_message_hook(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(offline_message_hook, HostType, Acc,
                                      [From, To, Packet]).
 
 -spec set_presence_hook(Acc, JID, Presence) -> Result when
