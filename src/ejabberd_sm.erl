@@ -622,8 +622,7 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = mongoose_hooks:sm_broadcast(To#jid.lserver, Acc, From, To,
-                                               Broadcast, length(CurrentPids)),
+            Acc1 = mongoose_hooks:sm_broadcast(Acc, From, To, Broadcast, length(CurrentPids)),
             ?LOG_DEBUG(#{what => sm_broadcast, session_pids => CurrentPids}),
             BCast = {broadcast, Payload},
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
