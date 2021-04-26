@@ -93,7 +93,7 @@ direction(From, To) ->
       Packet :: packet().
 handle_outgoing_message(Host, Room, To, Packet) ->
     maybe_reset_unread_count(Host, To, Room, Packet),
-    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => Host}),
+    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => Host, host_type => undefined}),
     maybe_write_to_inbox(Host, To, Room, Packet, Acc, fun write_to_sender_inbox/5).
 
 -spec handle_incoming_message(Host, Room, To, Packet) -> term() when
@@ -102,7 +102,7 @@ handle_outgoing_message(Host, Room, To, Packet) ->
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 handle_incoming_message(Host, Room, To, Packet) ->
-    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => Host}),
+    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => Host, host_type => undefined}),
     maybe_write_to_inbox(Host, Room, To, Packet, Acc, fun write_to_receiver_inbox/5).
 
 maybe_reset_unread_count(Host, User, Room, Packet) ->
