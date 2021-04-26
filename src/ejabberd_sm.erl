@@ -772,8 +772,8 @@ is_privacy_allow(From, To, Acc, Packet) ->
       Packet :: exml:element(),
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
-    Server = To#jid.lserver,
-    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, To, PrivacyList, To, in),
+    HostType = mongoose_acc:host_type(Acc),
+    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, HostType, To, PrivacyList, To, in),
     allow == Res.
 
 

@@ -629,16 +629,16 @@ session_opening_allowed_for_user(HostType, JID) ->
 
 %% Privacy related hooks
 
--spec privacy_check_packet(LServer, Acc, JID, PrivacyList,
+-spec privacy_check_packet(HostType, Acc, JID, PrivacyList,
                            FromToNameType, Dir) -> Result when
-    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), JID :: jid:jid(),
+    HostType :: binary(), Acc :: mongoose_acc:t(), JID :: jid:jid(),
     PrivacyList :: mongoose_privacy:userlist(),
     FromToNameType :: {jid:jid(), jid:jid(), binary(), binary()},
     Dir :: in | out,
     Result :: mongoose_acc:t().
-privacy_check_packet(LServer, Acc, JID, PrivacyList, FromToNameType, Dir) ->
+privacy_check_packet(HostType, Acc, JID, PrivacyList, FromToNameType, Dir) ->
     AccWithRes = mongoose_acc:set(hook, result, allow, Acc),
-    ejabberd_hooks:run_for_host_type(privacy_check_packet, LServer, AccWithRes,
+    ejabberd_hooks:run_for_host_type(privacy_check_packet, HostType, AccWithRes,
                                      [JID, PrivacyList, FromToNameType, Dir]).
 
 -spec privacy_get_user_list(HostType, JID) -> Result when
