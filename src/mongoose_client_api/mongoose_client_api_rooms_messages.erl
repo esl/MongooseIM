@@ -61,6 +61,7 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
     R = mod_mam_muc:lookup_messages(Server,
                                     #{archive_id => ArchiveID,
                                       owner_jid => RoomJID,
+                                      caller_jid => UserJID,
                                       rsm => RSM,
                                       borders => undefined,
                                       start_ts => undefined,

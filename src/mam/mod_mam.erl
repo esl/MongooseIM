@@ -424,7 +424,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
                                            mod_mam_params:default_result_limit(?MODULE, Host),
                                            mod_mam_params:extra_params_module(?MODULE, Host)),
-    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
     case lookup_messages(Host, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),

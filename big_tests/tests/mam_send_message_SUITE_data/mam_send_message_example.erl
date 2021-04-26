@@ -24,10 +24,11 @@ hooks(Host) ->
     [{mam_lookup_messages, Host, ?MODULE, lookup_messages, 60},
      {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 60}].
 
+%% caller_jid could be used for privacy checking or per-user customization
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
 lookup_messages({ok, {TotalCount, Offset, MessageRows}},
-                Host, Params = #{owner_jid := ArcJID}) ->
+                Host, Params = #{owner_jid := ArcJID, caller_jid := _CallerJID}) ->
     MessageRows2 = [extend_message(Host, ArcJID, Row) || Row <- MessageRows],
     {ok, {TotalCount, Offset, MessageRows2}}.
 
