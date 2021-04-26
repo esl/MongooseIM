@@ -397,7 +397,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
                To :: jid:jid(),
-               El :: mongoose_acc:t()) -> mongoose_acc:t().
+               El :: exml:element()) -> mongoose_acc:t().
 do_route(Acc, From, To, El) ->
     ?LOG_DEBUG(#{what => local_routing, acc => Acc}),
     case directed_to(To) of
