@@ -392,9 +392,9 @@ CREATE TABLE inbox (
     timestamp BIGINT UNSIGNED        NOT NULL,
     archive BOOLEAN                  DEFAULT false,
     muted_until BIGINT               DEFAULT 0,
-    PRIMARY KEY(luser, lserver, remote_bare_jid));
+    PRIMARY KEY(lserver, luser, remote_bare_jid));
 
-CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
+CREATE INDEX i_inbox USING BTREE ON inbox(lserver, luser, timestamp);
 
 CREATE TABLE pubsub_nodes (
     nidx BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

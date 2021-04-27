@@ -349,11 +349,11 @@ CREATE TABLE inbox (
     timestamp BIGINT                 NOT NULL,
     archive BOOLEAN                  DEFAULT false,
     muted_until BIGINT               DEFAULT 0,
-    PRIMARY KEY(luser, lserver, remote_bare_jid));
+    PRIMARY KEY(lserver, luser, remote_bare_jid));
 
-CREATE INDEX i_inbox
+CREATE INDEX i_inbox_timestamp
     ON inbox
-    USING BTREE(luser, lserver, timestamp);
+    USING BTREE(lserver, luser, timestamp);
 
 CREATE TABLE pubsub_nodes (
     nidx               BIGSERIAL PRIMARY KEY,
@@ -404,7 +404,7 @@ CREATE TABLE pubsub_last_item (
     created_lserver     VARCHAR(250) NOT NULL,
     created_at          BIGINT       NOT NULL,
     payload             TEXT         NOT NULL,
-	PRIMARY KEY (nidx)
+    PRIMARY KEY (nidx)
 );
 
 -- we skip luser and lserver in this one as this is little chance (even impossible?)
