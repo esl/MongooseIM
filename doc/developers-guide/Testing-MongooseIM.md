@@ -108,6 +108,30 @@ The command can be used instead:
 And `mam` is used to run `mam_SUITE` suite only.
 
 
+## Debugging big tests database
+
+This command opens MySQL shell interface:
+
+```bash
+./tools/open-test-database-shell.sh mysql
+```
+
+This command opens PgSQL shell interface:
+
+```bash
+./tools/open-test-database-shell.sh pgsql
+```
+
+This command opens [MSSQL shell interface](https://docs.microsoft.com/en-us/sql/tools/sqlcmd-utility):
+
+```bash
+./tools/open-test-database-shell.sh mssql
+```
+
+You can use this command to execute SQL queries directly. It's useful when designing
+new SQL queries.
+
+
 ## Unit tests (a.k.a. "small tests")
 
 These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
