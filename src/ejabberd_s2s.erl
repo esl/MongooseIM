@@ -272,10 +272,7 @@ do_route(From, To, Acc, Packet) ->
                                                   jid:to_binary(To),
                                                   Attrs),
             NewPacket = Packet#xmlel{attrs = NewAttrs},
-            #jid{lserver = MyServer} = From,
-            Acc1 = mongoose_hooks:s2s_send_packet(MyServer,
-                                                  Acc,
-                                                  From, To, Packet),
+            Acc1 = mongoose_hooks:s2s_send_packet(Acc, From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
             done;
         {aborted, _Reason} ->

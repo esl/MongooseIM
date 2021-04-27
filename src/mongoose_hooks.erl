@@ -116,7 +116,7 @@
          s2s_connect_hook/2,
          s2s_receive_packet/2,
          s2s_stream_features/1,
-         s2s_send_packet/5]).
+         s2s_send_packet/4]).
 
 -export([disco_info/4,
          disco_local_features/5,
@@ -1212,8 +1212,7 @@ find_s2s_bridge(Name, Server) ->
     S2SHost :: jid:server(),
     Result :: allow | deny.
 s2s_allow_host(MyHost, S2SHost) ->
-    ejabberd_hooks:run_for_host_type(s2s_allow_host, MyHost, allow,
-                                     [MyHost, S2SHost]).
+    ejabberd_hooks:run_global(s2s_allow_host, allow, [MyHost, S2SHost]).
 
 %%% @doc `s2s_connect_hook' hook is called when a s2s connection is established.
 -spec s2s_connect_hook(Name, Server) -> Result when
@@ -1221,19 +1220,17 @@ s2s_allow_host(MyHost, S2SHost) ->
     Server :: jid:server(),
     Result :: any().
 s2s_connect_hook(Name, Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_connect_hook, Name, ok, [Server]).
+    ejabberd_hooks:run_global(s2s_connect_hook, ok, [Name, Server]).
 
 %%% @doc `s2s_send_packet' hook is called when a message is routed.
--spec s2s_send_packet(Server, Acc, From, To, Packet) -> Result when
-    Server :: jid:server(),
+-spec s2s_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-s2s_send_packet(Server, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(s2s_send_packet, Server, Acc,
-                                     [From, To, Packet]).
+s2s_send_packet(Acc, From, To, Packet) ->
+    ejabberd_hooks:run_global(s2s_send_packet, Acc, [From, To, Packet]).
 
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
