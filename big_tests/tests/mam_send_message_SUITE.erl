@@ -60,7 +60,7 @@ init_per_group(Group, Config) ->
             load_custom_module(),
             Config2 = dynamic_modules:save_modules(domain(), Config),
             rpc(mim(), gen_mod_deps, start_modules, [domain(), group_to_modules(Group)]),
-            Config2;
+            [{props, mam_helper:mam06_props()}|Config2];
         false ->
             {skip, require_rdbms}
     end.
@@ -113,7 +113,7 @@ mam_pm_send_message(Config) ->
         [Msg] = respond_messages(Res),
         verify_has_some_hash(Msg)
         end,
-    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
 
 mam_muc_send_message(Config0) ->
     F = fun(Config, Alice) ->
@@ -133,7 +133,7 @@ mam_muc_send_message(Config0) ->
         [Msg] = respond_messages(assert_respond_size(1, wait_archive_respond(Alice))),
         verify_has_some_hash(Msg)
         end,
-    escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
+    escalus:fresh_story_with_config(Config0, [{alice, 1}], F).
 
 verify_has_some_hash(Msg) ->
     Hash = exml_query:path(Msg, [{element, <<"result">>},
