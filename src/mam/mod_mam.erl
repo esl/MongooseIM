@@ -95,8 +95,7 @@
 
 %% ejabberd
 -import(mod_mam_utils,
-        [send_message/3,
-         is_jid_in_user_roster/2]).
+        [is_jid_in_user_roster/2]).
 
 
 -include("mongoose.hrl").
@@ -119,7 +118,7 @@
 
 -type borders()             :: #mam_borders{}.
 
--type message_row() :: {message_id(), jid:jid(), exml:element()}.
+-type message_row() :: #{id := message_id(), jid := jid:jid(), packet := exml:element()}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
                           MessageRows :: [message_row()]}.
@@ -425,7 +424,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
                                            mod_mam_params:default_result_limit(?MODULE, Host),
                                            mod_mam_params:extra_params_module(?MODULE, Host)),
-    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
     case lookup_messages(Host, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
@@ -450,11 +449,15 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
         [_|_] -> {message_row_to_ext_id(hd(MessageRows)),
                   message_row_to_ext_id(lists:last(MessageRows))}
     end,
-
-    [send_message(ArcJID, From,
-                  message_row_to_xml(MamNs, M, QueryID, SetClientNs))
-     || M <- MessageRows],
+    Host = ArcJID#jid.lserver,
+    SendModule = mod_mam_params:send_message_mod(?MODULE, Host),
+    [send_message(SendModule, Row, ArcJID, From,
+                  message_row_to_xml(MamNs, Row, QueryID, SetClientNs))
+     || Row <- MessageRows],
     {FirstMessID, LastMessID}.
+
+send_message(SendModule, Row, ArcJID, From, Packet) ->
+    mam_send_message:call_send_message(SendModule, Row, ArcJID, From, Packet).
 
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
@@ -609,20 +612,19 @@ archive_message(Host, Params) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--type messid_jid_packet() :: {MessId :: integer(),
-                              SrcJID :: jid:jid(),
-                              Packet :: exml:element()}.
--spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) ->
+-spec message_row_to_xml(binary(), message_row(), QueryId :: binary(), boolean()) ->
     exml:element().
-message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs)  ->
+message_row_to_xml(MamNs, #{id := MessID, jid := SrcJID, packet := Packet},
+                   QueryID, SetClientNs)  ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
-    TS = calendar:system_time_to_rfc3339(erlang:convert_time_unit(Microseconds, microsecond, second), [{offset, "Z"}]),
+    Secs = erlang:convert_time_unit(Microseconds, microsecond, second),
+    TS = calendar:system_time_to_rfc3339(Secs, [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
     wrap_message(MamNs, Packet1, QueryID, BExtMessID, TS, SrcJID).
 
--spec message_row_to_ext_id(messid_jid_packet()) -> binary().
-message_row_to_ext_id({MessID, _, _}) ->
+-spec message_row_to_ext_id(message_row()) -> binary().
+message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
 handle_error_iq(Host, Acc, _To, _Action, {error, _Reason, IQ}) ->

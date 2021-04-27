@@ -61,6 +61,7 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
     R = mod_mam_muc:lookup_messages(Server,
                                     #{archive_id => ArchiveID,
                                       owner_jid => RoomJID,
+                                      caller_jid => UserJID,
                                       rsm => RSM,
                                       borders => undefined,
                                       start_ts => undefined,
@@ -159,7 +160,8 @@ encode(Packet, Timestamp) ->
     Msg = make_json_item(Packet, FromJID, Timestamp),
     Msg#{room => FromJID#jid.luser}.
 
-make_json_item({MAMID, JID, Msg}) ->
+-spec make_json_item(mod_mam:message_row()) -> term().
+make_json_item(#{id := MAMID, jid := JID, packet := Msg}) ->
     {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMID),
     make_json_item(Msg, JID, Microsec div 1000).
 

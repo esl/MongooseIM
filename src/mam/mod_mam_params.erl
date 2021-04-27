@@ -19,8 +19,8 @@
 -type mam_module() :: mod_mam | mod_mam_muc.
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
-         has_full_text_search/2, is_archivable_message_fun/2, archive_chat_markers/2,
-         add_stanzaid_element/2]).
+         has_full_text_search/2, is_archivable_message_fun/2, send_message_mod/2,
+         archive_chat_markers/2, add_stanzaid_element/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -57,6 +57,10 @@ is_archivable_message_fun(Module, Host) ->
             Mod -> {Mod, is_archivable_message}
         end,
     {IsArchivableModule, IsArchivableFunction}.
+
+-spec send_message_mod(mam_module(), Host :: jid:lserver()) -> module().
+send_message_mod(Module, Host) ->
+    param(Module, Host, send_message, mod_mam_utils).
 
 -spec archive_chat_markers(mam_module(), Host :: jid:lserver()) -> boolean().
 archive_chat_markers(Module, Host) ->

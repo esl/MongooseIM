@@ -413,7 +413,7 @@ get_recent_messages(Caller, With, 0, Limit) ->
     get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
     Res = lookup_recent_messages(Caller, With, Before, Limit),
-    lists:map(fun record_to_map/1, Res).
+    lists:map(fun row_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
     JID = jid:make(User, Host, <<>>),
@@ -427,7 +427,8 @@ change_user_password(Host, User, Password) ->
             {error, bad_request, "invalid jid"}
     end.
 
-record_to_map({Id, From, Msg}) ->
+-spec row_to_map(mod_mam:message_row()) -> map().
+row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     Jbin = jid:to_binary(From),
     {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
     MsgId = case xml:get_tag_attr(<<"id">>, Msg) of

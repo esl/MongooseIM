@@ -90,11 +90,6 @@
         [mess_id_to_external_binary/1,
          is_complete_result_page/4]).
 
-%% ejabberd
--import(mod_mam_utils,
-        [send_message/3]).
-
-
 -include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -108,7 +103,7 @@
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
--type row() :: {mod_mam:message_id(), jid:jid(), exml:element()}.
+-type row() :: mod_mam:message_row().
 
 -export_type([row/0, row_batch/0]).
 
@@ -382,7 +377,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
                                            mod_mam_params:default_result_limit(?MODULE, Host),
                                            mod_mam_params:extra_params_module(?MODULE, Host)),
-    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
+    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
     Result = lookup_messages(Host, Params),
     handle_lookup_result(Result, From, IQ, Params).
 
@@ -422,10 +417,16 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
                         message_row_to_ext_id(lists:last(MessageRows)),
                         is_user_identity_hidden(From, ArcJID)}
         end,
-    [send_message(ArcJID, From, message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
-                                                   QueryID))
+    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
+    SendModule = mod_mam_params:send_message_mod(?MODULE, Host),
+    [send_message(SendModule, Row, ArcJID, From,
+                  message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
+                                     QueryID))
      || Row <- MessageRows],
     {FirstMessID, LastMessID}.
+
+send_message(SendModule, Row, ArcJID, From, Packet) ->
+    mam_send_message:call_send_message(SendModule, Row, ArcJID, From, Packet).
 
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
@@ -505,8 +506,8 @@ archive_message(Host, Params) ->
 
 -spec message_row_to_xml(binary(), jid:jid(), boolean(), boolean(), row(), binary() | undefined) ->
                                 exml:element().
-message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
-
+message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs,
+                   #{id := MessID, jid := SrcJID, packet := Packet}, QueryID) ->
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
     TS = calendar:system_time_to_rfc3339(erlang:convert_time_unit(Microseconds, microsecond, second), [{offset, "Z"}]),
     BExtMessID = mess_id_to_external_binary(MessID),
@@ -536,7 +537,7 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
     Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().
-message_row_to_ext_id({MessID, _, _}) ->
+message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
 -spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),

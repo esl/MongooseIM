@@ -15,7 +15,7 @@
 -export([form_to_with_jid/1]).
 -export([form_to_lookup_params/4]).
 
--export([lookup_params_with_archive_details/3]).
+-export([lookup_params_with_archive_details/4]).
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
@@ -34,6 +34,7 @@
 -type lookup_params() :: #{
         archive_id => mod_mam:archive_id(),
         owner_jid => jid:jid(),
+        caller_jid => jid:jid(),
         rsm => jlib:rsm_in() | undefined,
         max_result_limit => non_neg_integer(),
         %% Contains page size value provided by client or enforced by server.
@@ -215,11 +216,12 @@ common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
       limit_passed => Limit =/= <<>>,
       ordering_direction => ordering_direction(RSM)}.
 
--spec lookup_params_with_archive_details(lookup_params(), term(), jid:jid()) ->
+-spec lookup_params_with_archive_details(lookup_params(), term(), jid:jid(), jid:jid()) ->
     lookup_params().
-lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
+lookup_params_with_archive_details(Params, ArcID, ArcJID, CallerJID) ->
     Params#{archive_id => ArcID,
-            owner_jid => ArcJID}.
+            owner_jid => ArcJID,
+            caller_jid => CallerJID}.
 
 ordering_direction(#rsm_in{direction = before}) -> backward;
 ordering_direction(_) -> forward.

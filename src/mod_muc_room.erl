@@ -4319,17 +4319,9 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     DAttrs2 = lists:keydelete(<<"to">>, 1, DAttrs),
     DAttrs3 = [{<<"from">>, FromString} | DAttrs2],
     DEl2 = #xmlel{name = <<"decline">>, attrs = DAttrs3, children = DEls},
-    XEl2 = replace_subelement(XEl, DEl2),
-    Packet2 = replace_subelement(Packet, XEl2),
+    XEl2 = xml:replace_subelement(XEl, DEl2),
+    Packet2 = xml:replace_subelement(Packet, XEl2),
     ejabberd_router:route(RoomJID, ToJID, Packet2).
-
-%% @doc Given an element and a new subelement,
-%% replace the instance of the subelement in element with the new subelement.
--spec replace_subelement(exml:element(), exml:element()) -> exml:element().
-replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
-    {_, NameNewSubEl, _, _} = NewSubEl,
-    SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
-    XE#xmlel{children = SubEls2}.
 
 -spec send_error_only_occupants(binary(), exml:element(),
                                 binary() | nonempty_string(),
