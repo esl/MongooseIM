@@ -29,7 +29,7 @@
          register_user/2,
          remove_user/3,
          resend_offline_messages_hook/3,
-         rest_user_send_packet/5,
+         rest_user_send_packet/4,
          session_cleanup/5,
          set_vcard/3,
          unacknowledged_message/3,
@@ -385,15 +385,15 @@ resend_offline_messages_hook(HostType, Acc, JID) ->
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends
 %%% a message using the REST API.
--spec rest_user_send_packet(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec rest_user_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-rest_user_send_packet(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(rest_user_send_packet, LServer, Acc,
+rest_user_send_packet(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(rest_user_send_packet, HostType, Acc,
                                      [From, To, Packet]).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
