@@ -157,7 +157,6 @@ rsm_to_regular_lookup_vars(RSM, Filter, Offset, PageSize) ->
 decode_rows(MessageRows, Env) ->
     [decode_row(Row, Env) || Row <- MessageRows].
 
-%% First element of the tuple is decoded message ID
 -spec decoded_row_to_message_id(mod_mam:message_row()) -> mod_mam:message_id().
 decoded_row_to_message_id(#{id := MessId}) -> MessId.
 

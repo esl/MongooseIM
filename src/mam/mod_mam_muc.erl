@@ -426,7 +426,7 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
     {FirstMessID, LastMessID}.
 
 send_message(SendModule, Row, ArcJID, From, Packet) ->
-    SendModule:send_message(Row, ArcJID, From, Packet).
+    mam_send_message:call_send_message(SendModule, Row, ArcJID, From, Packet).
 
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
