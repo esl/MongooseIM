@@ -6,7 +6,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% @doc This module is responsible for initialising
 %% and stopping stuff needed to handle different deprecation
-%% warinings as well as for exposing API for loging these
+%% warnings as well as for exposing API for logging these
 %% deprecations.
 %% It checks whether a specific deprecation warning is not exceeding
 %% given frequency of logging.
@@ -75,7 +75,7 @@ log(Tag, Msg) ->
 %% @doc Deprecation table will hold pairs in form:
 %%      {deprecation_tag(), unix_timestamp()}
 %% and will indicate at what (unix) time last deprecation
-%% warining was logged concerning a deprecation connected to
+%% warning was logged concerning a deprecation connected to
 %% the deprecation tag specified in a key
 -spec prepare_ets() -> ok.
 prepare_ets() ->

@@ -74,7 +74,7 @@ Latest releases:
 * [3.0.1](https://esl.github.io/MongooseDocs/3.0.1/)
 
 
-**MongooseIM documentation highligts:**
+**MongooseIM documentation highlights:**
 
 When developing new features/modules, please make sure you add basic documentation to the 'doc/' directory, and add a link to your document in 'doc/README.md.'
 

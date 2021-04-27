@@ -12,7 +12,7 @@
 %%% <li>User's ID generator ({@link mod_mam_muc_user}).</li>
 %%% </ul>
 %%%
-%%% Preferencies can be also stored in Mnesia ({@link mod_mam_mnesia_prefs}).
+%%% Preferences can be also stored in Mnesia ({@link mod_mam_mnesia_prefs}).
 %%% This module handles simple archives.
 %%%
 %%% This module should be started for each host.

@@ -177,7 +177,7 @@ subscribe(ConfigIn) ->
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob adds new contact to his roster
@@ -216,7 +216,7 @@ decline_subscription(ConfigIn) ->
         PushReq = escalus_client:wait_for_stanza(Alice),
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus_client:wait_for_stanza(Bob),
 
         %% Bob refuses subscription
@@ -243,7 +243,7 @@ unsubscribe(ConfigIn) ->
 
         escalus_client:send(Alice, escalus_stanza:iq_result(PushReq)),
 
-        %% Bob receives subscription reqest
+        %% Bob receives subscription request
         escalus_client:wait_for_stanza(Bob),
         %% Bob adds new contact to his roster
         escalus_client:send(Bob,
