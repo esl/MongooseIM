@@ -118,7 +118,7 @@
 
 -type borders()             :: #mam_borders{}.
 
--type message_row() :: #{id => message_id(), jid => jid:jid(), packet => exml:element()}.
+-type message_row() :: #{id := message_id(), jid := jid:jid(), packet := exml:element()}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
                           MessageRows :: [message_row()]}.
