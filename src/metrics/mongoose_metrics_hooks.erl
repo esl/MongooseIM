@@ -16,7 +16,7 @@
 %%-------------------
 %% Internal exports
 %%-------------------
--export([sm_register_connection_hook/4,
+-export([sm_register_connection_hook/5,
          sm_remove_connection_hook/5,
          auth_failed/3,
          user_send_packet/4,
@@ -69,9 +69,9 @@ get_hooks(Host) ->
       {sm_broadcast, Host, ?MODULE, privacy_list_push, 1}
       | mongoose_metrics_mam_hooks:get_hooks(Host)].
 
--spec sm_register_connection_hook(map(), tuple(), jid:jid(), term()
+-spec sm_register_connection_hook(map(), binary(), tuple(), jid:jid(), term()
                                  ) -> metrics_notify_return().
-sm_register_connection_hook(Acc, _, #jid{server = Server}, _) ->
+sm_register_connection_hook(Acc, _HostType, _, #jid{server = Server}, _) ->
     mongoose_metrics:update(Server, sessionSuccessfulLogins, 1),
     mongoose_metrics:update(Server, sessionCount, 1),
     Acc.

@@ -84,7 +84,7 @@ auth_anonymous(_Config) ->
     {U, S, R, JID, SID} = get_fake_session(),
     ejabberd_auth_anonymous:start(S),
     Info = [{auth_module, ejabberd_auth_anonymous}],
-    ejabberd_auth_anonymous:register_connection(#{}, SID, JID, Info),
+    ejabberd_auth_anonymous:register_connection(#{}, S, SID, JID, Info),
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
     mongoose_hooks:session_cleanup(S, ok, U, R, SID),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).

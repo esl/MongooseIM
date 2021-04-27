@@ -31,7 +31,7 @@
          stop/1,
          anonymous_user_exist/2,
          allow_multiple_connections/1,
-         register_connection/4,
+         register_connection/5,
          unregister_connection/5,
          session_cleanup/5
         ]).
@@ -153,13 +153,14 @@ remove_connection(SID, LUser, LServer) ->
 
 %% @doc Register connection
 -spec register_connection(Acc,
+                          HostType :: binary(),
                           SID :: ejabberd_sm:sid(),
                           JID :: jid:jid(),
                           Info :: list()) -> Acc when Acc :: any().
-register_connection(Acc, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
+register_connection(Acc, HostType, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
     case lists:keyfind(auth_module, 1, Info) of
         {_, ?MODULE} ->
-            mongoose_hooks:register_user(LServer, LUser),
+            mongoose_hooks:register_user(HostType, LServer, LUser),
             US = {LUser, LServer},
             mnesia:sync_dirty(
               fun() -> mnesia:write(#anonymous{us = US, sid=SID})

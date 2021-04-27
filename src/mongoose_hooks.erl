@@ -26,7 +26,7 @@
          push_notifications/4,
          register_command/1,
          register_subhost/2,
-         register_user/2,
+         register_user/3,
          remove_user/3,
          resend_offline_messages_hook/3,
          rest_user_send_packet/4,
@@ -359,12 +359,13 @@ register_subhost(LDomain, IsHidden) ->
 
 %%% @doc The `register_user' hook is called when a user is successfully
 %%% registered in an authentication backend.
--spec register_user(LServer, LUser) -> Result when
+-spec register_user(HostType, LServer, LUser) -> Result when
+    HostType :: binary(),
     LServer :: jid:lserver(),
     LUser :: jid:luser(),
     Result :: any().
-register_user(LServer, LUser) ->
-    ejabberd_hooks:run_for_host_type(register_user, LServer, ok, [LUser, LServer]).
+register_user(HostType, LServer, LUser) ->
+    ejabberd_hooks:run_for_host_type(register_user, HostType, ok, [LUser, LServer]).
 
 %%% @doc The `remove_user' hook is called when a user is removed.
 -spec remove_user(LServer, Acc, LUser) -> Result when
@@ -373,7 +374,8 @@ register_user(LServer, LUser) ->
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
 remove_user(LServer, Acc, LUser) ->
-    ejabberd_hooks:run_for_host_type(remove_user, LServer, Acc, [LUser, LServer]).
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 
 -spec resend_offline_messages_hook(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -746,7 +748,7 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
     Result :: ok.
 sm_register_connection_hook(HostType, SID, JID, Info) ->
     ejabberd_hooks:run_for_host_type(sm_register_connection_hook, HostType, ok,
-                                     [SID, JID, Info]).
+                                     [HostType, SID, JID, Info]).
 
 -spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),

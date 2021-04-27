@@ -23,7 +23,7 @@
 
 %% Hook callbacks
 -export([iq_ping/4,
-         user_online/4,
+         user_online/5,
          user_offline/5,
          user_send/4,
          user_ping_response/4,
@@ -144,7 +144,7 @@ handle_remote_hook(HandlerState, mod_ping, Args, C2SState) ->
 handle_remote_hook(HandlerState, _, _, _) ->
     HandlerState.
 
-user_online(Acc, {_, Pid} = _SID, _Jid, _Info) ->
+user_online(Acc, _HostType, {_, Pid} = _SID, _Jid, _Info) ->
     ejabberd_c2s:run_remote_hook(Pid, mod_ping, init),
     Acc.
 
