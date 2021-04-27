@@ -15,6 +15,8 @@
 %%==============================================================================
 -module(mongooseim).
 
+-type host_type() :: binary().
+-export_type([host_type/0]).
 
 %% API
 -export([start/0]).

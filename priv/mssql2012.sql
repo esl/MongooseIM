@@ -487,14 +487,14 @@ CREATE TABLE dbo.inbox(
     archive TINYINT DEFAULT 0,
     muted_until BIGINT DEFAULT 0,
     CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
-        luser ASC,
         lserver ASC,
+        luser ASC,
         remote_bare_jid ASC
     )
 )
 GO
 
-CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
+CREATE INDEX i_inbox_su_ts ON inbox(lserver, luser, timestamp);
 GO
 
 CREATE TABLE dbo.pubsub_nodes (

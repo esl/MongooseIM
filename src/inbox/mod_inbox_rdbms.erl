@@ -22,6 +22,7 @@
          set_inbox_incr_unread/6,
          reset_unread/4,
          remove_inbox_row/3,
+         remove_domain/2,
          clear_inbox/1,
          clear_inbox/2,
          get_inbox_unread/3,
@@ -68,6 +69,9 @@ init(VHost, _Options) ->
     mongoose_rdbms:prepare(inbox_delete, inbox,
                            [luser, lserver],
                            <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
+    mongoose_rdbms:prepare(inbox_delete_domain, inbox,
+                           [lserver],
+                           <<"DELETE FROM inbox WHERE lserver = ?">>),
     mongoose_rdbms:prepare(inbox_delete_all, inbox, [], <<"DELETE FROM inbox">>),
         UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
@@ -131,6 +135,12 @@ remove_inbox_row(LUsername, LServer, ToBareJid) ->
     LToBareJid = jid:nameprep(ToBareJid),
     Res = execute_delete(LUsername, LServer, LToBareJid),
     check_result(Res).
+
+-spec remove_domain(HostType :: mongooseim:host_type(),
+                    LServer :: jid:lserver()) -> ok.
+remove_domain(HostType, LServer) ->
+    execute_delete_domain(HostType, LServer),
+    ok.
 
 %% This function was not refatorected to use the generic upsert helper
 %% becase this helper doesn't support parametrized queries for incremental change
@@ -418,6 +428,11 @@ execute_delete(LUser, LServer) ->
 -spec execute_delete(jid:lserver()) -> mongoose_rdbms:query_result().
 execute_delete(LServer) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
+
+-spec execute_delete_domain(HostType :: mongooseim:host_type(),
+                            LServer :: jid:lserver()) -> ok.
+execute_delete_domain(HostType, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_delete_domain, [LServer]).
 
 %% Result processing
 

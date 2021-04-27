@@ -11,7 +11,8 @@
          end_per_testcase/2]).
 
 -export([mam_pm_removal/1,
-         mam_muc_removal/1]).
+         mam_muc_removal/1,
+         inbox_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -22,12 +23,14 @@
 -include_lib("exml/include/exml_stream.hrl").
 
 all() ->
-    [{group, mam_removal}].
+    [{group, mam_removal},
+     {group, inbox_removal}].
 
 groups() ->
     [
      {mam_removal, [], [mam_pm_removal,
-                        mam_muc_removal]}
+                        mam_muc_removal]},
+     {inbox_removal, [], [inbox_removal]}
     ].
 
 domain() ->
@@ -67,7 +70,9 @@ end_per_group(_Groupname, Config) ->
 group_to_modules(mam_removal) ->
     MH = muc_light_helper:muc_host(),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]}]},
-     {mod_muc_light, []}].
+     {mod_muc_light, []}];
+group_to_modules(inbox_removal) ->
+    [{mod_inbox, []}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -109,6 +114,17 @@ mam_muc_removal(Config0) ->
         mam_helper:wait_for_room_archive_size(MucHost, Room, 0)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
+
+inbox_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+        inbox_helper:get_inbox(Alice, #{count => 1}),
+        inbox_helper:get_inbox(Bob, #{count => 1}),
+        run_remove_domain(),
+        inbox_helper:get_inbox(Alice, #{count => 0, unread_messages => 0, active_conversations => 0}),
+        inbox_helper:get_inbox(Bob, #{count => 0, unread_messages => 0, active_conversations => 0})
+      end).
 
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).
