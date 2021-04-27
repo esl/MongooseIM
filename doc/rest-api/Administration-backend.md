@@ -32,7 +32,7 @@ Read the beautiful [Swagger documentation](https://esl.github.io/MongooseDocs/la
 [![Swagger](https://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](https://esl.github.io/MongooseDocs/latest/swagger/index.html)
 
 <iframe src="https://esl.github.io/MongooseDocs/latest/swagger/index.html"
-height="800" width="800" style="margin-left: -45px;" id="swagger-ui-iframe"></iframe>
+height="800" width="800" id="swagger-ui-iframe"></iframe>
 
 <script>
 
