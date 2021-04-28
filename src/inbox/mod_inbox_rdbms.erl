@@ -430,7 +430,8 @@ execute_delete(LServer) ->
     mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
 
 -spec execute_delete_domain(HostType :: mongooseim:host_type(),
-                            LServer :: jid:lserver()) -> ok.
+                            LServer :: jid:lserver()) ->
+    mongoose_rdbms:query_result().
 execute_delete_domain(HostType, LServer) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_delete_domain, [LServer]).
 
