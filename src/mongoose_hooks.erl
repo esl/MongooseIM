@@ -1187,12 +1187,12 @@ get_mam_muc_gdpr_data(HookServer, JID) ->
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.
--spec get_personal_data(LServer, JID) -> Result when
-    LServer :: jid:lserver(),
+-spec get_personal_data(HostType, JID) -> Result when
+    HostType :: binary(),
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
-get_personal_data(LServer, JID) ->
-    ejabberd_hooks:run_for_host_type(get_personal_data, LServer, [], [JID]).
+get_personal_data(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(get_personal_data, HostType, [], [JID]).
 
 %% S2S related hooks
 
