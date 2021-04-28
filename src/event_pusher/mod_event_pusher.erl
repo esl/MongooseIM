@@ -137,7 +137,7 @@ create_ets(Host) ->
 
 config_metrics(Host) ->
     try
-        Opts = gen_mod:opts_for_module(Host, ?MODULE),
+        Opts = gen_mod:get_module_opts(Host, ?MODULE),
         BackendsWithOpts = proplists:get_value(backends, Opts, none),
         Backends = proplists:get_keys(BackendsWithOpts),
         ReturnList = lists:map(pa:bind(fun get_backend/2, BackendsWithOpts), Backends),

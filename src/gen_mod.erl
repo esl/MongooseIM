@@ -65,16 +65,13 @@
          make_subhost/2,
          make_subhosts/2,
          get_opt_subhost/3,
-         get_opt_subhost/4,
          get_module_opt_subhost/3,
-         % Get/set opts by subhost
+         % Get opts by subhost
          get_module_opt_by_subhost/4,
-         set_module_opt_by_subhost/4,
 
          loaded_modules/0,
          loaded_modules/1,
          loaded_modules_with_opts/1,
-         opts_for_module/2,
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
@@ -242,7 +239,7 @@ stop_module_for_host_type(HostType, Module) ->
 %% ejabberd is being stopped and it stops all modules.
 -spec stop_module_keep_config(host_type(), module()) -> {error, term()} | {ok, list()}.
 stop_module_keep_config(HostType, Module) ->
-    Opts = opts_for_module(HostType, Module),
+    Opts = get_module_opts(HostType, Module),
     try Module:stop(HostType) of
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList),
@@ -380,18 +377,6 @@ set_module_opts(HostType, Module, Opts0) ->
                #ejabberd_module{module_host_type = {Module, HostType},
                                 opts = Opts}).
 
-
--spec set_module_opt_by_subhost(
-        SubHost :: domain_name(),
-        Module :: module(),
-        Opt :: term(),
-        Value :: term()) -> boolean().
-set_module_opt_by_subhost(SubHost, Module, Opt, Value) ->
-    %% TODO: try to get rid of this interface or at least
-    %% refactor it with mongoose_subhosts module
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    set_module_opt(Host, Module, Opt, Value).
-
 -spec make_subhost(Spec :: iodata() | unicode:charlist(), Host :: domain_name()) ->
     domain_name().
 make_subhost(Spec, Host) ->
@@ -415,13 +400,7 @@ expand_hosts(Spec) ->
 -spec get_opt_subhost(domain_name(), list(), list() | binary()) -> domain_name().
 get_opt_subhost(Host, Opts, Default) ->
     %% TODO: try to get rid of this interface
-    get_opt_subhost(Host, host, Opts, Default).
-
--spec get_opt_subhost(domain_name(), atom(), list(), list() | binary()) ->
-    domain_name().
-get_opt_subhost(Host, OptName, Opts, Default) ->
-    %% TODO: try to get rid of this interface
-    Val = get_opt(OptName, Opts, Default),
+    Val = get_opt(host, Opts, Default),
     make_subhost(Val, Host).
 
 -spec get_module_opt_subhost(domain_name(), module(), list() | binary()) ->
@@ -455,19 +434,6 @@ loaded_modules_with_opts(HostType) ->
                                   opts = '$2'},
                  [],
                  [{{'$1', '$2'}}]}]).
-
--spec opts_for_module(host_type(), module()) -> list().
-opts_for_module(HostType, Module) ->
-    %% TODO: get rid of this interface, it's the same as get_module_opts/2
-    case ets:select(ejabberd_modules,
-                    [{#ejabberd_module{_ = '_',
-                                       module_host_type = {Module, HostType},
-                                       opts = '$1'},
-                      [],
-                      [{{'$1'}}]}]) of
-        [{Opts}] -> Opts;
-        []       -> []
-    end.
 
 -spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
     {'aborted', _} | {'atomic', _}.

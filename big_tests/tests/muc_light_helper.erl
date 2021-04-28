@@ -257,9 +257,10 @@ clear_db() ->
 ver(Int) ->
   <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
--spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
-set_mod_config(K, V, Host) ->
-        true = rpc(mim(), gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
+-spec set_mod_config(K :: atom(), V :: any(), SubHost :: binary()) -> ok.
+set_mod_config(K, V, SubHost) ->
+    {ok, Host} = rpc(mim(), mongoose_subhosts, get_host, [SubHost]),
+    true = rpc(mim(), gen_mod, set_module_opt, [Host, mod_muc_light, K, V]).
 
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],
