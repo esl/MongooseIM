@@ -12,7 +12,7 @@
          get_domains_by_host_type/1]).
 
 -type domain() :: jid:lserver().
--type host_type() :: binary().
+-type host_type() :: mongooseim:host_type().
 -type pair() :: {domain(), host_type()}.
 
 

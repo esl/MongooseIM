@@ -26,7 +26,8 @@
          user_send_packet/4,
          filter_packet/1,
          inbox_unread_count/2,
-         remove_user/3
+         remove_user/3,
+         remove_domain/3
         ]).
 
 -export([config_metrics/1]).
@@ -94,6 +95,9 @@
                       EntryJID :: jid:literal_jid(),
                       Params :: entry_properties(),
                       Ret :: entry_properties() | {error, binary()}.
+
+-callback remove_domain(HostType :: mongooseim:host_type(),
+                        LServer :: jid:lserver()) -> ok.
 
 -type get_inbox_params() :: #{
         start => integer(),
@@ -265,6 +269,13 @@ filter_packet({From, To, Acc, Packet}) ->
 
 remove_user(Acc, User, Server) ->
     mod_inbox_utils:clear_inbox(User, Server),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_inbox_backend:remove_domain(HostType, Domain),
     Acc.
 
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
@@ -546,6 +557,7 @@ get_inbox_unread(undefined, Acc, To) ->
 hooks(Host) ->
     [
      {remove_user, Host, ?MODULE, remove_user, 50},
+     {remove_domain, Host, ?MODULE, remove_domain, 50},
      {user_send_packet, Host, ?MODULE, user_send_packet, 70},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
