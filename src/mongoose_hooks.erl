@@ -114,8 +114,8 @@
 -export([find_s2s_bridge/2,
          s2s_allow_host/2,
          s2s_connect_hook/2,
-         s2s_receive_packet/2,
-         s2s_stream_features/1,
+         s2s_receive_packet/1,
+         s2s_stream_features/2,
          s2s_send_packet/4]).
 
 -export([disco_info/4,
@@ -1237,20 +1237,20 @@ s2s_send_packet(Acc, From, To, Packet) ->
 
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
--spec s2s_stream_features(Server) -> Result when
+-spec s2s_stream_features(HostType, Server) -> Result when
+    HostType :: binary(),
     Server :: jid:server(),
     Result :: [exml:element()].
-s2s_stream_features(Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_stream_features, Server, [], [Server]).
+s2s_stream_features(HostType, Server) ->
+    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [Server]).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
--spec s2s_receive_packet(LServer, Acc) -> Result when
-    LServer :: jid:lserver(),
+-spec s2s_receive_packet(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-s2s_receive_packet(LServer, Acc) ->
-    ejabberd_hooks:run_for_host_type(s2s_receive_packet, LServer, Acc, []).
+s2s_receive_packet(Acc) ->
+    ejabberd_hooks:run_global(s2s_receive_packet, Acc, []).
 
 %% Discovery related hooks
 

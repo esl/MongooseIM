@@ -207,9 +207,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                 _ ->
                     send_element(StateData,
                                  #xmlel{name = <<"stream:features">>,
-                                        children = SASL ++
-                                                   StartTLS ++
-                                                   mongoose_hooks:s2s_stream_features(Server)}),
+                                        children = SASL ++ StartTLS ++ stream_features(Server)}),
                     {next_state, wait_for_feature_request, StateData#state{server = Server}}
             end;
         {<<"jabber:server">>, _, Server, true} when
@@ -217,7 +215,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
             send_element(StateData,
                          #xmlel{name = <<"stream:features">>,
-                                children = mongoose_hooks:s2s_stream_features(Server)}),
+                                children = stream_features(Server)}),
             {next_state, stream_established, StateData};
         {<<"jabber:server">>, <<"jabber:server:dialback">>, _Server, _} ->
             send_text(StateData, ?STREAM_HEADER(<<"">>)),
@@ -228,14 +226,14 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary,
+              <<(?STREAM_HEADER(<<"">>))/binary,
+                (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary,
                 (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
-
 
 -spec wait_for_feature_request(ejabberd:xml_stream_item(), state()
                               ) -> fsm_return().
@@ -456,8 +454,7 @@ route_stanza(_, _Acc) ->
 route_stanza(Acc) ->
     From = mongoose_acc:from_jid(Acc),
     To = mongoose_acc:to_jid(Acc),
-    LTo = To#jid.lserver,
-    Acc1 = mongoose_hooks:s2s_receive_packet(LTo, Acc),
+    Acc1 = mongoose_hooks:s2s_receive_packet(Acc),
     ejabberd_router:route(From, To, Acc1).
 
 %%----------------------------------------------------------------------
@@ -584,6 +581,12 @@ send_text(StateData, Text) ->
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 
+-spec stream_features(binary()) -> [exml:element()].
+stream_features(Domain) ->
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, HostType} -> mongoose_hooks:s2s_stream_features(HostType, Domain);
+        {error, not_found} -> []
+    end.
 
 -spec change_shaper(state(), Host :: 'global' | binary(), jid:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
