@@ -9,6 +9,7 @@ This component will be responsible for dynamic routing, it will always be
 started by MIM even if there is no support of dynamic domain names configured.
 
 It must provide the following interfaces:
+
 - Init - should accept the list of initial domain/host\_type pairs provided in
   config file and the list of host\_types that can be used for dynamic insertion.
   Any of these lists can be empty, initial list of domain/host\_type pairs can
