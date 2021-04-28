@@ -529,14 +529,14 @@ xmpp_send_element(HostType, Acc, El) ->
 
 %%% @doc The `xmpp_stanza_dropped' hook is called to inform that
 %%% an xmpp stanza has been dropped.
--spec xmpp_stanza_dropped(Server, From, To, Packet) -> Result when
-    Server :: jid:lserver(),
+-spec xmpp_stanza_dropped(HostType, From, To, Packet) -> Result when
+    HostType :: binary(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: any().
-xmpp_stanza_dropped(Server, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(xmpp_stanza_dropped, Server, ok,
+xmpp_stanza_dropped(HostType, From, To, Packet) ->
+    ejabberd_hooks:run_for_host_type(xmpp_stanza_dropped, HostType, ok,
                                      [From, To, Packet]).
 
 %% C2S related hooks
