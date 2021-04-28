@@ -20,6 +20,7 @@
 -spec start() -> maybe_cluster_id().
 start() ->
     init_mnesia_cache(),
+    maybe_prepare_queries(which_backend_available()),
     run_steps(
       [fun get_cached_cluster_id/0,
        fun get_backend_cluster_id/0,
@@ -77,6 +78,19 @@ init_mnesia_cache() ->
                         ]),
     mnesia:add_table_copy(mongoose_cluster_id, node(), ram_copies).
 
+-spec maybe_prepare_queries(mongoose_backend()) -> ok.
+maybe_prepare_queries(mnesia) -> ok;
+maybe_prepare_queries(rdbms) ->
+    mongoose_rdbms:prepare(cluster_insert_new, mongoose_cluster_id, [v],
+        <<"INSERT INTO mongoose_cluster_id(k,v) VALUES ('cluster_id', ?)">>),
+    mongoose_rdbms:prepare(cluster_select, mongoose_cluster_id, [],
+        <<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>),
+    ok.
+
+-spec execute_cluster_insert_new(binary()) -> mongoose_rdbms:query_result().
+execute_cluster_insert_new(ID) ->
+    mongoose_rdbms:execute_successfully(global, cluster_insert_new, [ID]).
+
 -spec make_cluster_id() -> cluster_id().
 make_cluster_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
@@ -96,17 +110,13 @@ store_cluster_id(ID) ->
 
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
 set_new_cluster_id(ID, rdbms) ->
-    SQLQuery = [<<"INSERT INTO mongoose_cluster_id(k,v) "
-                  "VALUES ('cluster_id',">>,
-                mongoose_rdbms:use_escaped(mongoose_rdbms:escape_string(ID)), ");"],
-    try mongoose_rdbms:sql_query(global, SQLQuery) of
-        {updated, 1} -> {ok, ID};
-        {error, _} = Err -> Err
+    try execute_cluster_insert_new(ID) of
+        {updated, 1} -> {ok, ID}
     catch
         Class:Reason:Stacktrace ->
             ?LOG_WARNING(#{what => cluster_id_set_failed,
                            text => <<"Error inserting cluster ID into RDBMS">>,
-                           sql_query => SQLQuery, cluster_id => ID,
+                           cluster_id => ID,
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, {Class, Reason}}
     end;
@@ -122,16 +132,13 @@ set_new_cluster_id(ID, mnesia) ->
 %% Get cluster ID
 -spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
 get_backend_cluster_id(rdbms) ->
-    SQLQuery = [<<"SELECT v FROM mongoose_cluster_id WHERE k='cluster_id'">>],
-    try mongoose_rdbms:sql_query(global, SQLQuery) of
+    try mongoose_rdbms:execute_successfully(global, cluster_select, []) of
         {selected, [{Row}]} -> {ok, Row};
-        {selected, []} -> {error, no_value_in_backend};
-        {error, _} = Err -> Err
+        {selected, []} -> {error, no_value_in_backend}
     catch
         Class:Reason:Stacktrace ->
             ?LOG_WARNING(#{what => cluster_id_get_failed,
                            text => <<"Error getting cluster ID from RDBMS">>,
-                           sql_query => SQLQuery,
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, {Class, Reason}}
     end;
