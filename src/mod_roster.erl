@@ -1098,7 +1098,7 @@ get_roster_old(DestServer, JID) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => DestServer,
                             element => undefined }),
-    A2 = mongoose_hooks:roster_get(DestServer, A, JID),
+    A2 = mongoose_hooks:roster_get(A, JID),
     mongoose_acc:get(roster, items, [], A2).
 
 -spec item_to_map(roster()) -> map().

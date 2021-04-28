@@ -72,7 +72,7 @@
          unset_presence_hook/3,
          xmpp_bounce_message/1]).
 
--export([roster_get/3,
+-export([roster_get/2,
          roster_get_jid_info/3,
          roster_get_subscription_lists/3,
          roster_get_versioning_feature/2,
@@ -783,13 +783,13 @@ xmpp_bounce_message(Acc) ->
 %% Roster related hooks
 
 %%% @doc The `roster_get' hook is called to extract a user's roster.
--spec roster_get(LServer, Acc, JID) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_get(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-roster_get(LServer, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(roster_get, LServer, Acc, [JID]).
+roster_get(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(roster_get, HostType, Acc, [JID]).
 
 %%% @doc The `roster_groups' hook is called to extract roster groups.
 -spec roster_groups(LServer) -> Result when

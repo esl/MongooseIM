@@ -343,7 +343,7 @@ list_contacts(Caller) ->
                                lserver => LServer,
                                element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Acc2 = mongoose_hooks:roster_get(LServer, Acc1, CallerJID),
+    Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
     Res = mongoose_acc:get(roster, items, Acc2),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
