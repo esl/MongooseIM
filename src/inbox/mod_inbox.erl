@@ -271,8 +271,9 @@ remove_user(Acc, User, Server) ->
     mod_inbox_utils:clear_inbox(User, Server),
     Acc.
 
--spec remove_domain(mongoose_acc:t(), mongooseim:host_type(), jid:lserver()) ->
-    mongoose_acc:t().
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     mod_inbox_backend:remove_domain(HostType, Domain),
     Acc.

@@ -157,6 +157,12 @@
          remove_domain/2,
          node_cleanup/1]).
 
+%% Just a map, used by some hooks as a first argument.
+%% Not mongoose_acc:t().
+-type simple_acc() :: #{}.
+
+-export_type([simple_acc/0]).
+
 -spec c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) -> Result when
     HostType :: binary(),
     Tag :: atom(),
