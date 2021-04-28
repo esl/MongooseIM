@@ -407,7 +407,8 @@ rest_user_send_packet(Acc, From, To, Packet) ->
     SID :: ejabberd_sm:sid(),
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
-    ejabberd_hooks:run_for_host_type(session_cleanup, Server, Acc,
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(session_cleanup, HostType, Acc,
                                      [User, Server, Resource, SID]).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.

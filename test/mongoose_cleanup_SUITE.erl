@@ -86,7 +86,7 @@ auth_anonymous(_Config) ->
     Info = [{auth_module, ejabberd_auth_anonymous}],
     ejabberd_auth_anonymous:register_connection(#{}, S, SID, JID, Info),
     true = ejabberd_auth_anonymous:anonymous_user_exist(U, S),
-    mongoose_hooks:session_cleanup(S, ok, U, R, SID),
+    mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
     false = ejabberd_auth_anonymous:anonymous_user_exist(U, S).
 
 last(_Config) ->
@@ -98,7 +98,7 @@ last(_Config) ->
     {ok, TS1, Status1} = mod_last:get_last_info(U, S),
     async_helper:wait_until(
       fun() ->
-              mongoose_hooks:session_cleanup(S, ok, U, R, SID),
+              mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
               {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
               TS2 - TS1 > 0
       end,
@@ -110,12 +110,7 @@ stream_management(_Config) ->
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(SMID),
-    Acc = mongoose_acc:new(
-            #{location => ?LOCATION,
-              lserver => S,
-              host_type => S,
-              element => undefined}),
-    mongoose_hooks:session_cleanup(S, Acc, U, R, SID),
+    mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
     {error, smid_not_found} = mod_stream_management:get_sid(SMID).
 
 local(_Config) ->
@@ -215,3 +210,8 @@ get_fake_session() ->
     SID = {os:timestamp(), self()},
     {U, S, R, JID, SID}.
 
+new_acc(Server) ->
+    mongoose_acc:new(#{location => ?LOCATION,
+                       lserver => Server,
+                       host_type => Server,
+                       element => undefined}).
