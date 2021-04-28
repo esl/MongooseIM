@@ -231,7 +231,7 @@ unregister_iq_handler(Host, XMLNS) ->
 refresh_iq_handlers() ->
     ejabberd_local ! refresh_iq_handlers.
 
--spec bounce_resource_packet(Acc:: mongoose_acc:t(),
+-spec bounce_resource_packet(Acc :: mongoose_acc:t(),
                              From :: jid:jid(),
                              To :: jid:jid(),
                              El :: exml:element()) -> {'stop', mongoose_acc:t()}.
@@ -414,11 +414,7 @@ do_route(Acc, From, To, El) ->
             case mongoose_acc:stanza_type(Acc) of
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
-                _ ->
-                    mongoose_hooks:local_send_to_resource_hook(
-                                            To#jid.lserver,
-                                            Acc,
-                                            From, To, El)
+                _ -> mongoose_hooks:local_send_to_resource_hook(Acc, From, To, El)
             end
     end.
 
