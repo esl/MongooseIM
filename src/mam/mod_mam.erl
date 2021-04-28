@@ -209,31 +209,15 @@ start(Host, Opts) ->
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
                                   ?MODULE, process_mam_iq, IQDisc),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
-    ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
-    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
-    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
-    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
+    ejabberd_hooks:add(hooks(Host)),
+    ensure_metrics(Host),
     ok.
 
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     ?LOG_INFO(#{what => mam_stopping}),
-    ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(rest_user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
-    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
     [mod_disco:unregister_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
@@ -686,5 +670,39 @@ is_archivable_message(Host, Dir, Packet) ->
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
+    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
+-spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
+hooks(Host) ->
+    [{user_send_packet, Host, ?MODULE, user_send_packet, 90},
+     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90},
+     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {remove_user, Host, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
+     {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20},
+     {sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+     | mongoose_metrics_mam_hooks:get_mam_hooks(Host)].
+
+
+ensure_metrics(Host) ->
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
+    mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
+    mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
+    lists:foreach(fun(Name) ->
+                      mongoose_metrics:ensure_metric(Host, Name, spiral)
+                  end,
+                  spirals()).
+
+spirals() ->
+    [modMamPrefsSets,
+     modMamPrefsGets,
+     modMamArchiveRemoved,
+     modMamLookups,
+     modMamForwarded,
+     modMamArchived,
+     modMamFlushed,
+     modMamDropped,
+     modMamDropped2,
+     modMamDroppedIQ].

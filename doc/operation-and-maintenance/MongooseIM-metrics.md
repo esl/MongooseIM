@@ -116,7 +116,6 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, sessionAuthAnonymous]` | spiral | A client authenticates anonymously. |
 | `[Host, sessionAuthFails]` | spiral | A client failed to authenticate. |
 | `[Host, sessionCount]` | counter | Number of active sessions. |
 | `[Host, sessionLogouts]` | spiral | A client session is closed. |

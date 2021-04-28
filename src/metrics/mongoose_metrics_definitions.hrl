@@ -1,6 +1,5 @@
 -define(GENERAL_SPIRALS, [
     sessionSuccessfulLogins,
-    sessionAuthAnonymous,
     sessionAuthFails,
     sessionLogouts,
     xmppMessageSent,
@@ -18,8 +17,6 @@
     xmppErrorIq,
     xmppErrorMessage,
     xmppErrorPresence,
-    modGlobalDistribMessagesSent,
-    modGlobalDistribMessagesReceived,
     modRosterSets,
     modRosterGets,
     modPresenceSubscriptions,
@@ -34,30 +31,7 @@
     modPrivacyGets,
     modPrivacyStanzaDenied,
     modPrivacyStanzaBlocked,
-    modPrivacyStanzaAll,
-    modMamPrefsSets,
-    modMamPrefsGets,
-    modMamArchiveRemoved,
-    modMamLookups,
-    modMamForwarded,
-    modMamArchived,
-    modMamFlushed,
-    modMamDropped,
-    modMamDropped2,
-    modMamDroppedIQ,
-    modMamSinglePurges,
-    modMamMultiplePurges,
-    modMucMamPrefsSets,
-    modMucMamPrefsGets,
-    modMucMamArchiveRemoved,
-    modMucMamLookups,
-    modMucMamForwarded,
-    modMucMamArchived,
-    modMucMamFlushed,
-    modMucMamSinglePurges,
-    modMucMamMultiplePurges,
-    modCSIInactive,
-    modCSIActive
+    modPrivacyStanzaAll
 ]).
 
 -define(TOTAL_COUNTERS, [

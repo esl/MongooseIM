@@ -323,16 +323,12 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
 | `[Host, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |
 | `[Host, modMamLookups]` | spiral | A MAM lookup is performed. |
-| `[Host, modMamSinglePurges]` | spiral | A single purge request is processed by MAM. |
-| `[Host, modMamMultiplePurges]` | spiral | A bulk purge request is processed by MAM. |
 | `[Host, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
 | `[Host, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
 | `[Host, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
 | `[Host, modMucMamArchived]` | spiral | A message is stored in room's archive. |
 | `[Host, modMucMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result from MUC room. |
 | `[Host, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
-| `[Host, modMucMamSinglePurges]` | spiral | A single purge request for MUC room is processed by MAM. |
-| `[Host, modMucMamMultiplePurges]` | spiral | A bulk purge request for MUC room is processed by MAM. |
 | `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
 | `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
 | `[Host, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
