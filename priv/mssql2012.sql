@@ -471,7 +471,7 @@ CREATE TABLE dbo.muc_light_blocking(
 )
 GO
 
-CREATE INDEX i_muc_light_blocking ON muc_light_blocking(luser, lserver);
+CREATE INDEX i_muc_light_blocking_su ON muc_light_blocking(lserver, luser);
 GO
 
 -- luser, lserver and remote_bare_jid have 250 characters in MySQL
