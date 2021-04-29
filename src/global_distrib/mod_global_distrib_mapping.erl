@@ -32,7 +32,7 @@
          cache_domain/2, delete_for_domain/1, all_domains/0, public_domains/0]).
 -export([for_jid/1, insert_for_jid/1, cache_jid/2, delete_for_jid/1, clear_cache/1]).
 -export([register_subhost/3, unregister_subhost/2, packet_to_component/3,
-         session_opened/4, session_closed/5]).
+         session_opened/5, session_closed/5]).
 -export([endpoints/1, hosts/0]).
 
 -type endpoint() :: mod_global_distrib_utils:endpoint().
@@ -163,9 +163,9 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(Acc, ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
+-spec session_opened(Acc, binary(), ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
     Acc when Acc :: any().
-session_opened(Acc, _SID, UserJid, _Info) ->
+session_opened(Acc, _HostType, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
     Acc.
 

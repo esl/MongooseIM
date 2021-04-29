@@ -139,11 +139,16 @@ run_global(HookName, Acc, Args) ->
 
 %% @doc run hook for the host type, for more details see run_fold/4 documentation.
 -spec run_for_host_type(HookName :: atom(),
-                        HostType :: binary(),
+                        HostType :: binary() | undefined,
                         Acc :: term(),
                         Args :: [term()]) ->
     NewAcc :: term() | stopped.
-run_for_host_type(HookName, HostType, Acc, Args) ->
+run_for_host_type(HookName, undefined, Acc, Args) ->
+    ?LOG_ERROR(#{what => undefined_host_type,
+                 text => <<"Running hook for an undefined host type">>,
+                 hook_name => HookName, hook_acc => Acc, hook_args => Args}),
+    Acc;
+run_for_host_type(HookName, HostType, Acc, Args) when is_binary(HostType) ->
     run_fold(HookName, HostType, Acc, Args).
 
 %%%----------------------------------------------------------------------

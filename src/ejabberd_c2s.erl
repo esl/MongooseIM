@@ -786,7 +786,7 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     Conn = get_conn_type(NewStateData0),
     Info = #{ip => NewStateData0#state.ip, conn => Conn,
              auth_module => NewStateData0#state.auth_module },
-    ReplacedPids = ejabberd_sm:open_session(SID, JID, Info),
+    ReplacedPids = ejabberd_sm:open_session(HostType, SID, JID, Info),
 
     RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
     case RefsAndPids of
@@ -855,7 +855,7 @@ session_established({xmlstreamelement, El}, StateData) ->
             El1 = fix_message_from_user(El, StateData#state.lang),
             Acc0 = element_to_origin_accum(El1, StateData),
             Acc1 = mongoose_hooks:c2s_preprocessing_hook(StateData#state.host_type,
-                                           Acc0, NewState),
+                                                         Acc0, NewState),
             case mongoose_acc:get(hook, result, undefined, Acc1) of
                 drop -> fsm_next_state(session_established, NewState);
                 _ -> process_outgoing_stanza(Acc1, NewState)
@@ -1033,11 +1033,8 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 
 
 %%% system events
-handle_info({exit, Reason}, _StateName, StateData) ->
-    Lang = StateData#state.lang,
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => ejabberd_c2s_state:server(StateData),
-                              element => undefined }),
+handle_info({exit, Reason}, _StateName, StateData = #state{lang = Lang}) ->
+    Acc = new_acc(StateData, #{location => ?LOCATION, element => undefined}),
     send_element(Acc, mongoose_xmpp_errors:stream_conflict(Lang, Reason), StateData),
     send_trailer(StateData),
     {stop, normal, StateData};
@@ -1048,11 +1045,9 @@ handle_info(replaced, _StateName, StateData) ->
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established,
-            #state{pres_last = Presence, pres_invis = Invisible, jid = JID} = StateData)
+            #state{pres_last = Presence, pres_invis = Invisible} = StateData)
   when Presence =/= undefined orelse Invisible ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => JID#jid.lserver,
-                              element => undefined }),
+    Acc = new_acc(StateData, #{location => ?LOCATION, element => undefined}),
     resend_offline_messages(Acc, StateData),
     {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
@@ -1132,9 +1127,7 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     send_text(StateData, Text),
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                               lserver => StateData#state.server,
-                               element => undefined }),
+    Acc = new_acc(StateData, #{location => ?LOCATION, element => undefined}),
     ?LOG_DEBUG(#{what => c2s_broadcast,
                  brodcast_data => Broadcast,
                  state_name => StateName, c2s_state => StateData}),
@@ -1144,12 +1137,11 @@ handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => To#jid.lserver,
-                              element => Packet }),
     #state{server = Server, host_type = HostType} = StateData,
+    Acc = new_acc(StateData, #{location => ?LOCATION,
+                               from_jid => From,
+                               to_jid => To,
+                               element => Packet}),
     Drop = mongoose_hooks:c2s_filter_packet(HostType, Server, StateData,
                                             Feature, To, Packet),
     case {Drop, StateData#state.jid} of
@@ -1509,8 +1501,7 @@ terminate({handover_session, From}, StateName, StateData, UnreadMessages) ->
     % and then run the normal termination
     terminate(normal, StateName, NewStateData, []);
 terminate(_Reason, StateName, StateData, UnreadMessages) ->
-    InitialAcc0 = mongoose_acc:new(
-             #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
+    InitialAcc0 = new_acc(StateData, #{location => ?LOCATION, element => undefined}),
     Acc = case StateData#state.stream_mgmt of
               true -> mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0);
               _ -> InitialAcc0
@@ -1648,11 +1639,10 @@ send_element_from_server_jid(StateData, #xmlel{} = El) ->
 
 -spec send_element_from_server_jid(mongoose_acc:t() | no_acc, state(), exml:element()) -> any().
 send_element_from_server_jid(no_acc, #state{server = Server} = StateData, #xmlel{} = El) ->
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                             from_jid => jid:make_noprep(<<>>, Server, <<>>),
-                             to_jid => StateData#state.jid,
-                             lserver => Server,
-                             element => El }),
+    Acc = new_acc(StateData, #{location => ?LOCATION,
+                               from_jid => jid:make_noprep(<<>>, Server, <<>>),
+                               to_jid => StateData#state.jid,
+                               element => El}),
     send_element_from_server_jid(Acc, StateData, El);
 send_element_from_server_jid(Acc, StateData, #xmlel{} = El) ->
     Acc1 = send_element(Acc, El, StateData),
@@ -2051,8 +2041,7 @@ process_presence_subscription_and_route(Acc, Type, StateData) ->
     From = mongoose_acc:from_jid(Acc),
     HostType = StateData#state.host_type,
     To = mongoose_acc:to_jid(Acc),
-    Acc1 = mongoose_hooks:roster_out_subscription(
-             HostType, Acc, From, To, Type),
+    Acc1 = mongoose_hooks:roster_out_subscription(HostType, Acc, From, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
@@ -2088,11 +2077,10 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
                            StateData :: state()) -> allow|deny|block.
 privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
     % in some cases we need an accumulator-less privacy check
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => StateData#state.server,
-                              element => Packet }),
+    Acc = new_acc(StateData, #{location => ?LOCATION,
+                               from_jid => From,
+                               to_jid => To,
+                               element => Packet}),
     {_, Res} = privacy_check_packet(Acc, To, Dir, StateData),
     Res.
 
@@ -2102,7 +2090,6 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet(Acc,
-                                          StateData#state.server,
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
                                           To,
@@ -2116,7 +2103,6 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
     mongoose_privacy:privacy_check_packet({Acc, Packet},
-                                          StateData#state.server,
                                           StateData#state.jid,
                                           StateData#state.privacy_list,
                                           From,
@@ -3090,7 +3076,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Priority = get_priority_from_presence(NSD#state.pres_last),
                 Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
                          auth_module => NSD#state.auth_module },
-                ejabberd_sm:open_session(SID, NSD#state.jid, Priority, Info),
+                ejabberd_sm:open_session(NSD#state.host_type, SID, NSD#state.jid, Priority, Info),
                 ok = mod_stream_management:register_smid(SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
@@ -3176,8 +3162,7 @@ stream_mgmt_resumed(SMID, Handled) ->
 
 handover_session(SD, From)->
     true = SD#state.stream_mgmt,
-    Acc = mongoose_acc:new(
-        #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+    Acc = new_acc(SD, #{location => ?LOCATION, element => undefined}),
     ejabberd_sm:close_session(Acc,
                               SD#state.sid,
                               SD#state.jid,
@@ -3324,10 +3309,9 @@ terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
 %% @doc This function is executed when c2s receives a stanza from TCP connection.
 -spec element_to_origin_accum(jlib:xmlel(), StateData :: state()) ->
     mongoose_acc:t().
-element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
+element_to_origin_accum(El, StateData = #state{sid = SID, jid = JID}) ->
     BaseParams = #{
       location => ?LOCATION,
-      lserver => Server,
       element => El,
       from_jid => JID
      },
@@ -3336,7 +3320,7 @@ element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
         undefined -> BaseParams#{ to_jid => jid:to_bare(JID) };
         _ToBin -> BaseParams
     end,
-    Acc = mongoose_acc:new(Params),
+    Acc = new_acc(StateData, Params),
     Acc1 = mongoose_acc:set_permanent(c2s, origin_sid, SID, Acc),
     mongoose_acc:set_permanent(c2s, origin_jid, JID, Acc1).
 
@@ -3369,3 +3353,7 @@ update_stanza(From, To, #xmlel{} = Element, Acc) ->
 strip_c2s_fields(Acc) ->
     %% TODO: verify if we really need to strip down these 2 fields
     mongoose_acc:delete_many(c2s, [origin_jid, origin_sid], Acc).
+
+-spec new_acc(state(), mongoose_acc:new_acc_params()) -> mongoose_acc:t().
+new_acc(#state{host_type = HostType, server = LServer}, Params) ->
+    mongoose_acc:new(Params#{host_type => HostType, lserver => LServer}).

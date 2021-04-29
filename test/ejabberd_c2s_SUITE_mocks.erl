@@ -7,7 +7,7 @@ setup() ->
                 fun() -> {erlang:system_time(microsecond), self()} end),
     meck:expect(ejabberd_sm, close_session,
                 fun(Acc, _SID, _JID, _Reason) -> Acc end),
-    meck:expect(ejabberd_sm, open_session, fun(_, _, _) -> [] end),
+    meck:expect(ejabberd_sm, open_session, fun(_, _, _, _) -> [] end),
 
     meck:new(ejabberd_socket),
     meck:expect(ejabberd_socket, close,

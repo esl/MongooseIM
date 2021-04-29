@@ -275,7 +275,7 @@ do_try_register_in_backend([], _, _, _, _) ->
 do_try_register_in_backend([M | Backends], HostType, LUser, LServer, Password) ->
     case M:try_register(HostType, LUser, LServer, Password) of
         ok ->
-            mongoose_hooks:register_user(LServer, LUser);
+            mongoose_hooks:register_user(HostType, LServer, LUser);
         _ ->
             do_try_register_in_backend(Backends, HostType, LUser, LServer, Password)
     end.
@@ -433,11 +433,22 @@ does_user_exist_in_given_modules([Mod | Modules], LUser, LServer, Default) ->
 -spec remove_user(JID :: jid:jid()) -> ok | {error, not_allowed};
                  (error) -> error.
 remove_user(#jid{luser = LUser, lserver = LServer}) ->
-    AuthModules = auth_modules(LServer),
-    RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            remove_user_for_host_type(HostType, LUser, LServer);
+        {error, not_found} ->
+            {error, not_allowed}
+    end;
+remove_user(error) -> error.
+
+-spec remove_user_for_host_type(binary(), jid:luser(), jid:lserver()) -> ok | {error, not_allowed}.
+remove_user_for_host_type(HostType, LUser, LServer) ->
+    AuthModules = auth_modules_for_host_type(HostType),
+    RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules],
     case lists:any(fun(El) -> El == ok end, RemoveResult) of
         true ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      host_type => HostType,
                                       lserver => LServer,
                                       element => undefined }),
             mongoose_hooks:remove_user(LServer, Acc, LUser),
@@ -447,8 +458,7 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
                          user => LUser, server => LServer,
                          auth_modules => AuthModules}),
             {error, not_allowed}
-    end;
-remove_user(error) -> error.
+    end.
 
 %% @doc Calculate informational entropy.
 -spec entropy(iolist()) -> float().

@@ -5,6 +5,7 @@
 %%% make sure they pass the expected arguments.
 -module(mongoose_hooks).
 
+-include("jlib.hrl").
 -include("mod_privacy.hrl").
 
 -export([adhoc_local_items/4,
@@ -14,21 +15,21 @@
          anonymous_purge_hook/3,
          auth_failed/3,
          ejabberd_ctl_process/2,
-         failed_to_store_message/2,
+         failed_to_store_message/1,
          filter_local_packet/2,
          filter_packet/1,
          inbox_unread_count/3,
-         local_send_to_resource_hook/5,
+         local_send_to_resource_hook/4,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
          push_notifications/4,
          register_command/1,
          register_subhost/2,
-         register_user/2,
+         register_user/3,
          remove_user/3,
          resend_offline_messages_hook/3,
-         rest_user_send_packet/5,
+         rest_user_send_packet/4,
          session_cleanup/5,
          set_vcard/3,
          unacknowledged_message/3,
@@ -55,28 +56,28 @@
          forbidden_session_hook/3,
          session_opening_allowed_for_user/2]).
 
--export([privacy_check_packet/6,
+-export([privacy_check_packet/5,
          privacy_get_user_list/2,
          privacy_iq_get/6,
          privacy_iq_set/5,
          privacy_updated_list/3]).
 
--export([offline_groupchat_message_hook/5,
-         offline_message_hook/5,
-         set_presence_hook/5,
-         sm_broadcast/6,
+-export([offline_groupchat_message_hook/4,
+         offline_message_hook/4,
+         set_presence_hook/3,
+         sm_broadcast/5,
          sm_filter_offline_message/4,
          sm_register_connection_hook/4,
-         sm_remove_connection_hook/6,
-         unset_presence_hook/5,
-         xmpp_bounce_message/2]).
+         sm_remove_connection_hook/5,
+         unset_presence_hook/3,
+         xmpp_bounce_message/1]).
 
--export([roster_get/3,
+-export([roster_get/2,
          roster_get_jid_info/3,
          roster_get_subscription_lists/3,
          roster_get_versioning_feature/2,
          roster_groups/1,
-         roster_in_subscription/6,
+         roster_in_subscription/5,
          roster_out_subscription/5,
          roster_process_item/2,
          roster_push/3,
@@ -113,9 +114,9 @@
 -export([find_s2s_bridge/2,
          s2s_allow_host/2,
          s2s_connect_hook/2,
-         s2s_receive_packet/2,
-         s2s_stream_features/1,
-         s2s_send_packet/5]).
+         s2s_receive_packet/1,
+         s2s_stream_features/2,
+         s2s_send_packet/4]).
 
 -export([disco_info/4,
          disco_local_features/5,
@@ -257,12 +258,12 @@ node_cleanup(Node) ->
 ejabberd_ctl_process(Acc, Args) ->
     ejabberd_hooks:run_global(ejabberd_ctl_process, Acc, [Args]).
 
--spec failed_to_store_message(LServer, Acc) -> Result when
-    LServer :: jid:lserver(),
+-spec failed_to_store_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-failed_to_store_message(LServer, Acc) ->
-    ejabberd_hooks:run_for_host_type(failed_to_store_message, LServer, Acc, []).
+failed_to_store_message(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(failed_to_store_message, HostType, Acc, []).
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
@@ -295,15 +296,15 @@ filter_packet(Acc) ->
 inbox_unread_count(LServer, Acc, User) ->
     ejabberd_hooks:run_for_host_type(inbox_unread_count, LServer, Acc, [User]).
 
--spec local_send_to_resource_hook(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec local_send_to_resource_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-local_send_to_resource_hook(Server, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(local_send_to_resource_hook, Server, Acc,
+local_send_to_resource_hook(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(local_send_to_resource_hook, HostType, Acc,
                                      [From, To, Packet]).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
@@ -364,12 +365,13 @@ register_subhost(LDomain, IsHidden) ->
 
 %%% @doc The `register_user' hook is called when a user is successfully
 %%% registered in an authentication backend.
--spec register_user(LServer, LUser) -> Result when
+-spec register_user(HostType, LServer, LUser) -> Result when
+    HostType :: binary(),
     LServer :: jid:lserver(),
     LUser :: jid:luser(),
     Result :: any().
-register_user(LServer, LUser) ->
-    ejabberd_hooks:run_for_host_type(register_user, LServer, ok, [LUser, LServer]).
+register_user(HostType, LServer, LUser) ->
+    ejabberd_hooks:run_for_host_type(register_user, HostType, ok, [LUser, LServer]).
 
 %%% @doc The `remove_user' hook is called when a user is removed.
 -spec remove_user(LServer, Acc, LUser) -> Result when
@@ -378,7 +380,8 @@ register_user(LServer, LUser) ->
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
 remove_user(LServer, Acc, LUser) ->
-    ejabberd_hooks:run_for_host_type(remove_user, LServer, Acc, [LUser, LServer]).
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 
 -spec resend_offline_messages_hook(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -390,15 +393,15 @@ resend_offline_messages_hook(HostType, Acc, JID) ->
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends
 %%% a message using the REST API.
--spec rest_user_send_packet(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec rest_user_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-rest_user_send_packet(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(rest_user_send_packet, LServer, Acc,
+rest_user_send_packet(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(rest_user_send_packet, HostType, Acc,
                                      [From, To, Packet]).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
@@ -410,7 +413,8 @@ rest_user_send_packet(LServer, Acc, From, To, Packet) ->
     SID :: ejabberd_sm:sid(),
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
-    ejabberd_hooks:run_for_host_type(session_cleanup, Server, Acc,
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(session_cleanup, HostType, Acc,
                                      [User, Server, Resource, SID]).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
@@ -531,14 +535,14 @@ xmpp_send_element(HostType, Acc, El) ->
 
 %%% @doc The `xmpp_stanza_dropped' hook is called to inform that
 %%% an xmpp stanza has been dropped.
--spec xmpp_stanza_dropped(Server, From, To, Packet) -> Result when
-    Server :: jid:lserver(),
+-spec xmpp_stanza_dropped(HostType, From, To, Packet) -> Result when
+    HostType :: binary(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: any().
-xmpp_stanza_dropped(Server, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(xmpp_stanza_dropped, Server, ok,
+xmpp_stanza_dropped(HostType, From, To, Packet) ->
+    ejabberd_hooks:run_for_host_type(xmpp_stanza_dropped, HostType, ok,
                                      [From, To, Packet]).
 
 %% C2S related hooks
@@ -634,16 +638,17 @@ session_opening_allowed_for_user(HostType, JID) ->
 
 %% Privacy related hooks
 
--spec privacy_check_packet(LServer, Acc, JID, PrivacyList,
+-spec privacy_check_packet(Acc, JID, PrivacyList,
                            FromToNameType, Dir) -> Result when
-    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), JID :: jid:jid(),
+    Acc :: mongoose_acc:t(), JID :: jid:jid(),
     PrivacyList :: mongoose_privacy:userlist(),
     FromToNameType :: {jid:jid(), jid:jid(), binary(), binary()},
     Dir :: in | out,
     Result :: mongoose_acc:t().
-privacy_check_packet(LServer, Acc, JID, PrivacyList, FromToNameType, Dir) ->
+privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
+    HostType = mongoose_acc:host_type(Acc),
     AccWithRes = mongoose_acc:set(hook, result, allow, Acc),
-    ejabberd_hooks:run_for_host_type(privacy_check_packet, LServer, AccWithRes,
+    ejabberd_hooks:run_for_host_type(privacy_check_packet, HostType, AccWithRes,
                                      [JID, PrivacyList, FromToNameType, Dir]).
 
 -spec privacy_get_user_list(HostType, JID) -> Result when
@@ -688,109 +693,109 @@ privacy_updated_list(HostType, OldList, NewList) ->
 
 %% Session management related hooks
 
--spec offline_groupchat_message_hook(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec offline_groupchat_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_groupchat_message_hook(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, LServer, Acc,
+offline_groupchat_message_hook(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, HostType, Acc,
                                      [From, To, Packet]).
 
--spec offline_message_hook(LServer, Acc, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec offline_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-offline_message_hook(LServer, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(offline_message_hook, LServer, Acc,
+offline_message_hook(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(offline_message_hook, HostType, Acc,
                                      [From, To, Packet]).
 
--spec set_presence_hook(LServer, Acc, LUser, LResource, Presence) -> Result when
-    LServer :: jid:lserver(), Acc :: mongoose_acc:t(), LUser :: jid:luser(),
-    LResource :: jid:lresource(),
+-spec set_presence_hook(Acc, JID, Presence) -> Result when
+    Acc :: mongoose_acc:t(),
+    JID :: jid:jid(),
     Presence :: any(),
     Result :: mongoose_acc:t().
-set_presence_hook(LServer, Acc, LUser, LResource, Presence) ->
-    ejabberd_hooks:run_for_host_type(set_presence_hook, LServer, Acc,
+set_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Presence) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(set_presence_hook, HostType, Acc,
                                      [LUser, LServer, LResource, Presence]).
 
--spec sm_broadcast(LServer, Acc, From, To, Broadcast, SessionCount) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_broadcast(Acc, From, To, Broadcast, SessionCount) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Broadcast :: ejabberd_c2s:broadcast(),
     SessionCount :: non_neg_integer(),
     Result :: mongoose_acc:t().
-sm_broadcast(LServer, Acc, From, To, Broadcast, SessionCount) ->
-    ejabberd_hooks:run_for_host_type(sm_broadcast, LServer, Acc,
+sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(sm_broadcast, HostType, Acc,
                                      [From, To, Broadcast, SessionCount]).
 
--spec sm_filter_offline_message(LServer, From, To, Packet) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
+    HostType :: binary(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: boolean().
-sm_filter_offline_message(LServer, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(sm_filter_offline_message, LServer, false,
+sm_filter_offline_message(HostType, From, To, Packet) ->
+    ejabberd_hooks:run_for_host_type(sm_filter_offline_message, HostType, false,
                                      [From, To, Packet]).
 
--spec sm_register_connection_hook(LServer, SID, JID, Info) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
+    HostType :: binary(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Result :: ok.
-sm_register_connection_hook(LServer, SID, JID, Info) ->
-    ejabberd_hooks:run_for_host_type(sm_register_connection_hook, LServer, ok,
-                                     [SID, JID, Info]).
+sm_register_connection_hook(HostType, SID, JID, Info) ->
+    ejabberd_hooks:run_for_host_type(sm_register_connection_hook, HostType, ok,
+                                     [HostType, SID, JID, Info]).
 
--spec sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) -> Result when
-    LServer :: jid:lserver(),
+-spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     SID :: 'undefined' | ejabberd_sm:sid(),
     JID :: jid:jid(),
     Info :: ejabberd_sm:info(),
     Reason :: ejabberd_sm:close_reason(),
     Result :: mongoose_acc:t().
-sm_remove_connection_hook(LServer, Acc, SID, JID, Info, Reason) ->
-    ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, LServer, Acc,
+sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, HostType, Acc,
                                      [SID, JID, Info, Reason]).
 
--spec unset_presence_hook(LServer, Acc, LUser, LResource, Status) -> Result when
-    LServer :: jid:lserver(),
+-spec unset_presence_hook(Acc, JID, Status) -> Result when
     Acc :: mongoose_acc:t(),
-    LUser :: jid:luser(),
-    LResource :: jid:lresource(),
+    JID:: jid:jid(),
     Status :: binary(),
     Result :: mongoose_acc:t().
-unset_presence_hook(LServer, Acc, LUser, LResource, Status) ->
-    ejabberd_hooks:run_for_host_type(unset_presence_hook, LServer, Acc,
+unset_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Status) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(unset_presence_hook, HostType, Acc,
                                      [LUser, LServer, LResource, Status]).
 
--spec xmpp_bounce_message(Server, Acc) -> Result when
-    Server :: jid:server(),
+-spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-xmpp_bounce_message(Server, Acc) ->
-    ejabberd_hooks:run_for_host_type(xmpp_bounce_message, Server, Acc, []).
+xmpp_bounce_message(Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(xmpp_bounce_message, HostType, Acc, []).
 
 %% Roster related hooks
 
 %%% @doc The `roster_get' hook is called to extract a user's roster.
--spec roster_get(LServer, Acc, JID) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_get(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-roster_get(LServer, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(roster_get, LServer, Acc, [JID]).
+roster_get(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(roster_get, HostType, Acc, [JID]).
 
 %%% @doc The `roster_groups' hook is called to extract roster groups.
 -spec roster_groups(LServer) -> Result when
@@ -839,16 +844,16 @@ roster_get_versioning_feature(HostType, Server) ->
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
--spec roster_in_subscription(LServer, Acc, To, From, Type, Reason) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_in_subscription(Acc, To, From, Type, Reason) -> Result when
     Acc :: mongoose_acc:t(),
     To :: jid:jid(),
     From :: jid:jid(),
     Type :: mod_roster:sub_presence(),
     Reason :: any(),
     Result :: mongoose_acc:t().
-roster_in_subscription(LServer, Acc, To, From, Type, Reason) ->
-    ejabberd_hooks:run_for_host_type(roster_in_subscription, LServer, Acc,
+roster_in_subscription(Acc, To, From, Type, Reason) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(roster_in_subscription, HostType, Acc,
                                      [jid:to_bare(To), From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called
@@ -1188,12 +1193,12 @@ get_mam_muc_gdpr_data(HookServer, JID) ->
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.
--spec get_personal_data(LServer, JID) -> Result when
-    LServer :: jid:lserver(),
+-spec get_personal_data(HostType, JID) -> Result when
+    HostType :: binary(),
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
-get_personal_data(LServer, JID) ->
-    ejabberd_hooks:run_for_host_type(get_personal_data, LServer, [], [JID]).
+get_personal_data(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(get_personal_data, HostType, [], [JID]).
 
 %% S2S related hooks
 
@@ -1216,8 +1221,7 @@ find_s2s_bridge(Name, Server) ->
     S2SHost :: jid:server(),
     Result :: allow | deny.
 s2s_allow_host(MyHost, S2SHost) ->
-    ejabberd_hooks:run_for_host_type(s2s_allow_host, MyHost, allow,
-                                     [MyHost, S2SHost]).
+    ejabberd_hooks:run_global(s2s_allow_host, allow, [MyHost, S2SHost]).
 
 %%% @doc `s2s_connect_hook' hook is called when a s2s connection is established.
 -spec s2s_connect_hook(Name, Server) -> Result when
@@ -1225,36 +1229,34 @@ s2s_allow_host(MyHost, S2SHost) ->
     Server :: jid:server(),
     Result :: any().
 s2s_connect_hook(Name, Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_connect_hook, Name, ok, [Server]).
+    ejabberd_hooks:run_global(s2s_connect_hook, ok, [Name, Server]).
 
 %%% @doc `s2s_send_packet' hook is called when a message is routed.
--spec s2s_send_packet(Server, Acc, From, To, Packet) -> Result when
-    Server :: jid:server(),
+-spec s2s_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-s2s_send_packet(Server, Acc, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(s2s_send_packet, Server, Acc,
-                                     [From, To, Packet]).
+s2s_send_packet(Acc, From, To, Packet) ->
+    ejabberd_hooks:run_global(s2s_send_packet, Acc, [From, To, Packet]).
 
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
--spec s2s_stream_features(Server) -> Result when
+-spec s2s_stream_features(HostType, Server) -> Result when
+    HostType :: binary(),
     Server :: jid:server(),
     Result :: [exml:element()].
-s2s_stream_features(Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_stream_features, Server, [], [Server]).
+s2s_stream_features(HostType, Server) ->
+    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [Server]).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
--spec s2s_receive_packet(LServer, Acc) -> Result when
-    LServer :: jid:lserver(),
+-spec s2s_receive_packet(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
-s2s_receive_packet(LServer, Acc) ->
-    ejabberd_hooks:run_for_host_type(s2s_receive_packet, LServer, Acc, []).
+s2s_receive_packet(Acc) ->
+    ejabberd_hooks:run_global(s2s_receive_packet, Acc, []).
 
 %% Discovery related hooks
 

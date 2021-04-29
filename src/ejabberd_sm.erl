@@ -33,7 +33,7 @@
          route/3,
          route/4,
          make_new_sid/0,
-         open_session/3, open_session/4,
+         open_session/4, open_session/5,
          close_session/4,
          store_info/2,
          get_info/2,
@@ -64,39 +64,6 @@
          is_offline/1,
          get_user_present_pids/2
         ]).
-
-%% Deprecated API
--export([
-         open_session/5,
-         open_session/6,
-         close_session/6,
-         close_session_unset_presence/7,
-         unset_presence/7,
-         get_raw_sessions/2,
-         store_info/4,
-         set_presence/8,
-         remove_info/4,
-         get_user_resources/2,
-         get_session_pid/3,
-         get_session/3,
-         get_session_ip/3,
-         get_user_present_resources/2
-        ]).
-
--deprecated({open_session, 5, eventually}).
--deprecated({open_session, 6, eventually}).
--deprecated({close_session, 6, eventually}).
--deprecated({close_session_unset_presence, 7, eventually}).
--deprecated({unset_presence, 7, eventually}).
--deprecated({get_raw_sessions, 2, eventually}).
--deprecated({store_info, 4, eventually}).
--deprecated({set_presence, 8, eventually}).
--deprecated({remove_info, 4, eventually}).
--deprecated({get_user_resources, 2, eventually}).
--deprecated({get_session_pid, 3, eventually}).
--deprecated({get_session, 3, eventually}).
--deprecated({get_session_ip, 3, eventually}).
--deprecated({get_user_present_resources, 2, eventually}).
 
 %% Hook handlers
 -export([node_cleanup/2]).
@@ -173,7 +140,7 @@ start_link() ->
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => From#jid.lserver,
+                              lserver => To#jid.lserver,
                               element => Packet,
                               from_jid => From,
                               to_jid => To }),
@@ -218,24 +185,26 @@ route(From, To, Acc, El) ->
 make_new_sid() ->
     {erlang:system_time(microsecond), self()}.
 
--spec open_session(SID, JID, Info) -> ReplacedPids when
+-spec open_session(HostType, SID, JID, Info) -> ReplacedPids when
+      HostType :: binary(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Info :: info(),
       ReplacedPids :: [pid()].
-open_session(SID, JID, Info) ->
-    open_session(SID, JID, undefined, Info).
+open_session(HostType, SID, JID, Info) ->
+    open_session(HostType, SID, JID, undefined, Info).
 
--spec open_session(SID, JID, Priority, Info) -> ReplacedPids when
+-spec open_session(HostType, SID, JID, Priority, Info) -> ReplacedPids when
+      HostType :: binary(),
       SID :: 'undefined' | sid(),
       JID :: jid:jid(),
       Priority :: integer() | undefined,
       Info :: info(),
       ReplacedPids :: [pid()].
-open_session(SID, JID, Priority, Info) ->
+open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
     ReplacedPIDs = check_for_sessions_to_replace(JID),
-    mongoose_hooks:sm_register_connection_hook(JID#jid.lserver, SID, JID, Info),
+    mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
     ReplacedPIDs.
 
 -spec close_session(Acc, SID, JID, Reason) -> Acc1 when
@@ -253,7 +222,7 @@ close_session(Acc, SID, JID, Reason) ->
                    []
            end,
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
-    mongoose_hooks:sm_remove_connection_hook(JID#jid.lserver, Acc, SID, JID, Info, Reason).
+    mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), info_item()) ->
     {ok, {any(), any()}} | {error, offline}.
@@ -326,8 +295,8 @@ check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
       From :: jid:jid(),
       To :: jid:jid(),
       Packet :: exml:element().
-bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
-    Acc1 = mongoose_hooks:xmpp_bounce_message(Server, Acc),
+bounce_offline_message(Acc, From, To, Packet) ->
+    Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
     {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
     Acc3 = ejabberd_router:route(To, From, Acc2, Err),
     {stop, Acc3}.
@@ -384,9 +353,8 @@ get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
       Presence :: any(),
       Info :: info().
 set_presence(Acc, SID, JID, Priority, Presence, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, Priority, Info),
-    mongoose_hooks:set_presence_hook(LServer, Acc, LUser, LResource, Presence).
+    mongoose_hooks:set_presence_hook(Acc, JID, Presence).
 
 
 -spec unset_presence(Acc, SID, JID, Status, Info) -> Acc1 when
@@ -397,9 +365,8 @@ set_presence(Acc, SID, JID, Priority, Presence, Info) ->
       Status :: binary(),
       Info :: info().
 unset_presence(Acc, SID, JID, Status, Info) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     set_session(SID, JID, undefined, Info),
-    mongoose_hooks:unset_presence_hook(LServer, Acc, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(Acc, JID, Status).
 
 
 -spec close_session_unset_presence(Acc, SID, JID, Status, Reason) -> Acc1 when
@@ -410,9 +377,8 @@ unset_presence(Acc, SID, JID, Status, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, JID, Status, Reason) ->
-    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     Acc1 = close_session(Acc, SID, JID, Reason),
-    mongoose_hooks:unset_presence_hook(LServer, Acc1, LUser, LResource, Status).
+    mongoose_hooks:unset_presence_hook(Acc1, JID, Status).
 
 
 -spec get_session_pid(JID) -> none | pid() when
@@ -656,8 +622,7 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     case LResource of
         <<>> ->
             CurrentPids = get_user_present_pids(LUser, LServer),
-            Acc1 = mongoose_hooks:sm_broadcast(To#jid.lserver, Acc, From, To,
-                                               Broadcast, length(CurrentPids)),
+            Acc1 = mongoose_hooks:sm_broadcast(Acc, From, To, Broadcast, length(CurrentPids)),
             ?LOG_DEBUG(#{what => sm_broadcast, session_pids => CurrentPids}),
             BCast = {broadcast, Payload},
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
@@ -703,8 +668,7 @@ do_route(Acc, From, To, El) ->
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
     case is_privacy_allow(From, To, Acc, Packet) of
         true ->
-            Res = mongoose_hooks:roster_in_subscription(To#jid.lserver,
-                                         Acc, To, From, Type, Reason),
+            Res = mongoose_hooks:roster_in_subscription(Acc, To, From, Type, Reason),
             mongoose_acc:get(hook, result, false, Res);
         false ->
             false
@@ -763,7 +727,8 @@ do_route_no_resource(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
-    Drop = mongoose_hooks:sm_filter_offline_message(To#jid.lserver, From, To, Packet),
+    HostType = mongoose_acc:host_type(Acc),
+    Drop = mongoose_hooks:sm_filter_offline_message(HostType, From, To, Packet),
     case Drop of
         false ->
             route_message(From, To, Acc, Packet);
@@ -793,8 +758,8 @@ do_route_offline(_, _, _, _, Acc, _) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
-    Server = To#jid.server,
-    PrivacyList = mongoose_hooks:privacy_get_user_list(Server, To),
+    HostType = mongoose_acc:host_type(Acc),
+    PrivacyList = mongoose_hooks:privacy_get_user_list(HostType, To),
     is_privacy_allow(From, To, Acc, Packet, PrivacyList).
 
 
@@ -807,8 +772,7 @@ is_privacy_allow(From, To, Acc, Packet) ->
       Packet :: exml:element(),
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
-    Server = To#jid.lserver,
-    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, To, PrivacyList, To, in),
+    {_, Res} = mongoose_privacy:privacy_check_packet(Acc, To, PrivacyList, To, in),
     allow == Res.
 
 
@@ -843,20 +807,18 @@ route_message(From, To, Acc, Packet) ->
 route_message_by_type(<<"error">>, _From, _To, Acc, _Packet) ->
     Acc;
 route_message_by_type(<<"groupchat">>, From, To, Acc, Packet) ->
-    LServer = To#jid.lserver,
-    mongoose_hooks:offline_groupchat_message_hook(LServer, Acc, From, To, Packet);
+    mongoose_hooks:offline_groupchat_message_hook(Acc, From, To, Packet);
 route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
-    LServer = To#jid.lserver,
     case ejabberd_auth:does_user_exist(To) of
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
-                    mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet);
+                    mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
                 false ->
-                    mongoose_hooks:failed_to_store_message(LServer, Acc)
+                    mongoose_hooks:failed_to_store_message(Acc)
             end;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(
@@ -1082,76 +1044,3 @@ get_cached_unique_count() ->
 -spec sm_backend() -> backend().
 sm_backend() ->
     ejabberd_sm_backend:backend().
-
-%%====================================================================
-%% Deprecated API
-%%====================================================================
-
--define(FUNCTION_STRING,
-           ?MODULE_STRING ++ ":" ++
-              atom_to_list(?FUNCTION_NAME) ++ "/" ++
-                 integer_to_list(?FUNCTION_ARITY)).
-
--define(DEPRECATE_FUNCTION,
-    mongoose_deprecations:log(
-      {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-      #{what => sm_function_deprecated,
-        text => <<"The function ", (list_to_binary(?FUNCTION_STRING))/binary,
-        " is deprecated, please use the #jid{} equivalent instead">>},
-      [{log_level, warning}])).
-
-open_session(SID, U, S, R, Info) ->
-    ?DEPRECATE_FUNCTION,
-    open_session(SID, jid:make(U, S, R), undefined, Info).
-
-open_session(SID, U, S, R, Priority, Info) ->
-    ?DEPRECATE_FUNCTION,
-    open_session(SID, jid:make(U, S, R), Priority, Info).
-
-close_session(Acc, SID, U, S, R, Reason) ->
-    ?DEPRECATE_FUNCTION,
-    close_session(Acc, SID, jid:make(U, S, R), Reason).
-
-close_session_unset_presence(Acc, SID, U, S, R, Status, Reason) ->
-    ?DEPRECATE_FUNCTION,
-    close_session_unset_presence(Acc, SID, jid:make(U, S, R), Status, Reason).
-
-unset_presence(Acc, SID, U, S, R, Status, Info) ->
-    ?DEPRECATE_FUNCTION,
-    unset_presence(Acc, SID, jid:make(U, S, R), Status, Info).
-
-get_raw_sessions(U, S) ->
-    ?DEPRECATE_FUNCTION,
-    get_raw_sessions(jid:make(U, S, <<>>)).
-
-store_info(U, S, R, {Key, _Value} = KV) ->
-    ?DEPRECATE_FUNCTION,
-    store_info(jid:make(U, S, R), {Key, _Value} = KV).
-
-set_presence(Acc, SID, U, S, R, Priority, Presence, Info) ->
-    ?DEPRECATE_FUNCTION,
-    set_presence(Acc, SID, jid:make(U, S, R), Priority, Presence, Info).
-
-remove_info(U, S, R, Key) ->
-    ?DEPRECATE_FUNCTION,
-    remove_info(jid:make(U, S, R), Key).
-
-get_user_resources(U, S) ->
-    ?DEPRECATE_FUNCTION,
-    get_user_resources(jid:make(U, S, <<>>)).
-
-get_session_pid(U, S, R) ->
-    ?DEPRECATE_FUNCTION,
-    get_session_pid(jid:make(U, S, R)).
-
-get_session(U, S, R) ->
-    ?DEPRECATE_FUNCTION,
-    get_session(jid:make(U, S, R)).
-
-get_session_ip(U, S, R) ->
-    ?DEPRECATE_FUNCTION,
-    get_session_ip(jid:make(U, S, R)).
-
-get_user_present_resources(U, S) ->
-    ?DEPRECATE_FUNCTION,
-    get_user_present_resources(jid:make(U, S, <<>>)).

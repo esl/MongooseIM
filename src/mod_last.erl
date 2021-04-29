@@ -180,10 +180,9 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     case MutualSubscription or RequesterSubscribedToTarget or QueryingSameUsersLast of
         true ->
             UserListRecord = mongoose_hooks:privacy_get_user_list(Server, To),
-            ok,
-            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, Server, To,
-                                                             UserListRecord, To, From,
-                                                             out),
+            {Acc1, Res} = mongoose_privacy:privacy_check_packet(Acc, To,
+                                                                UserListRecord, To, From,
+                                                                out),
             {Acc1, make_response(IQ, SubEl, To, Res)};
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
