@@ -55,7 +55,7 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> 'ok'.
+-spec start(HostType :: mongooseim:host_type()) -> 'ok'.
 start(HostType) ->
     ExtauthProgram = ejabberd_auth:get_opt(HostType, extauth_program),
     extauth:start(HostType, ExtauthProgram),
@@ -96,7 +96,7 @@ supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -107,7 +107,7 @@ check_password(_HostType, LUser, LServer, Password) ->
     end.
 
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
@@ -117,7 +117,7 @@ check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
     check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
@@ -135,7 +135,7 @@ maybe_set_password_internal({true, _}, HostType, LUser, LServer, Password) ->
     set_password_internal(HostType, LUser, LServer, Password).
 
 
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
@@ -323,7 +323,7 @@ check_password_external_cache(LUser, LServer, Password) ->
 
 
 %% @doc Try to register using extauth; if success then cache it
--spec try_register_external_cache(HostType :: binary(),
+-spec try_register_external_cache(HostType :: mongooseim:host_type(),
                                   LUser :: jid:luser(),
                                   LServer :: jid:lserver(),
                                   Password :: binary()) -> ok | {error, not_allowed}.
@@ -346,7 +346,7 @@ check_password_internal(LUser, LServer, Password) ->
     ejabberd_auth_internal:check_password(LServer, LUser, LServer, Password).
 
 
--spec set_password_internal(HostType :: binary(),
+-spec set_password_internal(HostType :: mongooseim:host_type(),
                             LUser :: jid:luser(),
                             LServer :: jid:lserver(),
                             Password :: binary()) -> ok | {error, invalid_jid}.

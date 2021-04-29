@@ -41,16 +41,16 @@
 -export([check_password/4,
          check_password/6]).
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(_) -> ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_) -> ok.
 
 -spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_external.
 
--spec set_password( HostType :: binary(),
+-spec set_password( HostType :: mongooseim:host_type(),
                     User :: jid:luser(),
                     Server :: jid:lserver(),
                     Password :: binary()
@@ -65,7 +65,7 @@ check_password(_, _, _, _) -> false.
 
 check_password(_, _, _, _, _, _) -> false.
 
--spec try_register( HostType :: binary(),
+-spec try_register( HostType :: mongooseim:host_type(),
                     User :: jid:luser(),
                     Server :: jid:lserver(),
                     Password :: binary()

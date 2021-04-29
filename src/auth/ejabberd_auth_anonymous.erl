@@ -86,7 +86,7 @@ stop(HostType) ->
     ok.
 
 %% @doc Return true if SASL ANONYMOUS mechanism is enabled one the server
--spec is_sasl_anonymous_enabled(HostType :: binary()) -> boolean().
+-spec is_sasl_anonymous_enabled(HostType :: mongooseim:host_type()) -> boolean().
 is_sasl_anonymous_enabled(HostType) ->
     case anonymous_protocol(HostType) of
         sasl_anon -> true;
@@ -97,7 +97,7 @@ is_sasl_anonymous_enabled(HostType) ->
 %% @doc Return true if anonymous login is enabled on the server
 %% anonymous login can be used with a standard authentication method
 %% (i.e. with clients that do not support anonymous login)
--spec is_login_anonymous_enabled(HostType :: binary()) -> boolean().
+-spec is_login_anonymous_enabled(HostType :: mongooseim:host_type()) -> boolean().
 is_login_anonymous_enabled(HostType) ->
     case anonymous_protocol(HostType) of
         login_anon -> true;
@@ -107,7 +107,7 @@ is_login_anonymous_enabled(HostType) ->
 
 %% @doc Return the anonymous protocol to use: sasl_anon|login_anon|both
 %% defaults to login_anon
--spec anonymous_protocol(HostType :: binary()) ->
+-spec anonymous_protocol(HostType :: mongooseim:host_type()) ->
                                       'both' | 'login_anon' | 'sasl_anon'.
 anonymous_protocol(HostType) ->
     case ejabberd_config:get_local_option({anonymous_protocol, HostType}) of
@@ -153,7 +153,7 @@ remove_connection(SID, LUser, LServer) ->
 
 %% @doc Register connection
 -spec register_connection(Acc,
-                          HostType :: binary(),
+                          HostType :: mongooseim:host_type(),
                           SID :: ejabberd_sm:sid(),
                           JID :: jid:jid(),
                           Info :: list()) -> Acc when Acc :: any().
@@ -212,7 +212,7 @@ authorize(Creds) ->
 
 %% @doc When anonymous login is enabled, check the password for permanent users
 %% before allowing access
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -251,7 +251,7 @@ login(LUser, LServer) ->
 
 %% @doc When anonymous login is enabled, check that the user is permanent before
 %% changing its password
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed}.
@@ -265,7 +265,7 @@ set_password(_HostType, LUser, LServer, _Password) ->
 
 %% @doc When anonymous login is enabled, check if permanent users are allowed on
 %% the server:
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> {error, not_allowed}.

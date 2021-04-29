@@ -31,11 +31,11 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(_HostType) ->
     ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 

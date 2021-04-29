@@ -7,14 +7,14 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_gen_auth).
 
--callback start(HostType :: binary()) -> ok.
+-callback start(HostType :: mongooseim:host_type()) -> ok.
 
--callback stop(HostType :: binary()) -> ok.
+-callback stop(HostType :: mongooseim:host_type()) -> ok.
 
--callback supports_sasl_module(HostType :: binary(),
+-callback supports_sasl_module(HostType :: mongooseim:host_type(),
                                Module :: cyrsasl:sasl_module()) -> boolean().
 
--callback set_password(HostType :: binary(),
+-callback set_password(HostType :: mongooseim:host_type(),
                        User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()
@@ -24,7 +24,7 @@
 -callback authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                                | {error, any()}.
 
--callback try_register(HostType :: binary(),
+-callback try_register(HostType :: mongooseim:host_type(),
                        User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()
@@ -55,7 +55,7 @@
                       Server :: jid:lserver()
                       ) -> ok | {error, not_allowed}.
 
--callback remove_domain(HostType :: binary(), Server :: jid:lserver()) ->
+-callback remove_domain(HostType :: mongooseim:host_type(), Server :: jid:lserver()) ->
     ok | {error, term()}.
 
 -callback supported_features() -> [Feature::atom()].
@@ -67,12 +67,12 @@
 %% with the help of ejabberd_auth:authorize_with_check_password/2
 %% function, these callbacks can be reused to simplify implementation
 %% of the M:authorize/1 interface.
--callback check_password(HostType :: binary(),
+-callback check_password(HostType :: mongooseim:host_type(),
                          LUser :: jid:luser(),
                          LServer :: jid:lserver(),
                          Password :: binary()) -> boolean().
 
--callback check_password(HostType :: binary(),
+-callback check_password(HostType :: mongooseim:host_type(),
                          LUser :: jid:luser(),
                          LServer :: jid:lserver(),
                          Password :: binary(),

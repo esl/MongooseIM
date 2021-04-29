@@ -72,7 +72,7 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(HostType) ->
     mnesia:create_table(passwd, [{disc_copies, [node()]},
                                  {attributes, record_info(fields, passwd)},
@@ -87,7 +87,7 @@ start(HostType) ->
     update_reg_users_counter_table(HostType),
     ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 
@@ -111,7 +111,7 @@ supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Me
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -127,7 +127,7 @@ check_password(_HostType, LUser, LServer, Password) ->
     end.
 
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
@@ -145,7 +145,7 @@ check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
     end.
 
 
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
@@ -158,7 +158,7 @@ set_password(HostType, LUser, LServer, Password) ->
     {atomic, ok} = mnesia:transaction(F),
     ok.
 
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()

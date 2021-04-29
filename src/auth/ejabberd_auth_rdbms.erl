@@ -79,7 +79,7 @@ start(HostType) ->
 stop(_HostType) ->
     ok.
 
--spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;
 supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
 supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
@@ -89,7 +89,7 @@ supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Me
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -118,7 +118,7 @@ check_password(_HostType, LUser, LServer, Password) ->
             false %% Database error
     end.
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
@@ -148,7 +148,7 @@ check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
             false %% Database error
     end.
 
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
@@ -166,7 +166,7 @@ set_password(HostType, LUser, LServer, Password) ->
             {error, not_allowed}
     end.
 
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()
@@ -317,7 +317,7 @@ prepare_scrammed_password(Server, Iterations, Password) when is_integer(Iteratio
     #{password => <<>>,
       details => mongoose_scram:serialize(Scram)}.
 
--spec prepare_password(Server :: jid:server(), Password :: binary()) -> prepared_password().
+-spec prepare_password(HostType :: mongooseim:host_type(), Password :: binary()) -> prepared_password().
 prepare_password(HostType, Password) ->
     case mongoose_scram:enabled(HostType) of
         true ->
@@ -384,7 +384,7 @@ scram_passwords1(LServer, Count, Interval, ScramIterationCount) ->
 %%% DB Queries
 %%%------------------------------------------------------------------
 
--spec prepare_queries(binary()) -> any().
+-spec prepare_queries(mongooseim:host_type()) -> any().
 prepare_queries(HostType) ->
     prepare(auth_get_password, users,
             [username],

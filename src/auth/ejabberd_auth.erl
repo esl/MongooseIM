@@ -81,7 +81,7 @@
 start() ->
     lists:foreach(fun start/1, ?ALL_HOST_TYPES).
 
--spec start(HostType :: binary()) -> 'ok'.
+-spec start(HostType :: mongooseim:host_type()) -> 'ok'.
 start(HostType) ->
     ensure_metrics(HostType),
     ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
@@ -90,7 +90,7 @@ start(HostType) ->
               M:start(HostType)
       end, auth_modules_for_host_type(HostType)).
 
--spec stop(HostType :: binary()) -> 'ok'.
+-spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
     ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
     lists:foreach(
@@ -98,7 +98,7 @@ stop(HostType) ->
               M:stop(HostType)
       end, auth_modules_for_host_type(HostType)).
 
--spec set_opts(HostType :: binary(),
+-spec set_opts(HostType :: mongooseim:host_type(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
 set_opts(HostType, KVs) ->
     OldOpts = ejabberd_config:get_local_option(auth_opts, HostType),
@@ -108,7 +108,7 @@ set_opts(HostType, KVs) ->
     NewOpts = lists:foldl(AccFunc, OldOpts, KVs),
     ejabberd_config:add_local_option({auth_opts, HostType}, NewOpts).
 
--spec get_opt(HostType :: binary(),
+-spec get_opt(HostType :: mongooseim:host_type(),
               Opt :: atom(),
               Default :: ejabberd:value()) -> undefined | ejabberd:value().
 get_opt(HostType, Opt, Default) ->
@@ -127,7 +127,7 @@ get_opt(HostType, Opt, Default) ->
 get_opt(HostType, Opt) ->
     get_opt(HostType, Opt, undefined).
 
--spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(HostType, Module) ->
     lists:any(fun(M) -> M:supports_sasl_module(HostType, Module) end,
               auth_modules_for_host_type(HostType)).
@@ -400,7 +400,7 @@ get_supported_features(Module) ->
 
 %% Check if the user exists in all authentications module
 %% except the module passed as parameter
--spec does_user_exist_in_other_modules(HostType :: binary(),
+-spec does_user_exist_in_other_modules(HostType :: mongooseim:host_type(),
                                        Module :: authmodule(),
                                        JID :: jid:jid() | error) ->
     boolean() | maybe.
@@ -441,7 +441,8 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
     end;
 remove_user(error) -> error.
 
--spec remove_user_for_host_type(binary(), jid:luser(), jid:lserver()) -> ok | {error, not_allowed}.
+-spec remove_user_for_host_type(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+    ok | {error, not_allowed}.
 remove_user_for_host_type(HostType, LUser, LServer) ->
     AuthModules = auth_modules_for_host_type(HostType),
     RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules],
@@ -500,12 +501,12 @@ auth_modules(LServer) ->
     end.
 
 %% Return the list of authenticated modules for a given host type
--spec auth_modules_for_host_type(HostType :: binary()) -> [authmodule()].
+-spec auth_modules_for_host_type(HostType :: mongooseim:host_type()) -> [authmodule()].
 auth_modules_for_host_type(HostType) ->
     Methods = auth_methods(HostType),
     [auth_method_to_module(M) || M <- Methods].
 
--spec auth_methods(binary()) -> [atom()].
+-spec auth_methods(mongooseim:host_type()) -> [atom()].
 auth_methods(HostType) ->
     Method = ejabberd_config:get_local_option({auth_method, HostType}),
     get_auth_method_as_a_list(Method).

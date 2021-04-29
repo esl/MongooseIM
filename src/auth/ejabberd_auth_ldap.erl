@@ -90,7 +90,7 @@ handle_info(_Info, State) -> {noreply, State}.
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType]},
@@ -99,7 +99,7 @@ start(HostType) ->
     ejabberd_sup:start_child(ChildSpec),
     ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(host_config_update, HostType, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
@@ -107,13 +107,14 @@ stop(HostType) ->
     ejabberd_sup:stop_child(Proc),
     ok.
 
+-spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
 start_link(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:start_link({local, Proc}, ?MODULE, HostType, []).
 
 terminate(_Reason, _State) -> ok.
 
--spec init(HostType :: binary()) -> {'ok', state()}.
+-spec init(HostType :: mongooseim:host_type()) -> {'ok', state()}.
 init(HostType) ->
     State = parse_options(HostType),
     {ok, State}.
@@ -138,7 +139,7 @@ authorize(Creds) ->
         false -> ejabberd_auth:authorize_with_check_password(?MODULE, Creds)
     end.
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -149,7 +150,7 @@ check_password(_HostType, LUser, LServer, Password) ->
         Result -> Result
     end.
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
@@ -160,7 +161,7 @@ check_password(HostType, LUser, LServer, Password, _Digest,
     check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary())
@@ -175,7 +176,7 @@ set_password(_HostType, LUser, LServer, Password) ->
     end.
 
 
--spec try_register(HostType :: binary(), LUser :: jid:luser(),
+-spec try_register(HostType :: mongooseim:host_type(), LUser :: jid:luser(),
                    LServer :: jid:lserver(), Password :: binary()) ->
     ok | {error, exists}.
 try_register(_HostType, LUser, LServer, Password) ->
@@ -477,7 +478,7 @@ result_attrs(#state{uids = UIDs,
 %%% Auxiliary functions
 %%%----------------------------------------------------------------------
 
--spec parse_options(HostType :: binary()) -> state().
+-spec parse_options(HostType :: mongooseim:host_type()) -> state().
 parse_options(HostType) ->
     Opts = ejabberd_config:get_local_option_or_default({auth_opts, HostType}, []),
     EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,

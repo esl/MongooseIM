@@ -63,7 +63,7 @@ authorize(Creds) ->
     end.
 
 
--spec check_password(binary(), jid:luser(), jid:lserver(), binary()) -> boolean().
+-spec check_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) -> boolean().
 check_password(HostType, LUser, LServer, Password) ->
     case mongoose_scram:enabled(HostType) of
         false ->
@@ -75,7 +75,8 @@ check_password(HostType, LUser, LServer, Password) ->
             {ok, true} =:= verify_scram_password(LUser, LServer, Password)
     end.
 
--spec check_password(binary(), jid:luser(), jid:lserver(), binary(), binary(), fun()) -> boolean().
+-spec check_password(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                     binary(), binary(), fun()) -> boolean().
 check_password(HostType, LUser, LServer, Password, Digest, DigestGen) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -89,7 +90,8 @@ check_password(HostType, LUser, LServer, Password, Digest, DigestGen) ->
             end
     end.
 
--spec set_password(binary(), jid:luser(), jid:lserver(), binary()) -> ok | {error, not_allowed}.
+-spec set_password(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                   binary()) -> ok | {error, not_allowed}.
 set_password(HostType, LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(HostType) of
                         true -> mongoose_scram:serialize(mongoose_scram:password_to_scram(HostType,
@@ -102,7 +104,7 @@ set_password(HostType, LUser, LServer, Password) ->
         {error, _} -> {error, not_allowed}
     end.
 
--spec try_register(binary(), jid:luser(), jid:lserver(), binary()) ->
+-spec try_register(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) ->
     ok | {error, exists | not_allowed}.
 try_register(HostType, LUser, LServer, Password) ->
     PasswordFinal = case mongoose_scram:enabled(HostType) of

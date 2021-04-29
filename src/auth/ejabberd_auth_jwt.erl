@@ -54,7 +54,7 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(HostType) ->
     UsernameKey = ejabberd_auth:get_opt(HostType, jwt_username_key),
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
@@ -66,7 +66,7 @@ start(HostType) ->
                            {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 
@@ -78,7 +78,7 @@ supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
@@ -122,7 +122,7 @@ check_password(HostType, LUser, LServer, Password) ->
     end.
 
 
--spec check_password(HostType :: binary(),
+-spec check_password(HostType :: mongooseim:host_type(),
                      LUser :: jid:luser(),
                      LServer :: jid:lserver(),
                      Password :: binary(),
@@ -132,7 +132,7 @@ check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
     check_password(HostType, LUser, LServer, Password).
 
 
--spec set_password(HostType :: binary(),
+-spec set_password(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
@@ -140,7 +140,7 @@ set_password(_HostType, _LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary()

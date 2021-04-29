@@ -44,20 +44,20 @@
 -export([check_password/4,
          check_password/6]).
 
--spec start(binary()) -> ok.
+-spec start(mongooseim:host_type()) -> ok.
 start(_HostType) ->
     ok.
 
--spec stop(binary()) -> ok.
+-spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
 ok.
 
--spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;
 supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
 supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
 
--spec set_password(binary(), jid:luser(), jid:lserver(), binary())
+-spec set_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.
 set_password(HostType, LUser, LServer, Password) ->
     case prepare_password(HostType, Password) of
@@ -76,7 +76,7 @@ set_password(HostType, LUser, LServer, Password) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(binary(), jid:luser(), jid:lserver(), binary()) -> boolean().
+-spec check_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) -> boolean().
 check_password(_HostType, LUser, LServer, Password) ->
     case do_get_password(LUser, LServer) of
         false ->
@@ -89,7 +89,7 @@ check_password(_HostType, LUser, LServer, Password) ->
             false
     end.
 
--spec check_password(binary(),
+-spec check_password(mongooseim:host_type(),
                      jid:luser(),
                      jid:lserver(),
                      binary(),
@@ -105,7 +105,7 @@ check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, PassRiak)
     end.
 
--spec try_register(HostType :: binary(),
+-spec try_register(HostType :: mongooseim:host_type(),
                    User :: jid:luser(),
                    Server :: jid:lserver(),
                    Password :: binary()
