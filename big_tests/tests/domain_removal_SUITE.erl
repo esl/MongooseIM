@@ -12,7 +12,8 @@
 
 -export([mam_pm_removal/1,
          mam_muc_removal/1,
-         inbox_removal/1]).
+         inbox_removal/1,
+         muc_light_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -24,13 +25,15 @@
 
 all() ->
     [{group, mam_removal},
-     {group, inbox_removal}].
+     {group, inbox_removal},
+     {group, muc_light_removal}].
 
 groups() ->
     [
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
-     {inbox_removal, [], [inbox_removal]}
+     {inbox_removal, [], [inbox_removal]},
+     {muc_light_removal, [], [muc_light_removal]}
     ].
 
 domain() ->
@@ -71,6 +74,8 @@ group_to_modules(mam_removal) ->
     MH = muc_light_helper:muc_host(),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]}]},
      {mod_muc_light, []}];
+group_to_modules(muc_light_removal) ->
+    [{mod_muc_light, [{backend, rdbms}]}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, []}].
 
@@ -126,5 +131,23 @@ inbox_removal(Config) ->
         inbox_helper:get_inbox(Bob, #{count => 0, unread_messages => 0, active_conversations => 0})
       end).
 
+muc_light_removal(Config0) ->
+    F = fun(Config, Alice) ->
+        Room = muc_helper:fresh_room_name(),
+        MucHost = muc_light_helper:muc_host(),
+        muc_light_helper:create_room(Room, MucHost, alice,
+                                     [alice], Config, muc_light_helper:ver(1)),
+        RoomAddr = <<Room/binary, "@", MucHost/binary>>,
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
+        escalus:wait_for_stanza(Alice),
+        {ok, _RoomConfig, _AffUsers, _Version} = get_room_info(Room, MucHost),
+        run_remove_domain(),
+        {error, not_exists} = get_room_info(Room, MucHost)
+        end,
+    escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
+
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).
+
+get_room_info(RoomU, RoomS) ->
+    rpc(mim(), mod_muc_light_db_backend, get_info, [{RoomU, RoomS}]).
