@@ -202,6 +202,10 @@ orbs:
             type: boolean
             description: Erlang distribution with TLS enabled
             default: false
+          spec:
+            type: string
+            description: Test spec file to use
+            default: default.spec
         environment:
           MIX_ENV: test
           PRESET: <<parameters.preset>>
@@ -209,7 +213,7 @@ orbs:
           TLS_DIST: <<parameters.tls_dist>>
           ELASTICSEARCH_VERSION: 5.6.9
           CASSANDRA_VERSION: 3.9
-          TEST_SPEC: mam.spec
+          TESTSPEC: <<parameters.spec>>
           REDIS_VERSION: 3.2.10
         steps:
           - checkout
@@ -462,6 +466,17 @@ workflows:
           otp_package: 23.0.3-1
           preset: ldap_mnesia
           db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
+      # ============= DYNAMIC DOMAINS =============
+      - mim/big_tests:
+          name: dynamic_domains
+          otp_package: 23.0.3-1
+          spec: dynamic_domains.spec
+          preset: pgsql_mnesia
+          db: pgsql
           context: mongooseim-org
           requires:
             - otp_23
