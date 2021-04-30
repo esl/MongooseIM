@@ -18,6 +18,7 @@ This script runs small and big tests for MongooseIM
 Options:
 --db [DB]             -- a list of databases to setup for big tests
 --preset [PRESET]     -- a list of presets to run during big tests
+--spec [SPEC]         -- test spec to use instead of 'default.spec'
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to and collect cover info from
 --one-node            -- the same as "--dev-nodes mim1 --test-hosts mim --"
@@ -255,6 +256,8 @@ PRESETS_ARRAY=(
     $( ./tools/test_runner/list_presets.sh )
 )
 
+SRC_TESTSPEC="default.spec"
+
 DBS_ARRAY=(
     mysql
     pgsql
@@ -359,6 +362,12 @@ case $key in
                 break
             fi
         done
+    ;;
+
+    --spec)
+        shift # consume argument
+        SRC_TESTSPEC="$1"
+        shift # consume value
     ;;
 
     --dev-nodes)
@@ -603,6 +612,7 @@ if [[ -f "auto_small_tests.spec" ]]; then
 else
     export REBAR_CT_EXTRA_ARGS=""
 fi
+export SRC_TESTSPEC="$SRC_TESTSPEC"
 export TESTSPEC="auto_big_tests.spec"
 export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
@@ -620,6 +630,7 @@ echo "    PRESET_ENABLED=$PRESET_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    BUILD_MIM=$BUILD_MIM"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
+echo "    SRC_TESTSPEC=$SRC_TESTSPEC"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
 echo "    START_NODES=$START_NODES"
