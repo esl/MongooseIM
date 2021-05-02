@@ -19,6 +19,8 @@
          get_all_outdated/1,
          get_domains_by_host_type/1]).
 
+-export([for_each_domain/2]).
+
 -export([is_host_type_allowed/1]).
 
 %% For testing
@@ -30,6 +32,9 @@
 
 -define(TABLE, ?MODULE).
 -define(HOST_TYPE_TABLE, mongoose_domain_core_host_types).
+
+-type host_type() :: mongooseim:host_type().
+-type domain() :: mongooseim:domain_name().
 
 -ifdef(TEST).
 %% required for unit tests
@@ -83,6 +88,17 @@ get_all_static() ->
 
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
+
+-spec for_each_domain(host_type(), fun((host_type(), domain())-> any())) -> ok.
+for_each_domain(HostType, Func) ->
+    ets:safe_fixtable(?TABLE, true),
+    MS = ets:fun2ms(fun({Domain, HT, _}) when HT =:= HostType ->
+                        [HostType, Domain]
+                    end),
+    Selection = ets:select(?TABLE, MS, 100),
+    for_each_selected_domain(Selection, Func),
+    ets:safe_fixtable(?TABLE, false),
+    ok.
 
 get_all_outdated(CurrentSource) ->
     MS = ets:fun2ms(fun({Domain, HostType, {dynamic, Src}}) when Src =/= CurrentSource ->
@@ -143,6 +159,14 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
+%% internal functions
+%%--------------------------------------------------------------------
+for_each_selected_domain('$end_of_table', _) -> ok;
+for_each_selected_domain({MatchList, Continuation}, Func) ->
+    [safely:apply(Func, Args) || Args <- MatchList],
+    Selection = ets:select(Continuation),
+    for_each_selected_domain(Selection, Func).
+
 insert_initial(Tab, Pairs) ->
     lists:foreach(fun({Domain, HostType}) ->
                           insert_initial_pair(Tab, Domain, HostType)

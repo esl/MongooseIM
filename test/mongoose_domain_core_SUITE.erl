@@ -23,7 +23,8 @@ all() ->
      get_all_static,
      get_domains_by_host_type,
      host_type_check,
-     can_get_outdated_domains].
+     can_get_outdated_domains,
+     run_for_each_domains].
 
 init_per_suite(Config) ->
     meck:new(mongoose_hooks, [no_link]),
@@ -135,3 +136,18 @@ can_get_outdated_domains(_) ->
     ok = mongoose_domain_core:delete(<<"another.domain">>),
     [] = mongoose_domain_core:get_all_outdated(dummy_src),
     [] = mongoose_domain_core:get_all_outdated(another_dummy_src).
+
+run_for_each_domains(_) ->
+    NumOfDomains = 10,
+    NewDomains = [<<"dummy_domain_", (integer_to_binary(N))/binary, ".localhost">>
+                  || N <- lists:seq(1, NumOfDomains)],
+    [mongoose_domain_core:insert(Domain, <<"type #3">>, dummy_src) || Domain <- NewDomains],
+    io:format("!!! Domains = ~p~n", [mongoose_domain_core:get_domains_by_host_type(<<"type #3">>)]),
+    meck:new(dummy_module, [non_strict]),
+    meck:expect(dummy_module, for_each_callback, fun(_, _) -> ok end),
+    mongoose_domain_core:for_each_domain(<<"type #3">>, fun dummy_module:for_each_callback/2),
+    io:format("!!! Calls = ~p~n", [meck:history(dummy_module)]),
+    NumOfDomains = meck:num_calls(dummy_module, for_each_callback, 2),
+    [meck:wait(dummy_module, for_each_callback, [<<"type #3">>, Domain], 0)
+     || Domain <- NewDomains],
+    meck:unload(dummy_module).
