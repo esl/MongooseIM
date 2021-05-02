@@ -173,7 +173,8 @@ config_spec() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_db}},
                  <<"host">> => #option{type = string,
-                                       validate = subdomain_template},
+                                       validate = subdomain_template,
+                                       process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                  <<"access">> => #option{type = atom,
                                          validate = access_rule},
                  <<"access_create">> => #option{type = atom,
@@ -902,8 +903,9 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
         {error, not_found}
     end.
 
--spec default_host() -> binary().
-default_host() -> <<"conference.@HOST@">>.
+-spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
+default_host() ->
+    mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
 
 -spec iq_disco_info(ejabberd:lang(), jid:jid(), jid:jid()) -> [exml:element(), ...].
 iq_disco_info(Lang, From, To) ->

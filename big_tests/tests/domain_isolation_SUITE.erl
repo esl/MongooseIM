@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile(export_all).
--import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -32,7 +32,7 @@ end_per_suite(Config) ->
 
 init_per_testcase(TestcaseName, Config) ->
     Host = domain(),
-    MucHost = binary_to_list(<<"muclight.", Host/binary>>),
+    MucHost = subhost_pattern(<<"muclight.", Host/binary>>),
     dynamic_modules:start(Host, mod_domain_isolation, [{extra_domains, [MucHost]}]),
     dynamic_modules:start(Host, mod_muc_light, [{host, MucHost}]),
     escalus:init_per_testcase(TestcaseName, Config).

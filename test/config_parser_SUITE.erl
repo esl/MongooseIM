@@ -1846,10 +1846,10 @@ mod_event_pusher_push(_Config) ->
          T(#{<<"wpool">> => #{<<"workers">> => 200}})),
     ?eqf(M([{plugin_module, mod_event_pusher_push_plugin_defaults}]),
          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
-    ?eqf(M([{virtual_pubsub_hosts, ["host1", "host2"]}]),
+    ?eqf(M([{virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]}]),
          T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
-    ?eqf(M([{virtual_pubsub_hosts, ["pubsub.@HOSTS@", "pubsub.@HOST@"]}]),
-         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOSTS@">>, <<"pubsub.@HOST@">>]})),
+    ?eqf(M([{virtual_pubsub_hosts, [{prefix, <<"pubsub.">>}, {prefix, <<"pub-sub.">>}]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOST@">>, <<"pub-sub.@HOST@">>]})),
     ?errf(T(#{<<"backend">> => <<"redis">>})),
     ?errf(T(#{<<"wpool">> => true})),
     ?errf(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
@@ -1857,7 +1857,7 @@ mod_event_pusher_push(_Config) ->
     ?errf(T(#{<<"plugin_module">> => 1})),
     ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})),
     ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub@HOST@">>]})),
-    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub.@HOSTS@.as.well">>]})).
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub.@HOST@.as.well">>]})).
 
 mod_event_pusher_http(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
@@ -1919,8 +1919,10 @@ mod_http_upload(_Config) ->
     RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
     ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
     ?eqf(M(ExpectedCfg), T(RequiredOpts)),
-    ?eqf(M(ExpectedCfg ++ [{host, "upload.@HOST@"}]),
+    ?eqf(M(ExpectedCfg ++ [{host, {prefix, <<"upload.">>}}]),
          T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
+    ?eqf(M(ExpectedCfg ++ [{host, {fqdn, <<"upload.test">>}}]),
+         T(RequiredOpts#{<<"host">> => <<"upload.test">>})),
     ?eqf(M(ExpectedCfg ++ [{backend, s3}]),
          T(RequiredOpts#{<<"backend">> => <<"s3">>})),
     ?eqf(M(ExpectedCfg ++ [{expiration_time, 666}]),
@@ -1937,6 +1939,7 @@ mod_http_upload(_Config) ->
     ?errf(T(RequiredOpts#{<<"host">> => <<"is this a host? no.">>})),
     ?errf(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errf(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errf(T(RequiredOpts#{<<"host">> => [<<"not.supported.any.more.@HOSTS@">>]})),
     check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
 
 mod_http_upload_s3(_Config) ->
@@ -2047,8 +2050,10 @@ mod_mam_meta_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
     M = fun(Cfg) -> modopts(mod_mam_meta, [{muc, Cfg}]) end,
     test_mod_mam_meta(T, M),
-    ?eqf(M([{host, "muc.@HOST@"}]),
+    ?eqf(M([{host, {prefix, <<"muc.">>}}]),
          T(#{<<"host">> => <<"muc.@HOST@">>})),
+    ?eqf(M([{host, {fqdn, <<"muc.test">>}}]),
+         T(#{<<"host">> => <<"muc.test">>})),
     ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})).
@@ -2115,8 +2120,10 @@ test_mod_mam_meta(T, M) ->
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
     M = fun(Cfg) -> modopts(mod_muc, Cfg) end,
-    ?eqf(M([{host, "conference.@HOST@"}]),
+    ?eqf(M([{host, {prefix, <<"conference.">>}}]),
          T(#{<<"host">> => <<"conference.@HOST@">>})),
+    ?eqf(M([{host, {fqdn, <<"conference.test">>}}]),
+         T(#{<<"host">> => <<"conference.test">>})),
     ?eqf(M([{backend, mnesia}]),
          T(#{<<"backend">> => <<"mnesia">>})),
     ?eqf(M([{access, all}]),
@@ -2327,8 +2334,10 @@ mod_muc_light(_Config) ->
     M = fun(Cfg) -> modopts(mod_muc_light, Cfg) end,
     ?eqf(M([{backend, mnesia}]),
          T(#{<<"backend">> => <<"mnesia">>})),
-    ?eqf(M([{host, "muclight.@HOST@"}]),
+    ?eqf(M([{host, {prefix, <<"muclight.">>}}]),
          T(#{<<"host">> => <<"muclight.@HOST@">>})),
+    ?eqf(M([{host, {fqdn, <<"muclight.test">>}}]),
+         T(#{<<"host">> => <<"muclight.test">>})),
     ?eqf(M([{equal_occupants, true}]),
          T(#{<<"equal_occupants">> => true})),
     ?eqf(M([{legacy_mode, false}]),
@@ -2449,8 +2458,10 @@ mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
     M = fun(Cfg) -> modopts(mod_pubsub, Cfg) end,
-    ?eqf(M([{host, "pub.@HOST@"}]),
-         T(#{<<"host">> => <<"pub.@HOST@">>})),
+    ?eqf(M([{host, {prefix, <<"pubsub.">>}}]),
+         T(#{<<"host">> => <<"pubsub.@HOST@">>})),
+    ?eqf(M([{host, {fqdn, <<"pubsub.test">>}}]),
+         T(#{<<"host">> => <<"pubsub.test">>})),
     ?eqf(M([{backend, rdbms}]),
          T(#{<<"backend">> => <<"rdbms">>})),
     ?eqf(M([{access_createnode, all}]),
@@ -2780,8 +2791,10 @@ mod_vcard(_Config) ->
     M = fun(Cfg) -> modopts(mod_vcard, Cfg) end,
     ?eqf(M([{iqdisc, one_queue}]),
         T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
-    ?eqf(M([{host, "vjud.@HOST@"}]),
-        T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?eqf(M([{host, {prefix, <<"vjud.">>}}]),
+         T(#{<<"host">> => <<"vjud.@HOST@">>})),
+    ?eqf(M([{host, {fqdn, <<"vjud.test">>}}]),
+         T(#{<<"host">> => <<"vjud.test">>})),
     ?eqf(M([{search, true}]),
         T(#{<<"search">> => true})),
     ?eqf(M([{backend, mnesia}]),
@@ -2993,6 +3006,7 @@ rdbms_opts() ->
 
 eq_host_config(Result, Config) ->
     ConfigFunctions = parse(Config), % check for all hosts
+    io:format("!!! config = ~p", [lists:flatmap(fun(F) -> F(?HOST) end, ConfigFunctions)]),
     compare_config(Result, lists:flatmap(fun(F) -> F(?HOST) end, ConfigFunctions)),
     compare_config(Result, parse_host_config(Config)). % Check for a single host
 

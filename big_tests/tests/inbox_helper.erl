@@ -71,6 +71,7 @@
 
 -import(muc_helper, [foreach_recipient/2]).
 -import(muc_light_helper, [lbin/1]).
+-import(distributed_helper, [subhost_pattern/1]).
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
@@ -132,7 +133,7 @@ skip_or_run_inbox_tests(TestCases) ->
 
 required_modules() ->
     [
-     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
+     {mod_muc_light, [{host, subhost_pattern(muclight_config_domain())},
                       {backend, rdbms}]},
      {mod_inbox, inbox_opts()}
     ].

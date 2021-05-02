@@ -36,6 +36,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -332,7 +333,7 @@ required_modules() ->
                    {nodetree, <<"dag">>},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {pep_mapping, []},
-                   {host, "pubsub.@HOST@"}
+                   {host, subhost_pattern("pubsub.@HOST@")}
                   ]}].
 required_modules(cache_tests) ->
     [{mod_caps, []},
@@ -341,7 +342,7 @@ required_modules(cache_tests) ->
                    {nodetree, <<"dag">>},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {pep_mapping, []},
-                   {host, "pubsub.@HOST@"},
+                   {host, subhost_pattern("pubsub.@HOST@")},
                    {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}
                   ]}].
 

@@ -62,8 +62,6 @@
          set_module_opt/4,
          set_module_opts/3,
          get_module_opts/2,
-         make_subhost/2,
-         make_subhosts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
          % Get opts by subhost
@@ -377,40 +375,25 @@ set_module_opts(HostType, Module, Opts0) ->
                #ejabberd_module{module_host_type = {Module, HostType},
                                 opts = Opts}).
 
--spec make_subhost(Spec :: iodata() | unicode:charlist(), Host :: domain_name()) ->
+-spec get_opt_subhost(domain_name(),
+                      list(),
+                      mongoose_subdomain_utils:subdomain_pattern()) ->
     domain_name().
-make_subhost(Spec, Host) ->
-    %% TODO: try to get rid of this interface
-    re:replace(Spec, "@HOST@", Host, [global, {return, binary}]).
-
--spec make_subhosts(Spec :: iodata() | unicode:charlist(), Host :: domain_name()) ->
-    [domain_name()].
-make_subhosts(Spec, Host) ->
-    %% TODO: try to get rid of this interface
-    [make_subhost(S, Host) || S <- expand_hosts(Spec)].
-
--spec expand_hosts(iodata()) -> [iodata()].
-expand_hosts(Spec) ->
-    %% TODO: try to get rid of this interface
-    case re:run(Spec, "@HOSTS@") of
-        nomatch -> [Spec];
-        {match, _} -> [re:replace(Spec, "@HOSTS@", Host) || Host <- ?MYHOSTS]
-    end.
-
--spec get_opt_subhost(domain_name(), list(), list() | binary()) -> domain_name().
 get_opt_subhost(Host, Opts, Default) ->
     %% TODO: try to get rid of this interface
     Val = get_opt(host, Opts, Default),
-    make_subhost(Val, Host).
+    mongoose_subdomain_utils:get_fqdn(Val, Host).
 
--spec get_module_opt_subhost(domain_name(), module(), list() | binary()) ->
+-spec get_module_opt_subhost(domain_name(),
+                             module(),
+                             mongoose_subdomain_utils:subdomain_pattern()) ->
     domain_name().
 get_module_opt_subhost(Host, Module, Default) ->
     %% TODO: try to get rid of this interface
-    %% note that get_module_opt/4 requires host_type(),
-    %% while make_subhost expects domain_name()
+    %% note that get_module_opt/4 requires host_type(), while
+    %% mongoose_subdomain_utils:get_fqdn/2 expects domain_name()
     Spec = get_module_opt(Host, Module, host, Default),
-    make_subhost(Spec, Host).
+    mongoose_subdomain_utils:get_fqdn(Spec, Host).
 
 -spec loaded_modules() -> [module()].
 loaded_modules() ->

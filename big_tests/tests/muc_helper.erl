@@ -6,6 +6,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(distributed_helper, [mim/0,
+                             subhost_pattern/1,
                              rpc/4]).
 
 -type verify_fun() :: fun((Incoming :: #xmlel{}) -> any()).
@@ -47,7 +48,7 @@ load_muc(Host) ->
     Backend = muc_backend(),
     %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
-                          [{host, binary_to_list(Host)},
+                          [{host, subhost_pattern(Host)},
                            {backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},

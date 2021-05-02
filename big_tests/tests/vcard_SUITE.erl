@@ -42,6 +42,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 -import(ldap_helper, [get_ldap_base/1,
                       call_ldap/3]).
@@ -1142,11 +1143,13 @@ params_all(Config) ->
 
 params_limited(Config) ->
     add_backend_param([{matches, 1},
-                       {host, "directory.@HOST@"}], ?config(mod_vcard, Config)).
+                       {host, subhost_pattern("directory.@HOST@")}],
+                      ?config(mod_vcard, Config)).
 
 params_limited_infinity(Config) ->
     add_backend_param([{matches, infinity},
-                       {host, "directory.@HOST@"}], ?config(mod_vcard, Config)).
+                       {host, subhost_pattern("directory.@HOST@")}],
+                      ?config(mod_vcard, Config)).
 
 params_no(Config) ->
     add_backend_param([{search, false}], ?config(mod_vcard, Config)).

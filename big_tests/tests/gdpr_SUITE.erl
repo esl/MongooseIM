@@ -60,8 +60,7 @@
 
 -import(ejabberdctl_helper, [ejabberdctl/3]).
 
--import(distributed_helper, [mim/0,
-                             rpc/4]).
+-import(distributed_helper, [mim/0, subhost_pattern/1, rpc/4]).
 
 -import(muc_light_helper, [room_bin_jid/1]).
 
@@ -354,7 +353,7 @@ groupchat_module(muc) ->
     [];
 groupchat_module(muclight) ->
     [{mod_muc_light,
-     [{host, binary_to_list(?MUCLIGHTHOST)},
+     [{host, subhost_pattern(?MUCLIGHTHOST)},
       {backend, mongoose_helper:mnesia_or_rdbms_backend()},
       {rooms_in_rosters, true}]}].
 
@@ -368,28 +367,32 @@ mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
                      {pm, [{archive_groupchats, false}]}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                        CN =:= retrieve_mam_muc_light ->
+    HostPattern = subhost_pattern("muclight.@HOST@"),
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, "muclight.@HOST@"}]}]},
-     {mod_muc_light, [{host, "muclight.@HOST@"}]}];
+                     {muc, [{host, HostPattern}]}]},
+     {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
+    HostPattern = subhost_pattern("muclight.@HOST@"),
     [{mod_mam_meta, [{backend, Backend},
                      {rdbms_message_format, simple}, %% ignored for any other than rdbms backend
                      simple, %% used only by cassandra backend
                      {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, "muclight.@HOST@"}]}]},
-     {mod_muc_light, [{host, "muclight.@HOST@"}]}];
+                     {muc, [{host, HostPattern}]}]},
+     {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
+    HostPattern = subhost_pattern("muc.@HOST@"),
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, "muc.@HOST@"}]}]},
-     {mod_muc, [{host, "muc.@HOST@"}]}];
+                     {muc, [{host, HostPattern}]}]},
+     {mod_muc, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
+    HostPattern = subhost_pattern("muc.@HOST@"),
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, "muc.@HOST@"}]}]},
-     {mod_muc, [{host, "muc.@HOST@"}]}].
+                     {muc, [{host, HostPattern}]}]},
+     {mod_muc, [{host, HostPattern}]}].
 
 pick_enabled_backend() ->
     BackendsList = [
@@ -408,9 +411,10 @@ offline_required_modules() ->
 pubsub_required_modules() ->
     pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
 pubsub_required_modules(Plugins) ->
+    HostPattern = subhost_pattern("pubsub.@HOST@"),
     [{mod_caps, []}, {mod_pubsub, [
                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                                   {host, "pubsub.@HOST@"},
+                                   {host, HostPattern},
                                    {nodetree, <<"tree">>},
                                    {plugins, Plugins}
                                   ]

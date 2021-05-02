@@ -11,8 +11,7 @@
 -type validator() ::
         any | non_empty | non_negative | positive | module | {module, Prefix :: atom()}
       | jid | domain | subdomain_template | url | ip_address | ip_mask | network_address | port
-      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}
-      | {subdomain_template, string()}.
+      | filename | dirname | loglevel | pool_name | shaper | access_rule | {enum, list()}.
 
 -type section_validator() :: any | non_empty.
 
@@ -34,8 +33,7 @@ validate(V, int_or_infinity, non_negative) -> validate_non_negative_integer_or_i
 validate(V, int_or_infinity, positive) -> validate_positive_integer_or_infinity(V);
 validate(V, string, url) -> validate_url(V);
 validate(V, string, domain) -> validate_domain(V);
-validate(V, string, {subdomain_template, Pattern}) -> validate_subdomain_template(V, Pattern);
-validate(V, string, subdomain_template) -> validate_subdomain_template(V, "@HOST@");
+validate(V, string, subdomain_template) -> validate_subdomain_template(V);
 validate(V, string, ip_address) -> validate_ip_address(V);
 validate(V, string, ip_mask) -> validate_ip_mask_string(V);
 validate(V, string, network_address) -> validate_network_address(V);
@@ -143,9 +141,9 @@ validate_binary_domain(Domain) when is_binary(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(Domain),
     validate_domain_res(binary_to_list(Domain)).
 
-validate_subdomain_template(SubdomainTemplate, DomainPattern) ->
-    Pattern = "\\." ++ DomainPattern ++ "$",
-    Domain = re:replace(SubdomainTemplate, Pattern, ".example.com", [{return, binary}]),
+validate_subdomain_template(SubdomainTemplate) ->
+    Pattern = mongoose_subdomain_utils:make_subdomain_pattern(SubdomainTemplate),
+    Domain = mongoose_subdomain_utils:get_fqdn(Pattern, <<"example.com">>),
     %% TODO: do we want warning printed by validate_domain_res, especially when
     %% validating modules.mod_event_pusher_push.virtual_pubsub_hosts option
     validate_binary_domain(Domain).

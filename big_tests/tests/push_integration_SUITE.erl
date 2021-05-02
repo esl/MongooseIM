@@ -24,7 +24,7 @@
          become_unavailable/1,
          become_available/2
         ]).
--import(distributed_helper, [rpc/4]).
+-import(distributed_helper, [rpc/4, subhost_pattern/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -999,7 +999,9 @@ required_modules(API, PubSubHost)->
 
 required_modules(API, PubSubHost, PluginModule) ->
     VirtualHostOpt = case PubSubHost of
-                         virtual -> [{virtual_pubsub_hosts, ["virtual.@HOSTS@"]}];
+                         virtual ->
+                             VirtHostPattern = subhost_pattern("virtual.@HOST@"),
+                             [{virtual_pubsub_hosts, [VirtHostPattern]}];
                          _ -> []
                      end,
     PushOpts = case PluginModule of
@@ -1009,10 +1011,11 @@ required_modules(API, PubSubHost, PluginModule) ->
     PubSub = case PubSubHost of
                  virtual -> [];
                  _ ->
+                     HostPattern = subhost_pattern("pubsub.@HOST@"),
                      [{mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
                                     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                     {nodetree, <<"dag">>},
-                                    {host, "pubsub.@HOST@"}]}]
+                                    {host, HostPattern}]}]
              end,
     PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
     [
@@ -1024,7 +1027,7 @@ required_modules(API, PubSubHost, PluginModule) ->
 
 muc_light_opts() ->
     [
-     {host, binary_to_list(?MUCLIGHTHOST)},
+     {host, subhost_pattern(?MUCLIGHTHOST)},
      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
      {rooms_in_rosters, true}
     ].

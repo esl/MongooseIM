@@ -16,7 +16,7 @@
          muc_light_removal/1,
          muc_light_blocking_removal/1]).
 
--import(distributed_helper, [mim/0, rpc/4]).
+-import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -73,8 +73,8 @@ end_per_group(_Groupname, Config) ->
     ok.
 
 group_to_modules(mam_removal) ->
-    MH = muc_light_helper:muc_host(),
-    [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]}]},
+    HostPattern = subhost_pattern(muc_light_helper:muc_host()),
+    [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, HostPattern}]}]},
      {mod_muc_light, []}];
 group_to_modules(muc_light_removal) ->
     [{mod_muc_light, [{backend, rdbms}]}];

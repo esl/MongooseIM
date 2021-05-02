@@ -32,6 +32,7 @@
 ]).
 
 -import(distributed_helper, [mim/0,
+                             subhost_pattern/1,
                              rpc/4]).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -299,13 +300,15 @@ maybe_enable_mam(rdbms, Host, Config) ->
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
     init_module(Host, mod_mam_rdbms_user, [muc, pm]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}, {archive_chat_markers, true}]),
+    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+                                    {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}, {archive_chat_markers, true}]),
+    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+                                    {archive_chat_markers, true}]),
     [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].

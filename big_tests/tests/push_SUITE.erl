@@ -13,6 +13,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
+-import(distributed_helper, [subhost_pattern/1]).
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
     disable_stanza/1, disable_stanza/2, become_unavailable/1
@@ -45,7 +46,6 @@ groups() ->
                                  enable_should_succeed_without_form,
                                  enable_with_form_should_fail_with_incorrect_from,
                                  enable_should_accept_correct_from,
-                                 enable_should_fail_with_invalid_pubsub_jid,
                                  disable_should_fail_with_missing_attributes,
                                  disable_should_fail_with_invalid_attributes,
                                  disable_all,
@@ -109,7 +109,7 @@ init_per_group(muclight_msg_notifications, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
     Config = ensure_pusher_module_and_save_old_mods(Config0),
     dynamic_modules:ensure_modules(Host, [{mod_muc_light,
-                                           [{host, binary_to_list(?MUCHOST)},
+                                           [{host, subhost_pattern(?MUCHOST)},
                                             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                             {rooms_in_rosters, true}]}]),
     rpc(mod_muc_light_db_backend, force_clear, []),
@@ -331,16 +331,6 @@ enable_should_accept_correct_from(Config) ->
             ])),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
-            ok
-        end).
-
-enable_should_fail_with_invalid_pubsub_jid(Config) ->
-    escalus:story(
-        Config, [{bob, 1}],
-        fun(Bob) ->
-            escalus:send(Bob, enable_stanza(<<"invalid_pubsub_jid">>, <<"NodeId">>)),
-            escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>],
-                           escalus:wait_for_stanza(Bob)),
             ok
         end).
 

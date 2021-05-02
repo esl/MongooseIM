@@ -39,7 +39,7 @@
 
 %% Plugin utils
 -export([cast/3]).
--export([virtual_pubsub_hosts/1]).
+-export([is_virtual_pubsub_host/3]).
 -export([disable_node/3]).
 
 %% Debug & testing
@@ -81,8 +81,6 @@
 start(Host, Opts) ->
     ?LOG_INFO(#{what => event_pusher_starting, server => Host}),
 
-    expand_and_store_virtual_pubsub_hosts(Host, Opts),
-
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
 
@@ -114,16 +112,12 @@ stop(Host) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"backend">> => #option{type = atom,
-                                          validate = {module, ?MODULE}},
-                 <<"wpool">> => #section{items = mongoose_config_spec:wpool_items()},
-                 <<"plugin_module">> => #option{type = atom,
-                                                validate = module},
-                 <<"virtual_pubsub_hosts">> => #list{items = #option{type = string,
-                                                                     validate = {subdomain_template, "@HOSTS?@"}}}
-                }
-      }.
+    VirtPubSubHost = #option{type = string, validate = subdomain_template,
+                             process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
+    #section{items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
+                       <<"wpool">> => #section{items = mongoose_config_spec:wpool_items()},
+                       <<"plugin_module">> => #option{type = atom, validate = module},
+                       <<"virtual_pubsub_hosts">> => #list{items = VirtPubSubHost}}}.
 
 %%--------------------------------------------------------------------
 %% mod_event_pusher callbacks
@@ -182,30 +176,34 @@ disable_node(UserJID, BarePubSubJID, Node) ->
 cast(Host, F, A) ->
     mongoose_wpool:cast(generic, Host, pusher_push, {erlang, apply, [F,A]}).
 
--spec virtual_pubsub_hosts(jid:server()) -> [jid:server()].
-virtual_pubsub_hosts(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, []).
+-spec is_virtual_pubsub_host(HostType :: mongooseim:host_type(), %% recipient host type
+                             RecipientDomain :: mongooseim:domain(),
+                             VirtPubsubDomain :: mongooseim:domain()) -> boolean().
+is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
+    Templates = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, []),
+    PredFn = fun(Template) ->
+                 mongoose_subdomain_utils:is_subdomain(Template,
+                                                       RecipientDomain,
+                                                       VirtPubsubDomain)
+             end,
+    lists:any(PredFn, Templates).
 
 %%--------------------------------------------------------------------
 %% Debug & testing API
 %%--------------------------------------------------------------------
--spec add_virtual_pubsub_host(Host :: jid:server(), VirtualHost :: jid:server()) -> any().
-add_virtual_pubsub_host(Host, VirtualHost) ->
+-spec add_virtual_pubsub_host(Host :: mongooseim:host_type(),
+                              VirtualHostTemplate :: binary()) -> any().
+add_virtual_pubsub_host(HostType, VirtualHostTemplate) ->
     %% add_virtual_pubsub_host/2 is non-atomic interface, so execution in parallel
     %% environment can result in race conditions.
-    VHosts0 = virtual_pubsub_hosts(Host),
-    VHosts = lists:usort(gen_mod:make_subhosts(VirtualHost, Host) ++ VHosts0),
-    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, VHosts).
+    Patterns = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, []),
+    NewPattern = mongoose_subdomain_utils:make_subdomain_pattern(VirtualHostTemplate),
+    NewPatterns = lists:usort([NewPattern | Patterns]),
+    gen_mod:set_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, NewPatterns).
 
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
--spec expand_and_store_virtual_pubsub_hosts(Host :: jid:server(), Opts :: list()) -> any().
-expand_and_store_virtual_pubsub_hosts(Host, Opts) ->
-    ExpandedVHosts = lists:usort([SubHost || Spec <- gen_mod:get_opt(virtual_pubsub_hosts, Opts, []),
-                                             SubHost <- gen_mod:make_subhosts(Spec, Host)]),
-    gen_mod:set_module_opt(Host, ?MODULE, normalized_virtual_pubsub_hosts, ExpandedVHosts).
-
 -spec do_push_event(mongoose_acc:t(), jid:server(), mod_event_pusher:event(), jid:jid()) ->
     mongoose_acc:t().
 do_push_event(Acc, Host, Event, BareRecipient) ->
@@ -274,17 +272,10 @@ parse_form(Form) ->
     end.
 
 -spec maybe_enable_node(jid:jid(), jid:jid(), pubsub_node(), form(), jlib:iq()) -> jlib:iq().
-maybe_enable_node(#jid{lserver = Host} = From, BarePubSubJID, Node, FormFields, IQ) ->
-    AllKnownDomains = ejabberd_router:dirty_get_all_domains() ++ virtual_pubsub_hosts(Host),
-    case lists:member(BarePubSubJID#jid.lserver, AllKnownDomains) of
-        true ->
-            ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
-            store_session_info(From, {BarePubSubJID, Node, FormFields}),
-            IQ#iq{type = result, sub_el = []};
-        false ->
-            NewSubEl = [IQ#iq.sub_el, mongoose_xmpp_errors:remote_server_not_found()],
-            IQ#iq{type = error, sub_el = NewSubEl}
-    end.
+maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ) ->
+    ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
+    store_session_info(From, {BarePubSubJID, Node, FormFields}),
+    IQ#iq{type = result, sub_el = []}.
 
 -spec store_session_info(jid:jid(), publish_service()) -> any().
 store_session_info(Jid, Service) ->
