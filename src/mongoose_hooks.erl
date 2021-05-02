@@ -155,6 +155,7 @@
 -export([c2s_remote_hook/5]).
 
 -export([disable_domain/2,
+         disable_subdomain/2,
          remove_domain/2,
          node_cleanup/1]).
 
@@ -239,6 +240,14 @@ auth_failed(HostType, Server, Username) ->
     Result :: ok.
 disable_domain(HostType, Domain) ->
     ejabberd_hooks:run_global(disable_domain, ok, [HostType, Domain]).
+
+
+-spec disable_subdomain(HostType, Subdomain) -> Result when
+    HostType :: binary(),
+    Subdomain :: jid:lserver(),
+    Result :: ok.
+disable_subdomain(HostType, Subdomain) ->
+    ejabberd_hooks:run_global(disable_subdomain, ok, [HostType, Subdomain]).
 
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
