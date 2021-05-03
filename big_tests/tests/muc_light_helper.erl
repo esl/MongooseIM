@@ -27,6 +27,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
+    assert_no_aff_duplicates(AffUsers),
     AffUsersSort = lists:sort(AffUsers),
     {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
                         [RoomUS, DefaultConfig, AffUsersSort, Version]).
@@ -257,3 +258,12 @@ ver(Int) ->
 set_mod_config(K, V, Host) ->
         true = rpc(mim(), gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
 
+assert_no_aff_duplicates(AffUsers) ->
+    Users = [US || {US, _} <- AffUsers],
+    case lists:sort(Users) =:= lists:usort(Users) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{what => assert_no_aff_duplicates,
+                      aff_users => AffUsers})
+    end.
