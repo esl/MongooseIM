@@ -97,7 +97,7 @@ pm_config_items() ->
 
 muc_config_items() ->
     #{<<"host">> => #option{type = string,
-                            validate = domain_template}}.
+                            validate = subdomain_template}}.
 
 riak_config_spec() ->
     #section{

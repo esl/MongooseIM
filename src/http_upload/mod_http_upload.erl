@@ -124,7 +124,7 @@ config_spec() ->
     #section{
         items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                   <<"host">> => #option{type = string,
-                                        validate = domain_template},
+                                        validate = subdomain_template},
                   <<"backend">> => #option{type = atom,
                                            validate = {module, mod_http_upload}},
                   <<"expiration_time">> => #option{type = integer,

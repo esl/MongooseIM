@@ -204,7 +204,7 @@ config_spec() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
                  <<"host">> => #option{type = string,
-                                       validate = domain_template},
+                                       validate = subdomain_template},
                  <<"equal_occupants">> => #option{type = boolean},
                  <<"legacy_mode">> => #option{type = boolean},
                  <<"rooms_per_user">> => #option{type = int_or_infinity,

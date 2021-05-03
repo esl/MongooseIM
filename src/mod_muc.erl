@@ -173,7 +173,7 @@ config_spec() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_db}},
                  <<"host">> => #option{type = string,
-                                       validate = domain_template},
+                                       validate = subdomain_template},
                  <<"access">> => #option{type = atom,
                                          validate = access_rule},
                  <<"access_create">> => #option{type = atom,

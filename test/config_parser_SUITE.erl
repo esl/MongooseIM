@@ -1848,14 +1848,16 @@ mod_event_pusher_push(_Config) ->
          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
     ?eqf(M([{virtual_pubsub_hosts, ["host1", "host2"]}]),
          T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
-    ?eqf(M([{virtual_pubsub_hosts, ["pubsub.@HOSTS@"]}]),
-         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOSTS@">>]})),
+    ?eqf(M([{virtual_pubsub_hosts, ["pubsub.@HOSTS@", "pubsub.@HOST@"]}]),
+         T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOSTS@">>, <<"pubsub.@HOST@">>]})),
     ?errf(T(#{<<"backend">> => <<"redis">>})),
     ?errf(T(#{<<"wpool">> => true})),
     ?errf(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
     ?errf(T(#{<<"plugin_module">> => <<"wow_cool_but_missing">>})),
     ?errf(T(#{<<"plugin_module">> => 1})),
-    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})).
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})),
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub.@HOSTS@.as.well">>]})).
 
 mod_event_pusher_http(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
@@ -1932,6 +1934,9 @@ mod_http_upload(_Config) ->
     ?errf(T(RequiredOpts#{<<"expiration_time">> => 0})),
     ?errf(T(RequiredOpts#{<<"token_bytes">> => 0})),
     ?errf(T(RequiredOpts#{<<"max_file_size">> => 0})),
+    ?errf(T(RequiredOpts#{<<"host">> => <<"is this a host? no.">>})),
+    ?errf(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
 
 mod_http_upload_s3(_Config) ->
@@ -2044,7 +2049,9 @@ mod_mam_meta_muc(_Config) ->
     test_mod_mam_meta(T, M),
     ?eqf(M([{host, "muc.@HOST@"}]),
          T(#{<<"host">> => <<"muc.@HOST@">>})),
-    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})).
+    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})).
 
 test_mod_mam_meta(T, M) ->
     ?eqf(M([{backend, rdbms}]),
@@ -2155,6 +2162,9 @@ mod_muc(_Config) ->
     ?eqf(M([{hibernated_room_timeout, 0}]),
          T(#{<<"hibernated_room_timeout">> => 0})),
     ?errf(T(#{<<"host">> => <<>>})),
+    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errf(T(#{<<"backend">> => <<"amnesia">>})),
     ?errf(T(#{<<"access">> => <<>>})),
     ?errf(T(#{<<"access_create">> => 1})),
@@ -2339,6 +2349,8 @@ mod_muc_light(_Config) ->
          T(#{<<"rooms_in_rosters">> => true})),
     ?errf(T(#{<<"backend">> => <<"frontend">>})),
     ?errf(T(#{<<"host">> => <<"what is a domain?!">>})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errf(T(#{<<"equal_occupants">> => <<"true">>})),
     ?errf(T(#{<<"legacy_mode">> => 1234})),
     ?errf(T(#{<<"rooms_per_user">> => 0})),
@@ -2460,6 +2472,9 @@ mod_pubsub(_Config) ->
     ?eqf(M([{sync_broadcast, false}]),
          T(#{<<"sync_broadcast">> => false})),
     ?errf(T(#{<<"host">> => <<"">>})),
+    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errf(T(#{<<"backend">> => <<"amnesia">>})),
     ?errf(T(#{<<"access_createnode">> => <<"">>})),
     ?errf(T(#{<<"max_items_node">> => -1})),
@@ -2793,6 +2808,9 @@ mod_vcard(_Config) ->
         T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
     ?errf(T(#{<<"host">> => 1})),
+    ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errf(T(#{<<"search">> => 1})),
     ?errf(T(#{<<"backend">> => <<"mememesia">>})),
     ?errf(T(#{<<"matches">> => -1})),
