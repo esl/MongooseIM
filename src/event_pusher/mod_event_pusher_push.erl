@@ -42,9 +42,6 @@
 -export([is_virtual_pubsub_host/3]).
 -export([disable_node/3]).
 
-%% Debug & testing
--export([add_virtual_pubsub_host/2]).
-
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node() :: binary().
@@ -153,7 +150,9 @@ iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
-                  maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ);
+                  ok = enable_node(From, BarePubSubJID, Node, FormFields, IQ),
+                  store_session_info(From, {BarePubSubJID, Node, FormFields}),
+                  IQ#iq{type = result, sub_el = []};
               {disable, BarePubsubJID, Node} ->
                   ok = disable_node(From, BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
@@ -187,19 +186,6 @@ is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
                                                        VirtPubsubDomain)
              end,
     lists:any(PredFn, Templates).
-
-%%--------------------------------------------------------------------
-%% Debug & testing API
-%%--------------------------------------------------------------------
--spec add_virtual_pubsub_host(Host :: mongooseim:host_type(),
-                              VirtualHostTemplate :: binary()) -> any().
-add_virtual_pubsub_host(HostType, VirtualHostTemplate) ->
-    %% add_virtual_pubsub_host/2 is non-atomic interface, so execution in parallel
-    %% environment can result in race conditions.
-    Patterns = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, []),
-    NewPattern = mongoose_subdomain_utils:make_subdomain_pattern(VirtualHostTemplate),
-    NewPatterns = lists:usort([NewPattern | Patterns]),
-    gen_mod:set_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, NewPatterns).
 
 %%--------------------------------------------------------------------
 %% local functions
@@ -271,11 +257,10 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec maybe_enable_node(jid:jid(), jid:jid(), pubsub_node(), form(), jlib:iq()) -> jlib:iq().
-maybe_enable_node(From, BarePubSubJID, Node, FormFields, IQ) ->
-    ok = mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields),
-    store_session_info(From, {BarePubSubJID, Node, FormFields}),
-    IQ#iq{type = result, sub_el = []}.
+-spec enable_node(jid:jid(), jid:jid(), pubsub_node(), form(), jlib:iq()) ->
+    ok | {error, Reason :: term()}.
+enable_node(From, BarePubSubJID, Node, FormFields, IQ) ->
+    mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields).
 
 -spec store_session_info(jid:jid(), publish_service()) -> any().
 store_session_info(Jid, Service) ->
