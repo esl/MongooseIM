@@ -52,8 +52,12 @@
 
 %% Extra API for testing
 -export([
-         force_clear/0
+         force_clear/0,
+         select_room_id/3,
+         select_affs_by_room_id/2,
+         select_config_by_room_id/2
         ]).
+
 
 -type room_id() :: non_neg_integer().
 
