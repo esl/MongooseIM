@@ -474,6 +474,10 @@ case $key in
         ( IFS=$'\n'; echo "${PRESETS_ARRAY[*]}" )
         exit 0
     ;;
+    --list-specs)
+        ( cd big_tests && ls -1 *.spec )
+        exit 0
+    ;;
     --list-dev-nodes)
         ( IFS=$'\n'; echo "${DEV_NODES_ARRAY[*]}" )
         exit 0
