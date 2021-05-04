@@ -34,6 +34,7 @@
          get_user_rooms/2,
          get_user_rooms_count/2,
          remove_user/2,
+         remove_domain/3,
 
          get_config/1,
          set_config/3,
@@ -130,6 +131,10 @@ remove_user(UserUS, Version) ->
     mnesia:dirty_delete(muc_light_blocking, UserUS),
     {atomic, Res} = mnesia:transaction(fun remove_user_transaction/2, [UserUS, Version]),
     Res.
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver(), jid:lserver()) -> ok.
+remove_domain(_HostType, _RoomS, _LServer) ->
+    ok.
 
 %% ------------------------ Configuration manipulation ------------------------
 

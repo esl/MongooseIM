@@ -34,6 +34,7 @@
          get_user_rooms/2,
          get_user_rooms_count/2,
          remove_user/2,
+         remove_domain/3,
 
          get_config/1,
          set_config/3,
@@ -51,8 +52,12 @@
 
 %% Extra API for testing
 -export([
-         force_clear/0
+         force_clear/0,
+         select_room_id/3,
+         select_affs_by_room_id/2,
+         select_config_by_room_id/2
         ]).
+
 
 -type room_id() :: non_neg_integer().
 
@@ -67,8 +72,8 @@
 %% ------------------------ Backend start/stop ------------------------
 
 -spec start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-start(Host, _MUCHost) ->
-    prepare_queries(Host),
+start(_Host, _MUCHost) ->
+    prepare_queries(),
     ok.
 
 -spec stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
@@ -77,15 +82,16 @@ stop(_Host, _MUCHost) ->
 
 %% ------------------------ SQL -------------------------------------------
 
-prepare_queries(Host) ->
-    prepare_cleaning_queries(Host),
-    prepare_room_queries(Host),
-    prepare_affiliation_queries(Host),
-    prepare_config_queries(Host),
-    prepare_blocking_queries(Host),
+prepare_queries() ->
+    prepare_cleaning_queries(),
+    prepare_room_queries(),
+    prepare_affiliation_queries(),
+    prepare_config_queries(),
+    prepare_blocking_queries(),
+    prepare_domain_removal_queries(),
     ok.
 
-prepare_cleaning_queries(_Host) ->
+prepare_cleaning_queries() ->
     mongoose_rdbms:prepare(muc_light_config_delete_all, muc_light_config, [],
                            <<"DELETE FROM muc_light_config">>),
     mongoose_rdbms:prepare(muc_light_occupants_delete_all, muc_light_occupants, [],
@@ -96,7 +102,7 @@ prepare_cleaning_queries(_Host) ->
                            <<"DELETE FROM muc_light_blocking">>),
     ok.
 
-prepare_room_queries(_Host) ->
+prepare_room_queries() ->
     %% Returns maximum 1 record
     mongoose_rdbms:prepare(muc_light_select_room_id, muc_light_rooms,
                            [luser, lserver],
@@ -133,7 +139,7 @@ prepare_room_queries(_Host) ->
                              " WHERE o.luser = ? AND o.lserver = ?">>),
     ok.
 
-prepare_affiliation_queries(_Host) ->
+prepare_affiliation_queries() ->
     %% This query uses multiple tables
     %% Also returns a room version
     mongoose_rdbms:prepare(muc_light_select_affs_by_us, muc_light_rooms,
@@ -164,7 +170,7 @@ prepare_affiliation_queries(_Host) ->
                              "WHERE room_id = ? AND luser = ? AND lserver = ?">>),
    ok.
 
-prepare_config_queries(_Host) ->
+prepare_config_queries() ->
     mongoose_rdbms:prepare(muc_light_select_config_by_room_id, muc_light_config,
                            [room_id],
                            <<"SELECT opt, val FROM muc_light_config WHERE room_id = ?">>),
@@ -188,7 +194,7 @@ prepare_config_queries(_Host) ->
                            <<"DELETE FROM muc_light_config WHERE room_id = ?">>),
    ok.
 
-prepare_blocking_queries(_Host) ->
+prepare_blocking_queries() ->
     mongoose_rdbms:prepare(muc_light_select_blocking, muc_light_blocking,
                            [luser, lserver],
                            <<"SELECT what, who FROM muc_light_blocking "
@@ -216,6 +222,31 @@ prepare_blocking_queries(_Host) ->
                            [luser, lserver],
                            <<"DELETE FROM muc_light_blocking"
                              " WHERE luser = ? AND lserver = ?">>),
+    ok.
+
+prepare_domain_removal_queries() ->
+    %% RoomS argument
+    mongoose_rdbms:prepare(muc_light_occupants_remove_room_domain, muc_light_occupants,
+                           ['muc_light_rooms.lserver'],
+                           <<"DELETE FROM muc_light_occupants WHERE room_id IN "
+                             "(SELECT id FROM muc_light_rooms WHERE lserver = ?)">>),
+    %% User's LServer argument
+    mongoose_rdbms:prepare(muc_light_occupants_remove_user_domain, muc_light_occupants,
+                           [lserver],
+                           <<"DELETE FROM muc_light_occupants WHERE lserver = ?">>),
+    %% RoomS argument
+    mongoose_rdbms:prepare(muc_light_config_remove_room_domain, muc_light_config,
+                           ['muc_light_rooms.lserver'],
+                           <<"DELETE FROM muc_light_config WHERE room_id IN "
+                             "(SELECT id FROM muc_light_rooms WHERE lserver = ?)">>),
+    %% User's LServer argument
+    mongoose_rdbms:prepare(muc_light_blocking_remove_user_domain, muc_light_blocking,
+                           [lserver],
+                           <<"DELETE FROM muc_light_blocking WHERE lserver = ?">>),
+    %% RoomS argument
+    mongoose_rdbms:prepare(muc_light_rooms_remove_room_domain, muc_light_rooms,
+                           [lserver],
+                           <<"DELETE FROM muc_light_rooms WHERE lserver = ?">>),
     ok.
 
 %% ------------------------ Room SQL functions ------------------------
@@ -426,6 +457,24 @@ remove_user({_, UserS} = UserUS, Version) ->
     F = fun() -> remove_user_transaction(UserS, UserUS, Version) end,
     {atomic, Res} = mongoose_rdbms:sql_transaction(UserS, F),
     Res.
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver(), jid:lserver()) -> ok.
+remove_domain(HostType, RoomS, LServer) ->
+    F = fun() ->
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_light_occupants_remove_room_domain, [RoomS]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_light_occupants_remove_user_domain, [LServer]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_light_config_remove_room_domain, [RoomS]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_light_blocking_remove_user_domain, [LServer]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_light_rooms_remove_room_domain, [RoomS]),
+        ok
+        end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
 
 %% ------------------------ Configuration manipulation ------------------------
 

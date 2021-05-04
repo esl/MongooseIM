@@ -88,7 +88,8 @@
                            stanza_aff_set/2,
                            default_config/0,
                            user_leave/3,
-                           set_mod_config/3
+                           set_mod_config/3,
+                           stanza_blocking_set/1
 ]).
 
 -include("muc_light.hrl").
@@ -103,7 +104,7 @@
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
--type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
+-type ct_block_item() :: muc_light_helper:ct_block_item().
 -type verify_fun() :: muc_helper:verify_fun().
 -type xmlel() :: exml:element().
 
@@ -951,15 +952,6 @@ stanza_aff_get(Room, Ver) ->
 %%--------------------------------------------------------------------
 %% IQ setters
 %%--------------------------------------------------------------------
-
--spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> xmlel().
-stanza_blocking_set(BlocklistChanges) ->
-    Items = [#xmlel{ name = list_to_binary(atom_to_list(What)),
-                     attrs = [{<<"action">>, list_to_binary(atom_to_list(Action))}],
-                     children = [#xmlcdata{ content = Who }] }
-             || {What, Action, Who} <- BlocklistChanges],
-    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), ?MUCHOST).
-
 
 -spec stanza_destroy_room(Room :: binary()) -> xmlel().
 stanza_destroy_room(Room) ->

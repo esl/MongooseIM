@@ -337,7 +337,7 @@ CREATE TABLE muc_light_blocking(
     who VARCHAR(500)        NOT NULL
 );
 
-CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);
+CREATE INDEX i_muc_light_blocking_su ON muc_light_blocking (lserver, luser);
 
 CREATE TABLE inbox (
     luser VARCHAR(250)               NOT NULL,

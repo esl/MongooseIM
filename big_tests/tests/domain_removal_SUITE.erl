@@ -12,7 +12,9 @@
 
 -export([mam_pm_removal/1,
          mam_muc_removal/1,
-         inbox_removal/1]).
+         inbox_removal/1,
+         muc_light_removal/1,
+         muc_light_blocking_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -24,13 +26,16 @@
 
 all() ->
     [{group, mam_removal},
-     {group, inbox_removal}].
+     {group, inbox_removal},
+     {group, muc_light_removal}].
 
 groups() ->
     [
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
-     {inbox_removal, [], [inbox_removal]}
+     {inbox_removal, [], [inbox_removal]},
+     {muc_light_removal, [], [muc_light_removal,
+                              muc_light_blocking_removal]}
     ].
 
 domain() ->
@@ -71,6 +76,8 @@ group_to_modules(mam_removal) ->
     MH = muc_light_helper:muc_host(),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]}]},
      {mod_muc_light, []}];
+group_to_modules(muc_light_removal) ->
+    [{mod_muc_light, [{backend, rdbms}]}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, []}].
 
@@ -105,7 +112,7 @@ mam_muc_removal(Config0) ->
         Room = muc_helper:fresh_room_name(),
         MucHost = muc_light_helper:muc_host(),
         muc_light_helper:create_room(Room, MucHost, alice,
-                                     [alice], Config, muc_light_helper:ver(1)),
+                                     [], Config, muc_light_helper:ver(1)),
         RoomAddr = <<Room/binary, "@", MucHost/binary>>,
         escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
         escalus:wait_for_stanza(Alice),
@@ -126,5 +133,70 @@ inbox_removal(Config) ->
         inbox_helper:get_inbox(Bob, #{count => 0, unread_messages => 0, active_conversations => 0})
       end).
 
+muc_light_removal(Config0) ->
+    F = fun(Config, Alice) ->
+        %% GIVEN a room
+        Room = muc_helper:fresh_room_name(),
+        MucHost = muc_light_helper:muc_host(),
+        muc_light_helper:create_room(Room, MucHost, alice,
+                                     [], Config, muc_light_helper:ver(1)),
+        RoomAddr = <<Room/binary, "@", MucHost/binary>>,
+        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
+        escalus:wait_for_stanza(Alice),
+        RoomID = select_room_id(domain(), Room, MucHost),
+        {selected, [_]} = select_affs_by_room_id(domain(), RoomID),
+        {selected, [_|_]} = select_config_by_room_id(domain(), RoomID),
+        {ok, _RoomConfig, _AffUsers, _Version} = get_room_info(Room, MucHost),
+        %% WHEN domain hook called
+        run_remove_domain(),
+        %% THEN Room info not available
+        {error, not_exists} = get_room_info(Room, MucHost),
+        %% THEN Tables are empty
+        {selected, []} = select_affs_by_room_id(domain(), RoomID),
+        {selected, []} = select_config_by_room_id(domain(), RoomID)
+        end,
+    escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
+
+muc_light_blocking_removal(Config0) ->
+    F = fun(Config, Alice, Bob) ->
+        %% GIVEN a room
+        Room = muc_helper:fresh_room_name(),
+        MucHost = muc_light_helper:muc_host(),
+        muc_light_helper:create_room(Room, MucHost, alice,
+                                     [], Config, muc_light_helper:ver(1)),
+        block_muclight_user(Bob, Alice),
+        [_] = get_blocking(Bob, MucHost),
+        %% WHEN domain hook called
+        run_remove_domain(),
+        [] = get_blocking(Bob, MucHost)
+        end,
+    escalus_fresh:story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
+
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).
+
+get_room_info(RoomU, RoomS) ->
+    rpc(mim(), mod_muc_light_db_backend, get_info, [{RoomU, RoomS}]).
+
+select_room_id(MainHost, RoomU, RoomS) ->
+    {selected, [{DbRoomID}]} =
+        rpc(mim(), mod_muc_light_db_rdbms, select_room_id, [MainHost, RoomU, RoomS]),
+    rpc(mim(), mongoose_rdbms, result_to_integer, [DbRoomID]).
+
+select_affs_by_room_id(MainHost, RoomID) ->
+    rpc(mim(), mod_muc_light_db_rdbms, select_affs_by_room_id, [MainHost, RoomID]).
+
+select_config_by_room_id(MainHost, RoomID) ->
+    rpc(mim(), mod_muc_light_db_rdbms, select_config_by_room_id, [MainHost, RoomID]).
+
+get_blocking(User, MUCServer) ->
+    Jid = jid:from_binary(escalus_client:short_jid(User)),
+    {LUser, LServer, _} = jid:to_lower(Jid),
+    rpc(mim(), mod_muc_light_db_rdbms, get_blocking, [{LUser, LServer}, MUCServer]).
+
+block_muclight_user(Bob, Alice) ->
+    %% Bob blocks Alice
+    AliceJIDBin = escalus_client:short_jid(Alice),
+    BlocklistChange = [{user, deny, AliceJIDBin}],
+    escalus:send(Bob, muc_light_helper:stanza_blocking_set(BlocklistChange)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)).

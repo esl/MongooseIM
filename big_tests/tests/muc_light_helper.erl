@@ -13,6 +13,9 @@
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
+-type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
+
+-export_type([ct_block_item/0]).
 
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
@@ -27,6 +30,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
+    assert_no_aff_duplicates(AffUsers),
     AffUsersSort = lists:sort(AffUsers),
     {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
                         [RoomUS, DefaultConfig, AffUsersSort, Version]).
@@ -257,3 +261,20 @@ ver(Int) ->
 set_mod_config(K, V, Host) ->
         true = rpc(mim(), gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
 
+assert_no_aff_duplicates(AffUsers) ->
+    Users = [US || {US, _} <- AffUsers],
+    case lists:sort(Users) =:= lists:usort(Users) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{what => assert_no_aff_duplicates,
+                      aff_users => AffUsers})
+    end.
+
+-spec stanza_blocking_set(BlocklistChanges :: [ct_block_item()]) -> exml:element().
+stanza_blocking_set(BlocklistChanges) ->
+    Items = [#xmlel{ name = list_to_binary(atom_to_list(What)),
+                     attrs = [{<<"action">>, list_to_binary(atom_to_list(Action))}],
+                     children = [#xmlcdata{ content = Who }] }
+             || {What, Action, Who} <- BlocklistChanges],
+    escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_BLOCKING, Items), muc_host()).

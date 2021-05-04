@@ -353,7 +353,7 @@ CREATE TABLE muc_light_blocking(
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX i_muc_light_blocking USING HASH ON muc_light_blocking(luser, lserver);
+CREATE INDEX i_muc_light_blocking_su USING BTREE ON muc_light_blocking(lserver, luser);
 
 CREATE TABLE muc_rooms(
     id SERIAL,

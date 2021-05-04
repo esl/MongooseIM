@@ -50,6 +50,9 @@
 -callback remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
     remove_user_return() | {error, term()}.
 
+-callback remove_domain(mongooseim:host_type(), jid:lserver(), jid:lserver()) ->
+    ok.
+
 %% ------------------------ Configuration manipulation ------------------------
 
 -callback get_config(RoomUS :: jid:simple_bare_jid()) ->
