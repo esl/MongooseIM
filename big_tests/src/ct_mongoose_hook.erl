@@ -42,6 +42,7 @@ init(_Id, Opts) ->
     Unfolded = proplists:unfold(Opts),
     PrintGroup = proplists:get_value(print_group, Unfolded, false),
     PrintCase = proplists:get_value(print_case, Unfolded, false),
+    domain_helper:insert_configured_domains(),
     {ok, #state{print_group = PrintGroup, print_case = PrintCase }}.
 
 %% @doc Called before init_per_suite is called.
@@ -108,6 +109,7 @@ on_tc_skip(_TC, _Reason, State) ->
 
 %% @doc Called when the scope of the CTH is done
 terminate(_State) ->
+    domain_helper:delete_configured_domains(),
     ok.
 
 maybe_print_on_server(false, _, _, _) ->

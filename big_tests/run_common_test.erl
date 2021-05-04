@@ -162,9 +162,9 @@ save_count(Test, Configs) ->
     file:write_file("/tmp/ct_count", integer_to_list(Repeat*Times)).
 
 run_test(Test, PresetsToRun, CoverOpts) ->
-    prepare_cover(Test, CoverOpts),
+    {ConfigFiles, Props} = get_ct_config(Test),
+    prepare_cover(Props, CoverOpts),
     error_logger:info_msg("Presets to run ~p", [PresetsToRun]),
-    {ConfigFile, Props} = get_ct_config(Test),
     case get_presets(Props) of
         {ok, Presets} ->
             Presets1 = case PresetsToRun of
@@ -183,15 +183,15 @@ run_test(Test, PresetsToRun, CoverOpts) ->
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
             Zip = lists:zip(lists:seq(1, Length), Presets1),
-            R = [ run_config_test(Preset, Test, N, Length) || {N, Preset} <- Zip ],
+            R = [ run_config_test(Props, Preset, Test, N, Length) || {N, Preset} <- Zip ],
             save_count(Test, Presets1),
-            analyze_coverage(Test, CoverOpts),
+            analyze_coverage(Props, CoverOpts),
             R;
         {error, not_found} ->
-            error_logger:info_msg("Presets were not found in the config file ~ts",
-                                  [ConfigFile]),
+            error_logger:info_msg("Presets were not found in the config files ~ts",
+                                  [ConfigFiles]),
             R = do_run_quick_test(Test, CoverOpts),
-            analyze_coverage(Test, CoverOpts),
+            analyze_coverage(Props, CoverOpts),
             R
     end.
 
@@ -211,12 +211,10 @@ get_presets(Props) ->
 get_ct_config(Opts) ->
     Spec = proplists:get_value(spec, Opts),
     Props = read_file(Spec),
-    ConfigFile = case proplists:lookup(config, Props) of
-        {config, [Config]} -> Config;
-        _                  -> "test.config"
-    end,
-    {ok, ConfigProps} = handle_file_error(ConfigFile, file:consult(ConfigFile)),
-    {ConfigFile, ConfigProps}.
+    ConfigFiles = proplists:get_value(config, Props, ["test.config"]),
+    % Apply the files in reverse, like ct will do when running the tests
+    ConfigProps = merge_vars([read_file(File) || File <- lists:reverse(ConfigFiles)]),
+    {ConfigFiles, ConfigProps}.
 
 preset_names(Presets) ->
     [Preset||{Preset, _} <- Presets].
@@ -234,8 +232,8 @@ do_run_quick_test(Test, CoverOpts) ->
             [{ok, {Ok, Failed, UserSkipped, AutoSkipped}}]
     end.
 
-run_config_test({Name, Variables}, Test, N, Tests) ->
-    enable_preset(Name, Variables, Test, N, Tests),
+run_config_test(Props, {Name, Variables}, Test, N, Tests) ->
+    enable_preset(Props, Name, Variables, N, Tests),
     load_test_modules(Test),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
@@ -245,12 +243,12 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
             {ok, {Ok, Failed, UserSkipped, AutoSkipped}}
     end.
 
-enable_preset(Name, PresetVars, Test, N, Tests) ->
+enable_preset(Props, Name, PresetVars, N, Tests) ->
     %% TODO: Do this with a multicall, otherwise it's not as fast as possible (not parallelized).
     %%       A multicall requires the function to be defined on the other side, though.
     Rs = [ maybe_enable_preset_on_node(host_node(H), PresetVars,
                                        host_vars(H), host_name(H))
-           || H <- get_hosts_to_enable_preset(Test) ],
+           || H <- get_hosts_to_enable_preset(Props) ],
     [ok] = lists:usort(Rs),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]).
@@ -324,21 +322,21 @@ call(Node, M, F, A) ->
             Result
     end.
 
-prepare_cover(Test, true) ->
+prepare_cover(Props, true) ->
     io:format("Preparing cover~n"),
-    prepare(Test);
+    prepare(Props);
 prepare_cover(_, _) ->
     ok.
 
-analyze_coverage(Test, true) ->
-    analyze(Test, true);
-analyze_coverage(Test, ModuleList) when is_list(ModuleList) ->
-    analyze(Test, ModuleList);
+analyze_coverage(Props, true) ->
+    analyze(Props, true);
+analyze_coverage(Props, ModuleList) when is_list(ModuleList) ->
+    analyze(Props, ModuleList);
 analyze_coverage(_, _) ->
     ok.
 
-prepare(Test) ->
-    Nodes = get_mongoose_nodes(Test),
+prepare(Props) ->
+    Nodes = get_mongoose_nodes(Props),
     maybe_compile_cover(Nodes).
 
 maybe_compile_cover([]) ->
@@ -364,14 +362,14 @@ maybe_compile_cover(Nodes) ->
     report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]),
     ok.
 
-analyze(Test, CoverOpts) ->
+analyze(Props, CoverOpts) ->
     io:format("Coverage analyzing~n"),
-    Nodes = get_mongoose_nodes(Test),
-    analyze(Test, CoverOpts, Nodes).
+    Nodes = get_mongoose_nodes(Props),
+    analyze(Props, CoverOpts, Nodes).
 
-analyze(_Test, _CoverOpts, []) ->
+analyze(_Props, _CoverOpts, []) ->
     ok;
-analyze(_Test, CoverOpts, Nodes) ->
+analyze(_Props, CoverOpts, Nodes) ->
     deduplicate_cover_server_console_prints(),
     %% Import small tests cover
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
@@ -433,19 +431,19 @@ make_html(Modules) ->
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
 
-get_hosts_to_enable_preset(Test) ->
-    Hosts = get_all_hosts(Test),
-    %% We apply preset options to `mim` and `reg` clusters
-    Clusters = group_by(fun host_cluster/1, Hosts),
-    dict:fetch(mim, Clusters) ++ dict:fetch(reg, Clusters).
+get_hosts_to_enable_preset(Props) ->
+    [Host || Host <- get_all_hosts(Props), should_enable_preset(host_cluster(Host))].
 
-get_all_hosts(Test) ->
-    {_File, Props} = get_ct_config(Test),
+should_enable_preset(mim) -> true;
+should_enable_preset(reg) -> true;
+should_enable_preset(_) -> false.
+
+get_all_hosts(Props) ->
     {hosts, Hosts} = lists:keyfind(hosts, 1, Props),
     Hosts.
 
-get_mongoose_nodes(Test) ->
-    [ host_node(H) || H <- get_all_hosts(Test), is_test_host_enabled(host_name(H)) ].
+get_mongoose_nodes(Props) ->
+    [ host_node(H) || H <- get_all_hosts(Props), is_test_host_enabled(host_name(H)) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
@@ -544,12 +542,6 @@ exit_code({_, _, _, _}) ->
 
 print(Handle, Fmt, Args) ->
     io:format(Handle, Fmt, Args).
-
-%% Source: https://gist.github.com/jbpotonnier/1310406
-group_by(F, L) ->
-    lists:foldr(fun ({K, V}, D) -> dict:append(K, V, D) end,
-                dict:new(),
-                [ {F(X), X} || X <- L ]).
 
 host_cluster(Host) -> host_param(cluster, Host).
 host_node(Host)    -> host_param(node, Host).

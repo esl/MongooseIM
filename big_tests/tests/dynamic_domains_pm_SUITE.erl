@@ -71,13 +71,10 @@ auth_domain_removal_is_triggered_on_hook(_Config) ->
 
 %% helper functions
 insert_domains(Nodes, Domains) ->
-    Source = dummy_source, %% can be anything, we don't care about it
-    [ok = rpc(Node, mongoose_domain_core, insert, [Domain, ?HOST_TYPE, Source]) ||
-        Node <- Nodes, Domain <- Domains].
+    [domain_helper:insert_domain(Node, Domain) || Node <- Nodes, Domain <- Domains].
 
 remove_domains(Nodes, Domains) ->
-    [ok = rpc(Node, mongoose_domain_core, delete, [Domain]) ||
-        Node <- Nodes, Domain <- Domains].
+    [domain_helper:delete_domain(Node, Domain) || Node <- Nodes, Domain <- Domains].
 
 cluster_nodes([], Config) -> Config;
 cluster_nodes([Node | T], Config) ->

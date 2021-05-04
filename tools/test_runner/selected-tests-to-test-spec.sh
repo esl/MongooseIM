@@ -15,7 +15,7 @@ rm -f auto_small_tests.spec big_tests/auto_big_tests.spec
 rm -f _build/test/lib/mongooseim/auto_small_tests.spec
 
 # Fill default specs
-cp big_tests/default.spec big_tests/auto_big_tests.spec
+cp big_tests/"$SRC_TESTSPEC" big_tests/auto_big_tests.spec
 
 # If there are arguments
 if [ "$#" -ne 0 ]; then

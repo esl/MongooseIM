@@ -18,6 +18,7 @@ This script runs small and big tests for MongooseIM
 Options:
 --db [DB]             -- a list of databases to setup for big tests
 --preset [PRESET]     -- a list of presets to run during big tests
+--spec [SPEC]         -- test spec to use instead of 'default.spec'
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to and collect cover info from
 --one-node            -- the same as "--dev-nodes mim1 --test-hosts mim --"
@@ -60,7 +61,7 @@ EXAMPLES=$(cat <<-END
 Script examples:
 
 ./tools/test-runner.sh --db redis mysql --preset mysql_redis -- rdbms mam
-    Setups Redis and MySQL databases
+    Sets up Redis and MySQL databases
     Runs mam_SUITE and rdbms_SUITE
     -- is used to separate test suites from databases
 
@@ -76,29 +77,32 @@ Script examples:
     Disables big tests and cover
 
 ./tools/test-runner.sh --skip-big-tests
-    Travis build job with small tests
+    CI build job with small tests
 
 ./tools/test-runner.sh --skip-small-tests --db redis --tls-dist --preset internal_mnesia
-    Travis build job with internal_mnesia
+    CI build job with internal_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
-    Travis build job with mysql_redis
+    CI build job with mysql_redis
 
 ./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
-    Travis build job with odbc_mssql_mnesia
+    CI build job with odbc_mssql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
-    Travis build job with ldap_mnesia
+    CI build job with ldap_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
-    Travis MAM-only build job with elasticsearch_and_cassandra_mnesia
+    CI MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
 ./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
-    Travis build job with pgsql_mnesia
+    CI build job with pgsql_mnesia
+
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec
+    CI multi-tenancy build job with pgsql_mnesia
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
-    Travis build job with riak_mnesia
+    CI build job with riak_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
     Runs mam_SUITE with MySQL
@@ -255,6 +259,8 @@ PRESETS_ARRAY=(
     $( ./tools/test_runner/list_presets.sh )
 )
 
+SRC_TESTSPEC="default.spec"
+
 DBS_ARRAY=(
     mysql
     pgsql
@@ -361,6 +367,12 @@ case $key in
         done
     ;;
 
+    --spec)
+        shift # consume argument
+        SRC_TESTSPEC="$1"
+        shift # consume value
+    ;;
+
     --dev-nodes)
         shift # past argument
         unset DEV_NODES
@@ -463,6 +475,10 @@ case $key in
     ;;
     --list-presets)
         ( IFS=$'\n'; echo "${PRESETS_ARRAY[*]}" )
+        exit 0
+    ;;
+    --list-specs)
+        ( cd big_tests && ls -1 *.spec )
         exit 0
     ;;
     --list-dev-nodes)
@@ -603,6 +619,7 @@ if [[ -f "auto_small_tests.spec" ]]; then
 else
     export REBAR_CT_EXTRA_ARGS=""
 fi
+export SRC_TESTSPEC="$SRC_TESTSPEC"
 export TESTSPEC="auto_big_tests.spec"
 export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
@@ -620,6 +637,7 @@ echo "    PRESET_ENABLED=$PRESET_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    BUILD_MIM=$BUILD_MIM"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
+echo "    SRC_TESTSPEC=$SRC_TESTSPEC"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
 echo "    START_NODES=$START_NODES"

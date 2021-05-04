@@ -37,7 +37,7 @@ fi
 try_to_load_bash_completion_using_brew
 
 _run_all_tests() {
-  printf "%s\n" "${COMP_WORDS[@]}" > /tmp/test-runner-last-competion
+  printf "%s\n" "${COMP_WORDS[@]}" > /tmp/test-runner-last-completion
   # Make COMP_WORDS, without using colon as a breaker
   # To see all breakers, check COMP_WORDBREAKS variable
   # It's needed for bash only, not zsh
@@ -57,7 +57,9 @@ _run_all_tests() {
   done
 
   cur=${COMP_WORDS[$COMP_CWORD]}
-  opt=${COMP_WORDS[$pos]}
+
+  # Last option and its arguments before 'cur'
+  opt=${COMP_WORDS[@]:$pos:$(($COMP_CWORD-$pos))}
 
   # If current is an option - we don't care about option expansion
   case "$cur" in
@@ -77,6 +79,10 @@ _run_all_tests() {
 
     --preset*)
     ARRAY=( $(./tools/test-runner.sh --list-presets) )
+    COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
+
+    --spec) # no '*' here because only one spec is allowed
+    ARRAY=( $(./tools/test-runner.sh --list-specs) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     --dev-nodes*)
@@ -103,6 +109,7 @@ _run_all_tests() {
     SUITES=$(./tools/test_runner/list_suites.sh $LIST_SUITES_ARGS)
 
     COMPREPLY=( $( compgen -W '--db --preset \
+                          --spec \
                           --dev-nodes \
                           --test-hosts \
                           --one-node \
