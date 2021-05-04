@@ -61,7 +61,7 @@ EXAMPLES=$(cat <<-END
 Script examples:
 
 ./tools/test-runner.sh --db redis mysql --preset mysql_redis -- rdbms mam
-    Setups Redis and MySQL databases
+    Sets up Redis and MySQL databases
     Runs mam_SUITE and rdbms_SUITE
     -- is used to separate test suites from databases
 
@@ -77,29 +77,32 @@ Script examples:
     Disables big tests and cover
 
 ./tools/test-runner.sh --skip-big-tests
-    Travis build job with small tests
+    CI build job with small tests
 
 ./tools/test-runner.sh --skip-small-tests --db redis --tls-dist --preset internal_mnesia
-    Travis build job with internal_mnesia
+    CI build job with internal_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
-    Travis build job with mysql_redis
+    CI build job with mysql_redis
 
 ./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
-    Travis build job with odbc_mssql_mnesia
+    CI build job with odbc_mssql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
-    Travis build job with ldap_mnesia
+    CI build job with ldap_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
-    Travis MAM-only build job with elasticsearch_and_cassandra_mnesia
+    CI MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
 ./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
-    Travis build job with pgsql_mnesia
+    CI build job with pgsql_mnesia
+
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia --spec dynamic_domains.spec
+    CI multi-tenancy build job with pgsql_mnesia
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
-    Travis build job with riak_mnesia
+    CI build job with riak_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
     Runs mam_SUITE with MySQL
