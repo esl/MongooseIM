@@ -9,7 +9,7 @@
 %% http://www.erlang.org/doc/apps/common_test/run_test_chapter.html#test_specifications
 {include, "tests"}.
 
-{suites, "tests", domain_isolation_SUITE}.
+{suites, "tests", acc_e2e_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 {logdir, "ct_report"}.

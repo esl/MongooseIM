@@ -200,7 +200,7 @@ iq_handling_for_subdomain(Config) ->
 
 %% helper functions
 insert_domains(Nodes, Domains) ->
-    [domain_helper:insert_domain(Node, Domain) || Node <- Nodes, Domain <- Domains].
+    [domain_helper:insert_domain(Node, Domain, ?HOST_TYPE) || Node <- Nodes, Domain <- Domains].
 
 remove_domains(Nodes, Domains) ->
     [domain_helper:delete_domain(Node, Domain) || Node <- Nodes, Domain <- Domains].
