@@ -92,7 +92,7 @@ init_per_testcase(_, C) ->
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     meck:new(mongoose_domain_api),
-    meck:expect(mongoose_domain_api, get_host_type, fun(H) -> {ok, H} end),
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
     C.
 
 end_per_testcase(_, C) ->

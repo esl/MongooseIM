@@ -583,7 +583,7 @@ send_element(StateData, El) ->
 
 -spec stream_features(binary()) -> [exml:element()].
 stream_features(Domain) ->
-    case mongoose_domain_api:get_host_type(Domain) of
+    case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} -> mongoose_hooks:s2s_stream_features(HostType, Domain);
         {error, not_found} -> []
     end.

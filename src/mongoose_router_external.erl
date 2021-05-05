@@ -25,7 +25,6 @@ route(From, To, Acc, Packet) ->
         [] ->
             {From, To, Acc, Packet};
         [#external_component{handler = Handler}|_] -> %% may be multiple on various nodes
-            mongoose_local_delivery:do_route(From, To, Acc, Packet,
-                LDstDomain, Handler),
+            mongoose_local_delivery:do_route(From, To, Acc, Packet, Handler),
             done
     end.

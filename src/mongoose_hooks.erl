@@ -16,7 +16,7 @@
          auth_failed/3,
          ejabberd_ctl_process/2,
          failed_to_store_message/1,
-         filter_local_packet/2,
+         filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
          local_send_to_resource_hook/4,
@@ -263,12 +263,12 @@ failed_to_store_message(Acc) ->
                               To :: jid:jid(),
                               Acc :: mongoose_acc:t(),
                               Packet :: exml:element()}.
--spec filter_local_packet(Server, Acc) -> Result when
-    Server :: jid:server(),
-    Acc :: filter_packet_acc(),
+-spec filter_local_packet(FilterAcc) -> Result when
+    FilterAcc :: filter_packet_acc(),
     Result :: drop | filter_packet_acc().
-filter_local_packet(Server, Acc) ->
-    ejabberd_hooks:run_for_host_type(filter_local_packet, Server, Acc, []).
+filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(filter_local_packet, HostType, FilterAcc, []).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.

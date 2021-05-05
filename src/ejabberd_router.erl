@@ -100,7 +100,7 @@ start_link() ->
 %% and implement two functions:
 %% filter/3 - should return either 'drop' atom or its args
 %% route/3, which should either:
-%%   - deliver the message locally by calling mongoose_local_delivery:do_local_route/3
+%%   - deliver the message locally by calling mongoose_local_delivery:do_route/5
 %%     and return 'done'
 %%   - deliver the message it its own way and return 'done'
 %%   - return its args

@@ -308,7 +308,8 @@ strip(#{ lserver := NewLServer } = Params, Acc) ->
 get_host_type(#{host_type := HostType}) ->
     HostType;
 get_host_type(#{lserver := LServer}) ->
-    case mongoose_domain_api:get_host_type(LServer) of
+    %% By default only domains (not subdomains) are used here
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {error, not_found} -> undefined;
         {ok, HostType} -> HostType
     end.

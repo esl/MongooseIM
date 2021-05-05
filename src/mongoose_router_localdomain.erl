@@ -22,12 +22,9 @@ filter(From, To, Acc, Packet) ->
 
 route(From, To, Acc, Packet) ->
     LDstDomain = To#jid.lserver,
-    route_to_host(From, To, Acc, Packet, LDstDomain).
-
-route_to_host(From, To, Acc, Packet, Host) ->
-    case mnesia:dirty_read(route, Host) of
+    case mnesia:dirty_read(route, LDstDomain) of
         [] -> {From, To, Acc, Packet};
         [#route{handler = Handler}] ->
-            mongoose_local_delivery:do_route(From, To, Acc, Packet, Host, Handler),
+            mongoose_local_delivery:do_route(From, To, Acc, Packet, Handler),
             done
     end.

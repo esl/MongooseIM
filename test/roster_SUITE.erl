@@ -51,7 +51,7 @@ init_per_testcase(_TC, C) ->
     meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
     meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
     meck:new(mongoose_domain_api),
-    meck:expect(mongoose_domain_api, get_host_type, fun(H) -> {ok, H} end),
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
     gen_mod:start(),
     gen_mod:start_module(host(), mod_roster, []),
     C.

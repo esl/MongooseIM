@@ -118,7 +118,17 @@ get_domain_host_type(Domain) ->
 -spec get_subdomain_host_type(domain()) ->
     {ok, host_type()} | {error, not_found}.
 get_subdomain_host_type(Subdomain) ->
-    mongoose_subdomain_core:get_host_type(Subdomain).
+    case mongoose_subdomain_core:get_host_type(Subdomain) of
+        {error, not_found} ->
+            case mongoose_subhosts:get_host(Subdomain) of
+                {ok, Domain} ->
+                    get_domain_host_type(Domain);
+                undefined ->
+                    {error, not_found}
+            end;
+        {ok, HostType} ->
+            {ok, HostType}
+    end.
 
 %% Subdomain should be nameprepped using `jid:nameprep'
 -spec get_subdomain_info(domain()) ->

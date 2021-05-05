@@ -173,7 +173,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec does_stored_user_exist(jid:jid()) -> boolean().
 does_stored_user_exist(JID = #jid{lserver = LServer}) ->
-    case mongoose_domain_api:get_host_type(LServer) of
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             case ejabberd_auth:does_stored_user_exist(HostType, JID) of
                 true -> true;

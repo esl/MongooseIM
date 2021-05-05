@@ -56,7 +56,7 @@ setup() ->
     meck:expect(gen_mod, is_loaded, fun (_, _) -> true end),
 
     meck:new(mongoose_domain_api),
-    meck:expect(mongoose_domain_api, get_host_type, fun get_host_type/1).
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun get_host_type/1).
 
 
 teardown() ->

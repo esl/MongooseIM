@@ -65,7 +65,7 @@ get_data_from_modules(Username, Domain) ->
 
 -spec get_data_from_modules(jid:jid()) -> gdpr:personal_data().
 get_data_from_modules(JID) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(JID#jid.lserver),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(JID#jid.lserver),
     mongoose_hooks:get_personal_data(HostType, JID).
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
