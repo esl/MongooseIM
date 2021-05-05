@@ -56,10 +56,14 @@ filter_local_packet({#jid{lserver = FromServer} = From,
         true ->
             Arg;
         false ->
-            send_back_error(mongoose_xmpp_errors:service_unavailable(
-                                <<"en">>, <<"Filtered by the domain isolation">>),
-                            From, To, Acc),
-            drop
+            %% Allow errors from this module to be passed
+            case mongoose_acc:get(domain_isolation, ignore, false, Acc) of
+                true ->
+                    Arg;
+                false ->
+                    maybe_send_back_error(From, To, Acc, Arg),
+                    drop
+            end
      end.
 
 %% muc.localhost becomes localhost.
@@ -69,6 +73,18 @@ domain_to_host(Domain) ->
         {ok, Host} -> Host;
         undefined -> Domain
     end.
+
+maybe_send_back_error(From, To, Acc, Arg) ->
+    case mongoose_acc:stanza_type(Acc) of
+        <<"error">> -> %% Never reply to the errors
+            Arg;
+        _ ->
+            Err = mongoose_xmpp_errors:service_unavailable(<<"en">>,
+                    <<"Filtered by the domain isolation">>),
+            Acc2 = mongoose_acc:set_permanent(domain_isolation, ignore, true, Acc),
+            send_back_error(Err, From, To, Acc2),
+            drop
+   end.
 
 send_back_error(Etype, From, To, Acc) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Etype),

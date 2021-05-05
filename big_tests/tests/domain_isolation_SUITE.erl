@@ -12,10 +12,13 @@ suite() ->
 all() ->
     [
      isolation_works_for_one2one,
+     isolation_works_for_one2one_2domains,
      isolation_works_for_subdomains
     ].
 
 domain() -> ct:get_config({hosts, mim, domain}).
+domain2() -> ct:get_config({hosts, mim, secondary_domain}).
+domains() -> [domain(), domain2()].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -30,6 +33,10 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
+
+init_per_testcase(isolation_works_for_one2one_2domains = TestcaseName, Config) ->
+    [dynamic_modules:start(Host, mod_domain_isolation, []) || Host <- domains()],
+    escalus:init_per_testcase(TestcaseName, Config);
 init_per_testcase(TestcaseName, Config) ->
     Host = domain(),
     MucHost = binary_to_list(<<"muclight.", Host/binary>>),
@@ -37,6 +44,9 @@ init_per_testcase(TestcaseName, Config) ->
     dynamic_modules:start(Host, mod_muc_light, [{host, MucHost}]),
     escalus:init_per_testcase(TestcaseName, Config).
 
+end_per_testcase(isolation_works_for_one2one_2domains = TestcaseName, Config) ->
+    [dynamic_modules:stop(Host, mod_domain_isolation) || Host <- domains()],
+    escalus:end_per_testcase(TestcaseName, Config);
 end_per_testcase(TestcaseName, Config) ->
     Host = domain(),
     dynamic_modules:stop(Host, mod_domain_isolation),
@@ -61,6 +71,9 @@ isolation_works_for_one2one(Config) ->
           <<"Filtered by the domain isolation">> = get_error_text(Err)
         end,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {alice_bis, 1}], F).
+
+isolation_works_for_one2one_2domains(Config) ->
+    isolation_works_for_one2one(Config).
 
 isolation_works_for_subdomains(Config) ->
     F = fun(Alice, Bis) ->
