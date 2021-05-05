@@ -8,6 +8,11 @@
 -type subdomain_pattern() :: {fqdn | prefix, binary()}.
 -export_type([subdomain_pattern/0]).
 
+%% this function preprocesses configuration subdomain templates like:
+%%  "subdomain.@HOST@"
+%% it is compatible with mongoose_config_parser_toml:processor() type,
+%% so it can be used as #option.process value (for more information see
+%% mongoose_config_spec.hrl)
 -spec make_subdomain_pattern(SubdomainPatternConfigOpt :: binary() | string()) ->
     subdomain_pattern().
 make_subdomain_pattern(ConfigOpt) when is_list(ConfigOpt) ->

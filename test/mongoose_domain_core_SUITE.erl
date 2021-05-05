@@ -24,7 +24,7 @@ all() ->
      get_domains_by_host_type,
      host_type_check,
      can_get_outdated_domains,
-     run_for_each_domains].
+     run_for_each_domain].
 
 init_per_suite(Config) ->
     meck:new(mongoose_hooks, [no_link]),
@@ -137,7 +137,10 @@ can_get_outdated_domains(_) ->
     [] = mongoose_domain_core:get_all_outdated(dummy_src),
     [] = mongoose_domain_core:get_all_outdated(another_dummy_src).
 
-run_for_each_domains(_) ->
+run_for_each_domain(_) ->
+    %% NumOfDomains is just some big non-round number to ensure that more than 2 ets
+    %% selections are done during the call to mongoose_domain_core:for_each_domain/2.
+    %% currently max selection size is 100 domains.
     NumOfDomains = 1234,
     NewDomains = [<<"dummy_domain_", (integer_to_binary(N))/binary, ".localhost">>
                   || N <- lists:seq(1, NumOfDomains)],

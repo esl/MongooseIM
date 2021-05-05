@@ -84,8 +84,8 @@
          }).
 
 -type module_feature() :: atom().
--type domain_name() :: jid:server().
--type host_type() :: binary().
+-type domain_name() :: mongooseim:domain_name().
+-type host_type() :: mongooseim:host_type().
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -109,7 +109,7 @@
 %% TODO: think about getting rid of HostType param for deps/2 interface, currently
 %% it's used only by global_distrib modules (see mod_global_distrib_utils:deps/4
 %% function).
--callback deps(HostType :: binary(), Opts :: proplists:list()) -> deps_list().
+-callback deps(HostType :: host_type(), Opts :: proplists:list()) -> deps_list().
 
 -optional_callbacks([config_spec/0, supported_features/0, deps/2]).
 

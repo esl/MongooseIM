@@ -22,7 +22,7 @@
 -define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
--define(VIRTUAL_PUBSUB_DOMAIN,<<"virtual.domain">>).
+-define(VIRTUAL_PUBSUB_DOMAIN, <<"virtual.domain">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
