@@ -135,7 +135,7 @@ process_entry(#{remote_jid := RemJID,
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec deps(jid:lserver(), list()) -> list().
+-spec deps(jid:lserver(), list()) -> gen_mod:deps_list().
 deps(_Host, Opts) ->
     groupchat_deps(Opts).
 

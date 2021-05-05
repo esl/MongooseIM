@@ -15,8 +15,8 @@
          delete/4]
          ).
 
--import(muc_light_helper,
-        [set_mod_config/3]).
+-import(muc_light_helper, [set_mod_config/3]).
+-import(distributed_helper, [subhost_pattern/1]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -120,7 +120,7 @@ init_per_suite(C) ->
     MUCLightHost = <<"muclight.", Host/binary>>,
     C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
     dynamic_modules:start(Host, mod_muc_light,
-                          [{host, binary_to_list(MUCLightHost)},
+                          [{host, subhost_pattern(MUCLightHost)},
                            {rooms_in_rosters, true}]),
     [{muc_light_host, MUCLightHost} | escalus:init_per_suite(C1)].
 

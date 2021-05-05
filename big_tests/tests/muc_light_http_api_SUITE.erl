@@ -27,7 +27,7 @@
 -include_lib("exml/include/exml.hrl").
 
 -import(muc_light_helper, [stanza_create_room/3]).
-
+-import(distributed_helper, [subhost_pattern/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -63,7 +63,7 @@ negative_response() ->
 
 init_per_suite(Config) ->
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
-        [{host, binary_to_list(muc_light_domain())},
+        [{host, subhost_pattern(muc_light_domain())},
          {rooms_in_rosters, true},
          {backend, mongoose_helper:mnesia_or_rdbms_backend()}]),
     escalus:init_per_suite(Config).

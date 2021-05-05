@@ -24,11 +24,14 @@ config_spec() ->
       }.
 
 extra_domains() ->
-    #list{items = #option{type = string, validate = domain_template}}.
+    #list{items = #option{type = string,
+                          validate = subdomain_template,
+                          process = fun mongoose_subdomain_utils:make_subdomain_pattern/1}}.
 
 start(Host, Opts) ->
     ExtraDomains = proplists:get_value(extra_domains, Opts, []),
-    SubHosts = [gen_mod:make_subhost(SubHost, Host) || SubHost <- ExtraDomains],
+    SubHosts = [mongoose_subdomain_utils:get_fqdn(SubdomainPattern, Host)
+                || SubdomainPattern <- ExtraDomains],
     AllHosts = [Host|SubHosts],
     [ejabberd_hooks:add(filter_local_packet, H, ?MODULE, filter_local_packet, 10)
      || H <- AllHosts],
@@ -36,7 +39,8 @@ start(Host, Opts) ->
 
 stop(Host) ->
     ExtraDomains = gen_mod:get_module_opt(Host, ?MODULE, extra_domains, []),
-    SubHosts = [gen_mod:make_subhost(SubHost, Host) || SubHost <- ExtraDomains],
+    SubHosts = [mongoose_subdomain_utils:get_fqdn(SubdomainPattern, Host)
+                || SubdomainPattern <- ExtraDomains],
     AllHosts = [Host|SubHosts],
     [ejabberd_hooks:delete(filter_local_packet, H, ?MODULE, filter_local_packet, 10)
      || H <- AllHosts],

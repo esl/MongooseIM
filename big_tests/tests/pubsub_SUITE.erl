@@ -120,6 +120,7 @@
                        decode_group_name/1]).
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -1838,7 +1839,7 @@ path_node_and_parent(Client, {NodeAddr, NodeName}) ->
 required_modules(ExtraOpts) ->
     [{mod_pubsub, [
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {host, "pubsub.@HOST@"}
+                   {host, subhost_pattern("pubsub.@HOST@")}
                    | ExtraOpts
                   ]}].
 

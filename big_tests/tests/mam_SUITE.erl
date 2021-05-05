@@ -119,6 +119,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 
 -import(muc_helper,
@@ -677,33 +678,35 @@ init_modules(rdbms, muc_light, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
-    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    dynamic_modules:start(host(), mod_muc_light, [{host, subhost_pattern(muc_light_host())}]),
     init_modules(BT, generic, [{muc_domain, "muclight.@HOST@"} | Config]);
 init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
     Config;
 init_modules(BT = elasticsearch, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(elasticsearch, muc_all, Config) ->
     init_module(host(), mod_mam_muc_elasticsearch_arch, []),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
     Config;
 init_modules(rdbms, C, Config) when C =:= muc_all;
                                     C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_simple, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
                                                C =:= muc_disabled_retraction ->
@@ -711,14 +714,16 @@ init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
     init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_cache, C, Config) when C =:= muc_all;
                                           C =:= muc_disabled_retraction ->
@@ -726,7 +731,8 @@ init_modules(rdbms_cache, C, Config) when C =:= muc_all;
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
                                                 C =:= muc_disabled_retraction ->
@@ -735,7 +741,8 @@ init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
                                                      C =:= muc_disabled_retraction ->
@@ -743,7 +750,8 @@ init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
     skip;
@@ -753,7 +761,8 @@ init_modules(rdbms_mnesia_cache, C, Config) when C =:= muc_all;
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
@@ -780,8 +789,8 @@ init_modules(riak_timed_yz_buckets, C, Config) ->
     init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
                                                {archive_key, mam_archive_key_server_user}]),
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_muc,
-                [{host, muc_domain(Config)}] ++ addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+                                     addin_mam_options(C, Config)),
     Config;
 init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_arch, [pm]),
@@ -840,7 +849,7 @@ rdbms_simple_opts() ->
     [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
 
 init_modules_for_muc_light(BackendType, Config) ->
-    dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
+    dynamic_modules:start(host(), mod_muc_light, [{host, subhost_pattern(muc_light_host())}]),
     Config1 = init_modules(BackendType, muc_all, [{muc_domain, "muclight.@HOST@"} | Config]),
     init_modules(BackendType, pm, [{archive_groupchats, false} | Config1]).
 

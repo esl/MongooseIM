@@ -33,6 +33,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 
 %%--------------------------------------------------------------------
@@ -455,7 +456,7 @@ configure_ldap_vcards(Config) ->
     CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
-    Cfg = [{backend,ldap}, {host, "vjud.@HOST@"},
+    Cfg = [{backend,ldap}, {host, subhost_pattern("vjud.@HOST@")},
            {ldap_uids, [{<<"uid">>}]}, %% equivalent to {<<"uid">>, <<"%u">>}
            {ldap_filter,"(objectClass=inetOrgPerson)"},
            {ldap_base,"ou=Users,dc=esl,dc=com"},

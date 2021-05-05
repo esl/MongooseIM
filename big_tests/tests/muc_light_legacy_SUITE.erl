@@ -51,6 +51,7 @@
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
+-import(distributed_helper, [subhost_pattern/1]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
                            to_lus/2,
@@ -142,7 +143,7 @@ suite() ->
 init_per_suite(Config) ->
     Host = domain(),
     dynamic_modules:start(Host, mod_muc_light,
-                          [{host, binary_to_list(?MUCHOST)},
+                          [{host, subhost_pattern(?MUCHOST)},
                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
@@ -177,7 +178,7 @@ init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
     set_default_mod_config(),
     dynamic_modules:start(domain(), mod_mam_muc,
                           [{backend, rdbms},
-                           {host, binary_to_list(?MUCHOST)}]),
+                           {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),

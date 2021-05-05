@@ -1,5 +1,5 @@
-{config,default_server_domain,<<"localhost">>}.
 {acl,{local,global},{user_regexp,<<>>}}.
+{config,default_server_domain,<<"localhost">>}.
 {config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
 {config,language,<<"en">>}.
 {config,sm_backend,{mnesia,[]}}.
@@ -168,7 +168,7 @@
      {mod_disco,[{users_can_see_hidden_services,false}]},
      {mod_commands,[]},
      {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,"vjud.@HOST@"}]},
+     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
      {mod_blocking,[]},
      {mod_bosh,[]},
      {mod_roster,[{backend,rdbms}]},
@@ -191,7 +191,7 @@
      {mod_disco,[{users_can_see_hidden_services,false}]},
      {mod_commands,[]},
      {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,"vjud.@HOST@"}]},
+     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
      {mod_blocking,[]},
      {mod_bosh,[]},
      {mod_roster,[{backend,rdbms}]},
@@ -214,7 +214,7 @@
      {mod_disco,[{users_can_see_hidden_services,false}]},
      {mod_commands,[]},
      {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,"vjud.@HOST@"}]},
+     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
      {mod_blocking,[]},
      {mod_bosh,[]},
      {mod_roster,[{backend,rdbms}]},

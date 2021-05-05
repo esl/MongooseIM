@@ -97,7 +97,8 @@ pm_config_items() ->
 
 muc_config_items() ->
     #{<<"host">> => #option{type = string,
-                            validate = domain_template}}.
+                            validate = subdomain_template,
+                            process = fun mongoose_subdomain_utils:make_subdomain_pattern/1}}.
 
 riak_config_spec() ->
     #section{

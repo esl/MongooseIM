@@ -176,3 +176,5 @@ mongooseim_script(Node, Cmd, Args, Config) ->
     CtlCmd = script_path(Node, Config, "mongooseim"),
     ejabberdctl_helper:run(CtlCmd, [Cmd | Args]).
 
+subhost_pattern(SubhostTemplate) ->
+    rpc(mim(), mongoose_subdomain_utils, make_subdomain_pattern, [SubhostTemplate]).

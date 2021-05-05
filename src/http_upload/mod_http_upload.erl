@@ -124,7 +124,8 @@ config_spec() ->
     #section{
         items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                   <<"host">> => #option{type = string,
-                                        validate = domain_template},
+                                        validate = subdomain_template,
+                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                   <<"backend">> => #option{type = atom,
                                            validate = {module, mod_http_upload}},
                   <<"expiration_time">> => #option{type = integer,
@@ -204,7 +205,8 @@ get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
 
 -spec subhost(Host :: jid:server()) -> binary().
 subhost(Host) ->
-    gen_mod:get_module_opt_subhost(Host, ?MODULE, ?DEFAULT_SUBHOST).
+    DefaultSubhost = mongoose_subdomain_utils:make_subdomain_pattern(?DEFAULT_SUBHOST),
+    gen_mod:get_module_opt_subhost(Host, ?MODULE, DefaultSubhost).
 
 
 -spec my_disco_name(ejabberd:lang()) -> binary().

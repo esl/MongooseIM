@@ -251,7 +251,8 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"host">> => #option{type = string,
-                                       validate = domain_template},
+                                       validate = subdomain_template,
+                                       process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_pubsub_db}},
                  <<"access_createnode">> => #option{type = atom,
@@ -318,9 +319,9 @@ process_pep_mapping(KVs) ->
     {[[{namespace, NameSpace}], [{node, Node}]], []} = proplists:split(KVs, [namespace, node]),
     {NameSpace, Node}.
 
--spec default_host() -> binary().
+-spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
-    <<"pubsub.@HOST@">>.
+    mongoose_subdomain_utils:make_subdomain_pattern(<<"pubsub.@HOST@">>).
 
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),

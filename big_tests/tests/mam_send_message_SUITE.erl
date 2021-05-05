@@ -22,6 +22,7 @@
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
+                             subhost_pattern/1,
                              rpc/4]).
 
 -include("mam_helper.hrl").
@@ -75,7 +76,7 @@ end_per_group(_Groupname, Config) ->
     ok.
 
 group_to_modules(send_message) ->
-    MH = muc_light_helper:muc_host(),
+    MH = subhost_pattern(muc_light_helper:muc_host()),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]},
                      {send_message, mam_send_message_example}]},
      {mod_muc_light, []},

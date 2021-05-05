@@ -25,6 +25,7 @@
 -include("assert_received_match.hrl").
 
 -import(distributed_helper, [mim/0,
+                             subhost_pattern/1,
                              rpc/4]).
 
 -import(muc_helper,
@@ -378,10 +379,11 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-    dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
-    dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
-    dynamic_modules:start(domain(), mod_mam_rdbms_user, [pm, muc]),
-            dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
+            dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
+            dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
+            dynamic_modules:start(domain(), mod_mam_rdbms_user, [pm, muc]),
+            HostPattern = subhost_pattern("muc.@HOST@"),
+            dynamic_modules:start(domain(), mod_mam_muc, [{host, HostPattern}]);
         _ ->
             ok
     end,
@@ -397,7 +399,7 @@ init_per_group(_GroupName, Config) ->
 
 required_modules(http_auth) ->
     [{mod_muc, [
-                {host, "muc.@HOST@"},
+                {host, subhost_pattern("muc.@HOST@")},
                 {access, muc},
                 {access_create, muc_create},
                 {http_auth_pool, muc_http_auth_test},
@@ -530,7 +532,7 @@ init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     dynamic_modules:start(domain(), mod_mam_muc,
                           [{backend, rdbms},
-                           {host, binary_to_list(muc_host())}]),
+                           {host, subhost_pattern(muc_host())}]),
     escalus:init_per_testcase(CaseName, Config);
 
 init_per_testcase(CaseName, Config) ->

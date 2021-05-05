@@ -22,7 +22,8 @@
          publish_without_node_attr_test/1
         ]).
 
--import(distributed_helper, [require_rpc_nodes/1]).
+-import(distributed_helper, [require_rpc_nodes/1,
+                             subhost_pattern/1]).
 -import(pubsub_tools, [
                        domain/0,
                        encode_group_name/2,
@@ -128,6 +129,6 @@ publish_without_node_attr_test(Config) ->
 required_modules(ExtraOpts) ->
     [{mod_pubsub, [
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {host, "pubsub.@HOST@"}
+                   {host, subhost_pattern("pubsub.@HOST@")}
                    | ExtraOpts
                   ]}].

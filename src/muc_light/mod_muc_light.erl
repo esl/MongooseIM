@@ -68,9 +68,9 @@ default_schema_definition() ->
     [{"roomname", "Untitled"},
      {"subject", ""}].
 
--spec default_host() -> binary().
+-spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
-    <<"muclight.@HOST@">>.
+    mongoose_subdomain_utils:make_subdomain_pattern(<<"muclight.@HOST@">>).
 
 -spec default_config(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:kv().
 default_config(MUCServer) ->
@@ -204,7 +204,8 @@ config_spec() ->
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
                  <<"host">> => #option{type = string,
-                                       validate = domain_template},
+                                       validate = subdomain_template,
+                                       process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                  <<"equal_occupants">> => #option{type = boolean},
                  <<"legacy_mode">> => #option{type = boolean},
                  <<"rooms_per_user">> => #option{type = int_or_infinity,

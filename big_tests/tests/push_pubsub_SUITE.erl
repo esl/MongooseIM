@@ -7,6 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include("push_helper.hrl").
 
+-import(distributed_helper, [subhost_pattern/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -432,7 +433,7 @@ required_modules(APIVersion) ->
     [{mod_pubsub, [
         {plugins, [<<"dag">>, <<"push">>]},
         {nodetree, <<"dag">>},
-        {host, ?PUBSUB_SUB_DOMAIN ++ ".@HOST@"}
+        {host, subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@")}
     ]},
      {mod_push_service_mongoosepush, [
          {pool_name, mongoose_push_http},
