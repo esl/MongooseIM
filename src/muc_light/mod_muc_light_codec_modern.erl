@@ -515,5 +515,5 @@ room_event(RoomJID) ->
     #{from_nick => <<>>,
       from_jid => RoomJID,
       room_jid => RoomJID,
-      role => owner,
+      role => moderator,
       affiliation => owner}.
