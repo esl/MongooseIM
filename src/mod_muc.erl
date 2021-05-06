@@ -111,6 +111,15 @@
                              nick       :: nick()
                             }.
 
+-type room_event_data() :: #{
+                  from_nick := nick(),
+                  from_jid := jid:jid(),
+                  room_jid := jid:jid(),
+                  affiliation := affiliation(),
+                  role := role()
+       }.
+-export_type([room_event_data/0]).
+
 -record(state, {host                :: jid:server(),
                 server_host         :: jid:literal_jid(),
                 access,

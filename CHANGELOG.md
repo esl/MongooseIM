@@ -1,3 +1,5 @@
+- Use a map instead of a proplist in the `room_event_data` hook
+  for the event data information.
 - `room_send_packet` hook removed.
    Use `filter_room_packet` instead.
 

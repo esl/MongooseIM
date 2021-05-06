@@ -175,7 +175,8 @@ stop(Host) ->
 %% hooks and handlers for MUC
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Packet :: packet(), EventData :: list()) -> packet().
+-spec filter_room_packet(Packet :: packet(),
+                         EventData :: mod_muc:room_event_data()) -> packet().
 filter_room_packet(Packet, EventData) ->
     {room_jid, #jid{lserver = LServer}} = lists:keyfind(room_jid, 1, EventData),
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
@@ -183,11 +184,8 @@ filter_room_packet(Packet, EventData) ->
     IsArchivable = is_archivable_message(LServer, incoming, Packet),
     case IsArchivable of
         true ->
-            {_, FromNick} = lists:keyfind(from_nick, 1, EventData),
-            {_, FromJID} = lists:keyfind(from_jid, 1, EventData),
-            {_, RoomJID} = lists:keyfind(room_jid, 1, EventData),
-            {_, Role} = lists:keyfind(role, 1, EventData),
-            {_, Affiliation} = lists:keyfind(affiliation, 1, EventData),
+            #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
+              role := Role, affiliation := Affiliation} = EventData,
             archive_room_packet(Packet, FromNick, FromJID, RoomJID, Role, Affiliation);
         false -> Packet
     end.

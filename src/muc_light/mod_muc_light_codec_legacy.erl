@@ -56,13 +56,12 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
-    EventData = [{from_nick, FromNick},
-                 {from_jid, Sender},
-                 {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
-                 {affiliation, Aff},
-                 {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
-    ],
-    FilteredPacket = #xmlel{ children = Children }
+    EventData = #{from_nick => FromNick,
+                  from_jid => Sender,
+                  room_jid => jid:make_noprep({RoomU, RoomS, <<>>}),
+                  affiliation => Aff,
+                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+    #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
