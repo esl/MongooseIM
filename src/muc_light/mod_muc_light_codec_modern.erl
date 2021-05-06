@@ -64,9 +64,8 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                  {affiliation, Aff},
                  {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
                 ],
-    FilteredPacket = #xmlel{ children = Children }
+    #xmlel{ children = Children }
                      = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -309,9 +308,8 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, _Sender, Room
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
     EventData = room_event(RoomJID),
-    FilteredPacket = #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
+    #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
         = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
@@ -337,8 +335,7 @@ encode_iq({set, #create{} = Create, UniqueRequested}, _Sender, RoomJID, RoomBin,
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
     EventData = room_event(RoomJID),
-    FilteredPacket = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
+    mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -380,9 +377,8 @@ encode_iq({set, #config{} = Config, AffUsers}, _Sender, RoomJID, RoomBin, Handle
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
     EventData = room_event(RoomJID),
-    FilteredPacket = #xmlel{ children = FinalConfigNotif }
+    #xmlel{ children = FinalConfigNotif }
         = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
 
     lists:foreach(
       fun({{U, S}, _}) ->

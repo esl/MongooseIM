@@ -883,7 +883,6 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                  {role, Role},
                  {affiliation, Affiliation}],
     FilteredPacket = mongoose_hooks:filter_room_packet(StateData#state.host, Packet, EventData),
-    mongoose_hooks:room_send_packet(StateData#state.host, FilteredPacket, EventData),
     RouteFrom = jid:replace_resource(StateData#state.jid,
                                      FromNick),
     RoomJid = StateData#state.jid,

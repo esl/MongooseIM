@@ -1,3 +1,6 @@
+- `room_send_packet` hook removed.
+   Use `filter_room_packet` instead.
+
 # [MongooseIM 4.2.0](https://github.com/esl/MongooseIM/releases/tag/4.2.0) - 2021-04-20
 
 ## Highlights

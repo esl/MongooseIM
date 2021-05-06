@@ -64,7 +64,6 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     ],
     FilteredPacket = #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
