@@ -17,7 +17,7 @@
 -opaque t() ::
     #mongoose_credentials{ %% These values are always present.
                            lserver :: jid:lserver(),
-                           host_type :: binary(),
+                           host_type :: mongooseim:host_type(),
                            %% Authorization success / failure registry.
                            registry :: [{ejabberd_gen_auth:t(), auth_event()}],
                            %% These values are dependent on the ejabberd_auth backend in use.
@@ -28,7 +28,7 @@
 new(LServer, HostType) when is_binary(LServer), is_binary(HostType) ->
     #mongoose_credentials{lserver = LServer, host_type = HostType}.
 
--spec host_type(t()) -> binary().
+-spec host_type(t()) -> mongooseim:host_type().
 host_type(#mongoose_credentials{host_type = HostType}) -> HostType.
 
 -spec lserver(t()) -> jid:lserver().
