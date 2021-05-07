@@ -31,7 +31,7 @@ start() ->
       ListOfFuns :: [fun(() -> maybe_cluster_id())],
       MaybeCID :: maybe_cluster_id().
 run_steps(_, {ok, ID}) when is_binary(ID) ->
-    store_cluster_id(ID);
+    {ok, ID};
 run_steps([Fun | NextFuns], {error, _}) ->
     run_steps(NextFuns, Fun());
 run_steps([], {error, _} = E) ->
@@ -133,7 +133,7 @@ set_new_cluster_id(ID, mnesia) ->
 -spec get_backend_cluster_id(mongoose_backend()) -> maybe_cluster_id().
 get_backend_cluster_id(rdbms) ->
     try mongoose_rdbms:execute_successfully(global, cluster_select, []) of
-        {selected, [{Row}]} -> {ok, Row};
+        {selected, [{ID}]} -> {ok, ID};
         {selected, []} -> {error, no_value_in_backend}
     catch
         Class:Reason:Stacktrace ->
