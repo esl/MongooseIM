@@ -60,7 +60,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     EventData = #{from_nick =>FromNick,
                   from_jid => Sender,
-                  room_jid => jid:make_noprep({RoomU, RoomS, <<>>}),
+                  room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
     #xmlel{ children = Children }
@@ -455,7 +455,7 @@ msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
                       Attrs :: [{binary(), binary()}], Children :: [jlib:xmlch()],
                       HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
-    To = jid:make_noprep({ToU, ToS, <<>>}),
+    To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
     Packet = #xmlel{ name = <<"message">>, attrs = [{<<"to">>, ToBin} | Attrs],
                      children = Children },
@@ -465,7 +465,7 @@ msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     {jid:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jid:to_binary({RoomU, RoomS, Resource}),
-    From = jid:make_noprep({RoomU, RoomS, Resource}),
+    From = jid:make_noprep(RoomU, RoomS, Resource),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
