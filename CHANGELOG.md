@@ -1,8 +1,3 @@
-- Use a map instead of a proplist in the `room_event_data` hook
-  for the event data information.
-- `room_send_packet` hook removed.
-   Use `filter_room_packet` instead.
-
 # [MongooseIM 4.2.0](https://github.com/esl/MongooseIM/releases/tag/4.2.0) - 2021-04-20
 
 ## Highlights
