@@ -138,7 +138,6 @@
          join_room/5,
          leave_room/5,
          room_packet/5,
-         room_send_packet/3,
          update_inbox_for_muc/2]).
 
 -export([caps_add/5,
@@ -1403,7 +1402,7 @@ amp_verify_support(Server, Rules) ->
 -spec filter_room_packet(Server, Packet, EventData) -> Result when
     Server :: jid:lserver(),
     Packet :: exml:element(),
-    EventData :: [{atom(), any()}],
+    EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
 filter_room_packet(Server, Packet, EventData) ->
     ejabberd_hooks:run_for_host_type(filter_room_packet, Server, Packet, [EventData]).
@@ -1464,15 +1463,6 @@ leave_room(HookServer, Room, Host, JID, MucJID) ->
 room_packet(Server, FromNick, FromJID, JID, Packet) ->
     ejabberd_hooks:run_for_host_type(room_packet, Server, ok,
                                      [FromNick, FromJID, JID, Packet]).
-
-%%% @doc The `room_send_packet' hook is called when a message is sent to a room.
--spec room_send_packet(Server, Packet, EventData) -> Result when
-    Server :: jid:lserver(),
-    Packet :: exml:element(),
-    EventData :: [{atom(), any()}],
-    Result :: exml:element().
-room_send_packet(Server, Packet, EventData) ->
-    ejabberd_hooks:run_for_host_type(room_send_packet, Server, Packet, [EventData]).
 
 -spec update_inbox_for_muc(Server, Info) -> Result when
     Server :: jid:server(),

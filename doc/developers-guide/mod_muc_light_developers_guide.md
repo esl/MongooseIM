@@ -121,8 +121,6 @@ Callbacks that provide essential data for the `mod_mam_muc` extension.
 
 Allows `mod_mam_muc` to archive groupchat messages.
 
-* `room_send_packet` by codecs
-
 * `forget_room` by `mod_muc_light_db_mnesia` and `mod_muc_light_room`
 
 It is a part of `mod_mam_muc` integration as well.

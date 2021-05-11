@@ -56,15 +56,13 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
-    EventData = [{from_nick, FromNick},
-                 {from_jid, Sender},
-                 {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
-                 {affiliation, Aff},
-                 {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
-    ],
-    FilteredPacket = #xmlel{ children = Children }
+    EventData = #{from_nick => FromNick,
+                  from_jid => Sender,
+                  room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                  affiliation => Aff,
+                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+    #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
@@ -441,7 +439,7 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
                        Children :: [jlib:xmlch()],
                        HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
-    To = jid:make_noprep({ToU, ToS, <<>>}),
+    To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
     Packet = #xmlel{ name = Name, attrs = [{<<"to">>, ToBin} | Attrs],
                      children = Children },
@@ -451,7 +449,7 @@ send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
     {jid:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jid:to_binary({RoomU, RoomS, Resource}),
-    From = jid:make_noprep({RoomU, RoomS, Resource}),
+    From = jid:make_noprep(RoomU, RoomS, Resource),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),

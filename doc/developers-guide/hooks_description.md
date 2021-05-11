@@ -244,7 +244,6 @@ This is the perfect place to plug in custom security control.
 * resend_offline_messages_hook
 * rest_user_send_packet
 * room_packet
-* room_send_packet
 * roster_get
 * roster_get_jid_info
 * roster_get_subscription_lists

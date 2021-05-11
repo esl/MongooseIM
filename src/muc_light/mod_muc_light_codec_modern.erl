@@ -58,15 +58,13 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
-    EventData = [{from_nick, FromNick},
-                 {from_jid, Sender},
-                 {room_jid, jid:make_noprep({RoomU, RoomS, <<>>})},
-                 {affiliation, Aff},
-                 {role, mod_muc_light_utils:light_aff_to_muc_role(Aff)}
-                ],
-    FilteredPacket = #xmlel{ children = Children }
+    EventData = #{from_nick =>FromNick,
+                  from_jid => Sender,
+                  room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                  affiliation => Aff,
+                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+    #xmlel{ children = Children }
                      = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomS, FilteredPacket, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
@@ -309,9 +307,8 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, _Sender, Room
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
     EventData = room_event(RoomJID),
-    FilteredPacket = #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
+    #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
         = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
@@ -337,8 +334,7 @@ encode_iq({set, #create{} = Create, UniqueRequested}, _Sender, RoomJID, RoomBin,
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
     EventData = room_event(RoomJID),
-    FilteredPacket = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
+    mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -380,9 +376,8 @@ encode_iq({set, #config{} = Config, AffUsers}, _Sender, RoomJID, RoomBin, Handle
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
     EventData = room_event(RoomJID),
-    FilteredPacket = #xmlel{ children = FinalConfigNotif }
+    #xmlel{ children = FinalConfigNotif }
         = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-    mongoose_hooks:room_send_packet(RoomJID#jid.lserver, FilteredPacket, EventData),
 
     lists:foreach(
       fun({{U, S}, _}) ->
@@ -460,7 +455,7 @@ msg_to_leaving_user(From, {ToU, ToS} = User, Attrs, HandleFun) ->
                       Attrs :: [{binary(), binary()}], Children :: [jlib:xmlch()],
                       HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
-    To = jid:make_noprep({ToU, ToS, <<>>}),
+    To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
     Packet = #xmlel{ name = <<"message">>, attrs = [{<<"to">>, ToBin} | Attrs],
                      children = Children },
@@ -470,7 +465,7 @@ msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
     {jid:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jid:to_binary({RoomU, RoomS, Resource}),
-    From = jid:make_noprep({RoomU, RoomS, Resource}),
+    From = jid:make_noprep(RoomU, RoomS, Resource),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
@@ -515,9 +510,10 @@ b2what(<<"room">>) -> room.
 what2b(user) -> <<"user">>;
 what2b(room) -> <<"room">>.
 
+-spec room_event(jid:jid()) -> mod_muc:room_event_data().
 room_event(RoomJID) ->
-    [{from_nick, <<>>},
-     {from_jid, RoomJID},
-     {room_jid, RoomJID},
-     {role, owner},
-     {affiliation, owner}].
+    #{from_nick => <<>>,
+      from_jid => RoomJID,
+      room_jid => RoomJID,
+      role => moderator,
+      affiliation => owner}.
