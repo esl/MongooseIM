@@ -20,22 +20,25 @@
 -spec start() -> maybe_cluster_id().
 start() ->
     init_mnesia_cache(),
-    maybe_prepare_queries(which_backend_available()),
-    run_steps(
-      [fun get_cached_cluster_id/0,
-       fun get_backend_cluster_id/0,
-       fun make_and_set_new_cluster_id/0],
-      {error, no_cluster_id_yet}).
-
--spec run_steps(ListOfFuns, MaybeCID) -> maybe_cluster_id() when
-      ListOfFuns :: [fun(() -> maybe_cluster_id())],
-      MaybeCID :: maybe_cluster_id().
-run_steps(_, {ok, ID}) when is_binary(ID) ->
-    {ok, ID};
-run_steps([Fun | NextFuns], {error, _}) ->
-    run_steps(NextFuns, Fun());
-run_steps([], {error, _} = E) ->
-    E.
+    Backend = which_backend_available(),
+    maybe_prepare_queries(Backend),
+    CachedRes = get_cached_cluster_id(),
+    BackendRes = get_backend_cluster_id(),
+    case {CachedRes, BackendRes} of
+        {{ok, ID}, {ok, ID}} ->
+            {ok, ID};
+        {{ok, ID}, {error, _}} ->
+            set_new_cluster_id(ID, Backend);
+        {{error, _}, {ok, ID}} ->
+            set_new_cluster_id(ID, mnesia);
+        {{error, _}, {error, _}} ->
+            make_and_set_new_cluster_id();
+        {{ok, CachedID}, {ok, BackendID}} ->
+            ?LOG_ERROR(#{what => cluster_id_setup_conflict,
+                         text => <<"Mnesia and Backend have different cluster IDs">>,
+                         cached_id => CachedID, backend_id => BackendID}),
+            {error, conflict}
+    end.
 
 %% Get cached version
 -spec get_cached_cluster_id() -> maybe_cluster_id().
@@ -103,15 +106,12 @@ which_backend_available() ->
         _ -> rdbms
     end.
 
--spec store_cluster_id(cluster_id()) -> maybe_cluster_id().
-store_cluster_id(ID) ->
-    which_backend_available() == rdbms andalso set_new_cluster_id(ID, rdbms),
-    set_new_cluster_id(ID, mnesia).
-
 -spec set_new_cluster_id(cluster_id(), mongoose_backend()) -> ok | {error, any()}.
 set_new_cluster_id(ID, rdbms) ->
     try execute_cluster_insert_new(ID) of
-        {updated, 1} -> {ok, ID}
+        {updated, 1} ->
+            set_new_cluster_id(ID, mnesia),
+            {ok, ID}
     catch
         Class:Reason:Stacktrace ->
             ?LOG_WARNING(#{what => cluster_id_set_failed,
