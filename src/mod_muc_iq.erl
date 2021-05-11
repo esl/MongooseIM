@@ -96,6 +96,12 @@ handle_cast({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) -
     ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function, Opts}),
     {noreply, State};
 handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
+    case ets:lookup(tbl_name(), {XMLNS, Host}) of
+        [{_, Module, Function, Opts}] ->
+            gen_iq_handler:stop_iq_handler(Module, Function, Opts);
+        _ ->
+            ok
+    end,
     ets:delete(tbl_name(), {XMLNS, Host}),
     {noreply, State};
 handle_cast(_Msg, State) ->
