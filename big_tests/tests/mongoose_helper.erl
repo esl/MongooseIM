@@ -239,6 +239,8 @@ stop_online_rooms() ->
     ok.
 
 forget_persistent_rooms() ->
+    %% To avoid `binary_to_existing_atom(<<"maygetmemberlist">>, utf8)' failing
+    rpc(mim(), mod_muc_room, module_info, []),
     Host = ct:get_config({hosts, mim, domain}),
     {ok, Rooms} = rpc(mim(), mod_muc_db_backend, get_rooms, [Host, muc_helper:muc_host()]),
     lists:foreach(
