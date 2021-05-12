@@ -372,7 +372,7 @@ handle_set_prefs(ArcJID=#jid{}, IQ=#iq{sub_el = PrefsEl}, Acc) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
     ?LOG_DEBUG(#{what => mam_set_prefs, default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = acc_to_host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     Res = set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
@@ -388,7 +388,7 @@ handle_set_prefs_result({error, Reason},
 -spec handle_get_prefs(jid:jid(), IQ :: jlib:iq(), Acc :: mongoose_acc:t()) ->
                               jlib:iq() | {error, term(), jlib:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}, Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = acc_to_host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     Res = get_prefs(HostType, ArcID, ArcJID, always),
     handle_get_prefs_result(Res, IQ).
@@ -408,7 +408,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                         #iq{xmlns=MamNs, sub_el = QueryEl} = IQ,
                         Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = acc_to_host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     Params0 = iq_to_lookup_params(HostType, IQ),
@@ -455,7 +455,7 @@ send_message(SendModule, Row, ArcJID, From, Packet) ->
 -spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq(), mongoose_acc:t()) ->
                                      jlib:iq().
 handle_get_message_form(_From=#jid{}, _ArcJID=#jid{}, IQ=#iq{}, Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = acc_to_host_type(Acc),
     return_message_form_iq(HostType, IQ).
 
 determine_amp_strategy(Strategy = #amp_strategy{deliver = Deliver},
@@ -479,10 +479,8 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
                      Packet :: exml:element(), Acc :: mongoose_acc:t()) ->
     {MaybeMessID :: binary() | undefined, Acc :: mongoose_acc:t()}.
 handle_package(Dir, ReturnMessID,
-               LocJID = #jid{},
-               RemJID = #jid{},
-               SrcJID = #jid{}, Packet, Acc) ->
-    HostType = mongoose_acc:host_type(Acc),
+               LocJID = #jid{}, RemJID = #jid{}, SrcJID = #jid{}, Packet, Acc) ->
+    HostType = acc_to_host_type(Acc),
     case is_archivable_message(HostType, Dir, Packet)
          andalso should_archive_if_groupchat(HostType, exml_query:attr(Packet, <<"type">>)) of
         true ->
