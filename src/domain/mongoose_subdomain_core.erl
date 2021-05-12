@@ -1,6 +1,7 @@
 %% Generally, you should not call anything from this module.
 %% Use mongoose_domain_api module instead.
 -module(mongoose_subdomain_core).
+-behaviour(gen_server).
 
 -include("mongoose_logger.hrl").
 
@@ -32,7 +33,7 @@
 -type host_type() :: mongooseim:host_type().
 -type domain() :: mongooseim:domain_name().
 -type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
--type maybe_domain() :: domain() | undefined.
+-type maybe_parent_domain() :: domain() | no_parent_domain.
 
 -type reg_item() :: {{host_type(), subdomain_pattern()}, %% table key
                      Type :: fqdn | subdomain,
@@ -41,7 +42,7 @@
 -record(subdomain_item, {host_type :: host_type() | '_',
                          subdomain :: domain() | '_', %% table key
                          subdomain_pattern :: subdomain_pattern() | '_',
-                         parent_domain :: maybe_domain() | '_', %% undefined for FQDNs
+                         parent_domain :: maybe_parent_domain() | '_',
                          packet_handler :: mongoose_packet_handler:t() | '_'}).
 
 -type subdomain_item() :: #subdomain_item{}.
@@ -50,7 +51,7 @@
 -type subdomain_info() :: #{host_type := host_type(),
                             subdomain := domain(),
                             subdomain_pattern := subdomain_pattern(),
-                            parent_domain := maybe_domain(),
+                            parent_domain := maybe_parent_domain(),
                             packet_handler := mongoose_packet_handler:t()}.
 
 -export_type([subdomain_info/0]).
@@ -124,8 +125,9 @@ get_subdomain_info(Subdomain) ->
             {ok, convert_subdomain_item_to_map(Item)}
     end.
 
--spec get_all_subdomains_for_domain(Domain :: domain() | undefined) -> [subdomain_info()].
-%% if Domain param is set to undefined, this function returns all the FQDN "subdomains".
+-spec get_all_subdomains_for_domain(Domain :: maybe_parent_domain()) -> [subdomain_info()].
+%% if Domain param is set to no_parent_domain,
+%% this function returns all the FQDN "subdomains".
 get_all_subdomains_for_domain(Domain) ->
     Pattern = #subdomain_item{parent_domain = Domain, _ = '_'},
     Match = ets:match_object(?SUBDOMAINS_TABLE, Pattern),
@@ -193,9 +195,9 @@ handle_register(HostType, SubdomainPattern, PacketHandler) ->
                     Fn = fun(_HostType, Subdomain) ->
                              add_subdomain(RegItem, Subdomain)
                          end,
-                    mongoose_domain_core:for_each_domain(HostType,Fn);
+                    mongoose_domain_core:for_each_domain(HostType, Fn);
                 fqdn ->
-                    add_subdomain(RegItem, undefined)
+                    add_subdomain(RegItem, no_parent_domain)
             end;
         false ->
             {error, already_registered}
@@ -245,7 +247,7 @@ add_subdomains(RegItems, Domain) ->
          end,
     lists:foreach(Fn, RegItems).
 
--spec add_subdomain(reg_item(), maybe_domain()) -> ok | {error, already_registered}.
+-spec add_subdomain(reg_item(), maybe_parent_domain()) -> ok | {error, already_registered}.
 add_subdomain(RegItem, Domain) ->
     #subdomain_item{subdomain = Subdomain} = Item = make_subdomain_item(RegItem, Domain),
     Info = convert_subdomain_item_to_map(Item),
@@ -269,10 +271,10 @@ add_subdomain(RegItem, Domain) ->
             end
     end.
 
--spec make_subdomain_item(reg_item(), maybe_domain()) -> subdomain_item().
+-spec make_subdomain_item(reg_item(), maybe_parent_domain()) -> subdomain_item().
 make_subdomain_item({{HostType, SubdomainPattern}, Type, PacketHandler}, Domain) ->
     Subdomain = case {Type, Domain} of
-                    {fqdn, undefined} ->
+                    {fqdn, no_parent_domain} ->
                         %% not a subdomain, but FQDN
                         mongoose_subdomain_utils:get_fqdn(SubdomainPattern, <<"">>);
                     {subdomain, Domain} when is_binary(Domain) ->

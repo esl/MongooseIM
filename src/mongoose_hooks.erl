@@ -235,7 +235,7 @@ auth_failed(HostType, Server, Username) ->
     ejabberd_hooks:run_for_host_type(auth_failed, HostType, ok, [Username, Server]).
 
 -spec disable_domain(HostType, Domain) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Domain :: jid:lserver(),
     Result :: ok.
 disable_domain(HostType, Domain) ->
@@ -243,7 +243,7 @@ disable_domain(HostType, Domain) ->
 
 
 -spec disable_subdomain(HostType, Subdomain) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Subdomain :: jid:lserver(),
     Result :: ok.
 disable_subdomain(HostType, Subdomain) ->
