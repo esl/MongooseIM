@@ -88,4 +88,12 @@ all_repeat_modes() ->
      repeat_until_any_fail].
 
 sensible_maximum_repeats() ->
-    ct:get_config(sensible_maximum_repeats, 100).
+    case is_ct_started() of
+        true ->
+            ct:get_config(sensible_maximum_repeats, 100);
+        false -> %% In case it's called from test-runner-complete script
+            100
+    end.
+
+is_ct_started() ->
+    lists:keymember(common_test, 1, application:which_applications()).
