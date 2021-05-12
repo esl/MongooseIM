@@ -604,7 +604,7 @@ is_archivable_message(MUCHost, Dir, Packet) ->
 
 -spec hooks(jid:lserver(), jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(Host, MUCHost) ->
-    [{filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90},
+    [{filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 60},
      {forget_room, MUCHost, ?MODULE, forget_room, 90},
      {get_personal_data, Host, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_muc_hooks(Host)].

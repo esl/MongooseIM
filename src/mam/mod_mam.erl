@@ -675,8 +675,8 @@ config_metrics(Host) ->
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
-    [{user_send_packet, Host, ?MODULE, user_send_packet, 90},
-     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90},
+    [{user_send_packet, Host, ?MODULE, user_send_packet, 60},
+     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 60},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
