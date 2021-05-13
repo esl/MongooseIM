@@ -185,7 +185,7 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
     %% check mongoose_subdomain_core:get_all_subdomains_for_domain/1 interface
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern2, Handler)),
-    ?assertEqualLists(get_all_subdomains(), [<<"some.fqdn">>, <<"another.fqdn">>]),
+    ?assertEqualLists([<<"some.fqdn">>, <<"another.fqdn">>], get_all_subdomains()),
     ?assertEqualLists(
         [#{host_type => ?DYNAMIC_HOST_TYPE2, parent_domain => no_parent_domain,
            subdomain_pattern => Pattern1, packet_handler => Handler,
@@ -366,6 +366,8 @@ prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     ?assertEqualLists(
         [<<"sub.domain.domain.test">>, <<"sub.domain.test">>, <<"sub.test">>],
         get_all_subdomains()),
+    ?assertEqualLists([<<"test">>, <<"domain.test">>],
+                      mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1)),
     %% "test" domain is added first, so subdomain for this domain must remain unchanged
     ExpectedSubdomainInfo =
         #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
@@ -380,6 +382,8 @@ prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     %% check that removal of "domain.test" domain doesn't affect
     %% "sub.domain.test" subdomain
     mongoose_domain_core:delete(<<"domain.test">>),
+    ?assertEqual([<<"test">>],
+                 mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1)),
     ?assertEqualLists([<<"sub.domain.test">>, <<"sub.test">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
@@ -396,21 +400,24 @@ prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
                                                                 Pattern2, Handler)),
     %% FQDN subdomain conflicts with prefix subdomain
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual([<<"fqdn">>],
+                 mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1)),
     %% FQDN subdomain is added first, so it must remain unchanged
     ExpectedSubdomainInfo =
         #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
           parent_domain => no_parent_domain, packet_handler => Handler,
           subdomain => <<"subdomain.fqdn">>},
-    ?assertEqual({ok, ExpectedSubdomainInfo} ,
+    ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
     ?assertEqual([#{what => subdomains_collision, subdomain => <<"subdomain.fqdn">>}],
                  get_list_of_subdomain_collisions()),
     no_domain_collisions(),
     meck:reset(mongoose_subdomain_core),
     %% check that removal of "fqdn" domain doesn't affect FQDN subdomain
-    mongoose_domain_core:delete("domain.test"),
-    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    mongoose_domain_core:delete(<<"fqdn">>),
+    ?assertEqual([], mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1)),
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
     no_collisions().
@@ -441,7 +448,7 @@ prevents_fqdn_subdomain_overriding_by_fqdn_subdomain(_Config) ->
     %% affect FQDN subdomain for ?DYNAMIC_HOST_TYPE1
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                   Pattern)),
-    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
     no_collisions().
@@ -474,7 +481,7 @@ prevents_prefix_subdomain_overriding_by_fqdn_subdomain(_Config) ->
     %% affect FQDN subdomain for ?DYNAMIC_HOST_TYPE1
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                   Pattern2)),
-    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
     no_collisions().
@@ -575,7 +582,7 @@ get_all_subdomains() ->
     mongoose_subdomain_core:sync(),
     get_subdomains().
 
-get_subdomains()->
+get_subdomains() ->
     %% mongoose_subdomain_core table is indexed by subdomain name field
     KeyPos = ets:info(mongoose_subdomain_core, keypos),
     [element(KeyPos, Item) || Item <- ets:tab2list(mongoose_subdomain_core)].
@@ -618,7 +625,7 @@ no_domain_collisions() ->
 get_list_of_domain_collisions() ->
     Hist = meck:history(mongoose_subdomain_core),
     [Error || {_Pid, {_Mod, log_error = _Func, [From, Error] = _Args}, _Result} <- Hist,
-               From =:= check_subdomain_name orelse From =:= check_domain_name].
+              From =:= check_subdomain_name orelse From =:= check_domain_name].
 
 no_subdomain_collisions() ->
     Hist = meck:history(mongoose_subdomain_core),
@@ -629,7 +636,7 @@ no_subdomain_collisions() ->
 get_list_of_subdomain_collisions() ->
     Hist = meck:history(mongoose_subdomain_core),
     [Error || {_Pid, {_Mod, log_error = _Func, [From, Error] = _Args}, _Result} <- Hist,
-               From =:= report_subdomains_collision].
+              From =:= report_subdomains_collision].
 
 get_list_of_disabled_subdomains() ->
     History = meck:history(mongoose_hooks),
