@@ -498,7 +498,7 @@ make_wrapper_fn(N, M) when N > M ->
         fun(HostType, DomainName) ->
             NumberOfIterations = get(number_of_iterations),
             if
-                NumberOfIterations =:= N -> remove_some_domains_asyn(M);
+                NumberOfIterations =:= N -> remove_some_domains_async(M);
                 true -> ok
             end,
             put(number_of_iterations, NumberOfIterations + 1),
@@ -506,7 +506,7 @@ make_wrapper_fn(N, M) when N > M ->
         end
     end.
 
-remove_some_domains_asyn(N) ->
+remove_some_domains_async(N) ->
     {Pid, Ref} = spawn_monitor(fun() -> remove_some_domains(N) end),
     receive
         {'DOWN', Ref, process, Pid, _Info} -> ok
@@ -514,25 +514,11 @@ remove_some_domains_asyn(N) ->
 
 remove_some_domains(N) ->
     AllSubdomains = get_all_subdomains(),
-    IndexesToRemove = list_of_rand_unique_ints(N, length(AllSubdomains)),
-    DomainsToRemove =
-        [begin
-             Subdomain = lists:nth(I, AllSubdomains),
-             {ok, Info} = mongoose_subdomain_core:get_subdomain_info(Subdomain),
-             maps:get(parent_domain, Info)
-         end || I <- IndexesToRemove],
-    [mongoose_domain_core:delete(Domain) || Domain <- DomainsToRemove].
-
-list_of_rand_unique_ints(Length, Max) when Max > Length ->
-    list_of_rand_unique_ints(Length, Max, []).
-
-list_of_rand_unique_ints(Length, Max, List) when Length > 0 ->
-    N = rand:uniform(Max),
-    case lists:member(N, List) of
-        true -> list_of_rand_unique_ints(Length, Max, List);
-        false -> list_of_rand_unique_ints(Length - 1, Max, [N | List])
-    end;
-list_of_rand_unique_ints(_, _, List) -> List.
+    [begin
+         {ok, Info} = mongoose_subdomain_core:get_subdomain_info(Subdomain),
+         ParentDomain = maps:get(parent_domain, Info),
+         mongoose_domain_core:delete(ParentDomain)
+     end || Subdomain <- lists:sublist(AllSubdomains, N)].
 
 no_collisions() ->
     no_domain_collisions(),
