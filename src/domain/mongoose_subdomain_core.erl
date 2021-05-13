@@ -97,7 +97,7 @@ start_link() ->
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->
-    ok | {error, already_registered}.
+    ok | {error, already_registered | subdomain_already_exists}.
 register_subdomain(HostType, SubdomainPattern, PacketHandler) ->
     gen_server:call(?MODULE, {register, HostType, SubdomainPattern, PacketHandler}).
 
@@ -155,9 +155,10 @@ init([]) ->
     %% no need for state, everything is kept in ETS tables
     {ok, ok}.
 
-handle_call({register, HostType, SubdomainPattern, PacketHandler}, _From, State) ->
-    Result = handle_register(HostType, SubdomainPattern, PacketHandler),
-    {reply, Result, State};
+handle_call({register, HostType, SubdomainPattern, PacketHandler}, From, State) ->
+    %% handle_register/4 must reply to the caller using gen_server:reply/2 interface
+    handle_register(HostType, SubdomainPattern, PacketHandler, From),
+    {noreply, State};
 handle_call({unregister, HostType, SubdomainPattern}, _From, State) ->
     Result = handle_unregister(HostType, SubdomainPattern),
     {reply, Result, State};
@@ -193,9 +194,9 @@ code_change(_OldVsn, State, _Extra) ->
 just_ok({ok, _}) -> ok;
 just_ok(Other) -> Other.
 
--spec handle_register(host_type(), subdomain_pattern(), mongoose_packet_handler:t()) ->
-    ok | {error, already_registered}.
-handle_register(HostType, SubdomainPattern, PacketHandler) ->
+-spec handle_register(host_type(), subdomain_pattern(),
+                      mongoose_packet_handler:t(), any()) -> ok.
+handle_register(HostType, SubdomainPattern, PacketHandler, From) ->
     SubdomainType = mongoose_subdomain_utils:subdomain_type(SubdomainPattern),
     RegItem = {{HostType, SubdomainPattern}, SubdomainType, PacketHandler},
     case ets:insert_new(?REGISTRATION_TABLE, RegItem) of
@@ -205,12 +206,16 @@ handle_register(HostType, SubdomainPattern, PacketHandler) ->
                     Fn = fun(_HostType, Subdomain) ->
                              add_subdomain(RegItem, Subdomain)
                          end,
+                    %% mongoose_domain_core:for_each_domain/2 can take quite a long,
+                    %% reply before running it.
+                    gen_server:reply(From, ok),
                     mongoose_domain_core:for_each_domain(HostType, Fn);
                 fqdn ->
-                    add_subdomain(RegItem, no_parent_domain)
+                    Result = add_subdomain(RegItem, no_parent_domain),
+                    gen_server:reply(From, Result)
             end;
         false ->
-            {error, already_registered}
+            gen_server:reply(From, {error, already_registered})
     end.
 
 -spec handle_unregister(host_type(), subdomain_pattern()) -> ok.

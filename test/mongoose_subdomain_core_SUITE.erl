@@ -226,13 +226,11 @@ can_add_and_remove_domain(_Config) ->
                       get_all_subdomains()),
     [DynamicDomain | _] = ?DYNAMIC_DOMAINS,
     mongoose_domain_core:delete(DynamicDomain),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"some.fqdn">> | tl(Subdomains1) ++ tl(Subdomains2)],
                       get_all_subdomains()),
     ?assertEqualLists([hd(Subdomains1), hd(Subdomains2)],
                       get_list_of_disabled_subdomains()),
     mongoose_domain_core:insert(DynamicDomain, ?DYNAMIC_HOST_TYPE2, dummy_source),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"some.fqdn">> | Subdomains1 ++ Subdomains2],
                       get_all_subdomains()),
     no_collisions().
@@ -249,6 +247,7 @@ can_get_host_type_and_subdomain_details(_Config) ->
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern2, Handler)),
+    mongoose_subdomain_core:sync(),
     ?assertEqual({ok, ?STATIC_HOST_TYPE},
                  mongoose_subdomain_core:get_host_type(Subdomain1)),
     ?assertEqual({ok, ?DYNAMIC_HOST_TYPE1},
@@ -295,14 +294,13 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
     %% some domains are removed during subdomain registration, see make_wrapper_fn/2
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
-
+    mongoose_subdomain_core:sync(),
     %% try to add some domains second time, as this is also possible during
     %% subdomain registration
     AllDomains = mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1),
     [RegisteredDomain1, RegisteredDomain2 | _] = AllDomains,
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain1),
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain2),
-    mongoose_subdomain_core:sync(),
     Subdomains = get_all_subdomains(),
     ?assertEqual(NumOfDomains - NumOfDomainsToRemove, length(Subdomains)),
     AllExpectedSubDomains = [mongoose_subdomain_utils:get_fqdn(Pattern1, Domain)
@@ -365,7 +363,6 @@ prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     %% one prefix subdomain conflicts with another prefix subdomain
     mongoose_domain_core:insert(<<"test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_domain_core:insert(<<"domain.test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists(
         [<<"sub.domain.domain.test">>, <<"sub.domain.test">>, <<"sub.test">>],
         get_all_subdomains()),
@@ -383,7 +380,6 @@ prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     %% check that removal of "domain.test" domain doesn't affect
     %% "sub.domain.test" subdomain
     mongoose_domain_core:delete(<<"domain.test">>),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"sub.domain.test">>, <<"sub.test">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
@@ -400,7 +396,6 @@ prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
                                                                 Pattern2, Handler)),
     %% FQDN subdomain conflicts with prefix subdomain
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
     %% FQDN subdomain is added first, so it must remain unchanged
     ExpectedSubdomainInfo =
@@ -415,7 +410,6 @@ prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
     meck:reset(mongoose_subdomain_core),
     %% check that removal of "fqdn" domain doesn't affect FQDN subdomain
     mongoose_domain_core:delete("domain.test"),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
@@ -460,7 +454,6 @@ prevents_prefix_subdomain_overriding_by_fqdn_subdomain(_Config) ->
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    mongoose_subdomain_core:sync(),
     ?assertEqual({error, subdomain_already_exists},
                  mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                             Pattern2, Handler)),
@@ -544,7 +537,6 @@ detects_domain_conflict_with_prefix_subdomain(_Config) ->
     mongoose_domain_core:insert(<<"subdomain.test.net">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
     mongoose_domain_core:insert(<<"subdomain.test.org">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
     mongoose_domain_core:insert(<<"test.org">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"subdomain.test.org">>, <<"subdomain.test.net">>],
                       get_all_subdomains()),
     ?assertEqualLists(
@@ -580,6 +572,10 @@ detects_domain_conflict_with_fqdn_subdomain(_Config) ->
 %% internal functions
 %%-------------------------------------------------------------------
 get_all_subdomains() ->
+    mongoose_subdomain_core:sync(),
+    get_subdomains().
+
+get_subdomains()->
     %% mongoose_subdomain_core table is indexed by subdomain name field
     KeyPos = ets:info(mongoose_subdomain_core, keypos),
     [element(KeyPos, Item) || Item <- ets:tab2list(mongoose_subdomain_core)].
@@ -602,7 +598,7 @@ make_wrapper_fn(N, M) when N > M ->
     end.
 
 remove_some_domains(N) ->
-    AllSubdomains = get_all_subdomains(),
+    AllSubdomains = get_subdomains(),
     [begin
          {ok, Info} = mongoose_subdomain_core:get_subdomain_info(Subdomain),
          ParentDomain = maps:get(parent_domain, Info),
