@@ -24,6 +24,7 @@ all() ->
      can_add_and_remove_domain,
      can_get_host_type_and_subdomain_details,
      handles_domain_removal_during_subdomain_registration,
+     prevents_double_subdomain_registration,
      prevents_prefix_subdomain_overriding_by_prefix_subdomain,
      prevents_fqdn_subdomain_overriding_by_prefix_subdomain,
      prevents_prefix_subdomain_overriding_by_fqdn_subdomain,
@@ -311,6 +312,21 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
 
     no_collisions(),
     meck:unload(mongoose_domain_core).
+
+prevents_double_subdomain_registration(_Config) ->
+    Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
+    Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
+    Handler = mongoose_packet_handler:new(?MODULE),
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern1, Handler)),
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern2, Handler)),
+    ?assertEqual({error, already_registered},
+                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                            Pattern1, Handler)),
+    ?assertEqual({error, already_registered},
+                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                            Pattern2, Handler)).
 
 %%-------------------------------------------------------------------------------------
 %% test cases for subdomain names collisions.
