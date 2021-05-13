@@ -24,7 +24,10 @@ all() ->
      can_add_and_remove_domain,
      can_get_host_type_and_subdomain_details,
      handles_domain_removal_during_subdomain_registration,
-     prevents_subdomain_overriding,
+     prevents_prefix_subdomain_overriding_by_prefix_subdomain,
+     prevents_fqdn_subdomain_overriding_by_prefix_subdomain,
+     prevents_prefix_subdomain_overriding_by_fqdn_subdomain,
+     prevents_fqdn_subdomain_overriding_by_fqdn_subdomain,
      detects_domain_subdomain_collisions].
 
 init_per_suite(Config) ->
@@ -58,7 +61,7 @@ end_per_testcase(_, Config) ->
     Config.
 
 %%-------------------------------------------------------------------
-%% test cases
+%% normal test cases
 %%-------------------------------------------------------------------
 can_register_and_unregister_subdomain_for_static_host_type(_Config) ->
     Handler = mongoose_packet_handler:new(?MODULE),
@@ -139,7 +142,7 @@ can_register_and_unregister_subdomain_for_dynamic_host_type_without_domains(_Con
 can_register_and_unregister_fqdn_for_static_host_type(_Config) ->
     Pattern = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
     Handler = mongoose_packet_handler:new(?MODULE),
-    %% register one "fqdn" subdomain for static host type.
+    %% register one FQDN subdomain for static host type.
     %% check that ETS table contains the only expected subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?STATIC_HOST_TYPE,
                                                                 Pattern, Handler)),
@@ -154,7 +157,7 @@ can_register_and_unregister_fqdn_for_static_host_type(_Config) ->
 can_register_and_unregister_fqdn_for_dynamic_host_type_without_domains(_Config) ->
     Pattern = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
     Handler = mongoose_packet_handler:new(?MODULE),
-    %% register one "fqdn" subdomain for dynamic host type with 0 domains.
+    %% register one FQDN subdomain for dynamic host type with 0 domains.
     %% check that ETS table contains the only expected subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern, Handler)),
@@ -170,13 +173,13 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("another.fqdn"),
     Handler = mongoose_packet_handler:new(?MODULE),
-    %% register one "fqdn" subdomain for dynamic host type with 2 domains.
+    %% register one FQDN subdomain for dynamic host type with 2 domains.
     %% check that ETS table contains all the expected subdomains and nothing else.
     %% make a snapshot of subdomains ETS table.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern1, Handler)),
     ?assertEqual([<<"some.fqdn">>], get_all_subdomains()),
-    %% register one more "fqdn" subdomain for dynamic host type with 2 domains.
+    %% register one more FQDN subdomain for dynamic host type with 2 domains.
     %% check mongoose_subdomain_core:get_all_subdomains_for_domain/1 interface
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern2, Handler)),
@@ -309,134 +312,209 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
     no_collisions(),
     meck:unload(mongoose_domain_core).
 
-prevents_subdomain_overriding(_Config) ->
-    %% There are three possible subdomain names collisions:
-    %%   1) Different domain/subdomain_pattern pairs produce one and the same subdomain.
-    %%   2) Attempt to register the same FQDN subdomain for 2 different host types.
-    %%   3) Domain/subdomain_pattern pair produces the same subdomain name as another
-    %%      FQDN subdomain.
-    %%
-    %% Collisions of the first type can eliminated by allowing only one level subdomains,
-    %% e.g. ensuring that subdomain template corresponds to this regex "^[^.]*\.@HOST@$".
-    %%
-    %% Collisions of the second type are less critical as they can be detected during
-    %% init phase - they result in {error, subdomain_already_exists} return code, so
-    %% modules can detect it and crash at ?MODULE:start/2.
-    %%
-    %% Third type is hard to resolve in automatic way. One of the options is to ensure
-    %% that FQDN subdomains don't start with the same "prefix" as subdomain patterns.
-    %%
-    %% It's good idea to create a metric for such collisions, so devops can set some
-    %% alarm and react on it.
-    %%
-    %% The current behaviour rejects insertion of the conflicting subdomain, the original
-    %% subdomain must remain unchanged
+%%-------------------------------------------------------------------------------------
+%% test cases for subdomain names collisions.
+%%-------------------------------------------------------------------------------------
+%% There are three possible subdomain names collisions:
+%%   1) Different domain/subdomain_pattern pairs produce one and the same subdomain.
+%%   2) Attempt to register the same FQDN subdomain for 2 different host types.
+%%   3) Domain/subdomain_pattern pair produces the same subdomain name as another
+%%      FQDN subdomain.
+%%
+%% Collisions of the first type can eliminated by allowing only one level subdomains,
+%% e.g. ensuring that subdomain template corresponds to this regex "^[^.]*\.@HOST@$".
+%%
+%% Collisions of the second type are less critical as they can be detected during
+%% init phase - they result in {error, subdomain_already_exists} return code, so
+%% modules can detect it and crash at ?MODULE:start/2.
+%%
+%% Third type is hard to resolve in automatic way. One of the options is to ensure
+%% that FQDN subdomains don't start with the same "prefix" as subdomain patterns.
+%%
+%% It's good idea to create a metric for such collisions, so devops can set some
+%% alarm and react on it.
+%%
+%% The current behaviour rejects insertion of the conflicting subdomain, the original
+%% subdomain must remain unchanged
+%%-------------------------------------------------------------------------------------
+prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("sub.@HOST@"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("sub.domain.@HOST@"),
-    Pattern3 = mongoose_subdomain_utils:make_subdomain_pattern("sub.domain.fqdn"),
     Handler = mongoose_packet_handler:new(?MODULE),
-    %%----------------------------------------------------------------
-    %% testing type #1 subdomain names collision + double registration
-    %%----------------------------------------------------------------
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern2, Handler)),
-    ?assertEqual({error, already_registered},
-                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
-                                                            Pattern2, Handler)),
+    %% one prefix subdomain conflicts with another prefix subdomain
     mongoose_domain_core:insert(<<"test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_domain_core:insert(<<"domain.test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
-    ?assertEqual(3, length(get_all_subdomains())),
+    ?assertEqualLists(
+        [<<"sub.domain.domain.test">>, <<"sub.domain.test">>, <<"sub.test">>],
+        get_all_subdomains()),
+    %% "test" domain is added first, so subdomain for this domain must remain unchanged
     ExpectedSubdomainInfo =
         #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
           parent_domain => <<"test">>, packet_handler => Handler,
           subdomain => <<"sub.domain.test">>},
-    ?assertEqual({ok, ExpectedSubdomainInfo} ,
-                 mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
-    %% check that removal of "domain.test" doesn't affect "sub.domain.test" subdomain
-    mongoose_domain_core:delete("domain.test"),
-    mongoose_subdomain_core:sync(),
     ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
-    %%----------------------------------------------------------------
-    %% testing type #2 subdomain names collision + double registration
-    %%----------------------------------------------------------------
-    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
-                                                                Pattern3, Handler)),
-    ?assertEqual({error, already_registered},
-                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
-                                                            Pattern3, Handler)),
-    ?assertEqual({error, subdomain_already_exists},
-                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
-                                                            Pattern3, Handler)),
+    ?assertEqual([#{what => subdomains_collision, subdomain => <<"sub.domain.test">>}],
+                 get_list_of_subdomain_collisions()),
+    no_domain_collisions(),
+    meck:reset(mongoose_subdomain_core),
+    %% check that removal of "domain.test" domain doesn't affect
+    %% "sub.domain.test" subdomain
+    mongoose_domain_core:delete(<<"domain.test">>),
+    mongoose_subdomain_core:sync(),
+    ?assertEqualLists([<<"sub.domain.test">>, <<"sub.test">>], get_all_subdomains()),
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
+    ?assertEqual([<<"sub.domain.domain.test">>], get_list_of_disabled_subdomains()),
+    no_collisions().
 
-    ?assertEqual(4, length(get_all_subdomains())),
-    ?assertEqual({ok,#{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
-                       parent_domain => no_parent_domain, packet_handler => Handler,
-                       subdomain => <<"sub.domain.fqdn">>}},
-                 mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.fqdn">>)),
-    %%------------------------------------------
-    %% testing type #3 subdomain names collision
-    %%------------------------------------------
+prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
+    Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
+    Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
+    Handler = mongoose_packet_handler:new(?MODULE),
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern1, Handler)),
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern2, Handler)),
+    %% FQDN subdomain conflicts with prefix subdomain
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
-    ?assertEqual(5, length(get_all_subdomains())),
-    ?assertEqual({ok, #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
-                        parent_domain => no_parent_domain, packet_handler => Handler,
-                        subdomain => <<"sub.domain.fqdn">>}},
-                 mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.fqdn">>)),
-    %%---------------------------------------
-    %% check that all collisions are detected
-    %%---------------------------------------
-    ?assertEqual([#{what => subdomains_collision, subdomain => <<"sub.domain.test">>},
-                  #{what => subdomains_collision, subdomain => <<"sub.domain.fqdn">>},
-                  #{what => subdomains_collision, subdomain => <<"sub.domain.fqdn">>}],
+    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    %% FQDN subdomain is added first, so it must remain unchanged
+    ExpectedSubdomainInfo =
+        #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
+          parent_domain => no_parent_domain, packet_handler => Handler,
+          subdomain => <<"subdomain.fqdn">>},
+    ?assertEqual({ok, ExpectedSubdomainInfo} ,
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    ?assertEqual([#{what => subdomains_collision, subdomain => <<"subdomain.fqdn">>}],
                  get_list_of_subdomain_collisions()),
-    no_domain_collisions().
+    no_domain_collisions(),
+    meck:reset(mongoose_subdomain_core),
+    %% check that removal of "fqdn" domain doesn't affect FQDN subdomain
+    mongoose_domain_core:delete("domain.test"),
+    mongoose_subdomain_core:sync(),
+    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    no_collisions().
 
+prevents_fqdn_subdomain_overriding_by_fqdn_subdomain(_Config) ->
+    Pattern = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
+    Handler = mongoose_packet_handler:new(?MODULE),
+    %% FQDN subdomain conflicts with another FQDN subdomain
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern, Handler)),
+    ?assertEqual({error, subdomain_already_exists},
+                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
+                                                            Pattern, Handler)),
+    %% FQDN subdomain for ?DYNAMIC_HOST_TYPE1 is registered first, so it must
+    %% remain unchanged
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ExpectedSubdomainInfo =
+        #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern,
+          parent_domain => no_parent_domain, packet_handler => Handler,
+          subdomain => <<"subdomain.fqdn">>},
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    ?assertEqual([#{what => subdomains_collision, subdomain => <<"subdomain.fqdn">>}],
+                 get_list_of_subdomain_collisions()),
+    no_domain_collisions(),
+    meck:reset(mongoose_subdomain_core),
+    %% check that unregistering FQDN subdomain for ?DYNAMIC_HOST_TYPE2 doesn't
+    %% affect FQDN subdomain for ?DYNAMIC_HOST_TYPE1
+    ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
+                                                                  Pattern)),
+    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    no_collisions().
+
+prevents_prefix_subdomain_overriding_by_fqdn_subdomain(_Config) ->
+    Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
+    Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
+    Handler = mongoose_packet_handler:new(?MODULE),
+    %% FQDN subdomain conflicts with another FQDN subdomain
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern1, Handler)),
+    mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
+    mongoose_subdomain_core:sync(),
+    ?assertEqual({error, subdomain_already_exists},
+                 mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                            Pattern2, Handler)),
+    %% FQDN subdomain for ?DYNAMIC_HOST_TYPE1 is registered first, so it must
+    %% remain unchanged
+    ?assertEqual([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ExpectedSubdomainInfo =
+        #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern1,
+          parent_domain => <<"fqdn">>, packet_handler => Handler,
+          subdomain => <<"subdomain.fqdn">>},
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    ?assertEqual([#{what => subdomains_collision, subdomain => <<"subdomain.fqdn">>}],
+                 get_list_of_subdomain_collisions()),
+    no_domain_collisions(),
+    meck:reset(mongoose_subdomain_core),
+    %% check that unregistering FQDN subdomain for ?DYNAMIC_HOST_TYPE2 doesn't
+    %% affect FQDN subdomain for ?DYNAMIC_HOST_TYPE1
+    ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                  Pattern2)),
+    ?assertEqualLists([<<"subdomain.fqdn">>], get_all_subdomains()),
+    ?assertEqual({ok, ExpectedSubdomainInfo},
+                 mongoose_subdomain_core:get_subdomain_info(<<"subdomain.fqdn">>)),
+    no_collisions().
+
+
+%%-------------------------------------------------------------------------------------
+%% test cases for domain/subdomain names collisions.
+%%-------------------------------------------------------------------------------------
+%% There are two possible domain/subdomain names collisions:
+%%   1) Domain/subdomain_pattern pair produces the same subdomain name as another
+%%      existing top level domain
+%%   2) FQDN subdomain is the same as some registered top level domain
+%%
+%% The naive domain/subdomain registration rejection is probably a bad option:
+%%   * Domains and subdomains ETS tables are managed asynchronously, in addition to
+%%     that subdomains patterns registration is done async as well. This all leaves
+%%     room for various race conditions if we try to just make a verification and
+%%     prohibit domain/subdomain registration in case of any collisions.
+%%   * The only way to avoid such race conditions is to block all async. ETSs
+%%     editing during the validation process, but this can result in big delays
+%%     during the MIM initialisation phase.
+%%   * Also it's not clear how to interpret registration of the "prefix" based
+%%     subdomain patterns, should we block the registration of the whole pattern
+%%     or just only conflicting subdomains registration. Blocking of the whole
+%%     pattern requires generation and verification of all the subdomains (with
+%%     ETS blocking during that process), which depends on domains ETS size and
+%%     might take too long.
+%%   * And the last big issue with simple registration rejection approach, different
+%%     nodes in the cluster might have different registration sequence. So we may
+%%     end up in a situation when some nodes registered domain name as a subdomain,
+%%     while other nodes registered it as a top level domain.
+%%
+%% The better way is to prohibit registration of a top level domain if it is equal
+%% to any of the FQDN subdomains or if beginning of domain name matches the prefix
+%% of any subdomain template. In this case we don't need to verify subdomains at all,
+%% verification of domain names against some limited number of subdomains patterns is
+%% enough. And the only problem that we need to solve - mongooseim_domain_core must
+%% be aware of all the subdomain patterns before it registers the first dynamic
+%% domain. This would require minor configuration rework, e.g. tracking of subdomain
+%% templates preprocessing (mongoose_subdomain_utils:make_subdomain_pattern/1 calls)
+%% during TOML config parsing.
+%%
+%% It's good idea to create a metric for such collisions, so devops can set some
+%% alarm and react on it.
+%%
+%% The current behaviour just ensures detection of the domain/subdomain names
+%% collision, both (domain and subdomain) records remain unchanged in the
+%% corresponding ETS tables
+%%-------------------------------------------------------------------------------------
 detects_domain_subdomain_collisions(_Config) ->
-    %% There are two possible domain/subdomain names collisions:
-    %%   1) Domain/subdomain_pattern pair produces the same subdomain name as another
-    %%      existing top level domain
-    %%   2) FQDN subdomain is the same as some registered top level domain
-    %%
-    %% The naive domain/subdomain registration rejection is probably a bad option:
-    %%   * Domains and subdomains ETS tables are managed asynchronously, in addition to
-    %%     that subdomains patterns registration is done async as well. This all leaves
-    %%     room for various race conditions if we try to just make a verification and
-    %%     prohibit domain/subdomain registration in case of any collisions.
-    %%   * The only way to avoid such race conditions is to block all async. ETSs
-    %%     editing during the validation process, but this can result in big delays
-    %%     during the MIM initialisation phase.
-    %%   * Also it's not clear how to interpret registration of the "prefix" based
-    %%     subdomain patterns, should we block the registration of the whole pattern
-    %%     or just only conflicting subdomains registration. Blocking of the whole
-    %%     pattern requires generation and verification of all the subdomains (with
-    %%     ETS blocking during that process), which depends on domains ETS size and
-    %%     might take too long.
-    %%   * And the last big issue with simple registration rejection approach, different
-    %%     nodes in the cluster might have different registration sequence. So we may
-    %%     end up in a situation when some nodes registered domain name as a subdomain,
-    %%     while other nodes registered it as a top level domain.
-    %%
-    %% The better way is to prohibit registration of a top level domain if it is equal
-    %% to any of the FQDN subdomains or if beginning of domain name matches the prefix
-    %% of any subdomain template. In this case we don't need to verify subdomains at all,
-    %% verification of domain names against some limited number of subdomains patterns is
-    %% enough. And the only problem that we need to solve - mongooseim_domain_core must
-    %% be aware of all the subdomain patterns before it registers the first dynamic
-    %% domain. This would require minor configuration rework, e.g. tracking of subdomain
-    %% templates preprocessing (mongoose_subdomain_utils:make_subdomain_pattern/1 calls)
-    %% during TOML config parsing.
-    %%
-    %% It's good idea to create a metric for such collisions, so devops can set some
-    %% alarm and react on it.
-    %%
-    %% The current behaviour just ensures detection of the domain/subdomain names
-    %% collision, both (domain and subdomain) records remain unchanged in the
-    %% corresponding ETS tables
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
     Pattern3 = mongoose_subdomain_utils:make_subdomain_pattern("another.fqdn"),
