@@ -68,11 +68,11 @@ can_register_and_unregister_subdomain_for_static_host_type(_Config) ->
     %% check that ETS table contains expected subdomain and nothing else.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?STATIC_HOST_TYPE,
                                                                 Pattern, Handler)),
-    ?assertEqualLists(get_all_subdomains(), [Subdomain]),
+    ?assertEqual([Subdomain], get_all_subdomains()),
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?STATIC_HOST_TYPE,
                                                                   Pattern)),
-    ?assertEqual(0, get_subdomains_table_size()),
-    ?assertEqualLists([Subdomain], get_list_of_disabled_subdomains()),
+    ?assertEqual([], get_all_subdomains()),
+    ?assertEqual([Subdomain], get_list_of_disabled_subdomains()),
     no_collisions().
 
 can_register_and_unregister_subdomain_for_dynamic_host_type_with_domains(_Config) ->
@@ -88,16 +88,13 @@ can_register_and_unregister_subdomain_for_dynamic_host_type_with_domains(_Config
     %% make a snapshot of subdomains ETS table and check its size.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern1, Handler)),
-    ?assertEqualLists(get_all_subdomains(), Subdomains1),
-    TableSnapshot = get_subdomains_table(),
-    ?assertEqual(length(?DYNAMIC_DOMAINS), get_subdomains_table_size()),
+    ?assertEqualLists(Subdomains1, get_all_subdomains()),
     %% register one more "prefix" subdomain for dynamic host type with 2 domains.
     %% check that ETS table contains all the expected subdomains and nothing else.
     %% check ETS table size.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern2, Handler)),
-    ?assertEqualLists(get_all_subdomains(), Subdomains1 ++ Subdomains2),
-    ?assertEqual(2 * length(?DYNAMIC_DOMAINS), get_subdomains_table_size()),
+    ?assertEqualLists(Subdomains1 ++ Subdomains2, get_all_subdomains()),
     %% check mongoose_subdomain_core:get_all_subdomains_for_domain/1 interface.
     [DynamicDomain | _] = ?DYNAMIC_DOMAINS,
     ?assertEqualLists(
@@ -112,10 +109,10 @@ can_register_and_unregister_subdomain_for_dynamic_host_type_with_domains(_Config
     %% check that ETS table rolls back to the previously made snapshot.
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                   Pattern2)),
-    ?assertEqualLists(TableSnapshot, get_subdomains_table()),
+    ?assertEqualLists(Subdomains1, get_all_subdomains()),
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                   Pattern1)),
-    ?assertEqual(0, get_subdomains_table_size()),
+    ?assertEqual([], get_all_subdomains()),
     ?assertEqualLists(Subdomains1 ++ Subdomains2, get_list_of_disabled_subdomains()),
     no_collisions().
 
@@ -129,14 +126,14 @@ can_register_and_unregister_subdomain_for_dynamic_host_type_without_domains(_Con
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern2, Handler)),
-    ?assertEqual(0, get_subdomains_table_size()),
+    ?assertEqual([], get_all_subdomains()),
     %% unregister (previously registered) subdomains one by one.
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                   Pattern1)),
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                   Pattern2)),
-    ?assertEqual(0, get_subdomains_table_size()),
-    ?assertEqualLists([], get_list_of_disabled_subdomains()),
+    ?assertEqual([], get_all_subdomains()),
+    ?assertEqual([], get_list_of_disabled_subdomains()),
     no_collisions().
 
 can_register_and_unregister_fqdn_for_static_host_type(_Config) ->
@@ -146,12 +143,12 @@ can_register_and_unregister_fqdn_for_static_host_type(_Config) ->
     %% check that ETS table contains the only expected subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?STATIC_HOST_TYPE,
                                                                 Pattern, Handler)),
-    ?assertEqualLists(get_all_subdomains(), [<<"some.fqdn">>]),
+    ?assertEqual([<<"some.fqdn">>], get_all_subdomains()),
     %% unregister subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?STATIC_HOST_TYPE,
                                                                   Pattern)),
-    ?assertEqual(0, get_subdomains_table_size()),
-    ?assertEqualLists([<<"some.fqdn">>], get_list_of_disabled_subdomains()),
+    ?assertEqual([], get_all_subdomains()),
+    ?assertEqual([<<"some.fqdn">>], get_list_of_disabled_subdomains()),
     no_collisions().
 
 can_register_and_unregister_fqdn_for_dynamic_host_type_without_domains(_Config) ->
@@ -161,12 +158,12 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_without_domains(_Config) 
     %% check that ETS table contains the only expected subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern, Handler)),
-    ?assertEqualLists(get_all_subdomains(), [<<"some.fqdn">>]),
+    ?assertEqual([<<"some.fqdn">>], get_all_subdomains()),
     %% unregister subdomain.
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                   Pattern)),
-    ?assertEqual(0, get_subdomains_table_size()),
-    ?assertEqualLists([<<"some.fqdn">>], get_list_of_disabled_subdomains()),
+    ?assertEqual([], get_all_subdomains()),
+    ?assertEqual([<<"some.fqdn">>], get_list_of_disabled_subdomains()),
     no_collisions().
 
 can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
@@ -178,8 +175,7 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
     %% make a snapshot of subdomains ETS table.
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern1, Handler)),
-    ?assertEqualLists(get_all_subdomains(), [<<"some.fqdn">>]),
-    TableSnapshot = get_subdomains_table(),
+    ?assertEqual([<<"some.fqdn">>], get_all_subdomains()),
     %% register one more "fqdn" subdomain for dynamic host type with 2 domains.
     %% check mongoose_subdomain_core:get_all_subdomains_for_domain/1 interface
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
@@ -197,10 +193,10 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
     %% check that ETS table rolls back to the previously made snapshot.
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                   Pattern2)),
-    ?assertEqualLists(TableSnapshot, get_subdomains_table()),
+    ?assertEqual([<<"some.fqdn">>], get_all_subdomains()),
     ?assertEqual(ok, mongoose_subdomain_core:unregister_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                   Pattern1)),
-    ?assertEqual(0, get_subdomains_table_size()),
+    ?assertEqual([], get_all_subdomains()),
     ?assertEqualLists([<<"some.fqdn">>, <<"another.fqdn">>],
                       get_list_of_disabled_subdomains()),
     no_collisions().
@@ -214,7 +210,7 @@ can_add_and_remove_domain(_Config) ->
                    || Domain <- ?DYNAMIC_DOMAINS],
     Subdomains2 = [mongoose_subdomain_utils:get_fqdn(Pattern2, Domain)
                    || Domain <- ?DYNAMIC_DOMAINS],
-    ?assertEqual(0, get_subdomains_table_size()),
+    ?assertEqual([], get_all_subdomains()),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
@@ -223,7 +219,6 @@ can_add_and_remove_domain(_Config) ->
                                                                 Pattern3, Handler)),
     ?assertEqualLists([<<"some.fqdn">> | Subdomains1 ++ Subdomains2],
                       get_all_subdomains()),
-    TableSnapshot = get_subdomains_table(),
     [DynamicDomain | _] = ?DYNAMIC_DOMAINS,
     mongoose_domain_core:delete(DynamicDomain),
     mongoose_subdomain_core:sync(),
@@ -233,7 +228,8 @@ can_add_and_remove_domain(_Config) ->
                       get_list_of_disabled_subdomains()),
     mongoose_domain_core:insert(DynamicDomain, ?DYNAMIC_HOST_TYPE2, dummy_source),
     mongoose_subdomain_core:sync(),
-    ?assertEqualLists(TableSnapshot, get_subdomains_table()),
+    ?assertEqualLists([<<"some.fqdn">> | Subdomains1 ++ Subdomains2],
+                      get_all_subdomains()),
     no_collisions().
 
 can_get_host_type_and_subdomain_details(_Config) ->
@@ -294,18 +290,19 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
     %% some domains are removed during subdomain registration, see make_wrapper_fn/2
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
-    mongoose_subdomain_core:sync(),
-    ?assertEqual(NumOfDomains - NumOfDomainsToRemove, get_subdomains_table_size()),
+
+    %% try to add some domains second time, as this is also possible during
+    %% subdomain registration
     AllDomains = mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1),
-    AllExpectedSubDomains = [mongoose_subdomain_utils:get_fqdn(Pattern1, Domain)
-                             || Domain <- AllDomains],
-    %% also try to add some domains second time, as this is also possible
-    %% during subdomain_registration
     [RegisteredDomain1, RegisteredDomain2 | _] = AllDomains,
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain1),
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain2),
     mongoose_subdomain_core:sync(),
-    ?assertEqualLists(AllExpectedSubDomains, get_all_subdomains()),
+    Subdomains = get_all_subdomains(),
+    ?assertEqual(NumOfDomains - NumOfDomainsToRemove, length(Subdomains)),
+    AllExpectedSubDomains = [mongoose_subdomain_utils:get_fqdn(Pattern1, Domain)
+                             || Domain <- AllDomains],
+    ?assertEqualLists(AllExpectedSubDomains, Subdomains),
     ?assertEqual(NumOfDomainsToRemove,
                  meck:num_calls(mongoose_hooks, disable_subdomain, 2)),
 
@@ -351,7 +348,7 @@ prevents_subdomain_overriding(_Config) ->
     mongoose_domain_core:insert(<<"test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_domain_core:insert(<<"domain.test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
-    ?assertEqual(3, get_subdomains_table_size()),
+    ?assertEqual(3, length(get_all_subdomains())),
     ExpectedSubdomainInfo =
         #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
           parent_domain => <<"test">>, packet_handler => Handler,
@@ -375,7 +372,7 @@ prevents_subdomain_overriding(_Config) ->
                  mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                             Pattern3, Handler)),
 
-    ?assertEqual(4, get_subdomains_table_size()),
+    ?assertEqual(4, length(get_all_subdomains())),
     ?assertEqual({ok,#{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
                        parent_domain => no_parent_domain, packet_handler => Handler,
                        subdomain => <<"sub.domain.fqdn">>}},
@@ -385,7 +382,7 @@ prevents_subdomain_overriding(_Config) ->
     %%------------------------------------------
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
-    ?assertEqual(5, get_subdomains_table_size()),
+    ?assertEqual(5, length(get_all_subdomains())),
     ?assertEqual({ok, #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
                         parent_domain => no_parent_domain, packet_handler => Handler,
                         subdomain => <<"sub.domain.fqdn">>}},
@@ -497,12 +494,6 @@ detects_domain_subdomain_collisions(_Config) ->
 %%-------------------------------------------------------------------
 %% internal functions
 %%-------------------------------------------------------------------
-get_subdomains_table() ->
-    ets:tab2list(mongoose_subdomain_core).
-
-get_subdomains_table_size() ->
-    ets:info(mongoose_subdomain_core, size).
-
 get_all_subdomains() ->
     %% mongoose_subdomain_core table is indexed by subdomain name field
     KeyPos = ets:info(mongoose_subdomain_core, keypos),
