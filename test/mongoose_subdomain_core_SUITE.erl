@@ -29,7 +29,8 @@ all() ->
      prevents_fqdn_subdomain_overriding_by_prefix_subdomain,
      prevents_prefix_subdomain_overriding_by_fqdn_subdomain,
      prevents_fqdn_subdomain_overriding_by_fqdn_subdomain,
-     detects_domain_subdomain_collisions].
+     detects_domain_conflict_with_prefix_subdomain,
+     detects_domain_conflict_with_fqdn_subdomain].
 
 init_per_suite(Config) ->
     meck:new(mongoose_hooks, [no_link]),
@@ -530,25 +531,18 @@ prevents_prefix_subdomain_overriding_by_fqdn_subdomain(_Config) ->
 %% collision, both (domain and subdomain) records remain unchanged in the
 %% corresponding ETS tables
 %%-------------------------------------------------------------------------------------
-detects_domain_subdomain_collisions(_Config) ->
-    Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
-    Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
-    Pattern3 = mongoose_subdomain_utils:make_subdomain_pattern("another.fqdn"),
+detects_domain_conflict_with_prefix_subdomain(_Config) ->
+    Pattern = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
     Handler = mongoose_packet_handler:new(?MODULE),
-    %%------------------------------------------
-    %% testing type #1 subdomain names collision
-    %%------------------------------------------
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
-                                                                Pattern1, Handler)),
+                                                                Pattern, Handler)),
     mongoose_domain_core:insert(<<"test.net">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     %% without this sync call "subdomain.example.net" collision can be detected
     %% twice, one time by check_subdomain_name/1 function and then second time
     %% by check_domain_name/2.
     mongoose_subdomain_core:sync(),
-    mongoose_domain_core:insert(<<"subdomain.test.net">>, ?DYNAMIC_HOST_TYPE2,
-                                dummy_src),
-    mongoose_domain_core:insert(<<"subdomain.test.org">>, ?DYNAMIC_HOST_TYPE2,
-                                dummy_src),
+    mongoose_domain_core:insert(<<"subdomain.test.net">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
+    mongoose_domain_core:insert(<<"subdomain.test.org">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
     mongoose_domain_core:insert(<<"test.org">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
     ?assertEqualLists([<<"subdomain.test.org">>, <<"subdomain.test.net">>],
@@ -560,25 +554,22 @@ detects_domain_subdomain_collisions(_Config) ->
     ?assertEqual(
         [#{what => check_domain_name_failed, domain => <<"subdomain.test.net">>},
          #{what => check_subdomain_name_failed, subdomain => <<"subdomain.test.org">>}],
-        get_list_of_domain_collisions()),
-    %% cleanup
-    meck:reset(mongoose_subdomain_core),
-    Domains = [<<"subdomain.test.net">>, <<"subdomain.test.org">>,
-               <<"test.net">>, <<"test.org">>],
-    [mongoose_domain_core:delete(Domain) || Domain <- Domains],
-    %%------------------------------------------
-    %% testing type #2 subdomain names collision
-    %%------------------------------------------
+        get_list_of_domain_collisions()).
+
+detects_domain_conflict_with_fqdn_subdomain(_Config) ->
+    Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
+    Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("another.fqdn"),
+    Handler = mongoose_packet_handler:new(?MODULE),
+
+    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
+                                                                Pattern1, Handler)),
+    mongoose_domain_core:insert(<<"some.fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
+    mongoose_domain_core:insert(<<"another.fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern2, Handler)),
-    mongoose_domain_core:insert(<<"some.fqdn">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
-    mongoose_domain_core:insert(<<"another.fqdn">>, ?DYNAMIC_HOST_TYPE2, dummy_src),
-    ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
-                                                                Pattern3, Handler)),
     ?assertEqualLists([<<"some.fqdn">>, <<"another.fqdn">>], get_all_subdomains()),
-    ?assertEqualLists(
-        [<<"some.fqdn">>, <<"another.fqdn">> | ?DYNAMIC_DOMAINS],
-        mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE2)),
+    ?assertEqualLists([<<"some.fqdn">>, <<"another.fqdn">>],
+                      mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE1)),
     no_subdomain_collisions(),
     ?assertEqual(
         [#{what => check_domain_name_failed, domain => <<"some.fqdn">>},
