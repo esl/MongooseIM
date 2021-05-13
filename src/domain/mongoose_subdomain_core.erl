@@ -4,7 +4,6 @@
 -behaviour(gen_server).
 
 -include("mongoose_logger.hrl").
-
 %% API
 -export([start/0, stop/0]).
 -export([start_link/0]).
@@ -26,6 +25,14 @@
          handle_info/2,
          code_change/3,
          terminate/2]).
+
+-ifdef(TEST).
+
+-undef(LOG_ERROR).
+-export([log_error/2]).
+-define(LOG_ERROR(Error), ?MODULE:log_error(?FUNCTION_NAME, Error)).
+
+-endif.
 
 -define(SUBDOMAINS_TABLE, ?MODULE).
 -define(REGISTRATION_TABLE, mongoose_subdomain_reg).
@@ -66,6 +73,9 @@ start() ->
 
 stop() ->
     gen_server:stop(?MODULE).
+
+%% this interface is required only to detect errors in unit tests
+log_error(_Function, _Error) -> ok.
 
 -else.
 
@@ -214,7 +224,7 @@ handle_unregister(HostType, SubdomainPattern) ->
 
 -spec handle_add_domain(host_type(), domain()) -> ok.
 handle_add_domain(HostType, Domain) ->
-    mongoose_subdomain_utils:check_domain_name(HostType, Domain),
+    check_domain_name(HostType, Domain),
     %% even if the domain name check fails, it's not easy to solve this
     %% collision. so the best thing we can do is to report it and just keep
     %% the data in both ETS tables (domains and subdomains) for further
@@ -250,23 +260,20 @@ add_subdomains(RegItems, Domain) ->
 -spec add_subdomain(reg_item(), maybe_parent_domain()) -> ok | {error, already_registered}.
 add_subdomain(RegItem, Domain) ->
     #subdomain_item{subdomain = Subdomain} = Item = make_subdomain_item(RegItem, Domain),
-    Info = convert_subdomain_item_to_map(Item),
     case ets:insert_new(?SUBDOMAINS_TABLE, Item) of
         true ->
-            mongoose_subdomain_utils:check_subdomain_name(Info),
+            check_subdomain_name(Item),
             %% even if the subdomain name check fails, it's not easy to solve this
             %% collision. so the best thing we can do is to report it and just keep
             %% the data in both ETS tables (domains and subdomains) for further
             %% troubleshooting.
             ok;
         false ->
-            [ExistingItem] = ets:lookup(?SUBDOMAINS_TABLE, Subdomain),
-            if
-                ExistingItem =:= Item ->
+            case ets:lookup(?SUBDOMAINS_TABLE, Subdomain) of
+                [Item] ->
                     ok; %% exactly the same item is already inserted, it's fine.
-                true ->
-                    ExistingInfo = convert_subdomain_item_to_map(ExistingItem),
-                    mongoose_subdomain_utils:report_subdomains_collision(ExistingInfo, Info),
+                [ExistingItem] ->
+                    report_subdomains_collision(ExistingItem, Item),
                     {error, subdomain_already_exists}
             end
     end.
@@ -289,3 +296,34 @@ convert_subdomain_item_to_map(#subdomain_item{} = Item) ->
     [_ | Values] = tuple_to_list(Item),
     KVList = lists:zip(Fields, Values),
     maps:from_list(KVList).
+
+-spec check_domain_name(mongooseim:host_type(), mongooseim:domain_name()) ->
+    boolean().
+check_domain_name(_HostType, Domain) ->
+    case mongoose_subdomain_core:get_subdomain_info(Domain) of
+        {error, not_found} -> true;
+        {ok, _Info} ->
+            %% TODO: this is critical collision, and it must be reported properly
+            %% think about adding some metric, so devops can set some alarm for it
+            ?LOG_ERROR(#{what => check_domain_name_failed, domain => Domain}),
+            false
+    end.
+
+-spec check_subdomain_name(subdomain_item()) -> boolean().
+check_subdomain_name(#subdomain_item{subdomain = Subdomain} = _SubdomainItem) ->
+    case mongoose_domain_core:get_host_type(Subdomain) of
+        {error, not_found} -> true;
+        {ok, _HostType} ->
+            %% TODO: this is critical collision, and it must be reported properly
+            %% think about adding some metric, so devops can set some alarm for it
+            ?LOG_ERROR(#{what => check_subdomain_name_failed, subdomain => Subdomain}),
+            false
+    end.
+
+-spec report_subdomains_collision(subdomain_item(), subdomain_item()) -> ok.
+report_subdomains_collision(ExistingSubdomainItem, _NewSubdomainItem) ->
+    #subdomain_item{subdomain = Subdomain} = ExistingSubdomainItem,
+    %% TODO: this is critical collision, and it must be reported properly
+    %% think about adding some metric, so devops can set some alarm for it
+    ?LOG_ERROR(#{what => subdomains_collision, subdomain => Subdomain}),
+    ok.

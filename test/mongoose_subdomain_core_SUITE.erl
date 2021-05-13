@@ -25,7 +25,7 @@ all() ->
 
 init_per_suite(Config) ->
     meck:new(mongoose_hooks, [no_link]),
-    meck:new(mongoose_subdomain_utils, [no_link, passthrough]),
+    meck:new(mongoose_subdomain_core, [no_link, passthrough]),
     meck:expect(mongoose_hooks, disable_domain, fun(_, _) -> ok end),
     meck:expect(mongoose_hooks, disable_subdomain, fun(_, _) -> ok end),
     Config.
@@ -45,7 +45,7 @@ init_per_testcase(_, Config) ->
     ok = mongoose_subdomain_core:start(),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],
-    [meck:reset(M) || M <- [mongoose_hooks, mongoose_subdomain_utils]],
+    [meck:reset(M) || M <- [mongoose_hooks, mongoose_subdomain_core]],
     Config.
 
 end_per_testcase(_, Config) ->
@@ -333,16 +333,16 @@ prevents_subdomain_overriding(_Config) ->
     mongoose_domain_core:insert(<<"domain.test">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
     ?assertEqual(3, get_subdomains_table_size()),
-    ExpectedSubdomainInfo1 =
+    ExpectedSubdomainInfo =
         #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
           parent_domain => <<"test">>, packet_handler => Handler,
           subdomain => <<"sub.domain.test">>},
-    ?assertEqual({ok, ExpectedSubdomainInfo1} ,
+    ?assertEqual({ok, ExpectedSubdomainInfo} ,
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
     %% check that removal of "domain.test" doesn't affect "sub.domain.test" subdomain
     mongoose_domain_core:delete("domain.test"),
     mongoose_subdomain_core:sync(),
-    ?assertEqual({ok, ExpectedSubdomainInfo1},
+    ?assertEqual({ok, ExpectedSubdomainInfo},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.test">>)),
     %%----------------------------------------------------------------
     %% testing type #2 subdomain names collision + double registration
@@ -357,11 +357,9 @@ prevents_subdomain_overriding(_Config) ->
                                                             Pattern3, Handler)),
 
     ?assertEqual(4, get_subdomains_table_size()),
-    ExpectedSubdomainInfo2 =
-        #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
-          parent_domain => no_parent_domain, packet_handler => Handler,
-          subdomain => <<"sub.domain.fqdn">>},
-    ?assertEqual({ok,ExpectedSubdomainInfo2},
+    ?assertEqual({ok,#{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
+                       parent_domain => no_parent_domain, packet_handler => Handler,
+                       subdomain => <<"sub.domain.fqdn">>}},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.fqdn">>)),
     %%------------------------------------------
     %% testing type #3 subdomain names collision
@@ -369,23 +367,16 @@ prevents_subdomain_overriding(_Config) ->
     mongoose_domain_core:insert(<<"fqdn">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
     ?assertEqual(5, get_subdomains_table_size()),
-    ExpectedSubdomainInfo3 =
-        #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
-          parent_domain => no_parent_domain, packet_handler => Handler,
-          subdomain => <<"sub.domain.fqdn">>},
-    ?assertEqual({ok, ExpectedSubdomainInfo3},
+    ?assertEqual({ok, #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern3,
+                        parent_domain => no_parent_domain, packet_handler => Handler,
+                        subdomain => <<"sub.domain.fqdn">>}},
                  mongoose_subdomain_core:get_subdomain_info(<<"sub.domain.fqdn">>)),
     %%---------------------------------------
     %% check that all collisions are detected
     %%---------------------------------------
-    ?assertEqual([[ExpectedSubdomainInfo1,
-                   ExpectedSubdomainInfo1#{subdomain_pattern := Pattern1,
-                                           parent_domain => <<"domain.test">>}],
-                  [ExpectedSubdomainInfo2,
-                   ExpectedSubdomainInfo2#{host_type := ?DYNAMIC_HOST_TYPE2}],
-                  [ExpectedSubdomainInfo3,
-                   ExpectedSubdomainInfo3#{subdomain_pattern := Pattern2,
-                                           parent_domain := <<"fqdn">>}]],
+    ?assertEqual([#{what => subdomains_collision, subdomain => <<"sub.domain.test">>},
+                  #{what => subdomains_collision, subdomain => <<"sub.domain.fqdn">>},
+                  #{what => subdomains_collision, subdomain => <<"sub.domain.fqdn">>}],
                  get_list_of_subdomain_collisions()),
     no_domain_collisions().
 
@@ -439,33 +430,31 @@ detects_domain_subdomain_collisions(_Config) ->
     %%------------------------------------------
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
-    mongoose_domain_core:insert(<<"example.net">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
-    %% without this sync call "subdomain.example.net" collision can be detected twice,
-    %% one time by mongoose_subdomain_utils:check_subdomain_name/1 function and then
-    %% second time by mongoose_subdomain_utils:check_domain_name/2.
+    mongoose_domain_core:insert(<<"test.net">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
+    %% without this sync call "subdomain.example.net" collision can be detected
+    %% twice, one time by check_subdomain_name/1 function and then second time
+    %% by check_domain_name/2.
     mongoose_subdomain_core:sync(),
-    mongoose_domain_core:insert(<<"subdomain.example.net">>, ?DYNAMIC_HOST_TYPE2,
+    mongoose_domain_core:insert(<<"subdomain.test.net">>, ?DYNAMIC_HOST_TYPE2,
                                 dummy_src),
-    mongoose_domain_core:insert(<<"subdomain.example.org">>, ?DYNAMIC_HOST_TYPE2,
+    mongoose_domain_core:insert(<<"subdomain.test.org">>, ?DYNAMIC_HOST_TYPE2,
                                 dummy_src),
-    mongoose_domain_core:insert(<<"example.org">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
+    mongoose_domain_core:insert(<<"test.org">>, ?DYNAMIC_HOST_TYPE1, dummy_src),
     mongoose_subdomain_core:sync(),
-    ?assertEqualLists([<<"subdomain.example.org">>, <<"subdomain.example.net">>],
+    ?assertEqualLists([<<"subdomain.test.org">>, <<"subdomain.test.net">>],
                       get_all_subdomains()),
     ?assertEqualLists(
-        [<<"subdomain.example.org">>, <<"subdomain.example.net">> | ?DYNAMIC_DOMAINS],
+        [<<"subdomain.test.org">>, <<"subdomain.test.net">> | ?DYNAMIC_DOMAINS],
         mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE2)),
     no_subdomain_collisions(),
-    {ok, SubdomainInfo1} =
-        mongoose_subdomain_core:get_subdomain_info(<<"subdomain.example.org">>),
     ?assertEqual(
-        [{check_domain_name, [?DYNAMIC_HOST_TYPE2, <<"subdomain.example.net">>]},
-         {check_subdomain_name, [SubdomainInfo1]}],
+        [#{what => check_domain_name_failed, domain => <<"subdomain.test.net">>},
+         #{what => check_subdomain_name_failed, subdomain => <<"subdomain.test.org">>}],
         get_list_of_domain_collisions()),
     %% cleanup
-    meck:reset(mongoose_subdomain_utils),
-    Domains = [<<"subdomain.example.net">>, <<"subdomain.example.org">>,
-               <<"example.net">>, <<"example.org">>],
+    meck:reset(mongoose_subdomain_core),
+    Domains = [<<"subdomain.test.net">>, <<"subdomain.test.org">>,
+               <<"test.net">>, <<"test.org">>],
     [mongoose_domain_core:delete(Domain) || Domain <- Domains],
     %%------------------------------------------
     %% testing type #2 subdomain names collision
@@ -481,11 +470,9 @@ detects_domain_subdomain_collisions(_Config) ->
         [<<"some.fqdn">>, <<"another.fqdn">> | ?DYNAMIC_DOMAINS],
         mongoose_domain_core:get_domains_by_host_type(?DYNAMIC_HOST_TYPE2)),
     no_subdomain_collisions(),
-    {ok, SubdomainInfo2} =
-        mongoose_subdomain_core:get_subdomain_info(<<"another.fqdn">>),
     ?assertEqual(
-        [{check_domain_name, [?DYNAMIC_HOST_TYPE2, <<"some.fqdn">>]},
-         {check_subdomain_name, [SubdomainInfo2]}],
+        [#{what => check_domain_name_failed, domain => <<"some.fqdn">>},
+         #{what => check_subdomain_name_failed, subdomain => <<"another.fqdn">>}],
         get_list_of_domain_collisions()).
 
 %%-------------------------------------------------------------------
@@ -552,27 +539,26 @@ no_collisions() ->
     no_subdomain_collisions().
 
 no_domain_collisions() ->
-    Hist = meck:history(mongoose_subdomain_utils),
-    Calls = [Call || {_Pid, {_Mod, Func, _Args}, false = _Result} = Call <- Hist,
-                     Func =:= check_subdomain_name orelse Func =:= check_domain_name],
-    ?assertEqual([], Calls).
+    Hist = meck:history(mongoose_subdomain_core),
+    Errors = [Call || {_P, {_M, log_error = _F, [From, _] = _A}, _R} = Call <- Hist,
+                      From =:= check_subdomain_name orelse From =:= check_domain_name],
+    ?assertEqual([], Errors).
 
 get_list_of_domain_collisions() ->
-    Hist = meck:history(mongoose_subdomain_utils),
-    [{Func, Args} || {_Pid, {_Mod, Func, Args}, false = _Result} <- Hist,
-                     Func =:= check_subdomain_name orelse Func =:= check_domain_name].
+    Hist = meck:history(mongoose_subdomain_core),
+    [Error || {_Pid, {_Mod, log_error = _Func, [From, Error] = _Args}, _Result} <- Hist,
+               From =:= check_subdomain_name orelse From =:= check_domain_name].
 
 no_subdomain_collisions() ->
-    Hist = meck:history(mongoose_subdomain_utils),
-    Calls = [Call || {_P, {_M, report_subdomains_collision, _A}, _R} = Call <- Hist],
-    ?assertEqual([], Calls).
+    Hist = meck:history(mongoose_subdomain_core),
+    Errors = [Call || {_P, {_M, log_error = _F, [From, _] = _A}, _R} = Call <- Hist,
+                      From =:= report_subdomains_collision],
+    ?assertEqual([], Errors).
 
 get_list_of_subdomain_collisions() ->
-    Hist = meck:history(mongoose_subdomain_utils),
-    %% Args is a list of 2 mongoose_subdomain_core:subdomain_info() elements:
-    %%   * the first one - info map for the existing subdomain.
-    %%   * the second one - info map for the new subdomain that we've failed to add.
-    [Args || {_P, {_M, report_subdomains_collision = _F, Args}, _R} <- Hist].
+    Hist = meck:history(mongoose_subdomain_core),
+    [Error || {_Pid, {_Mod, log_error = _Func, [From, Error] = _Args}, _Result} <- Hist,
+               From =:= report_subdomains_collision].
 
 get_list_of_disabled_subdomains() ->
     History = meck:history(mongoose_hooks),
