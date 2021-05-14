@@ -3,6 +3,7 @@
 %% API
 -export([make_subdomain_pattern/1,
          get_fqdn/2,
+         subdomain_type/1,
          is_subdomain/3]).
 
 -type subdomain_pattern() :: {fqdn | prefix, binary()}.
@@ -27,6 +28,10 @@ make_subdomain_pattern(ConfigOpt) when is_binary(ConfigOpt) ->
     Subdomain :: mongooseim:domain_name().
 get_fqdn({fqdn, Subdomain}, _Domain) -> Subdomain;
 get_fqdn({prefix, Prefix}, Domain)   -> <<Prefix/binary, Domain/binary>>.
+
+-spec subdomain_type(subdomain_pattern()) -> fqdn | subdomain.
+subdomain_type({fqdn, _}) -> fqdn;
+subdomain_type({prefix, _}) -> subdomain.
 
 -spec is_subdomain(subdomain_pattern(),
                    Domain :: mongooseim:domain_name(),

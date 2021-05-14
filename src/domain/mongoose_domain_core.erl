@@ -198,6 +198,7 @@ handle_delete(Domain) ->
             ok;
         [{Domain, HostType, _Source}] ->
             ets:delete(?TABLE, Domain),
+            mongoose_subdomain_core:remove_domain(HostType, Domain),
             mongoose_hooks:disable_domain(HostType, Domain),
             ok
     end.
@@ -212,6 +213,7 @@ handle_insert(Domain, HostType, Source) ->
                     {error, static};
                 [] ->
                     ets:insert_new(?TABLE, new_object(Domain, HostType, {dynamic, Source})),
+                    mongoose_subdomain_core:add_domain(HostType, Domain),
                     ok;
                 [{Domain, HT, _Source}] when HT =:= HostType ->
                     ets:insert(?TABLE, new_object(Domain, HostType, {dynamic, Source})),
