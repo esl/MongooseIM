@@ -88,13 +88,14 @@ stop(Host) ->
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
-iq_handler2(From, To, Acc, IQ) ->
-    iq_handler(From, To, Acc, IQ, ?NS_CC_2).
-iq_handler1(From, To, Acc, IQ) ->
-    iq_handler(From, To, Acc, IQ, ?NS_CC_1).
+iq_handler2(From, _To, Acc, IQ) ->
+    iq_handler(Acc, From, IQ, ?NS_CC_2).
+iq_handler1(From, _To, Acc, IQ) ->
+    iq_handler(Acc, From, IQ, ?NS_CC_1).
 
-iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
-                                                       children = []}} = IQ, CC) ->
+iq_handler(Acc, From, #iq{type = set,
+                          sub_el = #xmlel{name = Operation,
+                                          children = []}} = IQ, CC) ->
     ?LOG_DEBUG(#{what => cc_iq_received, acc => Acc}),
     Result = case Operation of
                  <<"enable">> ->
@@ -105,21 +106,21 @@ iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
     case Result of
         ok ->
             ?LOG_DEBUG(#{what => cc_iq_result, acc => Acc}),
-            {Acc, IQ#iq{type=result, sub_el=[]}};
+            {Acc, IQ#iq{type = result, sub_el = []}};
         {error, Reason} ->
             ?LOG_WARNING(#{what => cc_iq_failed, acc => Acc, reason => Reason}),
-            {Acc, IQ#iq{type=error, sub_el = [mongoose_xmpp_errors:bad_request()]}}
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:not_allowed()]}}
     end;
 
-iq_handler(_From, _To, Acc, IQ, _CC) ->
-    {Acc, IQ#iq{type=error, sub_el = [mongoose_xmpp_errors:not_allowed()]}}.
+iq_handler(Acc, _From, IQ, _CC) ->
+    {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
 
 user_send_packet(Acc, From, To, Packet) ->
-    check_and_forward(From, To, Packet, sent),
+    check_and_forward(Acc, From, To, Packet, sent),
     Acc.
 
 user_receive_packet(Acc, JID, _From, To, Packet) ->
-    check_and_forward(JID, To, Packet, received),
+    check_and_forward(Acc, JID, To, Packet, received),
     Acc.
 
 % Check if the traffic is local.
@@ -127,13 +128,13 @@ user_receive_packet(Acc, JID, _From, To, Packet) ->
 % - registered to the user_send_packet hook, to be called only once even for multicast
 % - do not support "private" message mode, and do not modify the original packet in any way
 % - we also replicate "read" notifications
-check_and_forward(JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
+-spec check_and_forward(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), sent | received) -> ok | stop.
+check_and_forward(Acc, JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
     case classify_packet(Packet) of
         ignore -> stop;
         forward -> send_copies(Acc, JID, To, Packet, Direction)
     end;
-
-check_and_forward(_JID, _To, _Packet, _) -> ok.
+check_and_forward(_Acc, _JID, _To, _Packet, _) -> ok.
 
 -spec classify_packet(_) -> classification().
 classify_packet(Packet) ->
