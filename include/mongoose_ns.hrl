@@ -61,6 +61,11 @@
 -define(NS_PUSH,                <<"urn:xmpp:push:0">>). % Push Notifications v0.2.1
 -define(NS_STANZAID,            <<"urn:xmpp:sid:0">>).
 
+-define(NS_HINTS,               <<"urn:xmpp:hints">>).
+-define(NS_CC_RULES,            <<"urn:xmpp:carbons:rules:0">>).
+-define(NS_CC_2,                <<"urn:xmpp:carbons:2">>).
+-define(NS_CC_1,                <<"urn:xmpp:carbons:1">>).
+
 -define(NS_RSM,                 <<"http://jabber.org/protocol/rsm">>).
 -define(NS_EJABBERD_CONFIG,     <<"ejabberd:config">>).
 

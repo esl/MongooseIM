@@ -44,8 +44,6 @@
          remove_connection/5
         ]).
 
--define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
--define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
 -define(CC_KEY, 'cc').
 
 -include("mongoose.hrl").
