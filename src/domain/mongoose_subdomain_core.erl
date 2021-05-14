@@ -99,7 +99,9 @@ start_link() ->
                          mongoose_packet_handler:t()) ->
     ok | {error, already_registered | subdomain_already_exists}.
 register_subdomain(HostType, SubdomainPattern, PacketHandler) ->
-    gen_server:call(?MODULE, {register, HostType, SubdomainPattern, PacketHandler}).
+    NewPacketHandler = mongoose_packet_handler:add_extra(PacketHandler,
+                                                         #{host_type => HostType}),
+    gen_server:call(?MODULE, {register, HostType, SubdomainPattern, NewPacketHandler}).
 
 -spec unregister_subdomain(host_type(), subdomain_pattern()) -> ok.
 unregister_subdomain(HostType, SubdomainPattern) ->
