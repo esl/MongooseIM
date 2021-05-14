@@ -47,7 +47,6 @@
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
 -define(CC_KEY, 'cc').
--define(CC_DISABLED, undefined).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -133,7 +132,7 @@ user_receive_packet(Acc, JID, _From, To, Packet) ->
 check_and_forward(JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
     case classify_packet(Packet) of
         ignore -> stop;
-        forward  -> send_copies(JID, To, Packet, Direction)
+        forward -> send_copies(Acc, JID, To, Packet, Direction)
     end;
 
 check_and_forward(_JID, _To, _Packet, _) -> ok.
@@ -269,20 +268,17 @@ carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
 enable(JID, CC) ->
     ?LOG_INFO(#{what => cc_enable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    KV = {?CC_KEY, cc_ver_to_int(CC)},
-    case ejabberd_sm:store_info(JID, KV) of
-        {ok, KV} -> ok;
+    case ejabberd_sm:store_info(JID, ?CC_KEY, cc_ver_to_int(CC)) of
+        {ok, ?CC_KEY} -> ok;
         {error, _} = Err -> Err
     end.
 
 disable(JID) ->
     ?LOG_INFO(#{what => cc_disable,
                 user => JID#jid.luser, server => JID#jid.lserver}),
-    KV = {?CC_KEY, ?CC_DISABLED},
-    case ejabberd_sm:store_info(JID, KV) of
-        {error, offline} -> ok;
-        {ok, KV} -> ok;
-        Err -> {error, Err}
+    case ejabberd_sm:remove_info(JID, ?CC_KEY) of
+        ok -> ok;
+        {error, offline} -> ok
     end.
 
 complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
@@ -311,7 +307,7 @@ filter_cc_enabled_resources(AllSessions) ->
 
 fun_filter_cc_enabled_resource(Session = #session{usr = {_, _, R}}) ->
     case mongoose_session:get_info(Session, ?CC_KEY, undefined) of
-        {?CC_KEY, V} when is_integer(V) andalso V =/= ?CC_DISABLED ->
+        {?CC_KEY, V} when is_integer(V) ->
             {true, {cc_ver_from_int(V), R}};
         _ ->
             false

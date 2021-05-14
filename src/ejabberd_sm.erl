@@ -35,7 +35,7 @@
          make_new_sid/0,
          open_session/4, open_session/5,
          close_session/4,
-         store_info/2,
+         store_info/3,
          get_info/2,
          remove_info/2,
          check_in_subscription/5,
@@ -100,7 +100,6 @@
 -type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
 -type close_reason() :: resumed | normal | replaced.
 -type info_key() :: atom().
--type info_item() :: {info_key(), any()}.
 
 -export_type([session/0,
               sid/0,
@@ -224,9 +223,9 @@ close_session(Acc, SID, JID, Reason) ->
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
     mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
--spec store_info(jid:jid(), info_item()) ->
-    {ok, {any(), any()}} | {error, offline}.
-store_info(JID, {Key, Value} = KV) ->
+-spec store_info(jid:jid(), info_key(), any()) ->
+    {ok, any()} | {error, offline}.
+store_info(JID, Key, Value) ->
     case get_session(JID) of
         offline -> {error, offline};
         #session{sid = SID, priority = SPriority, info = SInfo} ->
@@ -235,12 +234,12 @@ store_info(JID, {Key, Value} = KV) ->
                     %% It's safe to allow process update its own record
                     update_session(SID, JID, SPriority,
                                    maps:put(Key, Value, SInfo)),
-                    {ok, KV};
+                    {ok, Key};
                 {_, Pid} ->
                     %% Ask the process to update its record itself
                     %% Async operation
-                    ejabberd_c2s:store_session_info(Pid, JID, KV),
-                    {ok, KV}
+                    ejabberd_c2s:store_session_info(Pid, JID, Key, Value),
+                    {ok, Key}
             end
     end.
 

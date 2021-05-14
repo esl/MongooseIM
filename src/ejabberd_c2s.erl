@@ -40,7 +40,7 @@
          get_subscription/2,
          get_subscribed/1,
          send_filtered/5,
-         store_session_info/3,
+         store_session_info/4,
          remove_session_info/3,
          get_info/1,
          run_remote_hook/3,
@@ -152,8 +152,8 @@ terminate_session(#jid{} = Jid, Reason) ->
 terminate_session(Pid, Reason) when is_pid(Pid) ->
     Pid ! {exit, Reason}.
 
-store_session_info(FsmRef, JID, KV) ->
-    FsmRef ! {store_session_info, JID, KV, self()}.
+store_session_info(FsmRef, JID, Key, Value) ->
+    FsmRef ! {store_session_info, JID, Key, Value, self()}.
 
 remove_session_info(FsmRef, JID, Key) ->
     FsmRef ! {remove_session_info, JID, Key, self()}.
@@ -1112,8 +1112,8 @@ handle_info(check_buffer_full, StateName, StateData) ->
             fsm_next_state(StateName,
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
     end;
-handle_info({store_session_info, JID, KV, _FromPid}, StateName, StateData) ->
-    ejabberd_sm:store_info(JID, KV),
+handle_info({store_session_info, JID, Key, Value, _FromPid}, StateName, StateData) ->
+    ejabberd_sm:store_info(JID, Key, Value),
     fsm_next_state(StateName, StateData);
 handle_info({remove_session_info, JID, Key, _FromPid}, StateName, StateData) ->
     ejabberd_sm:remove_info(JID, Key),
@@ -2510,8 +2510,8 @@ bounce_messages(UnreadMessages) ->
         {ok, {route, From, To, Acc}, RemainedUnreadMessages} ->
             ejabberd_router:route(From, To, Acc),
             bounce_messages(RemainedUnreadMessages);
-        {ok, {store_session_info, JID, KV, _FromPid}, _} ->
-            ejabberd_sm:store_info(JID, KV);
+        {ok, {store_session_info, JID, Key, Value, _FromPid}, _} ->
+            ejabberd_sm:store_info(JID, Key, Value);
         {ok, _, RemainedUnreadMessages} ->
             % ignore this one, get the next message
             bounce_messages(RemainedUnreadMessages);
