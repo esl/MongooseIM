@@ -325,8 +325,9 @@ default_host() ->
 
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     State :: #state{}) -> any().
-process_packet(_Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
+                     #{state := #state{}}) -> any().
+process_packet(_Acc, From, To, El, #{state := State}) ->
+    #state{server_host = ServerHost, access = Access, plugins = Plugins} = State,
     do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
 
 %%====================================================================
@@ -381,7 +382,8 @@ init([ServerHost, Opts]) ->
     {_, State} = init_send_loop(ServerHost),
 
     %% Pass State as extra into ?MODULE:process_packet/5 function
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, State)),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE,
+                                                                     #{state => State})),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->

@@ -417,7 +417,8 @@ init([Host, Opts]) ->
     ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
     ejabberd_hooks:add(can_access_identity, MyHost, ?MODULE, can_access_identity, 50),
 
-    ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE, State)),
+    ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE,
+                                                                       #{state => State})),
     mongoose_subhosts:register(Host, MyHost),
 
     case gen_mod:get_module_opt(Host, mod_muc, load_permanent_rooms_at_startup, false) of
@@ -584,10 +585,10 @@ stop_supervisor(Host) ->
                      From :: jid:jid(),
                      To :: jid:simple_jid() | jid:jid(),
                      El :: exml:element(),
-                     State :: state()) -> ok | mongoose_acc:t().
-process_packet(Acc, From, To, El, #state{
-                                    access = {AccessRoute, _, _, _},
-                                    server_host = ServerHost} = State) ->
+                     #{state := state()}) -> ok | mongoose_acc:t().
+process_packet(Acc, From, To, El, #{state := State}) ->
+    {AccessRoute, _, _, _} = State#state.access,
+    ServerHost = State#state.server_host,
     case acl:match_rule(ServerHost, AccessRoute, From) of
         allow ->
             {Room, _, _} = jid:to_lower(To),

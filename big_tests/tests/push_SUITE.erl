@@ -690,11 +690,11 @@ start_route_listener(Config) ->
     State = #{ pid => self(),
                pub_options_ns => push_helper:ns_pubsub_pub_options(),
                push_form_ns => push_helper:push_form_type() },
-    Handler = rpc(mongoose_packet_handler, new, [?MODULE, State]),
+    Handler = rpc(mongoose_packet_handler, new, [?MODULE, #{state => State}]),
     Domain = pubsub_domain(Config),
     rpc(ejabberd_router, register_route, [Domain, Handler]).
 
-process_packet(_Acc, _From, To, El, State) ->
+process_packet(_Acc, _From, To, El, #{state := State}) ->
     #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
     PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
                                       {element, <<"publish-options">>},

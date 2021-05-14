@@ -144,7 +144,7 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
                      From :: jid:jid(),
                      To ::jid:jid(),
                      El :: exml:element(),
-                     Extra :: any()) -> mongoose_acc:t().
+                     Extra :: map()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)
@@ -333,7 +333,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, Acc, From, To, El}, State) ->
-    process_packet(Acc, From, To, El, undefined),
+    process_packet(Acc, From, To, El, #{}),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
     ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),

@@ -302,8 +302,8 @@ process_search_reported_spec(KVs) ->
 %%--------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                     Packet :: exml:element(), Pid :: pid()) -> any().
-process_packet(Acc, From, To, Packet, Pid) ->
+                     Packet :: exml:element(), #{pid := pid()}) -> any().
+process_packet(Acc, From, To, Packet, #{pid := Pid}) ->
     Pid ! {route, From, To, Acc, Packet}.
 
 %%--------------------------------------------------------------------
@@ -328,7 +328,7 @@ init([VHost, Opts]) ->
     case Search of
         true ->
             ejabberd_router:register_route(
-              DirectoryHost, mongoose_packet_handler:new(?MODULE, self()));
+              DirectoryHost, mongoose_packet_handler:new(?MODULE, #{pid => self()}));
         _ ->
             ok
     end,
