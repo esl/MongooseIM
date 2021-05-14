@@ -10,7 +10,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_router_dynamic_domains).
--author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(xmpp_router).
 
@@ -27,10 +26,9 @@ filter(From, To, Acc, Packet) ->
 
 route(From, To, Acc, Packet) ->
     LDstDomain = To#jid.lserver,
-    case mongoose_domain_api:get_host_type(LDstDomain) of
-        {ok, _} ->
-            ejabberd_local:register_host(LDstDomain),
+    case mongoose_lazy_routing:maybe_add_domain_or_subdomain(LDstDomain) of
+        true ->
             mongoose_router_localdomain:route(From, To, Acc, Packet);
-        {error, not_found} -> {From, To, Acc, Packet}
+        false -> {From, To, Acc, Packet}
     end.
 

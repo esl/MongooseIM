@@ -25,6 +25,12 @@ route(From, To, Acc, Packet) ->
     case route_to_host(From, To, Acc, Packet, LDstDomain) of
         done   -> done;
         Result ->
+            %% TODO: get rid of this ugly case-of construction
+            %% subdomain must be registered in the 'route' table.
+            %% Also this hack may not work if host is not added
+            %% yet, cause now all the hosts (including statically
+            %% configured hosts) are added in a lazy manner (see
+            %% mongoose_router_dynamic_domains module).
             case mongoose_subhosts:get_host(LDstDomain) of
                 {ok, Host} -> route_to_host(From, To, Acc, Packet, Host);
                 undefined  -> Result

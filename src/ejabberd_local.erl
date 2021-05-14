@@ -251,9 +251,6 @@ node_cleanup(Acc, Node) ->
     Res = mnesia:async_dirty(F),
     maps:put(?MODULE, Res, Acc).
 
-disable_domain(_Acc, _HostType, Domain) ->
-    unregister_host(Domain).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -266,14 +263,12 @@ disable_domain(_Acc, _HostType, Domain) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    lists:foreach(fun do_register_host/1, ?MYHOSTS),
     catch ets:new(?IQTABLE, [named_table, protected]),
     update_table(),
     mnesia:create_table(iq_response,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
-    ejabberd_hooks:add(disable_domain, global, fun disable_domain/3,50),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
@@ -355,7 +350,6 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    ejabberd_hooks:delete(disable_domain, global, fun disable_domain/3, 50),
     ok.
 
 %%--------------------------------------------------------------------

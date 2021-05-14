@@ -33,10 +33,10 @@ all() ->
      detects_domain_conflict_with_fqdn_subdomain].
 
 init_per_suite(Config) ->
-    meck:new(mongoose_hooks, [no_link]),
+    meck:new(mongoose_lazy_routing, [no_link]),
     meck:new(mongoose_subdomain_core, [no_link, passthrough]),
-    meck:expect(mongoose_hooks, disable_domain, fun(_, _) -> ok end),
-    meck:expect(mongoose_hooks, disable_subdomain, fun(_, _) -> ok end),
+    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
+    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, fun(_) -> ok end),
     Config.
 
 end_per_suite(Config) ->
@@ -54,7 +54,7 @@ init_per_testcase(_, Config) ->
     ok = mongoose_subdomain_core:start(),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],
-    [meck:reset(M) || M <- [mongoose_hooks, mongoose_subdomain_core]],
+    [meck:reset(M) || M <- [mongoose_lazy_routing, mongoose_subdomain_core]],
     Config.
 
 end_per_testcase(_, Config) ->
@@ -317,7 +317,7 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
                              || Domain <- AllDomains],
     ?assertEqualLists(AllExpectedSubDomains, Subdomains),
     ?assertEqual(NumOfDomainsToRemove,
-                 meck:num_calls(mongoose_hooks, disable_subdomain, 2)),
+                 meck:num_calls(mongoose_lazy_routing, maybe_remove_subdomain, 1)),
 
     no_collisions(),
     meck:unload(mongoose_domain_core).
@@ -649,6 +649,7 @@ get_list_of_subdomain_collisions() ->
               From =:= report_subdomains_collision].
 
 get_list_of_disabled_subdomains() ->
-    History = meck:history(mongoose_hooks),
-    [lists:nth(2, Args) %% Subdomain is the second argument
-     || {_Pid, {_Mod, disable_subdomain = _Func, Args}, _Result} <- History].
+    History = meck:history(mongoose_lazy_routing),
+    [maps:get(subdomain, Info)
+     || {_Pid, {_Mod, Func, [Info] = _Args}, _Result} <- History,
+        Func =:= maybe_remove_subdomain].
