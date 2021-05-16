@@ -26,6 +26,8 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_server).
+-behaviour(gen_iq_component).
+
 
 %% API
 -export([start/0,
@@ -51,8 +53,7 @@
          get_vh_session_number/1,
          get_vh_session_list/1,
          get_full_session_list/0,
-         register_iq_handler/4,
-         register_iq_handler/5,
+         register_iq_handler/3,
          unregister_iq_handler/2,
          force_update_presence/1,
          user_resources/2,
@@ -428,16 +429,14 @@ get_full_session_list() ->
     ejabberd_gen_sm:get_sessions(sm_backend()).
 
 
-register_iq_handler(Host, XMLNS, Module, Fun) ->
-    ejabberd_sm ! {register_iq_handler, Host, XMLNS, Module, Fun}.
-
-
-register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
-    ejabberd_sm ! {register_iq_handler, Host, XMLNS, Module, Fun, Opts}.
+register_iq_handler(Host, XMLNS, IQHandler) ->
+    ejabberd_sm ! {register_iq_handler, Host, XMLNS, IQHandler},
+    ok.
 
 
 unregister_iq_handler(Host, XMLNS) ->
-    ejabberd_sm ! {unregister_iq_handler, Host, XMLNS}.
+    ejabberd_sm ! {unregister_iq_handler, Host, XMLNS},
+    ok.
 
 %%====================================================================
 %% Hook handlers
@@ -527,20 +526,17 @@ handle_cast(_Msg, State) ->
 handle_info({route, From, To, Packet}, State) ->
     route(From, To, Packet),
     {noreply, State};
-handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
-    ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function}),
-    {noreply, State};
-handle_info({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) ->
-    ets:insert(sm_iqtable, {{XMLNS, Host}, Module, Function, Opts}),
+handle_info({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
+    ets:insert(sm_iqtable, {{XMLNS, Host}, IQHandler}),
     {noreply, State};
 handle_info({unregister_iq_handler, Host, XMLNS}, State) ->
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
-        [{_, Module, Function, Opts}] ->
-            gen_iq_handler:stop_iq_handler(Module, Function, Opts);
+        [{_, IQHandler}] ->
+            gen_iq_component:stop_iq_handler(IQHandler),
+            ets:delete(sm_iqtable, {XMLNS, Host});
         _ ->
             ok
     end,
-    ets:delete(sm_iqtable, {XMLNS, Host}),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -960,16 +956,8 @@ process_iq(#iq{type = Type}, _From, _To, Acc, _Packet) when Type == result; Type
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     Host = To#jid.lserver,
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
-        [{_, Module, Function}] ->
-            case Module:Function(From, To, IQ) of
-                {Acc1, ignore} -> Acc1;
-                {Acc1, ResIQ} ->
-                    ejabberd_router:route(To, From, Acc1,
-                        jlib:iq_to_xml(ResIQ))
-            end;
-        [{_, Module, Function, Opts}] ->
-            gen_iq_handler:handle(Host, Module, Function, Opts,
-                                  From, To, Acc, IQ);
+        [{_, IQHandler}] ->
+            gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:service_unavailable()),

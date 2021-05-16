@@ -164,12 +164,12 @@ setup_meck([exometer | R]) ->
 setup_meck([ejabberd_sm | R]) ->
     meck:new(ejabberd_sm),
     meck:expect(ejabberd_sm, register_iq_handler,
-                fun(_A1, _A2, _A3, _A4, _A5) -> ok end),
+                fun(_A1, _A2, _A3) -> ok end),
     setup_meck(R);
 setup_meck([ejabberd_local | R]) ->
     meck:new(ejabberd_local),
     meck:expect(ejabberd_local, register_iq_handler,
-                fun(_A1, _A2, _A3, _A4, _A5) -> ok end),
+                fun(_A1, _A2, _A3) -> ok end),
     setup_meck(R);
 setup_meck([ejabberd_config | R]) ->
     meck:new(ejabberd_config),
