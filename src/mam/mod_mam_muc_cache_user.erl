@@ -6,7 +6,8 @@
 %% ejabberd handlers
 -export([cached_archive_id/3,
          store_archive_id/3,
-         remove_archive/4]).
+         remove_archive/4,
+         remove_domain/3]).
 
 -export([start_link/1]).
 %% gen_server callbacks
@@ -22,6 +23,12 @@
 
 make_key(HostType, #jid{lserver = LServer, luser = LUser}) ->
     {HostType, LServer, LUser}.
+
+make_first_key(HostType, LServer) ->
+    {HostType, LServer, <<>>}.
+
+simplify_key({HostType, LServer, _}) ->
+    {HostType, LServer, <<>>}.
 
 make_record(HostType, ArcJID, UserID) ->
     #mam_muc_user_cache{key = make_key(HostType, ArcJID), room_id = UserID}.
@@ -46,14 +53,16 @@ stop(HostType) ->
 %% Init
 
 start_hooks(HostType) ->
-    ejabberd_hooks:add(mam_muc_archive_id, HostType, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:add(mam_muc_archive_id, HostType, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:add(mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 100).
+    ejabberd_hooks:add(hooks(HostType)).
 
 stop_hooks(HostType) ->
-    ejabberd_hooks:delete(mam_muc_archive_id, HostType, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:delete(mam_muc_archive_id, HostType, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:delete(mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 100).
+    ejabberd_hooks:delete(hooks(HostType)).
+
+hooks(HostType) ->
+    [{mam_muc_archive_id, HostType, ?MODULE, cached_archive_id, 30},
+     {mam_muc_archive_id, HostType, ?MODULE, store_archive_id, 70},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 100},
+     {remove_domain, HostType, ?MODULE, remove_domain, 100}].
 
 start_server(HostType) ->
     supervisor:start_child(ejabberd_sup, writer_child_spec(HostType)).
@@ -89,6 +98,13 @@ store_archive_id(UserID, HostType, ArcJID) ->
 
 remove_archive(Acc, HostType, _UserID, ArcJID) ->
     clean_cache(HostType, ArcJID),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    gen_server:cast(srv_name(HostType), {remove_domain, HostType, Domain}),
     Acc.
 
 %% ----------------------------------------------------------------------
@@ -147,6 +163,9 @@ handle_cast({cache_archive_id, Rec}, State) ->
 handle_cast({clean_cache, Key}, State) ->
     mnesia:dirty_delete({?TABLE, Key}),
     {noreply, State};
+handle_cast({remove_domain, HostType, Domain}, State) ->
+    handle_remove_domain(HostType, Domain),
+    {noreply, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
@@ -160,3 +179,25 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% ----------------------------------------------------------------------
+%% gen_server side
+
+handle_remove_domain(HostType, Domain) ->
+    FirstKey = make_first_key(HostType, Domain),
+    find_and_remove(FirstKey, FirstKey).
+
+find_and_remove(FirstKey, Key) ->
+    NextKey = mnesia:dirty_next(?TABLE, Key),
+    mnesia:dirty_delete({?TABLE, Key}),
+    case NextKey of
+        '$end_of_table' ->
+            ok;
+        _ ->
+            case simplify_key(NextKey) of
+                FirstKey ->
+                    find_and_remove(FirstKey, NextKey);
+                _ -> %% Reached another domain
+                    ok
+            end
+    end.
