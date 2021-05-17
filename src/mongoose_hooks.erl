@@ -886,14 +886,14 @@ roster_set(LServer, From, To, SubEl) ->
 %%% `Acc', `Room', `User'.
 %%% The arguments and the return value types correspond to the
 %%% following spec.
--spec is_muc_room_owner(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec is_muc_room_owner(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-is_muc_room_owner(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(is_muc_room_owner, HookServer, false,
-                                     [Room, User]).
+is_muc_room_owner(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(is_muc_room_owner, HostType, false,
+                                     [HostType, Room, User]).
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.

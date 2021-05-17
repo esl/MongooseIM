@@ -59,7 +59,7 @@
 -export([process_packet/5]).
 
 %% Hooks handlers
--export([is_room_owner/3,
+-export([is_muc_room_owner/4,
          muc_room_pid/2,
          can_access_room/3,
          can_access_identity/3]).
@@ -413,7 +413,7 @@ init([Host, Opts]) ->
                    hibernated_room_check_interval = CheckInterval,
                    hibernated_room_timeout = HibernatedTimeout},
 
-    ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:add(is_muc_room_owner, Host, ?MODULE, is_muc_room_owner, 50),
     ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
     ejabberd_hooks:add(can_access_identity, MyHost, ?MODULE, can_access_identity, 50),
@@ -452,7 +452,7 @@ set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
-    ejabberd_hooks:delete(is_muc_room_owner, State#state.host, ?MODULE, is_room_owner, 50),
+    ejabberd_hooks:delete(is_muc_room_owner, State#state.server_host, ?MODULE, is_muc_room_owner, 50),
     ejabberd_hooks:delete(muc_room_pid, State#state.host, ?MODULE, muc_room_pid, 50),
     ejabberd_hooks:delete(can_access_room, State#state.host, ?MODULE, can_access_room, 50),
     ejabberd_hooks:delete(can_access_identity, State#state.host, ?MODULE, can_access_identity, 50),
@@ -1246,8 +1246,9 @@ clean_table_from_bad_node(Node, Host) ->
 %% Hooks handlers
 %%====================================================================
 
--spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_room_owner(_, Room, User) ->
+-spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(_, _HostType, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
 -spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, pid()} | {error, not_found}.

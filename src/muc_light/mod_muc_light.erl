@@ -49,7 +49,7 @@
          add_rooms_to_roster/2,
          process_iq_get/5,
          process_iq_set/4,
-         is_room_owner/3,
+         is_muc_room_owner/4,
          can_access_room/3,
          can_access_identity/3,
          muc_room_pid/2]).
@@ -250,7 +250,7 @@ process_config_schema_value([{integer_value, Val}]) -> {Val, integer};
 process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
 hooks(Host, MUCHost) ->
-    [{is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50},
+    [{is_muc_room_owner, Host, ?MODULE, is_room_owner, 50},
      {muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50},
      {can_access_room, MUCHost, ?MODULE, can_access_room, 50},
      {can_access_identity, MUCHost, ?MODULE, can_access_identity, 50},
@@ -452,8 +452,9 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
--spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_room_owner(_, Room, User) ->
+-spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(_, _HostType, Room, User) ->
     owner == get_affiliation(Room, User).
 
 -spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, processless}.
