@@ -26,13 +26,22 @@
 -module(gen_iq_handler).
 -author('alexey@process-one.net').
 
-%% Old API
+%% Old API. Get rid of it once all the modules adopted.
 -export([add_iq_handler/6,
          remove_iq_handler/3,
          check_type/1]).
 
+%% New API.
+-export([add_iq_handler_for_domain/6,
+         add_iq_handler_for_subdomain/7,
+         remove_iq_handler_for_domain/3,
+         remove_iq_handler_for_subdomain/4]).
+
+-type execution_type() :: mongoose_iq_handler:execution_type().
+-type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
+
 %%====================================================================
-%% Old API
+%% Old API. Get rid of it once all the modules adopted.
 %%====================================================================
 -spec add_iq_handler(Component :: module(),
                      Domain :: jid:server(),
@@ -53,19 +62,80 @@ add_iq_handler(Component, Domain, Namespace, Module, Function, ExecutionType) ->
 remove_iq_handler(Component, Domain, Namespace) ->
     gen_iq_component:unregister_iq_handler(Component, Domain, Namespace).
 
--spec check_type(mongoose_iq_handler:execution_type()) ->
-    mongoose_iq_handler:execution_type().
+-spec check_type(execution_type()) -> execution_type().
 check_type(no_queue)  -> no_queue;
 check_type(parallel)  -> parallel;
 check_type(one_queue) -> one_queue;
 check_type({queues, Int}) when is_integer(Int), Int > 0 ->
     {queues, Int}.
 
+
+%%====================================================================
+%% New API.
+%%====================================================================
+-spec add_iq_handler_for_domain(HostType :: mongooseim:host_type(),
+                                Namespace :: binary(),
+                                Component :: module(),
+                                IQHandlerFn :: mongoose_iq_handler:iq_handler(),
+                                Extra :: map(),
+                                ExecutionType :: execution_type()) ->
+    ok | {error, atom()}.
+add_iq_handler_for_domain(HostType, Namespace, Component, IQHandlerFn,
+                          Extra, ExecutionType) ->
+    %% TODO: `delete_on_unregister` extra field is not needed once old API is removed
+    NewExtra = Extra#{delete_on_unregister => false},
+    IQHandler = mongoose_iq_handler:new(IQHandlerFn, NewExtra, ExecutionType),
+    mongoose_lazy_routing:register_iq_handler_for_domain(HostType, Namespace,
+                                                         Component, IQHandler).
+
+-spec add_iq_handler_for_subdomain(HostType :: mongooseim:host_type(),
+                                   SubdomainPattern :: subdomain_pattern(),
+                                   Namespace :: binary(),
+                                   Component :: module(),
+                                   IQHandlerFn :: mongoose_iq_handler:iq_handler(),
+                                   Extra :: map(),
+                                   ExecutionType :: execution_type()) ->
+    ok | {error, atom()}.
+add_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, Component,
+                             IQHandlerFn, Extra, ExecutionType) ->
+    %% TODO: `delete_on_unregister` extra field is not needed once old API is removed
+    NewExtra = Extra#{delete_on_unregister => false},
+    IQHandler = mongoose_iq_handler:new(IQHandlerFn, NewExtra, ExecutionType),
+    mongoose_lazy_routing:register_iq_handler_for_subdomain(HostType, SubdomainPattern,
+                                                            Namespace, Component,
+                                                            IQHandler).
+
+-spec remove_iq_handler_for_domain(HostType :: mongooseim:host_type(),
+                                   Namespace :: binary(),
+                                   Component :: module()) ->
+    ok | {error, not_registered}.
+remove_iq_handler_for_domain(HostType, Namespace, Component) ->
+    case mongoose_lazy_routing:unregister_iq_handler_for_domain(
+             HostType, Namespace, Component) of
+        {ok, IQHandler} ->
+            mongoose_iq_handler:delete(IQHandler);
+        {error, not_found} -> {error, not_registered}
+    end.
+
+-spec remove_iq_handler_for_subdomain(HostType :: mongooseim:host_type(),
+                                      SubdomainPattern :: subdomain_pattern(),
+                                      Namespace :: binary(),
+                                      Component :: module()) ->
+    ok | {error, not_registered}.
+remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, Component) ->
+    case mongoose_lazy_routing:unregister_iq_handler_for_subdomain(
+             HostType, SubdomainPattern, Namespace, Component) of
+        {ok, IQHandler} ->
+            mongoose_iq_handler:delete(IQHandler);
+        {error, not_found} -> {error, not_registered}
+    end.
+
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
 -spec make_iq_handler_fn(module(), atom()) -> mongoose_iq_handler:iq_handler().
 make_iq_handler_fn(Module, Function) ->
+    %TODO: remove this function with removal of the old API
     fun(Acc, From, To, IQ, _Extra) ->
         Module:Function(From, To, Acc, IQ)
     end.

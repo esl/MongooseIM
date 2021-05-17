@@ -1,17 +1,23 @@
-%% Generally, you should not call anything from this module.
-%% Use mongoose_domain_api module instead.
+%% Generally, you should not call anything from this module directly.
 -module(mongoose_lazy_routing).
 -behaviour(gen_server).
 
 -include("mongoose_logger.hrl").
 
-%% API
+%% start/stop API
 -export([start/0, stop/0]).
 -export([start_link/0]).
 
+%% domain/subdomain API
 -export([maybe_add_domain_or_subdomain/1,
          maybe_remove_domain/2,
          maybe_remove_subdomain/1]).
+
+%% IQ handling API
+-export([register_iq_handler_for_domain/4,
+         register_iq_handler_for_subdomain/5,
+         unregister_iq_handler_for_domain/3,
+         unregister_iq_handler_for_subdomain/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -20,6 +26,8 @@
          handle_info/2,
          terminate/2,
          code_change/3]).
+
+-type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
 
 %%--------------------------------------------------------------------
 %% API
@@ -64,6 +72,39 @@ maybe_remove_domain(HostType, Domain) ->
 maybe_remove_subdomain(SubdomainInfo) ->
     gen_server:cast(?MODULE, {maybe_remove_subdomain, SubdomainInfo}).
 
+-spec register_iq_handler_for_domain(HostType :: mongooseim:host_type(),
+                                     Namespace :: binary(),
+                                     Component :: module(),
+                                     IQHandler :: mongoose_iq_handler:t()) ->
+    ok | {error, atom()}.
+register_iq_handler_for_domain(HostType, Namespace, Component, IQHandler) ->
+    ok.
+
+-spec register_iq_handler_for_subdomain(HostType :: mongooseim:host_type(),
+                                        SubdomainPattern :: subdomain_pattern(),
+                                        Namespace :: binary(),
+                                        Component :: module(),
+                                        IQHandler :: mongoose_iq_handler:t()) ->
+    ok | {error, atom()}.
+register_iq_handler_for_subdomain(HostType, SubdomainPattern,
+                                  Namespace, Component, IQHandler) ->
+    ok.
+
+-spec unregister_iq_handler_for_domain(HostType :: mongooseim:host_type(),
+                                       Namespace :: binary(),
+                                       Component :: module()) ->
+    {ok, mongoose_iq_handler:t()} | {error, not_found}.
+unregister_iq_handler_for_domain(HostType, Namespace, Component) ->
+    {error, not_found}.
+
+-spec unregister_iq_handler_for_subdomain(HostType :: mongooseim:host_type(),
+                                          SubdomainPattern :: subdomain_pattern(),
+                                          Namespace :: binary(),
+                                          Component :: module()) ->
+    {ok, mongoose_iq_handler:t()} | {error, not_found}.
+unregister_iq_handler_for_subdomain(HostType, SubdomainPattern,
+                                    Namespace, Component) ->
+    {error, not_found}.
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 %%--------------------------------------------------------------------
