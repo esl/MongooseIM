@@ -84,8 +84,7 @@
 
 -export([is_muc_room_owner/3,
          can_access_identity/3,
-         can_access_room/3,
-         muc_room_pid/2]).
+         can_access_room/3]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -905,14 +904,6 @@ is_muc_room_owner(HostType, Room, User) ->
 can_access_identity(HookServer, Room, User) ->
     ejabberd_hooks:run_for_host_type(can_access_identity, HookServer, false,
                                      [Room, User]).
-
-%%% @doc The `muc_room_pid' hooks is called to get the pid for a given room's JID
--spec muc_room_pid(HookServer, Room) -> Result when
-      HookServer :: jid:lserver(),
-      Room :: jid:jid(),
-      Result :: undefined | {ok, processless | pid()} | {error, not_found}.
-muc_room_pid(HookServer, Room) ->
-    ejabberd_hooks:run_for_host_type(muc_room_pid, HookServer, undefined, [Room]).
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.

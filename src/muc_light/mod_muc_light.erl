@@ -51,8 +51,7 @@
          process_iq_set/4,
          is_muc_room_owner/4,
          can_access_room/3,
-         can_access_identity/3,
-         muc_room_pid/2]).
+         can_access_identity/3]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -250,8 +249,7 @@ process_config_schema_value([{integer_value, Val}]) -> {Val, integer};
 process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
 hooks(Host, MUCHost) ->
-    [{is_muc_room_owner, Host, ?MODULE, is_room_owner, 50},
-     {muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50},
+    [{is_muc_room_owner, Host, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, MUCHost, ?MODULE, can_access_room, 50},
      {can_access_identity, MUCHost, ?MODULE, can_access_identity, 50},
 
@@ -456,10 +454,6 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
                         Room :: jid:jid(), User :: jid:jid()) -> boolean().
 is_muc_room_owner(_, _HostType, Room, User) ->
     owner == get_affiliation(Room, User).
-
--spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, processless}.
-muc_room_pid(_, _) ->
-    {ok, processless}.
 
 -spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
     boolean().

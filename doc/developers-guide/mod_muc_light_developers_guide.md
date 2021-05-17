@@ -111,7 +111,7 @@ Injects room items to the user's roster.
 
 These callbacks handle blocking settings when legacy mode is enabled.
 
-* `is_muc_room_owner`, `muc_room_pid`, `can_access_room`, `can_access_identity` used by `mod_muc_light:is_room_owner/3`, `mod_muc_light:muc_room_pid/2`, `mod_muc_light:can_access_room/3` and `mod_muc_light:can_access_identity/3` respectively
+* `is_muc_room_owner`, `can_access_room`, `can_access_identity` used by `mod_muc_light:is_room_owner/3`, `mod_muc_light:can_access_room/3` and `mod_muc_light:can_access_identity/3` respectively
 
 Callbacks that provide essential data for the `mod_mam_muc` extension.
 
