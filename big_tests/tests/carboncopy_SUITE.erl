@@ -214,6 +214,7 @@ all_bobs_resources_get_message_to_bare_jid([Alice, Bob1 | Bobs], Msg) ->
 all_bobs_other_resources_get_received_carbons([Alice, Bob1 | Bobs], Msg) ->
     enable_carbons([Bob1|Bobs]),
     escalus_client:send(Alice, escalus_stanza:chat_to(Bob1, Msg)),
+    escalus_client:wait_for_stanza(Bob1),
     GotForward = fun(BobsResource) ->
                          escalus:assert(
                            is_forwarded_received_message,
@@ -250,7 +251,7 @@ true_story(Config, UserSpecs, TestFun) ->
     end.
 
 %% Number of resources per users
-no_of_resources() -> rand:uniform(4).
+no_of_resources() -> 1 + rand:uniform(4).
 
 %% A sample chat message
 utterance() ->
