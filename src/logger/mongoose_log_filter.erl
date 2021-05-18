@@ -53,7 +53,11 @@ format_stacktrace_filter(Event=#{msg := {report, Msg=#{stacktrace := S}}}, _) ->
                <<>> -> Msg;
                _ -> Msg#{stacktrace_args => FmtArgs}
            end,
-    Event#{msg => {report, Msg2#{stacktrace => format_stacktrace(S)} }};
+    Msg3 = case format_stacktrace(S) of
+               <<>> -> Msg2;
+               FmtStack -> Msg2#{stacktrace => FmtStack}
+           end,
+    Event#{msg => {report, Msg3 }};
 format_stacktrace_filter(Event, _) ->
     Event.
 
