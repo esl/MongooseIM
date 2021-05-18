@@ -55,6 +55,7 @@ start(Host, Opts) ->
     SubHost = subhost(Host),
     mod_disco:register_subhost(Host, SubHost),
     mongoose_subhosts:register(Host, SubHost),
+    ejabberd_router:register_route(SubHost, mongoose_packet_handler:new(ejabberd_local)),
     ejabberd_hooks:add(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
     ejabberd_hooks:add(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
     ejabberd_hooks:add(disco_info, SubHost, ?MODULE, get_disco_info, 90),
@@ -72,6 +73,7 @@ stop(Host) ->
     ejabberd_hooks:delete(disco_info, SubHost, ?MODULE, get_disco_info, 90),
     ejabberd_hooks:delete(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
     ejabberd_hooks:delete(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
+    ejabberd_router:unregister_route(SubHost),
     mongoose_subhosts:unregister(SubHost),
     mod_disco:unregister_subhost(Host, SubHost).
 
