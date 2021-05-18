@@ -387,7 +387,8 @@ check_that_domain_and_iq_match(IQ, Domain) ->
 register_iq({#iq_table_key{namespace = Namespace,
                            component = Component}, IQHandler},
             {Domain, _})->
-    gen_iq_component:register_iq_handler(Component, Domain, Namespace, IQHandler).
+    gen_iq_component:register_iq_handler(Component, Domain, Namespace, IQHandler),
+    gen_iq_component:sync(Component).
 
 -spec unregister_iq(iq_record(), domain_record()) -> ok.
 unregister_iq({#iq_table_key{namespace = Namespace,

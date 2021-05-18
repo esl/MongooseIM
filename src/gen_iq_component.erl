@@ -3,6 +3,7 @@
 %% API
 -export([register_iq_handler/4,
          unregister_iq_handler/3,
+         sync/1,
          stop_iq_handler/1,
          handle/5]).
 
@@ -10,6 +11,10 @@
                               IQHandler :: mongoose_iq_handler:t()) -> ok.
 
 -callback unregister_iq_handler(Domain :: jid:server(), Namespace :: binary()) -> ok.
+
+%% this callback can be used to ensure that all of the register/unregister requests
+%% are done if they processed asynchronously by the component.
+-callback sync() -> ok.
 %%====================================================================
 %% API
 %%====================================================================
@@ -25,6 +30,10 @@ register_iq_handler(Component, Domain, Namespace, IQHandler) ->
                             Namespace :: binary()) -> ok.
 unregister_iq_handler(Component, Domain, Namespace) ->
     Component:unregister_iq_handler(Domain, Namespace).
+
+-spec sync(Component :: module()) -> ok.
+sync(Component) ->
+    Component:sync().
 
 -spec stop_iq_handler(IQHandler :: mongoose_iq_handler:t()) -> any().
 stop_iq_handler(IQHandler) ->

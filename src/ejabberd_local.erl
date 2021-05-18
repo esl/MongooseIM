@@ -50,7 +50,8 @@
          unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
-         bounce_resource_packet/4
+         bounce_resource_packet/4,
+         sync/0
         ]).
 
 %% Hooks callbacks
@@ -202,6 +203,10 @@ register_iq_handler(Domain, XMLNS, IQHandler) ->
     ejabberd_local ! {register_iq_handler, Domain, XMLNS, IQHandler},
     ok.
 
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(ejabberd_local, sync).
+
 -spec unregister_iq_response_handler(_Host :: jid:server(),
                                      ID :: id()) -> 'ok'.
 unregister_iq_response_handler(_Host, ID) ->
@@ -292,6 +297,8 @@ handle_call({unregister_host, Host}, _From, State) ->
 handle_call({register_host, Host}, _From, State) ->
     do_register_host(Host),
     mongoose_metrics:init_predefined_host_metrics(Host),
+    {reply, ok, State};
+handle_call(sync, _From, State) ->
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,

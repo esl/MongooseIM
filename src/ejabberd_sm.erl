@@ -63,7 +63,8 @@
          get_user_present_resources/1,
          get_raw_sessions/1,
          is_offline/1,
-         get_user_present_pids/2
+         get_user_present_pids/2,
+         sync/0
         ]).
 
 %% Hook handlers
@@ -433,6 +434,9 @@ register_iq_handler(Host, XMLNS, IQHandler) ->
     ejabberd_sm ! {register_iq_handler, Host, XMLNS, IQHandler},
     ok.
 
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(ejabberd_sm, sync).
 
 unregister_iq_handler(Host, XMLNS) ->
     ejabberd_sm ! {unregister_iq_handler, Host, XMLNS},
@@ -502,6 +506,8 @@ handle_call({node_cleanup, Node}, _From, State) ->
                 text => <<"Cleaning after a node that went down">>,
                 cleanup_node => Node,
                 duration => erlang:round(TimeDiff / 1000)}),
+    {reply, ok, State};
+handle_call(sync, _From, State) ->
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,

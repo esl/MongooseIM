@@ -5,7 +5,8 @@
 -export([start_link/0,
          process_iq/5,
          register_iq_handler/3,
-         unregister_iq_handler/2]).
+         unregister_iq_handler/2,
+         sync/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -51,6 +52,9 @@ register_iq_handler(Host, XMLNS, IQHandler) ->
     gen_server:cast(srv_name(),
                     {register_iq_handler, Host, XMLNS, IQHandler}).
 
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(srv_name(), sync).
 
 -spec unregister_iq_handler(jid:server(), binary()) -> ok.
 unregister_iq_handler(Host, XMLNS) ->
@@ -81,6 +85,8 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(sync, _From, State) ->
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
