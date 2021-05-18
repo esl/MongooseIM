@@ -88,10 +88,6 @@ test_routing(Config) ->
             [escalus:send(Alice, escalus_stanza:chat_to(Subdomain, <<"OH, HAI!">>))
              || Subdomain <- Subdomains1],
             rpc(mim(), meck, wait, [2, mod_dynamic_domains_test, process_packet, 5, 200]),
-
-            ct:pal("!!! ~p~n", [rpc(mim(), meck, history, [mod_dynamic_domains_test])]),
-            dump_ets_tables([route, local_iqtable]),
-
             rpc(mim(), meck, reset, [mod_dynamic_domains_test]),
 
             QueryEl = escalus_stanza:query_el(<<"dummy.namespace">>, []),
@@ -99,7 +95,6 @@ test_routing(Config) ->
                  IQ = escalus_stanza:iq(Subdomain, <<"get">>, [QueryEl]),
                  escalus:send(Alice, IQ)
              end || Subdomain <- Subdomains1],
-
             %% check that all the IQs to any of Subdomains1 landed at process_packet/5
             %% and no stanzas received in response
             rpc(mim(), meck, wait, [2, mod_dynamic_domains_test, process_packet, 5, 200]),
@@ -119,7 +114,6 @@ test_routing(Config) ->
             Pids = [Pid||{Pid,{_,process_iq,_},_}<-History],
             [_] = (lists:usort(Pids)),
 
-
             Subdomains2 = [<<"subdomain2.", Domain/binary>> || Domain <- ?DOMAINS],
             [begin
                  IQ = escalus_stanza:iq(Subomain, <<"get">>, [QueryEl]),
@@ -129,21 +123,7 @@ test_routing(Config) ->
             0 = rpc(mim(), meck, num_calls, [mod_dynamic_domains_test, process_packet, 5]),
 
             rpc(mim(), meck, unload, [mod_dynamic_domains_test]),
-
-            [Domain | _] = ?DOMAINS,
-            remove_domains(?TEST_NODES, [Domain]),
-            timer:sleep(1000),
-            ct:pal("after removing domain ~p~n",[Domain]),
-            dump_ets_tables([route, local_iqtable]),
-            insert_domains(?TEST_NODES, [Domain]),
-            timer:sleep(1000),
-            ct:pal("after inserting domain ~p~n",[Domain]),
-            dump_ets_tables([route, local_iqtable]),
-
-            dynamic_modules:stop(?HOST_TYPE, mod_dynamic_domains_test),
-            timer:sleep(1000),
-            ct:pal("after stopping the module~n"),
-            dump_ets_tables([route, local_iqtable])
+            dynamic_modules:stop(?HOST_TYPE, mod_dynamic_domains_test)
         end,
     escalus:story(Config, [{alice3, 1}], StoryFn).
 
