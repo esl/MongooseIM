@@ -19,50 +19,73 @@ all() ->
     [{group, mod_message_carbons_proper_tests}].
 
 all_tests() ->
-    [chat_type_test, private_message_test, no_copy_type_test,
-          received_type_test, sent_forwarded_type_test, sent_message_test,
-          simple_chat_message_test, simple_badarg_test].
+    [
+     private_message_test,
+     no_copy_type_test,
+     empty_message_test,
+     received_type_test,
+     sent_message_test,
+     simple_badarg_test,
+     simple_chat_message_test,
+     has_chat_state_notifications,
+     has_delivery_receipts,
+     is_muc_invitation,
+     is_direct_invitation
+    ].
 
 groups() ->
-    [{mod_message_carbons_proper_tests, [sequence], all_tests()}].
+    [{mod_message_carbons_proper_tests, [parallel], all_tests()}].
 
 private_message_test(_) ->
     property(private_message_test, ?FORALL(Msg, private_carbon_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
-
-chat_type_test(_) ->
-    property(chat_type_test, ?FORALL(Msg, non_chat_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
 
 no_copy_type_test(_) ->
     property(no_copy_type_test, ?FORALL(Msg, no_copy_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+empty_message_test(_) ->
+    property(empty_message_test, ?FORALL(Msg, non_chat_message(),
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
 
 received_type_test(_) ->
     property(received_type_test, ?FORALL(Msg, received_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
-
-sent_forwarded_type_test(_) ->
-    property(sent_forwarded_type_test, ?FORALL(Msg, sent_forwarded_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
 
 sent_message_test(_) ->
     property(sent_message_test, ?FORALL(Msg, sent_message(),
-          forward == mod_carboncopy:classify_packet(Msg))).
-
-simple_chat_message_test(_) ->
-    property(simple_chat_message_test, ?FORALL(Msg, simple_chat_message(),
-          forward == mod_carboncopy:classify_packet(Msg))).
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
 
 simple_badarg_test(_) ->
     property(simple_badarg_test, ?FORALL(Msg, badarg_message(),
-          ignore == mod_carboncopy:classify_packet(Msg))).
+          false == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+simple_chat_message_test(_) ->
+    property(simple_chat_message_test, ?FORALL(Msg, simple_chat_message(),
+          true == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+has_chat_state_notifications(_) ->
+    property(has_chat_state_notifications, ?FORALL(Msg, chat_state_notification(),
+          true == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+has_delivery_receipts(_) ->
+    property(has_delivery_receipts, ?FORALL(Msg, delivery_receipt(),
+          true == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+is_muc_invitation(_) ->
+    property(is_muc_invitation, ?FORALL(Msg, muc_invitation(),
+          true == mod_carboncopy:should_forward(Msg, alice(), received))).
+
+is_direct_invitation(_) ->
+    property(is_direct_invitation, ?FORALL(Msg, direct_invitation(),
+          true == mod_carboncopy:should_forward(Msg, alice(), received))).
 
 property(Name, Prop) ->
     Props = proper:conjunction([{Name, Prop}]),
     true = proper:quickcheck(Props, [verbose, long_result, {numtests, 50}]).
 
-
+alice() ->
+    jid:make_noprep(<<"alice">>, <<"localhost">>, <<>>).
 
 %%
 %% Generators
@@ -79,17 +102,12 @@ private_carbon_message() ->
 no_copy_message() ->
     xmlel("message",
           [{<<"type">>,<<"chat">>}],
-          [xmlel("no-copy",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
+          [xmlel("no-copy",[{<<"xmlns">>, <<"urn:xmpp:hints">>}],[])]).
 
 received_message() ->
     xmlel("message",
           [{<<"type">>,<<"chat">>}],
           [xmlel("received",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[])]).
-
-sent_forwarded_message() ->
-    xmlel("message",
-          [{<<"type">>,<<"chat">>}],
-          [xmlel("sent",[{<<"xmlns">>, <<"urn:xmpp:carbons:2">>}],[xmlel("forwarded",[],[])])]).
 
 sent_message() ->
     xmlel("message",
@@ -98,6 +116,27 @@ sent_message() ->
 
 simple_chat_message() ->
     xmlel("message", [{<<"type">>,<<"chat">>}],[]).
+
+chat_state_notification() ->
+    xmlel("message",
+          [{<<"type">>,<<"chat">>}],
+          [xmlel("someelement",[{<<"xmlns">>, <<"http://jabber.org/protocol/chatstates">>}],[])]).
+
+delivery_receipt() ->
+    xmlel("message",
+          [{<<"type">>,<<"chat">>}],
+          [xmlel("received",[{<<"xmlns">>, <<"urn:xmpp:receipts">>}],[])]).
+
+muc_invitation() ->
+    xmlel("message",
+          [{<<"type">>,<<"chat">>}],
+          [xmlel("x",[{<<"xmlns">>, <<"jabber:x:conference">>}],
+                 [xmlel("invite", [<<"from">>], [<<"alice@localhost">>])])]).
+
+direct_invitation() ->
+    xmlel("message",
+          [{<<"type">>,<<"chat">>}],
+          [xmlel("x",[{<<"xmlns">>, <<"jabber:x:conference">>}],[])]).
 
 badarg_message() ->
     xmlel("message", [{<<"type">>,<<"123">>}],[]).

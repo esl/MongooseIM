@@ -60,6 +60,7 @@
 -define(NS_HTTP_UPLOAD_030,     <<"urn:xmpp:http:upload:0">>).
 -define(NS_PUSH,                <<"urn:xmpp:push:0">>). % Push Notifications v0.2.1
 -define(NS_STANZAID,            <<"urn:xmpp:sid:0">>).
+-define(NS_RECEIPTS,            <<"urn:xmpp:receipts">>).
 
 -define(NS_HINTS,               <<"urn:xmpp:hints">>).
 -define(NS_CC_RULES,            <<"urn:xmpp:carbons:rules:0">>).

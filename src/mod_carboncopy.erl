@@ -25,7 +25,8 @@
 %%%----------------------------------------------------------------------
 -module (mod_carboncopy).
 -author ('ecestari@process-one.net').
--xep([{xep, 280}, {version, "0.10"}]).
+-xep([{xep, 280}, {version, "0.6"}]).
+-xep([{xep, 280}, {version, "0.13.3"}]).
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
@@ -33,8 +34,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
-         is_carbon_copy/1,
-         classify_packet/1]).
+         is_carbon_copy/1]).
 
 %% Hooks
 -export([user_send_packet/4,
@@ -44,6 +44,9 @@
          remove_connection/5
         ]).
 
+%% Tests
+-export([should_forward/3]).
+
 -define(CC_KEY, 'cc').
 
 -include("mongoose.hrl").
@@ -51,7 +54,7 @@
 -include("session.hrl").
 -include("mongoose_config_spec.hrl").
 
--type classification() :: 'ignore' | 'forward'.
+-type direction() :: sent | received.
 
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of
@@ -123,69 +126,102 @@ user_receive_packet(Acc, JID, _From, To, Packet) ->
     check_and_forward(Acc, JID, To, Packet, received),
     Acc.
 
+remove_connection(Acc, LUser, LServer, LResource, _Status) ->
+    JID = jid:make_noprep(LUser, LServer, LResource),
+    disable(JID),
+    Acc.
+
 % Check if the traffic is local.
 % Modified from original version:
 % - registered to the user_send_packet hook, to be called only once even for multicast
 % - do not support "private" message mode, and do not modify the original packet in any way
 % - we also replicate "read" notifications
--spec check_and_forward(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), sent | received) -> ok | stop.
+-spec check_and_forward(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), direction()) -> ok | stop.
 check_and_forward(Acc, JID, To, #xmlel{name = <<"message">>} = Packet, Direction) ->
-    case classify_packet(Packet) of
-        ignore -> stop;
-        forward -> send_copies(Acc, JID, To, Packet, Direction)
+    case should_forward(Packet, To, Direction) of
+        false -> stop;
+        true -> send_copies(Acc, JID, To, Packet, Direction)
     end;
 check_and_forward(_Acc, _JID, _To, _Packet, _) -> ok.
 
--spec classify_packet(_) -> classification().
-classify_packet(Packet) ->
-    is_chat(Packet).
+%%%===================================================================
+%%% Classification
+%%%===================================================================
 
--spec is_chat(_) -> classification().
-is_chat(#xmlel{name = <<"message">>, attrs = Attrs} = Packet) ->
-    case xml:get_attr_s(<<"type">>, Attrs) of
-        <<"chat">> -> is_private(Packet);
-        _ -> ignore
+-spec should_forward(exml:element(), jid:jid(), direction()) -> boolean().
+should_forward(Packet, To, Direction) ->
+    (not is_carbon_private(Packet)) andalso
+    (not has_nocopy_hint(Packet)) andalso
+    (not is_received(Packet)) andalso
+    (not is_sent(Packet)) andalso
+    (is_chat(Packet) orelse is_valid_muc(Packet, To, Direction)).
+
+-spec is_chat(exml:element()) -> boolean().
+is_chat(Packet) ->
+    case exml_query:attr(Packet, <<"type">>, <<"normal">>) of
+        <<"normal">> -> contains_body(Packet) orelse
+                        contains_receipts(Packet) orelse
+                        contains_csn(Packet);
+        <<"chat">> -> true;
+        _ -> false
     end.
 
--spec is_private(_) -> classification().
-is_private(Packet) ->
-    case xml:get_subtag(Packet, <<"private">>) of
-        false -> is_no_copy(Packet);
-        _ -> ignore
-    end.
+-spec is_valid_muc(exml:element(), jid:jid(), direction()) -> boolean().
+is_valid_muc(_, _, sent) ->
+    false;
+is_valid_muc(Packet, To, _) ->
+    is_mediated_invitation(Packet) orelse
+    is_direct_muc_invitation(Packet) orelse
+    is_received_private_muc(Packet, To).
 
--spec is_no_copy(_) -> classification().
-is_no_copy(Packet) ->
-    case xml:get_subtag(Packet, <<"no-copy">>) of
-        false -> is_received(Packet);
-        _ -> ignore
-    end.
+-spec is_mediated_invitation(exml:element()) -> boolean().
+is_mediated_invitation(Packet) ->
+    undefined =/= exml_query:path(Packet,
+                                  [{element_with_ns, <<"x">>, ?NS_MUC_USER},
+                                   {element, <<"invite">>},
+                                   {attr, <<"from">>}]).
 
--spec is_received(_) -> classification().
+-spec is_direct_muc_invitation(exml:element()) -> boolean().
+is_direct_muc_invitation(Packet) ->
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"x">>, ?NS_CONFERENCE).
+
+-spec is_received_private_muc(exml:element(), jid:jid()) -> boolean().
+is_received_private_muc(_, #jid{lresource = <<>>}) ->
+    false;
+is_received_private_muc(Packet, _) ->
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"x">>, ?NS_MUC_USER).
+
+-spec is_carbon_private(exml:element()) -> boolean().
+is_carbon_private(Packet) ->
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"private">>, ?NS_CC_2).
+
+-spec has_nocopy_hint(exml:element()) -> boolean().
+has_nocopy_hint(Packet) ->
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"no-copy">>, ?NS_HINTS).
+
+-spec contains_body(exml:element()) -> boolean().
+contains_body(Packet) ->
+    undefined =/= exml_query:subelement(Packet, <<"body">>).
+
+-spec contains_receipts(exml:element()) -> boolean().
+contains_receipts(Packet) ->
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"received">>, ?NS_RECEIPTS).
+
+-spec contains_csn(exml:element()) -> boolean().
+contains_csn(Packet) ->
+    undefined =/= exml_query:subelement_with_ns(Packet, ?NS_CHATSTATES).
+
+-spec is_received(exml:element()) -> boolean().
 is_received(Packet) ->
-    case xml:get_subtag(Packet, <<"received">>) of
-        false -> is_sent(Packet);
-        _ -> ignore
-    end.
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"received">>, ?NS_CC_2).
 
--spec is_sent(_) -> classification().
+-spec is_sent(exml:element()) -> boolean().
 is_sent(Packet) ->
-    case xml:get_subtag(Packet, <<"sent">>) of
-        false -> forward;
-        SubTag -> is_forwarded(SubTag)
-    end.
+    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"sent">>, ?NS_CC_2).
 
--spec is_forwarded(_) -> classification().
-is_forwarded(SubTag) ->
-    case xml:get_subtag(SubTag, <<"forwarded">>) of
-        false -> forward;
-        _ -> ignore
-    end.
-
-remove_connection(Acc, LUser, LServer, LResource, _Status) ->
-    JID = jid:make_noprep(LUser, LServer, LResource),
-    disable(JID),
-    Acc.
+%%%===================================================================
+%%% Internal
+%%%===================================================================
 
 
 %%
@@ -213,12 +249,6 @@ jids_minus_max_priority_resource(JID, CCResList, PrioRes) ->
 jids_minus_specific_resource(JID, R, CCResList, _PrioRes) ->
     [ {jid:replace_resource(JID, CCRes), CCVersion}
       || {CCVersion, CCRes} <- CCResList, CCRes =/= R ].
-
-%% If the original user is the only resource in the list of targets
-%% that means that he/she must have already received the message via
-%% normal routing:
-drop_singleton_jid(JID, [{JID, _CCVER}]) -> [];
-drop_singleton_jid(_JID, Targets)        -> Targets.
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
 send_copies(JID, To, Packet, Direction) ->
