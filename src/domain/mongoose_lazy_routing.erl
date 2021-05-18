@@ -279,7 +279,7 @@ handle_maybe_add_domain_or_subdomain(Domain) ->
 
 -spec try_to_add_domain_or_subdomain(domain()) -> boolean().
 try_to_add_domain_or_subdomain(Domain) ->
-    case mongoose_domain_api:get_host_type(Domain) of
+    case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             add_domain(HostType, Domain),
             true;
