@@ -60,7 +60,7 @@ init() ->
     lists:foreach(
         fun(Host) ->
             mongoose_metrics:init_predefined_host_metrics(Host)
-        end, ?MYHOSTS),
+        end, ?ALL_HOST_TYPES),
     init_subscriptions().
 
 create_global_metrics() ->
@@ -411,7 +411,7 @@ subscribe_metric(Reporter, {Name, _, _}, Interval) ->
     exometer_report:subscribe(Reporter, Name, default, Interval).
 
 subscribe_to_all(Reporter, Interval) ->
-    HostPrefixes = pick_by_all_metrics_are_global([], ?MYHOSTS),
+    HostPrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
     lists:foreach(
       fun(Prefix) ->
               start_metrics_subscriptions(Reporter, [Prefix], Interval)

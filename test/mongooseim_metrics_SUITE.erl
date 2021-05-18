@@ -33,7 +33,7 @@ all_metrics_list() ->
 init_per_suite(C) ->
     application:load(exometer_core),
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
-    {Port, Socket} = carbon_cache_server:start(1, 0),
+    {Port, Socket} = carbon_cache_server:start(),
     Sup = spawn(fun() ->
                         mim_ct_sup:start_link(ejabberd_sup),
                         Hooks =
@@ -159,6 +159,10 @@ wait_for_update({ok, [{count,0}]}, N) ->
 setup_meck(Group) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun (hosts, _Def) -> [<<"localhost">>];
+                    (_, _) -> []
+                end),
     meck:expect(ejabberd_config, get_local_option,
                 fun (all_metrics_are_global) -> Group =:= all_metrics_are_global;
                     (_) -> undefined
