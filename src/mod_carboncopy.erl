@@ -251,7 +251,7 @@ jids_minus_specific_resource(JID, R, CCResList, _PrioRes) ->
       || {CCVersion, CCRes} <- CCResList, CCRes =/= R ].
 
 %% Direction = received | sent <received xmlns='urn:xmpp:carbons:1'/>
-send_copies(JID, To, Packet, Direction) ->
+send_copies(Acc, JID, To, Packet, Direction) ->
     #jid{lresource = R} = JID,
     {PrioRes, CCResList} = get_cc_enabled_resources(JID),
     Targets = case is_bare_to(Direction, To, PrioRes) of
@@ -262,37 +262,36 @@ send_copies(JID, To, Packet, Direction) ->
     ?LOG_DEBUG(#{what => cc_send_copies,
                  targets => Targets, resources => PrioRes, ccenabled => CCResList}),
     lists:foreach(fun({Dest, Version}) ->
-                      #jid{lresource = Resource} = JID,
-                      ?LOG_DEBUG(#{what => cc_forwarding,
-                                   user => JID#jid.luser, server => JID#jid.lserver,
-                                   resource => Resource, exml_packet => Packet}),
-                      Sender = jid:replace_resource(JID, <<>>),
-                      New = build_forward_packet
-                              (JID, Packet, Sender, Dest, Direction, Version),
-                      ejabberd_router:route(Sender, Dest, New)
-              end, drop_singleton_jid(JID, Targets)),
-    ok.
+                          ?LOG_DEBUG(#{what => cc_forwarding,
+                                       user => JID#jid.luser, server => JID#jid.lserver,
+                                       resource => JID#jid.lresource, exml_packet => Packet}),
+                          Sender = jid:to_bare(JID),
+                          New = build_forward_packet(Acc, JID, Packet, Sender, Dest, Direction, Version),
+                          ejabberd_router:route(Sender, Dest, New)
+                  end, Targets).
 
-build_forward_packet(JID, Packet, Sender, Dest, Direction, Version) ->
+build_forward_packet(Acc, JID, Packet, Sender, Dest, Direction, Version) ->
+    % The wrapping message SHOULD maintain the same 'type' attribute value;
+    Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     #xmlel{name = <<"message">>,
            attrs = [{<<"xmlns">>, <<"jabber:client">>},
-                    {<<"type">>, <<"chat">>},
+                    {<<"type">>, Type},
                     {<<"from">>, jid:to_binary(Sender)},
                     {<<"to">>, jid:to_binary(Dest)}],
-           children = carbon_copy_children(Version, JID, Packet, Direction)}.
+           children = carbon_copy_children(Acc, Version, JID, Packet, Direction)}.
 
-carbon_copy_children(?NS_CC_1, JID, Packet, Direction) ->
-    [ #xmlel{name = list_to_binary(atom_to_list(Direction)),
+carbon_copy_children(Acc, ?NS_CC_1, JID, Packet, Direction) ->
+    [ #xmlel{name = atom_to_binary(Direction, utf8),
              attrs = [{<<"xmlns">>, ?NS_CC_1}]},
       #xmlel{name = <<"forwarded">>,
              attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-             children = [complete_packet(JID, Packet, Direction)]} ];
-carbon_copy_children(?NS_CC_2, JID, Packet, Direction) ->
-    [ #xmlel{name = list_to_binary(atom_to_list(Direction)),
+             children = [complete_packet(Acc, JID, Packet, Direction)]} ];
+carbon_copy_children(Acc, ?NS_CC_2, JID, Packet, Direction) ->
+    [ #xmlel{name = atom_to_binary(Direction, utf8),
              attrs = [{<<"xmlns">>, ?NS_CC_2}],
              children = [ #xmlel{name = <<"forwarded">>,
                                  attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-                                 children = [complete_packet(JID, Packet, Direction)]} ]} ].
+                                 children = [complete_packet(Acc, JID, Packet, Direction)]} ]} ].
 
 enable(JID, CC) ->
     ?LOG_INFO(#{what => cc_enable,
@@ -310,18 +309,19 @@ disable(JID) ->
         {error, offline} -> ok
     end.
 
-complete_packet(From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
+complete_packet(Acc, From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, sent) ->
     %% if this is a packet sent by user on this host, then Packet doesn't
     %% include the 'from' attribute. We must add it.
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
+    Packet2 = set_stanza_id(Acc, From, Packet),
     case proplists:get_value(<<"from">>, Attrs) of
         undefined ->
-            Packet#xmlel{attrs = [{<<"from">>, jid:to_binary(From)}|Attrs]};
+            Packet2#xmlel{attrs = [{<<"from">>, jid:to_binary(From)} | Attrs]};
         _ ->
-            Packet#xmlel{attrs = Attrs}
+            Packet2#xmlel{attrs = Attrs}
     end;
 
-complete_packet(_From, #xmlel{name = <<"message">>, attrs=OrigAttrs} = Packet, received) ->
+complete_packet(_Acc, _From, #xmlel{name = <<"message">>, attrs = OrigAttrs} = Packet, received) ->
     Attrs = lists:keystore(<<"xmlns">>, 1, OrigAttrs, {<<"xmlns">>, <<"jabber:client">>}),
     Packet#xmlel{attrs = Attrs}.
 
@@ -356,3 +356,16 @@ cc_ver_to_int(?NS_CC_2) -> 2.
 
 cc_ver_from_int(1) -> ?NS_CC_1;
 cc_ver_from_int(2) -> ?NS_CC_2.
+
+%% Servers SHOULD include the element as a child
+%% of the forwarded message when using Message Carbons (XEP-0280)
+%% https://xmpp.org/extensions/xep-0313.html#archives_id
+set_stanza_id(Acc, From, Packet) ->
+    MamId = mongoose_acc:get(mam, mam_id, undefined, Acc),
+    set_stanza_id(MamId, From, Acc, Packet).
+
+set_stanza_id(undefined, _From, _Acc, Packet) ->
+    Packet;
+set_stanza_id(MamId, From, _Acc, Packet) ->
+    By = jid:to_binary(jid:to_bare(From)),
+    mod_mam_utils:replace_arcid_elem(<<"stanza-id">>, By, MamId, Packet).
