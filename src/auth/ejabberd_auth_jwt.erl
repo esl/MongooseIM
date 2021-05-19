@@ -27,24 +27,16 @@
 -author('astro@spaceboyz.net').
 
 %% External exports
--behaviour(ejabberd_gen_auth).
+-behaviour(mongoose_gen_auth).
+
 -export([start/1,
          stop/1,
-         set_password/4,
          authorize/1,
          check_password/4,
          check_password/6,
-         try_register/4,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         does_user_exist/2,
-         remove_user/2,
-         supports_sasl_module/2
+         does_user_exist/3,
+         supports_sasl_module/2,
+         supported_features/0
         ]).
 
 
@@ -131,82 +123,14 @@ check_password(HostType, LUser, LServer, Password) ->
 check_password(HostType, LUser, LServer, Password, _Digest, _DigestGen) ->
     check_password(HostType, LUser, LServer, Password).
 
-
--spec set_password(HostType :: mongooseim:host_type(),
-                   LUser :: jid:luser(),
-                   LServer :: jid:lserver(),
-                   Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
-set_password(_HostType, _LUser, _LServer, _Password) ->
-    {error, not_allowed}.
-
-
--spec try_register(HostType :: mongooseim:host_type(),
-                   LUser :: jid:luser(),
-                   LServer :: jid:lserver(),
-                   Password :: binary()
-                   ) -> ok | {error, exists | not_allowed}.
-try_register(_HostType, _LUser, _LServer, _Password) ->
-    {error, not_allowed}.
-
-
--spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
-dirty_get_registered_users() ->
-    [].
-
-
--spec get_vh_registered_users(LServer :: jid:lserver()
-                             ) -> [jid:simple_bare_jid()].
-get_vh_registered_users(_LServer) ->
-    [].
-
-
--type query_keyword() :: from | to | limit | offset | prefix.
--type query_value() :: integer() | binary().
--spec get_vh_registered_users(LServer :: jid:lserver(),
-                              Query :: [{query_keyword(), query_value()}]
-                              ) -> [jid:simple_bare_jid()].
-get_vh_registered_users(LServer, _) ->
-    get_vh_registered_users(LServer).
-
-
--spec get_vh_registered_users_number(LServer :: jid:server()
-                                    ) -> non_neg_integer().
-get_vh_registered_users_number(_LServer) ->
-    0.
-
-
--spec get_vh_registered_users_number(LServer :: jid:lserver(),
-                                     Query :: [{prefix, binary()}]
-                                     ) -> integer().
-get_vh_registered_users_number(LServer, _) ->
-    get_vh_registered_users_number(LServer).
-
-
--spec get_password(LUser :: jid:luser(),
-                   LServer :: jid:lserver()) -> binary() | false.
-get_password(_LUser, _LServer) ->
-    false.
-
-
--spec get_password_s(LUser :: jid:luser(),
-                     LServer :: jid:lserver()) -> binary().
-get_password_s(_LUser, _LServer) ->
-    <<"">>.
-
--spec does_user_exist(LUser :: jid:luser(),
-                     LServer :: jid:lserver()
-                     ) -> boolean() | {error, atom()}.
-does_user_exist(_LUser, _LServer) ->
+-spec does_user_exist(HostType :: mongooseim:host_type(),
+                      LUser :: jid:luser(),
+                      LServer :: jid:lserver()) -> boolean() | {error, atom()}.
+does_user_exist(_HostType, _LUser, _LServer) ->
     true.
 
-
-%% @doc Remove user.
-%% Note: it returns ok even if there was some problem removing the user.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver()
-                  ) -> ok | {error, not_allowed}.
-remove_user(_LUser, _LServer) ->
-    ok.
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
 
 %%%----------------------------------------------------------------------
 %%% Internal helpers
