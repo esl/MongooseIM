@@ -4,8 +4,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(AUTH_MOD, ejabberd_auth_external).
-
 all() ->
     [{group, no_cache}].
 
@@ -31,57 +29,58 @@ end_per_suite(C) ->
 
 init_per_group(G, Config) ->
     setup_meck(G, Config),
-    ejabberd_auth_external:start(domain()),
+    ejabberd_auth_external:start(host_type()),
     Config.
 
 end_per_group(G, Config) ->
-    ejabberd_auth_external:stop(domain()),
+    ejabberd_auth_external:stop(host_type()),
     unload_meck(G),
     Config.
 
 try_register_ok(_C) ->
     {U, P} = given_user_registered(),
-    true = ?AUTH_MOD:check_password(host_type(), U, domain(), P).
+    true = ejabberd_auth_external:check_password(host_type(), U, domain(), P).
 
 remove_user_ok(_C) ->
     {U, P} = given_user_registered(),
-    ok = ?AUTH_MOD:remove_user(U, domain()),
-    false = ?AUTH_MOD:check_password(host_type(), U, domain(), P).
+    ok = ejabberd_auth_external:remove_user(host_type(), U, domain()),
+    false = ejabberd_auth_external:check_password(host_type(), U, domain(), P).
 
 set_password_ok(_C) ->
     {U, P} = given_user_registered(),
     NewP = random_binary(7),
-    ok = ?AUTH_MOD:set_password(host_type(), U, domain(), NewP),
-    false = ?AUTH_MOD:check_password(host_type(), U, domain(), P),
-    true = ?AUTH_MOD:check_password(host_type(), U, domain(), NewP).
+    ok = ejabberd_auth_external:set_password(host_type(), U, domain(), NewP),
+    false = ejabberd_auth_external:check_password(host_type(), U, domain(), P),
+    true = ejabberd_auth_external:check_password(host_type(), U, domain(), NewP).
 
 does_user_exist(_C) ->
     {U, _P} = given_user_registered(),
-    true = ?AUTH_MOD:does_user_exist(U, domain()).
+    true = ejabberd_auth_external:does_user_exist(host_type(), U, domain()).
 
 get_password_returns_false_if_no_cache(_C) ->
-    false = ?AUTH_MOD:get_password(random_binary(8), domain()).
+    false = ejabberd_auth_external:get_password(host_type(), random_binary(8), domain()).
 
 get_password_s_returns_empty_bin_if_no_cache(_C) ->
-    <<"">> = ?AUTH_MOD:get_password_s(random_binary(8), domain()).
+    <<"">> = ejabberd_auth_external:get_password_s(host_type(), random_binary(8), domain()).
 
 supported_sasl_mechanisms(_C) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
                cyrsasl_scram_sha1, cyrsasl_scram_sha224, cyrsasl_scram_sha256,
                cyrsasl_scram_sha384, cyrsasl_scram_sha512],
     [true, false, false, false, false, false, false, false] =
-        [?AUTH_MOD:supports_sasl_module(domain(), Mod) || Mod <- Modules].
+        [ejabberd_auth_external:supports_sasl_module(domain(), Mod) || Mod <- Modules].
 
 given_user_registered() ->
     {U, P} = UP = gen_user(),
-    ok = ?AUTH_MOD:try_register(host_type(), U, domain(), P),
+    ok = ejabberd_auth_external:try_register(host_type(), U, domain(), P),
     UP.
 
 
 domain() ->
     <<"mim1.esl.com">>.
 
-host_type() -> domain().
+host_type() ->
+    <<"test host type">>.
 
 setup_meck(_G, Config) ->
     DataDir = ?config(data_dir, Config),
