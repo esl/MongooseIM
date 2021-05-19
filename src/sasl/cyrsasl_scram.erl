@@ -26,7 +26,8 @@ mech_new(LServer, Creds, #{sha := Sha,
     ChannelBinding = calculate_channel_binding(Socket, ScramPlus, Sha, AuthMech),
     Fun = fun(Username, St0) ->
                   JID = jid:make(Username, LServer, <<>>),
-                  case get_scram_attributes(JID, Sha) of
+                  HostType = mongoose_credentials:host_type(Creds),
+                  case get_scram_attributes(HostType, JID, Sha) of
                       {AuthModule, {StoredKey, ServerKey, Salt, ItCount}} ->
                           Creds1 = fast_scram:mech_get(creds, St0, Creds),
                           R = [{username, Username}, {auth_module, AuthModule}],
@@ -62,10 +63,10 @@ mech_step(State, ClientIn) ->
             {error, Reason}
     end.
 
--spec get_scram_attributes(jid:jid(), sha()) -> scram_att() | error().
-get_scram_attributes(JID, Sha) ->
-    case ejabberd_auth:get_passterm_with_authmodule(JID) of
-        {false, _} ->
+-spec get_scram_attributes(mongooseim:host_type(), jid:jid(), sha()) -> scram_att() | error().
+get_scram_attributes(HostType, JID, Sha) ->
+    case ejabberd_auth:get_passterm_with_authmodule(HostType, JID) of
+        false ->
             {UserName, _} = jid:to_lus(JID),
             {error, <<"not-authorized">>, UserName};
         {Params, AuthModule} ->

@@ -109,19 +109,20 @@ authorize_if_uri_valid(State, KeyVals, Nonce) ->
 maybe_authorize(UserName, KeyVals, Nonce, State) ->
     AuthzId = xml:get_attr_s(<<"authzid">>, KeyVals),
     LServer = mongoose_credentials:lserver(State#state.creds),
+    HostType = mongoose_credentials:host_type(State#state.creds),
     JID = jid:make(UserName, LServer, <<>>),
-    case ejabberd_auth:get_passterm_with_authmodule(JID) of
-        {false, _} ->
+    case ejabberd_auth:get_passterm_with_authmodule(HostType, JID) of
+        false ->
             {error, <<"not-authorized">>, UserName};
         {Passwd, AuthModule} ->
             DigestGen = fun(PW) -> response(KeyVals, UserName, PW, Nonce, AuthzId,
                                             <<"AUTHENTICATE">>)
                         end,
-            Request = mongoose_credentials:extend(State#state.creds,
-                                                  [{username, UserName},
-                                                   {password, <<>>},
-                                                   {digest, xml:get_attr_s(<<"response">>, KeyVals)},
-                                                   {digest_gen, DigestGen}]),
+            ExtraCreds = [{username, UserName},
+                          {password, <<>>},
+                          {digest, xml:get_attr_s(<<"response">>, KeyVals)},
+                          {digest_gen, DigestGen}],
+            Request = mongoose_credentials:extend(State#state.creds, ExtraCreds),
             do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, State)
     end.
 
@@ -139,10 +140,7 @@ do_authorize(UserName, KeyVals, Nonce, Passwd, Request, AuthzId, AuthModule, Sta
                          authzid = AuthzId,
                          creds = Result}};
       {error, not_authorized} ->
-            {error, <<"not-authorized">>, UserName};
-      {error, R} ->
-            ?LOG_DEBUG(#{what => unauthorized_login, reason => R, user => UserName}),
-            {error, <<"not-authorized">>}
+            {error, <<"not-authorized">>, UserName}
     end.
 
 -spec parse(binary()) -> 'bad' | [{binary(), binary()}].
