@@ -372,7 +372,7 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
     JID = mongoose_helper:make_jid(Username, Server),
-    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [JID]),
+    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [host_type(), JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->
@@ -463,6 +463,9 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
+
+host_type() ->
+    domain().
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

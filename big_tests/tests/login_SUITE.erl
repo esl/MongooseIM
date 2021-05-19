@@ -431,7 +431,7 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
     JID = mongoose_helper:make_jid(Username, Server),
-    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [JID]),
+    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [host_type(), JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 
@@ -504,3 +504,5 @@ restore_c2s(Config) ->
    {_, _, Opts} = C2SListener = proplists:get_value(c2s_listener, Config),
    mongoose_helper:restart_listener_with_opts(mim(), C2SListener, Opts).
 
+host_type() ->
+    ct:get_config({hosts, mim, domain}).
