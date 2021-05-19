@@ -1504,7 +1504,7 @@ save_unicode_messages(Config) ->
 stanza_id_is_appended_to_carbons(Config) ->
     F = fun(Alice1, Alice2, Bob1, Bob2) ->
         Msg = <<"OH, HAI!">>,
-        enable_carbons([Alice1, Alice2, Bob1, Bob2]),
+        mongoose_helper:enable_carbons([Alice1, Alice2, Bob1, Bob2]),
         escalus:send(Alice1, escalus_stanza:chat_to(Bob1, Msg)),
         mam_helper:wait_for_archive_size(Alice1, 1),
         escalus_client:wait_for_stanza(Bob1),
@@ -3160,11 +3160,3 @@ origin_id_to_retract(Config) ->
 
 origin_id() ->
     <<"orig-id-1">>.
-
-enable_carbons(Clients) when is_list(Clients) ->
-    lists:foreach(fun enable_carbons/1, Clients);
-enable_carbons(Client) ->
-    IqSet = escalus_stanza:carbons_enable(),
-    escalus_client:send(Client, IqSet),
-    Result = escalus_client:wait_for_stanza(Client),
-    escalus:assert(is_iq, [<<"result">>], Result).

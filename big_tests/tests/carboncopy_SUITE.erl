@@ -8,6 +8,7 @@
 -define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
 -define(BODY, <<"And pious action">>).
 
+-import(mongoose_helper, [enable_carbons/1, disable_carbons/1]).
 
 all() ->
     [{group, all}].
@@ -63,7 +64,7 @@ discovering_support(Config) ->
       end).
 
 enabling_carbons(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun enable_carbons/1).
+    escalus:fresh_story(Config, [{alice, 1}], fun mongoose_helper:enable_carbons/1).
 
 disabling_carbons(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
@@ -263,23 +264,6 @@ utterance() ->
        <<"Like to a step-dame or a dowager">>,
        <<"Long withering out a young man revenue.">>]).
 
-
-enable_carbons(Clients) when is_list(Clients) ->
-    lists:foreach(fun enable_carbons/1, Clients);
-enable_carbons(Client) ->
-    IqSet = escalus_stanza:carbons_enable(),
-    escalus_client:send(Client, IqSet),
-    Result = escalus_client:wait_for_stanza(Client),
-    escalus:assert(is_iq, [<<"result">>], Result).
-
-
-disable_carbons(Clients) when is_list(Clients) ->
-    lists:foreach(fun disable_carbons/1, Clients);
-disable_carbons(Client) ->
-    IqSet = escalus_stanza:carbons_disable(),
-    escalus_client:send(Client, IqSet),
-    Result = escalus_client:wait_for_stanza(Client),
-    escalus:assert(is_iq, [<<"result">>], Result).
 
 client_unsets_presence(Client) ->
     escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)).
