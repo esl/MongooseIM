@@ -32,36 +32,31 @@
          handle_cast/2, terminate/2, code_change/3]).
 
 %% External exports
--behaviour(ejabberd_gen_auth).
+-behaviour(mongoose_gen_auth).
+
 -export([start/1,
          stop/1,
          start_link/1,
          set_password/4,
          authorize/1,
          try_register/4,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         does_user_exist/2,
-         remove_user/2,
-         supports_sasl_module/2
+         get_registered_users/3,
+         get_registered_users_number/3,
+         does_user_exist/3,
+         remove_user/3,
+         supports_sasl_module/2,
+         supported_features/0
         ]).
 
 %% Internal
 -export([check_password/4,
          check_password/6]).
 
--export([config_change/4]).
-
 -include("mongoose.hrl").
 -include("eldap.hrl").
 
 -record(state,
-       {host = <<"">>          :: jid:lserver(),
+       {host_type              :: mongooseim:host_type(),
         eldap_id               :: {jid:lserver(), binary()},
         bind_eldap_id          :: {jid:lserver(), binary()},
         base = <<"">>          :: binary(),
@@ -95,13 +90,11 @@ start(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType]},
                  transient, 1000, worker, [?MODULE]},
-    ejabberd_hooks:add(host_config_update, HostType, ?MODULE, config_change, 50),
     ejabberd_sup:start_child(ChildSpec),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(host_config_update, HostType, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(HostType, ?MODULE),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc),
@@ -119,17 +112,10 @@ init(HostType) ->
     State = parse_options(HostType),
     {ok, State}.
 
--spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) -> true;
 supports_sasl_module(_, cyrsasl_external) -> true;
 supports_sasl_module(_, _) -> false.
-
-config_change(Acc, Host, ldap, _NewConfig) ->
-    stop(Host),
-    start(Host),
-    Acc;
-config_change(Acc, _, _, _) ->
-    Acc.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
@@ -144,8 +130,8 @@ authorize(Creds) ->
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(_HostType, _LUser, _LServer, <<"">>) -> false;
-check_password(_HostType, LUser, LServer, Password) ->
-    case catch check_password_ldap(LUser, LServer, Password) of
+check_password(HostType, LUser, LServer, Password) ->
+    case catch check_password_ldap(HostType, LUser, LServer, Password) of
         {'EXIT', _} -> false;
         Result -> Result
     end.
@@ -166,21 +152,21 @@ check_password(HostType, LUser, LServer, Password, _Digest,
                    LServer :: jid:lserver(),
                    Password :: binary())
       -> ok | {error, not_allowed | invalid_jid}.
-set_password(_HostType, LUser, LServer, Password) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
-    case find_user_dn(LUser, State) of
+set_password(HostType, LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
+    case find_user_dn(LUser, LServer, State) of
       false -> {error, user_not_found};
       DN ->
           eldap_pool:modify_passwd(State#state.eldap_id, DN,
                                    Password)
     end.
 
-
+%% TODO Support multiple domains
 -spec try_register(HostType :: mongooseim:host_type(), LUser :: jid:luser(),
                    LServer :: jid:lserver(), Password :: binary()) ->
     ok | {error, exists}.
-try_register(_HostType, LUser, LServer, Password) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+try_register(HostType, LUser, _LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
     UserStr = binary_to_list(LUser),
     DN = "cn=" ++ UserStr ++ ", " ++ binary_to_list(State#state.base),
     Attrs =   [{"objectclass", ["inetOrgPerson"]},
@@ -193,71 +179,46 @@ try_register(_HostType, LUser, LServer, Password) ->
         _ -> {error, exists}
     end.
 
-
--spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
-dirty_get_registered_users() ->
-    LServers = ejabberd_config:get_vh_by_auth_method(ldap),
-    lists:flatmap(fun (LServer) ->
-                          get_vh_registered_users(LServer)
-                  end,
-                  LServers).
-
-
--spec get_vh_registered_users(LServer :: jid:lserver()
-                             ) -> [jid:simple_bare_jid()].
-get_vh_registered_users(LServer) ->
-    case catch get_vh_registered_users_ldap(LServer) of
+-spec get_registered_users(HostType :: mongooseim:host_type(),
+                           LServer :: jid:lserver(),
+                           Opts :: list()) -> [jid:simple_bare_jid()].
+get_registered_users(HostType, LServer, _) ->
+    case catch get_registered_users_ldap(HostType, LServer) of
       {'EXIT', _} -> [];
       Result -> Result
     end.
 
 
--spec get_vh_registered_users(LServer :: jid:lserver(),
-                              Opts :: list()) -> [jid:simple_bare_jid()].
-get_vh_registered_users(LServer, _) ->
-    get_vh_registered_users(LServer).
+-spec get_registered_users_number(HostType :: mongooseim:host_type(),
+                                  LServer :: jid:lserver(),
+                                  Opts :: list()) -> non_neg_integer().
+get_registered_users_number(HostType, LServer, Opts) ->
+    length(get_registered_users(HostType, LServer, Opts)).
 
 
--spec get_vh_registered_users_number(LServer :: jid:lserver()) -> integer().
-get_vh_registered_users_number(LServer) ->
-    length(get_vh_registered_users(LServer)).
-
-
--spec get_vh_registered_users_number(LServer :: jid:lserver(),
-                                     Opts :: list()) -> integer().
-get_vh_registered_users_number(LServer, _) ->
-    get_vh_registered_users_number(LServer).
-
-
--spec get_password(LUser :: jid:luser(),
-                   LServer :: jid:lserver()) -> binary() | false.
-get_password(_LUser, _LServer) -> false.
-
-
--spec get_password_s(LUser :: jid:luser(),
-                     LServer :: jid:lserver()) -> binary().
-get_password_s(_LUser, _LServer) -> <<"">>.
-
-
--spec does_user_exist(LUser :: jid:luser(),
-                     LServer :: jid:lserver()
-                     ) -> boolean() | {error, atom()}.
-does_user_exist(LUser, LServer) ->
-    case catch is_user_exists_ldap(LUser, LServer) of
+-spec does_user_exist(HostType :: mongooseim:host_type(),
+                      LUser :: jid:luser(),
+                      LServer :: jid:lserver()) -> boolean() | {error, atom()}.
+does_user_exist(HostType, LUser, LServer) ->
+    case catch does_user_exist_in_ldap(HostType, LUser, LServer) of
       {'EXIT', Error} -> {error, Error};
       Result -> Result
     end.
 
 
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver()
-                  ) -> ok | {error, not_allowed}.
-remove_user(LUser, LServer) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
-    case find_user_dn(LUser, State) of
+-spec remove_user(HostType :: mongooseim:host_type(),
+                  LUser :: jid:luser(),
+                  LServer :: jid:lserver()) -> ok | {error, not_allowed}.
+remove_user(HostType, LUser, LServer) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
+    case find_user_dn(LUser, LServer, State) of
       false -> {error, not_allowed};
       DN -> eldap_pool:delete(State#state.eldap_id, DN)
     end.
+
+%% Multiple domains are not supported for in-band registration
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
@@ -272,18 +233,20 @@ verify_user_exists(Creds) ->
             error({nodeprep_error, User});
         LUser ->
             LServer = mongoose_credentials:lserver(Creds),
-            case does_user_exist(LUser, LServer) of
+            HostType = mongoose_credentials:host_type(Creds),
+            case does_user_exist(HostType, LUser, LServer) of
                 true -> {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])};
                 false -> {error, not_authorized}
             end
     end.
 
--spec check_password_ldap(LUser :: jid:luser(),
+-spec check_password_ldap(HostType :: mongooseim:host_type(),
+                          LUser :: jid:luser(),
                           LServer :: jid:lserver(),
                           Password :: binary()) -> boolean().
-check_password_ldap(LUser, LServer, Password) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
-    case find_user_dn(LUser, State) of
+check_password_ldap(HostType, LUser, LServer, Password) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
+    case find_user_dn(LUser, LServer, State) of
       false -> false;
       DN ->
           case eldap_pool:bind(State#state.bind_eldap_id, DN, Password) of
@@ -293,13 +256,11 @@ check_password_ldap(LUser, LServer, Password) ->
     end.
 
 
--spec get_vh_registered_users_ldap(LServer :: jid:lserver()
-                                  ) -> [jid:simple_bare_jid()].
-get_vh_registered_users_ldap(LServer) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
+-spec get_registered_users_ldap(mongooseim:host_type(), jid:lserver()) -> [jid:simple_bare_jid()].
+get_registered_users_ldap(HostType, LServer) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
     UIDs = State#state.uids,
     EldapID = State#state.eldap_id,
-    LServer = State#state.host,
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.sfilter) of
       {ok, EldapFilter} ->
@@ -322,7 +283,7 @@ get_users_from_ldap_entries(LDAPEntries, UIDs, LServer, State) ->
     lists:flatmap(
       fun(#eldap_entry{attributes = Attrs,
                        object_name = DN}) ->
-              case is_valid_dn(DN, Attrs, State) of
+              case is_valid_dn(DN, LServer, Attrs, State) of
                   false -> [];
                   _ ->
                       get_user_from_ldap_attributes(UIDs, Attrs, LServer)
@@ -344,11 +305,12 @@ get_user_from_ldap_attributes(UIDs, Attributes, LServer) ->
             end
     end.
 
--spec is_user_exists_ldap(LUser :: jid:luser(),
-                          LServer :: jid:lserver()) -> boolean().
-is_user_exists_ldap(LUser, LServer) ->
-    {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
-    case find_user_dn(LUser, State) of
+-spec does_user_exist_in_ldap(HostType :: mongooseim:host_type(),
+                              LUser :: jid:luser(),
+                              LServer :: jid:lserver()) -> boolean().
+does_user_exist_in_ldap(HostType, LUser, LServer) ->
+    {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
+    case find_user_dn(LUser, LServer, State) of
       false -> false;
       _DN -> true
     end.
@@ -362,8 +324,9 @@ handle_call(_Request, _From, State) ->
 
 
 -spec find_user_dn(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
                    State :: state()) -> 'false' | binary().
-find_user_dn(LUser, State) ->
+find_user_dn(LUser, LServer, State) ->
     ResAttrs = result_attrs(State),
     case eldap_filter:parse(State#state.ufilter,
                             [{<<"%u">>, LUser}])
@@ -378,7 +341,7 @@ find_user_dn(LUser, State) ->
                                      [#eldap_entry{attributes = Attrs,
                                                    object_name = DN}
                                       | _]} ->
-                dn_filter(DN, Attrs, State);
+                dn_filter(DN, LServer, Attrs, State);
             _ -> false
           end;
       _ -> false
@@ -387,21 +350,23 @@ find_user_dn(LUser, State) ->
 
 %% @doc apply the dn filter and the local filter:
 -spec dn_filter(DN :: binary(),
+                LServer :: jid:lserver(),
                 Attrs :: [{binary(), [any()]}],
                 State :: state()) -> 'false' | binary().
-dn_filter(DN, Attrs, State) ->
+dn_filter(DN, LServer, Attrs, State) ->
     case check_local_filter(Attrs, State) of
       false -> false;
-      true -> is_valid_dn(DN, Attrs, State)
+      true -> is_valid_dn(DN, LServer, Attrs, State)
     end.
 
 
 %% @doc Check that the DN is valid, based on the dn filter
 -spec is_valid_dn(DN :: binary(),
+                  LServer :: jid:lserver(),
                   Attrs :: [{binary(), [any()]}],
                   State :: state()) -> 'false' | binary().
-is_valid_dn(DN, _, #state{dn_filter = undefined}) -> DN;
-is_valid_dn(DN, Attrs, State) ->
+is_valid_dn(DN, _LServer, _, #state{dn_filter = undefined}) -> DN;
+is_valid_dn(DN, LServer, Attrs, State) ->
     DNAttrs = State#state.dn_filter_attrs,
     UIDs = State#state.uids,
     Values = [{<<"%s">>,
@@ -417,7 +382,7 @@ is_valid_dn(DN, Attrs, State) ->
                           _ -> Values
                         end
                   end
-                    ++ [{<<"%d">>, State#state.host}, {<<"%D">>, DN}],
+                    ++ [{<<"%d">>, LServer}, {<<"%D">>, DN}],
     case eldap_filter:parse(State#state.dn_filter,
                             SubstValues)
         of
@@ -492,7 +457,7 @@ parse_options(HostType) ->
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
     {DNFilter, DNFilterAttrs} = eldap_utils:get_dn_filter_with_attrs(Opts),
     LocalFilter = eldap_utils:get_mod_opt(ldap_local_filter, Opts),
-    #state{host = HostType,
+    #state{host_type = HostType,
            eldap_id = {HostType, EldapID},
            bind_eldap_id = {HostType, BindEldapID},
            base = Base,
