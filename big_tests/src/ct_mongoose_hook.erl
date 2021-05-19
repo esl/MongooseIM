@@ -134,14 +134,15 @@ check_server_purity(Suite, Config) ->
 
 do_check_server_purity(_Suite) ->
     Funs = [fun check_sessions/0,
-        fun check_registered_users/0,
-        fun check_registered_users_count/0,
-        fun check_offline_messages/0,
-        fun check_active_users/0,
-        fun check_privacy/0,
-        fun check_private/0,
-        fun check_vcard/0,
-        fun check_roster/0],
+            fun check_registered_users/0,
+            fun check_registered_users_count/0,
+            fun check_offline_messages/0,
+            fun check_active_users/0,
+            fun check_privacy/0,
+            fun check_private/0,
+            fun check_vcard/0,
+            fun check_roster/0,
+            fun check_carboncopy/0],
     lists:flatmap(fun(F) -> F() end, Funs).
 
 check_sessions() ->
@@ -151,16 +152,21 @@ check_sessions() ->
     end.
 
 check_registered_users() ->
-    case rpc(mim(), ejabberd_auth, dirty_get_registered_users, []) of
-        [] -> [];
-        Users -> [{registered_users, Users}]
-    end.
+    lists:flatmap(fun check_registered_users/1, mim_domains()).
 
 check_registered_users_count() ->
-    D = ct:get_config({hosts, mim, domain}),
-    case rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [D]) of
+    lists:flatmap(fun check_registered_users_count/1, mim_domains()).
+
+check_registered_users(Domain) ->
+    case rpc(mim(), ejabberd_auth, get_vh_registered_users, [Domain]) of
+        [] -> [];
+        Users -> [{registered_users, Domain, Users}]
+    end.
+
+check_registered_users_count(Domain) ->
+    case rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [Domain]) of
         0 -> [];
-        N -> [{registered_users_count, N}]
+        N -> [{registered_users_count, Domain, N}]
     end.
 
 check_offline_messages() ->
@@ -202,3 +208,7 @@ do_check_carboncopy() ->
         [] -> [];
         L -> [{remaining_carbon_copy_settings, L}]
     end.
+
+mim_domains() ->
+    [ct:get_config({hosts, mim, domain}),
+     ct:get_config({hosts, mim, secondary_domain})].
