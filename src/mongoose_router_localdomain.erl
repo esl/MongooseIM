@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @doc
 %%% Part of a routing chain: searches for a route registered for the domain,
-%%% forwards the messge there, or passes on.
+%%% forwards the message there, or passes on.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_router_localdomain).

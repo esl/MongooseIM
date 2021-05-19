@@ -104,7 +104,7 @@ handle_cast({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
 handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, IQHandler}] ->
-            gen_iq_componentr:stop_iq_handler(IQHandler),
+            gen_iq_component:stop_iq_handler(IQHandler),
             ets:delete(tbl_name(), {XMLNS, Host});
         _ ->
             ok

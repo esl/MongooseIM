@@ -2,7 +2,7 @@
 %%% @doc
 %%% this router should be tried in the very end, but before s2s.
 %%% it checks if destination domain is configured dynamically,
-%%% if it is so - the router adds domain fo the routing table,
+%%% if it is so - the router adds domain to the routing table,
 %%% and retries local routing.
 %%%
 %%% this ensures lazy dynamic domains registration in the routing

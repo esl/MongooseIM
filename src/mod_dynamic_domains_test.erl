@@ -33,21 +33,22 @@ start(HostType, Opts) ->
     Namespace = gen_mod:get_opt(namespace, Opts),
 
     %% if we need to intercept traffic to some subdomain, we can create custom packet
-    %% handler and register it. not that IQ will be delivered to this packet handler
-    %% as well
+    %% handler and register it. note that IQs will be delivered to this packet handler
+    %% as well, even if an IQ handler is registered for the same subdomain. IQ handler
+    %% doesn't work at all if the IQ packet is not routed to the corresponding component.
     SubdomainPattern1 = gen_mod:get_opt(host1, Opts),
     Handler1 = mongoose_packet_handler:new(?MODULE),
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern1, Handler1),
-    %% the call below makes no sense, it's added for demo/testing purposes only
-    %% all the IQs for SubdomainPattern1 will go to process_packet/5 function
+    %% the call below is added for the demo & testing purposes, all the IQs sent for
+    %% SubdomainPattern1 will go only to the process_packet/5 function.
     gen_iq_handler:add_iq_handler_for_subdomain(HostType, SubdomainPattern1,
                                                 Namespace, ejabberd_local,
                                                 fun ?MODULE:process_iq/5,
                                                 #{handler_type => subdomain},
                                                 one_queue),
 
-    %% if we want to just process IQ sent to some subdomain, and we don't care about
-    %% all other messages, then we can use `ejabberd_local` packet handler for such
+    %% If we want to just process IQs sent to some subdomain, and we don't care about
+    %% any other messages, then we can use `ejabberd_local` packet handler for such
     %% subdomain and register IQ handler in the similar way as we do for domains.
     SubdomainPattern2 = gen_mod:get_opt(host2, Opts),
     Handler2 = mongoose_packet_handler:new(ejabberd_local),

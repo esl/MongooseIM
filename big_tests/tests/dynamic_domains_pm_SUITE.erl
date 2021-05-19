@@ -5,8 +5,8 @@
 %% API
 -compile(export_all).
 -import(distributed_helper, [mim/0, mim2/0, rpc/4,
-require_rpc_nodes/1,
-subhost_pattern/1]).
+                             require_rpc_nodes/1,
+                             subhost_pattern/1]).
 
 -define(TEST_NODES, [mim() | ?CLUSTER_NODES]).
 -define(CLUSTER_NODES, [mim2()]).
@@ -111,7 +111,7 @@ test_routing(Config) ->
             %% check that process_iq/5 is called from one and the same worker process
             History = rpc(mim(), meck, history, [mod_dynamic_domains_test]),
             rpc(mim(), meck, reset, [mod_dynamic_domains_test]),
-            Pids = [Pid||{Pid,{_,process_iq,_},_}<-History],
+            Pids = [Pid || {Pid, {_, process_iq, _}, _} <- History],
             [_] = (lists:usort(Pids)),
 
             Subdomains2 = [<<"subdomain2.", Domain/binary>> || Domain <- ?DOMAINS],
@@ -143,6 +143,3 @@ uncluster_nodes([], Config) -> Config;
 uncluster_nodes([Node | T], Config) ->
     NewConfig = distributed_helper:remove_node_from_cluster(Node, Config),
     cluster_nodes(T, NewConfig).
-
-dump_ets_tables(Tables) ->
-    [ct:pal("!!! ~p = ~p~n", [T, rpc(mim(), ets, tab2list, [T])]) || T <- Tables].

@@ -6,24 +6,24 @@
 %% Types
 %%----------------------------------------------------------------------
 
--record(iq_handler, {iq_handler_fn :: iq_handler(),
+-record(iq_handler, {handler_fn :: handler_fn(),
                      extra :: map(),
                      execution_method :: execution_method()}).
 
 -type t() :: #iq_handler{}.
 
--type  iq_handler() :: fun((Acc :: mongoose_acc:t(),
-                            From :: jid:jid(),
-                            To :: jid:jid(),
-                            IQ :: jlib:iq(),
-                            Extra :: map()) -> {NewAcc :: mongoose_acc:t(),
-                                                IQResp :: ignore | jlib:iq()}).
+-type handler_fn() :: fun((Acc :: mongoose_acc:t(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
+                           IQ :: jlib:iq(),
+                           Extra :: map()) -> {NewAcc :: mongoose_acc:t(),
+                                               IQResp :: ignore | jlib:iq()}).
 
 -type execution_method() :: no_queue | parallel | {one_queue, pid()} | {queues, [pid()]}.
 
 -type execution_type() :: no_queue | parallel | one_queue  | {queues, pos_integer()}.
 
--export_type([t/0, iq_handler/0, execution_type/0]).
+-export_type([t/0, handler_fn/0, execution_type/0]).
 
 %%----------------------------------------------------------------------
 %% API
@@ -37,12 +37,12 @@
 %% Getters
 -export([module/1, extra/1]).
 
--spec new(IQHandlerFn :: iq_handler(),
+-spec new(IQHandlerFn :: handler_fn(),
           Extra :: map(),
           ExecutionType :: execution_type()) -> t().
 new(IQHandlerFn, Extra, ExecutionType) ->
     ExecutionMethod = execution_method(ExecutionType),
-    #iq_handler{iq_handler_fn = IQHandlerFn, extra = Extra,
+    #iq_handler{handler_fn = IQHandlerFn, extra = Extra,
                 execution_method = ExecutionMethod}.
 
 -spec delete(IQHandler :: t()) -> ok.
@@ -56,14 +56,14 @@ delete(#iq_handler{execution_method = ExecutionMethod}) ->
     end.
 
 -spec module(t()) -> module().
-module(#iq_handler{iq_handler_fn = Fn}) ->
+module(#iq_handler{handler_fn = Fn}) ->
     {module, Mod} = erlang:fun_info(Fn, module),
     Mod.
 
 -spec process_iq(Handler :: t(),
                  Acc :: mongoose_acc:t(),
-                 From ::jid:jid(),
-                 To ::jid:jid(),
+                 From :: jid:jid(),
+                 To :: jid:jid(),
                  IQ :: jlib:iq()) -> mongoose_acc:t().
 process_iq(#iq_handler{execution_method = ExecutionMethod} = Handler,
            Acc, From, To, IQ) ->
@@ -90,15 +90,15 @@ extra(#iq_handler{ extra = Extra }) ->
 add_extra(#iq_handler{ extra = OldExtra } = Handler, Extra) ->
     %% KV pairs from the OldExtra map will remain unchanged, only
     %% the new keys from Extra map will be added to the NewExtra map
-    NewExtra = maps:merge(Extra,OldExtra),
-    Handler#iq_handler{extra=NewExtra}.
+    NewExtra = maps:merge(Extra, OldExtra),
+    Handler#iq_handler{extra = NewExtra}.
 
 -spec execute_handler(Handler :: t(),
                       Acc :: mongoose_acc:t(),
-                      From ::jid:jid(),
-                      To ::jid:jid(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
                       IQ :: jlib:iq()) -> mongoose_acc:t().
-execute_handler(#iq_handler{iq_handler_fn = IQHandlerFn, extra = Extra},
+execute_handler(#iq_handler{handler_fn = IQHandlerFn, extra = Extra},
                 Acc, From, To, IQ) ->
     try IQHandlerFn(Acc, From, To, IQ, Extra) of
         {Acc1, ignore} ->

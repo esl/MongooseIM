@@ -63,5 +63,5 @@ extra(#packet_handler{ extra = Extra }) ->
 add_extra(#packet_handler{ extra = OldExtra } = Handler, Extra) ->
     %% KV pairs from the OldExtra map will remain unchanged, only
     %% the new keys from Extra map will be added to the NewExtra map
-    NewExtra = maps:merge(Extra,OldExtra),
-    Handler#packet_handler{extra=NewExtra}.
+    NewExtra = maps:merge(Extra, OldExtra),
+    Handler#packet_handler{extra = NewExtra}.

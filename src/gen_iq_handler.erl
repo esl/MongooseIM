@@ -44,7 +44,7 @@
 %% Old API. Get rid of it once all the modules adopted.
 %%====================================================================
 -spec add_iq_handler(Component :: module(),
-                     Domain :: jid:server(),
+                     Domain :: jid:lserver(),
                      Namespace :: binary(),
                      Module :: atom(),
                      Function :: atom(),
@@ -55,9 +55,8 @@ add_iq_handler(Component, Domain, Namespace, Module, Function, ExecutionType) ->
     IQHandler = mongoose_iq_handler:new(IQHandlerFn, Extra, ExecutionType),
     gen_iq_component:register_iq_handler(Component, Domain, Namespace, IQHandler).
 
-
 -spec remove_iq_handler(Component :: module(),
-                        Domain :: jid:server(),
+                        Domain :: jid:lserver(),
                         Namespace :: binary()) -> any().
 remove_iq_handler(Component, Domain, Namespace) ->
     gen_iq_component:unregister_iq_handler(Component, Domain, Namespace).
@@ -69,14 +68,13 @@ check_type(one_queue) -> one_queue;
 check_type({queues, Int}) when is_integer(Int), Int > 0 ->
     {queues, Int}.
 
-
 %%====================================================================
 %% New API.
 %%====================================================================
 -spec add_iq_handler_for_domain(HostType :: mongooseim:host_type(),
                                 Namespace :: binary(),
                                 Component :: module(),
-                                IQHandlerFn :: mongoose_iq_handler:iq_handler(),
+                                IQHandlerFn :: mongoose_iq_handler:handler_fn(),
                                 Extra :: map(),
                                 ExecutionType :: execution_type()) ->
     ok | {error, atom()}.
@@ -92,7 +90,7 @@ add_iq_handler_for_domain(HostType, Namespace, Component, IQHandlerFn,
                                    SubdomainPattern :: subdomain_pattern(),
                                    Namespace :: binary(),
                                    Component :: module(),
-                                   IQHandlerFn :: mongoose_iq_handler:iq_handler(),
+                                   IQHandlerFn :: mongoose_iq_handler:handler_fn(),
                                    Extra :: map(),
                                    ExecutionType :: execution_type()) ->
     ok | {error, atom()}.
@@ -133,7 +131,7 @@ remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, Component
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec make_iq_handler_fn(module(), atom()) -> mongoose_iq_handler:iq_handler().
+-spec make_iq_handler_fn(module(), atom()) -> mongoose_iq_handler:handler_fn().
 make_iq_handler_fn(Module, Function) ->
     %TODO: remove this function with removal of the old API
     fun(Acc, From, To, IQ, _Extra) ->

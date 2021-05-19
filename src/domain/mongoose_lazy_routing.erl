@@ -1,4 +1,19 @@
 %% Generally, you should not call anything from this module directly.
+%%
+%% This module works together with mongoose_router_dynamic_domains.
+%% The lazy registration approach helps to speed up initialisation
+%% of the new node in a cluster with a large number of dynamically
+%% configured domains.
+%%
+%% In addition to dynamic domains/subdomains tracking, this module
+%% is also responsible for the lazy IQ handlers registration for the
+%% added domains/subdomains.
+%%
+%% while registration is done in a lazy manner, removal of domains,
+%% subdomain and corresponding IQ handlers is triggered immediately
+%% once domain or subdomain deleted from mongoose_subdomain_core or
+%% mongoose_domain_core ETS table.
+
 -module(mongoose_lazy_routing).
 -behaviour(gen_server).
 
@@ -41,8 +56,8 @@
 -type host_type() :: mongooseim:host_type().
 -type domain() :: mongooseim:domain_name().
 
--type iq_record() :: {#iq_table_key{}, mongoose_iq_handler:t()}.
--type domain_record() :: {domain(), host_type() | {host_type(), subdomain_pattern()}}.
+-type iq_entry() :: {#iq_table_key{}, mongoose_iq_handler:t()}.
+-type domain_entry() :: {domain(), host_type() | {host_type(), subdomain_pattern()}}.
 
 
 %%--------------------------------------------------------------------
@@ -77,8 +92,13 @@ start_link() ->
 
 -spec maybe_add_domain_or_subdomain(mongooseim:domain()) -> boolean().
 maybe_add_domain_or_subdomain(Domain) ->
-    %% it can be domain or subdomain name
-    gen_server:call(?MODULE, {maybe_add_domain_or_subdomain, Domain}).
+    %% don't run gen_server:call/2 if this domain name is unknown.
+    case mongoose_domain_api:get_host_type(Domain) of
+        {ok, _} ->
+            gen_server:call(?MODULE, {maybe_add_domain_or_subdomain, Domain});
+        {error, not_found} ->
+            false
+    end.
 
 -spec maybe_remove_domain(mongooseim:host_type(), mongooseim:domain()) -> ok.
 maybe_remove_domain(HostType, Domain) ->
@@ -347,23 +367,23 @@ handle_maybe_remove_subdomain(#{subdomain := Subdomain, host_type := HostType,
         _ -> ok
     end.
 
--spec get_iqs(#iq_table_key{}) -> [iq_record()].
+-spec get_iqs(#iq_table_key{}) -> [iq_entry()].
 get_iqs(KeyMatchPattern) ->
     ets:match_object(?IQ_TABLE, {KeyMatchPattern, '_'}).
 
--spec register_iqs([iq_record()], [domain_record()]) -> ok.
+-spec register_iqs([iq_entry()], [domain_entry()]) -> ok.
 register_iqs(IQList, DomainList) ->
     [register_iq(IQ, Domain) || IQ <- IQList, Domain <- DomainList,
                                 check_that_domain_and_iq_match(IQ, Domain)],
     ok.
 
--spec unregister_iqs([iq_record()], [domain_record()]) -> ok.
+-spec unregister_iqs([iq_entry()], [domain_entry()]) -> ok.
 unregister_iqs(IQList, DomainList) ->
     [unregister_iq(IQ, Domain) || IQ <- IQList, Domain <- DomainList,
                                   check_that_domain_and_iq_match(IQ, Domain)],
     ok.
 
--spec check_that_domain_and_iq_match(iq_record(), domain_record()) -> boolean().
+-spec check_that_domain_and_iq_match(iq_entry(), domain_entry()) -> boolean().
 check_that_domain_and_iq_match({#iq_table_key{host_type = HostType,
                                               subdomain_pattern = undefined,
                                               namespace = Namespace,
@@ -383,14 +403,14 @@ check_that_domain_and_iq_match(IQ, Domain) ->
     ?LOG_ERROR(#{what => domain_and_iq_doesnt_match, domain => Domain, iq => IQ}),
     false.
 
--spec register_iq(iq_record(), domain_record()) -> ok.
+-spec register_iq(iq_entry(), domain_entry()) -> ok.
 register_iq({#iq_table_key{namespace = Namespace,
                            component = Component}, IQHandler},
             {Domain, _})->
     gen_iq_component:register_iq_handler(Component, Domain, Namespace, IQHandler),
     gen_iq_component:sync(Component).
 
--spec unregister_iq(iq_record(), domain_record()) -> ok.
+-spec unregister_iq(iq_entry(), domain_entry()) -> ok.
 unregister_iq({#iq_table_key{namespace = Namespace,
                              component = Component}, _},
               {Domain, _}) ->

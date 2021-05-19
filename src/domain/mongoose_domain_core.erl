@@ -202,8 +202,8 @@ handle_delete(Domain) ->
             ok;
         [{Domain, HostType, _Source}] ->
             ets:delete(?TABLE, Domain),
-            mongoose_subdomain_core:remove_domain(HostType, Domain),
             mongoose_lazy_routing:maybe_remove_domain(HostType, Domain),
+            mongoose_subdomain_core:remove_domain(HostType, Domain),
             ok
     end.
 
