@@ -263,7 +263,7 @@ hooks(Host, MUCHost) ->
 %%====================================================================
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                     El :: exml:element(), Extra :: any()) -> any().
+                     El :: exml:element(), Extra :: map()) -> any().
 process_packet(Acc, From, To, El, _Extra) ->
     process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), Acc, El).
 

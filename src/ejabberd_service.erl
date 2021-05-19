@@ -133,8 +133,8 @@ socket_type() ->
 %%%----------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-    El :: exml:element(), Pid :: pid()) -> any().
-process_packet(Acc, From, To, _El, Pid) ->
+    El :: exml:element(), #{pid := pid()}) -> any().
+process_packet(Acc, From, To, _El, #{pid := Pid}) ->
     Pid ! {route, From, To, Acc}.
 
 %%%----------------------------------------------------------------------
@@ -475,7 +475,7 @@ routes_info_to_pids(RoutesInfo) ->
     %% Flatten the list of lists
     ExtComponents = lists:append(ExtComponentsPerHost),
     %% Ignore handlers from other modules
-    [mongoose_packet_handler:extra(H)
+    [maps:get(pid, mongoose_packet_handler:extra(H))
      || #external_component{handler = H} <- ExtComponents,
         mongoose_packet_handler:module(H) =:= ?MODULE].
 
@@ -508,7 +508,7 @@ lookup_routes(StateData) ->
 -spec register_routes(state()) -> any().
 register_routes(StateData = #state{hidden_components = AreHidden}) ->
     Routes = get_routes(StateData),
-    Handler = mongoose_packet_handler:new(?MODULE, self()),
+    Handler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
     ejabberd_router:register_components(Routes, node(), Handler, AreHidden).
 
 -spec unregister_routes(state()) -> any().

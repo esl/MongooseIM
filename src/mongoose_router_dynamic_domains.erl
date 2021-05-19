@@ -2,7 +2,7 @@
 %%% @doc
 %%% this router should be tried in the very end, but before s2s.
 %%% it checks if destination domain is configured dynamically,
-%%% if it is so - the router adds domain fo the routing table,
+%%% if it is so - the router adds domain to the routing table,
 %%% and retries local routing.
 %%%
 %%% this ensures lazy dynamic domains registration in the routing
@@ -10,7 +10,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mongoose_router_dynamic_domains).
--author('bartlomiej.gorny@erlang-solutions.com').
 
 -behaviour(xmpp_router).
 
@@ -27,10 +26,9 @@ filter(From, To, Acc, Packet) ->
 
 route(From, To, Acc, Packet) ->
     LDstDomain = To#jid.lserver,
-    case mongoose_domain_api:get_host_type(LDstDomain) of
-        {ok, _} ->
-            ejabberd_local:register_host(LDstDomain),
+    case mongoose_lazy_routing:maybe_add_domain_or_subdomain(LDstDomain) of
+        true ->
             mongoose_router_localdomain:route(From, To, Acc, Packet);
-        {error, not_found} -> {From, To, Acc, Packet}
+        false -> {From, To, Acc, Packet}
     end.
 

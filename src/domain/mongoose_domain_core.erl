@@ -1,6 +1,8 @@
 %% Generally, you should not call anything from this module.
 %% Use mongoose_domain_api module instead.
 -module(mongoose_domain_core).
+-behaviour(gen_server).
+
 -include("mongoose_logger.hrl").
 
 %% required for ets:fun2ms/1 pseudo function
@@ -37,6 +39,7 @@
 -type domain() :: mongooseim:domain_name().
 
 -ifdef(TEST).
+
 %% required for unit tests
 start(Pairs, AllowedHostTypes) ->
     just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [Pairs, AllowedHostTypes], [])).
@@ -123,6 +126,7 @@ get_start_args() ->
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
+%%--------------------------------------------------------------------
 init([Pairs, AllowedHostTypes]) ->
     ets:new(?TABLE, [set, named_table, protected, {read_concurrency, true}]),
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
@@ -198,8 +202,8 @@ handle_delete(Domain) ->
             ok;
         [{Domain, HostType, _Source}] ->
             ets:delete(?TABLE, Domain),
+            mongoose_lazy_routing:maybe_remove_domain(HostType, Domain),
             mongoose_subdomain_core:remove_domain(HostType, Domain),
-            mongoose_hooks:disable_domain(HostType, Domain),
             ok
     end.
 

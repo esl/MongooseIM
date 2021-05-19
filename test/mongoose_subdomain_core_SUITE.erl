@@ -33,10 +33,10 @@ all() ->
      detects_domain_conflict_with_fqdn_subdomain].
 
 init_per_suite(Config) ->
-    meck:new(mongoose_hooks, [no_link]),
+    meck:new(mongoose_lazy_routing, [no_link]),
     meck:new(mongoose_subdomain_core, [no_link, passthrough]),
-    meck:expect(mongoose_hooks, disable_domain, fun(_, _) -> ok end),
-    meck:expect(mongoose_hooks, disable_subdomain, fun(_, _) -> ok end),
+    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
+    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, fun(_) -> ok end),
     Config.
 
 end_per_suite(Config) ->
@@ -54,7 +54,7 @@ init_per_testcase(_, Config) ->
     ok = mongoose_subdomain_core:start(),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],
-    [meck:reset(M) || M <- [mongoose_hooks, mongoose_subdomain_core]],
+    [meck:reset(M) || M <- [mongoose_lazy_routing, mongoose_subdomain_core]],
     Config.
 
 end_per_testcase(_, Config) ->
@@ -102,12 +102,14 @@ can_register_and_unregister_subdomain_for_dynamic_host_type_with_domains(_Config
     ?assertEqualLists(Subdomains1 ++ Subdomains2, get_all_subdomains()),
     %% check mongoose_subdomain_core:get_all_subdomains_for_domain/1 interface.
     [DynamicDomain | _] = ?DYNAMIC_DOMAINS,
+    HostTypeExtra = #{host_type => ?DYNAMIC_HOST_TYPE2},
+    HandlerWithHostType = mongoose_packet_handler:add_extra(Handler, HostTypeExtra),
     ?assertEqualLists(
         [#{host_type => ?DYNAMIC_HOST_TYPE2, subdomain_pattern => Pattern1,
-           parent_domain => DynamicDomain, packet_handler => Handler,
+           parent_domain => DynamicDomain, packet_handler => HandlerWithHostType,
            subdomain => mongoose_subdomain_utils:get_fqdn(Pattern1, DynamicDomain)},
          #{host_type => ?DYNAMIC_HOST_TYPE2, subdomain_pattern => Pattern2,
-           parent_domain => DynamicDomain, packet_handler => Handler,
+           parent_domain => DynamicDomain, packet_handler => HandlerWithHostType,
            subdomain => mongoose_subdomain_utils:get_fqdn(Pattern2, DynamicDomain)}],
         mongoose_subdomain_core:get_all_subdomains_for_domain(DynamicDomain)),
     %% unregister (previously registered) subdomains one by one.
@@ -186,12 +188,14 @@ can_register_and_unregister_fqdn_for_dynamic_host_type_with_domains(_Config) ->
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE2,
                                                                 Pattern2, Handler)),
     ?assertEqualLists([<<"some.fqdn">>, <<"another.fqdn">>], get_all_subdomains()),
+    HostTypeExtra = #{host_type => ?DYNAMIC_HOST_TYPE2},
+    HandlerWithHostType = mongoose_packet_handler:add_extra(Handler, HostTypeExtra),
     ?assertEqualLists(
         [#{host_type => ?DYNAMIC_HOST_TYPE2, parent_domain => no_parent_domain,
-           subdomain_pattern => Pattern1, packet_handler => Handler,
+           subdomain_pattern => Pattern1, packet_handler => HandlerWithHostType,
            subdomain => <<"some.fqdn">>},
          #{host_type => ?DYNAMIC_HOST_TYPE2, parent_domain => no_parent_domain,
-           subdomain_pattern => Pattern2, packet_handler => Handler,
+           subdomain_pattern => Pattern2, packet_handler => HandlerWithHostType,
            subdomain => <<"another.fqdn">>}],
         mongoose_subdomain_core:get_all_subdomains_for_domain(no_parent_domain)),
     %% unregister (previously registered) subdomains one by one.
@@ -256,17 +260,23 @@ can_get_host_type_and_subdomain_details(_Config) ->
                  mongoose_subdomain_core:get_host_type(Subdomain2)),
     ?assertEqual({error, not_found},
                  mongoose_subdomain_core:get_host_type(<<"unknown.subdomain">>)),
+    HostTypeExtra1 = #{host_type => ?STATIC_HOST_TYPE},
+    HandlerWithHostType1 = mongoose_packet_handler:add_extra(Handler, HostTypeExtra1),
     ?assertEqual({ok, #{host_type => ?STATIC_HOST_TYPE, subdomain_pattern => Pattern1,
-                        parent_domain => ?STATIC_DOMAIN, packet_handler => Handler,
-                        subdomain => Subdomain1}},
+                        parent_domain => ?STATIC_DOMAIN, subdomain => Subdomain1,
+                        packet_handler => HandlerWithHostType1}},
                  mongoose_subdomain_core:get_subdomain_info(Subdomain1)),
+    HostTypeExtra2 = #{host_type => ?DYNAMIC_HOST_TYPE1},
+    HandlerWithHostType2 = mongoose_packet_handler:add_extra(Handler, HostTypeExtra2),
     ?assertEqual({ok, #{host_type => ?DYNAMIC_HOST_TYPE1, subdomain_pattern => Pattern2,
-                        parent_domain => no_parent_domain, packet_handler => Handler,
-                        subdomain => <<"some.fqdn">>}},
+                        parent_domain => no_parent_domain, subdomain => <<"some.fqdn">>,
+                        packet_handler => HandlerWithHostType2}},
                  mongoose_subdomain_core:get_subdomain_info(<<"some.fqdn">>)),
+    HostTypeExtra3 = #{host_type => ?DYNAMIC_HOST_TYPE2},
+    HandlerWithHostType3 = mongoose_packet_handler:add_extra(Handler, HostTypeExtra3),
     ?assertEqual({ok, #{host_type => ?DYNAMIC_HOST_TYPE2, subdomain_pattern => Pattern1,
-                        parent_domain => hd(?DYNAMIC_DOMAINS), packet_handler => Handler,
-                        subdomain => Subdomain2}},
+                        parent_domain => hd(?DYNAMIC_DOMAINS), subdomain => Subdomain2,
+                        packet_handler => HandlerWithHostType3}},
                  mongoose_subdomain_core:get_subdomain_info(Subdomain2)),
     ?assertEqual({error, not_found},
                  mongoose_subdomain_core:get_subdomain_info(<<"unknown.subdomain">>)),
@@ -307,7 +317,7 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
                              || Domain <- AllDomains],
     ?assertEqualLists(AllExpectedSubDomains, Subdomains),
     ?assertEqual(NumOfDomainsToRemove,
-                 meck:num_calls(mongoose_hooks, disable_subdomain, 2)),
+                 meck:num_calls(mongoose_lazy_routing, maybe_remove_subdomain, 1)),
 
     no_collisions(),
     meck:unload(mongoose_domain_core).
@@ -355,7 +365,7 @@ prevents_double_subdomain_registration(_Config) ->
 prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("sub.@HOST@"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("sub.domain.@HOST@"),
-    Handler = mongoose_packet_handler:new(?MODULE),
+    Handler = mongoose_packet_handler:new(?MODULE, #{host_type => dummy_type}),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
@@ -393,7 +403,7 @@ prevents_prefix_subdomain_overriding_by_prefix_subdomain(_Config) ->
 prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
-    Handler = mongoose_packet_handler:new(?MODULE),
+    Handler = mongoose_packet_handler:new(?MODULE, #{host_type => dummy_type}),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
@@ -424,7 +434,7 @@ prevents_fqdn_subdomain_overriding_by_prefix_subdomain(_Config) ->
 
 prevents_fqdn_subdomain_overriding_by_fqdn_subdomain(_Config) ->
     Pattern = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
-    Handler = mongoose_packet_handler:new(?MODULE),
+    Handler = mongoose_packet_handler:new(?MODULE, #{host_type => dummy_type}),
     %% FQDN subdomain conflicts with another FQDN subdomain
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern, Handler)),
@@ -456,7 +466,7 @@ prevents_fqdn_subdomain_overriding_by_fqdn_subdomain(_Config) ->
 prevents_prefix_subdomain_overriding_by_fqdn_subdomain(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.@HOST@"),
     Pattern2 = mongoose_subdomain_utils:make_subdomain_pattern("subdomain.fqdn"),
-    Handler = mongoose_packet_handler:new(?MODULE),
+    Handler = mongoose_packet_handler:new(?MODULE, #{host_type => dummy_type}),
     %% FQDN subdomain conflicts with another FQDN subdomain
     ?assertEqual(ok, mongoose_subdomain_core:register_subdomain(?DYNAMIC_HOST_TYPE1,
                                                                 Pattern1, Handler)),
@@ -639,6 +649,7 @@ get_list_of_subdomain_collisions() ->
               From =:= report_subdomains_collision].
 
 get_list_of_disabled_subdomains() ->
-    History = meck:history(mongoose_hooks),
-    [lists:nth(2, Args) %% Subdomain is the second argument
-     || {_Pid, {_Mod, disable_subdomain = _Func, Args}, _Result} <- History].
+    History = meck:history(mongoose_lazy_routing),
+    [maps:get(subdomain, Info)
+     || {_Pid, {_Mod, Func, [Info] = _Args}, _Result} <- History,
+        Func =:= maybe_remove_subdomain].

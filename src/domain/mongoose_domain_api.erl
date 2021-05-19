@@ -3,24 +3,36 @@
 -module(mongoose_domain_api).
 
 -export([init/0,
-         insert_domain/2,
+         get_host_type/1]).
+
+%% domain API
+-export([insert_domain/2,
          delete_domain/2,
          disable_domain/1,
          enable_domain/1,
-         get_host_type/1,
+         get_domain_host_type/1,
          get_all_static/0,
          get_domains_by_host_type/1]).
+
+%% subdomain API
+-export([register_subdomain/3,
+         unregister_subdomain/2,
+         get_subdomain_host_type/1,
+         get_subdomain_info/1]).
 
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type pair() :: {domain(), host_type()}.
+-type subdomain_pattern() :: mongoose_subdomain_utils:subdomain_pattern().
 
 
 -spec init() -> ok | {error, term()}.
 init() ->
     Pairs = get_static_pairs(),
     AllowedHostTypes = ejabberd_config:get_global_option_or_default(host_types, []),
-    mongoose_domain_core:start(Pairs, AllowedHostTypes).
+    mongoose_domain_core:start(Pairs, AllowedHostTypes),
+    mongoose_subdomain_core:start(),
+    mongoose_lazy_routing:start().
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->
@@ -90,7 +102,29 @@ check_db(Result) ->
 -spec get_host_type(domain()) ->
     {ok, host_type()} | {error, not_found}.
 get_host_type(Domain) ->
+    case get_domain_host_type(Domain) of
+        {ok, HostType} -> {ok, HostType};
+        {error, not_found} ->
+            get_subdomain_host_type(Domain)
+    end.
+
+%% Domain should be nameprepped using `jid:nameprep'
+-spec get_domain_host_type(domain()) ->
+    {ok, host_type()} | {error, not_found}.
+get_domain_host_type(Domain) ->
     mongoose_domain_core:get_host_type(Domain).
+
+%% Subdomain should be nameprepped using `jid:nameprep'
+-spec get_subdomain_host_type(domain()) ->
+    {ok, host_type()} | {error, not_found}.
+get_subdomain_host_type(Subdomain) ->
+    mongoose_subdomain_core:get_host_type(Subdomain).
+
+%% Subdomain should be nameprepped using `jid:nameprep'
+-spec get_subdomain_info(domain()) ->
+    {ok, mongoose_subdomain_core:subdomain_info()} | {error, not_found}.
+get_subdomain_info(Subdomain) ->
+    mongoose_subdomain_core:get_subdomain_info(Subdomain).
 
 %% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.
@@ -120,6 +154,17 @@ check_domain(Domain, HostType) ->
     end.
 
 %% Domains should be nameprepped using `jid:nameprep'
--spec get_static_pairs() -> [{domain(), host_type()}].
+-spec get_static_pairs() -> [pair()].
 get_static_pairs() ->
     [{H, H} || H <- ejabberd_config:get_global_option_or_default(hosts, [])].
+
+-spec register_subdomain(host_type(), subdomain_pattern(),
+                         mongoose_packet_handler:t()) ->
+                            ok | {error, already_registered | subdomain_already_exists}.
+register_subdomain(HostType, SubdomainPattern, PacketHandler) ->
+    mongoose_subdomain_core:register_subdomain(HostType, SubdomainPattern,
+                                               PacketHandler).
+
+-spec unregister_subdomain(host_type(), subdomain_pattern()) -> ok.
+unregister_subdomain(HostType, SubdomainPattern) ->
+    mongoose_subdomain_core:unregister_subdomain(HostType, SubdomainPattern).

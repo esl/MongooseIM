@@ -18,7 +18,7 @@
 
 -type t() :: #packet_handler{
                 module :: module(),
-                extra :: any()
+                extra :: map()
                }.
 
 -export_type([t/0]).
@@ -28,22 +28,22 @@
 %%----------------------------------------------------------------------
 
 -callback process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                         El :: exml:element(), Extra :: any()) -> any().
+                         El :: exml:element(), Extra :: map()) -> any().
 
 %%----------------------------------------------------------------------
 %% API
 %%----------------------------------------------------------------------
 
--export([new/1, new/2, process/5]).
+-export([new/1, new/2, process/5, add_extra/2]).
 %% Getters
 -export([module/1, extra/1]).
 
 -spec new(Module :: module()) -> t().
 new(Module) ->
-    new(Module, undefined).
+    new(Module, #{}).
 
--spec new(Module :: module(), Extra :: any()) -> t().
-new(Module, Extra) when is_atom(Module) ->
+-spec new(Module :: module(), Extra :: map()) -> t().
+new(Module, Extra) when is_atom(Module), is_map(Extra) ->
     #packet_handler{ module = Module, extra = Extra }.
 
 -spec process(Handler :: t(),
@@ -59,3 +59,9 @@ module(#packet_handler{ module = Module }) ->
 
 extra(#packet_handler{ extra = Extra }) ->
     Extra.
+
+add_extra(#packet_handler{ extra = OldExtra } = Handler, Extra) ->
+    %% KV pairs from the OldExtra map will remain unchanged, only
+    %% the new keys from Extra map will be added to the NewExtra map
+    NewExtra = maps:merge(Extra, OldExtra),
+    Handler#packet_handler{extra = NewExtra}.

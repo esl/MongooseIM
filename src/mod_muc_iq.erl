@@ -1,10 +1,12 @@
 %% @doc Stores a table of custom IQ-handlers for mod_muc_room.
 -module(mod_muc_iq).
+-behaviour(gen_iq_component).
 
 -export([start_link/0,
          process_iq/5,
-         register_iq_handler/5,
-         unregister_iq_handler/2]).
+         register_iq_handler/3,
+         unregister_iq_handler/2,
+         sync/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -39,18 +41,20 @@ start_link() ->
         jlib:iq()) -> mongoose_acc:t() | {mongoose_acc:t(), error}.
 process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
-        [{_, Module, Function, Opts}] ->
-            gen_iq_handler:handle(Host, Module, Function, Opts, From,
-                                              RoomJID, Acc, IQ);
+        [{_, IQHandler}] ->
+            gen_iq_component:handle(IQHandler, Acc, From, RoomJID, IQ);
         [] -> {Acc, error}
     end.
 
 
--spec register_iq_handler(jid:server(), binary(), module(), atom(), any()) -> ok.
-register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
+-spec register_iq_handler(jid:server(), binary(), mongoose_iq_handler:t()) -> ok.
+register_iq_handler(Host, XMLNS, IQHandler) ->
     gen_server:cast(srv_name(),
-                    {register_iq_handler, Host, XMLNS, Module, Fun, Opts}).
+                    {register_iq_handler, Host, XMLNS, IQHandler}).
 
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(srv_name(), sync).
 
 -spec unregister_iq_handler(jid:server(), binary()) -> ok.
 unregister_iq_handler(Host, XMLNS) ->
@@ -81,6 +85,8 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(sync, _From, State) ->
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -92,11 +98,17 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) ->
-    ets:insert(tbl_name(), {{XMLNS, Host}, Module, Function, Opts}),
+handle_cast({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
+    ets:insert(tbl_name(), {{XMLNS, Host}, IQHandler}),
     {noreply, State};
 handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
-    ets:delete(tbl_name(), {XMLNS, Host}),
+    case ets:lookup(tbl_name(), {XMLNS, Host}) of
+        [{_, IQHandler}] ->
+            gen_iq_component:stop_iq_handler(IQHandler),
+            ets:delete(tbl_name(), {XMLNS, Host});
+        _ ->
+            ok
+    end,
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.

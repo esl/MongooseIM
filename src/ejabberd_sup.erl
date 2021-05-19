@@ -126,7 +126,7 @@ init([]) ->
     IQSupervisor =
         {ejabberd_iq_sup,
          {ejabberd_tmp_sup, start_link,
-          [ejabberd_iq_sup, gen_iq_handler]},
+          [ejabberd_iq_sup, mongoose_iq_worker]},
          permanent,
          infinity,
          supervisor,

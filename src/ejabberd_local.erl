@@ -33,6 +33,7 @@
 
 -behaviour(gen_server).
 -behaviour(mongoose_packet_handler).
+-behaviour(gen_iq_component).
 
 %% API
 -export([start_link/0]).
@@ -41,8 +42,7 @@
          route_iq/5,
          route_iq/6,
          process_iq_reply/4,
-         register_iq_handler/4,
-         register_iq_handler/5,
+         register_iq_handler/3,
          register_host/1,
          register_iq_response_handler/4,
          register_iq_response_handler/5,
@@ -50,7 +50,8 @@
          unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
-         bounce_resource_packet/4
+         bounce_resource_packet/4,
+         sync/0
         ]).
 
 %% Hooks callbacks
@@ -110,14 +111,8 @@ process_iq(#iq{ type = Type } = IQReply, Acc, From, To, _El)
 process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
     Host = To#jid.lserver,
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
-        [{_, Module, Function}] ->
-            case Module:Function(From, To, IQ) of
-                {Acc1, ignore} -> Acc1;
-                {Acc1, ResIQ} -> ejabberd_router:route(To, From, Acc1, jlib:iq_to_xml(ResIQ))
-            end;
-        [{_, Module, Function, Opts}] ->
-            gen_iq_handler:handle(Host, Module, Function, Opts,
-                                  From, To, Acc, IQ);
+        [{_, IQHandler}] ->
+            gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
     end;
@@ -144,7 +139,7 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
                      From :: jid:jid(),
                      To ::jid:jid(),
                      El :: exml:element(),
-                     Extra :: any()) -> mongoose_acc:t().
+                     Extra :: map()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
     try
         do_route(Acc, From, To, El)
@@ -202,20 +197,15 @@ register_iq_response_handler(_Host, ID, Module, Function, Timeout0) ->
                                     function = Function,
                                     timer = TRef}).
 
--spec register_iq_handler(Host :: jid:server(),
-                          XMLNS :: binary(),
-                          Module :: atom(),
-                          Function :: fun()) -> {register_iq_handler, _, _, _, _}.
-register_iq_handler(Host, XMLNS, Module, Fun) ->
-    ejabberd_local ! {register_iq_handler, Host, XMLNS, Module, Fun}.
+-spec register_iq_handler(Domain :: jid:server(), Namespace :: binary(),
+                          IQHandler :: mongoose_iq_handler:t()) -> ok.
+register_iq_handler(Domain, XMLNS, IQHandler) ->
+    ejabberd_local ! {register_iq_handler, Domain, XMLNS, IQHandler},
+    ok.
 
--spec register_iq_handler(Host :: jid:server(),
-                          XMLNS :: binary(),
-                          Module :: atom(),
-                          Function :: fun(),
-                          Opts :: [any()]) -> {register_iq_handler, _, _, _, _, _}.
-register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
-    ejabberd_local ! {register_iq_handler, Host, XMLNS, Module, Fun, Opts}.
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(ejabberd_local, sync).
 
 -spec unregister_iq_response_handler(_Host :: jid:server(),
                                      ID :: id()) -> 'ok'.
@@ -223,10 +213,10 @@ unregister_iq_response_handler(_Host, ID) ->
     catch get_iq_callback(ID),
     ok.
 
--spec unregister_iq_handler(Host :: jid:server(),
-                           XMLNS :: binary()) -> {unregister_iq_handler, _, _}.
-unregister_iq_handler(Host, XMLNS) ->
-    ejabberd_local ! {unregister_iq_handler, Host, XMLNS}.
+-spec unregister_iq_handler(Domain :: jid:server(), Namespace :: binary()) -> ok.
+unregister_iq_handler(Domain, XMLNS) ->
+    ejabberd_local ! {unregister_iq_handler, Domain, XMLNS},
+    ok.
 
 refresh_iq_handlers() ->
     ejabberd_local ! refresh_iq_handlers.
@@ -266,9 +256,6 @@ node_cleanup(Acc, Node) ->
     Res = mnesia:async_dirty(F),
     maps:put(?MODULE, Res, Acc).
 
-disable_domain(_Acc, _HostType, Domain) ->
-    unregister_host(Domain).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -281,14 +268,12 @@ disable_domain(_Acc, _HostType, Domain) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    lists:foreach(fun do_register_host/1, ?MYHOSTS),
-    catch ets:new(?IQTABLE, [named_table, public]),
+    catch ets:new(?IQTABLE, [named_table, protected]),
     update_table(),
     mnesia:create_table(iq_response,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
-    ejabberd_hooks:add(disable_domain, global, fun disable_domain/3,50),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
 
@@ -313,6 +298,8 @@ handle_call({register_host, Host}, _From, State) ->
     do_register_host(Host),
     mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
+handle_call(sync, _From, State) ->
+    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -333,38 +320,27 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, Acc, From, To, El}, State) ->
-    process_packet(Acc, From, To, El, undefined),
+    process_packet(Acc, From, To, El, #{}),
     {noreply, State};
-handle_info({register_iq_handler, Host, XMLNS, Module, Function}, State) ->
-    ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function}),
-    catch mod_disco:register_feature(Host, XMLNS),
-    {noreply, State};
-handle_info({register_iq_handler, Host, XMLNS, Module, Function, Opts}, State) ->
-    ets:insert(?IQTABLE, {{XMLNS, Host}, Module, Function, Opts}),
+handle_info({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
+    ets:insert(?IQTABLE, {{XMLNS, Host}, IQHandler}),
     catch mod_disco:register_feature(Host, XMLNS),
     {noreply, State};
 handle_info({unregister_iq_handler, Host, XMLNS}, State) ->
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
-        [{_, Module, Function, Opts}] ->
-            gen_iq_handler:stop_iq_handler(Module, Function, Opts);
+        [{_, IQHandler}] ->
+            gen_iq_component:stop_iq_handler(IQHandler),
+            ets:delete(?IQTABLE, {XMLNS, Host}),
+            catch mod_disco:unregister_feature(Host, XMLNS);
         _ ->
             ok
     end,
-    ets:delete(?IQTABLE, {XMLNS, Host}),
-    catch mod_disco:unregister_feature(Host, XMLNS),
     {noreply, State};
 handle_info(refresh_iq_handlers, State) ->
     lists:foreach(
-      fun(T) ->
-              case T of
-                  {{XMLNS, Host}, _Module, _Function, _Opts} ->
-                      catch mod_disco:register_feature(Host, XMLNS);
-                  {{XMLNS, Host}, _Module, _Function} ->
-                      catch mod_disco:register_feature(Host, XMLNS);
-                  _ ->
-                      ok
-              end
-      end, ets:tab2list(?IQTABLE)),
+        fun({{XMLNS, Host}, _IQHandler}) ->
+            catch mod_disco:register_feature(Host, XMLNS)
+        end, ets:tab2list(?IQTABLE)),
     {noreply, State};
 handle_info({timeout, _TRef, ID}, State) ->
     process_iq_timeout(ID),
@@ -381,7 +357,6 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    ejabberd_hooks:delete(disable_domain, global, fun disable_domain/3, 50),
     ok.
 
 %%--------------------------------------------------------------------

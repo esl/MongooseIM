@@ -27,8 +27,8 @@ all() ->
      run_for_each_domain].
 
 init_per_suite(Config) ->
-    meck:new(mongoose_hooks, [no_link]),
-    meck:expect(mongoose_hooks, disable_domain, fun(_, _) -> ok end),
+    meck:new(mongoose_lazy_routing, [no_link]),
+    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
     Config.
 
 end_per_suite(Config) ->
@@ -37,7 +37,7 @@ end_per_suite(Config) ->
 
 init_per_testcase(_, Config) ->
     ok = mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_TYPES),
-    meck:reset(mongoose_hooks),
+    meck:reset(mongoose_lazy_routing),
     Config.
 
 end_per_testcase(_, Config) ->
@@ -55,7 +55,8 @@ lookup_works(_) ->
     {ok, <<"type #3">>} = mongoose_domain_core:get_host_type(<<"some.domain">>),
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
-    ok = meck:wait(mongoose_hooks, disable_domain, [<<"type #3">>, <<"some.domain">>], 0).
+    ok = meck:wait(mongoose_lazy_routing, maybe_remove_domain,
+                   [<<"type #3">>, <<"some.domain">>], 0).
 
 double_insert_double_remove_works(_) ->
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
@@ -65,8 +66,9 @@ double_insert_double_remove_works(_) ->
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
-    ok = meck:wait(mongoose_hooks, disable_domain, [<<"type #3">>, <<"some.domain">>], 0),
-    1 = meck:num_calls(mongoose_hooks, disable_domain, 2).
+    ok = meck:wait(mongoose_lazy_routing, maybe_remove_domain,
+                   [<<"type #3">>, <<"some.domain">>], 0),
+    1 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, 2).
 
 static_domain_check(_) ->
     true = mongoose_domain_core:is_static(<<"example.cfg">>),

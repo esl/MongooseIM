@@ -67,6 +67,7 @@
 %% API
 %%--------------------------------------------------------------------
 -ifdef(TEST).
+
 %% required for unit tests
 start() ->
     just_ok(gen_server:start({local, ?MODULE}, ?MODULE, [], [])).
@@ -99,7 +100,9 @@ start_link() ->
                          mongoose_packet_handler:t()) ->
     ok | {error, already_registered | subdomain_already_exists}.
 register_subdomain(HostType, SubdomainPattern, PacketHandler) ->
-    gen_server:call(?MODULE, {register, HostType, SubdomainPattern, PacketHandler}).
+    NewPacketHandler = mongoose_packet_handler:add_extra(PacketHandler,
+                                                         #{host_type => HostType}),
+    gen_server:call(?MODULE, {register, HostType, SubdomainPattern, NewPacketHandler}).
 
 -spec unregister_subdomain(host_type(), subdomain_pattern()) -> ok.
 unregister_subdomain(HostType, SubdomainPattern) ->
@@ -245,15 +248,16 @@ handle_remove_domain(HostType, Domain) ->
 
 -spec remove_subdomains([subdomain_item()]) -> ok.
 remove_subdomains(SubdomainItems) ->
-    Fn = fun(#subdomain_item{host_type = HostType, subdomain = Subdomain}) ->
-             remove_subdomain(HostType, Subdomain)
+    Fn = fun(SubdomainItem) ->
+             remove_subdomain(SubdomainItem)
          end,
     lists:foreach(Fn, SubdomainItems).
 
--spec remove_subdomain(host_type(), domain()) -> true.
-remove_subdomain(HostType, Subdomain) ->
-    mongoose_hooks:disable_subdomain(HostType, Subdomain),
-    ets:delete(?SUBDOMAINS_TABLE, Subdomain).
+-spec remove_subdomain(subdomain_item()) -> ok.
+remove_subdomain(#subdomain_item{subdomain = Subdomain} = SubdomainItem) ->
+    ets:delete(?SUBDOMAINS_TABLE, Subdomain),
+    SubdomainInfo = convert_subdomain_item_to_map(SubdomainItem),
+    mongoose_lazy_routing:maybe_remove_subdomain(SubdomainInfo).
 
 -spec add_subdomains([reg_item()], domain()) -> ok.
 add_subdomains(RegItems, Domain) ->
