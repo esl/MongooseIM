@@ -75,7 +75,7 @@ does_user_exist(#jid{luser = LUser, lserver = LServer} = JID) ->
     case does_cached_user_exist(LUser, LServer) of
         true -> true;
         false ->
-            case does_stored_user_exist(JID) of
+            case does_stored_user_exist(JID) of % TODO pass HostType to this function
                 true ->
                     put_user_into_cache(LUser, LServer),
                     true;
@@ -172,19 +172,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 
 -spec does_stored_user_exist(jid:jid()) -> boolean().
-does_stored_user_exist(JID) ->
-    ejabberd_auth:does_user_exist(JID)
-    andalso not is_anonymous_user(JID).
-
--spec is_anonymous_user(jid:jid()) -> boolean().
-is_anonymous_user(#jid{luser = LUser, lserver = LServer} = _JID) ->
-    %% TODO: check if we make this check in a more efficient way, MB we
-    %% can just make  a call to ejabberd_auth_anonymous:does_user_exist/2
-    %% without verification if ejabberd_auth_anonymous is configured 
-    case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
-        true ->
-            ejabberd_auth_anonymous:does_user_exist(LUser, LServer);
-        false ->
+does_stored_user_exist(JID = #jid{lserver = LServer}) ->
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            case ejabberd_auth:does_stored_user_exist(HostType, JID) of
+                true -> true;
+                _ -> false
+            end;
+        {error, not_found} ->
             false
     end.
 
