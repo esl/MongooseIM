@@ -177,7 +177,6 @@ filter_room_packet(Packet, HostType, EventData = #{}) ->
         false -> Packet
     end.
 
-
 %% @doc Archive without validation.
 -spec archive_room_packet(HostType :: host_type(),
                           Packet :: packet(), FromNick :: jid:user(),
@@ -207,8 +206,9 @@ archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
                        origin_id => OriginID,
                        direction => incoming,
                        packet => Packet1},
+            %% Packet to be broadcasted and packet to be archived are
+            %% not 100% the same
             Result = archive_message(HostType, Params),
-            %% Packet2 goes to archive, Packet to other users
             case Result of
                 ok ->
                     ExtID = mess_id_to_external_binary(MessID),
@@ -218,7 +218,6 @@ archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
             end;
         false -> Packet
     end.
-
 
 %% @doc `To' is an account or server entity hosting the archive.
 %% Servers that archive messages on behalf of local users SHOULD expose archives
@@ -249,9 +248,6 @@ room_process_mam_iq(From, To, Acc, IQ) ->
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
-
-%% #rh
-%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
 -spec forget_room(map(), host_type(), jid:lserver(), binary()) -> map().
 forget_room(Acc, _HostType, MucServer, RoomName) ->
     delete_archive(MucServer, RoomName),
@@ -335,7 +331,6 @@ handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
 handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
     return_error_iq(IQ, Reason).
-
 
 -spec handle_get_prefs(host_type(), jid:jid(), jlib:iq()) ->
                               jlib:iq() | {error, any(), jlib:iq()}.
@@ -422,15 +417,15 @@ handle_get_message_form(HostType,
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
-archive_id_int(Host, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_id(Host, ArcJID).
+-spec archive_id_int(HostType :: host_type(), ArcJID :: jid:jid()) ->
+    integer() | undefined.
+archive_id_int(HostType, ArcJID = #jid{}) ->
+    mongoose_hooks:mam_muc_archive_id(HostType, ArcJID).
 
-
--spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
-                  -> integer().
-archive_size(Host, ArcID, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_size(Host, ArcID, ArcJID).
+-spec archive_size(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
+                   ArcJID ::jid:jid()) -> non_neg_integer().
+archive_size(HostType, ArcID, ArcJID = #jid{}) ->
+    mongoose_hooks:mam_muc_archive_size(HostType, ArcID, ArcJID).
 
 -spec get_behaviour(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
@@ -445,7 +440,6 @@ set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     mongoose_hooks:mam_muc_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
                                      AlwaysJIDs, NeverJIDs).
 
-
 %% @doc Load settings from the database.
 -spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
@@ -458,7 +452,6 @@ get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
 remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
     mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
     ok.
-
 
 %% See description in mod_mam.
 -spec lookup_messages(HostType :: host_type(), Params :: map()) ->
@@ -529,12 +522,12 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
 message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
--spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
+-spec handle_error_iq(mongoose_acc:t(), host_type(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-handle_error_iq(Acc, Host, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+handle_error_iq(Acc, HostType, _To, _Action, {error, _Reason, IQ}) ->
+    mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
     {Acc, IQ};
-handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
+handle_error_iq(Acc, _HostType, _To, _Action, IQ) ->
     {Acc, IQ}.
 
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
@@ -568,7 +561,6 @@ return_max_delay_reached_error_iq(IQ) ->
 
 return_message_form_iq(HostType, IQ) ->
     IQ#iq{type = result, sub_el = [message_form(?MODULE, HostType, IQ#iq.xmlns)]}.
-
 
 % the stacktrace is a big lie
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
@@ -615,7 +607,7 @@ unregister_features(HostType) ->
 
 add_iq_handlers(HostType, Opts) ->
     MUCHost = gen_mod:get_opt_subhost(HostType, Opts, mod_muc:default_host()),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
@@ -626,9 +618,9 @@ remove_iq_handlers(HostType) ->
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06).
 
-ensure_metrics(Host) ->
+ensure_metrics(HostType) ->
     lists:foreach(fun(Name) ->
-                      mongoose_metrics:ensure_metric(Host, Name, spiral)
+                      mongoose_metrics:ensure_metric(HostType, Name, spiral)
                   end,
                   spirals()).
 
