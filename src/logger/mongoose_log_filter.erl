@@ -48,7 +48,16 @@ format_packet_filter(Event, _) ->
     Event.
 
 format_stacktrace_filter(Event=#{msg := {report, Msg=#{stacktrace := S}}}, _) ->
-    Event#{msg => {report, Msg#{stacktrace => format_stacktrace(S)} }};
+    FmtArgs = format_stacktrace_args(S),
+    Msg2 = case FmtArgs of
+               <<>> -> Msg;
+               _ -> Msg#{stacktrace_args => FmtArgs}
+           end,
+    Msg3 = case format_stacktrace(S) of
+               <<>> -> Msg2;
+               FmtStack -> Msg2#{stacktrace => FmtStack}
+           end,
+    Event#{msg => {report, Msg3 }};
 format_stacktrace_filter(Event, _) ->
     Event.
 
@@ -117,10 +126,17 @@ format_microseconds(N) ->
                                         {offset, 0},
                                         {time_designator, $T}]).
 
+format_stacktrace_args([{_Mod,_Fun,Args,_Info}|_]) when is_list(Args) ->
+    iolist_to_binary(io_lib:format("~p", [Args]));
+format_stacktrace_args(_) ->
+    <<>>.
 
 format_stacktrace(Stacktrace) ->
     iolist_to_binary(do_format_stacktrace(Stacktrace)).
 
+do_format_stacktrace([{Mod,Fun,Args,Info}|T]) when is_list(Args) ->
+    Arity = length(Args),
+    do_format_stacktrace([{Mod,Fun,Arity,Info}|T]);
 do_format_stacktrace([{Mod,Fun,Arity,Info}|T]) ->
     Line = proplists:get_value(line, Info, 0),
     H = io_lib:format("~p:~p/~p:~p", [Mod, Fun, Arity, Line]),
