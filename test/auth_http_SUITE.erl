@@ -21,7 +21,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(DOMAIN, <<"localhost">>).
--define(HOST_TYPE, ?DOMAIN).
+-define(HOST_TYPE, <<"test host type">>).
 -define(AUTH_HOST, "http://localhost:12000").
 -define(BASIC_AUTH, "softkitty:purrpurrpurr").
 
@@ -36,7 +36,7 @@ groups() ->
     [
      {cert_auth, cert_auth()},
      {auth_requests_plain, [sequence], all_tests()},
-     {auth_requests_scram, [sequence], [{group,cert_auth} | all_tests()]}
+     {auth_requests_scram, [sequence], [{group, cert_auth} | all_tests()]}
     ].
 
 all_tests() ->
@@ -78,8 +78,8 @@ init_per_suite(Config) ->
               Pool = {http, host, auth,
                       [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
                       [{path_prefix, "/auth/"}, {http_opts, []}, {server, ?AUTH_HOST}]},
-              Hosts = [?DOMAIN, <<"another.domain">>],
-              mongoose_wpool:start_configured_pools([Pool], Hosts),
+              HostTypes = [?HOST_TYPE, <<"another host type">>],
+              mongoose_wpool:start_configured_pools([Pool], HostTypes),
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)
       end),
@@ -193,25 +193,25 @@ try_register(_Config) ->
 get_password(_Config) ->
     case mongoose_scram:enabled(?DOMAIN) of
         false ->
-            <<"makota">> = ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN),
-            <<"makota">> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN);
+            <<"makota">> = ejabberd_auth_http:get_password(?HOST_TYPE, <<"alice">>, ?DOMAIN),
+            <<"makota">> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"alice">>, ?DOMAIN);
         true ->
             % map with SCRAM data
-            is_map(ejabberd_auth_http:get_password(<<"alice">>, ?DOMAIN)),
-            <<>> = ejabberd_auth_http:get_password_s(<<"alice">>, ?DOMAIN)
+            true = is_map(ejabberd_auth_http:get_password(?HOST_TYPE, <<"alice">>, ?DOMAIN)),
+            <<>> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"alice">>, ?DOMAIN)
     end,
-    false = ejabberd_auth_http:get_password(<<"anakin">>, ?DOMAIN),
-    <<>> = ejabberd_auth_http:get_password_s(<<"anakin">>, ?DOMAIN).
+    false = ejabberd_auth_http:get_password(?HOST_TYPE, <<"anakin">>, ?DOMAIN),
+    <<>> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"anakin">>, ?DOMAIN).
 
 does_user_exist(_Config) ->
-    true = ejabberd_auth_http:does_user_exist(<<"alice">>, ?DOMAIN),
-    false = ejabberd_auth_http:does_user_exist(<<"madhatter">>, ?DOMAIN).
+    true = ejabberd_auth_http:does_user_exist(?HOST_TYPE, <<"alice">>, ?DOMAIN),
+    false = ejabberd_auth_http:does_user_exist(?HOST_TYPE, <<"madhatter">>, ?DOMAIN).
 
 % remove_user/2
 remove_user(_Config) ->
-    true = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN),
-    ok = ejabberd_auth_http:remove_user(<<"toremove1">>, ?DOMAIN),
-    false = ejabberd_auth_http:does_user_exist(<<"toremove1">>, ?DOMAIN).
+    true = ejabberd_auth_http:does_user_exist(?HOST_TYPE, <<"toremove1">>, ?DOMAIN),
+    ok = ejabberd_auth_http:remove_user(?HOST_TYPE, <<"toremove1">>, ?DOMAIN),
+    false = ejabberd_auth_http:does_user_exist(?HOST_TYPE, <<"toremove1">>, ?DOMAIN).
 
 supported_sasl_mechanisms(Config) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
