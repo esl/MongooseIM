@@ -27,22 +27,21 @@
 -author('alexey@process-one.net').
 
 %% External exports
--behaviour(ejabberd_gen_auth).
+-behaviour(mongoose_gen_auth).
+
 -export([start/1,
          stop/1,
          set_password/4,
          authorize/1,
          try_register/4,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         does_user_exist/2,
-         remove_user/2,
-         supports_sasl_module/2
+         get_registered_users/3,
+         get_registered_users_number/3,
+         get_password/3,
+         get_password_s/3,
+         does_user_exist/3,
+         remove_user/3,
+         supports_sasl_module/2,
+         supported_features/0
         ]).
 
 -export([scram_passwords/0]).
@@ -50,6 +49,9 @@
 %% Internal
 -export([check_password/4,
          check_password/6]).
+
+%% Utilities
+-export([dirty_get_registered_users/0]).
 
 -include("mongoose.hrl").
 -include("scram.hrl").
@@ -93,7 +95,7 @@ stop(_HostType) ->
 
 -spec update_reg_users_counter_table(Server :: jid:server()) -> any().
 update_reg_users_counter_table(Server) ->
-    Set = get_vh_registered_users(Server),
+    Set = get_users(Server),
     Size = length(Set),
     LServer = jid:nameprep(Server),
     F = fun() ->
@@ -101,7 +103,7 @@ update_reg_users_counter_table(Server) ->
         end,
     mnesia:sync_dirty(F).
 
--spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;
 supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
 supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
@@ -193,46 +195,44 @@ try_register(HostType, LUser, LServer, Password) ->
 dirty_get_registered_users() ->
     mnesia:dirty_all_keys(passwd).
 
-
--spec get_vh_registered_users(LServer :: jid:lserver()
-                             ) -> [jid:simple_bare_jid()].
-get_vh_registered_users(LServer) ->
+-spec get_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
+get_users(LServer) ->
     mnesia:dirty_select(
       passwd,
       [{#passwd{us = '$1', _ = '_'},
         [{'==', {element, 2, '$1'}, LServer}],
         ['$1']}]).
 
+get_registered_users(_, LServer, Opts) ->
+    get_users(LServer, Opts).
+
 -type query_keyword() :: from | to | limit | offset | prefix.
 -type query_value() :: integer() | binary().
--spec get_vh_registered_users(LServer :: jid:lserver(),
-                              Query :: [{query_keyword(), query_value()}]
-                              ) -> [jid:simple_bare_jid()].
-get_vh_registered_users(LServer, [{from, Start}, {to, End}])
+-spec get_users(LServer :: jid:lserver(),
+                Query :: [{query_keyword(), query_value()}]
+               ) -> [jid:simple_bare_jid()].
+get_users(LServer, [{from, Start}, {to, End}])
         when is_integer(Start) and is_integer(End) ->
-    get_vh_registered_users(LServer, [{limit, End-Start+1}, {offset, Start}]);
-get_vh_registered_users(LServer, [{limit, Limit}, {offset, Offset}])
+    get_users(LServer, [{limit, End-Start+1}, {offset, Start}]);
+get_users(LServer, [{limit, Limit}, {offset, Offset}])
         when is_integer(Limit) and is_integer(Offset) ->
-    get_vh_registered_users_within_interval(get_vh_registered_users(LServer),
-                                            Limit, Offset);
-get_vh_registered_users(LServer, [{prefix, Prefix}])
+    get_users_within_interval(get_users(LServer), Limit, Offset);
+get_users(LServer, [{prefix, Prefix}])
         when is_binary(Prefix) ->
-    Users = matching_users(Prefix, get_vh_registered_users(LServer)),
+    Users = matching_users(Prefix, get_users(LServer)),
     lists:keysort(1, Users);
-get_vh_registered_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
+get_users(LServer, [{prefix, Prefix}, {from, Start}, {to, End}])
         when is_binary(Prefix) and is_integer(Start) and is_integer(End) ->
-    get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
-get_vh_registered_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
+    get_users(LServer, [{prefix, Prefix}, {limit, End-Start+1}, {offset, Start}]);
+get_users(LServer, [{prefix, Prefix}, {limit, Limit}, {offset, Offset}])
         when is_binary(Prefix) and is_integer(Limit) and is_integer(Offset) ->
-    Users = matching_users(Prefix, get_vh_registered_users(LServer)),
-    get_vh_registered_users_within_interval(Users, Limit, Offset);
-get_vh_registered_users(LServer, _) ->
-    get_vh_registered_users(LServer).
+    Users = matching_users(Prefix, get_users(LServer)),
+    get_users_within_interval(Users, Limit, Offset);
+get_users(LServer, _) ->
+    get_users(LServer).
 
-
--spec get_vh_registered_users_number(LServer :: jid:server()
-                                    ) -> non_neg_integer().
-get_vh_registered_users_number(LServer) ->
+-spec get_users_number(LServer :: jid:server()) -> non_neg_integer().
+get_users_number(LServer) ->
     Query = mnesia:dirty_select(
                 reg_users_counter,
                 [{#reg_users_counter{vhost = LServer, count = '$1'},
@@ -244,23 +244,23 @@ get_vh_registered_users_number(LServer) ->
         _ -> 0
     end.
 
+get_registered_users_number(_, LServer, Query) ->
+    get_users_number(LServer, Query).
 
--spec get_vh_registered_users_number(LServer :: jid:lserver(),
-                                     Query :: [{prefix, binary()}]
-                                     ) -> integer().
-get_vh_registered_users_number(LServer, [{prefix, Prefix}]) when is_binary(Prefix) ->
-    length(matching_users(Prefix, get_vh_registered_users(LServer)));
-get_vh_registered_users_number(LServer, _) ->
-    get_vh_registered_users_number(LServer).
+-spec get_users_number(LServer :: jid:lserver(), Query :: [{prefix, binary()}]) -> integer().
+get_users_number(LServer, [{prefix, Prefix}]) when is_binary(Prefix) ->
+    length(matching_users(Prefix, get_users(LServer)));
+get_users_number(LServer, _) ->
+    get_users_number(LServer).
 
 matching_users(Prefix, Users) ->
     lists:filter(fun({U, _S}) ->
                          binary:longest_common_prefix([U, Prefix]) =:= byte_size(Prefix)
                  end, Users).
 
--spec get_password(LUser :: jid:luser(),
-                   LServer :: jid:lserver()) -> ejabberd_auth:passterm() | false.
-get_password(LUser, LServer) ->
+-spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          ejabberd_auth:passterm() | false.
+get_password(_, LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
@@ -273,9 +273,8 @@ get_password(LUser, LServer) ->
             false
     end.
 
--spec get_password_s(LUser :: jid:luser(),
-                     LServer :: jid:lserver()) -> binary().
-get_password_s(LUser, LServer) ->
+-spec get_password_s(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary().
+get_password_s(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [#passwd{password = Scram}] when is_record(Scram, scram) ->
@@ -288,10 +287,9 @@ get_password_s(LUser, LServer) ->
             <<"">>
     end.
 
--spec does_user_exist(LUser :: jid:luser(),
-                     LServer :: jid:lserver()
-                     ) -> boolean() | {error, atom()}.
-does_user_exist(LUser, LServer) ->
+-spec does_user_exist(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          boolean() | {error, atom()}.
+does_user_exist(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     case catch dirty_read_passwd(US) of
         [] ->
@@ -305,10 +303,8 @@ does_user_exist(LUser, LServer) ->
 
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
--spec remove_user(LUser :: jid:luser(),
-                  LServer :: jid:lserver()
-                  ) -> ok | {error, not_allowed}.
-remove_user(LUser, LServer) ->
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok | {error, not_allowed}.
+remove_user(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
                 mnesia:delete({passwd, US}),
@@ -350,13 +346,16 @@ write_counter(#reg_users_counter{} = Counter) ->
 get_scram(HostType, Password) ->
     case mongoose_scram:enabled(HostType) and is_binary(Password) of
         true ->
-            mongoose_scram:password_to_scram(HostType, Password, mongoose_scram:iterations(HostType));
+            Iterations = mongoose_scram:iterations(HostType),
+            mongoose_scram:password_to_scram(HostType, Password, Iterations);
         false -> Password
     end.
 
--spec get_vh_registered_users_within_interval(list(), integer(), integer()) ->
-                                                    list().
-get_vh_registered_users_within_interval([], _Limit, _Offset) -> [];
-get_vh_registered_users_within_interval(Users, Limit, Offset) ->
+-spec get_users_within_interval(list(), integer(), integer()) -> list().
+get_users_within_interval([], _Limit, _Offset) -> [];
+get_users_within_interval(Users, Limit, Offset) ->
     SortedUsers = lists:keysort(1, Users),
     lists:sublist(SortedUsers, Offset, Limit).
+
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
