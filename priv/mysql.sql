@@ -37,10 +37,12 @@ CREATE TABLE test_types(
 );
 
 CREATE TABLE users (
-    username varchar(250) PRIMARY KEY,
+    username varchar(250),
+    server varchar(250),
     password text NOT NULL,
     pass_details text,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
