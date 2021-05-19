@@ -222,7 +222,8 @@ adhoc_sm_commands(LServer, From, To, AdhocRequest) ->
     LUser :: jid:user(),
     Result :: mongose_acc:t().
 anonymous_purge_hook(LServer, Acc, LUser) ->
-    ejabberd_hooks:run_for_host_type(anonymous_purge_hook, LServer, Acc,
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(anonymous_purge_hook, HostType, Acc,
                                      [LUser, LServer]).
 
 -spec auth_failed(HostType, Server, Username) -> Result when
