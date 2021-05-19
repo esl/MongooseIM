@@ -1323,7 +1323,7 @@ config_metrics(Host) ->
 
 -spec server_host_to_host_type(jid:lserver()) -> mongooseim:host_type().
 server_host_to_host_type(ServerHost) ->
-    case mongoose_domain_api:get_host_type(ServerHost) of
+    case mongoose_domain_api:get_domain_host_type(ServerHost) of
         {ok, HostType} ->
             HostType;
         {error, not_found} ->

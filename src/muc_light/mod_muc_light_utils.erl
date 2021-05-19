@@ -287,8 +287,8 @@ server_host_to_host_type(LServer) ->
     end.
 
 muc_host_to_host_type(MucHost) ->
-    {ok, ServerHost} = mongoose_subhosts:get_host(MucHost),
-    server_host_to_host_type(ServerHost).
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
+    HostType.
 
 run_forget_room_hook({Room, MucHost}) ->
     HostType = muc_host_to_host_type(MucHost),

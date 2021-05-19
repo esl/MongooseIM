@@ -209,7 +209,7 @@ change_room_config(Domain, RoomID, RoomName, User, Subject) ->
     end.
 
 lserver_to_host_type(LServer) ->
-    case mongoose_domain_api:get_host_type(LServer) of
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             HostType;
         {error, not_found} ->

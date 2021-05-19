@@ -315,7 +315,7 @@ sm_filter_offline_message(Other, _From, _To, _Packet) ->
 
 -spec jid_to_host_type(jid:jid()) -> host_type().
 jid_to_host_type(#jid{lserver=LServer}) ->
-    case mongoose_domain_api:get_host_type(LServer) of
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             HostType;
         {error, not_found} ->
