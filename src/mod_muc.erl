@@ -60,8 +60,8 @@
 
 %% Hooks handlers
 -export([is_muc_room_owner/4,
-         can_access_room/3,
-         can_access_identity/3]).
+         can_access_room/4,
+         can_access_identity/4]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -413,8 +413,8 @@ init([Host, Opts]) ->
                    hibernated_room_timeout = HibernatedTimeout},
 
     ejabberd_hooks:add(is_muc_room_owner, Host, ?MODULE, is_muc_room_owner, 50),
-    ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:add(can_access_identity, MyHost, ?MODULE, can_access_identity, 50),
+    ejabberd_hooks:add(can_access_room, Host, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:add(can_access_identity, Host, ?MODULE, can_access_identity, 50),
 
     ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE,
                                                                        #{state => State})),
@@ -451,8 +451,8 @@ set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
     ejabberd_hooks:delete(is_muc_room_owner, State#state.server_host, ?MODULE, is_muc_room_owner, 50),
-    ejabberd_hooks:delete(can_access_room, State#state.host, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:delete(can_access_identity, State#state.host, ?MODULE, can_access_identity, 50),
+    ejabberd_hooks:delete(can_access_room, State#state.server_host, ?MODULE, can_access_room, 50),
+    ejabberd_hooks:delete(can_access_identity, State#state.server_host, ?MODULE, can_access_identity, 50),
 
     {stop, normal, ok, State};
 
@@ -1248,17 +1248,19 @@ clean_table_from_bad_node(Node, Host) ->
 is_muc_room_owner(_, _HostType, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
--spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                      Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(_, Room, User) ->
+can_access_room(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_room(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
 
--spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                          Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_identity(_, Room, User) ->
+can_access_identity(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_identity(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess

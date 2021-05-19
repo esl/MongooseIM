@@ -50,8 +50,8 @@
          process_iq_get/5,
          process_iq_set/4,
          is_muc_room_owner/4,
-         can_access_room/3,
-         can_access_identity/3]).
+         can_access_room/4,
+         can_access_identity/4]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -250,9 +250,8 @@ process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
 hooks(Host, MUCHost) ->
     [{is_muc_room_owner, Host, ?MODULE, is_muc_room_owner, 50},
-     {can_access_room, MUCHost, ?MODULE, can_access_room, 50},
-     {can_access_identity, MUCHost, ?MODULE, can_access_identity, 50},
-
+     {can_access_room, Host, ?MODULE, can_access_room, 50},
+     {can_access_identity, Host, ?MODULE, can_access_identity, 50},
      {offline_groupchat_message_hook, Host, ?MODULE, prevent_service_unavailable, 90},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {remove_domain, Host, ?MODULE, remove_domain, 50},
@@ -455,14 +454,16 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
 is_muc_room_owner(_, _HostType, Room, User) ->
     owner == get_affiliation(Room, User).
 
--spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                      Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(_, Room, User) ->
+can_access_room(_, _HostType, Room, User) ->
     none =/= get_affiliation(Room, User).
 
--spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                          Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_identity(_Acc, _Room, _User) ->
+can_access_identity(_Acc, _HostType, _Room, _User) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
     %% 0045 MUC element with user identity and we don't want it
     false.

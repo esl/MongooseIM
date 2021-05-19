@@ -242,7 +242,11 @@ room_process_mam_iq(From, To, Acc, IQ) ->
                     mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
-        false -> {Acc, return_action_not_allowed_error_iq(IQ)}
+        false ->
+            ?LOG_WARNING(#{what => action_not_allowed,
+                           action => Action, acc => Acc,
+                           can_access_room => can_access_room(HostType, From, To)}),
+            {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
 
@@ -478,7 +482,7 @@ lookup_messages_without_policy_violation_check(HostType,
             mongoose_hooks:mam_muc_lookup_messages(HostType, Params)
     end.
 
-archive_message_for_ct(Params = #{room_jid := RoomJid}) ->
+archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
     HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJid),
     archive_message(HostType, Params).
 
