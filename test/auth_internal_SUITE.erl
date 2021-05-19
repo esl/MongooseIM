@@ -25,8 +25,8 @@ passwords_as_records_are_still_supported(_C) ->
     OldScramFormat = old_password_to_scram(P, 340),
     UserRecord = {passwd, {U, S}, OldScramFormat},
     mnesia:dirty_write(UserRecord),
-    %% when we read the password via the `ejabberd_auth_internal:get_password/2
-    NewScramMap = ejabberd_auth_internal:get_password(U, S),
+    %% when we read the password via ejabberd_auth_internal:get_password/3
+    NewScramMap = ejabberd_auth_internal:get_password(host_type(), U, S),
     %% then new map with sha key is returned
     ?assertMatch(#{iteration_count := _,
                    sha := #{salt       := _,
@@ -94,3 +94,6 @@ old_password_to_scram(Password, IterationCount) ->
            serverkey = base64:encode(ServerKey),
            salt = base64:encode(Salt),
            iterationcount = IterationCount}.
+
+host_type() ->
+    <<"test host type">>.
