@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(ejabberd_auth_riak).
 
--behaviour(ejabberd_gen_auth).
+-behaviour(mongoose_gen_auth).
 
 -include("mongoose.hrl").
 -include("scram.hrl").
@@ -24,21 +24,17 @@
 -export([start/1,
          stop/1,
          supports_sasl_module/2,
+         supported_features/0,
          set_password/4,
          authorize/1,
          try_register/4,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         does_user_exist/2,
-         remove_user/2
+         get_registered_users/3,
+         get_registered_users_number/3,
+         get_password/3,
+         get_password_s/3,
+         does_user_exist/3,
+         remove_user/3
         ]).
-
--export([bucket_type/1]).
 
 %% Internal
 -export([check_password/4,
@@ -57,6 +53,9 @@ supports_sasl_module(_HostType, cyrsasl_plain) -> true;
 supports_sasl_module(HostType, cyrsasl_digest) -> not mongoose_scram:enabled(HostType);
 supports_sasl_module(HostType, Mechanism) -> mongoose_scram:enabled(HostType, Mechanism).
 
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
+
 -spec set_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.
 set_password(HostType, LUser, LServer, Password) ->
@@ -64,11 +63,11 @@ set_password(HostType, LUser, LServer, Password) ->
         false ->
             {error, invalid_password};
         Password ->
-            User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
-            do_set_password(User, LUser, LServer, Password);
+            User = mongoose_riak:fetch_type(bucket_type(HostType, LServer), LUser),
+            do_set_password(User, HostType, LUser, LServer, Password);
         {<<>>, Scram} ->
-            User = mongoose_riak:fetch_type(bucket_type(LServer), LUser),
-            do_set_password(User, LUser, LServer, {<<>>, Scram})
+            User = mongoose_riak:fetch_type(bucket_type(HostType, LServer), LUser),
+            do_set_password(User, HostType, LUser, LServer, {<<>>, Scram})
     end.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
@@ -77,8 +76,8 @@ authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
 -spec check_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) -> boolean().
-check_password(_HostType, LUser, LServer, Password) ->
-    case do_get_password(LUser, LServer) of
+check_password(HostType, LUser, LServer, Password) ->
+    case do_get_password(HostType, LUser, LServer) of
         false ->
             false;
         Scram when is_record(Scram, scram) orelse is_map(Scram)->
@@ -95,8 +94,8 @@ check_password(_HostType, LUser, LServer, Password) ->
                      binary(),
                      binary(),
                      fun()) -> boolean().
-check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
-    case do_get_password(LUser, LServer) of
+check_password(HostType, LUser, LServer, Password, Digest, DigestGen) ->
+    case do_get_password(HostType, LUser, LServer) of
         false ->
             false;
         Scram when is_record(Scram, scram) orelse is_map(Scram) ->
@@ -113,40 +112,25 @@ check_password(_HostType, LUser, LServer, Password, Digest, DigestGen) ->
 try_register(HostType, LUser, LServer, Password) ->
     try_register_if_does_not_exist(HostType, LUser, LServer, Password).
 
--spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
-dirty_get_registered_users() ->
-    Servers = ejabberd_config:get_vh_by_auth_method(riak),
-    lists:flatmap(
-        fun(Server) ->
-            get_vh_registered_users(Server)
-        end, Servers).
-
--spec get_vh_registered_users(jid:lserver()) ->
+-spec get_registered_users(mongooseim:host_type(), jid:lserver(), list()) ->
     [jid:simple_bare_jid()].
-get_vh_registered_users(LServer) ->
-    case mongoose_riak:list_keys(bucket_type(LServer)) of
+get_registered_users(HostType, LServer, _Opts) ->
+    case mongoose_riak:list_keys(bucket_type(HostType, LServer)) of
         {ok, Users} ->
             [{User, LServer} || User <- Users];
         _ ->
             []
     end.
 
--spec get_vh_registered_users(jid:lserver(), list()) ->
-    [jid:simple_bare_jid()].
-get_vh_registered_users(LServer, _Opts) ->
-    get_vh_registered_users(LServer).
+-spec get_registered_users_number(mongooseim:host_type(), jid:lserver(), list()) ->
+          non_neg_integer().
+get_registered_users_number(HostType, LServer, Opts) ->
+    length(get_registered_users(HostType, LServer, Opts)).
 
--spec get_vh_registered_users_number(jid:lserver()) -> non_neg_integer().
-get_vh_registered_users_number(LServer) ->
-    length(get_vh_registered_users(LServer)).
-
--spec get_vh_registered_users_number(jid:lserver(), list()) -> non_neg_integer().
-get_vh_registered_users_number(LServer, _Opts) ->
-    get_vh_registered_users_number(LServer).
-
--spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
-get_password(LUser, LServer) ->
-    case do_get_password(LUser, LServer) of
+-spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          ejabberd_auth:passterm() | false.
+get_password(HostType, LUser, LServer) ->
+    case do_get_password(HostType, LUser, LServer) of
         false ->
             false;
         Scram when is_map(Scram) ->
@@ -157,27 +141,28 @@ get_password(LUser, LServer) ->
             Password
     end.
 
-get_password_s(LUser, LServer) ->
-    case get_password(LUser, LServer) of
+-spec get_password_s(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary().
+get_password_s(HostType, LUser, LServer) ->
+    case get_password(HostType, LUser, LServer) of
         Password when is_binary(Password) ->
             Password;
         _ ->
             <<"">>
     end.
 
--spec does_user_exist(jid:luser(), jid:lserver()) -> boolean().
-does_user_exist(LUser, LServer) ->
-    case mongoose_riak:fetch_type(bucket_type(LServer), LUser) of
+-spec does_user_exist(mongooseim:host_type(), jid:luser(), jid:lserver()) -> boolean().
+does_user_exist(HostType, LUser, LServer) ->
+    case mongoose_riak:fetch_type(bucket_type(HostType, LServer), LUser) of
         {ok, _} ->
             true;
         {error, {notfound, map}} ->
             false
     end.
 
--spec remove_user(jid:luser(), jid:lserver()) ->
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
     ok | {error, not_allowed}.
-remove_user(LUser, LServer) ->
-    case mongoose_riak:delete(bucket_type(LServer), LUser) of
+remove_user(HostType, LUser, LServer) ->
+    case mongoose_riak:delete(bucket_type(HostType, LServer), LUser) of
         ok -> ok;
         Error ->
             ?LOG_WARNING(#{what => remove_user_failed, reason => Error,
@@ -185,9 +170,9 @@ remove_user(LUser, LServer) ->
             {error, not_allowed}
     end.
 
--spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
-bucket_type(LServer) ->
-    Opts = ejabberd_config:get_local_option_or_default({auth_opts, LServer}, []),
+-spec bucket_type(mongooseim:host_type(), jid:lserver()) -> {binary(), jid:lserver()}.
+bucket_type(HostType, LServer) ->
+    Opts = ejabberd_config:get_local_option_or_default({auth_opts, HostType}, []),
     BucketType = proplists:get_value(bucket_type, Opts, <<"users">>),
     {BucketType, LServer}.
 
@@ -199,24 +184,24 @@ try_register_if_does_not_exist(_, LUser, LServer, _)
     when LUser =:= error; LServer =:= error ->
     {error, invalid_jid};
 try_register_if_does_not_exist(HostType, LUser, LServer, PasswordIn) ->
-   case does_user_exist(LUser, LServer) of
+   case does_user_exist(HostType, LUser, LServer) of
        false ->
            Password = prepare_password(HostType, PasswordIn),
-           try_register_with_password(LUser, LServer, Password);
+           try_register_with_password(HostType, LUser, LServer, Password);
        true ->
            {error, exists}
    end.
 
-try_register_with_password(LUser, LServer, Password) ->
+try_register_with_password(HostType, LUser, LServer, Password) ->
     Now = integer_to_binary(os:system_time(second)),
     Ops = [{{<<"created">>, register},
             fun(R) -> riakc_register:set(Now, R) end},
            set_password_map_op(Password)],
     UserMap = mongoose_riak:create_new_map(Ops),
-    mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UserMap)).
+    mongoose_riak:update_type(bucket_type(HostType, LServer), LUser, riakc_map:to_op(UserMap)).
 
-do_get_password(LUser, LServer) ->
-    case mongoose_riak:fetch_type(bucket_type(LServer), LUser) of
+do_get_password(HostType, LUser, LServer) ->
+    case mongoose_riak:fetch_type(bucket_type(HostType, LServer), LUser) of
         {ok, Map} ->
             case extract_password(Map) of
                 false ->
@@ -228,10 +213,10 @@ do_get_password(LUser, LServer) ->
             false
     end.
 
-do_set_password({ok, Map}, LUser, LServer, Password) ->
+do_set_password({ok, Map}, HostType, LUser, LServer, Password) ->
     Ops = [set_password_map_op(Password)],
     UpdateMap = mongoose_riak:update_map(Map, Ops),
-    mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UpdateMap)).
+    mongoose_riak:update_type(bucket_type(HostType, LServer), LUser, riakc_map:to_op(UpdateMap)).
 
 prepare_password(HostType, Iterations, Password) when is_integer(Iterations) ->
     Scram = mongoose_scram:password_to_scram(HostType, Password, Iterations),
