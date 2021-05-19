@@ -446,7 +446,7 @@ put_room_msg({{_, MsgID},
               {_, ToJID, ToArcID},
               {_, SrcJID, _}, Msg}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    ok = mam_helper:rpc_apply(mod_mam_muc, archive_message, [Host, #{message_id => MsgID,
+    ok = mam_helper:rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
                                                                      archive_id => ToArcID,
                                                                      local_jid => ToJID,
                                                                      remote_jid => FromJID,

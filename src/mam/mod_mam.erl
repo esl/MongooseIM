@@ -195,7 +195,7 @@ archive_id(Server, User)
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(HostType :: jid:server(), Opts :: list()) -> any().
+-spec start(HostType :: host_type(), Opts :: list()) -> any().
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting}),
     ensure_metrics(HostType),
@@ -204,7 +204,7 @@ start(HostType, Opts) ->
     register_features(HostType),
     ok.
 
--spec stop(HostType :: jid:server()) -> any().
+-spec stop(HostType :: host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping}),
     unregister_features(HostType),

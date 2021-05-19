@@ -896,24 +896,25 @@ is_muc_room_owner(HostType, Room, User) ->
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.
--spec can_access_identity(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec can_access_identity(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-can_access_identity(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_identity, HookServer, false,
-                                     [Room, User]).
+can_access_identity(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(can_access_identity, HostType, false,
+                                     [HostType, Room, User]).
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.
--spec can_access_room(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec can_access_room(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-can_access_room(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_room, HookServer, false, [Room, User]).
+can_access_room(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(can_access_room, HostType, false,
+                                     [HostType, Room, User]).
 
 %% MAM related hooks
 
@@ -1058,80 +1059,80 @@ mam_muc_archive_size(HookServer, ArchiveID, RoomJID) ->
 
 %%% @doc The `mam_muc_get_behaviour' hooks is called to determine if a message should
 %%% be archived or not based on the given room and user JIDs.
--spec mam_muc_get_behaviour(HookServer, ArchiveID,
+-spec mam_muc_get_behaviour(HostType, ArchiveID,
                             RoomJID, RemoteJID) -> Result when
-      HookServer :: jid:lserver(),
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       RemoteJID :: jid:jid(),
       Result :: mod_mam:archive_behaviour().
-mam_muc_get_behaviour(HookServer, ArchiveID, RoomJID, RemoteJID) ->
+mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
     DefaultBehaviour = always, %% mod_mam:archive_behaviour() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_behaviour, HookServer, DefaultBehaviour,
-                                     [HookServer, ArchiveID, RoomJID, RemoteJID]).
+    ejabberd_hooks:run_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
+                                     [HostType, ArchiveID, RoomJID, RemoteJID]).
 
 %%% @doc The `mam_muc_set_prefs' hook is called to set a room's archive preferences.
 %%%
 %%% It's possible to set which JIDs are always or never allowed in the archive
--spec mam_muc_set_prefs(HookServer, ArchiveId, RoomJID,
+-spec mam_muc_set_prefs(HostType, ArchiveId, RoomJID,
                         DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
-      HookServer :: jid:lserver(),
+      HostType :: mongooseim:host_type(),
       ArchiveId :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
       NeverJIDs :: [jid:literel_jid()],
       Result :: any().
-mam_muc_set_prefs(HookServer, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     InitialAcc = {error, not_implemented},
-    ejabberd_hooks:run_for_host_type(mam_muc_set_prefs, HookServer, InitialAcc,
-                                     [HookServer, ArchiveID, RoomJID, DefaultMode,
+    ejabberd_hooks:run_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
+                                     [HostType, ArchiveID, RoomJID, DefaultMode,
                                       AlwaysJIDs, NeverJIDs]).
 
 %%% @doc The `mam_muc_get_prefs' hook is called to read
 %%% the archive settings for a given room.
--spec mam_muc_get_prefs(HookServer, DefaultMode, ArchiveID, RoomJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) -> Result when
+      HostType :: mongooseim:host_type(),
       DefaultMode :: mod_mam:archive_behaviour(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
-mam_muc_get_prefs(HookServer, DefaultMode, ArchiveID, RoomJID) ->
+mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
     InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_prefs, HookServer, InitialAcc,
-                                     [HookServer, ArchiveID, RoomJID]).
+    ejabberd_hooks:run_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
+                                     [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_remove_archive' hook is called in order to remove the entire
 %%% archive for a particular user.
--spec mam_muc_remove_archive(HookServer, ArchiveID, RoomJID) -> any() when
-      HookServer :: jid:lserver(),
+-spec mam_muc_remove_archive(HostType, ArchiveID, RoomJID) -> any() when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid().
-mam_muc_remove_archive(HookServer, ArchiveID, RoomJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_remove_archive, HookServer, ok,
-                                     [HookServer, ArchiveID, RoomJID]).
+mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_for_host_type(mam_muc_remove_archive, HostType, ok,
+                                     [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_lookup_messages' hook is to retrieve archived
 %%% MUC messages for any given search parameters.
--spec mam_muc_lookup_messages(HookServer, Params) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_muc_lookup_messages(HostType, Params) -> Result when
+      HostType :: mongooseim:host_type(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
-mam_muc_lookup_messages(HookServer, Params) ->
+mam_muc_lookup_messages(HostType, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
-    ejabberd_hooks:run_for_host_type(mam_muc_lookup_messages, HookServer,
+    ejabberd_hooks:run_for_host_type(mam_muc_lookup_messages, HostType,
                                      {ok, InitialLookupValue},
-                                     [HookServer, Params]).
+                                     [HostType, Params]).
 
 %%% @doc The `mam_muc_archive_message' hook is called in order
 %%% to store the MUC message in the archive.
--spec mam_muc_archive_message(HookServer, Params) -> Result when
-    HookServer :: jid:lserver(),
+-spec mam_muc_archive_message(HostType, Params) -> Result when
+    HostType :: mongooseim:host_type(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_muc_archive_message(HookServer, Params) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_message, HookServer, ok,
-                                     [HookServer, Params]).
+mam_muc_archive_message(HostType, Params) ->
+    ejabberd_hooks:run_for_host_type(mam_muc_archive_message, HostType, ok,
+                                     [HostType, Params]).
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.

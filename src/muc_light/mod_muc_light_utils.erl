@@ -30,6 +30,7 @@
 -export([room_limit_reached/2]).
 -export([filter_out_prevented/3]).
 -export([acc_to_host_type/1]).
+-export([room_jid_to_host_type/1]).
 -export([run_forget_room_hook/1]).
 
 -include("jlib.hrl").
@@ -272,6 +273,10 @@ acc_to_host_type(Acc) ->
         HostType ->
             HostType
     end.
+
+-spec room_jid_to_host_type(jid:jid()) -> mongooseim:host_type().
+room_jid_to_host_type(#jid{lserver = MucHost}) ->
+    muc_host_to_host_type(MucHost).
 
 server_host_to_host_type(LServer) ->
     case mongoose_domain_api:get_host_type(LServer) of

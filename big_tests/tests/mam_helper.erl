@@ -959,7 +959,7 @@ put_muc_msgs(Msgs) ->
 archive_muc_msg(Host, {{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
-    rpc_apply(mod_mam_muc, archive_message, [Host, #{message_id => MsgID,
+    rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
                                                      archive_id => RoomArcID,
                                                      local_jid => RoomJID,
                                                      remote_jid => FromJID,
