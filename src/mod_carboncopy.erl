@@ -72,6 +72,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_disco:register_feature(Host, ?NS_CC_1),
     mod_disco:register_feature(Host, ?NS_CC_2),
+    mod_disco:register_feature(Host, ?NS_CC_RULES),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 89),
     ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),

@@ -412,7 +412,7 @@ given_session_opened(Sid, {U, S, R}, Priority, Info) ->
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
 
-when_session_info_stored(U, S, R, {K,V}) ->
+when_session_info_stored(U, S, R, {K, V}) ->
     JID = jid:make_noprep(U, S, R),
     ejabberd_sm:store_info(JID, K, V).
 
