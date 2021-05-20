@@ -259,8 +259,9 @@ ver(Int) ->
 
 -spec set_mod_config(K :: atom(), V :: any(), SubHost :: binary()) -> ok.
 set_mod_config(K, V, SubHost) ->
-    {ok, Host} = rpc(mim(), mongoose_subhosts, get_host, [SubHost]),
-    true = rpc(mim(), gen_mod, set_module_opt, [Host, mod_muc_light, K, V]).
+    {ok, HostType} = rpc(mim(), mongoose_domain_api,
+                         get_subdomain_host_type, [SubHost]),
+    true = rpc(mim(), gen_mod, set_module_opt, [HostType, mod_muc_light, K, V]).
 
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],

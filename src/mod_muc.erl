@@ -328,7 +328,7 @@ restore_room(HostType, MucHost, Name) ->
 
 -spec forget_room(jid:server(), jid:server(), room()) -> ok | {error, term()}.
 forget_room(ServerHost, MucHost, Name) ->
-    HostType = server_host_to_host_type(ServerHost),
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     %% Removes room from DB, even if it's already removed.
     Result = mod_muc_db_backend:forget_room(HostType, MucHost, Name),
     case Result of
@@ -1285,15 +1285,6 @@ config_metrics(HostType) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
 
--spec server_host_to_host_type(jid:lserver()) -> mongooseim:host_type().
-server_host_to_host_type(ServerHost) ->
-    case mongoose_domain_api:get_domain_host_type(ServerHost) of
-        {ok, HostType} ->
-            HostType;
-        {error, not_found} ->
-            ServerHost
-    end.
-
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
@@ -1312,8 +1303,10 @@ server_host_to_muc_host(HostType, ServerHost) ->
                       From :: jid:jid(), To :: jid:jid(),
                       NS :: binary(), ejabberd:lang())
                      -> {result, [exml:element()]} | empty | {error, any()}.
+disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
+    Acc;
 disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang) ->
-    HostType = server_host_to_host_type(ServerHost),
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Item = #xmlel{name = <<"item">>,
                   attrs = [{<<"jid">>, MUCHost},
@@ -1323,6 +1316,4 @@ disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang)
             {result, [Item | Nodes]};
         empty ->
             {result, [Item]}
-    end;
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+    end.

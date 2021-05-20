@@ -437,7 +437,7 @@ get_user_rooms({LUser, LServer} = US, undefined) ->
     %% It is used to be map over MYHOSTS
     HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
     {selected, Rooms} = select_user_rooms(HostType, LUser, LServer),
-    Rooms;
+    lists:usort(Rooms);
 get_user_rooms({LUser, LServer}, MUCServer) ->
     HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
     {selected, Rooms} = select_user_rooms(HostType, LUser, LServer),

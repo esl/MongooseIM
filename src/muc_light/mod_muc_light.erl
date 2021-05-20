@@ -262,7 +262,7 @@ hooks(HostType) ->
      {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {disco_local_items, HostType, ?MODULE, disco_local_items, 50}] ++
+     {disco_local_items, HostType, ?MODULE, disco_local_items, 250}] ++
     case Codec of
         legacy ->
             [{privacy_iq_get, HostType, ?MODULE, process_iq_get, 1},
@@ -360,19 +360,23 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
                       From :: jid:jid(), To :: jid:jid(),
                       NS :: binary(), ejabberd:lang())
                      -> {result, [exml:element()]} | empty | {error, any()}.
-disco_local_items({result, Nodes}, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang) ->
-    HostType = mod_muc_light_utils:room_jid_to_host_type(To),
+disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
+    Acc;
+disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     XMLNS = case legacy_mode(HostType) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
-    Item = [#xmlel{name = <<"item">>,
-                   attrs = [{<<"jid">>, MUCHost},
-                            {<<"node">>, XMLNS}]}],
-    {result, [Item | Nodes]};
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
+    Item = #xmlel{name = <<"item">>,
+                  attrs = [{<<"jid">>, MUCHost}, {<<"node">>, XMLNS}]},
+    case Result of
+        {result, Nodes} ->
+            {result, [Item | Nodes]};
+        empty ->
+            {result, [Item]}
+    end.
 
 legacy_mode(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE).
@@ -547,8 +551,12 @@ create_room(Acc, From, FromUS, To, Create0, OrigPacket) ->
         {error, bad_request} ->
             mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
                                                      make_handler_fun(Acc));
-        {error, Error} ->
+        {error, {_,_} = Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
+            mod_muc_light_codec_backend:encode_error(
+              {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc));
+        {error, Error} ->
+            ErrorText = io_lib:format("~p", [Error]),
             mod_muc_light_codec_backend:encode_error(
               {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc))
     end.
