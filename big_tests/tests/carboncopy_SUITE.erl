@@ -1,18 +1,20 @@
 -module(carboncopy_SUITE).
 
-
 -compile([export_all]).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(AE(Expected, Actual), ?assertEqual(Expected, Actual)).
+-define(BODY, <<"And pious action">>).
 
-all() -> [{group, all}].
+-import(mongoose_helper, [enable_carbons/1, disable_carbons/1]).
 
+all() ->
+    [{group, all}].
 
 groups() ->
-    G = [{all, [parallel, shuffle],
+    G = [{all, [parallel],
           [discovering_support,
            enabling_carbons,
            disabling_carbons,
@@ -28,20 +30,33 @@ groups() ->
           ]}],
     ct_helper:repeat_all_until_all_ok(G).
 
-init_per_suite(C) -> escalus:init_per_suite(C).
-end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
-init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
-end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
-run_prop(PropName, Property) ->
-    ?AE(true, proper:quickcheck(proper:conjunction([{PropName, Property}]),
-                                [verbose, long_result, {numtests, 3}])).
+%%%===================================================================
+%%% Overall setup/teardown
+%%%===================================================================
+init_per_suite(C) ->
+    escalus:init_per_suite(C).
 
+end_per_suite(C) ->
+    escalus_fresh:clean(),
+    escalus:end_per_suite(C).
+
+%%%===================================================================
+%%% Testcase specific setup/teardown
+%%%===================================================================
+init_per_testcase(Name, C) ->
+    escalus:init_per_testcase(Name, C).
+
+end_per_testcase(Name, C) ->
+    escalus:end_per_testcase(Name, C).
+
+%%%===================================================================
+%%% Individual Test Cases (from groups() definition)
+%%%===================================================================
 discovering_support(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              IqGet = escalus_stanza:disco_info(ct:get_config({hosts,
-                                                               mim, domain})),
+              IqGet = escalus_stanza:disco_info(ct:get_config({hosts, mim, domain})),
               escalus_client:send(Alice, IqGet),
               Result = escalus_client:wait_for_stanza(Alice),
               escalus:assert(is_iq_result, [IqGet], Result),
@@ -49,54 +64,49 @@ discovering_support(Config) ->
       end).
 
 enabling_carbons(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun carbons_get_enabled/1).
+    escalus:fresh_story(Config, [{alice, 1}], fun mongoose_helper:enable_carbons/1).
 
 disabling_carbons(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
-                  fun(Alice) -> carbons_get_enabled(Alice),
-                                carbons_get_disabled(Alice) end).
+                        fun(Alice) -> enable_carbons(Alice),
+                                      disable_carbons(Alice) end).
 
 avoiding_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-              carbons_get_enabled([Alice1, Alice2]),
-              Msg = escalus_stanza:chat_without_carbon_to(Bob,
-                                                          <<"And pious action">>),
+              enable_carbons([Alice1, Alice2]),
+              Msg = escalus_stanza:chat_without_carbon_to(Bob, ?BODY),
               escalus_client:send(Alice1, Msg),
-              escalus:assert(
-                is_chat_message, [<<"And pious action">>],
-                escalus_client:wait_for_stanza(Bob)),
-              escalus_client:wait_for_stanzas(Alice2, 1),
-              [] = escalus_client:peek_stanzas(Alice2)
+              BobReceived = escalus_client:wait_for_stanza(Bob),
+              escalus:assert(is_chat_message, [?BODY], BobReceived),
+              ?assertEqual([], escalus_client:wait_for_stanzas(Alice2, 1, 500)),
+              ?assertEqual([], escalus_client:peek_stanzas(Alice2))
       end).
 
 non_enabled_clients_dont_get_sent_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-              Msg = escalus_stanza:chat_to(Bob, <<"And pious action">>),
+              Msg = escalus_stanza:chat_to(Bob, ?BODY),
               escalus_client:send(Alice1, Msg),
-              escalus:assert(
-                is_chat_message, [<<"And pious action">>],
-                escalus_client:wait_for_stanza(Bob)),
-              escalus_client:wait_for_stanzas(Alice2, 1),
-              [] = escalus_client:peek_stanzas(Alice2)
+              BobReceived = escalus_client:wait_for_stanza(Bob),
+              escalus:assert(is_chat_message, [?BODY], BobReceived),
+              ?assertEqual([], escalus_client:wait_for_stanzas(Alice2, 1, 500)),
+              ?assertEqual([], escalus_client:peek_stanzas(Alice2))
       end).
 
 non_enabled_clients_dont_get_received_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-              Msg = escalus_stanza:chat_to(Alice1, <<"And pious action">>),
+              Msg = escalus_stanza:chat_to(Alice1, ?BODY),
               escalus_client:send(Bob, Msg),
-              escalus:assert(
-                is_chat_message, [<<"And pious action">>],
-                escalus_client:wait_for_stanza(Alice1)),
-              escalus_client:wait_for_stanzas(Alice2, 1),
-              [] = escalus_client:peek_stanzas(Alice2)
+              AliceReceived = escalus_client:wait_for_stanza(Alice1),
+              escalus:assert(is_chat_message, [?BODY], AliceReceived),
+              ?assertEqual([], escalus_client:wait_for_stanzas(Alice2, 1, 500)),
+              ?assertEqual([], escalus_client:peek_stanzas(Alice2))
       end).
-
 
 enabled_single_resource_doesnt_get_carbons(Config) ->
     BobsMessages = [
@@ -108,7 +118,7 @@ enabled_single_resource_doesnt_get_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
-              carbons_get_enabled(Alice),
+              enable_carbons(Alice),
               [ escalus_client:send(Bob, escalus_stanza:chat_to(Alice, M))
                 || M <- BobsMessages ],
               [ escalus:assert(is_chat_message, [M], escalus_client:wait_for_stanza(Alice))
@@ -119,38 +129,33 @@ unavailable_resources_dont_get_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-        carbons_get_enabled(Alice1),
-        carbons_get_enabled(Alice2),
+        enable_carbons([Alice1, Alice2]),
         client_unsets_presence(Alice1),
         escalus:assert(is_presence_with_type, [<<"unavailable">>],
                        escalus_client:wait_for_stanza(Alice2)),
 
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, <<"one">>)),
+        escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, ?BODY)),
 
         client_sets_presence(Alice1),
         %% no carbons for Alice1, only presences
         escalus_new_assert:mix_match([is_presence, is_presence],
-                                     escalus:wait_for_stanzas(Alice1, 2))
+                                     escalus:wait_for_stanzas(Alice1, 2)),
+        AliceReceived = escalus_client:wait_for_stanza(Alice2),
+        escalus:assert(is_chat_message, [?BODY], AliceReceived)
       end).
-
-client_unsets_presence(Client) ->
-    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)).
-
-client_sets_presence(Client) ->
-    escalus_client:send(Client, escalus_stanza:presence(<<"available">>)).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-              Msg = escalus_stanza:chat_to(Bob, <<"And pious action">>),
+              enable_carbons([Alice1, Alice2]),
+              Msg = escalus_stanza:chat_to(Bob, ?BODY),
               escalus_client:stop(Config, Alice2),
               escalus:assert(is_presence_with_type, [<<"unavailable">>],
-                    escalus_client:wait_for_stanza(Alice1)),
+                             escalus_client:wait_for_stanza(Alice1)),
               escalus_client:send(Alice1, Msg),
-              escalus:assert(
-                is_chat_message, [<<"And pious action">>],
-                escalus_client:wait_for_stanza(Bob)),
+              escalus:assert(is_chat_message, [?BODY],
+                             escalus_client:wait_for_stanza(Bob)),
               [] = escalus_client:peek_stanzas(Alice1)
       end).
 
@@ -188,7 +193,6 @@ prop_normal_routing_to_bare_jid(Config) ->
                     end))).
 
 
-
 %%
 %% Test scenarios w/assertions
 %%
@@ -196,7 +200,7 @@ prop_normal_routing_to_bare_jid(Config) ->
 all_bobs_resources_get_message_to_bare_jid([Alice, Bob1 | Bobs], Msg) ->
     %% All connected resources receive messages sent
     %% to the user's bare JID without carbon wrappers.
-    carbons_get_enabled([Bob1|Bobs]),
+    enable_carbons([Bob1|Bobs]),
     escalus_client:send(
       Alice, escalus_stanza:chat_to(escalus_client:short_jid(Bob1), Msg)),
     GotMsg = fun(BobsResource) ->
@@ -209,8 +213,9 @@ all_bobs_resources_get_message_to_bare_jid([Alice, Bob1 | Bobs], Msg) ->
     lists:foreach(GotMsg, [Bob1|Bobs]).
 
 all_bobs_other_resources_get_received_carbons([Alice, Bob1 | Bobs], Msg) ->
-    carbons_get_enabled([Bob1|Bobs]),
+    enable_carbons([Bob1|Bobs]),
     escalus_client:send(Alice, escalus_stanza:chat_to(Bob1, Msg)),
+    escalus_client:wait_for_stanza(Bob1),
     GotForward = fun(BobsResource) ->
                          escalus:assert(
                            is_forwarded_received_message,
@@ -222,7 +227,7 @@ all_bobs_other_resources_get_received_carbons([Alice, Bob1 | Bobs], Msg) ->
     lists:foreach(GotForward, Bobs).
 
 all_bobs_other_resources_get_sent_carbons([Alice, Bob1 | Bobs], Msg) ->
-    carbons_get_enabled([Bob1|Bobs]),
+    enable_carbons([Bob1|Bobs]),
     escalus_client:send(Bob1, escalus_stanza:chat_to(Alice, Msg)),
     escalus:assert(is_chat_message, [Msg], escalus_client:wait_for_stanza(Alice)),
     GotCarbon = fun(BobsResource) ->
@@ -235,26 +240,19 @@ all_bobs_other_resources_get_sent_carbons([Alice, Bob1 | Bobs], Msg) ->
                         escalus_assert:has_no_stanzas(BobsResource) end,
     lists:foreach(GotCarbon, Bobs).
 
-carbons_get_disabled(ClientOrClients) ->
-    disable_carbons(ClientOrClients).
-
-carbons_get_enabled(ClientOrClients) ->
-    enable_carbons(ClientOrClients).
-
-
 %%
 %% Internal helpers
 %%
 
 %% Wrapper around escalus:story. Returns PropEr result.
 true_story(Config, UserSpecs, TestFun) ->
-    try   escalus_fresh:story_with_client_list(Config, UserSpecs, TestFun), true
+    try escalus_fresh:story_with_client_list(Config, UserSpecs, TestFun), true
     catch E ->
               {error, E}
     end.
 
 %% Number of resources per users
-no_of_resources() -> rand:uniform(4).
+no_of_resources() -> 1 + rand:uniform(4).
 
 %% A sample chat message
 utterance() ->
@@ -267,19 +265,12 @@ utterance() ->
        <<"Long withering out a young man revenue.">>]).
 
 
-enable_carbons(Clients) when is_list(Clients) ->
-    lists:foreach(fun enable_carbons/1, Clients);
-enable_carbons(Client) ->
-    IqSet = escalus_stanza:carbons_enable(),
-    escalus_client:send(Client, IqSet),
-    Result = escalus_client:wait_for_stanza(Client),
-    escalus:assert(is_iq, [<<"result">>], Result).
+client_unsets_presence(Client) ->
+    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)).
 
+client_sets_presence(Client) ->
+    escalus_client:send(Client, escalus_stanza:presence(<<"available">>)).
 
-disable_carbons(Clients) when is_list(Clients) ->
-    lists:foreach(fun disable_carbons/1, Clients);
-disable_carbons(Client) ->
-    IqSet = escalus_stanza:carbons_disable(),
-    escalus_client:send(Client, IqSet),
-    Result = escalus_client:wait_for_stanza(Client),
-    escalus:assert(is_iq, [<<"result">>], Result).
+run_prop(PropName, Property) ->
+    ?AE(true, proper:quickcheck(proper:conjunction([{PropName, Property}]),
+                                [verbose, long_result, {numtests, 3}])).

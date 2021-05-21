@@ -264,7 +264,7 @@ enable_node(From, BarePubSubJID, Node, FormFields, IQ) ->
 
 -spec store_session_info(jid:jid(), publish_service()) -> any().
 store_session_info(Jid, Service) ->
-    ejabberd_sm:store_info(Jid, {?SESSION_KEY, Service}).
+    ejabberd_sm:store_info(Jid, ?SESSION_KEY, Service).
 
 -spec maybe_remove_push_node_from_sessions_info(jid:jid(), jid:jid(), pubsub_node() | undefined) ->
           ok.

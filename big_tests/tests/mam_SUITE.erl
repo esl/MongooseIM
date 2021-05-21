@@ -115,7 +115,8 @@
          archive_chat_markers/1,
          dont_archive_chat_markers/1,
          save_unicode_messages/1,
-         unicode_messages_can_be_extracted/1]).
+         unicode_messages_can_be_extracted/1,
+         stanza_id_is_appended_to_carbons/1]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -394,7 +395,8 @@ archived_cases() ->
      filter_forwarded].
 
 stanzaid_cases() ->
-    [message_with_stanzaid].
+    [message_with_stanzaid,
+     stanza_id_is_appended_to_carbons].
 
 retract_cases() ->
     [retract_message,
@@ -1498,6 +1500,32 @@ save_unicode_messages(Config) ->
                 ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+stanza_id_is_appended_to_carbons(Config) ->
+    F = fun(Alice1, Alice2, Bob1, Bob2) ->
+        Msg = <<"OH, HAI!">>,
+        mongoose_helper:enable_carbons([Alice1, Alice2, Bob1, Bob2]),
+        escalus:send(Alice1, escalus_stanza:chat_to(Bob1, Msg)),
+        mam_helper:wait_for_archive_size(Alice1, 1),
+        escalus_client:wait_for_stanza(Bob1),
+        Alice2CC = escalus_client:wait_for_stanza(Alice2),
+        Bob2CC = escalus_client:wait_for_stanza(Bob2),
+
+        SID = fun(Packet, Direction) ->
+                  exml_query:path(Packet, [{element_with_ns, Direction, <<"urn:xmpp:carbons:2">>},
+                                           {element_with_ns, <<"forwarded">>, <<"urn:xmpp:forward:0">>},
+                                           {element_with_ns, <<"message">>, <<"jabber:client">>},
+                                           {element_with_ns, <<"stanza-id">>, <<"urn:xmpp:sid:0">>},
+                                           {attr, <<"id">>}])
+              end,
+        ?assert_equal(true, undefined =/= SID(Bob2CC, <<"received">>)),
+        ?assert_equal(true, undefined =/= SID(Alice2CC, <<"sent">>)),
+        escalus:assert(is_forwarded_sent_message,
+          [escalus_client:full_jid(Alice1), escalus_client:full_jid(Bob1), Msg], Alice2CC),
+        escalus:assert(is_forwarded_received_message,
+          [escalus_client:full_jid(Alice1), escalus_client:full_jid(Bob1), Msg], Bob2CC)
+        end,
+    escalus_fresh:story(Config, [{alice, 2}, {bob, 2}], F).
 
 muc_text_search_request(Config) ->
     P = ?config(props, Config),

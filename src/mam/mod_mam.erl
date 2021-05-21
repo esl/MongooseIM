@@ -75,12 +75,9 @@
         [maybe_add_arcid_elems/4,
          wrap_message/6,
          result_set/4,
-         result_query/2,
          result_prefs/4,
-         make_fin_message/5,
          make_fin_element/4,
          parse_prefs/1,
-         borders_decode/1,
          is_mam_result_message/1,
          features/2]).
 
@@ -264,8 +261,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
                        Packet :: exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
     ?LOG_DEBUG(#{what => mam_user_send_packet, acc => Acc}),
-    handle_package(outgoing, false, From, To, From, Packet),
-    Acc.
+    {_, Acc2} = handle_package(outgoing, true, From, To, From, Packet, Acc),
+    Acc2.
 
 
 %% @doc Handle an incoming message.
@@ -282,28 +279,31 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To = #jid{lserver = LServer}, Acc, Packet}) ->
-    ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc}),
-    {AmpEvent, PacketAfterArchive} =
+filter_packet({From, To = #jid{lserver = LServer}, Acc1, Packet}) ->
+    ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
+    {AmpEvent, PacketAfterArchive, Acc3} =
         case ejabberd_users:does_user_exist(To) of
             false ->
-                {mam_failed, Packet};
+                {mam_failed, Packet, Acc1};
             true ->
-                case process_incoming_packet(From, To, Packet) of
-                    undefined -> {mam_failed, Packet};
-                    MessID -> {archived, maybe_add_arcid_elems(
-                                           To, MessID, Packet,
-                                           mod_mam_params:add_stanzaid_element(?MODULE, LServer))}
+                case process_incoming_packet(From, To, Packet, Acc1) of
+                    {undefined, Acc2} ->
+                        {mam_failed, Packet, Acc2};
+                    {MessID, Acc2} ->
+                        Packet2 = maybe_add_arcid_elems(
+                                     To, MessID, Packet,
+                                     mod_mam_params:add_stanzaid_element(?MODULE, LServer)),
+                        {archived, Packet2, Acc2}
                 end
         end,
-    Acc1 = mongoose_acc:update_stanza(#{ element => PacketAfterArchive,
+    Acc4 = mongoose_acc:update_stanza(#{ element => PacketAfterArchive,
                                          from_jid => From,
-                                         to_jid => To }, Acc),
-    Acc2 = mod_amp:check_packet(Acc1, AmpEvent),
-    {From, To, Acc2, mongoose_acc:element(Acc2)}.
+                                         to_jid => To }, Acc3),
+    Acc5 = mod_amp:check_packet(Acc4, AmpEvent),
+    {From, To, Acc5, mongoose_acc:element(Acc5)}.
 
-process_incoming_packet(From, To, Packet) ->
-    handle_package(incoming, true, To, From, From, Packet).
+process_incoming_packet(From, To, Packet, Acc) ->
+    handle_package(incoming, true, To, From, From, Packet, Acc).
 
 %% hook handler
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
@@ -467,11 +467,12 @@ amp_deliver_strategy([direct, none]) -> [direct, stored, none].
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),
                      LocJID :: jid:jid(), RemJID :: jid:jid(), SrcJID :: jid:jid(),
-                     Packet :: exml:element()) -> MaybeMessID :: binary() | undefined.
+                     Packet :: exml:element(), Acc :: mongoose_acc:t()) ->
+    {MaybeMessID :: binary() | undefined, Acc :: mongoose_acc:t()}.
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{},
                RemJID = #jid{},
-               SrcJID = #jid{}, Packet) ->
+               SrcJID = #jid{}, Packet, Acc) ->
     Host = server_host(LocJID),
     case is_archivable_message(Host, Dir, Packet)
          andalso should_archive_if_groupchat(Host, exml_query:attr(Packet, <<"type">>)) of
@@ -490,12 +491,13 @@ handle_package(Dir, ReturnMessID,
                                direction => Dir,
                                packet => Packet},
                     Result = archive_message(Host, Params),
-                    return_external_message_id_if_ok(ReturnMessID, Result, MessID);
+                    ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
+                    {ExtMessId, mongoose_acc:set(mam, mam_id, ExtMessId, Acc)};
                 false ->
-                    undefined
+                    {undefined, Acc}
             end;
         false ->
-            undefined
+            {undefined, Acc}
     end.
 
 should_archive_if_groupchat(Host, <<"groupchat">>) ->
@@ -675,8 +677,8 @@ config_metrics(Host) ->
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
-    [{user_send_packet, Host, ?MODULE, user_send_packet, 90},
-     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90},
+    [{user_send_packet, Host, ?MODULE, user_send_packet, 60},
+     {rest_user_send_packet, Host, ?MODULE, user_send_packet, 60},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},

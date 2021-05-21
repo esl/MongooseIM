@@ -246,7 +246,7 @@ cannot_reproduce_race_condition_in_store_info(C) ->
     ok = try_to_reproduce_race_condition(C).
 
 store_info_sends_message_to_the_session_owner(C) ->
-    SID = {erlang:timestamp(), self()},
+    SID = {erlang:system_time(microsecond), self()},
     U = <<"alice2">>,
     S = <<"localhost">>,
     R = <<"res1">>,
@@ -255,15 +255,15 @@ store_info_sends_message_to_the_session_owner(C) ->
     ?B(C):create_session(U, S, R, Session),
     %% but call store_info from another process
     JID = jid:make_noprep(U, S, R),
-    spawn_link(fun() -> ejabberd_sm:store_info(JID, {cc, undefined}) end),
+    spawn_link(fun() -> ejabberd_sm:store_info(JID, cc, undefined) end),
     %% The original process receives a message
     receive {store_session_info,
              #jid{luser = User, lserver = Server, lresource = Resource},
-             KV, _FromPid} ->
+             K, V, _FromPid} ->
         ?eq(U, User),
         ?eq(S, Server),
         ?eq(R, Resource),
-        ?eq({cc, undefined}, KV),
+        ?eq({cc, undefined}, {K, V}),
         ok
         after 5000 ->
             ct:fail("store_info_sends_message_to_the_session_owner=timeout")
@@ -412,9 +412,9 @@ given_session_opened(Sid, {U, S, R}, Priority, Info) ->
 when_session_opened(Sid, {U, S, R}, Priority, Info) ->
     given_session_opened(Sid, {U, S, R}, Priority, Info).
 
-when_session_info_stored(U, S, R, {_,_}=KV) ->
+when_session_info_stored(U, S, R, {K, V}) ->
     JID = jid:make_noprep(U, S, R),
-    ejabberd_sm:store_info(JID, KV).
+    ejabberd_sm:store_info(JID, K, V).
 
 when_session_info_removed(U, S, R, Key) ->
     JID = jid:make_noprep(U, S, R),
@@ -608,4 +608,5 @@ set_meck(SMBackend) ->
 
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
+    meck:expect(ejabberd_commands, unregister_commands, fun(_) -> ok end),
     ok.

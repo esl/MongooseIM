@@ -23,6 +23,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3, successful_rpc/4, successful_rpc/5]).
 -export([logout_user/2, logout_user/3]).
+-export([enable_carbons/1, disable_carbons/1]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
@@ -260,6 +261,22 @@ successful_rpc(#{} = Spec, Module, Function, Args, Timeout) ->
         Result ->
             Result
     end.
+
+enable_carbons(Clients) when is_list(Clients) ->
+    lists:foreach(fun enable_carbons/1, Clients);
+enable_carbons(Client) ->
+    IqSet = escalus_stanza:carbons_enable(),
+    escalus_client:send(Client, IqSet),
+    Result = escalus_client:wait_for_stanza(Client),
+    escalus:assert(is_iq, [<<"result">>], Result).
+
+disable_carbons(Clients) when is_list(Clients) ->
+    lists:foreach(fun disable_carbons/1, Clients);
+disable_carbons(Client) ->
+    IqSet = escalus_stanza:carbons_disable(),
+    escalus_client:send(Client, IqSet),
+    Result = escalus_client:wait_for_stanza(Client),
+    escalus:assert(is_iq, [<<"result">>], Result).
 
 logout_user(Config, User) ->
     Node = distributed_helper:mim(),
