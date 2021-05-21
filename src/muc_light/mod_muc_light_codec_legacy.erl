@@ -251,7 +251,7 @@ encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun) ->
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light">>}]},
+                                {<<"name">>, <<"MUC Light (legacy)">>}]},
                 #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]}] ++
                [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures],
     {iq_reply, ?NS_DISCO_INFO, DiscoEls, ID};

@@ -180,11 +180,11 @@ server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
 host_type_to_codec(HostType) ->
-    case gen_mod:get_module_opt(HostType, legacy_mode, ?MODULE, ?DEFAULT_LEGACY_MODE) of
-        false ->
-            modern;
+    case gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
         true ->
-            legacy
+            legacy;
+        false ->
+            modern
     end.
 
 tracked_db_funs() ->
@@ -254,7 +254,7 @@ process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
 hooks(HostType) ->
     Codec = host_type_to_codec(HostType),
-    Roster = gen_mod:get_module_opt(HostType, rooms_in_rosters, ?MODULE, ?DEFAULT_ROOMS_IN_ROSTERS),
+    Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters, ?DEFAULT_ROOMS_IN_ROSTERS),
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},

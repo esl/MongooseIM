@@ -326,7 +326,12 @@ set_opt(Opt, Opts, Value) ->
     lists:keystore(Opt, 1, Opts, {Opt, Value}).
 
 
+-spec get_module_opt(mongooseim:host_type(), module(), atom(), term()) -> term().
 get_module_opt(HostType, Module, Opt, Default) ->
+    %% Fail in dev builds.
+    %% It protects against passing something weird as a Module argument
+    %% or against wrong argument order.
+    ?ASSERT_MODULE(Module),
     ModuleOpts = get_module_opts(HostType, Module),
     get_opt(Opt, ModuleOpts, Default).
 

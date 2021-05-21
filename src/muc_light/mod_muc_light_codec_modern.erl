@@ -261,7 +261,7 @@ encode_iq({get, #disco_info{ id = ID }},
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light">>}]},
+                                {<<"name">>, <<"MUC Light (modern)">>}]},
                 #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_LIGHT}]}] ++
                [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures],
     {reply, ?NS_DISCO_INFO, DiscoEls, ID};

@@ -1381,7 +1381,7 @@ filter_room_packet(HostType, Packet, EventData) ->
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
 -spec forget_room(HostType, MucHost, Room) -> Result when
-    HostType :: jid:server(),
+    HostType :: mongooseim:host_type(),
     MucHost :: jid:server(),
     Room :: jid:luser(),
     Result :: any().

@@ -36,4 +36,8 @@
 %% Logging mechanism
 -include("mongoose_logger.hrl").
 
-
+-ifdef(PROD_NODE).
+-define(ASSERT_MODULE(M), ok).
+-else.
+-define(ASSERT_MODULE(M), M:module_info(module)).
+-endif.

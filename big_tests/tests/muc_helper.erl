@@ -5,6 +5,8 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-include("mam_helper.hrl").
+
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
                              rpc/4]).
@@ -221,7 +223,7 @@ stanza_get_features() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
 
-has_features(#xmlel{children = [ Query ]}, Features) ->
+has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
     %%  to='hag66@shakespeare.lit/pda'
@@ -235,10 +237,15 @@ has_features(#xmlel{children = [ Query ]}, Features) ->
     %%  </query>
     %%</iq>
 
+    Loaded = rpc(mim(), gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
+    ct:log("Loaded modules:~n~p", [Loaded]),
+
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    Features = exml_query:paths(Query, [{element, <<"feature">>},
-                                        {attr, <<"var">>}]).
+    ?assert_equal_extra(Features,
+                        exml_query:paths(Query, [{element, <<"feature">>},
+                                        {attr, <<"var">>}]),
+                        [Iq]).
 
 assert_valid_affiliation(<<"owner">>) -> ok;
 assert_valid_affiliation(<<"admin">>) -> ok;
