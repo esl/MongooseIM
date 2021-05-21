@@ -28,7 +28,11 @@ all() ->
 
 init_per_suite(Config) ->
     meck:new(mongoose_lazy_routing, [no_link]),
-    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
+    meck:new(mongoose_subdomain_core, [no_link]),
+    [meck:expect(M, F, fun remove_domain_mock_fn/2)
+     || {M, F} <- [{mongoose_lazy_routing, maybe_remove_domain},
+                   {mongoose_subdomain_core, remove_domain}]],
+    meck:expect(mongoose_subdomain_core, add_domain, fun add_domain_mock_fn/2),
     Config.
 
 end_per_suite(Config) ->
@@ -37,7 +41,7 @@ end_per_suite(Config) ->
 
 init_per_testcase(_, Config) ->
     ok = mongoose_domain_core:start(?STATIC_PAIRS, ?ALLOWED_TYPES),
-    meck:reset(mongoose_lazy_routing),
+    [meck:reset(M) || M <- [mongoose_lazy_routing, mongoose_subdomain_core]],
     Config.
 
 end_per_testcase(_, Config) ->
@@ -52,23 +56,22 @@ lookup_works(_) ->
     {ok, <<"static type">>} = mongoose_domain_core:get_host_type(<<"erlang-solutions.local">>),
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
     ok = mongoose_domain_core:insert(<<"some.domain">>, <<"type #3">>, dummy_src),
+    add_domain_mock_is_executed_only_one_time(<<"type #3">>, <<"some.domain">>),
     {ok, <<"type #3">>} = mongoose_domain_core:get_host_type(<<"some.domain">>),
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
-    ok = meck:wait(mongoose_lazy_routing, maybe_remove_domain,
-                   [<<"type #3">>, <<"some.domain">>], 0).
+    remove_domain_mocks_are_executed_only_one_time(<<"type #3">>, <<"some.domain">>).
 
 double_insert_double_remove_works(_) ->
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
     ok = mongoose_domain_core:insert(<<"some.domain">>, <<"type #3">>, dummy_src),
     ok = mongoose_domain_core:insert(<<"some.domain">>, <<"type #3">>, dummy_src),
     {ok, <<"type #3">>} = mongoose_domain_core:get_host_type(<<"some.domain">>),
+    add_domain_mock_is_executed_only_one_time(<<"type #3">>, <<"some.domain">>),
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     ok = mongoose_domain_core:delete(<<"some.domain">>),
     {error, not_found} = mongoose_domain_core:get_host_type(<<"some.domain">>),
-    ok = meck:wait(mongoose_lazy_routing, maybe_remove_domain,
-                   [<<"type #3">>, <<"some.domain">>], 0),
-    1 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, 2).
+    remove_domain_mocks_are_executed_only_one_time(<<"type #3">>, <<"some.domain">>).
 
 static_domain_check(_) ->
     true = mongoose_domain_core:is_static(<<"example.cfg">>),
@@ -78,19 +81,23 @@ static_domain_check(_) ->
 
 cannot_delete_static(_) ->
     {error, static} = mongoose_domain_core:delete(<<"example.cfg">>),
-    {error, static} = mongoose_domain_core:delete(<<"erlang-solutions.local">>).
+    {error, static} = mongoose_domain_core:delete(<<"erlang-solutions.local">>),
+    remove_domain_mocks_are_not_executed().
 
 cannot_insert_static_domain(_) ->
     {error, static} = mongoose_domain_core:insert(<<"example.cfg">>, <<"type #1">>, dummy_src),
     {error, static} = mongoose_domain_core:insert(<<"erlang-solutions.local">>, <<"type #3">>,
-                                                  dummy_src).
+                                                  dummy_src),
+    add_domain_mock_is_not_executed().
+
 
 cannot_insert_if_host_type_not_configured(_) ->
     {ok, StaticHostType} = mongoose_domain_core:get_host_type(<<"erlang-solutions.local">>),
     {error, unknown_host_type} = mongoose_domain_core:insert(<<"erlang-solutions.local">>,
                                                              StaticHostType, dummy_src),
     {error, unknown_host_type} = mongoose_domain_core:insert(<<"erlang-solutions.local">>,
-                                                             <<"invalid type">>, dummy_src).
+                                                             <<"invalid type">>, dummy_src),
+    add_domain_mock_is_not_executed().
 
 %% See also db_get_all_static
 get_all_static(_) ->
@@ -154,3 +161,31 @@ run_for_each_domain(_) ->
     [meck:wait(dummy_module, for_each_callback, [<<"type #3">>, Domain], 0)
      || Domain <- NewDomains],
     meck:unload(dummy_module).
+
+add_domain_mock_is_executed_only_one_time(HostType, Domain) ->
+    Pid = whereis(mongoose_domain_core),
+    1 = meck:num_calls(mongoose_subdomain_core, add_domain, [HostType, Domain], Pid).
+
+remove_domain_mocks_are_executed_only_one_time(HostType, Domain) ->
+    Pid = whereis(mongoose_domain_core),
+    1 = meck:num_calls(mongoose_subdomain_core, remove_domain, [HostType, Domain], Pid),
+    1 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, [HostType, Domain], Pid).
+
+remove_domain_mocks_are_not_executed() ->
+    0 = meck:num_calls(mongoose_subdomain_core, remove_domain, 2),
+    0 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, 2).
+
+add_domain_mock_is_not_executed() ->
+    0 = meck:num_calls(mongoose_subdomain_core, add_domain, 2).
+
+remove_domain_mock_fn(_HostType, Domain) ->
+    %% ensure that domain is removed from ETS table
+    %% before other modules notified about it
+    {error, not_found} = mongoose_domain_core:get_host_type(Domain),
+    ok.
+
+add_domain_mock_fn(HostType, Domain) ->
+    %% ensure that domain is added to ETS table before
+    %% mongoose_subdomain_core module notified about it
+    {ok, HostType} = mongoose_domain_core:get_host_type(Domain),
+    ok.
