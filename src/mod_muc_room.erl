@@ -29,8 +29,7 @@
 
 
 %% External exports
--export([start_link/11,
-         start_link/9,
+-export([start_link/1,
          start_new/11,
          start_restored/9,
          route/5,
@@ -165,9 +164,12 @@
 start_new(HostType, Host, ServerHost, Access, Room,
           HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
     Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
-    Args = [HostType, Host, ServerHost, Access, Room,
-            HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
-    supervisor:start_child(Supervisor, Args).
+    Args = #{init_type => start_new, host_type => HostType,
+             muc_host => Host, server_host => ServerHost, access => Access,
+             room_name => Room, history_size => HistorySize,
+             room_shaper => RoomShaper, http_auth_pool => HttpAuthPool,
+             creator => Creator, nick => Nick, def_opts => DefRoomOpts},
+    supervisor:start_child(Supervisor, [Args]).
 
 -spec start_restored(HostType :: mongooseim:host_type(), Host :: jid:server(), ServerHost :: jid:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
@@ -179,30 +181,15 @@ start_restored(HostType, Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, Opts)
     when is_list(Opts) ->
     Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
-    Args = [HostType, Host, ServerHost, Access, Room,
-            HistorySize, RoomShaper, HttpAuthPool, Opts],
-    supervisor:start_child(Supervisor, Args).
+    Args = #{init_type => start_restored, host_type => HostType,
+             muc_host => Host, server_host => ServerHost,
+             access => Access, room_name => Room, history_size => HistorySize,
+             room_shaper => RoomShaper, http_auth_pool => HttpAuthPool,
+             opts => Opts},
+    supervisor:start_child(Supervisor, [Args]).
 
-%% Starts new room
-start_link(HostType, Host, ServerHost, Access, Room,
-           HistorySize, RoomShaper, HttpAuthPool,
-           Creator, Nick, DefRoomOpts)
-    when is_list(DefRoomOpts) ->
-    gen_fsm_compat:start_link(?MODULE,
-                       [start_new, HostType,
-                        Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
-                       ?FSMOPTS).
-
-%% Starts restored room
-start_link(HostType, Host, ServerHost, Access, Room,
-           HistorySize, RoomShaper, HttpAuthPool, Opts)
-    when is_list(Opts) ->
-    gen_fsm_compat:start_link(?MODULE,
-                       [start_restored, HostType,
-                        Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, HttpAuthPool, Opts],
-                       ?FSMOPTS).
+start_link(Args) ->
+    gen_fsm_compat:start_link(?MODULE, Args, []).
 
 stop(Pid) ->
     gen_fsm_compat:stop(Pid).
@@ -264,16 +251,18 @@ can_access_identity(RoomJID, UserJID) ->
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
--spec init([any(), ...]) ->
+-spec init(#{}) ->
     {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
-init([start_new|Args]) ->
+init(#{init_type := start_new} = Args) ->
     init_new(Args);
-init([start_restored|Args]) ->
+init(#{init_type := start_restored} = Args) ->
     init_restored(Args).
 
-init_new([HostType, Host, ServerHost, Access, Room,
-          HistorySize, RoomShaper, HttpAuthPool,
-          Creator, _Nick, DefRoomOpts]) when is_list(DefRoomOpts) ->
+init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
+           server_host := ServerHost, access := Access, room_name := Room,
+           history_size := HistorySize, room_shaper := RoomShaper,
+           http_auth_pool := HttpAuthPool, creator := Creator, nick := Nick,
+           def_opts := DefRoomOpts}) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,
@@ -304,8 +293,12 @@ init_new([HostType, Host, ServerHost, Access, Room,
     end.
 
 %% @doc A room is restored
-init_restored([HostType, Host, ServerHost, Access, Room,
-               HistorySize, RoomShaper, HttpAuthPool, Opts]) ->
+init_restored(#{init_type := start_restored,
+                host_type := HostType, muc_host := Host,
+                server_host := ServerHost, access := Access,
+                room_name := Room, history_size := HistorySize,
+                room_shaper := RoomShaper, http_auth_pool := HttpAuthPool,
+                opts := Opts}) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_opts(Opts, #state{host = Host, host_type = HostType,
