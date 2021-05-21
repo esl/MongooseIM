@@ -163,13 +163,11 @@ run_for_each_domain(_) ->
     meck:unload(dummy_module).
 
 add_domain_mock_is_executed_only_one_time(HostType, Domain) ->
-    Pid = whereis(mongoose_domain_core),
-    1 = meck:num_calls(mongoose_subdomain_core, add_domain, [HostType, Domain], Pid).
+    1 = meck:num_calls(mongoose_subdomain_core, add_domain, [HostType, Domain]).
 
 remove_domain_mocks_are_executed_only_one_time(HostType, Domain) ->
-    Pid = whereis(mongoose_domain_core),
-    1 = meck:num_calls(mongoose_subdomain_core, remove_domain, [HostType, Domain], Pid),
-    1 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, [HostType, Domain], Pid).
+    1 = meck:num_calls(mongoose_subdomain_core, remove_domain, [HostType, Domain]),
+    1 = meck:num_calls(mongoose_lazy_routing, maybe_remove_domain, [HostType, Domain]).
 
 remove_domain_mocks_are_not_executed() ->
     0 = meck:num_calls(mongoose_subdomain_core, remove_domain, 2),
@@ -182,10 +180,12 @@ remove_domain_mock_fn(_HostType, Domain) ->
     %% ensure that domain is removed from ETS table
     %% before other modules notified about it
     {error, not_found} = mongoose_domain_core:get_host_type(Domain),
+    true = self() =:= whereis(mongoose_domain_core),
     ok.
 
 add_domain_mock_fn(HostType, Domain) ->
     %% ensure that domain is added to ETS table before
     %% mongoose_subdomain_core module notified about it
     {ok, HostType} = mongoose_domain_core:get_host_type(Domain),
+    true = self() =:= whereis(mongoose_domain_core),
     ok.

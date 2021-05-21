@@ -36,7 +36,16 @@ init_per_suite(Config) ->
     meck:new(mongoose_lazy_routing, [no_link]),
     meck:new(mongoose_subdomain_core, [no_link, passthrough]),
     meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
-    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, fun(_) -> ok end),
+    RemoveSubdomainFn =
+        fun(SubdomainInfo) ->
+            %% ensure that subdomain is removed from ETS table before
+            %% mongoose_lazy_routing module notified about it
+            Subdomain = maps:get(subdomain,SubdomainInfo),
+            ?assertEqual({error, not_found},
+                         mongoose_subdomain_core:get_host_type(Subdomain)),
+            ?assertEqual(whereis(mongoose_subdomain_core), self())
+        end,
+    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, RemoveSubdomainFn),
     Config.
 
 end_per_suite(Config) ->
@@ -311,6 +320,11 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
     [RegisteredDomain1, RegisteredDomain2 | _] = AllDomains,
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain1),
     mongoose_subdomain_core:add_domain(?DYNAMIC_HOST_TYPE1, RegisteredDomain2),
+    %% and finally try to remove some domains second time
+    RemovedDomains = NewDomains -- AllDomains,
+    [RemovedDomain1, RemovedDomain2 | _] = RemovedDomains,
+    mongoose_subdomain_core:remove_domain(?DYNAMIC_HOST_TYPE1, RemovedDomain1),
+    mongoose_subdomain_core:remove_domain(?DYNAMIC_HOST_TYPE1, RemovedDomain2),
     Subdomains = get_all_subdomains(),
     ?assertEqual(NumOfDomains - NumOfDomainsToRemove, length(Subdomains)),
     AllExpectedSubDomains = [mongoose_subdomain_utils:get_fqdn(Pattern1, Domain)
@@ -318,7 +332,9 @@ handles_domain_removal_during_subdomain_registration(_Config) ->
     ?assertEqualLists(AllExpectedSubDomains, Subdomains),
     ?assertEqual(NumOfDomainsToRemove,
                  meck:num_calls(mongoose_lazy_routing, maybe_remove_subdomain, 1)),
-
+    RemovedSubdomains = [mongoose_subdomain_utils:get_fqdn(Pattern1, Domain)
+                         || Domain <- RemovedDomains],
+    ?assertEqualLists(RemovedSubdomains, get_list_of_disabled_subdomains()),
     no_collisions(),
     meck:unload(mongoose_domain_core).
 
