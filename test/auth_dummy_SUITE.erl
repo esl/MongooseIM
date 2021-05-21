@@ -59,13 +59,13 @@ ejabberd_auth_interfaces(_Config) ->
     ejabberd_auth_dummy = mongoose_credentials:get(Creds2, auth_module),
 
     UserName = <<"any_user">>, Password = <<"any_pasword">>,
-    JID = jid:make(UserName,?DOMAIN,<<"any_resource">>),
-    true = ejabberd_auth:check_password(JID,Password),
+    JID = jid:make(UserName, ?DOMAIN, <<"any_resource">>),
+    true = ejabberd_auth:check_password(JID, Password),
     Args1 = [?HOST_TYPE, UserName, ?DOMAIN, Password],
     1 = meck:num_calls(ejabberd_auth_dummy, check_password, Args1),
 
     Digest = <<"any_digest">>, DigestGen = fun(_) -> <<"">> end,
-    false = ejabberd_auth:check_password(JID,Password, Digest, DigestGen),
+    false = ejabberd_auth:check_password(JID, Password, Digest, DigestGen),
     Args2 = [?HOST_TYPE, UserName, ?DOMAIN, Password, Digest, DigestGen],
     1 = meck:num_calls(ejabberd_auth_dummy, check_password, Args2),
 

@@ -192,9 +192,9 @@ case_insensitive_match(X, Y) ->
   end.
 
 
--spec get_state(binary() | string(), atom()) -> any().
-get_state(Server, Module) ->
-    Proc = gen_mod:get_module_proc(Server, Module),
+-spec get_state(mongooseim:host_type(), atom()) -> any().
+get_state(HostType, Module) ->
+    Proc = gen_mod:get_module_proc(HostType, Module),
     gen_server:call(Proc, get_state).
 
 process_uids(Uids) ->

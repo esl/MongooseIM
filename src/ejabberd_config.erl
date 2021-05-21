@@ -36,7 +36,6 @@
          get_local_option/2,
          del_local_option/1,
          get_local_option_or_default/2]).
--export([get_vh_by_auth_method/1]).
 
 -export([get_local_config/0,
          get_host_local_config/0,
@@ -226,11 +225,6 @@ get_local_option_or_default(Opt, Default) ->
         Value ->
             Value
     end.
-
-%% @doc Return the list of hosts handled by a given module
-get_vh_by_auth_method(AuthMethod) ->
-    lists:filter(fun(Host) -> lists:member(AuthMethod, ejabberd_auth:auth_methods(Host)) end,
-                 ?MYHOSTS).
 
 handle_table_does_not_exist_error(Table) ->
     MnesiaDirectory = mnesia:system_info(directory),

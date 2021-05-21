@@ -10,18 +10,14 @@
          supported_features/0]).
 
 %% ejabberd_auth compatibility layer - not supported features
--behaviour(ejabberd_gen_auth).
+-behaviour(mongoose_gen_auth).
+
 -export([set_password/4,
          try_register/4,
-         dirty_get_registered_users/0,
-         get_vh_registered_users/1,
-         get_vh_registered_users/2,
-         get_vh_registered_users_number/1,
-         get_vh_registered_users_number/2,
-         get_password/2,
-         get_password_s/2,
-         does_user_exist/2,
-         remove_user/2,
+         get_password/3,
+         get_password_s/3,
+         does_user_exist/3,
+         remove_user/3,
          supports_sasl_module/2,
          scram_passwords/0]).
 
@@ -31,11 +27,11 @@
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(HostType :: binary()) -> ok.
+-spec start(HostType :: mongooseim:host_type()) -> ok.
 start(_HostType) ->
     ok.
 
--spec stop(HostType :: binary()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 
@@ -52,50 +48,40 @@ check_password(_HostType, User, Server, _Password, _Digest, _DigestGen) ->
                  user => User, server => Server}),
     false.
 
-%% @spec (User::string(), Server::string(), Password::string()) ->
-%%       ok | {error, invalid_jid}
+-spec set_password(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) -> ok.
 set_password(_HostType, _User, _Server, _Password) ->
     ok.
 
-%% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, invalid_jid} | {aborted, Reason}
+-spec try_register(mongooseim:host_type(), jid:luser(), jid:lserver(), binary()) -> ok.
 try_register(_HostType, _User, _Server, _Password) ->
     ok.
 
-dirty_get_registered_users() ->
-    [].
-
-get_vh_registered_users(_Server) ->
-    [].
-
-get_vh_registered_users(_Server, _) ->
-    [].
-
-get_vh_registered_users_number(_Server) ->
-    0.
-
-get_vh_registered_users_number(_Server, _) ->
-    0.
-
-get_password(_User, _Server) ->
+-spec get_password(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary().
+get_password(_HostType, _User, _Server) ->
     <<>>.
 
-get_password_s(_User, _Server) ->
+-spec get_password_s(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary().
+get_password_s(_HostType, _User, _Server) ->
     <<>>.
 
-%% @spec (User, Server) -> true | false | {error, Error}
-does_user_exist(_User, _Server) ->
+-spec does_user_exist(mongooseim:host_type(), jid:luser(), jid:lserver()) -> boolean().
+does_user_exist(_HostType, _User, _Server) ->
     true.
 
 %% @spec (User, Server) -> ok
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
-remove_user(_User, _Server) ->
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(_HostType, _User, _Server) ->
     ok.
 
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(_HostType, _Server) -> ok.
 
+-spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
+-spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, cyrsasl_plain) -> true;
 supports_sasl_module(_, _) -> false.
 

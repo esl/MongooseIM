@@ -4,7 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(DOMAIN, <<"localhost">>).
--define(HOST_TYPE, ?DOMAIN).
+-define(HOST_TYPE, <<"test host type">>).
 -define(USERNAME, <<"10857839">>).
 -define(WRONG_USERNAME, <<"alice">>).
 -define(JWT_KEY, <<"testtesttest">>).
@@ -27,15 +27,8 @@ generic_tests() ->
      check_password_fails_for_wrong_token,
      check_password_fails_for_correct_token_but_wrong_username,
      authorize,
-     set_password,
-     try_register,
-     get_password,
      does_user_exist,
-     remove_user,
-     get_vh_registered_users_number,
-     get_vh_registered_users,
-     supported_sasl_mechanisms,
-     dirty_get_registered_users
+     supported_sasl_mechanisms
     ].
 
 public_key_tests() ->
@@ -69,7 +62,7 @@ init_per_group(public_key, Config) ->
     PubkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "pubkey.pem"]),
     {ok, PrivKey} = file:read_file(PrivkeyPath),
     set_auth_opts(PubkeyPath, undefined, "RS256", bookingNumber),
-    ok = ejabberd_auth_jwt:start(?DOMAIN),
+    ok = ejabberd_auth_jwt:start(?HOST_TYPE),
     [{priv_key, PrivKey} | Config];
 init_per_group(_, Config) ->
     set_auth_opts(undefined, ?JWT_KEY, "HS256", bookingNumber),
@@ -112,31 +105,8 @@ authorize(_C) ->
     {ok, Creds2} = ejabberd_auth_jwt:authorize(Creds),
     ejabberd_auth_jwt = mongoose_credentials:get(Creds2, auth_module).
 
-set_password(_Config) ->
-    {error, not_allowed} = ejabberd_auth_jwt:set_password(?HOST_TYPE, ?USERNAME,
-                                                          ?DOMAIN, <<"mialakota">>).
-
-try_register(_Config) ->
-    {error, not_allowed} = ejabberd_auth_jwt:try_register(?HOST_TYPE, ?USERNAME,
-                                                          ?DOMAIN, <<"newpass">>).
-
-% get_password + get_password_s
-get_password(_Config) ->
-    false = ejabberd_auth_jwt:get_password(<<"anaking">>, ?DOMAIN),
-    <<>> = ejabberd_auth_jwt:get_password_s(<<"anakin">>, ?DOMAIN).
-
 does_user_exist(_Config) ->
-    true = ejabberd_auth_jwt:does_user_exist(<<"madhatter">>, ?DOMAIN).
-
-% remove_user/2,3
-remove_user(_Config) ->
-    ok = ejabberd_auth_jwt:remove_user(<<"toremove3">>, ?DOMAIN).
-
-get_vh_registered_users_number(_C) ->
-    0 = ejabberd_auth_jwt:get_vh_registered_users_number(?DOMAIN, []).
-
-get_vh_registered_users(_C) ->
-    [] = ejabberd_auth_jwt:get_vh_registered_users(?DOMAIN, []).
+    true = ejabberd_auth_jwt:does_user_exist(?HOST_TYPE, <<"madhatter">>, ?DOMAIN).
 
 supported_sasl_mechanisms(_C) ->
     Modules = [cyrsasl_plain, cyrsasl_digest, cyrsasl_external,
@@ -144,9 +114,6 @@ supported_sasl_mechanisms(_C) ->
                cyrsasl_scram_sha384, cyrsasl_scram_sha512],
     [true, false, false, false, false, false, false, false] =
         [ejabberd_auth_jwt:supports_sasl_module(?DOMAIN, Mod) || Mod <- Modules].
-
-dirty_get_registered_users(_C) ->
-    [] = ejabberd_auth_jwt:dirty_get_registered_users().
 
 check_password_succeeds_for_pubkey_signed_token(C) ->
     Key = proplists:get_value(priv_key, C),

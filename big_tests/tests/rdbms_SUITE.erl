@@ -314,8 +314,8 @@ arguments_from_two_tables(Config) ->
                 <<"SELECT users.username from users "
                   " LEFT JOIN last ON (last.username = users.username) "
                   " WHERE users.password = ? AND last.seconds > ?">>),
-    sql_query(Config, "INSERT INTO users (username, password) VALUES ('alice', 'secret')"),
-    sql_query(Config, "INSERT INTO users (username, password) VALUES ('bob', 'billy')"),
+    sql_query(Config, "INSERT INTO users (username, server, password) VALUES ('alice', 'domain', 'secret')"),
+    sql_query(Config, "INSERT INTO users (username, server, password) VALUES ('bob', 'domain', 'billy')"),
     sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('alice', 1615368268, 'ok')"),
     sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('bob', 1610000000, 'cool')"),
     SelectResult = sql_execute(Config, select_multi_args, [<<"secret">>, 1611000000]),

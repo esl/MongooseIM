@@ -61,12 +61,7 @@ authorize(Request, User) ->
         {ok, Result} ->
             {ok, Result};
         {error, not_authorized} ->
-            {error, <<"not-authorized">>, User};
-        {error, {no_auth_modules, _}} ->
-            {error, <<"not-authorized">>, User};
-        {error, R} ->
-            ?LOG_DEBUG(#{what => unauthorized_login, reason => R, user => User}),
-            {error, <<"internal-error">>}
+            {error, <<"not-authorized">>, User}
     end.
 
 -spec prepare(binary()) -> 'error' | [binary(), ...].

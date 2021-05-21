@@ -33,7 +33,7 @@
     set_password/3,
     check_password_hash/4,
     delete_old_users/1,
-    delete_old_users_vhost/2,
+    delete_old_users_for_domain/2,
     ban_account/3,
     num_active_users/2,
     check_account/2,
@@ -70,7 +70,7 @@ commands() ->
         #ejabberd_commands{name = delete_old_users_vhost, tags = [accounts, purge],
                            desc = "Delete users that didn't log in last days in vhost,"
                                   " or that never logged",
-                           module = ?MODULE, function = delete_old_users_vhost,
+                           module = ?MODULE, function = delete_old_users_for_domain,
                            args = [{host, binary}, {days, integer}],
                            result = {res, restuple}},
         #ejabberd_commands{name = ban_account, tags = [accounts],
@@ -185,24 +185,21 @@ num_active_users(Host, Days) ->
 
 -spec delete_old_users(integer()) -> {'ok', string()}.
 delete_old_users(Days) ->
-    %% Get the list of registered users
-    Users = ejabberd_auth:dirty_get_registered_users(),
+    Users = lists:append([delete_and_return_old_users(Domain, Days) ||
+                             HostType <- ?ALL_HOST_TYPES,
+                             Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]),
+    {ok, format_deleted_users(Users)}.
 
-    {removed, N, UR} = delete_old_users(Days, Users),
-    {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
+delete_old_users_for_domain(Domain, Days) ->
+    Users = delete_and_return_old_users(Domain, Days),
+    {ok, format_deleted_users(Users)}.
 
+delete_and_return_old_users(Domain, Days) ->
+    Users = ejabberd_auth:get_vh_registered_users(Domain),
+    delete_old_users(Days, Users).
 
--spec delete_old_users_vhost(jid:server(), integer()) -> {'ok', string()}.
-delete_old_users_vhost(Host, Days) ->
-    %% Get the list of registered users
-    Users = ejabberd_auth:get_vh_registered_users(Host),
-
-    {removed, N, UR} = delete_old_users(Days, Users),
-    {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
-
-
--spec delete_old_users(Days :: integer(), Users :: [jid:simple_bare_jid()]) ->
-    {removed, non_neg_integer(), [jid:simple_bare_jid()]}.
+-spec delete_old_users(Days, Users) -> Users when Days :: integer(),
+                                                  Users :: [jid:simple_bare_jid()].
 delete_old_users(Days, Users) ->
     %% Convert older time
     SecOlder = Days*24*60*60,
@@ -211,10 +208,12 @@ delete_old_users(Days, Users) ->
     TimeStampNow = erlang:system_time(second),
 
     %% Apply the remove function to every user in the list
-    UsersRemoved = lists:filter(fun(User) ->
-                                        delete_old_user(User, TimeStampNow, SecOlder)
-                                end, Users),
-    {removed, length(UsersRemoved), UsersRemoved}.
+    lists:filter(fun(User) ->
+                         delete_old_user(User, TimeStampNow, SecOlder)
+                 end, Users).
+
+format_deleted_users(Users) ->
+    io_lib:format("Deleted ~p users: ~p", [length(Users), Users]).
 
 -spec delete_old_user(User :: jid:simple_bare_jid(),
                       TimeStampNow :: non_neg_integer(),
