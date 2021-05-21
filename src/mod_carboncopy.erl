@@ -192,10 +192,6 @@ is_received_private_muc(_, #jid{lresource = <<>>}) ->
 is_received_private_muc(Packet, _) ->
     undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"x">>, ?NS_MUC_USER).
 
--spec is_carbon_private(exml:element()) -> boolean().
-is_carbon_private(Packet) ->
-    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"private">>, ?NS_CC_2).
-
 -spec has_nocopy_hint(exml:element()) -> boolean().
 has_nocopy_hint(Packet) ->
     undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"no-copy">>, ?NS_HINTS).
@@ -212,13 +208,28 @@ contains_receipts(Packet) ->
 contains_csn(Packet) ->
     undefined =/= exml_query:subelement_with_ns(Packet, ?NS_CHATSTATES).
 
+-spec is_carbon_private(exml:element()) -> boolean().
+is_carbon_private(Packet) ->
+    [] =/= subelements_with_nss(Packet, <<"private">>, carbon_namespaces()).
+
 -spec is_received(exml:element()) -> boolean().
 is_received(Packet) ->
-    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"received">>, ?NS_CC_2).
+    [] =/= subelements_with_nss(Packet, <<"received">>, carbon_namespaces()).
 
 -spec is_sent(exml:element()) -> boolean().
 is_sent(Packet) ->
-    undefined =/= exml_query:subelement_with_name_and_ns(Packet, <<"sent">>, ?NS_CC_2).
+    [] =/= subelements_with_nss(Packet, <<"sent">>, carbon_namespaces()).
+
+-spec subelements_with_nss(exml:element(), binary(), [binary()]) -> [exml:element()].
+subelements_with_nss(#xmlel{children = Children}, Name, NSS) ->
+    lists:filter(fun(#xmlel{name = N} = Child) when N =:= Name ->
+                        NS = exml_query:attr(Child, <<"xmlns">>),
+                        lists:member(NS, NSS);
+                    (_) ->
+                        false
+                 end, Children).
+
+carbon_namespaces() -> [?NS_CC_1, ?NS_CC_2].
 
 %%%===================================================================
 %%% Internal
