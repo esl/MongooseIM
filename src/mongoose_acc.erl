@@ -307,12 +307,8 @@ strip(#{ lserver := NewLServer } = Params, Acc) ->
 -spec get_host_type(new_acc_params() | strip_params()) -> binary() | undefined.
 get_host_type(#{host_type := HostType}) ->
     HostType;
-get_host_type(#{lserver := LServer}) ->
-    %% By default only domains (not subdomains) are used here
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {error, not_found} -> undefined;
-        {ok, HostType} -> HostType
-    end.
+get_host_type(_) ->
+    undefined.
 
 -spec stanza_from_params(Params :: stanza_params() | strip_params()) ->
     stanza_metadata().

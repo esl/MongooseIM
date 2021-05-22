@@ -139,8 +139,11 @@ publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
                             any().
 publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     Stanza = push_notification_iq(Node, Form, PushPayload),
+    %% TODO host type should be provided to this function
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Host),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => To#jid.lserver,
+                              host_type => HostType,
+                              lserver => Host,
                               element => jlib:iq_to_xml(Stanza),
                               from_jid => To,
                               to_jid => PubsubJID }),

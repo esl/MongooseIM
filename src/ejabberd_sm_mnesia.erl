@@ -103,20 +103,19 @@ cleanup(Node) ->
                        [{#session{sid = {'_', '$1'}, _ = '_'},
                          [{'==', {node, '$1'}, Node}],
                          ['$_']}]),
-                lists:foreach(fun(#session{ usr = {U, S, R}, sid = SID }) ->
-                                      mnesia:delete({session, SID}),
-                                      Acc = mongoose_acc:new(
-                                              #{location => ?LOCATION,
-                                                lserver => S,
-                                                element => undefined}),
-                                      mongoose_hooks:session_cleanup(S,
-                                                                     Acc,
-                                                                     U, R, SID)
-                              end, Es)
-
+                lists:foreach(fun cleanup_session/1, Es)
         end,
     mnesia:async_dirty(F).
 
+cleanup_session(#session{usr = {U, S, R}, sid = SID}) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(S),
+    mnesia:delete({session, SID}),
+    Acc = mongoose_acc:new(
+            #{location => ?LOCATION,
+              host_type => HostType,
+              lserver => S,
+              element => undefined}),
+    mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
 
 -spec total_count() -> integer().
 total_count() ->

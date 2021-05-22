@@ -248,7 +248,9 @@ unsubscribe(LocalJID, RemoteJID) ->
     [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
     UserJID = jid:make(User, Server, <<>>),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(UserJID#jid.lserver),
     Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             host_type => HostType,
                              lserver => UserJID#jid.lserver,
                              element => undefined}),
     Acc2 = mongoose_hooks:roster_get(Acc, UserJID),

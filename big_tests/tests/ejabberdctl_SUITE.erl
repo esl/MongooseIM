@@ -245,6 +245,7 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
                 Acc = rpc(mim(), mongoose_acc, new,
                           [#{ location => {?MODULE, ?FUNCTION_NAME, ?LINE},
                               lserver => SB,
+                              host_type => SB,
                               element => undefined }]),
                 rpc(mim(), mongoose_hooks, remove_user, [SB, Acc, UB]);
             _ ->

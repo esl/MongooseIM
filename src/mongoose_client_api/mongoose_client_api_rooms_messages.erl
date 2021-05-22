@@ -92,9 +92,11 @@ from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
 prepare_message_and_route_to_room(User, JID, Room, State, Req, JSONData) ->
     RoomJID = #jid{lserver = _} = maps:get(jid, Room),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(JID#jid.lserver),
     case build_message_from_json(User, RoomJID, UUID, JSONData) of
         {ok, Message} ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      host_type => HostType,
                                       lserver => JID#jid.lserver,
                                       from_jid => JID,
                                       to_jid => RoomJID,

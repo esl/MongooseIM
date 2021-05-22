@@ -286,38 +286,21 @@ unregister(Host, User) ->
 
 send_message(From, To, Body) ->
     case parse_from_to(From, To) of
-        {ok, F, T} ->
+        {ok, FromJID, ToJID} ->
             Packet = build_message(From, To, Body),
-            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                                      lserver => F#jid.lserver,
-                                      element => Packet}),
-
-            mongoose_hooks:user_send_packet(F#jid.lserver,
-                                            Acc0,
-                                            F, T, Packet),
-
-            %% privacy check is missing, but is it needed?
-            ejabberd_router:route(F, T, Packet),
-            ok;
-        E ->
-            E
+            do_send_packet(FromJID, ToJID, Packet);
+        Error ->
+            Error
     end.
 
 send_stanza(BinStanza) ->
     case exml:parse(BinStanza) of
         {ok, Packet} ->
-            F = exml_query:attr(Packet, <<"from">>),
-            T = exml_query:attr(Packet, <<"to">>),
-            case parse_from_to(F, T) of
-                {ok, From, To} ->
-                    Acc0 = mongoose_acc:new(#{location => ?LOCATION,
-                                              lserver => From#jid.lserver,
-                                              element => Packet}),
-                    mongoose_hooks:user_send_packet(From#jid.lserver,
-                                                    Acc0,
-                                                    From, To, Packet),
-                    ejabberd_router:route(From, To, Packet),
-                    ok;
+            From = exml_query:attr(Packet, <<"from">>),
+            To = exml_query:attr(Packet, <<"to">>),
+            case parse_from_to(From, To) of
+                {ok, FromJID, ToJID} ->
+                    do_send_packet(FromJID, ToJID, Packet);
                 {error, missing} ->
                     {error, bad_request, "both from and to are required"};
                 {error, type_error, E} ->
@@ -325,6 +308,22 @@ send_stanza(BinStanza) ->
             end;
         {error, Reason} ->
             {error, bad_request, io_lib:format("Malformed stanza: ~p", [Reason])}
+    end.
+
+do_send_packet(From, To, Packet) ->
+    case mongoose_domain_api:get_domain_host_type(From#jid.lserver) of
+        {ok, HostType} ->
+            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+                                      host_type => HostType,
+                                      lserver => From#jid.lserver,
+                                      element => Packet}),
+            mongoose_hooks:user_send_packet(From#jid.lserver,
+                                            Acc0,
+                                            From, To, Packet),
+            ejabberd_router:route(From, To, Packet),
+            ok;
+        {error, not_found} ->
+            {error, unknown_domain}
     end.
 
 -spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
@@ -339,7 +338,9 @@ parse_from_to(F, T) ->
 
 list_contacts(Caller) ->
     CallerJID = #jid{lserver = LServer} = jid:from_binary(Caller),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+                               host_type => HostType,
                                lserver => LServer,
                                element => undefined }),
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
@@ -497,9 +498,11 @@ run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
     El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
     LServer = CallerJid#jid.lserver,
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
                                from_jid => CallerJid,
                                to_jid => OtherJid,
+                               host_type => HostType,
                                lserver => LServer,
                                element => El }),
     % set subscription to

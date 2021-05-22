@@ -141,26 +141,34 @@ start_link() ->
       Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => To#jid.lserver,
-                              element => Packet,
-                              from_jid => From,
-                              to_jid => To }),
+    Acc = new_acc(From, To, Packet),
     route(From, To, Acc);
 route(From, To, {broadcast, #xmlel{} = Payload}) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => From,
-                              to_jid => To,
-                              lserver => To#jid.lserver,
-                              element => Payload }),
+    Acc = new_acc(From, To, Payload),
     route(From, To, Acc, {broadcast, Payload});
 route(From, To, {broadcast, Payload}) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => To#jid.lserver,
-                              element => undefined }),
+    Acc = new_acc(To),
     route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).
+
+-spec new_acc(jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+new_acc(From, To = #jid{lserver = LServer}, Packet) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(To#jid.lserver),
+    mongoose_acc:new(#{location => ?LOCATION,
+                       host_type => HostType,
+                       lserver => LServer,
+                       element => Packet,
+                       from_jid => From,
+                       to_jid => To}).
+
+-spec new_acc(jid:jid()) -> mongoose_acc:t().
+new_acc(To = #jid{lserver = LServer}) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(To#jid.lserver),
+    mongoose_acc:new(#{location => ?LOCATION,
+                       host_type => HostType,
+                       lserver => LServer,
+                       element => undefined}).
 
 route(From, To, Acc, {broadcast, Payload}) ->
     try
