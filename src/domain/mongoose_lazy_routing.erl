@@ -264,6 +264,7 @@ handle_unregister_iq_handler_for_domain(HostType, Namespace, Component) ->
         [{_, IQHandler} = IQ] ->
             Domains = ets:match_object(?ROUTING_TABLE, {'_', HostType}),
             unregister_iqs([IQ], Domains),
+            ets:delete(?IQ_TABLE, IQKey),
             {ok, IQHandler}
     end.
 
@@ -282,6 +283,7 @@ handle_unregister_iq_handler_for_subdomain(HostType, SubdomainPattern,
             Domains = ets:match_object(?ROUTING_TABLE,
                                        {'_', {HostType, SubdomainPattern}}),
             unregister_iqs([IQ], Domains),
+            ets:delete(?IQ_TABLE, IQKey),
             {ok, IQHandler}
     end.
 
