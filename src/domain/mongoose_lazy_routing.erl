@@ -279,7 +279,8 @@ handle_unregister_iq_handler_for_subdomain(HostType, SubdomainPattern,
     case ets:lookup(?IQ_TABLE, IQKey) of
         [] -> {error, not_found};
         [{_, IQHandler} = IQ] ->
-            Domains = ets:match_object(?ROUTING_TABLE, {'_', HostType}),
+            Domains = ets:match_object(?ROUTING_TABLE,
+                                       {'_', {HostType, SubdomainPattern}}),
             unregister_iqs([IQ], Domains),
             {ok, IQHandler}
     end.
