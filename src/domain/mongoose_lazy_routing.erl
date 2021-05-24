@@ -22,6 +22,7 @@
 %% start/stop API
 -export([start/0, stop/0]).
 -export([start_link/0]).
+-export([sync/0]).
 
 %% domain/subdomain API
 -export([maybe_add_domain_or_subdomain/1,
@@ -89,6 +90,10 @@ stop() ->
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+-spec sync() -> ok.
+sync() ->
+    gen_server:call(?MODULE, sync).
 
 -spec maybe_add_domain_or_subdomain(mongooseim:domain()) -> boolean().
 maybe_add_domain_or_subdomain(Domain) ->
@@ -160,6 +165,8 @@ init(_) ->
     %% no state, all required data is stored in ETS tables
     {ok, ok}.
 
+handle_call(sync, _From, State) ->
+    {reply, ok, State};
 handle_call({maybe_add_domain_or_subdomain, Domain}, _From, State) ->
     RetValue = handle_maybe_add_domain_or_subdomain(Domain),
     {reply, RetValue, State};
