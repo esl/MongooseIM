@@ -65,7 +65,7 @@
 -define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
--define(MUCHOST, (muc_light_helper:muc_host())).
+-define(MUCHOST, (muc_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -143,7 +143,7 @@ suite() ->
 init_per_suite(Config) ->
     HostType = host_type(),
     dynamic_modules:start(HostType, mod_muc_light,
-                          [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
+                          [{host, subhost_pattern(muc_helper:muc_host_pattern())},
                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
@@ -882,7 +882,7 @@ domain() ->
 host_type() ->
     ct:get_config({hosts, mim, host_type}).
 
-muc_domain() -> muc_light_helper:muc_host().
+muc_domain() -> muc_helper:muc_host().
 
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
