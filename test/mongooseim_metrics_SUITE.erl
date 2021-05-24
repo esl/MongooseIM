@@ -81,8 +81,8 @@ init_per_group(Group, C) ->
     C.
 
 end_per_group(_Name, C) ->
-    mongoose_metrics:remove_host_metrics(<<"localhost">>),
-    mongoose_metrics:remove_host_metrics(global),
+    mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
+    mongoose_metrics:remove_host_type_metrics(global),
     meck:unload(),
     C.
 

@@ -21,7 +21,7 @@
 %% API
 -export([init/0,
          create_global_metrics/0,
-         init_predefined_host_metrics/1,
+         init_predefined_host_type_metrics/1,
          init_subscriptions/0,
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
@@ -30,7 +30,7 @@
          get_metric_value/1,
          get_metric_values/1,
          get_metric_value/2,
-         get_host_metric_names/1,
+         get_host_type_metric_names/1,
          get_global_metric_names/0,
          get_aggregated_values/1,
          increment_generic_hook_metric/2,
@@ -39,7 +39,7 @@
          get_dist_data_stats/0,
          get_up_time/0,
          get_mnesia_running_db_nodes_count/0,
-         remove_host_metrics/1,
+         remove_host_type_metrics/1,
          remove_all_metrics/0,
          get_report_interval/0,
          subscribe_metric/3
@@ -58,8 +58,8 @@
 init() ->
     create_global_metrics(),
     lists:foreach(
-        fun(Host) ->
-            mongoose_metrics:init_predefined_host_metrics(Host)
+        fun(HostType) ->
+            mongoose_metrics:init_predefined_host_type_metrics(HostType)
         end, ?ALL_HOST_TYPES),
     init_subscriptions().
 
@@ -72,10 +72,10 @@ create_global_metrics() ->
                   ?GLOBAL_COUNTERS),
     create_data_metrics().
 
--spec init_predefined_host_metrics(jid:lserver()) -> ok.
-init_predefined_host_metrics(Host) ->
-    create_metrics(Host),
-    Hooks = mongoose_metrics_hooks:get_hooks(Host),
+-spec init_predefined_host_type_metrics(mongooseim:host_type()) -> ok.
+init_predefined_host_type_metrics(HostType) ->
+    create_metrics(HostType),
+    Hooks = mongoose_metrics_hooks:get_hooks(HostType),
     ejabberd_hooks:add(Hooks),
     ok.
 
@@ -87,58 +87,60 @@ init_subscriptions() ->
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
--spec create_generic_hook_metric(jid:lserver(), atom()) ->
+-spec create_generic_hook_metric(mongooseim:host_type(), atom()) ->
     ok | {ok, already_present} | {error, any()}.
-create_generic_hook_metric(Host, Hook) ->
+create_generic_hook_metric(HostType, Hook) ->
     UseOrSkip = filter_hook(Hook),
-    do_create_generic_hook_metric(Host, Hook, UseOrSkip).
+    do_create_generic_hook_metric(HostType, Hook, UseOrSkip).
 
+% TODO: change to HostType after mongoose_wpool_rdbms
 ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
     ensure_metric(Host,
                   [data, rdbms, Tag],
                   {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
                    [workers | ?INET_STATS]}).
 
--spec update(Host :: jid:lserver() | global, Name :: term() | list(),
+-spec update(HostType :: mongooseim:host_type() | global, Name :: term() | list(),
              Change :: term()) -> any().
-update(Host, Name, Change) when is_list(Name) ->
-    exometer:update(name_by_all_metrics_are_global(Host, Name), Change);
-update(Host, Name, Change) ->
-    update(Host, [Name], Change).
+update(HostType, Name, Change) when is_list(Name) ->
+    exometer:update(name_by_all_metrics_are_global(HostType, Name), Change);
+update(HostType, Name, Change) ->
+    update(HostType, [Name], Change).
 
--spec ensure_metric(jid:lserver() | global, atom() | list(), term()) ->
+-spec ensure_metric(mongooseim:host_type() | global, atom() | list(), term()) ->
     ok | {ok, already_present} | {error, any()}.
-ensure_metric(Host, Metric, Type) when is_tuple(Type) ->
-    ensure_metric(Host, Metric, Type, element(1, Type));
-ensure_metric(Host, Metric, Type) ->
-    ensure_metric(Host, Metric, Type, Type).
+ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
+    ensure_metric(HostType, Metric, Type, element(1, Type));
+ensure_metric(HostType, Metric, Type) ->
+    ensure_metric(HostType, Metric, Type, Type).
 
-get_metric_value(Host, Name) when is_list(Name) ->
-    get_metric_value(name_by_all_metrics_are_global(Host, Name));
-get_metric_value(Host, Name) ->
-    get_metric_value(Host, [Name]).
+get_metric_value(HostType, Name) when is_list(Name) ->
+    get_metric_value(name_by_all_metrics_are_global(HostType, Name));
+get_metric_value(HostType, Name) ->
+    get_metric_value(HostType, [Name]).
 
 get_metric_value(Metric) ->
     exometer:get_value(Metric).
 
 get_metric_values(Metric) when is_list(Metric) ->
     exometer:get_values(Metric);
-get_metric_values(Host) ->
-    exometer:get_values([Host]).
+get_metric_values(HostType) ->
+    exometer:get_values([HostType]).
 
-get_host_metric_names(Host) ->
-    [MetricName || {[_Host | MetricName], _, _} <- exometer:find_entries([Host])].
+get_host_type_metric_names(HostType) ->
+    HostTypeName = make_host_type_name(HostType),
+    [MetricName || {[_HostTypeName | MetricName], _, _} <- exometer:find_entries([HostTypeName])].
 
 get_global_metric_names() ->
-    get_host_metric_names(global).
+    get_host_type_metric_names(global).
 
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
 
--spec increment_generic_hook_metric(jid:lserver(), atom()) -> ok | {error, any()}.
-increment_generic_hook_metric(Host, Hook) ->
+-spec increment_generic_hook_metric(mongooseim:host_type(), atom()) -> ok | {error, any()}.
+increment_generic_hook_metric(HostType, Hook) ->
     UseOrSkip = filter_hook(Hook),
-    do_increment_generic_hook_metric(Host, Hook, UseOrSkip).
+    do_increment_generic_hook_metric(HostType, Hook, UseOrSkip).
 
 get_rdbms_data_stats() ->
     Pools = lists:filter(fun({Type, _Host, _Tag}) -> Type == rdbms end, mongoose_wpool:get_pools()),
@@ -169,8 +171,9 @@ get_up_time() ->
 get_mnesia_running_db_nodes_count() ->
     {value, length(mnesia:system_info(running_db_nodes))}.
 
-remove_host_metrics(Host) ->
-    lists:foreach(fun remove_metric/1, exometer:find_entries([Host])).
+remove_host_type_metrics(HostType) ->
+    HostTypeName = make_host_type_name(HostType),
+    lists:foreach(fun remove_metric/1, exometer:find_entries([HostTypeName])).
 
 remove_all_metrics() ->
     lists:foreach(fun remove_metric/1, exometer:find_entries([])).
@@ -189,32 +192,32 @@ pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
         _ -> WhenNot
     end.
 
--spec name_by_all_metrics_are_global(Host :: jid:lserver() | global,
+-spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type() | global,
                                      Name :: list()) -> FinalName :: list().
-name_by_all_metrics_are_global(Host, Name) ->
-    pick_by_all_metrics_are_global([global | Name], [Host | Name]).
+name_by_all_metrics_are_global(HostType, Name) ->
+    pick_by_all_metrics_are_global([global | Name], [make_host_type_name(HostType) | Name]).
 
 get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(Host :: jid:lserver() | global,
+-spec do_create_generic_hook_metric(HostType :: mongooseim:host_type() | global,
                                     Hook :: hook_name(),
                                     UseOrSkip :: use_or_skip()) ->
     ok | {ok, already_present} | {error, any()}.
 do_create_generic_hook_metric(_, _, skip) ->
     ok;
-do_create_generic_hook_metric(Host, Hook, use) ->
-    ensure_metric(Host, Hook, spiral).
+do_create_generic_hook_metric(HostType, Hook, use) ->
+    ensure_metric(HostType, Hook, spiral).
 
--spec do_increment_generic_hook_metric(Host :: jid:lserver() | global,
+-spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type() | global,
                                        Hook :: hook_name(),
                                        UseOrSkip :: use_or_skip()) ->
     ok | {error, any()}.
 do_increment_generic_hook_metric(_, _, skip) ->
     ok;
-do_increment_generic_hook_metric(Host, Hook, use) ->
-    update(Host, Hook, 1).
+do_increment_generic_hook_metric(HostType, Hook, use) ->
+    update(HostType, Hook, 1).
 
 get_rdbms_stats(RDBMSWorkers) ->
     RDBMSConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- RDBMSWorkers],
@@ -358,16 +361,16 @@ filter_hook(mam_muc_flush_messages) -> skip;
 
 filter_hook(_) -> use.
 
--spec create_metrics(jid:server()) -> 'ok'.
-create_metrics(Host) ->
-    lists:foreach(fun(Name) -> ensure_metric(Host, Name, spiral) end, ?GENERAL_SPIRALS),
-    lists:foreach(fun(Name) -> ensure_metric(Host, Name, counter) end, ?TOTAL_COUNTERS).
+-spec create_metrics(mongooseim:host_type()) -> 'ok'.
+create_metrics(HostType) ->
+    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, spiral) end, ?GENERAL_SPIRALS),
+    lists:foreach(fun(Name) -> ensure_metric(HostType, Name, counter) end, ?TOTAL_COUNTERS).
 
-ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
-    ensure_metric(Host, [Metric], Type, ShortType);
+ensure_metric(HostType, Metric, Type, ShortType) when is_atom(Metric) ->
+    ensure_metric(HostType, [Metric], Type, ShortType);
 
-ensure_metric(Host, Metric, Type, probe = ShortType) ->
-    PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
+ensure_metric(HostType, Metric, Type, probe = ShortType) ->
+    PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
     {ShortType, Opts} = Type,
     case exometer:info(PrefixedMetric, type) of
         undefined ->
@@ -376,10 +379,10 @@ ensure_metric(Host, Metric, Type, probe = ShortType) ->
         _ ->
         {ok, already_present}
     end;
-ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
+ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
-    PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
+    PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
     case exometer:info(PrefixedMetric, type) of
         undefined ->
             do_create_metric(PrefixedMetric, Type, []);
@@ -411,8 +414,14 @@ subscribe_metric(Reporter, {Name, _, _}, Interval) ->
     exometer_report:subscribe(Reporter, Name, default, Interval).
 
 subscribe_to_all(Reporter, Interval) ->
-    HostPrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
+    HostTypePrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
     lists:foreach(
       fun(Prefix) ->
-              start_metrics_subscriptions(Reporter, [Prefix], Interval)
-      end, [global | HostPrefixes]).
+              UnspacedPrefix = make_host_type_name(Prefix),
+              start_metrics_subscriptions(Reporter, [UnspacedPrefix], Interval)
+      end, [global | HostTypePrefixes]).
+
+make_host_type_name(HT) when is_atom(HT) ->
+    HT;
+make_host_type_name(HT) when is_binary(HT) ->
+    binary:replace(HT, <<" ">>, <<"_">>, [global]).
