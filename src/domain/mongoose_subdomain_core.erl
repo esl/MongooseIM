@@ -311,10 +311,16 @@ convert_subdomain_item_to_map(#subdomain_item{} = Item) ->
 check_domain_name(_HostType, Domain) ->
     case mongoose_subdomain_core:get_subdomain_info(Domain) of
         {error, not_found} -> true;
-        {ok, _Info} ->
+        {ok, SubdomainInfo} ->
             %% TODO: this is critical collision, and it must be reported properly
             %% think about adding some metric, so devops can set some alarm for it
             ?LOG_ERROR(#{what => check_domain_name_failed, domain => Domain}),
+            %% in case of domain/subdomain name conflicts, mongoose_lazy_routing
+            %% configures routing and IQ handling for a top level domain.
+            %% So to keep configuration consistent on all of the nodes in the cluster,
+            %% we must unregister subdomain and let mongoose_lazy_routing register top
+            %% level domain on the next routing.
+            mongoose_lazy_routing:maybe_remove_subdomain(SubdomainInfo),
             false
     end.
 

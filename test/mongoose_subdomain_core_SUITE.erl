@@ -32,27 +32,7 @@ all() ->
      detects_domain_conflict_with_prefix_subdomain,
      detects_domain_conflict_with_fqdn_subdomain].
 
-init_per_suite(Config) ->
-    meck:new(mongoose_lazy_routing, [no_link]),
-    meck:new(mongoose_subdomain_core, [no_link, passthrough]),
-    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
-    RemoveSubdomainFn =
-        fun(SubdomainInfo) ->
-            %% ensure that subdomain is removed from ETS table before
-            %% mongoose_lazy_routing module notified about it
-            Subdomain = maps:get(subdomain,SubdomainInfo),
-            ?assertEqual({error, not_found},
-                         mongoose_subdomain_core:get_host_type(Subdomain)),
-            ?assertEqual(whereis(mongoose_subdomain_core), self())
-        end,
-    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, RemoveSubdomainFn),
-    Config.
-
-end_per_suite(Config) ->
-    meck:unload(),
-    Config.
-
-init_per_testcase(_, Config) ->
+init_per_testcase(TestCase, Config) ->
     %% mongoose_domain_core preconditions:
     %%   - one "static" host type with only one configured domain name
     %%   - one "dynamic" host type without any configured domain names
@@ -63,12 +43,13 @@ init_per_testcase(_, Config) ->
     ok = mongoose_subdomain_core:start(),
     [mongoose_domain_core:insert(Domain, ?DYNAMIC_HOST_TYPE2, dummy_source)
      || Domain <- ?DYNAMIC_DOMAINS],
-    [meck:reset(M) || M <- [mongoose_lazy_routing, mongoose_subdomain_core]],
+    setup_meck(TestCase),
     Config.
 
 end_per_testcase(_, Config) ->
     mongoose_domain_core:stop(),
     mongoose_subdomain_core:stop(),
+    meck:unload(),
     Config.
 
 %%-------------------------------------------------------------------
@@ -579,7 +560,8 @@ detects_domain_conflict_with_prefix_subdomain(_Config) ->
     ?assertEqual(
         [#{what => check_domain_name_failed, domain => <<"subdomain.test.net">>},
          #{what => check_subdomain_name_failed, subdomain => <<"subdomain.test.org">>}],
-        get_list_of_domain_collisions()).
+        get_list_of_domain_collisions()),
+    ?assertEqual([<<"subdomain.test.net">>], get_list_of_disabled_subdomains()).
 
 detects_domain_conflict_with_fqdn_subdomain(_Config) ->
     Pattern1 = mongoose_subdomain_utils:make_subdomain_pattern("some.fqdn"),
@@ -599,11 +581,38 @@ detects_domain_conflict_with_fqdn_subdomain(_Config) ->
     ?assertEqual(
         [#{what => check_domain_name_failed, domain => <<"some.fqdn">>},
          #{what => check_subdomain_name_failed, subdomain => <<"another.fqdn">>}],
-        get_list_of_domain_collisions()).
+        get_list_of_domain_collisions()),
+    ?assertEqual([<<"some.fqdn">>], get_list_of_disabled_subdomains()).
 
 %%-------------------------------------------------------------------
 %% internal functions
 %%-------------------------------------------------------------------
+setup_meck(TestCase) ->
+    meck:new(mongoose_lazy_routing, [no_link]),
+    meck:new(mongoose_subdomain_core, [no_link, passthrough]),
+    meck:expect(mongoose_lazy_routing, maybe_remove_domain, fun(_, _) -> ok end),
+    RemoveSubdomainFn =
+    if
+        detects_domain_conflict_with_prefix_subdomain =:= TestCase;
+        detects_domain_conflict_with_fqdn_subdomain =:= TestCase ->
+            %% Subdomain should never overshadow top level domain name.
+            %% In case of conflict with domain name, we want to remove
+            %% subdomain routing and IQ handling, but keep ETS record
+            %% of that subdomain for troubleshooting.
+            fun(_) -> ?assertEqual(whereis(mongoose_subdomain_core), self()) end;
+        true ->
+            fun(SubdomainInfo) ->
+                %% For all other cases ensure that subdomain is removed from
+                %% the ETS table before mongoose_lazy_routing module notified
+                %% about it
+                Subdomain = maps:get(subdomain,SubdomainInfo),
+                ?assertEqual({error, not_found},
+                             mongoose_subdomain_core:get_host_type(Subdomain)),
+                ?assertEqual(whereis(mongoose_subdomain_core), self())
+            end
+    end,
+    meck:expect(mongoose_lazy_routing, maybe_remove_subdomain, RemoveSubdomainFn).
+
 get_all_subdomains() ->
     mongoose_subdomain_core:sync(),
     get_subdomains().
