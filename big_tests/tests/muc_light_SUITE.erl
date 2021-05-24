@@ -98,7 +98,7 @@
 -define(ROOM, <<"testroom">>).
 -define(ROOM2, <<"testroom2">>).
 
--define(MUCHOST, <<"muclight.localhost">>).
+-define(MUCHOST, (muc_light_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -142,10 +142,10 @@ groups() ->
                                disco_rooms_created_page_infinity,
                                disco_rooms_empty_page_infinity,
                                disco_rooms_empty_page_1,
+                               unauthorized_stanza,
                                rooms_in_rosters,
                                rooms_in_rosters_doesnt_break_disco_info,
-                               no_roomname_in_schema_doesnt_break_disco_and_roster,
-                               unauthorized_stanza
+                               no_roomname_in_schema_doesnt_break_disco_and_roster
                               ]},
          {occupant, [sequence], [
                                  send_message,
@@ -199,19 +199,19 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    {ok, _} = dynamic_modules:start(Host, mod_muc_light,
-                                    [{host, subhost_pattern(?MUCHOST)},
+    HostType = host_type(),
+    {ok, _} = dynamic_modules:start(HostType, mod_muc_light,
+                                    [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
                                      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                      {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
+    HostType = host_type(),
     muc_light_helper:clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(Host, mod_muc_light),
+    dynamic_modules:stop(HostType, mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -236,7 +236,7 @@ init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Con
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     set_default_mod_config(),
-    dynamic_modules:start(domain(), mod_mam_muc,
+    dynamic_modules:start(host_type(), mod_mam_muc,
                           [{backend, rdbms},
                            {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
@@ -261,7 +261,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
     muc_light_helper:clear_db(),
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
@@ -289,8 +289,7 @@ disco_service(Config) ->
             escalus:send(Alice, escalus_stanza:service_discovery(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(has_service, [?MUCHOST], Stanza),
-            escalus:assert(is_stanza_from,
-              [ct:get_config({hosts, mim, domain})], Stanza)
+            escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
 disco_features(Config) ->
@@ -364,7 +363,8 @@ disco_rooms_created_page_infinity(Config) ->
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
+            MucHost = ?MUCHOST,
+            {ok, {?ROOM2, MucHost}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
             %% we should get 1 room, Alice is not in the second one
             [Item] = get_disco_rooms(Alice),
             ProperJID = room_bin_jid(?ROOM),
@@ -467,7 +467,8 @@ no_roomname_in_schema_doesnt_break_disco_and_roster(Config) ->
 
 unauthorized_stanza(Config) ->
     escalus:story(Config, [{alice, 1}, {kate, 1}], fun(Alice, Kate) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
+            MucHost = ?MUCHOST,
+            {ok, {?ROOM2, MucHost}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config, ver(0)),
             MsgStanza = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), <<"malicious">>),
             escalus:send(Alice, MsgStanza),
             escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
@@ -666,8 +667,9 @@ destroy_room_get_disco_items_empty(Config) ->
 
 destroy_room_get_disco_items_one_left(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate,
-                                               [bob, alice], Config, ver(0)),
+        MucHost = ?MUCHOST,
+        {ok, {?ROOM2, MucHost}} = create_room(?ROOM2, ?MUCHOST, kate,
+                                              [bob, alice], Config, ver(0)),
         ProperJID = room_bin_jid(?ROOM2),
         %% alie destroy her room
         escalus:send(Alice, stanza_destroy_room(?ROOM)),
@@ -766,9 +768,10 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
             escalus:send(Alice, generate_buggy_aff_staza(BuggyRoomName, Username)),
             timer:sleep(300),
             AUsername = lbin(escalus_users:get_username(Config, alice)),
-            Host = lbin(escalus_users:get_host(Config, alice)),
+            Host = lbin(escalus_users:get_server(Config, alice)),
             Resource = <<"res1">>,
             JID = mongoose_helper:make_jid(AUsername, Host, Resource),
+            ct:log("JID ~p", [JID]),
             SessionRecPid = rpc(ejabberd_sm, get_session, [JID]),
             {session, {_,Pid}, {AUsername, Host, Resource}, _, _, _} = SessionRecPid,
             %% maybe throws exception
@@ -823,7 +826,6 @@ manage_blocklist(Config) ->
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -899,7 +901,6 @@ blocking_disabled(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -1140,3 +1141,5 @@ set_custom_config(UserDefSchema) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
+host_type() ->
+    ct:get_config({hosts, mim, host_type}).

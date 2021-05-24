@@ -22,8 +22,10 @@ room_bin_jid(Room) ->
     <<Room/binary, $@, (muc_host())/binary>>.
 
 muc_host() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    <<"muclight.", Host/binary>>.
+    ct:get_config({hosts, mim, muc_light_service}).
+
+muc_host_pattern() ->
+    ct:get_config({hosts, mim, muc_light_service_pattern}).
 
 create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     DefaultConfig = default_config(),
@@ -36,7 +38,9 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
                         [RoomUS, DefaultConfig, AffUsersSort, Version]).
 
 -spec default_config() -> list().
-default_config() -> rpc(mim(), mod_muc_light, default_config, [muc_host()]).
+default_config() -> assert_list(rpc(mim(), mod_muc_light, default_config, [muc_host()])).
+
+assert_list(X) when is_list(X) -> X.
 
 -spec ns_muc_light_affiliations() -> binary().
 ns_muc_light_affiliations() ->
