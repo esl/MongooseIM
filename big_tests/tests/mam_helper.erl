@@ -1222,7 +1222,7 @@ has_x_user_element(ArcMsg) ->
     ParsedMess#forwarded_message.has_x_user_element.
 
 muc_light_host() ->
-    <<"muclight.localhost">>.
+    muc_light_helper:muc_host().
 
 host() ->
     ct:get_config({hosts, mim, domain}).
