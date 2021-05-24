@@ -918,24 +918,18 @@ can_access_room(HostType, Room, User) ->
 
 %% MAM related hooks
 
-%%% @doc The `mam_archive_id' hook is called to determine the id of an archive
-%%% for a particular user or entity.
-%%% The hook handler is expected to accept the following arguments:
-%%% * Acc with an initial value of `undefined',
-%%% * Host as passed in the `HooksServer' variable,
-%%% * OwnerJID,
-%%%
-%%% and to return an integer value corresponding to the given owner's archive.
+%%% @doc The `mam_archive_id' hook is called to determine
+%%% the integer id of an archive for a particular user or entity.
 %%%
 %%% If a MAM backend doesn't support or doesn't require archive IDs,
 %%% `undefined' may be returned.
--spec mam_archive_id(HookServer, OwnerJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_archive_id(HostType, OwnerJID) -> Result when
+      HostType :: mongooseim:host_type(),
       OwnerJID :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
-mam_archive_id(HookServer, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_id, HookServer, undefined,
-                                     [HookServer, OwnerJID]).
+mam_archive_id(HostType, OwnerJID) ->
+    ejabberd_hooks:run_for_host_type(mam_archive_id, HostType, undefined,
+                                     [HostType, OwnerJID]).
 
 %%% @doc The `mam_archive_size' hook is called to determine the size
 %%% of the archive for a given JID

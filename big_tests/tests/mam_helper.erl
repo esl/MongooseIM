@@ -102,6 +102,7 @@
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host/0,
+         host_type/0,
          wait_for_archive_size/2,
          verify_archived_muc_light_aff_msg/3,
          wait_for_room_archive_size/3,
@@ -898,26 +899,17 @@ put_msg({{MsgIdOwner, MsgIdRemote},
          {_FromBin, FromJID, FromArcID},
          {_ToBin, ToJID, ToArcID},
          {_, Source, _}, Packet}) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    archive_message([Host, #{message_id => MsgIdOwner,
-                             archive_id => FromArcID,
-                             local_jid => FromJID,
-                             remote_jid => ToJID,
-                             source_jid => Source,
-                             origin_id => none,
-                             direction => outgoing,
-                             packet => Packet}]),
-    archive_message([Host, #{message_id => MsgIdRemote,
-                             archive_id => ToArcID,
-                             local_jid => ToJID,
-                             remote_jid => FromJID,
-                             source_jid => Source,
-                             origin_id => none,
-                             direction => incoming,
-                             packet => Packet}]).
+    Map1 = #{message_id => MsgIdOwner, archive_id => FromArcID,
+             local_jid => FromJID, remote_jid => ToJID, source_jid => Source,
+             origin_id => none, direction => outgoing, packet => Packet},
+    Map2 = #{message_id => MsgIdRemote, archive_id => ToArcID,
+             local_jid => ToJID, remote_jid => FromJID, source_jid => Source,
+             origin_id => none, direction => incoming, packet => Packet},
+    archive_message(Map1),
+    archive_message(Map2).
 
-archive_message(Args) ->
-    rpc_apply(mod_mam, archive_message, Args).
+archive_message(#{} = Map) ->
+    ok = rpc_apply(mod_mam, archive_message_from_ct, [Map]).
 
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
@@ -1234,6 +1226,9 @@ muc_light_host() ->
 
 host() ->
     ct:get_config({hosts, mim, domain}).
+
+host_type() ->
+    ct:get_config({hosts, mim, host_type}).
 
 room_name(Config) ->
     AliceName   = escalus_users:get_username(Config, alice),

@@ -45,7 +45,7 @@
 -export([start/2, stop/1]).
 
 %% ejabberd handlers
--export([process_mam_iq/4,
+-export([process_mam_iq/5,
          user_send_packet/4,
          remove_user/3,
          filter_packet/1,
@@ -56,7 +56,7 @@
 -export([get_personal_data/2]).
 
 %%private
--export([archive_message/2]).
+-export([archive_message_from_ct/1]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
@@ -92,7 +92,7 @@
 
 %% ejabberd
 -import(mod_mam_utils,
-        [is_jid_in_user_roster/2]).
+        [is_jid_in_user_roster/3]).
 
 
 -include("mongoose.hrl").
@@ -198,6 +198,7 @@ archive_id(Server, User)
 -spec start(HostType :: host_type(), Opts :: list()) -> any().
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting}),
+    ?LOG_ERROR(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     add_id_handlers(HostType, Opts),
@@ -207,6 +208,7 @@ start(HostType, Opts) ->
 -spec stop(HostType :: host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping}),
+    ?LOG_ERROR(#{what => mam_stopping, host_type => HostType}),
     unregister_features(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
@@ -220,15 +222,16 @@ stop(HostType) ->
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
-                     IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-process_mam_iq(From, To, Acc, IQ) ->
+-spec process_mam_iq(Acc :: mongoose_acc:t(),
+                     From :: jid:jid(), To :: jid:jid(), IQ :: jlib:iq(),
+                     _Extra) -> {mongoose_acc:t(), jlib:iq() | ignore}.
+process_mam_iq(Acc, From, To, IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     case is_action_allowed(HostType, Action, From, To) of
         true  ->
-            case mod_mam_utils:wait_shaper(HostType, Action, From) of
+            case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, Action, From) of
                 ok ->
                     handle_error_iq(HostType, Acc, To, Action,
                                     handle_mam_iq(Action, From, To, IQ, Acc));
@@ -335,7 +338,7 @@ acc_to_host_type(Acc) ->
                         Action :: mam_iq:action(), From :: jid:jid(),
                         To :: jid:jid()) -> boolean().
 is_action_allowed(HostType, Action, From, To) ->
-    case acl:match_rule(HostType, Action, From, default) of
+    case acl:match_rule_for_host_type(HostType, To#jid.lserver, Action, From, default) of
         allow   -> true;
         deny    -> false;
         default -> is_action_allowed_by_default(Action, From, To)
@@ -527,7 +530,7 @@ is_interesting(HostType, LocJID, RemJID, ArcID) ->
     case get_behaviour(HostType, ArcID, LocJID, RemJID) of
         always -> true;
         never  -> false;
-        roster -> is_jid_in_user_roster(LocJID, RemJID)
+        roster -> is_jid_in_user_roster(HostType, LocJID, RemJID)
     end.
 
 %% ----------------------------------------------------------------------
@@ -591,6 +594,10 @@ lookup_messages_without_policy_violation_check(
             R
     end.
 
+archive_message_from_ct(Params = #{local_jid := JID}) ->
+    HostType = jid_to_host_type(JID),
+    archive_message(HostType, Params).
+
 -spec archive_message(host_type(), mod_mam:archive_message_params()) ->
     ok | {error, timeout}.
 archive_message(HostType, Params) ->
@@ -641,7 +648,8 @@ return_max_delay_reached_error_iq(IQ) ->
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
+    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout">>),
+    {error, timeout, IQ#iq{type = error, sub_el = [E]}};
 return_error_iq(IQ, item_not_found) ->
     {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
@@ -701,16 +709,23 @@ register_features(HostType) ->
     ok.
 
 add_id_handlers(HostType, Opts) ->
+    Component = ejabberd_sm,
     %% `parallel' is the only one recommended here.
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    gen_iq_handler:add_iq_handler(ejabberd_sm, HostType, ?NS_MAM_04,
-                                  ?MODULE, process_mam_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, HostType, ?NS_MAM_06,
-                                  ?MODULE, process_mam_iq, IQDisc).
+    ExecutionType = gen_mod:get_opt(iqdisc, Opts, parallel),
+    IQHandlerFn = fun ?MODULE:process_mam_iq/5,
+    Extra = #{},
+    IQHandler = mongoose_iq_handler:new(IQHandlerFn, Extra, ExecutionType),
+    [gen_iq_handler:add_iq_handler_for_domain(HostType, Namespace,
+                                              Component, IQHandlerFn,
+                                              Extra, ExecutionType)
+     || Namespace <- [?NS_MAM_04, ?NS_MAM_06]],
+    ok.
 
 remove_iq_handlers(HostType) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_MAM_04),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_MAM_06).
+    Component = ejabberd_sm,
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, Namespace, Component)
+     || Namespace <- [?NS_MAM_04, ?NS_MAM_06]],
+    ok.
 
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [backends, ?MODULE, lookup], histogram),

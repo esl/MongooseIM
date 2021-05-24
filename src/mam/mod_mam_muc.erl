@@ -231,9 +231,9 @@ room_process_mam_iq(From, To, Acc, IQ) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     MucAction = action_to_muc_action(Action),
-    case is_action_allowed(HostType, Action, MucAction, From, To) of
+    case is_action_allowed(HostType, To#jid.lserver, Action, MucAction, From, To) of
         true ->
-            case mod_mam_utils:wait_shaper(HostType, MucAction, From) of
+            case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, MucAction, From) of
                 ok ->
                     handle_error_iq(Acc, HostType, To, Action,
                                     handle_mam_iq(HostType, Action, From, To, IQ));
@@ -256,10 +256,10 @@ forget_room(Acc, _HostType, MucServer, RoomName) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec is_action_allowed(host_type(), mam_iq:action(), muc_action(),
+-spec is_action_allowed(host_type(), jid:lserver(), mam_iq:action(), muc_action(),
                         jid:jid(), jid:jid()) -> boolean().
-is_action_allowed(HostType, Action, MucAction, From, To) ->
-    case acl:match_rule(HostType, MucAction, From, default) of
+is_action_allowed(HostType, Domain, Action, MucAction, From, To) ->
+    case acl:match_rule_for_host_type(HostType, Domain, MucAction, From, default) of
         allow -> true;
         deny -> false;
         default -> is_room_action_allowed_by_default(HostType, Action, From, To)

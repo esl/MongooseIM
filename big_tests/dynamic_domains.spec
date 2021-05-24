@@ -10,6 +10,9 @@
 {include, "tests"}.
 
 {suites, "tests", acc_e2e_SUITE}.
+{suites, "tests", domain_isolation_SUITE}.
+{suites, "tests", muc_SUITE}.
+{suites, "tests", mam_SUITE}.
 
 {suites, "tests", carboncopy_SUITE}.
 {skip_cases, "tests", carboncopy_SUITE, [discovering_support],
