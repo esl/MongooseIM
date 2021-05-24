@@ -251,7 +251,7 @@ can_access_identity(RoomJID, UserJID) ->
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
--spec init(#{}) ->
+-spec init(map()) ->
     {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
 init(#{init_type := start_new} = Args) ->
     init_new(Args);
@@ -261,7 +261,7 @@ init(#{init_type := start_restored} = Args) ->
 init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
            server_host := ServerHost, access := Access, room_name := Room,
            history_size := HistorySize, room_shaper := RoomShaper,
-           http_auth_pool := HttpAuthPool, creator := Creator, nick := Nick,
+           http_auth_pool := HttpAuthPool, creator := Creator, nick := _Nick,
            def_opts := DefRoomOpts}) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
@@ -723,7 +723,7 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
 stop_if_only_owner_is_online(_, _, State) ->
     next_normal_state(State).
 
-do_stop_persistent_room(RoomName, State) ->
+do_stop_persistent_room(_RoomName, State) ->
     ?LOG_INFO(ls(#{what => muc_room_stopping_persistent,
                    text => <<"Stopping persistent room's process">>}, State)),
     mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
@@ -4631,7 +4631,7 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
 
 
 -spec route_nick_message(routed_nick_message(), state()) -> state().
-route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
+route_nick_message(#routed_nick_message{decide = {expulse_sender, _Reason},
     packet = Packet, lang = Lang, from = From}, StateData) ->
     ErrorText = <<"This participant is kicked from the room because he",
                   "sent an error message to another participant">>,

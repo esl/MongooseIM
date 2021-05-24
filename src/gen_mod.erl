@@ -326,7 +326,11 @@ set_opt(Opt, Opts, Value) ->
     lists:keystore(Opt, 1, Opts, {Opt, Value}).
 
 
--spec get_module_opt(mongooseim:host_type(), module(), atom(), term()) -> term().
+%%% TODO Make Opt an atom. Fix in mod_auth_token:
+%%% 374: The call gen_mod:get_module_opt(Domain::any(), 'mod_auth_token',
+%%% {'validity_period','access' | 'refresh'}, {1 | 25,'days' | 'hours'})
+%%% breaks the contract (mongooseim:host_type(), module(), atom(), term()) -> term()
+-spec get_module_opt(mongooseim:host_type(), module(), term(), term()) -> term().
 get_module_opt(HostType, Module, Opt, Default) ->
     %% Fail in dev builds.
     %% It protects against passing something weird as a Module argument

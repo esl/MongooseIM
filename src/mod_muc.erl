@@ -94,7 +94,6 @@
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 -type host_type() :: mongooseim:host_type().
 -type muc_host() :: jid:lserver().
--type server_host() :: jid:lserver().
 
 -include("mod_muc.hrl").
 

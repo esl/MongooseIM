@@ -606,13 +606,6 @@ unregister_features(HostType) ->
     [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, HostType)],
     ok.
 
--spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
-default_host() ->
-    mod_muc:default_host().
-
-subdomain_pattern(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
-
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
     gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04,
