@@ -115,7 +115,8 @@ security_test_cases() ->
 
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
-    Host = ct:get_config({hosts, mim, domain}),
+    Host = ct:get_config({hosts, mim, host_type}),
+    dynamic_modules:save_modules(Host, C),
     C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
@@ -124,10 +125,9 @@ init_per_suite(C) ->
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    Host = ct:get_config({hosts, mim, domain}),
-    rest_helper:maybe_disable_mam(mam_helper:backend(), Host),
-    dynamic_modules:stop(Host, mod_muc_light),
+    Host = ct:get_config({hosts, mim, host_type}),
     application:stop(shotgun),
+    dynamic_modules:restore_modules(Host, Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GN, C) ->

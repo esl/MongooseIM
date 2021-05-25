@@ -315,6 +315,7 @@ to_list(V) when is_list(V) ->
     V.
 
 maybe_enable_mam(rdbms, Host, Config) ->
+    maybe_disable_mam(rdbms, Host),
     init_module(Host, mod_mam_rdbms_arch, []),
     init_module(Host, mod_mam_muc_rdbms_arch, []),
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
@@ -324,6 +325,7 @@ maybe_enable_mam(rdbms, Host, Config) ->
                                     {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
+    maybe_disable_mam(riak, Host),
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
@@ -337,6 +339,7 @@ init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
 maybe_disable_mam(rdbms, Host) ->
+    stop_module(Host, mod_mam_muc_rdbms_arch),
     stop_module(Host, mod_mam_rdbms_arch),
     stop_module(Host, mod_mam_rdbms_prefs),
     stop_module(Host, mod_mam_rdbms_user),
