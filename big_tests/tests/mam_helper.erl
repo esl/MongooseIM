@@ -107,7 +107,8 @@
          verify_archived_muc_light_aff_msg/3,
          wait_for_room_archive_size/3,
          generate_msg_for_date_user/3,
-         generate_msg_for_date_user/4
+         generate_msg_for_date_user/4,
+         put_msg/1
         ]).
 
 rpc_apply(M, F, Args) ->
@@ -821,11 +822,11 @@ bootstrap_archive(Config) ->
     BobServer   = escalus_users:get_server(Config, bob),
     CarolServer = escalus_users:get_server(Config, carol),
     ArcJID = {AliceJID, make_jid(AliceName, AliceServer, <<>>),
-              rpc_apply(mod_mam, archive_id, [AliceServer, AliceName])},
+              get_archive_id(AliceServer, AliceName)},
     OtherUsers = [{BobJID, make_jid(BobName, BobServer, <<>>),
-                   rpc_apply(mod_mam, archive_id, [BobServer, BobName])},
+                   get_archive_id(BobServer, BobName)},
                   {CarolJID, make_jid(CarolName, CarolServer, <<>>),
-                   rpc_apply(mod_mam, archive_id, [CarolServer, CarolName])}],
+                   get_archive_id(CarolServer, CarolName)}],
     Msgs = generate_msgs_for_days(ArcJID, OtherUsers, 16),
     put_msgs(Msgs),
     AllUsers = [{AliceServer, AliceName},
@@ -927,8 +928,7 @@ muc_bootstrap_archive(Config) ->
 
     Domain = muc_host(),
     RoomJid = make_jid(Room, Domain, <<>>),
-    ArcJID = {R, RoomJid,
-              rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
+    ArcJID = {R, RoomJid, get_muc_archive_id(Domain, Room)},
     Msgs = generate_msgs_for_days(ArcJID,
                                  [{B, make_jid(BobName, BobServer, <<"res1">>),
                                   rpc_apply(jid, replace_resource, [RoomJid, BobNick])},
@@ -945,10 +945,9 @@ muc_bootstrap_archive(Config) ->
      {bob_nickname, BobNick} | Config].
 
 put_muc_msgs(Msgs) ->
-    Host = host(),
-    [archive_muc_msg(Host, Msg) || Msg <- Msgs].
+    [archive_muc_msg(Msg) || Msg <- Msgs].
 
-archive_muc_msg(Host, {{MsgID, _},
+archive_muc_msg({{MsgID, _},
                 {_RoomBin, RoomJID, RoomArcID},
                 {_FromBin, FromJID, SrcJID}, _, Packet}) ->
     rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
@@ -959,6 +958,12 @@ archive_muc_msg(Host, {{MsgID, _},
                                                      origin_id => none,
                                                      direction => incoming,
                                                      packet => Packet}]).
+
+get_archive_id(Server, User) ->
+    rpc_apply(mod_mam, archive_id, [Server, User]).
+
+get_muc_archive_id(MucHost, Room) ->
+    rpc_apply(mod_mam_muc, archive_id, [MucHost, Room]).
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->

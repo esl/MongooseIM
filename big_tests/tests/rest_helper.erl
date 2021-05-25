@@ -388,29 +388,7 @@ put_msg(Aclient, Bclient, Content, Days) ->
     put_msg(Msg),
     ok.
 
-put_msg({{MsgIdOwner, MsgIdRemote},
-    {_FromBin, FromJID, FromArcID},
-    {_ToBin, ToJID, ToArcID},
-    {_, Source, _}, Packet}) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OutArgs = [Host, #{message_id => MsgIdOwner,
-                       archive_id => FromArcID,
-                       local_jid => FromJID,
-                       remote_jid => ToJID,
-                       source_jid => Source,
-                       origin_id => none,
-                       direction => outgoing,
-                       packet => Packet}],
-    ok = mam_helper:rpc_apply(mod_mam, archive_message, OutArgs),
-    InArgs = [Host, #{message_id => MsgIdRemote,
-                      archive_id => ToArcID,
-                      local_jid => ToJID,
-                      remote_jid => FromJID,
-                      source_jid => Source,
-                      origin_id => none,
-                      direction => incoming,
-                      packet => Packet}],
-    ok = mam_helper:rpc_apply(mod_mam, archive_message, InArgs).
+put_msg(Msg) -> mam_helper:put_msg(Msg).
 
 make_arc_id(Client) ->
     User = escalus_client:username(Client),

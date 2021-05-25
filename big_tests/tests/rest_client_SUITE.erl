@@ -26,7 +26,6 @@
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
 -define(UNAUTHORIZED, {<<"401">>, <<"Unauthorized">>}).
--define(MUCHOST, <<"muclight.localhost">>).
 
 %% --------------------------------------------------------------------
 %% Common Test stuff
@@ -117,12 +116,11 @@ security_test_cases() ->
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
     Host = ct:get_config({hosts, mim, domain}),
-    MUCLightHost = <<"muclight.", Host/binary>>,
     C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
     dynamic_modules:start(Host, mod_muc_light,
-                          [{host, subhost_pattern(MUCLightHost)},
+                          [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
                            {rooms_in_rosters, true}]),
-    [{muc_light_host, MUCLightHost} | escalus:init_per_suite(C1)].
+    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(C1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -139,8 +137,8 @@ end_per_group(_GN, C) ->
     C.
 
 init_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
-    DefaultConfig = dynamic_modules:save_modules(domain(Config), Config),
-    set_mod_config(all_can_configure, true, ?MUCHOST),
+    DefaultConfig = dynamic_modules:save_modules(host_type(), Config),
+    set_mod_config(all_can_configure, true, config_to_muc_host(Config)),
     escalus:init_per_testcase(config_can_be_changed_by_all, DefaultConfig);
 
 init_per_testcase(TC, Config) ->
@@ -161,12 +159,17 @@ init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
-    set_mod_config(all_can_configure, false, ?MUCHOST),
-    dynamic_modules:restore_modules(domain(Config), Config),
+    set_mod_config(all_can_configure, false, config_to_muc_host(Config)),
+    dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_testcase(config_can_be_changed_by_all, Config);
-
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
+
+config_to_muc_host(Config) ->
+    ?config(muc_light_host, Config).
+
+host_type() ->
+    ct:get_config({hosts, mim, domain}).
 
 %% --------------------------------------------------------------------
 %% Test cases
@@ -219,8 +222,7 @@ aff_change_msg_is_delivered_over_sse(ConfigIn) ->
     Event = wait_for_event(Conn),
     Data = jiffy:decode(maps:get(data, Event), [return_maps]),
     BobJID = user_jid(Bob),
-    Host = ct:get_config({hosts, mim, domain}),
-    RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
+    RoomJID = room_jid(RoomID, Config),
     assert_json_room_sse_message(#{room => RoomID,
                                    from => RoomJID,
                                    type => <<"affiliation">>,
@@ -348,8 +350,7 @@ user_is_invited_to_a_room(Config) ->
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         true = is_participant(Bob, <<"member">>, RoomInfo),
         IQ = escalus_stanza:iq_get(<<"urn:xmpp:muclight:0#affiliations">>, []),
-        Host = ct:get_config({hosts, mim, domain}),
-        RoomJID = <<RoomID/binary, "@muclight.", Host/binary>>,
+        RoomJID = room_jid(RoomID, Config),
         escalus:send(Alice, escalus_stanza:to(IQ, RoomJID)),
         escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Alice))
 
@@ -1224,11 +1225,8 @@ break_stuff(Config) ->
 
 -spec room_jid(RoomID :: binary(), Config :: list()) -> RoomJID :: binary().
 room_jid(RoomID, Config) ->
-    MUCLightHost = ?config(muc_light_host, Config),
+    MUCLightHost = config_to_muc_host(Config),
     <<RoomID/binary, "@", MUCLightHost/binary>>.
-
-domain(Config) ->
-    ?config(muc_light_host, Config).
 
 default_http_server_name_is_returned_if_not_changed(_Config) ->
     %% GIVEN MIM1 uses default name
