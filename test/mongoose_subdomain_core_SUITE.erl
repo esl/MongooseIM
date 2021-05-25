@@ -605,7 +605,7 @@ setup_meck(TestCase) ->
                 %% For all other cases ensure that subdomain is removed from
                 %% the ETS table before mongoose_lazy_routing module notified
                 %% about it
-                Subdomain = maps:get(subdomain,SubdomainInfo),
+                Subdomain = maps:get(subdomain, SubdomainInfo),
                 ?assertEqual({error, not_found},
                              mongoose_subdomain_core:get_host_type(Subdomain)),
                 ?assertEqual(whereis(mongoose_subdomain_core), self())

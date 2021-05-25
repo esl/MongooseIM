@@ -16,9 +16,8 @@
 -define(SUBDOMAIN_2, <<"sub.", (?DOMAIN_2)/binary>>).
 -define(SUBDOMAIN_3, <<"sub.", (?DOMAIN_3)/binary>>).
 
-%% these domain and subdomain are required for testing conflict resolution.
+%% this domain is required for testing domain/subdomain conflict resolution.
 -define(DOMAIN_X, <<"domain_x.test">>).
--define(SUBDOMAIN_X, ?DOMAIN_X).
 
 %% required for handles_missing_domain_or_subdomain test case
 -define(MISSING_DOMAIN, <<"missing.domain.test">>).
@@ -45,7 +44,7 @@ all() ->
      handles_double_iq_handler_registration_deregistration_for_domain,
      handles_double_iq_handler_registration_deregistration_for_subdomain].
 
-init_per_testcase(_,Config) ->
+init_per_testcase(_, Config) ->
     mongoose_lazy_routing:start(),
     setup_meck(),
     Config.
@@ -59,15 +58,15 @@ end_per_testcase(_, Config) ->
 %% test cases
 %%-------------------------------------------------------------------
 can_add_and_remove_domain_or_subdomain(_Config) ->
-    %add 2 domains, one of them add twice
+    %% add 2 domains, one of them add twice
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_1)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_2)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_2)),
-    %add 2 subdomains, one of them add twice
+    %% add 2 subdomains, one of them add twice
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_2)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_2)),
-    %check that 2 domains and 2 subdomains added properly
+    %% check that 2 domains and 2 subdomains added properly
     ?assertEqualLists([?DOMAIN_1, ?DOMAIN_2], get_all_registered_domains()),
     ?assertEqualLists([{?SUBDOMAIN_1, packet_handler(?SUBDOMAIN_1)},
                        {?SUBDOMAIN_2, packet_handler(?SUBDOMAIN_2)}],
@@ -75,15 +74,15 @@ can_add_and_remove_domain_or_subdomain(_Config) ->
     ?assertEqual([], get_all_unregistered_domains()),
     ?assertEqual([], get_all_unregistered_subdomains()),
     [meck:reset(M) || M <- [ejabberd_local, ejabberd_router]],
-    %remove 2 domains, one of them remove twice
+    %% remove 2 domains, one of them remove twice
     maybe_remove_domain(domain_host_type(?DOMAIN_1), ?DOMAIN_1),
     maybe_remove_domain(domain_host_type(?DOMAIN_2), ?DOMAIN_2),
     maybe_remove_domain(domain_host_type(?DOMAIN_2), ?DOMAIN_2),
-    %remove 2 subdomains, one of them remove twice
+    %% remove 2 subdomains, one of them remove twice
     maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_1)),
     maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_2)),
     maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_2)),
-    %check that 2 domains and 2 subdomains removed properly
+    %% check that 2 domains and 2 subdomains removed properly
     mongoose_lazy_routing:sync(),
     ?assertEqualLists([], get_all_registered_domains()),
     ?assertEqualLists([], get_all_registered_subdomains()),
@@ -102,22 +101,19 @@ handles_missing_domain_or_subdomain(_Config) ->
                                    [{maybe_add_domain_or_subdomain, ?MISSING_DOMAIN_2},
                                     '_', '_'])).
 
-
 registers_top_level_domain_in_case_domain_subdomain_conflicts(_Config) ->
-    %% add domain which has name collision with subdomain
+    %% add 2 times domain which has name collision with subdomain
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_X)),
-    ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_X)),
+    ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_X)),
     %% check that only top level domain is added
     ?assertEqualLists([?DOMAIN_X], get_all_registered_domains()),
     ?assertEqualLists([], get_all_registered_subdomains()),
     ?assertEqual([], get_all_unregistered_domains()),
     ?assertEqual([], get_all_unregistered_subdomains()),
     [meck:reset(M) || M <- [ejabberd_local, ejabberd_router]],
-    %% remove that domain and subdomain (twice)
-    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_X)),
-    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_X)),
+    %% try to remove that domain and subdomain
     maybe_remove_domain(domain_host_type(?DOMAIN_X), ?DOMAIN_X),
-    maybe_remove_domain(domain_host_type(?DOMAIN_X), ?DOMAIN_X),
+    maybe_remove_subdomain(subdomain_info(?DOMAIN_X)),
     mongoose_lazy_routing:sync(),
     %% check that only top level domain is removed
     ?assertEqualLists([], get_all_registered_domains()),
@@ -299,7 +295,7 @@ handles_double_iq_handler_registration_deregistration_for_domain(_Config) ->
     ?assertEqual([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1}], get_all_unregistered_iqs()),
     meck:reset(gen_iq_component),
     %% try unregister IQ handler one more time.
-    ?assertEqual({error,not_found},
+    ?assertEqual({error, not_found},
                  unregister_iq_handler_for_domain(?HOST_TYPE_1, ?NAMESPACE_1,
                                                   ?COMPONENT)),
     ?assertEqual([], get_all_registered_iqs()),
@@ -310,8 +306,8 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
     Pattern = subdomain_pattern(?SUBDOMAIN_1),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
     IQHandlerWithHostType = create_iq_handler_and_register(<<"IQH">>, ?HOST_TYPE_1,
-                                                            Pattern, ?NAMESPACE_1,
-                                                            ?COMPONENT),
+                                                           Pattern, ?NAMESPACE_1,
+                                                           ?COMPONENT),
     ?assertEqual([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1, IQHandlerWithHostType}],
                  get_all_registered_iqs()),
     meck:reset(gen_iq_component),
@@ -330,7 +326,7 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
                  get_all_unregistered_iqs()),
     meck:reset(gen_iq_component),
     %% try unregister IQ handler one more time.
-    ?assertEqual({error,not_found},
+    ?assertEqual({error, not_found},
                  unregister_iq_handler_for_subdomain(?HOST_TYPE_1, Pattern,
                                                      ?NAMESPACE_1, ?COMPONENT)),
     ?assertEqual([], get_all_registered_iqs()),
@@ -342,13 +338,13 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
 setup_meck() ->
     Modules = [ejabberd_local, ejabberd_router, gen_iq_component,
                mongoose_domain_core, mongoose_subdomain_core],
-    [meck:new(M, [no_link]) || M<-Modules],
+    [meck:new(M, [no_link]) || M <- Modules],
     meck:new(mongoose_lazy_routing, [no_link, passthrough]),
     meck:expect(ejabberd_local, register_host, fun(_) -> ok end),
     meck:expect(ejabberd_local, unregister_host, fun(_) -> ok end),
     meck:expect(ejabberd_router, unregister_route, fun(_) -> ok end),
     meck:expect(ejabberd_router, register_route, fun(_, _) -> ok end),
-    meck:expect(gen_iq_component, register_iq_handler, fun(_,_,_,_) -> ok end),
+    meck:expect(gen_iq_component, register_iq_handler, fun(_, _, _, _) -> ok end),
     meck:expect(gen_iq_component, sync, fun(_) -> ok end),
     meck:expect(gen_iq_component, unregister_iq_handler, fun(_, _, _) -> ok end),
     meck:expect(mongoose_domain_core, get_host_type, fun get_domain_host_type/1),
@@ -365,7 +361,7 @@ predefined_domains() ->
     #{jid:lserver() => mongoose_subdomain_core:subdomain_info()}.
 predefined_subdomains() ->
     SubdomainPattern = mongoose_subdomain_utils:make_subdomain_pattern(<<"sub.@HOST@">>),
-    FQDNPattern = mongoose_subdomain_utils:make_subdomain_pattern(?SUBDOMAIN_X),
+    FQDNPattern = mongoose_subdomain_utils:make_subdomain_pattern(?DOMAIN_X),
     #{?SUBDOMAIN_1 =>
           #{host_type => ?HOST_TYPE_1, subdomain => ?SUBDOMAIN_1,
             subdomain_pattern => SubdomainPattern, parent_domain => ?DOMAIN_1,
@@ -381,8 +377,8 @@ predefined_subdomains() ->
             subdomain_pattern => SubdomainPattern, parent_domain => ?DOMAIN_3,
             packet_handler => mongoose_packet_handler:new(packet_handler_3,
                                                           #{host_type => ?HOST_TYPE_2})},
-      ?SUBDOMAIN_X =>
-          #{host_type => ?HOST_TYPE_1, subdomain => ?SUBDOMAIN_X,
+      ?DOMAIN_X =>
+          #{host_type => ?HOST_TYPE_1, subdomain => ?DOMAIN_X,
             subdomain_pattern => FQDNPattern, parent_domain => no_parent_domain,
             packet_handler => mongoose_packet_handler:new(packet_handler_x,
                                                           #{host_type => ?HOST_TYPE_1})}}.
