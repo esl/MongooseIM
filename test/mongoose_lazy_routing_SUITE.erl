@@ -39,8 +39,10 @@ all() ->
     [can_add_and_remove_domain_or_subdomain,
      handles_missing_domain_or_subdomain,
      registers_top_level_domain_in_case_domain_subdomain_conflicts,
-     can_register_and_unregister_iq_handler_for_domain,
-     can_register_and_unregister_iq_handler_for_subdomain,
+     can_register_and_unregister_iq_handler_for_two_domains,
+     can_add_domain_for_a_registered_iq_handler,
+     can_register_and_unregister_iq_handler_for_two_subdomains,
+     can_add_subdomain_for_a_registered_iq_handler,
      handles_double_iq_handler_registration_deregistration_for_domain,
      handles_double_iq_handler_registration_deregistration_for_subdomain].
 
@@ -121,157 +123,173 @@ registers_top_level_domain_in_case_domain_subdomain_conflicts(_Config) ->
     ?assertEqual([], get_all_unregistered_subdomains()),
     ?assertEqual([?DOMAIN_X], get_all_unregistered_domains()).
 
-can_register_and_unregister_iq_handler_for_domain(_Config) ->
-    AddedIQHandlers = can_register_iq_handler_for_domain(),
-    RemovedIQHandlers = can_unregister_iq_handler_for_domain(),
-    ?assertEqualLists(AddedIQHandlers, RemovedIQHandlers),
-    %% try to re-register iq handlers for domain
-    can_register_iq_handler_for_domain(),
-    ok.
-
-can_register_iq_handler_for_domain() ->
-    meck:reset(gen_iq_component),
+can_register_and_unregister_iq_handler_for_two_domains(_Config) ->
     %% add 2 domains for ?HOST_TYPE_2 and one subdomain (just to ensure that subdomain
     %% doesn't affect anything)
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_2)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_3)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_2)),
-    %% register IQ handler for ?HOST_TYPE_2 domains
-    IQHandlerWithHostType1 = create_iq_handler_and_register(<<"IQH1">>, ?HOST_TYPE_2,
-                                                            ?NAMESPACE_1, ?COMPONENT),
+    [begin %% repeat twice
+         %% register IQ handler for ?HOST_TYPE_2 domains
+         IQHandlerWithHostType = create_iq_handler_and_register(<<"IQH">>, ?HOST_TYPE_2,
+                                                                ?NAMESPACE_1, ?COMPONENT),
+         ?assertEqualLists([{?COMPONENT, ?DOMAIN_2, ?NAMESPACE_1, IQHandlerWithHostType},
+                            {?COMPONENT, ?DOMAIN_3, ?NAMESPACE_1, IQHandlerWithHostType}],
+                           get_all_registered_iqs()),
+         ?assertEqual([], get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component),
+         %% unregister IQ handler for ?HOST_TYPE_2 domains
+         ?assertEqual({ok, IQHandlerWithHostType},
+                      unregister_iq_handler_for_domain(?HOST_TYPE_2, ?NAMESPACE_1,
+                                                       ?COMPONENT)),
+         ?assertEqual([], get_all_registered_iqs()),
+         ?assertEqualLists([{?COMPONENT, ?DOMAIN_2, ?NAMESPACE_1},
+                            {?COMPONENT, ?DOMAIN_3, ?NAMESPACE_1}],
+                           get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component)
+     end || _ <- lists:seq(1, 2)],
+    %% remove 2 domains and one subdomain for ?HOST_TYPE_2
+    maybe_remove_domain(domain_host_type(?DOMAIN_2), ?DOMAIN_2),
+    maybe_remove_domain(domain_host_type(?DOMAIN_3), ?DOMAIN_3),
+    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_2)),
+    ?assertEqual([], get_all_registered_iqs()),
+    ?assertEqual([], get_all_unregistered_iqs()).
 
-    ?assertEqualLists([{?COMPONENT, ?DOMAIN_2, ?NAMESPACE_1, IQHandlerWithHostType1},
-                       {?COMPONENT, ?DOMAIN_3, ?NAMESPACE_1, IQHandlerWithHostType1}],
-                      get_all_registered_iqs()),
-    ?assertEqual([], get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    %% register 2 IQ handlers for ?HOST_TYPE_1 domains, then add one domain and
-    %% one subdomain (just to ensure that subdomain doesn't affect anything)
-    IQHandlerWithHostType2 = create_iq_handler_and_register(<<"IQH2">>, ?HOST_TYPE_1,
+
+can_add_domain_for_a_registered_iq_handler(_Config) ->
+    %%-------------------------------------------------------------------------------
+    %% this test case consists of the following steps:
+    %% 1) register 2 IQ handlers for ?HOST_TYPE_1 domains
+    %% 2) add ?SUBDOMAIN_1 (?HOST_TYPE_1, just to ensure that subdomain adding
+    %%    doesn't affect anything)
+    %% 3) add and then remove ?DOMAIN_1, check that it leads to the execution of
+    %%    the proper gen_iq_component interfaces (run this step twice)
+    %% 4) unregister 2 IQ handlers ?HOST_TYPE_1 domains
+    %%-------------------------------------------------------------------------------
+
+    %% register 2 IQ handlers
+    IQHandlerWithHostType1 = create_iq_handler_and_register(<<"IQH1">>, ?HOST_TYPE_1,
                                                             ?NAMESPACE_1, ?COMPONENT),
-    IQHandlerWithHostType3 = create_iq_handler_and_register(<<"IQH3">>, ?HOST_TYPE_1,
+    IQHandlerWithHostType2 = create_iq_handler_and_register(<<"IQH2">>, ?HOST_TYPE_1,
                                                             ?NAMESPACE_2, ?COMPONENT),
+    %% add ?SUBDOMAIN_1
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
     ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_1)),
-    ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1, IQHandlerWithHostType2},
-                       {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2, IQHandlerWithHostType3}],
-                      get_all_registered_iqs()),
+    [begin %% repeat twice
+         %% add ?DOMAIN_1
+         ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_1)),
+         ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1,
+                             IQHandlerWithHostType1},
+                            {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2,
+                             IQHandlerWithHostType2}],
+                           get_all_registered_iqs()),
+         ?assertEqual([], get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component),
+         %% remove ?DOMAIN_1
+         maybe_remove_domain(?HOST_TYPE_1, ?DOMAIN_1),
+         mongoose_lazy_routing:sync(),
+         ?assertEqual([], get_all_registered_iqs()),
+         ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1},
+                            {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2}],
+                           get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component)
+     end || _ <- lists:seq(1, 2)],
+    %% unregister 2 IQ handlers
+    ?assertEqual({ok, IQHandlerWithHostType1},
+                 unregister_iq_handler_for_domain(?HOST_TYPE_1, ?NAMESPACE_1,
+                                                  ?COMPONENT)),
+    ?assertEqual({ok, IQHandlerWithHostType2},
+                 unregister_iq_handler_for_domain(?HOST_TYPE_1, ?NAMESPACE_2,
+                                                  ?COMPONENT)),
     ?assertEqual([], get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    %% try to remove ?DOMAIN_1 and add it back
-    maybe_remove_domain(?HOST_TYPE_1, ?DOMAIN_1),
-    mongoose_lazy_routing:sync(),
-    ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1},
-                       {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2}],
-                      get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_1)),
-    ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1, IQHandlerWithHostType2},
-                       {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2, IQHandlerWithHostType3}],
-                      get_all_registered_iqs()),
-    ?assertEqual([], get_all_unregistered_iqs()),
-    %% removal of ?DOMAIN_1 is required for successful second
-    %% run of can_register_iq_handler_for_domain/0
-    maybe_remove_domain(?HOST_TYPE_1, ?DOMAIN_1),
-    [IQHandlerWithHostType1, IQHandlerWithHostType2, IQHandlerWithHostType3].
+    ?assertEqual([], get_all_registered_iqs()).
 
-can_unregister_iq_handler_for_domain() ->
-    meck:reset(gen_iq_component),
-    %% trying to unregister IQ handlers registered
-    %% at can_register_iq_handler_for_domain/0
-    {ok, IQHandler1} = unregister_iq_handler_for_domain(?HOST_TYPE_2, ?NAMESPACE_1,
-                                                        ?COMPONENT),
-    {ok, IQHandler2} = unregister_iq_handler_for_domain(?HOST_TYPE_1, ?NAMESPACE_1,
-                                                        ?COMPONENT),
-    {ok, IQHandler3} = unregister_iq_handler_for_domain(?HOST_TYPE_1, ?NAMESPACE_2,
-                                                        ?COMPONENT),
-    ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqualLists([{?COMPONENT, ?DOMAIN_1, ?NAMESPACE_1},
-                       {?COMPONENT, ?DOMAIN_1, ?NAMESPACE_2},
-                       {?COMPONENT, ?DOMAIN_2, ?NAMESPACE_1},
-                       {?COMPONENT, ?DOMAIN_3, ?NAMESPACE_1}],
-                      get_all_unregistered_iqs()),
-    [IQHandler1, IQHandler2, IQHandler3].
-
-can_register_and_unregister_iq_handler_for_subdomain(_Config) ->
-    AddedIQHandlers = can_register_iq_handler_for_subdomain(),
-    RemovedIQHandlers = can_unregister_iq_handler_for_subdomain(),
-    ?assertEqualLists(AddedIQHandlers, RemovedIQHandlers),
-    %% try to re-register iq handlers for subdomain
-    can_register_iq_handler_for_subdomain(),
-    ok.
-
-can_register_iq_handler_for_subdomain() ->
-    meck:reset(gen_iq_component),
+can_register_and_unregister_iq_handler_for_two_subdomains(_Config) ->
     %% add 2 subdomains for ?HOST_TYPE_2 and one domain (just to ensure that domain
     %% doesn't affect anything)
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_2)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_3)),
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_2)),
-    %% register IQ handler for ?HOST_TYPE_2 subdomains
     Pattern = subdomain_pattern(?SUBDOMAIN_2),
-    IQHandlerWithHostType1 = create_iq_handler_and_register(<<"IQH1">>, ?HOST_TYPE_2,
+    [begin %% repeat twice
+         %% register IQ handler for ?HOST_TYPE_2 subdomains
+         IQHandlerWithHostType = create_iq_handler_and_register(<<"IQH">>, ?HOST_TYPE_2,
+                                                                Pattern, ?NAMESPACE_1,
+                                                                ?COMPONENT),
+         ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_2, ?NAMESPACE_1,
+                             IQHandlerWithHostType},
+                            {?COMPONENT, ?SUBDOMAIN_3, ?NAMESPACE_1,
+                             IQHandlerWithHostType}],
+                           get_all_registered_iqs()),
+         ?assertEqual([], get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component),
+         %% unregister IQ handler for ?HOST_TYPE_2 subdomains
+         ?assertEqual({ok, IQHandlerWithHostType},
+                      unregister_iq_handler_for_subdomain(?HOST_TYPE_2, Pattern,
+                                                          ?NAMESPACE_1, ?COMPONENT)),
+         ?assertEqual([], get_all_registered_iqs()),
+         ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_2, ?NAMESPACE_1},
+                            {?COMPONENT, ?SUBDOMAIN_3, ?NAMESPACE_1}],
+                           get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component)
+     end || _ <- lists:seq(1, 2)],
+    %% remove 2 subdomains and one domain for ?HOST_TYPE_2
+    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_2)),
+    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_3)),
+    maybe_remove_domain(domain_host_type(?DOMAIN_2), ?DOMAIN_2),
+    ?assertEqual([], get_all_registered_iqs()),
+    ?assertEqual([], get_all_unregistered_iqs()).
+
+can_add_subdomain_for_a_registered_iq_handler(_Config) ->
+    %%-------------------------------------------------------------------------------
+    %% this test case consists of the following steps:
+    %% 1) register 2 IQ handlers for ?HOST_TYPE_1 subdomains
+    %% 2) add ?DOMAIN_1 (?HOST_TYPE_1, just to ensure that domain adding
+    %%    doesn't affect anything)
+    %% 3) add and then remove ?SUBDOMAIN_1, check that it leads to the execution of
+    %%    the proper gen_iq_component interfaces (run this step twice)
+    %% 4) unregister 2 IQ handlers ?HOST_TYPE_1 subdomains
+    %%-------------------------------------------------------------------------------
+
+    %% register 2 IQ handlers
+    Pattern = subdomain_pattern(?SUBDOMAIN_1),
+    IQHandlerWithHostType1 = create_iq_handler_and_register(<<"IQH1">>, ?HOST_TYPE_1,
                                                             Pattern, ?NAMESPACE_1,
                                                             ?COMPONENT),
-    ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_2, ?NAMESPACE_1, IQHandlerWithHostType1},
-                       {?COMPONENT, ?SUBDOMAIN_3, ?NAMESPACE_1, IQHandlerWithHostType1}],
-                      get_all_registered_iqs()),
-    ?assertEqual([], get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    %% register 2 IQ handlers for ?HOST_TYPE_1 subdomains, then add one subdomain and
-    %% one domain (just to ensure that domain doesn't affect anything)
     IQHandlerWithHostType2 = create_iq_handler_and_register(<<"IQH2">>, ?HOST_TYPE_1,
-                                                            Pattern, ?NAMESPACE_1,
-                                                            ?COMPONENT),
-    IQHandlerWithHostType3 = create_iq_handler_and_register(<<"IQH3">>, ?HOST_TYPE_1,
                                                             Pattern, ?NAMESPACE_2,
                                                             ?COMPONENT),
+    %% add ?SUBDOMAIN_1
     ?assertEqual(true, maybe_add_domain_or_subdomain(?DOMAIN_1)),
     ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
-    ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1, IQHandlerWithHostType2},
-                       {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2, IQHandlerWithHostType3}],
-                      get_all_registered_iqs()),
+    [begin %% repeat twice
+         %% add ?SUBDOMAIN_1
+         ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
+         ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1,
+                             IQHandlerWithHostType1},
+                            {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2,
+                             IQHandlerWithHostType2}],
+                           get_all_registered_iqs()),
+         ?assertEqual([], get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component),
+         %% remove ?SUBDOMAIN_1
+         maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_1)),
+         mongoose_lazy_routing:sync(),
+         ?assertEqual([], get_all_registered_iqs()),
+         ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1},
+                            {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2}],
+                           get_all_unregistered_iqs()),
+         meck:reset(gen_iq_component)
+     end || _ <- lists:seq(1, 2)],
+    %% unregister 2 IQ handlers
+    ?assertEqual({ok, IQHandlerWithHostType1},
+                 unregister_iq_handler_for_subdomain(?HOST_TYPE_1, Pattern,
+                                                     ?NAMESPACE_1, ?COMPONENT)),
+    ?assertEqual({ok, IQHandlerWithHostType2},
+                 unregister_iq_handler_for_subdomain(?HOST_TYPE_1, Pattern,
+                                                     ?NAMESPACE_2, ?COMPONENT)),
     ?assertEqual([], get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    %% try to remove ?SUBDOMAIN_1 and add it back
-    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_1)),
-    mongoose_lazy_routing:sync(),
-    ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1},
-                       {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2}],
-                      get_all_unregistered_iqs()),
-    meck:reset(gen_iq_component),
-    ?assertEqual(true, maybe_add_domain_or_subdomain(?SUBDOMAIN_1)),
-    ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1, IQHandlerWithHostType2},
-                       {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2, IQHandlerWithHostType3}],
-                      get_all_registered_iqs()),
-    ?assertEqual([], get_all_unregistered_iqs()),
-    %% removal of ?SUBDOMAIN_1 is required for successful second
-    %% run of can_register_iq_handler_for_subdomain/0
-    maybe_remove_subdomain(subdomain_info(?SUBDOMAIN_1)),
-    [IQHandlerWithHostType1, IQHandlerWithHostType2, IQHandlerWithHostType3].
-
-can_unregister_iq_handler_for_subdomain() ->
-    meck:reset(gen_iq_component),
-    %% trying to unregister IQ handlers registered
-    %% at can_register_iq_handler_for_domain/0
-    Pattern = subdomain_pattern(?SUBDOMAIN_1),
-    {ok, IQHandler1} = unregister_iq_handler_for_subdomain(?HOST_TYPE_2, Pattern,
-                                                           ?NAMESPACE_1, ?COMPONENT),
-    {ok, IQHandler2} = unregister_iq_handler_for_subdomain(?HOST_TYPE_1, Pattern,
-                                                           ?NAMESPACE_1, ?COMPONENT),
-    {ok, IQHandler3} = unregister_iq_handler_for_subdomain(?HOST_TYPE_1, Pattern,
-                                                           ?NAMESPACE_2, ?COMPONENT),
-    ?assertEqual([], get_all_registered_iqs()),
-    ?assertEqualLists([{?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_1},
-                       {?COMPONENT, ?SUBDOMAIN_1, ?NAMESPACE_2},
-                       {?COMPONENT, ?SUBDOMAIN_2, ?NAMESPACE_1},
-                       {?COMPONENT, ?SUBDOMAIN_3, ?NAMESPACE_1}],
-                      get_all_unregistered_iqs()),
-    [IQHandler1, IQHandler2, IQHandler3].
+    ?assertEqual([], get_all_registered_iqs()).
 
 handles_double_iq_handler_registration_deregistration_for_domain(_Config) ->
     %% add one domain and register IQ handler for it.
