@@ -117,7 +117,7 @@ check_password(error, _) ->
     false;
 check_password(JID, Password) ->
     {LUser, LServer} = jid:to_lus(JID),
-    case mongoose_domain_api:get_host_type(LServer) of
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             Creds0 = mongoose_credentials:new(LServer, HostType),
             Creds1 = mongoose_credentials:set(Creds0, username, LUser),

@@ -141,8 +141,10 @@ cleanup(Node) ->
                           %% Add possible removed ":" from encoded SID
                           SID = binary_to_term(mongoose_bin:join(SIDEncoded, <<":">>)),
                           delete_session(SID, U, S, R),
+                          {ok, HostType} = mongoose_domain_api:get_domain_host_type(S),
                           Acc = mongoose_acc:new(
                                   #{location => ?LOCATION,
+                                    host_type => HostType,
                                     lserver => S,
                                     element => undefined}),
                           mongoose_hooks:session_cleanup(S,

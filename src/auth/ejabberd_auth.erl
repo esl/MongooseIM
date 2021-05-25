@@ -396,7 +396,7 @@ entropy(IOList) ->
 %% use auth_modules_for_host_type/1 function instead.
 -spec auth_modules(Server :: jid:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
-    case mongoose_domain_api:get_host_type(LServer) of
+    case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} -> auth_modules_for_host_type(HostType);
         {error, not_found} -> []
     end.
@@ -476,7 +476,7 @@ get_type_information(_IOContent, [Digit, Printable, LowLetter, HiLetter, _Other]
 -spec call_auth_modules_for_domain(jid:lserver(), host_type_mod_fun(), call_opts()) ->
           mod_res() | [mod_res()].
 call_auth_modules_for_domain(Domain, F, Opts = #{default := Default}) ->
-    case mongoose_domain_api:get_host_type(Domain) of
+    case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
             StepF = bind_host_type(HostType, F),
             case maps:take(metric, Opts) of

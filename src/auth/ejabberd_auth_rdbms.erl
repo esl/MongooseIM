@@ -324,7 +324,7 @@ scram_passwords(Server, ScramIterationCount) ->
         ScramIterationCount :: pos_integer().
 scram_passwords(Server, Count, Interval, ScramIterationCount) ->
     LServer = jid:nameprep(Server),
-    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     ?LOG_INFO(#{what => scram_passwords, server => Server,
                 text => <<"Converting the stored passwords into SCRAM bits">>}),
     Selected = execute_count_users_without_scram(HostType, LServer),

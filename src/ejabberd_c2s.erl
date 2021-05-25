@@ -287,7 +287,7 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Lang = get_xml_lang(Attrs),
     S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
-          mongoose_domain_api:get_host_type(Server)} of
+          mongoose_domain_api:get_domain_host_type(Server)} of
         {?NS_STREAM, {ok, HostType}} ->
             change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),

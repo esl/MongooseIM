@@ -1095,8 +1095,11 @@ get_roster_old(#jid{lserver = LServer} = JID) ->
     get_roster_old(LServer, JID).
 
 get_roster_old(DestServer, JID) ->
+    %% TODO host type should be passed to this function
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(DestServer),
     A = mongoose_acc:new(#{ location => ?LOCATION,
                             lserver => DestServer,
+                            host_type => HostType,
                             element => undefined }),
     A2 = mongoose_hooks:roster_get(A, JID),
     mongoose_acc:get(roster, items, [], A2).

@@ -48,7 +48,7 @@ ejabberd_auth_interfaces(_Config) ->
         [{mongoose_domain_api, []}, {ejabberd_auth_dummy, [passthrough]},
          {ejabberd_config, []}, {mongoose_metrics, []}]],
 
-    meck:expect(mongoose_domain_api, get_host_type,
+    meck:expect(mongoose_domain_api, get_domain_host_type,
                 fun(?DOMAIN) -> {ok, ?HOST_TYPE} end),
     meck:expect(ejabberd_config, get_local_option,
                 fun({auth_method, ?HOST_TYPE}) -> dummy end),

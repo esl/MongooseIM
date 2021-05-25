@@ -51,7 +51,7 @@ handle_error(Msg, Reason, State) ->
     ?LOG_WARNING(#{what => sse_handle_error, msg => Msg, reason => Reason}),
     {nosend, State}.
 
-terminate(_Reson, _Req, State) ->
+terminate(_Reason, _Req, #{creds := Creds} = State) ->
     case maps:get(sid, State, undefined) of
         undefined ->
             ok;
@@ -60,6 +60,7 @@ terminate(_Reson, _Req, State) ->
             Acc = mongoose_acc:new(
                     #{location => ?LOCATION,
                       lserver => S,
+                      host_type => mongoose_credentials:host_type(Creds),
                       element => undefined}),
             ejabberd_sm:close_session(Acc, SID, JID, normal)
     end,

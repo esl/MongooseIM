@@ -405,7 +405,9 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
                        #jid{luser = LToUser, lserver = LToServer} = _To) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LFromServer),
     A = mongoose_acc:new(#{ location => ?LOCATION,
+                            host_type => HostType,
                             lserver => LFromServer,
                             element => undefined }),
     A2 = mongoose_hooks:roster_get(A, FromJID),

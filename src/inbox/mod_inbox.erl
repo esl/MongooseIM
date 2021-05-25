@@ -215,10 +215,12 @@ forward_messages(Acc, List, QueryId, To) when is_list(List) ->
     [send_message(Acc, To, Msg) || Msg <- Msgs].
 
 -spec send_message(mongoose_acc:t(), jid:jid(), exml:element()) -> mongoose_acc:t().
-send_message(Acc, To, Msg) ->
+send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
     BareTo = jid:to_bare(To),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
-                                 lserver => To#jid.lserver,
+                                 host_type => HostType,
+                                 lserver => LServer,
                                  element => Msg,
                                  from_jid => BareTo,
                                  to_jid => To}),

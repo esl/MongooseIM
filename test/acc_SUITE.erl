@@ -32,8 +32,7 @@ groups() ->
        produce_iq_meta_automatically,
        strip,
        strip_with_params,
-       parse_with_cdata,
-       tries_to_get_host_type_if_it_is_not_provided
+       parse_with_cdata
       ]
      }
     ].
@@ -94,15 +93,15 @@ store_permanent_retrieve_and_delete_many(_C) ->
     [?assertEqual(V, mongoose_acc:get(ns, K, Acc2)) || {K, V} <- KV],
     NS = mongoose_acc:get(ns, Acc2),
     ?assertEqual(lists:sort(NS), lists:sort(KV)),
-    ?assertEqual(lists:sort(NK),lists:sort(mongoose_acc:get_permanent_keys(Acc2))),
+    ?assertEqual(lists:sort(NK), lists:sort(mongoose_acc:get_permanent_keys(Acc2))),
     Acc3 = mongoose_acc:delete_many(ns, [K || {K, _} <- KV], Acc2),
     [?assertError(_, mongoose_acc:get(ns, K, Acc3)) || {K, _} <- KV],
     ?assertEqual([], mongoose_acc:get(ns, Acc3)),
-    ?assertEqual([],mongoose_acc:get_permanent_keys(Acc3)),
+    ?assertEqual([], mongoose_acc:get_permanent_keys(Acc3)),
     Acc4 = mongoose_acc:delete(ns, Acc2),
     [?assertError(_, mongoose_acc:get(ns, K, Acc4)) || {K, _} <- KV],
     ?assertEqual([], mongoose_acc:get(ns, Acc4)),
-    ?assertEqual([],mongoose_acc:get_permanent_keys(Acc4)),
+    ?assertEqual([], mongoose_acc:get_permanent_keys(Acc4)),
     ok.
 
 init_from_element(_C) ->
@@ -184,7 +183,7 @@ strip_with_params(_Config) ->
     %% strip stanza with params and check that new params are applied
     %% and non-permanent fields are missing
     NewServer = <<"test.", Server/binary>>,
-    NewHostType = <<"new ",HostType/binary>>,
+    NewHostType = <<"new ", HostType/binary>>,
     NewStanza = sample_stanza(),
     StripParams = #{lserver => NewServer,
                     host_type => NewHostType,
@@ -199,56 +198,6 @@ strip_with_params(_Config) ->
     ?assertEqual(sample_stanza(), mongoose_acc:element(NAcc2)),
     ?assertEqual(NewServer, mongoose_acc:lserver(NAcc2)),
     ?assertEqual(NewHostType, mongoose_acc:host_type(NAcc2)).
-
-tries_to_get_host_type_if_it_is_not_provided(_Config) ->
-    meck:new(mongoose_domain_api),
-    meck:expect(mongoose_domain_api, get_host_type,
-                fun
-                    (<<"host1">>) -> {ok, <<"host 1">>};
-                    (<<"host2">>) -> {ok, <<"host 2">>};
-                    (_) -> {error, not_found}
-                end),
-    allocate_with_unknown_host_type_and_change_it_on_stripping(),
-    meck:reset(mongoose_domain_api),
-    allocate_with_known_host_type_and_change_it_on_stripping(),
-    meck:unload(mongoose_domain_api).
-
-allocate_with_known_host_type_and_change_it_on_stripping() ->
-    AccParams=#{location => ?LOCATION},
-    StripParams = #{element => sample_stanza()},
-    %% new with <<"host 1">> host type
-    Acc1 = mongoose_acc:new(AccParams#{lserver => <<"host1">>}),
-    ?assertEqual(<<"host 1">>, mongoose_acc:host_type(Acc1)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"host1">>])),
-    %% host type changes from <<"host 1">> to 'undefined'
-    Acc2 = mongoose_acc:strip(StripParams#{lserver => <<"unknown.host1">>},Acc1),
-    ?assertEqual(undefined, mongoose_acc:host_type(Acc2)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"unknown.host1">>])),
-    %% host type changes from <<"host 1">> to <<host 2>>
-    Acc3 = mongoose_acc:strip(StripParams#{lserver => <<"host2">>},Acc1),
-    ?assertEqual(<<"host 2">>, mongoose_acc:host_type(Acc3)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"host2">>])),
-    %% check overall number of calls to mongoose_domain_api:get_host_type/1
-    ?assertEqual(3, meck:num_calls(mongoose_domain_api, get_host_type, 1)).
-
-allocate_with_unknown_host_type_and_change_it_on_stripping() ->
-    AccParams=#{location => ?LOCATION},
-    StripParams = #{element => sample_stanza()},
-    %% new acc with 'undefined' host type
-    Acc1 = mongoose_acc:new(AccParams#{lserver => <<"unknown.host1">>}),
-    ?assertEqual(undefined, mongoose_acc:host_type(Acc1)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"unknown.host1">>])),
-    %% host type changes from 'undefined' to <<"host 1">>
-    Acc2 = mongoose_acc:strip(StripParams#{lserver => <<"host1">>},Acc1),
-    ?assertEqual(<<"host 1">>, mongoose_acc:host_type(Acc2)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"host1">>])),
-    %% host type changes from 'undefined' to `undefined`
-    Acc3 = mongoose_acc:strip(StripParams#{lserver => <<"unknown.host2">>},Acc1),
-    ?assertEqual(undefined, mongoose_acc:host_type(Acc3)),
-    ?assertEqual(1, meck:num_calls(mongoose_domain_api, get_host_type, [<<"unknown.host2">>])),
-    %% check overall number of calls to mongoose_domain_api:get_host_type/1
-    ?assertEqual(3, meck:num_calls(mongoose_domain_api, get_host_type, 1)).
-
 
 sample_stanza() ->
     {xmlel, <<"iq">>,
