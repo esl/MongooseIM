@@ -7,6 +7,7 @@
 -include("mod_muc_light.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
+-include("mongoose.hrl").
 
 -define(DOMAIN, <<"localhost">>).
 
@@ -59,6 +60,7 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(codec_calls, Config) ->
+    meck_mongoose_subdomain_core(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
@@ -82,6 +84,7 @@ end_per_testcase(codec_calls, Config) ->
     mongoose_subhosts:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
+    meck:unload(),
     Config;
 end_per_testcase(_, Config) ->
     Config.
@@ -124,24 +127,30 @@ codec_calls(_Config) ->
     % count_call/1 should've been called twice - by handler fun (for each affiliated user,
     % we have one) and by a filter_room_packet hook handler.
 
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              host_type => <<"localhost">>,
+                              element => undefined,
+                              from_jid => jid:make_noprep(<<"a">>, <<"localhost">>, <<>>),
+                              to_jid => jid:make_noprep(<<>>, <<"muc.localhost">>, <<>>) }),
     mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
-                                      Sender, RoomUS, HandleFun),
+                                      Sender, RoomUS, HandleFun, Acc),
     % 1 filter packet, sent 1 msg to 2 users
     check_count(1, 2),
     mod_muc_light_codec_modern:encode({set, #affiliations{}, [], []},
-                                      Sender, RoomUS, HandleFun),
+                                      Sender, RoomUS, HandleFun, Acc),
     % 1 filter packet, sent 1 IQ response to Sender
     check_count(1, 1),
     mod_muc_light_codec_modern:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
-                                      Sender, RoomUS, HandleFun),
+                                      Sender, RoomUS, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
     mod_muc_light_codec_modern:encode({set, #config{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomUS, HandleFun),
+        Sender, RoomUS, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
     mod_muc_light_codec_legacy:encode({#msg{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomUS, HandleFun),
+        Sender, RoomUS, HandleFun, Acc),
     % 1 filter, 1 msg to 2 users
     check_count(1, 2),
     ok.
@@ -273,7 +282,8 @@ validate_owner([], _, _) -> true.
 prop_aff_change_bad_request() ->
     ?FORALL({AffUsers, Changes}, bad_change_aff(),
             begin
-                {error, bad_request} = mod_muc_light_utils:change_aff_users(AffUsers, Changes),
+                {error, {bad_request, _}} =
+                    mod_muc_light_utils:change_aff_users(AffUsers, Changes),
                 true
             end).
 
@@ -526,3 +536,10 @@ check_count(Hooks, Handlers) ->
     ?assertEqual(Handlers, Ha),
     ets:insert(testcalls, {hooks, 0}),
     ets:insert(testcalls, {handlers, 0}).
+
+meck_mongoose_subdomain_core() ->
+    meck:new(mongoose_subdomain_core),
+    meck:expect(mongoose_subdomain_core, register_subdomain,
+                fun(HostType, SubdomainPattern, PacketHandler) -> ok end),
+    meck:expect(mongoose_subdomain_core, unregister_subdomain,
+                fun(HostType, SubdomainPattern) -> ok end).
