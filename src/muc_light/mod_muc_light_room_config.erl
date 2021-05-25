@@ -73,7 +73,7 @@
 %%====================================================================
 
 -spec schema_from_definition(UserDefinedSchema :: user_defined_schema()) -> schema().
-schema_from_definition(UserDefinedSchema) ->
+schema_from_definition(UserDefinedSchema) when is_list(UserDefinedSchema) ->
     lists:foldl(fun add_config_schema_field/2, #schema{}, UserDefinedSchema).
 
 -spec default_from_schema(ConfigSchema :: schema()) -> kv().

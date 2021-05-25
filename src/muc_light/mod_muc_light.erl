@@ -89,11 +89,11 @@ config_schema(MUCServer) ->
 %% Internals
 -spec default_config_for_host_type(host_type()) -> mod_muc_light_room_config:kv().
 default_config_for_host_type(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, default_config, []).
+    gen_mod:get_module_opt(HostType, ?MODULE, computed_default_config, []).
 
 -spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
 config_schema_for_host_type(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, config_schema, undefined).
+    gen_mod:get_module_opt(HostType, ?MODULE, computed_config_schema, undefined).
 
 %%====================================================================
 %% Administration API
@@ -199,10 +199,11 @@ set_dynamic_opts(HostType, Opts) ->
     %% Prepare config schema
     Def = gen_mod:get_opt(config_schema, Opts, default_schema_definition()),
     ConfigSchema = mod_muc_light_room_config:schema_from_definition(Def),
-    gen_mod:set_module_opt(HostType, ?MODULE, config_schema, ConfigSchema),
+    %% XXX That is a bad style
+    gen_mod:set_module_opt(HostType, ?MODULE, computed_config_schema, ConfigSchema),
     %% Prepare default config
     DefaultConfig = mod_muc_light_room_config:default_from_schema(ConfigSchema),
-    gen_mod:set_module_opt(HostType, ?MODULE, default_config, DefaultConfig).
+    gen_mod:set_module_opt(HostType, ?MODULE, computed_default_config, DefaultConfig).
 
 %% Config callbacks
 -spec config_spec() -> mongoose_config_spec:config_section().
