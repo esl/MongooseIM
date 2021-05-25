@@ -73,9 +73,9 @@ filter_local_packet({#jid{lserver = FromServer} = From,
 %% muc.localhost becomes localhost.
 %% localhost stays localhost.
 domain_to_host(Domain) ->
-    case mongoose_subhosts:get_host(Domain) of
-        {ok, Host} -> Host;
-        undefined -> Domain
+    case mongoose_domain_api:get_subdomain_info(Domain) of
+        {ok, #{parent_domain := Parent}} when is_binary(Parent) -> Parent;
+        _ -> Domain
     end.
 
 maybe_send_back_error(From, To, Acc, Arg) ->

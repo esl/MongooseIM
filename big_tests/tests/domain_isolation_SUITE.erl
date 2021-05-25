@@ -10,87 +10,107 @@ suite() ->
     require_rpc_nodes([mim]).
 
 all() ->
-    [
-     isolation_works_for_one2one,
-     isolation_works_for_one2one_2domains,
-     isolation_works_for_subdomains
-    ].
+    [{group, two_domains}].
 
-domain() -> ct:get_config({hosts, mim, domain}).
-domain2() -> ct:get_config({hosts, mim, secondary_domain}).
-domains() -> [domain(), domain2()].
+groups() ->
+    [{two_domains, [parallel], cases()}].
+
+cases() ->
+    [routing_one2one_message_inside_one_domain_works,
+     routing_one2one_message_to_another_domain_gets_dropped,
+     routing_one2one_message_to_another_domain_results_in_service_unavailable,
+     routing_to_yours_subdomain_gets_passed_to_muc_module,
+     routing_to_foreign_subdomain_results_in_service_unavailable].
+
+host_type() -> ct:get_config({hosts, mim, host_type}).
+host_type2() -> ct:get_config({hosts, mim, secondary_host_type}).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config2 = dynamic_modules:save_modules(domain(), Config),
+    Config2 = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite(Config2).
 
 end_per_suite(Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_suite(Config).
 
+init_per_group(two_domains, Config) ->
+    MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
+    dynamic_modules:restart(host_type(), mod_domain_isolation, [{extra_domains, [MucHost]}]),
+    dynamic_modules:restart(host_type2(), mod_domain_isolation, []),
+    dynamic_modules:restart(host_type(), mod_muc_light, [{host, MucHost}]),
+    Config.
 
-init_per_testcase(isolation_works_for_one2one_2domains = TestcaseName, Config) ->
-    [dynamic_modules:start(Host, mod_domain_isolation, []) || Host <- domains()],
-    escalus:init_per_testcase(TestcaseName, Config);
-init_per_testcase(TestcaseName, Config) ->
-    Host = domain(),
-    MucHost = subhost_pattern(<<"muclight.", Host/binary>>),
-    dynamic_modules:start(Host, mod_domain_isolation, [{extra_domains, [MucHost]}]),
-    dynamic_modules:start(Host, mod_muc_light, [{host, MucHost}]),
-    escalus:init_per_testcase(TestcaseName, Config).
+end_per_group(two_domains, Config) ->
+    dynamic_modules:stop(host_type(), mod_domain_isolation),
+    dynamic_modules:stop(host_type2(), mod_domain_isolation),
+    dynamic_modules:stop(host_type(), mod_muc_light),
+    Config.
 
-end_per_testcase(isolation_works_for_one2one_2domains = TestcaseName, Config) ->
-    [dynamic_modules:stop(Host, mod_domain_isolation) || Host <- domains()],
-    escalus:end_per_testcase(TestcaseName, Config);
-end_per_testcase(TestcaseName, Config) ->
-    Host = domain(),
-    dynamic_modules:stop(Host, mod_domain_isolation),
-    dynamic_modules:stop(Host, mod_muc_light),
-    escalus:end_per_testcase(TestcaseName, Config).
+init_per_testcase(Testcase, Config) ->
+    escalus:init_per_testcase(Testcase, Config).
+
+end_per_testcase(Testcase, Config) ->
+    escalus:end_per_testcase(Testcase, Config).
 
 %%--------------------------------------------------------------------
 %% Tests
 %%--------------------------------------------------------------------
 
-isolation_works_for_one2one(Config) ->
-    F = fun(Alice, Bob, Bis) ->
-          %% Ignored from another domain
-          escalus_client:send(Bis, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-          %% Routed from the local domain
+routing_one2one_message_inside_one_domain_works(Config) ->
+    F = fun(Alice, Bob) ->
+          %% WHEN Routed inside the same domain
           escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Hello">>)),
+          %% THEN Message gets delivered
           Stanza = escalus:wait_for_stanza(Alice),
-          escalus:assert(is_chat_message, [<<"Hello">>], Stanza),
-          %% Sender receives an error about the drop
-          Err = escalus:wait_for_stanza(Bis),
-          escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Err),
-          <<"Filtered by the domain isolation">> = get_error_text(Err)
+          escalus:assert(is_chat_message, [<<"Hello">>], Stanza)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], F).
+
+routing_one2one_message_to_another_domain_gets_dropped(Config) ->
+    F = fun(Alice, Bob, Bis) ->
+          %% GIVEN Alice and Bis are on different domains
+          %% WHEN A stanza is sent to another domain
+          escalus_client:send(Bis, escalus_stanza:chat_to(Alice, <<"Hello">>)),
+          %% THEN Receiver does not receive a message
+          verify_alice_has_no_pending_messages(Alice, Bob)
         end,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {alice_bis, 1}], F).
 
-isolation_works_for_one2one_2domains(Config) ->
-    isolation_works_for_one2one(Config).
-
-isolation_works_for_subdomains(Config) ->
+routing_one2one_message_to_another_domain_results_in_service_unavailable(Config) ->
     F = fun(Alice, Bis) ->
-          Domain = domain(),
-          To = <<"muclight.", Domain/binary, "/room">>,
-          %% Ignored from another domain
-          escalus_client:send(Bis, escalus_stanza:chat_to(To, <<"Hi muc!">>)),
-          %% Sender receives an error about the drop
-          Err = escalus:wait_for_stanza(Bis),
-          escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Err),
-          <<"Filtered by the domain isolation">> = get_error_text(Err),
-          %% But if Alice is on the same domain, her message passes
-          escalus_client:send(Alice, escalus_stanza:chat_to(To, <<"Hi muc!">>)),
-          Ok = escalus:wait_for_stanza(Alice),
-          escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Ok)
+          %% GIVEN Alice and Bis are on different domains
+          %% WHEN A stanza is sent to another domain
+          escalus_client:send(Bis, escalus_stanza:chat_to(Alice, <<"Hello">>)),
+          %% THEN Sender receives an error
+          receives_service_unavailable(Bis)
         end,
     escalus:fresh_story(Config, [{alice, 1}, {alice_bis, 1}], F).
+
+routing_to_yours_subdomain_gets_passed_to_muc_module(Config) ->
+    F = fun(Alice) ->
+          %% GIVEN Alice is on the same domain
+          %% WHEN Alice routes a stanza
+          escalus_client:send(Alice, muc_stanza()),
+          %% THEN Alice receives an error from mod_muc,
+          %%      like if there is no mod_domain_isolation.
+          receives_muc_bad_request(Alice)
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
+routing_to_foreign_subdomain_results_in_service_unavailable(Config) ->
+    F = fun(Alice) ->
+          %% GIVEN Alice is on another domain
+          %% WHEN Alice routes a stanza
+          escalus_client:send(Alice, muc_stanza()),
+          %% THEN Sender receives an error about the drop
+          receives_service_unavailable(Alice)
+        end,
+    escalus:fresh_story(Config, [{alice_bis, 1}], F).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -98,3 +118,29 @@ isolation_works_for_subdomains(Config) ->
 
 get_error_text(Err) ->
     exml_query:path(Err, [{element, <<"error">>}, {element, <<"text">>}, cdata]).
+
+some_room_address() ->
+    MucHost = muc_helper:muc_host(),
+    <<MucHost/binary, "/room">>.
+
+muc_stanza() ->
+    escalus_stanza:chat_to(some_room_address(), <<"Hi muc!">>).
+
+receives_service_unavailable(Alice) ->
+    Err = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Err),
+    <<"Filtered by the domain isolation">> = get_error_text(Err).
+
+receives_muc_bad_request(Alice) ->
+    Err = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_error, [<<"modify">>, <<"bad-request">>], Err),
+    %% This error is generated by mod_muc:
+    <<"Resource expected to be empty">> = get_error_text(Err).
+
+%% Verify than there is no unreceived messages by Alice by routing a message from Bob.
+%% Bob should be able to send messages to Alice.
+%% If the Bob's message gets received - there is no pending messages.
+verify_alice_has_no_pending_messages(Alice, Bob) ->
+    escalus_client:send(Bob, escalus_stanza:chat_to(Alice, <<"Forces to flush">>)),
+    Stanza = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_chat_message, [<<"Forces to flush">>], Stanza).
