@@ -2396,12 +2396,13 @@ process_unauthenticated_stanza(StateData, El) ->
                 <<>> ->
                     case StateData#state.lang of
                         <<>> -> El;
-                        Lang ->
-                            xml:replace_tag_attr(<<"xml:lang">>, Lang, El)
+                        L ->
+                            xml:replace_tag_attr(<<"xml:lang">>, L, El)
                     end;
                 _ ->
                     El
             end,
+    Lang = xml:get_tag_attr_s(<<"xml:lang">>, NewEl),
     case jlib:iq_query_info(NewEl) of
         #iq{} = IQ ->
             Res = mongoose_hooks:c2s_unauthenticated_iq(
@@ -2412,8 +2413,9 @@ process_unauthenticated_stanza(StateData, El) ->
                 empty ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
+                    Text = <<"Forbidden unauthenticated stanza">>,
                     ResIQ = IQ#iq{type = error,
-                                  sub_el = [mongoose_xmpp_errors:service_unavailable()]},
+                                  sub_el = [mongoose_xmpp_errors:service_unavailable(Lang, Text)]},
                     Res1 = jlib:replace_from_to(
                              jid:make_noprep(<<>>, StateData#state.server, <<>>),
                              jid:make_noprep(<<>>, <<>>, <<>>),
