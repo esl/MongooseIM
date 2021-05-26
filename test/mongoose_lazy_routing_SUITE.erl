@@ -155,7 +155,6 @@ can_register_and_unregister_iq_handler_for_two_domains(_Config) ->
     ?assertEqual([], get_all_registered_iqs()),
     ?assertEqual([], get_all_unregistered_iqs()).
 
-
 can_add_domain_for_a_registered_iq_handler(_Config) ->
     %%-------------------------------------------------------------------------------
     %% this test case consists of the following steps:
@@ -354,7 +353,7 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
 %% internal functions
 %%-------------------------------------------------------------------
 setup_meck() ->
-    Modules = [ejabberd_local, ejabberd_router, gen_iq_component,
+    Modules = [ejabberd_local, ejabberd_router, gen_iq_component, mongoose_subhosts,
                mongoose_domain_core, mongoose_subdomain_core],
     [meck:new(M, [no_link]) || M <- Modules],
     meck:new(mongoose_lazy_routing, [no_link, passthrough]),
@@ -365,6 +364,7 @@ setup_meck() ->
     meck:expect(gen_iq_component, register_iq_handler, fun(_, _, _, _) -> ok end),
     meck:expect(gen_iq_component, sync, fun(_) -> ok end),
     meck:expect(gen_iq_component, unregister_iq_handler, fun(_, _, _) -> ok end),
+    meck:expect(mongoose_subhosts, get_host, fun(_) -> undefined end),
     meck:expect(mongoose_domain_core, get_host_type, fun get_domain_host_type/1),
     meck:expect(mongoose_subdomain_core, get_host_type, fun get_subdomain_host_type/1),
     meck:expect(mongoose_subdomain_core, get_subdomain_info, fun get_subdomain_info/1).
