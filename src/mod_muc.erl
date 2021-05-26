@@ -424,6 +424,7 @@ init([HostType, Opts]) ->
                            text => <<"Only one MUC domain would work with this host type">>})
     end,
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
+    register_for_global_distrib(HostType),
     %% Loading
     case gen_mod:get_module_opt(HostType, mod_muc, load_permanent_rooms_at_startup, false) of
         false ->
@@ -532,6 +533,7 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
 terminate(_Reason, #state{host_type = HostType,
                           subdomain_pattern = SubdomainPattern}) ->
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
+    unregister_for_global_distrib(HostType),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -1335,3 +1337,12 @@ make_server_host(To, State = #state{host_type = HostType,
         {fqdn, _} ->
             HostType
     end.
+
+register_for_global_distrib(HostType) ->
+    %% Would not work for multitenancy
+    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
+    mongoose_hooks:register_subhost(SubHost, false).
+
+unregister_for_global_distrib(HostType) ->
+    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
+    mongoose_hooks:unregister_subhost(SubHost).
