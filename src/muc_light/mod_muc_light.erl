@@ -60,6 +60,9 @@
 %% for mod_muc_light_codec_legacy
 -export([subdomain_pattern/1]).
 
+%% For tests
+-export([set_module_opt_from_ct/3]).
+
 -type muc_server() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 
@@ -94,6 +97,11 @@ default_config_for_host_type(HostType) ->
 -spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
 config_schema_for_host_type(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, computed_config_schema, undefined).
+
+set_module_opt_from_ct(HostType, K, V) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, K, V),
+    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    set_dynamic_opts(HostType, Opts).
 
 %%====================================================================
 %% Administration API

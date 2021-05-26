@@ -265,7 +265,7 @@ ver(Int) ->
 set_mod_config(K, V, SubHost) ->
     {ok, HostType} = rpc(mim(), mongoose_domain_api,
                          get_subdomain_host_type, [SubHost]),
-    true = rpc(mim(), gen_mod, set_module_opt, [HostType, mod_muc_light, K, V]).
+    true = rpc(mim(), mod_muc_light, set_module_opt_from_ct, [HostType, K, V]).
 
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],

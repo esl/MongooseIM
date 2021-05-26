@@ -4,6 +4,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mam_helper.hrl").
 
 -export([ % service
          removing_users_from_server_triggers_room_destruction/1
@@ -456,7 +457,8 @@ rooms_in_rosters_doesnt_break_disco_info(Config) ->
 no_roomname_in_schema_doesnt_break_disco_and_roster(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
             [DiscoItem] = get_disco_rooms(Alice),
-            ?ROOM = exml_query:attr(DiscoItem, <<"name">>),
+            ?assert_equal_extra(?ROOM, exml_query:attr(DiscoItem, <<"name">>),
+                                #{elem => DiscoItem}),
 
             escalus:send(Alice, escalus_stanza:roster_get()),
             RosterResult = escalus:wait_for_stanza(Alice),
