@@ -368,8 +368,6 @@ init([ServerHost, Opts]) ->
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
 
-    mod_disco:register_feature(ServerHost, ?NS_PUBSUB),
-
     store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping),
     add_hooks(ServerHost, hooks()),
     case lists:member(?PEPNODE, Plugins) of
@@ -658,20 +656,12 @@ disco_local_identity(Acc, Host, <<>>, _Lang) ->
 disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
--spec disco_local_features(
-          Acc :: {result, [exml:element()]} | empty | {error, any()},
-          _From  ::jid:jid(),
-          To     ::jid:jid(),
-          Node   :: <<>> | mod_pubsub:nodeId() | binary(),
-          Lang   :: ejabberd:lang())
-        -> {result, [exml:element()]} | empty | {error, any()}.
+-spec disco_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [feature(F) || F <- features(Host, <<>>)]};
+    Features = [?NS_PUBSUB | [feature(F) || F <- features(Host, <<>>)]],
+    mongoose_disco:add_features(Features, Acc);
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -1012,7 +1002,6 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
         false -> ok
     end,
     delete_hooks(ServerHost, hooks()),
-    mod_disco:unregister_feature(ServerHost, ?NS_PUBSUB),
     case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
         undefined ->
             ?LOG_ERROR(#{what => pubsub_process_is_dead,
