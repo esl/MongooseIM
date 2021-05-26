@@ -313,5 +313,11 @@ muc_host_to_host_type(MucHost) ->
     end.
 
 run_forget_room_hook({Room, MucHost}) ->
-    HostType = muc_host_to_host_type(MucHost),
-    mongoose_hooks:forget_room(HostType, MucHost, Room).
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            mongoose_hooks:forget_room(HostType, MucHost, Room);
+        Other ->
+            %% MUC light is not started probably
+            ?LOG_ERROR(#{what => run_forget_room_hook_skipped,
+                         room => Room, muc_host => MucHost})
+    end.

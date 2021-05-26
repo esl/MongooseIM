@@ -61,7 +61,8 @@
 -export([subdomain_pattern/1]).
 
 %% For tests
--export([set_module_opt_from_ct/3]).
+-export([set_module_opt_from_ct/3,
+         force_clear_from_ct/0]).
 
 -type muc_server() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
@@ -102,6 +103,9 @@ set_module_opt_from_ct(HostType, K, V) ->
     gen_mod:set_module_opt(HostType, ?MODULE, K, V),
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
     set_dynamic_opts(HostType, Opts).
+
+force_clear_from_ct() ->
+    mod_muc_light_db_backend:force_clear().
 
 %%====================================================================
 %% Administration API

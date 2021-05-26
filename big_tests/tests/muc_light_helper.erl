@@ -255,7 +255,7 @@ stanza_aff_set(Room, AffUsers) ->
 
 clear_db() ->
     Node = mim(),
-    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light_db_backend, force_clear, []).
+    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light, force_clear_from_ct, []).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
