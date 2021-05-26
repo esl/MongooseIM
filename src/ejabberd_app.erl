@@ -129,7 +129,7 @@ start_modules() ->
                   Modules ->
                       gen_mod_deps:start_modules(Host, Modules)
               end
-      end, ?MYHOSTS).
+      end, ?ALL_HOST_TYPES).
 
 %% Stop all the modules in all the hosts
 -spec stop_modules() -> 'ok'.
@@ -146,7 +146,7 @@ stop_modules() ->
               Modules ->
                   lists:foreach(StopModuleFun, Modules)
           end
-      end, ?MYHOSTS).
+      end, ?ALL_HOST_TYPES).
 
 -spec start_services() -> ok.
 start_services() ->

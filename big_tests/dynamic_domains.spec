@@ -11,7 +11,12 @@
 
 {suites, "tests", acc_e2e_SUITE}.
 
+{suites, "tests", carboncopy_SUITE}.
+{skip_cases, "tests", carboncopy_SUITE, [discovering_support],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
+
 {logdir, "ct_report"}.
 
 %% ct_tty_hook will log CT failures to TTY verbosely

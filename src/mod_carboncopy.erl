@@ -33,14 +33,15 @@
 %% API
 -export([start/2,
          stop/1,
+         supported_features/0,
          config_spec/0,
          is_carbon_copy/1]).
 
 %% Hooks
 -export([user_send_packet/4,
          user_receive_packet/5,
-         iq_handler2/4,
-         iq_handler1/4,
+         iq_handler2/5,
+         iq_handler1/5,
          remove_connection/5
         ]).
 
@@ -56,6 +57,8 @@
 
 -type direction() :: sent | received.
 
+supported_features() -> [dynamic_domains].
+
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of
         #xmlel{name = <<"sent">>, attrs = AAttrs}  ->
@@ -67,34 +70,38 @@ is_carbon_copy(Packet) ->
         _ -> false
     end.
 
-start(Host, Opts) ->
+start(HostType, Opts) ->
     %% execute disable/enable actions in the c2s process itself
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    mod_disco:register_feature(Host, ?NS_CC_1),
-    mod_disco:register_feature(Host, ?NS_CC_2),
-    mod_disco:register_feature(Host, ?NS_CC_RULES),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, remove_connection, 10),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 89),
-    ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_2, ?MODULE, iq_handler2, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_CC_1, ?MODULE, iq_handler1, IQDisc).
+    %% TODO: update code related to mod_disco
+    mod_disco:register_feature(HostType, ?NS_CC_1),
+    mod_disco:register_feature(HostType, ?NS_CC_2),
+    mod_disco:register_feature(HostType, ?NS_CC_RULES),
+    ejabberd_hooks:add(unset_presence_hook, HostType, ?MODULE, remove_connection, 10),
+    ejabberd_hooks:add(user_send_packet, HostType, ?MODULE, user_send_packet, 89),
+    ejabberd_hooks:add(user_receive_packet, HostType, ?MODULE, user_receive_packet, 89),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm,
+                                             fun ?MODULE:iq_handler2/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm,
+                                             fun ?MODULE:iq_handler1/5, #{}, IQDisc).
 
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_CC_1),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_CC_2),
-    mod_disco:unregister_feature(Host, ?NS_CC_2),
-    mod_disco:unregister_feature(Host, ?NS_CC_1),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 89),
-    ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 89),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, remove_connection, 10).
+stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_1, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_CC_2, ejabberd_sm),
+    %% TODO: update code related to mod_disco
+    mod_disco:unregister_feature(HostType, ?NS_CC_2),
+    mod_disco:unregister_feature(HostType, ?NS_CC_1),
+    ejabberd_hooks:delete(user_send_packet, HostType, ?MODULE, user_send_packet, 89),
+    ejabberd_hooks:delete(user_receive_packet, HostType, ?MODULE, user_receive_packet, 89),
+    ejabberd_hooks:delete(unset_presence_hook, HostType, ?MODULE, remove_connection, 10).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
-iq_handler2(From, _To, Acc, IQ) ->
+iq_handler2(Acc, From, _To, IQ, _Extra) ->
     iq_handler(Acc, From, IQ, ?NS_CC_2).
-iq_handler1(From, _To, Acc, IQ) ->
+iq_handler1(Acc, From, _To, IQ, _Extra) ->
     iq_handler(Acc, From, IQ, ?NS_CC_1).
 
 iq_handler(Acc, From, #iq{type = set,
