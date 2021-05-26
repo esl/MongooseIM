@@ -141,10 +141,7 @@ deps(_Host, Opts) ->
 
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-    FullOpts = case lists:keyfind(backend, 1, Opts) of
-                   false -> [{backend, rdbms} | Opts];
-                   _ -> Opts
-               end,
+    FullOpts = add_default_backend(Opts),
     gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
     mod_inbox_backend:init(Host, FullOpts),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
@@ -568,6 +565,12 @@ hooks(Host) ->
      {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
      {get_personal_data, Host, ?MODULE, get_personal_data, 50}
     ].
+
+add_default_backend(Opts) ->
+    case lists:keyfind(backend, 2, Opts) of
+        false -> [{backend, rdbms} | Opts];
+        _ -> Opts
+    end.
 
 get_groupchat_types(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
