@@ -33,12 +33,26 @@ all() -> [
     supports_dynamic_domains
 ].
 
+init_per_suite(C) ->
+    {ok, _} = application:ensure_all_started(jid),
+    meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option,
+                fun({auth_method, ?HOST_TYPE}) -> dummy end),
+    meck:expect(ejabberd_config, get_local_option,
+                fun(auth_opts, _Host) ->
+                        [{dummy_base_timeout, 5}, {dummy_variance, 10}]
+                end),
+    C.
+
+end_per_suite(C) ->
+    meck:unload(),
+    C.
+
 %%--------------------------------------------------------------------
 %% Authentication tests
 %%--------------------------------------------------------------------
 
 authorize(_Config) ->
-    {ok, _} = application:ensure_all_started(jid),
     Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
     {ok, Creds2} = ejabberd_auth_dummy:authorize(Creds),
     ejabberd_auth_dummy = mongoose_credentials:get(Creds2, auth_module).
@@ -46,12 +60,10 @@ authorize(_Config) ->
 ejabberd_auth_interfaces(_Config) ->
     [meck:new(M, Opts) || {M, Opts} <-
         [{mongoose_domain_api, []}, {ejabberd_auth_dummy, [passthrough]},
-         {ejabberd_config, []}, {mongoose_metrics, []}]],
+         {mongoose_metrics, []}]],
 
     meck:expect(mongoose_domain_api, get_domain_host_type,
                 fun(?DOMAIN) -> {ok, ?HOST_TYPE} end),
-    meck:expect(ejabberd_config, get_local_option,
-                fun({auth_method, ?HOST_TYPE}) -> dummy end),
     meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),
 
     Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
@@ -67,9 +79,7 @@ ejabberd_auth_interfaces(_Config) ->
     Digest = <<"any_digest">>, DigestGen = fun(_) -> <<"">> end,
     false = ejabberd_auth:check_password(JID, Password, Digest, DigestGen),
     Args2 = [?HOST_TYPE, UserName, ?DOMAIN, Password, Digest, DigestGen],
-    1 = meck:num_calls(ejabberd_auth_dummy, check_password, Args2),
-
-    meck:unload().
+    1 = meck:num_calls(ejabberd_auth_dummy, check_password, Args2).
 
 supports_dynamic_domains(_) ->
     true = ejabberd_auth:does_method_support(dummy, dynamic_domains),
