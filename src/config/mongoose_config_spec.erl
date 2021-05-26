@@ -490,7 +490,8 @@ auth() ->
                  <<"jwt">> => auth_jwt(),
                  <<"ldap">> => auth_ldap(),
                  <<"riak">> => auth_riak(),
-                 <<"rdbms">> => auth_rdbms()},
+                 <<"rdbms">> => auth_rdbms(),
+                 <<"dummy">> => auth_dummy()},
        process = fun ?MODULE:process_auth/1,
        format = {foreach, host_local_config}
       }.
@@ -642,6 +643,17 @@ auth_rdbms() ->
     #section{
        items = #{<<"users_number_estimate">> => #option{type = boolean,
                                                         format = {kv, rdbms_users_number_estimate}}
+                },
+       format = none
+      }.
+
+%% path: (host_config[].)auth.dummy
+auth_dummy() ->
+    #section{
+       items = #{<<"base_time">> => #option{type = integer,
+                                            format = {kv, dummy_base_timeout}},
+                 <<"variance">> => #option{type = integer,
+                                           format = {kv, dummy_variance}}
                 },
        format = none
       }.
