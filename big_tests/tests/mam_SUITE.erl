@@ -313,28 +313,6 @@ groups() ->
 is_skipped(_, _) ->
     false.
 
-disco_disabled() ->
-    try
-        ct:get_config({disable_disco_tests})
-    catch _:_ ->
-              false
-    end.
-
-carbons_disabled() ->
-    try
-        ct:get_config({disable_carbons_tests})
-    catch _:_ ->
-              false
-    end.
-
-roster_disabled() ->
-    try
-        ct:get_config({disable_roster_tests})
-    catch _:_ ->
-              false
-    end.
-
-
 basic_groups() ->
     [
      {mam_all, [parallel],
@@ -372,16 +350,10 @@ basic_groups() ->
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
       [{mam06, [parallel], disabled_retract_cases() ++ 
-        case disco_disabled() of
-            true -> [];
-            false -> [mam_service_discovery]
-        end}]},
+            [mam_service_discovery]}]},
      {muc_disabled_retraction, [],
       [{muc06, [parallel], disabled_muc_retract_cases() ++
-        case disco_disabled() of
-            true -> [];
-            false -> [muc_service_discovery]
-        end}]}
+            [muc_service_discovery]}]}
     ].
 
 chat_markers_cases() ->
@@ -393,11 +365,8 @@ mam_metrics_cases() ->
      metric_incremented_when_store_message].
 
 mam_cases() ->
-    case disco_disabled() of
-        true -> [];
-        false -> [mam_service_discovery]
-    end ++
-    [simple_archive_request,
+    [mam_service_discovery,
+     simple_archive_request,
      simple_archive_request_for_the_receiver,
      range_archive_request,
      range_archive_request_not_empty,
@@ -430,11 +399,8 @@ archived_cases() ->
      filter_forwarded].
 
 stanzaid_cases() ->
-    [message_with_stanzaid] ++
-    case carbons_disabled() of
-        true -> [];
-        false -> [stanza_id_is_appended_to_carbons]
-    end.
+    [message_with_stanzaid,
+     stanza_id_is_appended_to_carbons].
 
 retract_cases() ->
     [retract_message,
@@ -448,11 +414,8 @@ nostore_cases() ->
      nostore_hint].
 
 muc_cases() ->
-    case disco_disabled() of
-        true -> [];
-        false -> [muc_service_discovery]
-    end ++
-    [muc_archive_request,
+    [muc_service_discovery,
+     muc_archive_request,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -544,12 +507,9 @@ prefs_cases() ->
      prefs_set_cdata_request,
      query_get_request,
      messages_filtered_when_prefs_default_policy_is_always,
-     messages_filtered_when_prefs_default_policy_is_never] ++
-    case roster_disabled() of
-        true -> [];
-        false -> [messages_filtered_when_prefs_default_policy_is_roster]
-    end ++
-    [run_set_and_get_prefs_cases].
+     messages_filtered_when_prefs_default_policy_is_never,
+     messages_filtered_when_prefs_default_policy_is_roster,
+     run_set_and_get_prefs_cases].
 
 impl_specific() ->
     [check_user_exist].

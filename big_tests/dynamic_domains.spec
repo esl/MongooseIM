@@ -34,6 +34,50 @@
 {skip_groups, "tests", inbox_extensions_SUITE, [muclight],
  "at the moment muclight doesn't support dynamic domains"}.
 
+{skip_cases, "tests", mam_SUITE,
+ [muc_service_discovery, mam_service_discovery],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_cases, "tests", mam_SUITE,
+ [messages_filtered_when_prefs_default_policy_is_roster],
+ "at the moment mod_roster doesn't support dynamic domains"}.
+
+{skip_groups, "tests", muc_SUITE,
+ [disco, disco_non_parallel, disco_rsm, disco_rsm_with_offline],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_groups, "tests", muc_SUITE,
+ [register_over_s2s],
+ "at the moment S2S doesn't support dynamic domains "
+ "(requires mod_register creating CT users)"}.
+
+{skip_cases, "tests", muc_light_SUITE,
+ [disco_service,
+  disco_features,
+  disco_features_with_mam,
+  disco_info,
+  disco_info_with_mam,
+  disco_rooms,
+  disco_rooms_rsm,
+  disco_rooms_created_page_1,
+  disco_rooms_created_page_infinity,
+  disco_rooms_empty_page_infinity,
+  disco_rooms_empty_page_1],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_cases, "tests", muc_light_SUITE,
+ [rooms_in_rosters,
+  rooms_in_rosters_doesnt_break_disco_info,
+  no_roomname_in_schema_doesnt_break_disco_and_roster],
+ "at the moment mod_roster doesn't support dynamic domains"}.
+
+{skip_cases, "tests", muc_light_legacy_SUITE,
+ [disco_service,
+  disco_features,
+  disco_features_with_mam,
+  disco_info,
+  disco_info_with_mam,
+  disco_rooms,
+  disco_rooms_rsm],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
 
 {logdir, "ct_report"}.
