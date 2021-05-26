@@ -26,12 +26,10 @@
 -define(AMP_STRATEGY, amp_strategy).
 
 start(Host, _Opts) ->
-    mod_disco:register_feature(Host, ?NS_AMP),
     ejabberd_hooks:add(hooks(Host)).
 
 stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
-    mod_disco:unregister_feature(Host, ?NS_AMP).
+    ejabberd_hooks:delete(hooks(Host)).
 
 hooks(Host) ->
     [{c2s_stream_features, Host, ?MODULE, add_stream_feature, 50},
@@ -59,16 +57,13 @@ check_packet(Acc, Event) ->
         Rules -> process_event(Acc, Rules, Event)
     end.
 
--spec add_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
-add_local_features(Acc, _From, _To, ?NS_AMP, _Lang) ->
-    Features = result_or(Acc, []) ++ amp_features(),
-    {result, Features};
-add_local_features(Acc, _From, _To, _NS, _Lang) ->
-    Acc.
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, _To, Node, _Lang) ->
+    case amp_features(Node) of
+        [] -> Acc;
+        Features -> mongoose_disco:add_features(Features, Acc)
+    end.
 
 add_stream_feature(Acc, _Host) ->
     lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE).
@@ -116,14 +111,22 @@ process_event(Acc, Rules, Event) when Event =/= initial_check ->
     NewRules = process_rules(Packet, From, Event, Rules),
     mongoose_acc:set_permanent(amp, rules, NewRules, Acc).
 
+-spec amp_features(binary()) -> [binary()].
+amp_features(?NS_AMP) ->
+    [<<?NS_AMP/binary, Suffix/binary>> || Suffix <- amp_feature_suffixes()];
+amp_features(<<>>) ->
+    [?NS_AMP];
+amp_features(_) ->
+    [].
+
 %% @doc This may eventually be configurable, but for now we return a constant list.
-amp_features() ->
-    [<<"http://jabber.org/protocol/amp">>
-   , <<"http://jabber.org/protocol/amp?action=notify">>
-   , <<"http://jabber.org/protocol/amp?action=error">>
-   , <<"http://jabber.org/protocol/amp?condition=deliver">>
-   , <<"http://jabber.org/protocol/amp?condition=match-resource">>
-    ].
+amp_feature_suffixes() ->
+    [<<>>,
+     <<"?action=drop">>,
+     <<"?action=notify">>,
+     <<"?action=error">>,
+     <<"?condition=deliver">>,
+     <<"?condition=match-resource">>].
 
 -spec process_rules(exml:element(), jid:jid(), amp_event(), amp_rules()) -> amp_rules() | drop.
 process_rules(Packet, From, Event, Rules) ->
@@ -210,10 +213,6 @@ update_metric_and_drop(Packet, From) ->
                                        message_target(Packet),
                                        Packet),
     drop.
-
-%% Internal
-result_or({result, I}, _) -> I;
-result_or(_, Or)         -> Or.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().
 is_supported_rule({supported, _}) -> true;
