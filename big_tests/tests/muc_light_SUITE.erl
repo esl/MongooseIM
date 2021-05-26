@@ -1131,14 +1131,8 @@ set_default_mod_config() ->
       ]).
 
 -spec set_custom_config(UserDefSchema :: list()) -> any().
-set_custom_config(UserDefSchema) ->
-    ConfigSchema = rpc(mod_muc_light_room_config, schema_from_definition, [UserDefSchema]),
-
-    % Valid default config is a proplist
-    [_|_] = DefaultConfig = rpc(mod_muc_light_room_config, default_from_schema, [ConfigSchema]),
-
-    set_mod_config(config_schema, ConfigSchema, ?MUCHOST),
-    set_mod_config(default_config, DefaultConfig, ?MUCHOST).
+set_custom_config(UserDefSchema) when is_list(UserDefSchema) ->
+    set_mod_config(config_schema, UserDefSchema, ?MUCHOST).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
