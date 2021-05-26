@@ -76,7 +76,6 @@ hooks(Host) ->
      {user_ping_response, Host, ?MODULE, user_ping_response, 100},
      {c2s_remote_hook, Host, ?MODULE, handle_remote_hook, 100}].
 
-
 ensure_metrics(Host) ->
     mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response], spiral),
     mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_timeout], spiral),
@@ -90,7 +89,6 @@ start(Host, Opts) ->
     ensure_metrics(Host),
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    mod_disco:register_feature(Host, ?NS_PING),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PING,
                                   ?MODULE, iq_ping, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PING,
@@ -107,8 +105,7 @@ stop(Host) ->
 %%    won't stop currently running timers. They'll run one more time, and then stop.
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
-    mod_disco:unregister_feature(Host, ?NS_PING).
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

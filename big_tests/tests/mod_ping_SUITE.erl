@@ -32,7 +32,7 @@ all() ->
 groups() ->
     % Don't make these parallel! Metrics tests will most probably fail
     % and injected hook will most probably won't work as expected.
-    G = [{client_ping, [], [ping]},
+    G = [{client_ping, [], [disco, ping]},
          {server_ping, [], all_tests()},
          {server_ping_kill, [], all_tests()}
         ],
@@ -43,7 +43,8 @@ client_ping_test_cases() ->
      wrong_ping].
 
 all_tests() ->
-    [ping,
+    [disco,
+     ping,
      wrong_ping,
      active,
      active_keep_alive,
@@ -128,8 +129,17 @@ clear_pong_hook(Host, Handler) ->
 %%--------------------------------------------------------------------
 %% Ping tests
 %%--------------------------------------------------------------------
+disco(Config) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              escalus_client:send(Alice, escalus_stanza:disco_info(domain())),
+              Response = escalus_client:wait_for_stanza(Alice),
+              escalus:assert(has_feature, [?NS_PING], Response)
+      end).
+
 ping(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Metrics = [
         {[Domain, mod_ping, ping_response],0},
         {[Domain, mod_ping, ping_response_timeout],0}
@@ -159,7 +169,7 @@ wrong_ping(Config) ->
                         end).
 
 active(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Metrics = [
         {[Domain, mod_ping, ping_response],0},
         {[Domain, mod_ping, ping_response_timeout],0}
@@ -177,7 +187,7 @@ active(ConfigIn) ->
         end).
 
 active_keep_alive(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Metrics = [
         {[Domain, mod_ping, ping_response],0},
         {[Domain, mod_ping, ping_response_timeout],0}
@@ -193,7 +203,7 @@ active_keep_alive(ConfigIn) ->
         end).
 
 server_ping_pong(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Metrics = [
         {[Domain, mod_ping, ping_response], 5},
         {[Domain, mod_ping, ping_response_timeout], 0},
@@ -213,7 +223,7 @@ server_ping_pong(ConfigIn) ->
         end).
 
 server_ping_pang(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Metrics = [
         {[Domain, mod_ping, ping_response], 0},
         {[Domain, mod_ping, ping_response_timeout], 1}
@@ -255,3 +265,5 @@ wait_for_pong_hooks(N) ->
             ct:fail({pong_hook_runs_missing, N})
     end.
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).
