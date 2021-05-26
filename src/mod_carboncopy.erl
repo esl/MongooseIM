@@ -33,6 +33,7 @@
 %% API
 -export([start/2,
          stop/1,
+         supported_features/0,
          config_spec/0,
          is_carbon_copy/1]).
 
@@ -55,6 +56,8 @@
 -include("mongoose_config_spec.hrl").
 
 -type direction() :: sent | received.
+
+supported_features() -> [dynamic_domains].
 
 is_carbon_copy(Packet) ->
     case xml:get_subtag(Packet, <<"sent">>) of
