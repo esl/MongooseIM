@@ -4,6 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
@@ -237,8 +238,10 @@ has_features(#xmlel{children = [ Query ]}, Features) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    Features = exml_query:paths(Query, [{element, <<"feature">>},
-                                        {attr, <<"var">>}]).
+    ExpectedFeatures = lists:sort(Features),
+    ActualFeatures = lists:sort(exml_query:paths(Query, [{element, <<"feature">>},
+                                                         {attr, <<"var">>}])),
+    ?assertEqual(ExpectedFeatures, ActualFeatures).
 
 assert_valid_affiliation(<<"owner">>) -> ok;
 assert_valid_affiliation(<<"admin">>) -> ok;
