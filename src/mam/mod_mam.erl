@@ -282,7 +282,7 @@ filter_packet(drop) ->
 filter_packet({From, To = #jid{lserver = LServer}, Acc1, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     {AmpEvent, PacketAfterArchive, Acc3} =
-        case ejabberd_users:does_user_exist(To) of
+        case ejabberd_users:does_user_exist(Acc1, To) of
             false ->
                 {mam_failed, Packet, Acc1};
             true ->

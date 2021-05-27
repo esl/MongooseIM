@@ -33,7 +33,7 @@
                         [mod_event_pusher_push:publish_service()].
 should_publish(Acc, #chat_event{to = To}, Services) ->
     PublishedServices = mongoose_acc:get(event_pusher, published_services, [], Acc),
-    case should_publish(To) of
+    case should_publish(Acc, To) of
         true -> Services -- PublishedServices;
         false -> []
     end;
@@ -77,9 +77,9 @@ publish_notification(Acc, _, Payload, Services) ->
 %% local functions
 %%--------------------------------------------------------------------
 
--spec should_publish(To :: jid:jid()) -> boolean().
-should_publish(#jid{} = To) ->
-    try ejabberd_users:does_user_exist(To) of
+-spec should_publish(Acc :: mongoose_acc:t(), To :: jid:jid()) -> boolean().
+should_publish(Acc, #jid{} = To) ->
+    try ejabberd_users:does_user_exist(Acc, To) of
         false ->
             false;
         true ->
