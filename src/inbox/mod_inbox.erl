@@ -27,7 +27,8 @@
          filter_packet/1,
          inbox_unread_count/2,
          remove_user/3,
-         remove_domain/3
+         remove_domain/3,
+         add_local_features/5
         ]).
 
 -export([config_metrics/1]).
@@ -147,7 +148,6 @@ start(Host, Opts) ->
                end,
     gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
     mod_inbox_backend:init(Host, FullOpts),
-    mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, FullOpts, no_queue),
     MucTypes = get_groupchat_types(Host),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
@@ -161,7 +161,6 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
-    mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(Host),
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX),
@@ -278,6 +277,13 @@ remove_user(Acc, User, Server) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     mod_inbox_backend:remove_domain(HostType, Domain),
+    Acc.
+
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_ESL_INBOX], Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
@@ -566,7 +572,8 @@ hooks(Host) ->
      {user_send_packet, Host, ?MODULE, user_send_packet, 70},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50},
+     {disco_local_features, Host, ?MODULE, add_local_features, 99}
     ].
 
 get_groupchat_types(Host) ->
