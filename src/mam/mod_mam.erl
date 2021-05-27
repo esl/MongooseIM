@@ -45,7 +45,8 @@
 -export([start/2, stop/1]).
 
 %% ejabberd handlers
--export([process_mam_iq/4,
+-export([add_local_features/5,
+         process_mam_iq/4,
          user_send_packet/4,
          remove_user/3,
          filter_packet/1,
@@ -201,7 +202,6 @@ start(Host, Opts) ->
 
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    [mod_disco:register_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_06,
@@ -217,7 +217,6 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
-    [mod_disco:unregister_feature(Host, Feature) || Feature <- features(?MODULE, Host)],
     ok.
 
 %% ----------------------------------------------------------------------
@@ -251,6 +250,12 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 %% @doc Handle an outgoing message.
 %%
@@ -678,7 +683,9 @@ config_metrics(Host) ->
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
-    [{user_send_packet, Host, ?MODULE, user_send_packet, 60},
+    [
+     {disco_local_features, Host, ?MODULE, add_local_features, 99},
+     {user_send_packet, Host, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, Host, ?MODULE, user_send_packet, 60},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {remove_user, Host, ?MODULE, remove_user, 50},
