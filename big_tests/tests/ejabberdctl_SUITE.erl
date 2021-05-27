@@ -243,7 +243,7 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
                 SB = string_to_binary(S),
                 UB = string_to_binary(U),
                 Acc = mongoose_helper:new_mongoose_acc(SB),
-                rpc(mim(), mongoose_hooks, remove_user, [SB, Acc, SB, UB]);
+                rpc(mim(), mongoose_hooks, remove_user, [Acc, SB, UB]);
             _ ->
                ok
         end

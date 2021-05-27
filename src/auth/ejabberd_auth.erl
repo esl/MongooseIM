@@ -363,7 +363,7 @@ remove_user(#jid{luser = LUser, lserver = LServer}) ->
                                        host_type => HostType,
                                        lserver => LServer,
                                        element => undefined }),
-            mongoose_hooks:remove_user(HostType, Acc, LServer, LUser),
+            mongoose_hooks:remove_user(Acc, LServer, LUser),
             ok;
         Error ->
             ?LOG_ERROR(#{what => backend_disallows_user_removal,

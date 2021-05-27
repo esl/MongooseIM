@@ -56,9 +56,8 @@ stop_ets(HostType) ->
     Tab = tbl_name(HostType),
     ets:delete(Tab).
 
--spec does_user_exist(Acc :: mongoose_acc:t(), JID :: jid:jid()) -> boolean().
-does_user_exist(Acc, #jid{luser = LUser, lserver = LServer} = JID) ->
-    HostType = mongoose_acc:host_type(Acc),
+-spec does_user_exist(HostType :: mongooseim:host_type(), JID :: jid:jid()) -> boolean().
+does_user_exist(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
     case does_cached_user_exist(HostType, LServer, LUser) of
         true -> true;
         false ->

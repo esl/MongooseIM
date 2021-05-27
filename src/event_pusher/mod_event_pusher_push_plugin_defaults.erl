@@ -79,7 +79,8 @@ publish_notification(Acc, _, Payload, Services) ->
 
 -spec should_publish(Acc :: mongoose_acc:t(), To :: jid:jid()) -> boolean().
 should_publish(Acc, #jid{} = To) ->
-    try mongoose_users:does_user_exist(Acc, To) of
+    HostType = mongoose_acc:host_type(Acc),
+    try mongoose_users:does_user_exist(HostType, To) of
         false ->
             false;
         true ->
