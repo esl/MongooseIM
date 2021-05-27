@@ -15,7 +15,8 @@
 -export([start/2,
          process_iq_get/5,
          process_iq_set/4,
-         stop/1
+         stop/1,
+         add_local_features/5
         ]).
 
 -include("mongoose.hrl").
@@ -25,19 +26,23 @@
 -type listitem() :: #listitem{}.
 
 start(Host, _Opts) ->
-    mod_disco:register_feature(Host, ?NS_BLOCKING),
-    ejabberd_hooks:add(privacy_iq_get, Host,
-        ?MODULE, process_iq_get, 50),
-    ejabberd_hooks:add(privacy_iq_set, Host,
-        ?MODULE, process_iq_set, 50),
-    ok.
+    ejabberd_hooks:add(hooks(Host)).
 
 stop(Host) ->
-    ejabberd_hooks:delete(privacy_iq_get, Host,
-        ?MODULE, process_iq_get, 50),
-    ejabberd_hooks:delete(privacy_iq_set, Host,
-        ?MODULE, process_iq_set, 50),
-    ok.
+    ejabberd_hooks:delete(hooks(Host)).
+
+hooks(Host) ->
+    [{disco_local_features, Host, ?MODULE, add_local_features, 99},
+     {privacy_iq_get, Host, ?MODULE, process_iq_get, 50},
+     {privacy_iq_set, Host, ?MODULE, process_iq_set, 50}].
+
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_BLOCKING], Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
+
 
 process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->
@@ -217,4 +222,3 @@ blocking_query_response(Lst) ->
         attrs = [{<<"xmlns">>, ?NS_BLOCKING}],
         children = [#xmlel{name= <<"item">>,
                            attrs = [{<<"jid">>, jid:to_binary(J#listitem.value)}]} || J <- Lst]}.
-
