@@ -6,7 +6,7 @@ MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tre
 
 All metrics are divided into the following groups:
 
-* Per host metrics: Gathered separately for every XMPP host supported by the cluster.
+* Per host type metrics: Gathered separately for every host type supported by the cluster.
  **Warning:** If a cluster supports many (thousands or more) domains, performance issues might occur.
  To avoid this, use global equivalents of the metrics with `all_metrics_are_global` config option.
     * Hook metrics.
@@ -60,7 +60,7 @@ A histogram collects values over a sliding window of 60s and exposes the followi
 * `median`
 * `50`, `75`, `90`, `95`, `99`, `999` - 50th, 75th, 90th, 95th, 99th and 99.9th percentile
 
-## Per host metrics
+## Per host type metrics
 
 ### Hook metrics
 
@@ -69,72 +69,72 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
-| `[Host, c2s_unauthenticated_iq]` | spiral | An IQ sent from a user to a server without authentication. |
-| `[Host, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
-| `[Host, disco_local_features]` | spiral | A list of server features is gathered. |
-| `[Host, disco_local_identity]` | spiral | A list of server identities is gathered. |
-| `[Host, disco_local_items]` | spiral | A list of server's items (e.g. services) is gathered. |
-| `[Host, disco_sm_features]` | spiral | A list of user's features is gathered. |
-| `[Host, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
-| `[Host, disco_sm_items]` | spiral | A list of user's items is gathered. |
-| `[Host, mam_lookup_messages]` | spiral | An archive lookup is performed. |
-| `[Host, offline_message_hook]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
-| `[Host, offline_groupchat_message_hook]` | spiral | A groupchat message was sent to an offline user. |
-| `[Host, privacy_updated_list]` | spiral | User's privacy list is updated. |
-| `[Host, resend_offline_messages_hook]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
-| `[Host, roster_get_subscription_lists]` |  spiral | Presence subscription lists (based on which presence updates are broadcasted) are gathered. |
-| `[Host, roster_in_subscription]` | spiral | A presence with subscription update is processed. |
-| `[Host, roster_out_subscription]` | spiral | A presence with subscription update is received from a client. |
-| `[Host, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
-| `[Host, unset_presence_hook]` | spiral | A user disconnects or sends an `unavailable` presence. |
+| `[HostType, anonymous_purge_hook]` | spiral | An anonymous user disconnects. |
+| `[HostType, c2s_unauthenticated_iq]` | spiral | An IQ sent from a user to a server without authentication. |
+| `[HostType, disco_info]` | spiral | An information about the server has been requested via Disco protocol. |
+| `[HostType, disco_local_features]` | spiral | A list of server features is gathered. |
+| `[HostType, disco_local_identity]` | spiral | A list of server identities is gathered. |
+| `[HostType, disco_local_items]` | spiral | A list of server's items (e.g. services) is gathered. |
+| `[HostType, disco_sm_features]` | spiral | A list of user's features is gathered. |
+| `[HostType, disco_sm_identity]` | spiral | A list of user's identities is gathered. |
+| `[HostType, disco_sm_items]` | spiral | A list of user's items is gathered. |
+| `[HostType, mam_lookup_messages]` | spiral | An archive lookup is performed. |
+| `[HostType, offline_message_hook]` | spiral | A message was sent to an offline user. (Except for "error", "headline" and "groupchat" message types.) |
+| `[HostType, offline_groupchat_message_hook]` | spiral | A groupchat message was sent to an offline user. |
+| `[HostType, privacy_updated_list]` | spiral | User's privacy list is updated. |
+| `[HostType, resend_offline_messages_hook]` | spiral | A list of offline messages is gathered for delivery to a user's new connection. |
+| `[HostType, roster_get_subscription_lists]` |  spiral | Presence subscription lists (based on which presence updates are broadcasted) are gathered. |
+| `[HostType, roster_in_subscription]` | spiral | A presence with subscription update is processed. |
+| `[HostType, roster_out_subscription]` | spiral | A presence with subscription update is received from a client. |
+| `[HostType, sm_broadcast]` | spiral | A stanza is broadcasted to all of user's resources. |
+| `[HostType, unset_presence_hook]` | spiral | A user disconnects or sends an `unavailable` presence. |
 
 ### Presences & rosters
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, modPresenceSubscriptions]` | spiral | Presence subscription is processed. |
-| `[Host, modPresenceUnsubscriptions]` | spiral | Presence unsubscription is processed. |
-| `[Host, modRosterGets]` | spiral | User's roster is fetched. |
-| `[Host, modRosterPush]` | spiral | A roster update is pushed to a single session. |
-| `[Host, modRosterSets]` | spiral | User's roster is updated. |
+| `[HostType, modPresenceSubscriptions]` | spiral | Presence subscription is processed. |
+| `[HostType, modPresenceUnsubscriptions]` | spiral | Presence unsubscription is processed. |
+| `[HostType, modRosterGets]` | spiral | User's roster is fetched. |
+| `[HostType, modRosterPush]` | spiral | A roster update is pushed to a single session. |
+| `[HostType, modRosterSets]` | spiral | User's roster is updated. |
 
 ### Privacy lists
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, modPrivacyGets]` | spiral | IQ privacy `get` is processed. |
-| `[Host, modPrivacyPush]` | spiral | Privacy list update is sent to a single session. |
-| `[Host, modPrivacySets]` | spiral | IQ privacy `set` is processed. |
-| `[Host, modPrivacySetsActive]` | spiral | Active privacy list is changed. |
-| `[Host, modPrivacySetsDefault]` | spiral | Default privacy list is changed. |
-| `[Host, modPrivacyStanzaAll]` | spiral | A packet is checked against the privacy list. |
-| `[Host, modPrivacyStanzaDenied]` | spiral | Privacy list check resulted in `deny`. |
-| `[Host, modPrivacyStanzaBlocked]` | spiral | Privacy list check resulted in `block`. |
+| `[HostType, modPrivacyGets]` | spiral | IQ privacy `get` is processed. |
+| `[HostType, modPrivacyPush]` | spiral | Privacy list update is sent to a single session. |
+| `[HostType, modPrivacySets]` | spiral | IQ privacy `set` is processed. |
+| `[HostType, modPrivacySetsActive]` | spiral | Active privacy list is changed. |
+| `[HostType, modPrivacySetsDefault]` | spiral | Default privacy list is changed. |
+| `[HostType, modPrivacyStanzaAll]` | spiral | A packet is checked against the privacy list. |
+| `[HostType, modPrivacyStanzaDenied]` | spiral | Privacy list check resulted in `deny`. |
+| `[HostType, modPrivacyStanzaBlocked]` | spiral | Privacy list check resulted in `block`. |
 
 ### Other
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, sessionAuthFails]` | spiral | A client failed to authenticate. |
-| `[Host, sessionCount]` | counter | Number of active sessions. |
-| `[Host, sessionLogouts]` | spiral | A client session is closed. |
-| `[Host, sessionSuccessfulLogins]` | spiral | A client session is opened. |
-| `[Host, xmppErrorIq]` | spiral | An `error` IQ is sent to a client. |
-| `[Host, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
-| `[Host, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |
-| `[Host, xmppErrorTotal]` | spiral | A stanza with `error` type is routed. |
-| `[Host, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because the message recipient if offline. |
-| `[Host, xmppIqSent]` | spiral | An IQ is sent by a client. |
-| `[Host, xmppMessageSent]` | spiral | A message is sent by a client |
-| `[Host, xmppPresenceSent]` | spiral | A presence is sent by a client. |
-| `[Host, xmppStanzaSent]` | spiral | A stanza is sent by a client. |
-| `[Host, xmppIqReceived]` | spiral | An IQ is sent to a client. |
-| `[Host, xmppMessageReceived]` | spiral | A message is sent to a client. |
-| `[Host, xmppPresenceReceived]` | spiral | A presence is sent to a client. |
-| `[Host, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
-| `[Host, xmppStanzaCount]` | spiral | A stanza is sent to a client. |
-| `[Host, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
+| `[HostType, sessionAuthFails]` | spiral | A client failed to authenticate. |
+| `[HostType, sessionCount]` | counter | Number of active sessions. |
+| `[HostType, sessionLogouts]` | spiral | A client session is closed. |
+| `[HostType, sessionSuccessfulLogins]` | spiral | A client session is opened. |
+| `[HostType, xmppErrorIq]` | spiral | An `error` IQ is sent to a client. |
+| `[HostType, xmppErrorMessage]` | spiral | An `error` message is sent to a client. |
+| `[HostType, xmppErrorPresence]` | spiral | An `error` presence is sent to a client. |
+| `[HostType, xmppErrorTotal]` | spiral | A stanza with `error` type is routed. |
+| `[HostType, xmppMessageBounced]` | spiral | A `service-unavailable` error is sent, because the message recipient if offline. |
+| `[HostType, xmppIqSent]` | spiral | An IQ is sent by a client. |
+| `[HostType, xmppMessageSent]` | spiral | A message is sent by a client |
+| `[HostType, xmppPresenceSent]` | spiral | A presence is sent by a client. |
+| `[HostType, xmppStanzaSent]` | spiral | A stanza is sent by a client. |
+| `[HostType, xmppIqReceived]` | spiral | An IQ is sent to a client. |
+| `[HostType, xmppMessageReceived]` | spiral | A message is sent to a client. |
+| `[HostType, xmppPresenceReceived]` | spiral | A presence is sent to a client. |
+| `[HostType, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
+| `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to a client. |
+| `[HostType, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
 
 ### Extension-specific metrics
 
@@ -185,10 +185,10 @@ The latter is a number of calls (spiral metric), incremented for *every* call (e
 
 Besides these, following authentication metrics are always available:
 
-* `[Host, backends, auth, authorize]`
-* `[Host, backends, auth, check_password]`
-* `[Host, backends, auth, try_register]`
-* `[Host, backends, auth, does_user_exist]`
+* `[HostType, backends, auth, authorize]`
+* `[HostType, backends, auth, check_password]`
+* `[HostType, backends, auth, try_register]`
+* `[HostType, backends, auth, does_user_exist]`
 
 These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
@@ -196,5 +196,5 @@ In such case, these metrics will be updated with combined time of 2 failed and 1
 
 Additionally, the RDBMS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
 
-* `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple"" (not prepared) query by a DB driver.
+* `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple" (not prepared) query by a DB driver.
 * `[global, backends, mongoose_rdbms, execute]` - Execution time of a prepared query by a DB driver.
