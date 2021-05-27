@@ -919,20 +919,15 @@ default_host() ->
 
 -spec iq_disco_info(ejabberd:lang(), jid:jid(), jid:jid()) -> [exml:element(), ...].
 iq_disco_info(Lang, From, To) ->
-    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, From, To, <<>>, <<>>),
+    RegisteredFeatures = mongoose_disco:get_local_features(To#jid.lserver, From, To, <<>>, Lang),
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
                      {<<"type">>, <<"text">>},
-                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_UNIQUE}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_REGISTER}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_RSM}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}] ++
-    [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures].
+                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]} |
+     mongoose_disco:features_to_xml(features() ++ RegisteredFeatures)].
 
+features() ->
+    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].
 
 -spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
                      Rsm :: none | jlib:rsm_in()) -> any().

@@ -43,7 +43,8 @@
 -export([start/2, stop/1]).
 
 %% ejabberd room handlers
--export([filter_room_packet/2,
+-export([add_local_features/5,
+         filter_room_packet/2,
          room_process_mam_iq/4,
          forget_room/2,
          forget_room/3]).
@@ -151,7 +152,6 @@ start(Host, Opts) ->
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    [mod_disco:register_feature(MUCHost, Feature) || Feature <- features(?MODULE, Host)],
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
@@ -168,11 +168,17 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host, MUCHost)),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
-    [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, Host)],
     ok.
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
+
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 %% @doc Handle public MUC-message.
 -spec filter_room_packet(Packet :: packet(),
@@ -604,7 +610,8 @@ is_archivable_message(MUCHost, Dir, Packet) ->
 
 -spec hooks(jid:lserver(), jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(Host, MUCHost) ->
-    [{filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 60},
+    [{disco_local_features, MUCHost, ?MODULE, add_local_features, 99},
+     {filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 60},
      {forget_room, MUCHost, ?MODULE, forget_room, 90},
      {get_personal_data, Host, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_muc_hooks(Host)].

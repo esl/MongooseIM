@@ -221,7 +221,7 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                    children = Identity ++
                                    Info ++
-                                   features_to_xml(Features)}]}};
+                                   mongoose_disco:features_to_xml(Features)}]}};
         {error, Error} ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
@@ -262,20 +262,6 @@ get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
         empty ->
             {error, mongoose_xmpp_errors:item_not_found()}
     end.
-
-
--spec features_to_xml(FeatureList :: [{feature(), jid:server()}]
-                     ) -> [exml:element()].
-features_to_xml(FeatureList) ->
-    %% Avoid duplicating features
-    [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feat}]} ||
-                  Feat <- lists:usort(
-                            lists:map(
-                              fun({{Feature, _Host}}) ->
-                                  Feature;
-                                 (Feature) when is_binary(Feature) ->
-                          Feature
-                              end, FeatureList))].
 
 
 -spec domain_to_xml(binary() | {binary()}) -> exml:element().
@@ -437,7 +423,7 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                            children = Identity ++
-                                           features_to_xml(Features)}]}};
+                                           mongoose_disco:features_to_xml(Features)}]}};
                 {error, Error} ->
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
