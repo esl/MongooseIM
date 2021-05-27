@@ -18,7 +18,8 @@
 -export([process_validity_period/1]).
 
 %% Hook handlers
--export([clean_tokens/3]).
+-export([clean_tokens/3,
+         add_local_features/5]).
 
 %% gen_iq_handler handlers
 -export([process_iq/4]).
@@ -85,7 +86,6 @@
 start(Domain, Opts) ->
     gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
     mod_auth_token_backend:start(Domain),
-    mod_disco:register_feature(Domain, ?NS_ESL_TOKEN_AUTH),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
@@ -132,7 +132,8 @@ default_opts(Opts) ->
     [{backend, rdbms} || not proplists:is_defined(backend, Opts)] ++ Opts.
 
 hook_handlers() ->
-    [{remove_user, clean_tokens, 50}].
+    [{remove_user, clean_tokens, 50},
+     {disco_local_features, add_local_features, 90}].
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
@@ -470,3 +471,10 @@ clean_tokens(Acc, User, Server) ->
 config_metrics(Host) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
+-spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
