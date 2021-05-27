@@ -1233,7 +1233,7 @@ host() ->
     ct:get_config({hosts, mim, domain}).
 
 host_type() ->
-    ct:get_config({hosts, mim, host_type}).
+    domain_helper:host_type().
 
 room_name(Config) ->
     AliceName   = escalus_users:get_username(Config, alice),

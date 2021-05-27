@@ -231,7 +231,7 @@ ensure_muc_clean() ->
     forget_persistent_rooms().
 
 stop_online_rooms() ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(),
     Supervisor = rpc(mim(), gen_mod, get_module_proc, [HostType, ejabberd_mod_muc_sup]),
     SupervisorPid = rpc(mim(), erlang, whereis, [Supervisor]),
     case is_pid(SupervisorPid) of

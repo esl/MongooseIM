@@ -48,7 +48,7 @@ load_muc() ->
     %% Stop modules before trying to start them
     unload_muc(),
     Backend = muc_backend(),
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
     dynamic_modules:start(HostType, mod_muc,
@@ -64,7 +64,7 @@ load_muc() ->
                            {access_log, muc}]).
 
 unload_muc() ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(),
     dynamic_modules:stop(HostType, mod_muc),
     dynamic_modules:stop(HostType, mod_muc_log).
 
@@ -152,7 +152,7 @@ create_instant_room(Room, From, Nick, Opts) ->
         [ServerHost, muc_host(), Room1, From, Nick, Opts]).
 
 assert_valid_server(ServerHost) ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(),
     case rpc(mim(), mongoose_domain_api, get_domain_host_type, [ServerHost]) of
         {ok, HostType} ->
             ok;
@@ -257,7 +257,7 @@ has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
     %%  </query>
     %%</iq>
 
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(),
     Loaded = rpc(mim(), gen_mod, loaded_modules_with_opts, [HostType]),
     ct:log("Loaded modules:~n~p", [Loaded]),
 

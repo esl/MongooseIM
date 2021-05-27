@@ -76,6 +76,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(domain_helper, [host_type/0]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
                            gc_message_verify_fun/3,
@@ -1136,6 +1137,3 @@ set_custom_config(UserDefSchema) when is_list(UserDefSchema) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
-
-host_type() ->
-    ct:get_config({hosts, mim, host_type}).

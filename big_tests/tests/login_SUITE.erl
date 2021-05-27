@@ -29,6 +29,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [host_type/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -503,6 +505,3 @@ are_sasl_scram_modules_supported() ->
 restore_c2s(Config) ->
    {_, _, Opts} = C2SListener = proplists:get_value(c2s_listener, Config),
    mongoose_helper:restart_listener_with_opts(mim(), C2SListener, Opts).
-
-host_type() ->
-    ct:get_config({hosts, mim, domain}).

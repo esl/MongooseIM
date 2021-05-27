@@ -5,6 +5,7 @@
 
 -compile(export_all).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
+-import(domain_helper, [host_type/0, secondary_host_type/0]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -22,9 +23,6 @@ cases() ->
      routing_to_yours_subdomain_gets_passed_to_muc_module,
      routing_to_foreign_subdomain_results_in_service_unavailable].
 
-host_type() -> ct:get_config({hosts, mim, host_type}).
-host_type2() -> ct:get_config({hosts, mim, secondary_host_type}).
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -41,13 +39,13 @@ end_per_suite(Config) ->
 init_per_group(two_domains, Config) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
     dynamic_modules:restart(host_type(), mod_domain_isolation, [{extra_domains, [MucHost]}]),
-    dynamic_modules:restart(host_type2(), mod_domain_isolation, []),
+    dynamic_modules:restart(secondary_host_type(), mod_domain_isolation, []),
     dynamic_modules:restart(host_type(), mod_muc_light, [{host, MucHost}]),
     Config.
 
 end_per_group(two_domains, Config) ->
     dynamic_modules:stop(host_type(), mod_domain_isolation),
-    dynamic_modules:stop(host_type2(), mod_domain_isolation),
+    dynamic_modules:stop(secondary_host_type(), mod_domain_isolation),
     dynamic_modules:stop(host_type(), mod_muc_light),
     Config.
 

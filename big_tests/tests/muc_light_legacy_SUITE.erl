@@ -52,6 +52,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(domain_helper, [host_type/0]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
                            to_lus/2,
@@ -879,14 +880,9 @@ set_default_mod_config() ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-host_type() ->
-    ct:get_config({hosts, mim, host_type}).
-
-muc_domain() -> muc_helper:muc_host().
-
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
-    <<Room/binary, $@, (muc_domain())/binary>>.
+    <<Room/binary, $@, (muc_helper:muc_host())/binary>>.
 
 disco_disabled() ->
     try

@@ -52,6 +52,8 @@
          story_with_room/4
          ]).
 
+-import(domain_helper, [host_type/0]).
+
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
@@ -83,9 +85,6 @@
         last  :: binary() | undefined,
         items :: [#xmlel{}]
         }).
-
-host_type() ->
-    ct:get_config({hosts, mim, host_type}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration

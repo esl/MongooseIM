@@ -16,6 +16,7 @@
          ).
 
 -import(muc_light_helper, [set_mod_config/3]).
+-import(domain_helper, [host_type/0]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -112,22 +113,22 @@ security_test_cases() ->
      non_default_http_server_name_is_returned_if_configured
     ].
 
-init_per_suite(C) ->
+init_per_suite(Config) ->
     application:ensure_all_started(shotgun),
-    Host = ct:get_config({hosts, mim, host_type}),
-    C1 = dynamic_modules:save_modules(Host, C),
-    C2 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C1),
+    HostType = host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
     MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    dynamic_modules:start(Host, mod_muc_light,
+    dynamic_modules:start(HostType, mod_muc_light,
                           [{host, MucPattern},
                            {rooms_in_rosters, true}]),
-    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(C2)].
+    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(Config2)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    Host = ct:get_config({hosts, mim, host_type}),
+    HostType = host_type(),
     application:stop(shotgun),
-    dynamic_modules:restore_modules(Host, Config),
+    dynamic_modules:restore_modules(HostType, Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GN, C) ->
@@ -167,9 +168,6 @@ end_per_testcase(TC, C) ->
 
 config_to_muc_host(Config) ->
     ?config(muc_light_host, Config).
-
-host_type() ->
-    ct:get_config({hosts, mim, domain}).
 
 %% --------------------------------------------------------------------
 %% Test cases
