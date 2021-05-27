@@ -141,8 +141,7 @@ do_check_server_purity(_Suite) ->
             fun check_privacy/0,
             fun check_private/0,
             fun check_vcard/0,
-            fun check_roster/0,
-            fun check_carboncopy/0],
+            fun check_roster/0],
     lists:flatmap(fun(F) -> F() end, Funs).
 
 check_sessions() ->
@@ -187,26 +186,11 @@ check_vcard() ->
 check_roster() ->
     generic_via_mongoose_helper(total_roster_items).
 
-check_carboncopy() ->
-    D = ct:get_config({hosts, mim, domain}),
-    case rpc(mim(), gen_mod, is_loaded, [D, mod_carboncopy]) of
-        true ->
-            do_check_carboncopy();
-        _ ->
-            []
-    end.
-
 generic_via_mongoose_helper(Function) ->
     case mongoose_helper:Function() of
         0 -> [];
         false -> [];
         N -> [{Function, N}]
-    end.
-
-do_check_carboncopy() ->
-    case rpc(mim(), ets, tab2list, [carboncopy]) of
-        [] -> [];
-        L -> [{remaining_carbon_copy_settings, L}]
     end.
 
 mim_domains() ->
