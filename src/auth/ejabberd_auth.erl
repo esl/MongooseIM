@@ -390,7 +390,7 @@ entropy(IOList) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 %% Return the list of authenticated modules for a given domain
-%% TODO: rework is_anonymous_user/1 at ejabberd_users module,
+%% TODO: rework is_anonymous_user/1 at mongoose_users module,
 %% so there is no need for exporting auth_modules/1 function.
 %% after that completely get rid of this interface, we should
 %% use auth_modules_for_host_type/1 function instead.

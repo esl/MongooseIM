@@ -300,9 +300,9 @@ maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
                          To :: jid:jid(),
                          Dir :: outgoing | incoming) -> boolean().
 inbox_owner_exists(Acc, From, _To, outgoing) ->
-    ejabberd_users:does_user_exist(Acc, From);
+    mongoose_users:does_user_exist(Acc, From);
 inbox_owner_exists(Acc, _From, To, incoming) ->
-    ejabberd_users:does_user_exist(Acc, To).
+    mongoose_users:does_user_exist(Acc, To).
 
 maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, one2one) ->
             process_message(Host, From, To, Msg, Acc, Dir, one2one);

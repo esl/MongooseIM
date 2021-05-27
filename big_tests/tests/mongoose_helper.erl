@@ -1,5 +1,7 @@
 -module(mongoose_helper).
 
+-include_lib("kernel/include/logger.hrl").
+
 %% API
 
 -export([is_rdbms_enabled/1,
@@ -42,6 +44,7 @@
 -export([get_listener_opts/2]).
 -export([restart_listener_with_opts/3]).
 -export([should_minio_be_running/1]).
+-export([new_mongoose_acc/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -114,12 +117,12 @@ clear_last_activity(Config, User) ->
 
 do_clear_last_activity(Config, User) when is_atom(User)->
     [U, S, _P] = escalus_users:get_usp(Config, carol),
-    Acc = new_mongoose_acc({?MODULE, ?FUNCTION_NAME, ?LINE}, S),
+    Acc = new_mongoose_acc(?LOCATION, S),
     successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(_Config, User) when is_binary(User) ->
     U = escalus_utils:get_username(User),
     S = escalus_utils:get_server(User),
-    Acc = new_mongoose_acc({?MODULE, ?FUNCTION_NAME, ?LINE}, S),
+    Acc = new_mongoose_acc(?LOCATION, S),
     successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
@@ -127,6 +130,13 @@ do_clear_last_activity(Config, Users) when is_list(Users) ->
 new_mongoose_acc(Location, Server) ->
     successful_rpc(mongoose_acc, new, [#{ location => Location,
                                           lserver => Server,
+                                          element => undefined }]).
+
+new_mongoose_acc(Server) ->
+    {ok, HostType} = rpc(mim(), mongoose_domain_core, get_host_type, [Server]),
+    successful_rpc(mongoose_acc, new, [#{ location => ?LOCATION,
+                                          lserver => Server,
+                                          host_type => HostType,
                                           element => undefined }]).
 
 clear_caps_cache(CapsNode) ->

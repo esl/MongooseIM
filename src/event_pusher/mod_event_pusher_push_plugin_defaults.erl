@@ -79,7 +79,7 @@ publish_notification(Acc, _, Payload, Services) ->
 
 -spec should_publish(Acc :: mongoose_acc:t(), To :: jid:jid()) -> boolean().
 should_publish(Acc, #jid{} = To) ->
-    try ejabberd_users:does_user_exist(Acc, To) of
+    try mongoose_users:does_user_exist(Acc, To) of
         false ->
             false;
         true ->
