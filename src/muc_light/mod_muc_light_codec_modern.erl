@@ -251,13 +251,13 @@ parse_blocking_list(_, _) ->
 %%====================================================================
 
 encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun) ->
-    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, Sender, RoomJID, <<>>, <<>>),
+    LServer = RoomJID#jid.lserver,
+    RegisteredFeatures = mongoose_disco:get_local_features(LServer, Sender, RoomJID, <<>>, <<>>),
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light">>}]},
-                #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_LIGHT}]}] ++
-               [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures],
+                                {<<"name">>, <<"MUC Light">>}]} |
+                mongoose_disco:features_to_xml([?NS_MUC_LIGHT | RegisteredFeatures])],
     {reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _Sender, _RoomJID, _RoomBin, _HandleFun) ->
