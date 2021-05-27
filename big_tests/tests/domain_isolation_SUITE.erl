@@ -23,30 +23,35 @@ cases() ->
      routing_to_yours_subdomain_gets_passed_to_muc_module,
      routing_to_foreign_subdomain_results_in_service_unavailable].
 
+host_types() ->
+    %% This suite tests domain isolation.
+    %% But two domains could be on the same host type, and still should be isolated.
+    %% So, we could need to init modules only once.
+    lists:usort([host_type(), secondary_host_type()]).
+
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config2 = dynamic_modules:save_modules(host_type(), Config),
-    escalus:init_per_suite(Config2).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
-    dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_suite(Config).
 
-init_per_group(two_domains, Config) ->
+modules() ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
-    dynamic_modules:restart(host_type(), mod_domain_isolation, [{extra_domains, [MucHost]}]),
-    dynamic_modules:restart(secondary_host_type(), mod_domain_isolation, []),
-    dynamic_modules:restart(host_type(), mod_muc_light, [{host, MucHost}]),
-    Config.
+    [{mod_domain_isolation, []},
+     {mod_muc_light, [{host, MucHost}]}].
+
+init_per_group(two_domains, Config) ->
+    Config2 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
+    [dynamic_modules:ensure_modules(HostType, modules()) || HostType <- host_types()],
+    Config2.
 
 end_per_group(two_domains, Config) ->
-    dynamic_modules:stop(host_type(), mod_domain_isolation),
-    dynamic_modules:stop(secondary_host_type(), mod_domain_isolation),
-    dynamic_modules:stop(host_type(), mod_muc_light),
+    escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
     Config.
 
 init_per_testcase(Testcase, Config) ->
@@ -93,7 +98,7 @@ routing_to_yours_subdomain_gets_passed_to_muc_module(Config) ->
     F = fun(Alice) ->
           %% GIVEN Alice is on the same domain
           %% WHEN Alice routes a stanza
-          escalus_client:send(Alice, muc_stanza()),
+          escalus_client:send(Alice, invalid_muc_stanza()),
           %% THEN Alice receives an error from mod_muc,
           %%      like if there is no mod_domain_isolation.
           receives_muc_bad_request(Alice)
@@ -104,7 +109,7 @@ routing_to_foreign_subdomain_results_in_service_unavailable(Config) ->
     F = fun(Alice) ->
           %% GIVEN Alice is on another domain
           %% WHEN Alice routes a stanza
-          escalus_client:send(Alice, muc_stanza()),
+          escalus_client:send(Alice, invalid_muc_stanza()),
           %% THEN Sender receives an error about the drop
           receives_service_unavailable(Alice)
         end,
@@ -117,12 +122,12 @@ routing_to_foreign_subdomain_results_in_service_unavailable(Config) ->
 get_error_text(Err) ->
     exml_query:path(Err, [{element, <<"error">>}, {element, <<"text">>}, cdata]).
 
-some_room_address() ->
+invalid_muc_address() ->
     MucHost = muc_helper:muc_host(),
-    <<MucHost/binary, "/room">>.
+    <<MucHost/binary, "/wow_resource_not_so_empty">>.
 
-muc_stanza() ->
-    escalus_stanza:chat_to(some_room_address(), <<"Hi muc!">>).
+invalid_muc_stanza() ->
+    escalus_stanza:chat_to(invalid_muc_address(), <<"Hi muc!">>).
 
 receives_service_unavailable(Alice) ->
     Err = escalus:wait_for_stanza(Alice),
