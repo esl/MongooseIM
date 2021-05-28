@@ -46,7 +46,8 @@
 %% API
 %% ----------------------------------------------------------------------
 
-init(VHost, _Options) ->
+%% TODO pools aren't multitenancy-ready yet
+init(HostType, _Options) ->
     RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
     mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
                            [luser, lserver, remote_bare_jid],
@@ -76,12 +77,12 @@ init(VHost, _Options) ->
         UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
         UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
-    rdbms_queries:prepare_upsert(VHost, inbox_upsert, inbox,
+    rdbms_queries:prepare_upsert(HostType, inbox_upsert, inbox,
                                  InsertFields,
                                  [<<"content">>, <<"unread_count">>,
                                   <<"msg_id">>, <<"timestamp">>, <<"archive">>],
                                  UniqueKeyFields),
-    rdbms_queries:prepare_upsert(VHost, inbox_upsert_incr_unread, inbox,
+    rdbms_queries:prepare_upsert(HostType, inbox_upsert_incr_unread, inbox,
                                  InsertFields,
                                  [<<"content">>, <<"unread_count = inbox.unread_count + 1">>,
                                   <<"msg_id">>, <<"timestamp">>, <<"archive">>],

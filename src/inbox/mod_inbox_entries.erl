@@ -5,18 +5,23 @@
 -include("mod_inbox.hrl").
 
 % Inbox extensions
--export([process_iq_conversation/4]).
+-export([process_iq_conversation/5]).
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/3]).
 
--spec process_iq_conversation(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_iq_conversation(Acc :: mongoose_acc:t(),
+                              From :: jid:jid(),
+                              To :: jid:jid(),
+                              IQ :: jlib:iq(),
+                              Extra :: map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_iq_conversation(From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_iq_conversation(Acc, From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     process_iq_conversation_get(Acc, IQ, From, SubEl);
-process_iq_conversation(From, _To, Acc, #iq{type = set,
-                                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
+process_iq_conversation(Acc, From, _To, #iq{type = set,
+                                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ,
+                       _Extra) ->
     maybe_process_reset_stanza(From, Acc, IQ, ResetStanza);
-process_iq_conversation(From, _To, Acc, #iq{type = set, sub_el = Query} = IQ) ->
+process_iq_conversation(Acc, From, _To, #iq{type = set, sub_el = Query} = IQ, _Extra) ->
     process_iq_conversation_set(Acc, IQ, From, Query).
 
 -spec process_iq_conversation_get(mongoose_acc:t(), jlib:iq(), jid:jid(), exml:element()) ->
