@@ -7,7 +7,7 @@
 start() ->
     case gen_tcp:listen(0,[{active, false},{packet,2}]) of
         {ok, ListenSock} ->
-            spawn(?MODULE,server,[ListenSock, self()]),
+            spawn(?MODULE, server, [ListenSock, self()]),
             {ok, Port} = inet:port(ListenSock),
             {Port, ListenSock};
         {error,Reason} ->
