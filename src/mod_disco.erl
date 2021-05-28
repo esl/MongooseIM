@@ -116,8 +116,6 @@ register_subhost(Host, Subhost) ->
             ets:insert(disco_subhosts, {{Subhost, Host}})
     end.
 register_host(Host, Opts) ->
-    ejabberd_local:refresh_iq_handlers(),
-
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_DISCO_ITEMS,
                                   ?MODULE, process_local_iq_items, IQDisc),
