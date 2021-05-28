@@ -461,7 +461,7 @@ user_available_hook(HostType, Acc, JID) ->
     Result :: mongoose_acc:t().
 user_ping_response(HostType, Acc, JID, Response, TDelta) ->
     ejabberd_hooks:run_for_host_type(user_ping_response, HostType, Acc,
-                                     [JID, Response, TDelta]).
+                                     [HostType, JID, Response, TDelta]).
 
 %%% @doc The `user_ping_timeout' hook is called when there is a timeout
 %%% when waiting for a ping response from a user.

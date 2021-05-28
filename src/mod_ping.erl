@@ -19,14 +19,17 @@
 -define(DEFAULT_PING_REQ_TIMEOUT, (32*1000)).% 32 seconds
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0]).
+-export([start/2,
+         stop/1,
+         config_spec/0,
+         supported_features/0]).
 
 %% Hook callbacks
--export([iq_ping/4,
+-export([iq_ping/5,
          user_online/5,
          user_offline/5,
          user_send/4,
-         user_ping_response/4,
+         user_ping_response/5,
          user_keep_alive/2]).
 
 %% Remote hook callback
@@ -69,47 +72,49 @@ route_ping_iq(JID, Server, HostType) ->
 %% utility
 %%====================================================================
 
-hooks(Host) ->
-    [{sm_register_connection_hook, Host, ?MODULE, user_online, 100},
-     {sm_remove_connection_hook, Host, ?MODULE, user_offline, 100},
-     {user_send_packet, Host, ?MODULE, user_send, 100},
-     {user_sent_keep_alive, Host, ?MODULE, user_keep_alive, 100},
-     {user_ping_response, Host, ?MODULE, user_ping_response, 100},
-     {c2s_remote_hook, Host, ?MODULE, handle_remote_hook, 100}].
+hooks(HostType) ->
+    [{sm_register_connection_hook, HostType, ?MODULE, user_online, 100},
+     {sm_remove_connection_hook, HostType, ?MODULE, user_offline, 100},
+     {user_send_packet, HostType, ?MODULE, user_send, 100},
+     {user_sent_keep_alive, HostType, ?MODULE, user_keep_alive, 100},
+     {user_ping_response, HostType, ?MODULE, user_ping_response, 100},
+     {c2s_remote_hook, HostType, ?MODULE, handle_remote_hook, 100}].
 
 
-ensure_metrics(Host) ->
-    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response], spiral),
-    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_timeout], spiral),
-    mongoose_metrics:ensure_metric(Host, [mod_ping, ping_response_time], histogram).
+ensure_metrics(HostType) ->
+    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response], spiral),
+    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response_timeout], spiral),
+    mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response_time], histogram).
 
 %%====================================================================
 %% gen_mod callbacks
 %%====================================================================
 
-start(Host, Opts) ->
-    ensure_metrics(Host),
+start(HostType, Opts) ->
+    ensure_metrics(HostType),
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    mod_disco:register_feature(Host, ?NS_PING),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PING,
-                                  ?MODULE, iq_ping, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PING,
-                                  ?MODULE, iq_ping, IQDisc),
-    maybe_add_hooks_handlers(Host, SendPings).
+    %% TODO: update code related to mod_disco
+    mod_disco:register_feature(HostType, ?NS_PING),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm,
+                                             fun ?MODULE:iq_ping/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local,
+                                             fun ?MODULE:iq_ping/5, #{}, IQDisc),
+    maybe_add_hooks_handlers(HostType, SendPings).
 
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
-stop(Host) ->
+stop(HostType) ->
 %%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
 %%    won't stop currently running timers. They'll run one more time, and then stop.
-    ejabberd_hooks:delete(hooks(Host)),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PING),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PING),
-    mod_disco:unregister_feature(Host, ?NS_PING).
+    ejabberd_hooks:delete(hooks(HostType)),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm),
+    %% TODO: update code related to mod_disco
+    mod_disco:unregister_feature(HostType, ?NS_PING).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -127,12 +132,14 @@ config_spec() ->
                 }
       }.
 
+supported_features() -> [dynamic_domains].
+
 %%====================================================================
 %% IQ handlers
 %%====================================================================
-iq_ping(_From, _To, Acc, #iq{type = get, sub_el = #xmlel{name = <<"ping">>}} = IQ) ->
+iq_ping(Acc, _From, _To, #iq{type = get, sub_el = #xmlel{name = <<"ping">>}} = IQ, _) ->
     {Acc, IQ#iq{type = result, sub_el = []}};
-iq_ping(_From, _To, Acc, #iq{sub_el = SubEl} = IQ) ->
+iq_ping(Acc, _From, _To, #iq{sub_el = SubEl} = IQ, _) ->
     NewSubEl = [SubEl, mongoose_xmpp_errors:feature_not_implemented()],
     {Acc, IQ#iq{type = error, sub_el = NewSubEl}}.
 
@@ -166,15 +173,16 @@ user_keep_alive(Acc, _JID) ->
     Acc.
 
 -spec user_ping_response(Acc :: mongoose_acc:t(),
+                         HostType :: mongooseim:host_type(),
                          JID :: jid:jid(),
                          Response :: timeout | jlib:iq(),
                          TDelta :: pos_integer()) -> mongoose_acc:t().
-user_ping_response(Acc, #jid{server = Server}, timeout, _TDelta) ->
-    mongoose_metrics:update(Server, [mod_ping, ping_response_timeout], 1),
+user_ping_response(Acc, HostType, _JID, timeout, _TDelta) ->
+    mongoose_metrics:update(HostType, [mod_ping, ping_response_timeout], 1),
     Acc;
-user_ping_response(Acc, #jid{server = Server}, _Response, TDelta) ->
-    mongoose_metrics:update(Server, [mod_ping, ping_response_time], TDelta),
-    mongoose_metrics:update(Server, [mod_ping, ping_response], 1),
+user_ping_response(Acc, HostType, _JID, _Response, TDelta) ->
+    mongoose_metrics:update(HostType, [mod_ping, ping_response_time], TDelta),
+    mongoose_metrics:update(HostType, [mod_ping, ping_response], 1),
     Acc.
 
 %%====================================================================
