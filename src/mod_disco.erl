@@ -45,30 +45,21 @@
          get_sm_features/5,
          get_sm_items/5,
          get_info/5,
-         register_feature/2,
-         unregister_feature/2,
          register_extra_domain/2,
-         unregister_extra_domain/2,
-         register_subhost/2,
-         unregister_subhost/2]).
+         unregister_extra_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
-
--type feature() :: any().
 
 -type return_hidden() :: ejabberd_router:return_hidden().
 
 -spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
     [catch ets:new(Name, [named_table, ordered_set, public]) || Name <-
-        [disco_features, disco_extra_domains, disco_sm_features, disco_sm_nodes, disco_subhosts]],
+        [disco_extra_domains]],
 
     register_host(Host, Opts),
-    register_feature(Host, <<"iq">>),
-    register_feature(Host, <<"presence">>),
-    register_feature(Host, <<"presence-invisible">>),
     ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100),
     ExtraDomains = gen_mod:get_opt(extra_domains, Opts, []),
     lists:foreach(fun(Domain) -> register_extra_domain(Host, Domain) end, ExtraDomains).
@@ -108,13 +99,6 @@ process_server_info(KVs) ->
     Modules = proplists:get_value(modules, KVs, all),
     {Modules, Name, URLs}.
 
-register_subhost(Host, Subhost) ->
-    case gen_mod:is_loaded(Host, ?MODULE) of
-        false -> ok;
-        true ->
-            register_host(Subhost, gen_mod:get_module_opts(Host, ?MODULE)),
-            ets:insert(disco_subhosts, {{Subhost, Host}})
-    end.
 register_host(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_DISCO_ITEMS,
@@ -134,13 +118,6 @@ register_host(Host, Opts) ->
     ejabberd_hooks:add(disco_info, Host, ?MODULE, get_info, 100),
     ok.
 
-unregister_subhost(Host, Subhost) ->
-    case gen_mod:is_loaded(Host, ?MODULE) of
-        false -> ok;
-        true ->
-            unregister_host(Subhost),
-            ets:delete(disco_subhosts, {Subhost, Host})
-    end.
 unregister_host(Host) ->
     ejabberd_hooks:delete(disco_sm_identity, Host, ?MODULE, get_sm_identity, 100),
     ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 100),
@@ -153,23 +130,8 @@ unregister_host(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_DISCO_INFO),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_ITEMS),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO),
-    catch ets:match_delete(disco_features, {{'_', Host}}),
     catch ets:match_delete(disco_extra_domains, {{'_', Host}}),
-    lists:foreach(fun([{Subhost, _}]) -> unregister_subhost(Host, Subhost) end,
-                  ets:match(disco_subhosts, {{'_', Host}})),
     ok.
-
--spec register_feature(jid:server(), feature()) -> 'true'.
-register_feature(Host, Feature) ->
-    catch ets:new(disco_features, [named_table, ordered_set, public]),
-    ets:insert(disco_features, {{Feature, Host}}).
-
-
--spec unregister_feature(jid:server(), feature()) -> 'true'.
-unregister_feature(Host, Feature) ->
-    catch ets:new(disco_features, [named_table, ordered_set, public]),
-    ets:delete(disco_features, {Feature, Host}).
-
 
 -spec register_extra_domain(jid:server(), binary()) -> 'true'.
 register_extra_domain(Host, Domain) ->
@@ -220,7 +182,8 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
                                    children = Identity ++
                                    Info ++
                                    mongoose_disco:features_to_xml(Features)}]}};
-        {error, Error} ->
+        empty ->
+            Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
@@ -237,30 +200,12 @@ get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
-
--spec get_local_features(Acc :: 'empty' | {'error', _} | {'result', _},
-                        From :: jid:jid(),
-                        To :: jid:jid(),
-                        Node :: binary(),
-                        Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
-get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Feats = case Acc of
-                {result, Features} -> Features;
-                empty -> []
-            end,
-    Host = To#jid.lserver,
-    {result,
-     ets:select(disco_features, [{{{'_', Host}}, [], ['$_']}]) ++ Feats};
-get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
-    case Acc of
-        {result, _Features} ->
-            Acc;
-        empty ->
-            {error, mongoose_xmpp_errors:item_not_found()}
-    end.
-
+-spec get_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:acc().
+get_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc);
+get_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 -spec domain_to_xml(binary() | {binary()}) -> exml:element().
 domain_to_xml({Domain}) ->
