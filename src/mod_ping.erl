@@ -15,8 +15,8 @@
 -include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_SEND_PINGS, false). % bool()
--define(DEFAULT_PING_INTERVAL, 60). % 60 seconds
--define(DEFAULT_PING_REQ_TIMEOUT, 32).% 32 seconds
+-define(DEFAULT_PING_INTERVAL, (60*1000)). % 60 seconds
+-define(DEFAULT_PING_REQ_TIMEOUT, (32*1000)).% 32 seconds
 
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0]).
@@ -37,9 +37,8 @@
 %%====================================================================
 
 route_ping_iq(JID, Server, HostType) ->
-    PingReqTimeout = timer:seconds(gen_mod:get_module_opt(HostType, ?MODULE,
-                                                          ping_req_timeout,
-                                                          ?DEFAULT_PING_REQ_TIMEOUT)),
+    PingReqTimeout = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout,
+                                            ?DEFAULT_PING_REQ_TIMEOUT),
     IQ = #iq{type = get,
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
@@ -117,11 +116,13 @@ config_spec() ->
     #section{
        items = #{<<"send_pings">> => #option{type = boolean},
                  <<"ping_interval">> => #option{type = integer,
-                                                validate = positive},
+                                                validate = positive,
+                                                process = fun timer:seconds/1},
                  <<"timeout_action">> => #option{type = atom,
                                                  validate = {enum, [none, kill]}},
                  <<"ping_req_timeout">> => #option{type = integer,
-                                                   validate = positive},
+                                                   validate = positive,
+                                                   process = fun timer:seconds/1},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
                 }
       }.
@@ -199,8 +200,8 @@ handle_remote_call(remove_timer, _JID, _Server, _HostType, HandlerState) ->
 -spec start_ping_timer(term(), jid:server()) -> reference().
 start_ping_timer(HandlerState, HostType) ->
     cancel_timer(HandlerState),
-    PingInterval = timer:seconds(gen_mod:get_module_opt(HostType, ?MODULE, ping_interval,
-                                                        ?DEFAULT_PING_INTERVAL)),
+    PingInterval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval,
+                                          ?DEFAULT_PING_INTERVAL),
     ejabberd_c2s:run_remote_hook_after(PingInterval, self(), mod_ping, send_ping).
 
 cancel_timer(empty_state) ->

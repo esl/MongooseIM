@@ -54,10 +54,10 @@ suite() ->
     escalus:suite().
 
 ping_interval() ->
-    3.
+    timer:seconds(3).
 
 ping_req_timeout() ->
-    2.
+    timer:seconds(2).
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
@@ -223,14 +223,14 @@ server_ping_pang(ConfigIn) ->
         fun(Alice) ->
                 wait_for_ping_req(Alice),
                 %% do not resp to ping req
-                ct:sleep(timer:seconds(ping_req_timeout() + 0.5)),
+                ct:sleep(ping_req_timeout() + timer:seconds(1)/2),
                 TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice),
                 escalus_client:kill_connection(Config, Alice)
         end).
 
 wait_ping_interval(Ration) ->
-    WaitTime = timer:seconds(ping_interval()) * Ration,
+    WaitTime = ping_interval() * Ration,
     ct:sleep(WaitTime).
 
 check_connection(kill, Client) ->
