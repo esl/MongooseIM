@@ -452,25 +452,25 @@ user_available_hook(HostType, Acc, JID) ->
     ejabberd_hooks:run_for_host_type(user_available_hook, HostType, Acc, [JID]).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping.
--spec user_ping_response(Server, Acc, JID, Response, TDelta) -> Result when
-    Server :: jid:server(),
+-spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Response :: timeout | jlib:iq(),
     TDelta :: non_neg_integer(),
     Result :: mongoose_acc:t().
-user_ping_response(Server, Acc, JID, Response, TDelta) ->
-    ejabberd_hooks:run_for_host_type(user_ping_response, Server, Acc,
+user_ping_response(HostType, Acc, JID, Response, TDelta) ->
+    ejabberd_hooks:run_for_host_type(user_ping_response, HostType, Acc,
                                      [JID, Response, TDelta]).
 
 %%% @doc The `user_ping_timeout' hook is called when there is a timeout
 %%% when waiting for a ping response from a user.
--spec user_ping_timeout(Server, JID) -> Result when
-    Server :: jid:server(),
+-spec user_ping_timeout(HostType, JID) -> Result when
+    HostType :: mongooseim:host_type(),
     JID :: jid:jid(),
     Result :: any().
-user_ping_timeout(Server, JID) ->
-    ejabberd_hooks:run_for_host_type(user_ping_timeout, Server, ok, [JID]).
+user_ping_timeout(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(user_ping_timeout, HostType, ok, [JID]).
 
 -spec user_receive_packet(HostType, Acc, JID, From, To, El) -> Result when
     HostType :: binary(),
