@@ -332,21 +332,16 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [exml:element()]} | empty | {error, any()},
-                      From :: jid:jid(), To :: jid:jid(),
-                      NS :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | empty | {error, any()}.
-get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
-    XMLNS = case gen_mod:get_module_opt_by_subhost(
-                   LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+-spec get_muc_service(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_muc_service(Acc, _From, #jid{lserver = LServer} = _To, <<>>, _Lang) ->
+    XMLNS = case gen_mod:get_module_opt(LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
     SubHost = gen_mod:get_module_opt_subhost(LServer, ?MODULE, default_host()),
-    Item = [#xmlel{name = <<"item">>,
-                   attrs = [{<<"jid">>, SubHost},
-                            {<<"node">>, XMLNS}]}],
-    {result, [Item | Nodes]};
+    Items = [#{jid => SubHost, node => XMLNS}],
+    mongoose_disco:add_items(Items, Acc);
 get_muc_service(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 

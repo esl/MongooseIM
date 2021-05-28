@@ -289,7 +289,9 @@ disco_service(Config) ->
             Server = escalus_client:server(Alice),
             escalus:send(Alice, escalus_stanza:service_discovery(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
-            escalus:assert(has_service, [?MUCHOST], Stanza),
+            Query = exml_query:subelement(Stanza, <<"query">>),
+            Item = exml_query:subelement_with_attr(Query, <<"jid">>, ?MUCHOST),
+            ?assertEqual(?NS_MUC_LIGHT, exml_query:attr(Item, <<"node">>)),
             escalus:assert(is_stanza_from,
               [ct:get_config({hosts, mim, domain})], Stanza)
         end).
