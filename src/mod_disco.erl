@@ -44,9 +44,7 @@
          get_sm_identity/5,
          get_sm_features/5,
          get_sm_items/5,
-         get_info/5,
-         register_extra_domain/2,
-         unregister_extra_domain/2]).
+         get_info/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -56,13 +54,8 @@
 
 -spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
-    [catch ets:new(Name, [named_table, ordered_set, public]) || Name <-
-        [disco_extra_domains]],
-
     register_host(Host, Opts),
-    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100),
-    ExtraDomains = gen_mod:get_opt(extra_domains, Opts, []),
-    lists:foreach(fun(Domain) -> register_extra_domain(Host, Domain) end, ExtraDomains).
+    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
 
 
 -spec stop(jid:server()) -> ok.
@@ -130,19 +123,7 @@ unregister_host(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_DISCO_INFO),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_ITEMS),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO),
-    catch ets:match_delete(disco_extra_domains, {{'_', Host}}),
     ok.
-
--spec register_extra_domain(jid:server(), binary()) -> 'true'.
-register_extra_domain(Host, Domain) ->
-    catch ets:new(disco_extra_domains, [named_table, ordered_set, public]),
-    ets:insert(disco_extra_domains, {{Domain, Host}}).
-
-
--spec unregister_extra_domain(jid:server(), binary()) -> 'true'.
-unregister_extra_domain(Host, Domain) ->
-    catch ets:new(disco_extra_domains, [named_table, ordered_set, public]),
-    ets:delete(disco_extra_domains, {Domain, Host}).
 
 
 -spec process_local_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
@@ -228,17 +209,15 @@ get_local_services(Acc, From, To, <<>>, _Lang) ->
             end,
     Host = To#jid.lserver,
     ReturnHidden = should_return_hidden(Host, From),
-    {result,
-     lists:usort(
-       lists:map(fun domain_to_xml/1,
-                 get_vh_services(Host, ReturnHidden) ++
-                 ets:select(disco_extra_domains,
-                            [{{{'$1', Host}}, [], ['$1']}]))
-       ) ++ Items};
+    Domains = get_vh_services(Host, ReturnHidden) ++ get_extra_domains(Host),
+    {result, lists:usort(lists:map(fun domain_to_xml/1, Domains)) ++ Items};
 get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
 get_local_services(empty, _From, _To, _Node, _Lang) ->
     {error, mongoose_xmpp_errors:item_not_found()}.
+
+get_extra_domains(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, extra_domains, []).
 
 -spec should_return_hidden(Host :: jid:lserver(), From :: jid:jid()) -> return_hidden().
 should_return_hidden(_Host, #jid{ luser = <<>> } = _From) ->

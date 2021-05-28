@@ -10,14 +10,16 @@ groups() ->
 
 all_test_cases() ->
     [caps_feature_is_advertised,
-     user_can_query_server_caps_via_disco].
+     user_can_query_server_caps_via_disco,
+     extra_domains_are_advertised].
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
 init_per_suite(C) ->
     C2 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), C)),
-    dynamic_modules:ensure_modules(domain(), [{mod_caps, []}]),
+    dynamic_modules:ensure_modules(domain(), [{mod_caps, []},
+                                              {mod_disco, [{extra_domains, [extra_domain()]}]}]),
     C2.
 
 end_per_suite(C) ->
@@ -54,3 +56,16 @@ user_can_query_server_caps_via_disco(Config) ->
                                             {attr, <<"name">>}]),
     <<"MongooseIM">> = Identity,
     escalus_connection:stop(Alice).
+
+extra_domains_are_advertised(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_service, [extra_domain()], Stanza),
+        escalus:assert(is_stanza_from,
+                            [ct:get_config({hosts, mim, domain})], Stanza)
+    end).
+
+extra_domain() ->
+    <<"eXtra.example.com">>.
