@@ -18,6 +18,8 @@
 {suites, "tests", inbox_SUITE}.
 {skip_cases, "tests", inbox_SUITE, [disco_service],
  "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
+ "at the moment mod_offline doesn't support dynamic domains"}.
 {skip_groups, "tests", inbox_SUITE, [muclight, muc],
  "at the moment muc/muclight doesn't support dynamic domains"}.
 
