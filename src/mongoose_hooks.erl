@@ -366,12 +366,12 @@ register_user(HostType, LServer, LUser) ->
     ejabberd_hooks:run_for_host_type(register_user, HostType, ok, [LUser, LServer]).
 
 %%% @doc The `remove_user' hook is called when a user is removed.
--spec remove_user(LServer, Acc, LUser) -> Result when
-    LServer :: jid:lserver(),
+-spec remove_user(Acc, LServer, LUser) -> Result when
     Acc :: mongoose_acc:t(),
+    LServer :: jid:lserver(),
     LUser :: jid:luser(),
     Result :: mongoose_acc:t().
-remove_user(LServer, Acc, LUser) ->
+remove_user(Acc, LServer, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 

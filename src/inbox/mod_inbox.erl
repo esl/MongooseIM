@@ -217,7 +217,7 @@ forward_messages(Acc, List, QueryId, To) when is_list(List) ->
 -spec send_message(mongoose_acc:t(), jid:jid(), exml:element()) -> mongoose_acc:t().
 send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
     BareTo = jid:to_bare(To),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    HostType = mongoose_acc:host_type(Acc),
     NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
                                  host_type => HostType,
                                  lserver => LServer,
@@ -287,7 +287,7 @@ remove_domain(Acc, HostType, Domain) ->
                             Msg :: exml:element(),
                             Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
-    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(From, To, Dir) of
+    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
             maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, Type);
@@ -295,13 +295,16 @@ maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
             ok
     end.
 
--spec inbox_owner_exists(From :: jid:jid(),
+-spec inbox_owner_exists(Acc :: mongoose_acc:t(),
+                         From :: jid:jid(),
                          To :: jid:jid(),
                          Dir :: outgoing | incoming) -> boolean().
-inbox_owner_exists(From, _To, outgoing) ->
-    ejabberd_users:does_user_exist(From);
-inbox_owner_exists(_From, To, incoming) ->
-    ejabberd_users:does_user_exist(To).
+inbox_owner_exists(Acc, From, _To, outgoing) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_users:does_user_exist(HostType, From);
+inbox_owner_exists(Acc, _From, To, incoming) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_users:does_user_exist(HostType, To).
 
 maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, one2one) ->
             process_message(Host, From, To, Msg, Acc, Dir, one2one);

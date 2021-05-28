@@ -372,7 +372,7 @@ remove_user(Acc, User, Server) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     MUCHost = gen_mod:get_module_opt_subhost(Domain, ?MODULE, default_host()),
-?LOG_ERROR(#{what => remove_domain_muc, host_type => HostType, domain => Domain}),
+    ?LOG_ERROR(#{what => remove_domain_muc, host_type => HostType, domain => Domain}),
     mod_muc_light_db_backend:remove_domain(HostType, MUCHost, Domain),
     Acc.
 
