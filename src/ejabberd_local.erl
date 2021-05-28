@@ -236,8 +236,9 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE, {unregister_host, Host}).
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
     Features = ets:lookup_element(?NSTABLE, LServer, 2),
     mongoose_disco:add_features(Features, Acc);

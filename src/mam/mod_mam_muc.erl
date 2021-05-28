@@ -173,8 +173,9 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
     mongoose_disco:add_features(features(?MODULE, LServer), Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->

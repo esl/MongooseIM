@@ -57,8 +57,9 @@ check_packet(Acc, Event) ->
         Rules -> process_event(Acc, Rules, Event)
     end.
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, _To, Node, _Lang) ->
     case amp_features(Node) of
         [] -> Acc;

@@ -34,14 +34,16 @@ config_spec() ->
                 }
       }.
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, _To, <<>>, _Lang) ->
     mongoose_disco:add_features([?NS_VERSION], Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec process_iq(jid:jid(),jid:jid(), mongoose_acc:t(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()}.
+-spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+          {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, _To, Acc, #iq{type = get} = IQ) ->

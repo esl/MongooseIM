@@ -250,8 +250,9 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
     mongoose_disco:add_features(features(?MODULE, LServer), Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->

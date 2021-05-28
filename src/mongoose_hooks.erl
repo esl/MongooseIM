@@ -1260,7 +1260,7 @@ disco_info(Server, Module, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: mongoose_disco:acc().
+    Result :: mongoose_disco:feature_acc().
 disco_local_features(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_features, Server, empty,
                                      [From, To, Node, Lang]).

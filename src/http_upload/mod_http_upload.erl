@@ -171,7 +171,7 @@ get_disco_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
 get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec get_disco_features(Acc :: mongoose_disco:acc(),
+-spec get_disco_features(Acc :: mongoose_disco:feature_acc(),
                          From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> mongoose_disco:feature_acc().
 get_disco_features(Acc, _From, _To, _Node = <<>>, _Lang) ->

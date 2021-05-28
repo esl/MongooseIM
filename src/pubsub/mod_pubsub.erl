@@ -656,8 +656,9 @@ disco_local_identity(Acc, Host, <<>>, _Lang) ->
 disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
--spec disco_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec disco_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                           ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
     Host = To#jid.lserver,
     Features = [?NS_PUBSUB | [feature(F) || F <- features(Host, <<>>)]],

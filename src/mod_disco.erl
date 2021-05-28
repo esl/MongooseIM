@@ -169,8 +169,9 @@ get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
--spec get_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec get_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 get_local_features(Acc, _From, _To, <<>>, _Lang) ->
     mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc);
 get_local_features(Acc, _From, _To, _Node, _Lang) ->

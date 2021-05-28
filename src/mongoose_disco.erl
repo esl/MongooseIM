@@ -10,13 +10,13 @@
 -include("jlib.hrl").
 
 -type item_acc() :: empty | {result, map()}.
--type acc() :: empty | {result, [feature()]}.
+-type feature_acc() :: empty | {result, [feature()]}.
 -type item() :: #{jid := jid:lserver(),
                   name => binary(),
                   node => binary()}.
 -type feature() :: binary().
 
--export_type([item_acc/0, acc/0, item/0, feature/0]).
+-export_type([item_acc/0, feature_acc/0, item/0, feature/0]).
 
 -spec get_local_features(jid:lserver(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
           [feature()].
@@ -28,7 +28,7 @@ get_local_features(Host, From, To, Node, Lang) ->
             Features
     end.
 
--spec add_features([feature()], acc())  -> acc().
+-spec add_features([feature()], feature_acc())  -> feature_acc().
 add_features(Features, Acc) ->
     case Acc of
         empty ->

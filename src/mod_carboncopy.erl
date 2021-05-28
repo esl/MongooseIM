@@ -96,8 +96,9 @@ hooks(HostType) ->
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, _To, <<>>, _Lang) ->
     mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->

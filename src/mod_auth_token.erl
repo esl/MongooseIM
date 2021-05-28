@@ -453,7 +453,8 @@ revoke_token_command(Owner) ->
             {error, "Internal server error"}
     end.
 
--spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) -> mongoose_acc:t().
+-spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) ->
+          mongoose_acc:t().
 clean_tokens(Acc, User, Server) ->
     try
         Owner = jid:make(User, Server, <<>>),
@@ -472,8 +473,9 @@ config_metrics(Host) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, _To, <<>>, _Lang) ->
     mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->

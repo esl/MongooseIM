@@ -36,8 +36,9 @@ hooks(Host) ->
      {privacy_iq_get, Host, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, Host, ?MODULE, process_iq_set, 50}].
 
--spec add_local_features(mongoose_disco:acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:acc().
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 add_local_features(Acc, _From, _To, <<>>, _Lang) ->
     mongoose_disco:add_features([?NS_BLOCKING], Acc);
 add_local_features(Acc, _From, _To, _Node, _Lang) ->
