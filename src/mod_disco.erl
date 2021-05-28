@@ -54,14 +54,32 @@
 
 -spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
-    register_host(Host, Opts),
-    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
-
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    [gen_iq_handler:add_iq_handler(Module, Host, NS, ?MODULE, Handler, IQDisc) ||
+        {Module, NS, Handler} <- iq_handlers()],
+    ejabberd_hooks:add(hooks(Host)).
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    unregister_host(Host),
-    ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
+    ejabberd_hooks:delete(hooks(Host)),
+    [gen_iq_handler:remove_iq_handler(Module, Host, NS) ||
+        {Module, NS, _Handler} <- iq_handlers()],
+    ok.
+
+hooks(Host) ->
+    [{disco_local_items, Host, ?MODULE, get_local_services, 100},
+     {disco_local_features, Host, ?MODULE, get_local_features, 100},
+     {disco_local_identity, Host, ?MODULE, get_local_identity, 100},
+     {disco_sm_items, Host, ?MODULE, get_sm_items, 100},
+     {disco_sm_features, Host, ?MODULE, get_sm_features, 100},
+     {disco_sm_identity, Host, ?MODULE, get_sm_identity, 100},
+     {disco_info, Host, ?MODULE, get_info, 100}].
+
+iq_handlers() ->
+    [{ejabberd_local, ?NS_DISCO_ITEMS, process_local_iq_items},
+     {ejabberd_local, ?NS_DISCO_INFO, process_local_iq_info},
+     {ejabberd_sm, ?NS_DISCO_ITEMS, process_sm_iq_items},
+     {ejabberd_sm, ?NS_DISCO_INFO, process_sm_iq_info}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -91,40 +109,6 @@ process_server_info(KVs) ->
     {[[{name, Name}], [{urls, URLs}]], _} = proplists:split(KVs, [name, urls]),
     Modules = proplists:get_value(modules, KVs, all),
     {Modules, Name, URLs}.
-
-register_host(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_DISCO_ITEMS,
-                                  ?MODULE, process_local_iq_items, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_DISCO_INFO,
-                                  ?MODULE, process_local_iq_info, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_DISCO_ITEMS,
-                                  ?MODULE, process_sm_iq_items, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO,
-                                  ?MODULE, process_sm_iq_info, IQDisc),
-
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_local_services, 100),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, get_local_features, 100),
-    ejabberd_hooks:add(disco_sm_items, Host, ?MODULE, get_sm_items, 100),
-    ejabberd_hooks:add(disco_sm_features, Host, ?MODULE, get_sm_features, 100),
-    ejabberd_hooks:add(disco_sm_identity, Host, ?MODULE, get_sm_identity, 100),
-    ejabberd_hooks:add(disco_info, Host, ?MODULE, get_info, 100),
-    ok.
-
-unregister_host(Host) ->
-    ejabberd_hooks:delete(disco_sm_identity, Host, ?MODULE, get_sm_identity, 100),
-    ejabberd_hooks:delete(disco_sm_features, Host, ?MODULE, get_sm_features, 100),
-    ejabberd_hooks:delete(disco_sm_items, Host, ?MODULE, get_sm_items, 100),
-    ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, get_local_features, 100),
-    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_local_services, 100),
-    ejabberd_hooks:delete(disco_info, Host, ?MODULE, get_info, 100),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_DISCO_ITEMS),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_DISCO_INFO),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_ITEMS),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_DISCO_INFO),
-    ok.
-
 
 -spec process_local_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
