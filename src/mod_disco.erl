@@ -81,6 +81,8 @@ iq_handlers() ->
      {ejabberd_sm, ?NS_DISCO_ITEMS, process_sm_iq_items},
      {ejabberd_sm, ?NS_DISCO_INFO, process_sm_iq_info}].
 
+%% Configuration
+
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
@@ -109,6 +111,8 @@ process_server_info(KVs) ->
     {[[{name, Name}], [{urls, URLs}]], _} = proplists:split(KVs, [name, urls]),
     Modules = proplists:get_value(modules, KVs, all),
     {Modules, Name, URLs}.
+
+%% IQ handlers
 
 -spec process_local_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
