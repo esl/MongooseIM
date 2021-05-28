@@ -95,9 +95,8 @@ start_running(Config) ->
 
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
-    Domain = escalus_ejabberd:unify_str_arg(
-               ct:get_config({hosts, mim, domain})),
-    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, Domain}]),
+    HostType = domain_helper:host_type(),
+    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, HostType}]),
     Filtered = lists:filter(fun({Module, _}) ->
                     ModuleL = atom_to_list(Module),
                     case lists:sublist(ModuleL, 1, length(ModL)) of
@@ -110,6 +109,6 @@ stop_running(Mod, Config) ->
         [] ->
             Config;
         [{Module,_Args}=Head|_] ->
-            stop(Domain, Module),
+            stop(HostType, Module),
             [{running, [Head]} | Config]
     end.
