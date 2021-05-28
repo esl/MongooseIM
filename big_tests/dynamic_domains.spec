@@ -15,6 +15,16 @@
 {skip_cases, "tests", carboncopy_SUITE, [discovering_support],
  "at the moment mod_disco doesn't support dynamic domains"}.
 
+{suites, "tests", inbox_SUITE}.
+{skip_cases, "tests", inbox_SUITE, [disco_service],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_groups, "tests", inbox_SUITE, [muclight, muc],
+ "at the moment muc/muclight doesn't support dynamic domains"}.
+
+{suites, "tests", inbox_extensions_SUITE}.
+{skip_groups, "tests", inbox_extensions_SUITE, [muclight],
+ "at the moment muclight doesn't support dynamic domains"}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
 
 {logdir, "ct_report"}.
