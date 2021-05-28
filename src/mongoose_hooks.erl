@@ -1283,7 +1283,7 @@ disco_local_features(Server, From, To, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: {result, [exml:element()]} | {error, any()}.
+    Result :: mongoose_disco:item_acc().
 disco_local_items(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_items, Server, empty,
                                      [From, To, Node, Lang]).
