@@ -41,29 +41,13 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                      From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | {error, any()} | empty.
-get_disco_items({result, Nodes}, From, To, <<"">>, _Lang) ->
+-spec get_disco_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_disco_items(Acc, From, To, <<>>, _Lang) ->
     Domains = domains_for_disco(To#jid.lserver, From),
-    ?LOG_DEBUG(#{what => gd_domains_fetched_for_disco,
-                 domains => Domains, input_nodes => Nodes}),
-    NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),
-    FilteredDomains = [Domain || Domain <- Domains, not gb_sets:is_member(Domain, NameSet)],
-    ?LOG_DEBUG(#{what => gd_get_disco_items_result,
-                 text => <<"Adding global domains to disco results">>,
-                 domains => FilteredDomains}),
-    NewNodes =
-        lists:foldl(
-          fun(Domain, Acc) ->
-                  [#xmlel{name  = <<"item">>, attrs = [{<<"jid">>, Domain}]} | Acc]
-          end,
-          Nodes,
-          FilteredDomains),
-    {result, NewNodes};
-get_disco_items(empty, From, To, Node, Lang) ->
-    get_disco_items({result, []}, From, To, Node, Lang);
+    ?LOG_DEBUG(#{what => gd_domains_fetched_for_disco, domains => Domains}),
+    Items = [#{jid => Domain} || Domain <- Domains],
+    mongoose_disco:add_items(Items, Acc);
 get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
