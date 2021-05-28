@@ -313,13 +313,11 @@ send_stanza(BinStanza) ->
 do_send_packet(From, To, Packet) ->
     case mongoose_domain_api:get_domain_host_type(From#jid.lserver) of
         {ok, HostType} ->
-            Acc0 = mongoose_acc:new(#{location => ?LOCATION,
+            Acc = mongoose_acc:new(#{location => ?LOCATION,
                                       host_type => HostType,
                                       lserver => From#jid.lserver,
                                       element => Packet}),
-            mongoose_hooks:user_send_packet(From#jid.lserver,
-                                            Acc0,
-                                            From, To, Packet),
+            mongoose_hooks:user_send_packet(Acc, From, To, Packet),
             ejabberd_router:route(From, To, Packet),
             ok;
         {error, not_found} ->

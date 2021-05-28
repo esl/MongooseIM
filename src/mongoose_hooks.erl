@@ -40,7 +40,7 @@
          user_ping_timeout/2,
          user_receive_packet/6,
          user_sent_keep_alive/2,
-         user_send_packet/5,
+         user_send_packet/4,
          vcard_set/3,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
@@ -495,15 +495,14 @@ user_sent_keep_alive(HostType, JID) ->
 %%% The hook's handler is expected to accept four parameters:
 %%% `Acc', `From', `To' and `Packet'
 %%% The arguments and the return value types correspond to the following spec.
--spec user_send_packet(HostType, Acc, From, To, Packet) -> Result when
-    HostType :: binary(),
+-spec user_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-user_send_packet(HostType, Acc, From, To, Packet) ->
-    %% TODO: ejabberd_c2s calls this hook with host type, fix other places.
+user_send_packet(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(user_send_packet, HostType, Acc,
                                      [From, To, Packet]).
 
