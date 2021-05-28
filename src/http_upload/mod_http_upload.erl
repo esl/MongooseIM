@@ -164,30 +164,20 @@ get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
 get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-
--spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                      From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | {error, any()}.
-get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
-    Item = #xmlel{name  = <<"item">>,
-                  attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},
-    {result, [Item | Nodes]};
-get_disco_items(empty, From, To, Node, Lang) ->
-    get_disco_items({result, []}, From, To, Node, Lang);
+-spec get_disco_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_disco_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
+    mongoose_disco:add_items([#{jid => subhost(Host), name => my_disco_name(Lang)}], Acc);
 get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-
--spec get_disco_features(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                         Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
-get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
-    {result, [?NS_HTTP_UPLOAD_030 | Nodes]};
-get_disco_features(empty, From, To, Node, Lang) ->
-    get_disco_features({result, []}, From, To, Node, Lang);
+-spec get_disco_features(Acc :: mongoose_disco:acc(),
+                         From :: jid:jid(), To :: jid:jid(),
+                         Node :: binary(), ejabberd:lang()) -> mongoose_disco:feature_acc().
+get_disco_features(Acc, _From, _To, _Node = <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_HTTP_UPLOAD_030], Acc);
 get_disco_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
-
 
 -spec get_disco_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
                      Lang :: ejabberd:lang()) -> [exml:element()].
