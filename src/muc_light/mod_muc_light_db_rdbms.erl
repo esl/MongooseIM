@@ -71,13 +71,13 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: jid:server()) -> ok.
-start(_Host) ->
+-spec start(HostType :: mongooseim:host_type()) -> ok.
+start(_HostType) ->
     prepare_queries(),
     ok.
 
--spec stop(Host :: jid:server()) -> ok.
-stop(_Host) ->
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
+stop(_HostType) ->
     ok.
 
 %% ------------------------ SQL -------------------------------------------

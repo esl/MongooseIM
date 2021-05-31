@@ -197,8 +197,7 @@ archive_id(Server, User)
 
 -spec start(HostType :: host_type(), Opts :: list()) -> any().
 start(HostType, Opts) ->
-    ?LOG_INFO(#{what => mam_starting}),
-    ?LOG_ERROR(#{what => mam_starting, host_type => HostType}),
+    ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     add_id_handlers(HostType, Opts),
@@ -207,8 +206,7 @@ start(HostType, Opts) ->
 
 -spec stop(HostType :: host_type()) -> any().
 stop(HostType) ->
-    ?LOG_INFO(#{what => mam_stopping}),
-    ?LOG_ERROR(#{what => mam_stopping, host_type => HostType}),
+    ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
     unregister_features(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
