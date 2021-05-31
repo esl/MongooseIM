@@ -53,7 +53,7 @@ maybe_reset_unread_count(HostType, User, Room, Packet) ->
                                   Packet :: exml:element(),
                                   Acc :: mongoose_acc:t()) -> ok.
 maybe_handle_system_message(HostType, RoomOrUser, Receiver, Packet, Acc) ->
-    case is_system_message(RoomOrUser, Receiver, Packet) of
+    case is_system_message(HostType, RoomOrUser, Receiver, Packet) of
         true ->
             handle_system_message(HostType, RoomOrUser, Receiver, Packet, Acc);
         _ ->
@@ -136,13 +136,13 @@ write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
 
 %% @doc Check if sender is just 'roomname@muclight.domain' with no resource
 %% TODO: Replace sender domain check with namespace check - current logic won't handle all cases!
--spec  is_system_message(Sender :: jid:jid(),
+-spec  is_system_message(HostType :: mongooseim:host_type(),
+                         Sender :: jid:jid(),
                          Receiver :: jid:jid(),
                          Packet :: exml:element()) -> boolean().
-is_system_message(Sender, Receiver, Packet) ->
+is_system_message(HostType, Sender, Receiver, Packet) ->
     ReceiverDomain = Receiver#jid.lserver,
-    MUCLightDomain = gen_mod:get_module_opt_subhost(ReceiverDomain, mod_muc_light,
-                                                    mod_muc_light:default_host()),
+    MUCLightDomain = mod_muc_light:server_host_to_muc_host(HostType, ReceiverDomain),
     case {Sender#jid.lserver, Sender#jid.lresource} of
         {MUCLightDomain, <<>>} ->
             true;

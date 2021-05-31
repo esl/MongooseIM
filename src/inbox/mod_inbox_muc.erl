@@ -120,4 +120,6 @@ write_to_receiver_inbox(Server, User, Remote, Packet, Acc) ->
 %% A local host can be used to fire hooks or write into database on this node.
 -spec is_local_xmpp_host(jid:lserver()) -> boolean().
 is_local_xmpp_host(LServer) ->
-    lists:member(LServer, ?MYHOSTS).
+    F = fun mongoose_domain_api:get_domains_by_host_type/1,
+    ServedDomains = lists:flatmap(F, ?ALL_HOST_TYPES),
+    lists:member(LServer, ServedDomains).

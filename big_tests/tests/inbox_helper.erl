@@ -139,7 +139,7 @@ inbox_modules() ->
 
 muclight_modules() ->
     [
-     {mod_muc_light, [{host, subhost_pattern(muclight_config_domain())},
+     {mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
                       {backend, rdbms}]}
     ].
 
