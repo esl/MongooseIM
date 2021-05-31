@@ -381,11 +381,11 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-            dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
-            dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
-            dynamic_modules:start(domain(), mod_mam_rdbms_user, [pm, muc]),
+            dynamic_modules:start(host_type(), mod_mam_muc_rdbms_arch, [muc]),
+            dynamic_modules:start(host_type(), mod_mam_rdbms_prefs, [muc]),
+            dynamic_modules:start(host_type(), mod_mam_rdbms_user, [pm, muc]),
             HostPattern = subhost_pattern("muc.@HOST@"),
-            dynamic_modules:start(domain(), mod_mam_muc, [{host, HostPattern}]);
+            dynamic_modules:start(host_type(), mod_mam_muc, [{host, HostPattern}]);
         _ ->
             ok
     end,
@@ -448,10 +448,10 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-    dynamic_modules:stop(domain(), mod_mam_muc_rdbms_arch),
-    dynamic_modules:stop(domain(), mod_mam_rdbms_prefs),
-    dynamic_modules:stop(domain(), mod_mam_rdbms_user),
-            dynamic_modules:stop(domain(), mod_mam_muc);
+    dynamic_modules:stop(host_type(), mod_mam_muc_rdbms_arch),
+    dynamic_modules:stop(host_type(), mod_mam_rdbms_prefs),
+    dynamic_modules:stop(host_type(), mod_mam_rdbms_user),
+            dynamic_modules:stop(host_type(), mod_mam_muc);
         _ ->
             ok
     end,
@@ -529,9 +529,9 @@ init_per_testcase(CN, Config)
 
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
-    dynamic_modules:start(domain(), mod_mam_muc,
+    dynamic_modules:start(host_type(), mod_mam_muc,
                           [{backend, rdbms},
-                           {host, subhost_pattern(muc_host())}]),
+                           {host, subhost_pattern(muc_helper:muc_host_pattern())}]),
     escalus:init_per_testcase(CaseName, Config);
 
 init_per_testcase(CaseName, Config) ->
@@ -601,7 +601,7 @@ end_per_testcase(CaseName =reserved_nickname_request, Config) ->
 
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
