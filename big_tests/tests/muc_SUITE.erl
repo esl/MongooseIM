@@ -320,7 +320,7 @@ init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
-    dynamic_modules:start(host_type(), mod_disco, []),
+    dynamic_modules:restart(host_type(), mod_disco, []),
     load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.
@@ -380,11 +380,11 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-            dynamic_modules:start(host_type(), mod_mam_muc_rdbms_arch, [muc]),
-            dynamic_modules:start(host_type(), mod_mam_rdbms_prefs, [muc]),
-            dynamic_modules:start(host_type(), mod_mam_rdbms_user, [pm, muc]),
+            dynamic_modules:restart(host_type(), mod_mam_muc_rdbms_arch, [muc]),
+            dynamic_modules:restart(host_type(), mod_mam_rdbms_prefs, [muc]),
+            dynamic_modules:restart(host_type(), mod_mam_rdbms_user, [pm, muc]),
             HostPattern = subhost_pattern("muc.@HOST@"),
-            dynamic_modules:start(host_type(), mod_mam_muc, [{host, HostPattern}]);
+            dynamic_modules:restart(host_type(), mod_mam_muc, [{host, HostPattern}]);
         _ ->
             ok
     end,
@@ -528,7 +528,7 @@ init_per_testcase(CN, Config)
 
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
-    dynamic_modules:start(host_type(), mod_mam_muc,
+    dynamic_modules:restart(host_type(), mod_mam_muc,
                           [{backend, rdbms},
                            {host, subhost_pattern(muc_helper:muc_host_pattern())}]),
     escalus:init_per_testcase(CaseName, Config);
