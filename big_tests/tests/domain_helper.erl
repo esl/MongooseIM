@@ -4,10 +4,11 @@
          delete_configured_domains/0,
          insert_domain/3,
          delete_domain/2,
+         make_metrics_prefix/1,
          host_type/1,
          host_type/2]).
 
--import(distributed_helper, [get_or_fail/1, rpc/4]).
+-import(distributed_helper, [get_or_fail/1, rpc/4, mim/0]).
 
 host_type(NodeKey) ->
     host_type(NodeKey, domain).
@@ -17,6 +18,9 @@ host_type(NodeKey, DomainKey) ->
     Domain = get_or_fail({hosts, NodeKey, DomainKey}),
     {ok, HostType} = rpc(Node, mongoose_domain_core, get_host_type, [Domain]),
     HostType.
+
+make_metrics_prefix(HostType) ->
+    rpc(mim(), mongoose_metrics, make_host_type_name, [HostType]).
 
 insert_configured_domains() ->
     for_each_configured_domain(fun insert_domain/3).

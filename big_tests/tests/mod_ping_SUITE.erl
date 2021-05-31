@@ -131,9 +131,10 @@ clear_pong_hook(HostType, Handler) ->
 ping(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
     HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostType, mod_ping, ping_response],0},
-        {[HostType, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -162,9 +163,10 @@ wrong_ping(Config) ->
 active(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
     HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostType, mod_ping, ping_response],0},
-        {[HostType, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -180,9 +182,10 @@ active(ConfigIn) ->
 
 active_keep_alive(ConfigIn) ->
     HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostType, mod_ping, ping_response],0},
-        {[HostType, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -196,10 +199,11 @@ active_keep_alive(ConfigIn) ->
 
 server_ping_pong(ConfigIn) ->
     HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostType, mod_ping, ping_response], 5},
-        {[HostType, mod_ping, ping_response_timeout], 0},
-        {[HostType, mod_ping, ping_response_time], changed}
+        {[HostTypePrefix, mod_ping, ping_response], 5},
+        {[HostTypePrefix, mod_ping, ping_response_timeout], 0},
+        {[HostTypePrefix, mod_ping, ping_response_time], changed}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
@@ -216,9 +220,10 @@ server_ping_pong(ConfigIn) ->
 
 server_ping_pang(ConfigIn) ->
     HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[HostType, mod_ping, ping_response], 0},
-        {[HostType, mod_ping, ping_response_timeout], 1}
+        {[HostTypePrefix, mod_ping, ping_response], 0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout], 1}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],

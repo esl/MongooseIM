@@ -23,6 +23,7 @@
          create_global_metrics/0,
          init_predefined_host_type_metrics/1,
          init_subscriptions/0,
+         make_host_type_name/1,
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
          update/3,
