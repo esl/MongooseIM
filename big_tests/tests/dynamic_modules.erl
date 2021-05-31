@@ -70,6 +70,8 @@ start(Node, HostType, Mod, Args) ->
     case escalus_rpc:call(Node, gen_mod, start_module, [HostType, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
+        Reason ->
+            ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
         R -> R
     end.
 
