@@ -204,7 +204,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config) ->
     {ok, _RoomUS} = rpc(?BACKEND, create_room, [RoomUS, DefaultConfig, AffUsers, <<"-">>]).
 
 clear_db() ->
-    rpc(?BACKEND, force_clear, []).
+    muc_light_helper:clear_db().
 
 %%--------------------------------------------------------------------
 %% MUC light tests

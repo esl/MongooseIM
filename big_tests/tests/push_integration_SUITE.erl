@@ -157,7 +157,7 @@ init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
 init_per_group(G, Config) ->
     %% Some cleaning up
     C = init_modules(G, Config),
-    catch rpc(?RPC_SPEC, mod_muc_light_db_backend, force_clear, []),
+    muc_light_helper:clear_db(),
     C.
 
 end_per_group(_, Config) ->

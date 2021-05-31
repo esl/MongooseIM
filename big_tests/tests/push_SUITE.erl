@@ -112,7 +112,7 @@ init_per_group(muclight_msg_notifications, Config0) ->
                                            [{host, subhost_pattern(?MUCHOST)},
                                             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                             {rooms_in_rosters, true}]}]),
-    rpc(mod_muc_light_db_backend, force_clear, []),
+    muc_light_helper:clear_db(),
     Config;
 init_per_group(_, Config) ->
     ensure_pusher_module_and_save_old_mods(Config).
