@@ -54,10 +54,10 @@ suite() ->
     escalus:suite().
 
 ping_interval() ->
-    3.
+    timer:seconds(3).
 
 ping_req_timeout() ->
-    2.
+    timer:seconds(2).
 
 init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
@@ -83,8 +83,8 @@ init_per_group(server_ping_kill, Config) ->
     [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Domain, mod_ping),
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:stop(HostType, mod_ping),
     Config.
 
 init_per_testcase(server_ping_pong = CN, Config) ->
@@ -100,39 +100,41 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_ping(Opts) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Domain, mod_ping, Opts).
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:start(HostType, mod_ping, Opts).
 
 setup_pong_hook(Config) ->
     Pid = self(),
-    Host = escalus_users:get_host(Config, alice),
-    Handler = mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [Host, Pid]),
+    HostType = domain_helper:host_type(mim),
+    Handler = mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
     [{pong_handler, Handler} | Config].
 
-setup_pong_hook(Host, Pid) ->
-    Handler = fun(_Acc, JID, _Response, _TDelta) ->
+setup_pong_hook(HostType, Pid) ->
+    Handler = fun(_Acc, _HostType, JID, _Response, _TDelta) ->
                       Pid ! {pong, jid:to_binary(jid:to_lower(JID))}
               end,
-    ejabberd_hooks:add(user_ping_response, Host, Handler, 50),
+    ejabberd_hooks:add(user_ping_response, HostType, Handler, 50),
     Handler.
 
 clear_pong_hook(Config) ->
     {value, {_, Handler}, NConfig} = lists:keytake(pong_handler, 1, Config),
-    Host = escalus_users:get_host(Config, alice),
-    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [Host, Handler]),
+    HostType = domain_helper:host_type(mim),
+    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Handler]),
     NConfig.
 
-clear_pong_hook(Host, Handler) ->
-    ejabberd_hooks:delete(user_ping_response, Host, Handler, 50).
+clear_pong_hook(HostType, Handler) ->
+    ejabberd_hooks:delete(user_ping_response, HostType, Handler, 50).
 
 %%--------------------------------------------------------------------
 %% Ping tests
 %%--------------------------------------------------------------------
 ping(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[Domain, mod_ping, ping_response],0},
-        {[Domain, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -146,23 +148,25 @@ ping(ConfigIn) ->
 
 wrong_ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
-                        fun(Alice) ->
-                            Domain = ct:get_config({hosts, mim, domain}),
-                            IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
-                                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
-                            }]),
-                            PingReq = escalus_stanza:to(IQ, Domain),
-                            escalus_client:send(Alice, PingReq),
+        fun(Alice) ->
+            Domain = ct:get_config({hosts, mim, domain}),
+            IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
+                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
+            }]),
+            PingReq = escalus_stanza:to(IQ, Domain),
+            escalus_client:send(Alice, PingReq),
 
-                            PingResp = escalus_client:wait_for_stanza(Alice),
-                            escalus:assert(is_iq_error, [PingReq], PingResp)
-                        end).
+            PingResp = escalus_client:wait_for_stanza(Alice),
+            escalus:assert(is_iq_error, [PingReq], PingResp)
+        end).
 
 active(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[Domain, mod_ping, ping_response],0},
-        {[Domain, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -177,10 +181,11 @@ active(ConfigIn) ->
         end).
 
 active_keep_alive(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[Domain, mod_ping, ping_response],0},
-        {[Domain, mod_ping, ping_response_timeout],0}
+        {[HostTypePrefix, mod_ping, ping_response],0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout],0}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
@@ -193,11 +198,12 @@ active_keep_alive(ConfigIn) ->
         end).
 
 server_ping_pong(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[Domain, mod_ping, ping_response], 5},
-        {[Domain, mod_ping, ping_response_timeout], 0},
-        {[Domain, mod_ping, ping_response_time], changed}
+        {[HostTypePrefix, mod_ping, ping_response], 5},
+        {[HostTypePrefix, mod_ping, ping_response_timeout], 0},
+        {[HostTypePrefix, mod_ping, ping_response_time], changed}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     %% We use 5 Alices because with just 1 sample the histogram may look like it hasn't changed
@@ -213,24 +219,25 @@ server_ping_pong(ConfigIn) ->
         end).
 
 server_ping_pang(ConfigIn) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
     Metrics = [
-        {[Domain, mod_ping, ping_response], 0},
-        {[Domain, mod_ping, ping_response_timeout], 1}
+        {[HostTypePrefix, mod_ping, ping_response], 0},
+        {[HostTypePrefix, mod_ping, ping_response_timeout], 1}
     ],
     Config = [{mongoose_metrics, Metrics} | ConfigIn],
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 wait_for_ping_req(Alice),
                 %% do not resp to ping req
-                ct:sleep(timer:seconds(ping_req_timeout() + 0.5)),
+                ct:sleep(ping_req_timeout() + timer:seconds(1)/2),
                 TimeoutAction = ?config(timeout_action, Config),
                 check_connection(TimeoutAction, Alice),
                 escalus_client:kill_connection(Config, Alice)
         end).
 
 wait_ping_interval(Ration) ->
-    WaitTime = timer:seconds(ping_interval()) * Ration,
+    WaitTime = ping_interval() * Ration,
     ct:sleep(WaitTime).
 
 check_connection(kill, Client) ->

@@ -15,6 +15,8 @@
 {skip_cases, "tests", carboncopy_SUITE, [discovering_support],
  "at the moment mod_disco doesn't support dynamic domains"}.
 
+{suites, "tests", mod_ping_SUITE}.
+
 {suites, "tests", inbox_SUITE}.
 {skip_cases, "tests", inbox_SUITE, [disco_service],
  "at the moment mod_disco doesn't support dynamic domains"}.
