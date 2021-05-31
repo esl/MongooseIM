@@ -181,6 +181,6 @@ validate_room_id(RoomIDOrJID, Server, Req) ->
                            text => <<"REST received room_id field is invalid "
                                      "or of unknown format">>,
                            server => Server, room => RoomIDOrJID, reason => Other,
-                           cowboy_req => Req}),
+                           req => Req}),
             error
     end.

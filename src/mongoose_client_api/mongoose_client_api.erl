@@ -81,8 +81,7 @@ set_resp_body_if_missing(Body, Req) ->
 maybe_report_error(StatusCode, Req, Body) when StatusCode >= 400 ->
     ?LOG_WARNING(#{what => reply_error,
                    stacktrace => element(2, erlang:process_info(self(), current_stacktrace)),
-                   status_code => StatusCode,
-                   cowboy_req => Req, body => Body});
+                   code => StatusCode, req => Req, reply_body => Body});
 maybe_report_error(_StatusCode, _Req, _Body) ->
     ok.
 
