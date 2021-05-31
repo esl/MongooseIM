@@ -53,7 +53,7 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
                     {false, Req, State}
             end;
         _ ->
-            case validate_room_id(RoomIDOrJID, Server) of
+            case validate_room_id(RoomIDOrJID, Server, Req) of
                 {ok, RoomID} ->
                     State2 = set_room_id(RoomID, State),
                     does_room_exist(MUCLightDomain, Req, State2);
@@ -111,19 +111,28 @@ from_json(Req, State) ->
         {ok, #{<<"name">> := N, <<"subject">> := S} = JSONData} when is_binary(N), is_binary(S) ->
             handle_request(Method, JSONData, Req2, State);
         _ ->
-            {false, Req, State}
+            mongoose_client_api:bad_request(Req, <<"Failed to parse parameters">>, State)
     end.
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
-        {error, _, _} ->
-            {false, Req, State};
+        {error, Short, Desc} ->
+            mongoose_client_api:bad_request(Req, format_error(Short, Desc), State);
         Room ->
             RoomJID = jid:from_binary(Room),
             RespBody = #{<<"id">> => RoomJID#jid.luser},
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
             {true, RespReq, State}
     end.
+
+format_error(Short, Desc) ->
+    jiffy:encode(#{module => <<"mongoose_client_api_rooms">>,
+                   what => <<"Failed to create room">>,
+                   reason => term_to_bin(Short),
+                   description => term_to_bin(Desc)}).
+
+term_to_bin(Term) ->
+    iolist_to_binary(io_lib:format("~p", [Term])).
 
 handle_request_by_method(<<"POST">>, JSONData, _Req,
                          #{user := User, jid := #jid{lserver = Server}}) ->
@@ -157,9 +166,10 @@ determine_role(US, Users) ->
             Role
     end.
 
--spec validate_room_id(RoomIDOrJID :: binary(), Server :: binary()) ->
+-spec validate_room_id(RoomIDOrJID :: binary(), Server :: binary(),
+                       Req :: cowboy_req:req()) ->
     {ok, RoomID :: binary()} | error.
-validate_room_id(RoomIDOrJID, Server) ->
+validate_room_id(RoomIDOrJID, Server, Req) ->
     MUCLightDomain = muc_light_domain(Server),
     case jid:from_binary(RoomIDOrJID) of
         #jid{luser = <<>>, lserver = RoomID, lresource = <<>>} ->
@@ -170,6 +180,7 @@ validate_room_id(RoomIDOrJID, Server) ->
             ?LOG_WARNING(#{what => muc_invalid_room_id,
                            text => <<"REST received room_id field is invalid "
                                      "or of unknown format">>,
-                           server => Server, room => RoomIDOrJID, reason => Other}),
+                           server => Server, room => RoomIDOrJID, reason => Other,
+                           cowboy_req => Req}),
             error
     end.
