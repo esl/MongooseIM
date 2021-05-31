@@ -16,7 +16,6 @@
          ).
 
 -import(muc_light_helper, [set_mod_config/3]).
--import(distributed_helper, [subhost_pattern/1]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -116,12 +115,13 @@ security_test_cases() ->
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
     Host = ct:get_config({hosts, mim, host_type}),
-    dynamic_modules:save_modules(Host, C),
-    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C),
+    C1 = dynamic_modules:save_modules(Host, C),
+    C2 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, C1),
+    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
     dynamic_modules:start(Host, mod_muc_light,
-                          [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
+                          [{host, MucPattern},
                            {rooms_in_rosters, true}]),
-    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(C1)].
+    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(C2)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
