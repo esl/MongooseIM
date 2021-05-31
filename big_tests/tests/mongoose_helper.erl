@@ -231,9 +231,13 @@ ensure_muc_clean() ->
     forget_persistent_rooms().
 
 stop_online_rooms() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Supervisor = rpc(mim(), gen_mod, get_module_proc, [Host, ejabberd_mod_muc_sup]),
+    HostType = ct:get_config({hosts, mim, host_type}),
+    Supervisor = rpc(mim(), gen_mod, get_module_proc, [HostType, ejabberd_mod_muc_sup]),
     SupervisorPid = rpc(mim(), erlang, whereis, [Supervisor]),
+    case is_pid(SupervisorPid) of
+        true -> ok;
+        false -> ct:fail({ejabberd_mod_muc_sup_not_found, Supervisor, HostType})
+    end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
     rpc(mim(), mnesia, clear_table, [muc_online_room]),
     ok.

@@ -65,7 +65,7 @@
 -define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
--define(MUCHOST, <<"muc.localhost">>).
+-define(MUCHOST, (muc_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -229,7 +229,7 @@ disco_info_with_mam(Config) ->
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
+            {ok, {?ROOM2, _}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
             DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
             escalus:send(Alice, DiscoStanza),
             %% we should get 1 room, Alice is not in the second one
@@ -265,7 +265,7 @@ disco_rooms_rsm(Config) ->
             ProperJID2 = exml_query:attr(Item2, <<"jid">>),
 
             BadAfter = #xmlel{ name = <<"after">>,
-                               children = [#xmlcdata{ content = <<"oops@muc.localhost">> }] },
+                               children = [#xmlcdata{ content = <<"oops@", (?MUCHOST)/binary>> }] },
             RSM2 = #xmlel{ name = <<"set">>,
                           attrs = [{<<"xmlns">>, ?NS_RSM}],
                           children = [ #xmlel{ name = <<"max">>,
@@ -280,7 +280,7 @@ disco_rooms_rsm(Config) ->
 
 unauthorized_stanza(Config) ->
     escalus:story(Config, [{alice, 1}, {kate, 1}], fun(Alice, Kate) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
+            {ok, {?ROOM2, _}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
             MsgStanza = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), <<"malicious">>),
             escalus:send(Alice, MsgStanza),
             escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
@@ -676,14 +676,16 @@ parse_blocked_item(Item) ->
     <<"deny">> = exml_query:attr(Item, <<"action">>),
     <<"jid">> = exml_query:attr(Item, <<"type">>),
     Value = exml_query:attr(Item, <<"value">>),
+    MucHost = ?MUCHOST,
     case binary:split(Value, <<"/">>) of
-        [?MUCHOST, User] -> {user, deny, User};
+        [MucHost, User] -> {user, deny, User};
         [Room] -> {room, deny, Room}
     end.
 
 -spec verify_aff_bcast(CurrentOccupants :: [escalus:client()], AffUsersChanges :: ct_aff_users(),
                        Newcomers :: [escalus:client()], Changer :: escalus:client()) -> ok.
 verify_aff_bcast(CurrentOccupants, AffUsersChanges, Newcomers, Changer) ->
+    MucHost = ?MUCHOST,
     PredList = [ presence_verify_fun(AffUser) || AffUser <- AffUsersChanges ],
     lists:foreach(
       fun(Occupant) ->
@@ -699,7 +701,7 @@ verify_aff_bcast(CurrentOccupants, AffUsersChanges, Newcomers, Changer) ->
       fun(Newcomer) ->
               #xmlel{ name = <<"message">> } = Incoming = escalus:wait_for_stanza(Newcomer),
               RoomBareJIDBin = exml_query:attr(Incoming, <<"from">>),
-              [_, ?MUCHOST] = binary:split(RoomBareJIDBin, <<"@">>),
+              [_, MucHost] = binary:split(RoomBareJIDBin, <<"@">>),
               X = exml_query:subelement(Incoming, <<"x">>),
               ?NS_MUC_USER = exml_query:attr(X, <<"xmlns">>),
               [Invite] = exml_query:subelements(X, <<"invite">>),
@@ -753,21 +755,23 @@ verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 
 -spec gc_message_verify_fun(Room :: binary(), MsgText :: binary(), Id :: binary()) -> verify_fun().
 gc_message_verify_fun(Room, MsgText, Id) ->
+    MucHost = ?MUCHOST,
     fun(Incoming) ->
             escalus:assert(is_groupchat_message, [MsgText], Incoming),
             [RoomBareJID, FromNick] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
-            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>),
+            [Room, MucHost] = binary:split(RoomBareJID, <<"@">>),
             [_] = binary:split(FromNick, <<"/">>), % nick is bare JID
             Id = exml_query:attr(Incoming, <<"id">>)
     end.
 
 -spec subject_message_verify_fun(Room :: binary(), Subject :: binary()) -> verify_fun().
 subject_message_verify_fun(Room, Subject) ->
+    MucHost = ?MUCHOST,
     fun(Incoming) ->
             escalus:assert(is_groupchat_message, Incoming),
             Subject = exml_query:path(Incoming, [{element, <<"subject">>}, cdata]),
             RoomBareJID = exml_query:attr(Incoming, <<"from">>),
-            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>)
+            [Room, MucHost] = binary:split(RoomBareJID, <<"@">>)
     end.
 
 -spec config_msg_verify_fun() -> verify_fun().
@@ -808,9 +812,10 @@ presence_verify_fun({User, UserAff}) ->
 -spec presence_verify(User :: escalus:client(), UserAff :: none | member | owner,
                       Incoming :: xmlel()) -> true.
 presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
+    MucHost = ?MUCHOST,
     UserJIDBin = lbin(escalus_client:short_jid(User)),
     [RoomBareJIDBin, UserJIDBin] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
-    [_, ?MUCHOST] = binary:split(RoomBareJIDBin, <<"@">>),
+    [_, MucHost] = binary:split(RoomBareJIDBin, <<"@">>),
     X = exml_query:subelement(Incoming, <<"x">>),
     HasDestroy = exml_query:subelement(X, <<"destroy">>) =/= undefined,
     {ProperAff, ProperRole}

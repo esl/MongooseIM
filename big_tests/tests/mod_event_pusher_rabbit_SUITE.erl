@@ -128,7 +128,7 @@ init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(amqp_client),
     case is_rabbitmq_available() of
         true ->
-            muc_helper:load_muc(muc_helper:muc_host()),
+            muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}

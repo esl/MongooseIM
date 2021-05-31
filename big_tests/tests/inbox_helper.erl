@@ -81,7 +81,7 @@
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
--define(MUC_DOMAIN, <<"muc.localhost">>).
+-define(MUC_DOMAIN, (ct:get_config({hosts, mim, muc_service}))).
 
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
