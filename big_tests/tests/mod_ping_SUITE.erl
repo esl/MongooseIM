@@ -83,8 +83,8 @@ init_per_group(server_ping_kill, Config) ->
     [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
-    Domain = ct:get_config({hosts, mim, host_type}),
-    dynamic_modules:stop(Domain, mod_ping),
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:stop(HostType, mod_ping),
     Config.
 
 init_per_testcase(server_ping_pong = CN, Config) ->
@@ -100,12 +100,12 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 start_mod_ping(Opts) ->
-    Domain = ct:get_config({hosts, mim, host_type}),
-    dynamic_modules:start(Domain, mod_ping, Opts).
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:start(HostType, mod_ping, Opts).
 
 setup_pong_hook(Config) ->
     Pid = self(),
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Handler = mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
     [{pong_handler, Handler} | Config].
 
@@ -118,7 +118,7 @@ setup_pong_hook(HostType, Pid) ->
 
 clear_pong_hook(Config) ->
     {value, {_, Handler}, NConfig} = lists:keytake(pong_handler, 1, Config),
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Handler]),
     NConfig.
 
@@ -130,7 +130,7 @@ clear_pong_hook(HostType, Handler) ->
 %%--------------------------------------------------------------------
 ping(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Metrics = [
         {[HostType, mod_ping, ping_response],0},
         {[HostType, mod_ping, ping_response_timeout],0}
@@ -147,21 +147,21 @@ ping(ConfigIn) ->
 
 wrong_ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
-                        fun(Alice) ->
-                            Domain = ct:get_config({hosts, mim, domain}),
-                            IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
-                                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
-                            }]),
-                            PingReq = escalus_stanza:to(IQ, Domain),
-                            escalus_client:send(Alice, PingReq),
+        fun(Alice) ->
+            Domain = ct:get_config({hosts, mim, domain}),
+            IQ = escalus_stanza:iq(<<"get">>, [#xmlel{name = <<"unsupported">>,
+                                                      attrs = [{<<"xmlns">>, ?NS_PING}]
+            }]),
+            PingReq = escalus_stanza:to(IQ, Domain),
+            escalus_client:send(Alice, PingReq),
 
-                            PingResp = escalus_client:wait_for_stanza(Alice),
-                            escalus:assert(is_iq_error, [PingReq], PingResp)
-                        end).
+            PingResp = escalus_client:wait_for_stanza(Alice),
+            escalus:assert(is_iq_error, [PingReq], PingResp)
+        end).
 
 active(ConfigIn) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Metrics = [
         {[HostType, mod_ping, ping_response],0},
         {[HostType, mod_ping, ping_response_timeout],0}
@@ -179,7 +179,7 @@ active(ConfigIn) ->
         end).
 
 active_keep_alive(ConfigIn) ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Metrics = [
         {[HostType, mod_ping, ping_response],0},
         {[HostType, mod_ping, ping_response_timeout],0}
@@ -195,7 +195,7 @@ active_keep_alive(ConfigIn) ->
         end).
 
 server_ping_pong(ConfigIn) ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Metrics = [
         {[HostType, mod_ping, ping_response], 5},
         {[HostType, mod_ping, ping_response_timeout], 0},
@@ -215,7 +215,7 @@ server_ping_pong(ConfigIn) ->
         end).
 
 server_ping_pang(ConfigIn) ->
-    HostType = ct:get_config({hosts, mim, host_type}),
+    HostType = domain_helper:host_type(mim),
     Metrics = [
         {[HostType, mod_ping, ping_response], 0},
         {[HostType, mod_ping, ping_response_timeout], 1}
