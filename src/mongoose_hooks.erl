@@ -1140,21 +1140,21 @@ mam_muc_flush_messages(HookServer, MessageCount) ->
 
 %%% @doc `get_mam_pm_gdpr_data' hook is called to provide
 %%% a user's archive for GDPR purposes.
--spec get_mam_pm_gdpr_data(HookServer, JID) -> Result when
-      HookServer :: jid:lserver(),
+-spec get_mam_pm_gdpr_data(HostType, JID) -> Result when
+      HostType :: mongooseim:host_type(),
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(HookServer, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_pm_gdpr_data, HookServer, [], [JID]).
+get_mam_pm_gdpr_data(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(get_mam_pm_gdpr_data, HostType, [], [JID]).
 
 %%% @doc `get_mam_muc_gdpr_data' hook is called to provide
 %%% a user's archive for GDPR purposes.
--spec get_mam_muc_gdpr_data(HookServer, JID) -> Result when
-      HookServer :: jid:lserver(),
+-spec get_mam_muc_gdpr_data(HostType, JID) -> Result when
+      HostType :: mongooseim:host_type(),
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(HookServer, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_muc_gdpr_data, HookServer, [], [JID]).
+get_mam_muc_gdpr_data(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(get_mam_muc_gdpr_data, HostType, [], [JID]).
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.
@@ -1163,7 +1163,7 @@ get_mam_muc_gdpr_data(HookServer, JID) ->
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
 get_personal_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_personal_data, HostType, [], [JID]).
+    ejabberd_hooks:run_for_host_type(get_personal_data, HostType, [], [HostType, JID]).
 
 %% S2S related hooks
 
@@ -1430,12 +1430,12 @@ room_packet(Server, FromNick, FromJID, JID, Packet) ->
     ejabberd_hooks:run_for_host_type(room_packet, Server, ok,
                                      [FromNick, FromJID, JID, Packet]).
 
--spec update_inbox_for_muc(Server, Info) -> Result when
-    Server :: jid:server(),
+-spec update_inbox_for_muc(HostType, Info) -> Result when
+    HostType :: mongooseim:host_type(),
     Info :: mod_muc_room:update_inbox_for_muc_payload(),
     Result :: mod_muc_room:update_inbox_for_muc_payload().
-update_inbox_for_muc(Server, Info) ->
-    ejabberd_hooks:run_for_host_type(update_inbox_for_muc, Server, Info, []).
+update_inbox_for_muc(HostType, Info) ->
+    ejabberd_hooks:run_for_host_type(update_inbox_for_muc, HostType, Info, []).
 
 %% Caps related hooks
 

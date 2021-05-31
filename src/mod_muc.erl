@@ -462,10 +462,10 @@ handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
               end,
     try
         {ok, Pid} = mod_muc_room:start_new(HostType,
-                  MucHost, ServerHost, Access,
-                  Room, HistorySize,
-                  RoomShaper, HttpAuthPool, From,
-          Nick, [{instant, true}|NewOpts]),
+                                           MucHost, ServerHost, Access,
+                                           Room, HistorySize,
+                                           RoomShaper, HttpAuthPool, From,
+                                           Nick, [{instant, true}|NewOpts]),
         register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid),
         {reply, ok, State}
     catch Class:Reason:Stacktrace ->

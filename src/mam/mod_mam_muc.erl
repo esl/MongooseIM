@@ -48,7 +48,7 @@
          forget_room/4]).
 
 %% gdpr callback
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %% private
 -export([archive_message_for_ct/1]).
@@ -109,10 +109,11 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, HostType, ArcJID) ->
     Schema = ["id", "message"],
-    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, JID),
+    Entries = mongoose_hooks:get_mam_muc_gdpr_data(HostType, ArcJID),
     [{mam_muc, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> ok.

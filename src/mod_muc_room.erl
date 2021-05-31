@@ -131,6 +131,7 @@
 
 
 -type update_inbox_for_muc_payload() :: #{
+        host_type := mongooseim:host_type(),
         room_jid := jid:jid(),
         from_jid := jid:jid(),
         from_room_jid := jid:jid(),
@@ -880,12 +881,13 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
     RouteFrom = jid:replace_resource(StateData#state.jid,
                                      FromNick),
     RoomJid = StateData#state.jid,
-    HookInfo = #{room_jid => RoomJid,
+    HookInfo = #{host_type => StateData#state.host_type,
+                 room_jid => RoomJid,
                  from_jid => From,
                  from_room_jid => RouteFrom,
                  packet => FilteredPacket,
                  affiliations_map => StateData#state.affiliations},
-    run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
+    run_update_inbox_for_muc_hook(StateData#state.host_type, HookInfo),
     maps_foreach(fun(_LJID, Info) ->
                           ejabberd_router:route(RouteFrom,
                                                 Info#user.jid,
@@ -897,10 +899,10 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                            StateData),
     next_normal_state(NewStateData2).
 
--spec run_update_inbox_for_muc_hook(jid:server(),
+-spec run_update_inbox_for_muc_hook(mongooseim:host_type(),
                                     update_inbox_for_muc_payload()) -> ok.
-run_update_inbox_for_muc_hook(ServerHost, HookInfo) ->
-    mongoose_hooks:update_inbox_for_muc(ServerHost, HookInfo),
+run_update_inbox_for_muc_hook(HostType, HookInfo) ->
+    mongoose_hooks:update_inbox_for_muc(HostType, HookInfo),
     ok.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->

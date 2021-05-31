@@ -80,7 +80,7 @@
 -export([config_change/4]).
 
 %% GDPR related
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 -export([config_metrics/1]).
 
@@ -135,8 +135,8 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{luser = LUser, lserver = LServer}) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, _HostType, #jid{luser = LUser, lserver = LServer}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
     Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of

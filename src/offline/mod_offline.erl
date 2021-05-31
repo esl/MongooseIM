@@ -58,7 +58,7 @@
 -export([is_expired_message/2]).
 
 %% GDPR related
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 -export([config_metrics/1]).
 
@@ -520,7 +520,7 @@ pop_messages(#jid{lserver = LServer} = JID) ->
             Other
     end.
 
-get_personal_data(Acc, #jid{} = JID) ->
+get_personal_data(Acc, _HostType, #jid{} = JID) ->
     {ok, Messages} = mod_offline_backend:fetch_messages(JID),
     [ {offline, ["timestamp", "from", "to", "packet"],
        offline_messages_to_gdpr_format(Messages)} | Acc].
