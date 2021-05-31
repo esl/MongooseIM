@@ -191,9 +191,8 @@ process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Host = To#jid.lserver,
-
-    case mongoose_hooks:disco_local_items(Host, From, To, Node, Lang) of
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(To#jid.lserver),
+    case mongoose_hooks:disco_local_items(HostType, From, To, Node, Lang) of
         {result, Items} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
@@ -209,6 +208,7 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
 process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    %% Server or a subdomain
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Identity = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
@@ -219,8 +219,7 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
             {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                   children = Identity ++
-                                   Info ++
+                                   children = Identity ++ Info ++
                                    features_to_xml(Features)}]}};
         {error, Error} ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
