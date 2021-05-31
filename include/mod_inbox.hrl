@@ -28,4 +28,3 @@
 -type inbox_write_res() :: ok | {error, any()}.
 
 -type marker() :: binary().
-

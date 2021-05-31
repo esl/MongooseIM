@@ -148,7 +148,7 @@ generate_rpc_jid({_,User}) ->
 create_instant_room(Room, From, Nick, Opts) ->
     ServerHost = ct:get_config({hosts, mim, domain}),
     assert_valid_server(ServerHost),
-    Room1 = rpc(mim(), jid, nodeprep, [Room]),
+    Room1 = jid:nodeprep(Room),
     ok = rpc(mim(), mod_muc, create_instant_room,
         [ServerHost, muc_host(), Room1, From, Nick, Opts]).
 

@@ -17,12 +17,11 @@
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
 -export([maybe_reset_unread_count/4,
-         reset_unread_count_to_zero/2,
+         reset_unread_count_to_zero/3,
          maybe_write_to_inbox/6,
          write_to_sender_inbox/5,
          write_to_receiver_inbox/5,
-         clear_inbox/1,
-         clear_inbox/2,
+         clear_inbox/3,
          get_reset_markers/1,
          if_chat_marker_get_id/2,
          has_chat_marker/1,
@@ -35,83 +34,77 @@
          maybe_binary_to_positive_integer/1,
          maybe_muted_until/2,
          binary_to_bool/1,
-         bool_to_binary/1
+         bool_to_binary/1,
+         build_inbox_entry_key/2
         ]).
 
--spec maybe_reset_unread_count(Server :: host(),
+-spec maybe_reset_unread_count(HostType :: mongooseim:host_type(),
                                User :: jid:jid(),
                                Remote :: jid:jid(),
                                Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(Server, User, Remote, Packet) ->
-    ResetMarkers = get_reset_markers(Server),
+maybe_reset_unread_count(HostType, User, Remote, Packet) ->
+    ResetMarkers = get_reset_markers(HostType),
     case if_chat_marker_get_id(Packet, ResetMarkers) of
         undefined ->
             ok;
         Id ->
-            reset_unread_count(User, Remote, Id)
+            reset_unread_count(HostType, User, Remote, Id)
     end.
 
--spec reset_unread_count_to_zero(jid:jid(), jid:jid()) -> ok.
-reset_unread_count_to_zero(#jid{luser = FromUsername, lserver = Server}, Remote) ->
-    ToBareJid = jid:to_binary(jid:to_bare(Remote)),
-    ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, undefined).
+-spec reset_unread_count_to_zero(mongooseim:host_type(), jid:jid(), jid:jid()) -> ok.
+reset_unread_count_to_zero(HostType, From, Remote) ->
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, Remote),
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined).
 
--spec reset_unread_count(User :: jid:jid(),
+-spec reset_unread_count(HostType ::mongooseim:host_type(),
+                         From :: jid:jid(),
                          Remote :: jid:jid(),
                          MsgId :: id()) -> ok.
-reset_unread_count(User, Remote, MsgId) ->
-    FromUsername = User#jid.luser,
-    Server = User#jid.lserver,
-    ToBareJid = jid:to_binary(jid:to_bare(Remote)),
-    ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
+reset_unread_count(HostType, From, Remote, MsgId) ->
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, Remote),
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId).
 
--spec write_to_sender_inbox(Server :: host(),
+-spec write_to_sender_inbox(HostType :: mongooseim:host_type(),
                             Sender :: jid:jid(),
                             Receiver :: jid:jid(),
                             Packet :: exml:element(),
                             Acc :: mongoose_acc:t()) -> ok.
-write_to_sender_inbox(Server, Sender, Receiver, Packet, Acc) ->
+write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
-    Username = Sender#jid.luser,
-    RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     Timestamp = mongoose_acc:timestamp(Acc),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
-    ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
-                                     Content, Count, MsgId, Timestamp).
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Sender, Receiver),
+    ok = mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
 
--spec write_to_receiver_inbox(Server :: host(),
+-spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
                               Sender :: jid:jid(),
                               Receiver :: jid:jid(),
                               Packet :: exml:element(),
                               Acc :: mongoose_acc:t()) -> ok | {ok, integer()}.
-write_to_receiver_inbox(Server, Sender, Receiver, Packet, Acc) ->
+write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
-    Username = Receiver#jid.luser,
-    RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
     Timestamp = mongoose_acc:timestamp(Acc),
-    mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Receiver, Sender),
+    mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
                                             Content, MsgId, Timestamp).
 
--spec clear_inbox(User :: jid:luser(), Server :: host()) -> inbox_write_res().
-clear_inbox(User, Server) when is_binary(User) ->
+-spec clear_inbox(HostType :: mongooseim:host_type(),
+                  User :: jid:user(),
+                  Server :: jid:server()) -> inbox_write_res().
+clear_inbox(HostType, User, Server) when is_binary(User) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    ok = mod_inbox_backend:clear_inbox(LUser, LServer).
-
--spec clear_inbox(Server :: host()) -> inbox_write_res().
-clear_inbox(Server) ->
-    ok = mod_inbox_backend:clear_inbox(Server).
-
+    ok = mod_inbox_backend:clear_inbox(HostType, LUser, LServer).
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
 
--spec get_reset_markers(Host :: host()) -> list(marker()).
-get_reset_markers(Host) ->
-    gen_mod:get_module_opt(Host, mod_inbox, reset_markers, [<<"displayed">>]).
+-spec get_reset_markers(HostType :: mongooseim:host_type()) -> list(marker()).
+get_reset_markers(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_inbox, reset_markers, [<<"displayed">>]).
 
 -spec if_chat_marker_get_id(Packet :: exml:element(),
                             Markers :: list(marker())) -> undefined | id().
@@ -137,21 +130,21 @@ if_chat_marker_get_id(Packet, Marker) ->
 has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).
 
--spec maybe_write_to_inbox(Host, User, Remote, Packet, Acc, WriteF) -> ok | {ok, integer()} when
-      Host :: host(),
+-spec maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) -> ok | {ok, integer()} when
+      HostType ::mongooseim:host_type(),
       User :: jid:jid(),
       Remote :: jid:jid(),
       Packet :: exml:element(),
       Acc :: mongoose_acc:t(),
       %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
       WriteF :: fun().
-maybe_write_to_inbox(Host, User, Remote, Packet, Acc, WriteF) ->
+maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) ->
     case has_chat_marker(Packet) of
         true ->
             ok;
         false ->
             Packet2 = fill_from_attr(Packet, User),
-            WriteF(Host, User, Remote, Packet2, Acc)
+            WriteF(HostType, User, Remote, Packet2, Acc)
     end.
 
 -spec get_msg_id(Msg :: exml:element()) -> binary().
@@ -172,13 +165,13 @@ fill_from_attr(Msg = #xmlel{attrs = Attrs}, From) ->
 wrapper_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
--spec get_option_write_aff_changes(Host :: host()) -> boolean().
-get_option_write_aff_changes(Host) ->
-    gen_mod:get_module_opt(Host, mod_inbox, aff_changes, true).
+-spec get_option_write_aff_changes(HostType :: mongooseim:host_type()) -> boolean().
+get_option_write_aff_changes(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_inbox, aff_changes, true).
 
--spec get_option_remove_on_kicked(Host :: host()) -> boolean().
-get_option_remove_on_kicked(Host) ->
-    gen_mod:get_module_opt(Host, mod_inbox, remove_on_kicked, true).
+-spec get_option_remove_on_kicked(HostType :: mongooseim:host_type()) -> boolean().
+get_option_remove_on_kicked(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_inbox, remove_on_kicked, true).
 
 -spec reset_marker_to_bin(atom()) -> marker().
 reset_marker_to_bin(displayed) -> <<"displayed">>;
@@ -223,3 +216,8 @@ binary_to_bool(_) -> error.
 bool_to_binary(true) -> <<"true">>;
 bool_to_binary(false) -> <<"false">>;
 bool_to_binary(_) -> error.
+
+build_inbox_entry_key(FromJid, ToJid) ->
+    {LUser, LServer} = jid:to_lus(FromJid),
+    ToBareJid = jid:to_binary(jid:to_lus(ToJid)),
+    {LUser, LServer, ToBareJid}.

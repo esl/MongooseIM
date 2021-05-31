@@ -76,7 +76,6 @@
 
 
 -import(inbox_helper, [
-                       muclight_domain/0,
                        inbox_modules/0,
                        muclight_modules/0,
                        inbox_opts/0
@@ -175,7 +174,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config) ->
     inbox_helper:clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(groupchat_setunread_stanza_sets_inbox, Config);
 init_per_testcase(TestCase, Config) ->

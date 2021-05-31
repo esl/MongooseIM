@@ -22,115 +22,114 @@
 -type r_owner() :: binary().
 -type r_none() :: binary().
 
--spec handle_outgoing_message(Host :: jid:server(),
+-spec handle_outgoing_message(HostType :: mongooseim:host_type(),
                               User :: jid:jid(),
                               Room :: jid:jid(),
                               Packet :: packet(),
                               Acc :: mongoose_acc:t()) -> any().
-handle_outgoing_message(Host, User, Room, Packet, _TS) ->
-    maybe_reset_unread_count(Host, User, Room, Packet).
+handle_outgoing_message(HostType, User, Room, Packet, _TS) ->
+    maybe_reset_unread_count(HostType, User, Room, Packet).
 
--spec handle_incoming_message(Host :: jid:server(),
+-spec handle_incoming_message(HostType :: mongooseim:host_type(),
                               RoomUser :: jid:jid(),
                               Remote :: jid:jid(),
                               Packet :: packet(),
                               Acc :: mongoose_acc:t()) -> any().
-handle_incoming_message(Host, RoomUser, Remote, Packet, Acc) ->
+handle_incoming_message(HostType, RoomUser, Remote, Packet, Acc) ->
     case mod_inbox_utils:has_chat_marker(Packet) of
         true ->
             %% don't store chat markers in inbox
             ok;
         false ->
-            maybe_handle_system_message(Host, RoomUser, Remote, Packet, Acc)
+            maybe_handle_system_message(HostType, RoomUser, Remote, Packet, Acc)
     end.
 
-maybe_reset_unread_count(Host, User, Room, Packet) ->
-    mod_inbox_utils:maybe_reset_unread_count(Host, User, Room, Packet).
+maybe_reset_unread_count(HostType, User, Room, Packet) ->
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
 
--spec maybe_handle_system_message(Host :: host(),
+-spec maybe_handle_system_message(HostType :: mongooseim:host_type(),
                                   RoomOrUser :: jid:jid(),
                                   Receiver :: jid:jid(),
                                   Packet :: exml:element(),
                                   Acc :: mongoose_acc:t()) -> ok.
-maybe_handle_system_message(Host, RoomOrUser, Receiver, Packet, Acc) ->
+maybe_handle_system_message(HostType, RoomOrUser, Receiver, Packet, Acc) ->
     case is_system_message(RoomOrUser, Receiver, Packet) of
         true ->
-            handle_system_message(Host, RoomOrUser, Receiver, Packet, Acc);
+            handle_system_message(HostType, RoomOrUser, Receiver, Packet, Acc);
         _ ->
             Sender = jid:from_binary(RoomOrUser#jid.lresource),
-            write_to_inbox(Host, RoomOrUser, Receiver, Sender, Packet, Acc)
+            write_to_inbox(HostType, RoomOrUser, Receiver, Sender, Packet, Acc)
     end.
 
--spec handle_system_message(Host :: host(),
+-spec handle_system_message(HostType :: mongooseim:host_type(),
                             Room :: jid:jid(),
                             Remote :: jid:jid(),
                             Packet :: exml:element(),
                             Acc :: mongoose_acc:t()) -> ok.
-handle_system_message(Host, Room, Remote, Packet, Acc) ->
+handle_system_message(HostType, Room, Remote, Packet, Acc) ->
     case system_message_type(Remote, Packet) of
         kick ->
-            handle_kicked_message(Host, Room, Remote, Packet, Acc);
+            handle_kicked_message(HostType, Room, Remote, Packet, Acc);
         invite ->
-            handle_invitation_message(Host, Room, Remote, Packet, Acc);
+            handle_invitation_message(HostType, Room, Remote, Packet, Acc);
         other ->
             ?LOG_DEBUG(#{what => irrelevant_system_message_for_mod_inbox_muclight,
                          room => Room, exml_packet => Packet}),
             ok
     end.
 
--spec handle_invitation_message(Host :: host(),
+-spec handle_invitation_message(HostType :: mongooseim:host_type(),
                                 Room :: jid:jid(),
                                 Remote :: jid:jid(),
                                 Packet :: exml:element(),
                                 Acc :: mongoose_acc:t()) -> ok.
-handle_invitation_message(Host, Room, Remote, Packet, Acc) ->
-    maybe_store_system_message(Host, Room, Remote, Packet, Acc).
+handle_invitation_message(HostType, Room, Remote, Packet, Acc) ->
+    maybe_store_system_message(HostType, Room, Remote, Packet, Acc).
 
--spec handle_kicked_message(Host :: host(),
+-spec handle_kicked_message(HostType :: mongooseim:host_type(),
                             Room :: jid:jid(),
                             Remote :: jid:jid(),
                             Packet :: exml:element(),
                             Acc :: mongoose_acc:t()) -> ok.
-handle_kicked_message(Host, Room, Remote, Packet, Acc) ->
-    CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(Host),
-    maybe_store_system_message(Host, Room, Remote, Packet, Acc),
-    maybe_remove_inbox_row(Host, Room, Remote, CheckRemove).
+handle_kicked_message(HostType, Room, Remote, Packet, Acc) ->
+    CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(HostType),
+    maybe_store_system_message(HostType, Room, Remote, Packet, Acc),
+    maybe_remove_inbox_row(HostType, Room, Remote, CheckRemove).
 
--spec maybe_store_system_message(Host :: host(),
+-spec maybe_store_system_message(HostType :: mongooseim:host_type(),
                                  Room :: jid:jid(),
                                  Remote :: jid:jid(),
                                  Packet :: exml:element(),
                                  Acc :: mongoose_acc:t()) -> ok.
-maybe_store_system_message(Host, Room, Remote, Packet, Acc) ->
-    WriteAffChanges = mod_inbox_utils:get_option_write_aff_changes(Host),
+maybe_store_system_message(HostType, Room, Remote, Packet, Acc) ->
+    WriteAffChanges = mod_inbox_utils:get_option_write_aff_changes(HostType),
     case WriteAffChanges of
         true ->
-            write_to_inbox(Host, Room, Remote, Room, Packet, Acc);
+            write_to_inbox(HostType, Room, Remote, Room, Packet, Acc);
         false ->
             ok
     end.
 
--spec maybe_remove_inbox_row(Host :: host(),
+-spec maybe_remove_inbox_row(HostType :: mongooseim:host_type(),
                              Room :: jid:jid(),
                              Remote :: jid:jid(),
                              WriteAffChanges :: boolean()) -> ok.
 maybe_remove_inbox_row(_, _, _, false) ->
     ok;
-maybe_remove_inbox_row(Host, Room, Remote, true) ->
-    UserBin = Remote#jid.luser,
-    RoomBin = jid:to_binary(Room),
-    ok = mod_inbox_backend:remove_inbox_row(UserBin, Host, RoomBin).
+maybe_remove_inbox_row(HostType, Room, Remote, true) ->
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Remote, Room),
+    ok = mod_inbox_backend:remove_inbox_row(HostType, InboxEntryKey).
 
--spec write_to_inbox(Server :: host(),
+-spec write_to_inbox(HostType :: mongooseim:host_type(),
                      RoomUser :: jid:jid(),
                      Remote :: jid:jid(),
                      Sender :: jid:jid(),
                      Packet :: exml:element(),
                      Acc :: mongoose_acc:t()) -> ok.
-write_to_inbox(Server, RoomUser, Remote, Remote, Packet, Acc) ->
-    mod_inbox_utils:write_to_sender_inbox(Server, Remote, RoomUser, Packet, Acc);
-write_to_inbox(Server, RoomUser, Remote, _Sender, Packet, Acc) ->
-    mod_inbox_utils:write_to_receiver_inbox(Server, RoomUser, Remote, Packet, Acc).
+write_to_inbox(HostType, RoomUser, Remote, Remote, Packet, Acc) ->
+    mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
+write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
+    mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc).
 
 %%%%%%%
 %% Predicate funs
