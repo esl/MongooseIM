@@ -541,7 +541,12 @@ handle_info({route, From, To, Packet}, State) ->
     route(From, To, Packet),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
-    ets:insert(sm_iqtable, {{XMLNS, Host}, IQHandler}),
+    case ets:insert_new(sm_iqtable, {{XMLNS, Host}, IQHandler}) of
+        true -> ok;
+        false ->
+              ?LOG_WARNING(#{what => register_iq_handler_duplicate,
+                             xmlns => XMLNS, host => Host})
+    end,
     {noreply, State};
 handle_info({unregister_iq_handler, Host, XMLNS}, State) ->
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
@@ -549,7 +554,8 @@ handle_info({unregister_iq_handler, Host, XMLNS}, State) ->
             gen_iq_component:stop_iq_handler(IQHandler),
             ets:delete(sm_iqtable, {XMLNS, Host});
         _ ->
-            ok
+            ?LOG_WARNING(#{what => unregister_iq_handler_missing,
+                           xmlns => XMLNS, host => Host})
     end,
     {noreply, State};
 handle_info(_Info, State) ->
