@@ -188,7 +188,7 @@ start_restored(HostType, Host, ServerHost, Access, Room,
              opts => Opts},
     supervisor:start_child(Supervisor, [Args]).
 
-start_link(Args) ->
+start_link(Args = #{}) ->
     gen_fsm_compat:start_link(?MODULE, Args, []).
 
 stop(Pid) ->
