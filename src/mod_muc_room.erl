@@ -273,9 +273,10 @@ can_access_identity(RoomJID, UserJID) ->
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
       Creator, _Nick, DefRoomOpts]) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
+    HostType = server_host_to_host_type(ServerHost),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,
-                            #state{host = Host,
+                            #state{host = Host, host_type = HostType,
                                    server_host = ServerHost,
                                    access = Access,
                                    room = Room,
@@ -303,8 +304,9 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
 %% @doc A room is restored
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts]) ->
     process_flag(trap_exit, true),
+    HostType = server_host_to_host_type(ServerHost),
     Shaper = shaper:new(RoomShaper),
-    State = set_opts(Opts, #state{host = Host,
+    State = set_opts(Opts, #state{host = Host, host_type = HostType,
                                   server_host = ServerHost,
                                   access = Access,
                                   room = Room,
@@ -880,7 +882,8 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
     EventData = #{from_nick => FromNick, from_jid => From,
                   room_jid => StateData#state.jid, role => Role,
                   affiliation => Affiliation},
-    FilteredPacket = mongoose_hooks:filter_room_packet(StateData#state.host, Packet, EventData),
+    FilteredPacket = mongoose_hooks:filter_room_packet(
+        StateData#state.host_type, Packet, EventData),
     RouteFrom = jid:replace_resource(StateData#state.jid,
                                      FromNick),
     RoomJid = StateData#state.jid,
@@ -4765,3 +4768,12 @@ notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = Sta
 ls(LogMap, State) ->
     maps:merge(LogMap, #{room => State#state.room,
                          sub_host => State#state.host}).
+
+-spec server_host_to_host_type(jid:lserver()) -> mongooseim:host_type().
+server_host_to_host_type(ServerHost) ->
+    case mongoose_domain_api:get_host_type(ServerHost) of
+        {ok, HostType} ->
+            HostType;
+        {error, not_found} ->
+            ServerHost
+    end.

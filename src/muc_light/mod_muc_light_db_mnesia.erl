@@ -234,7 +234,8 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
-    lists:foreach(fun({RoomU, RoomS}) -> mongoose_hooks:forget_room(RoomS, RoomS, RoomU) end,
+    %% XXX This is supported only by Mnesia backend!
+    lists:foreach(fun(RoomUS) -> mod_muc_light_utils:run_forget_room_hook(RoomUS) end,
                   mnesia:dirty_all_keys(muc_light_room)),
     lists:foreach(fun mnesia:clear_table/1,
                   [muc_light_room, muc_light_user_room, muc_light_blocking]).

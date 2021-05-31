@@ -193,16 +193,27 @@ change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
                                    <<"set">>, [Changes])).
 
 change_room_config(Domain, RoomID, RoomName, User, Subject) ->
+    LServer = jid:nameprep(Domain),
+    HostType = lserver_to_host_type(LServer),
     MUCLightDomain = gen_mod:get_module_opt_subhost(
                        Domain, mod_muc_light, mod_muc_light:default_host()),
     UserUS = jid:binary_to_bare(User),
     ConfigReq = #config{ raw_config =
                          [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
-    case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) of
+    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => LServer, host_type => HostType}),
+    case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq, Acc) of
         {ok, _RoomJID, _}  ->
             ok;
         {error, Reason} ->
             {error, internal, Reason}
+    end.
+
+lserver_to_host_type(LServer) ->
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            HostType;
+        {error, not_found} ->
+            LServer
     end.
 
 send_message(Domain, RoomName, Sender, Message) ->

@@ -1379,22 +1379,22 @@ amp_verify_support(Server, Rules) ->
 
 %% MUC and MUC Light related hooks
 
--spec filter_room_packet(Server, Packet, EventData) -> Result when
-    Server :: jid:lserver(),
+-spec filter_room_packet(HostType, Packet, EventData) -> Result when
+    HostType :: mongooseim:host_type(),
     Packet :: exml:element(),
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
-filter_room_packet(Server, Packet, EventData) ->
-    ejabberd_hooks:run_for_host_type(filter_room_packet, Server, Packet, [EventData]).
+filter_room_packet(HostType, Packet, EventData) ->
+    ejabberd_hooks:run_for_host_type(filter_room_packet, HostType, Packet, [HostType, EventData]).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
--spec forget_room(HookServer, Host, Room) -> Result when
-    HookServer :: jid:server(),
-    Host :: jid:server(),
+-spec forget_room(HostType, MucHost, Room) -> Result when
+    HostType :: jid:server(),
+    MucHost :: jid:server(),
     Room :: jid:luser(),
     Result :: any().
-forget_room(HookServer, Host, Room) ->
-    ejabberd_hooks:run_for_host_type(forget_room, HookServer, ok, [Host, Room]).
+forget_room(HostType, MucHost, Room) ->
+    ejabberd_hooks:run_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),

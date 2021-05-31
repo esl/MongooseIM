@@ -29,6 +29,8 @@
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
 -export([filter_out_prevented/3]).
+-export([acc_to_host_type/1]).
+-export([run_forget_room_hook/1]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -45,18 +47,20 @@
 
 -export_type([change_aff_success/0]).
 
+-type bad_request() :: bad_request | {bad_request, binary()}.
+
 %%====================================================================
 %% API
 %%====================================================================
 
 -spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
-    change_aff_success() | {error, bad_request}.
+    change_aff_success() | {error, bad_request()}.
 change_aff_users(AffUsers, AffUsersChangesAssorted) ->
     case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of
         {false, false} -> % simple, no special cases
             apply_aff_users_change(AffUsers, AffUsersChangesAssorted);
         {false, {_, _}} -> % ownerless room!
-            {error, bad_request};
+            {error, {bad_request, <<"Ownerless room">>}};
         _ ->
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
@@ -144,8 +148,8 @@ filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
-    change_aff_success() | {error, bad_request}.
+-spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+    change_aff_success() | {error, bad_request()}.
 maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = _AffRes) ->
     {AffUsers, AffUsersChanged} =
         case is_new_owner_needed(AU) andalso find_new_owner(AU, AUC, JoiningUsers) of
@@ -196,8 +200,8 @@ select_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
 select_promotion(_, _, _) ->
     false.
 
--spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
-    change_aff_success() | {error, bad_request}.
+-spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+    change_aff_success() | {error, bad_request()}.
 maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
     Owners = [U || {U, owner} <- AU],
     PromotedOwners = [U || {U, owner} <- AUC],
@@ -210,14 +214,14 @@ maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
             NewAUC = [{OldOwner, member} | AUC],
             {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
         _ ->
-            {error, bad_request}
+            {error, {bad_request, <<"Failed to demote old owner">>}}
     end;
 maybe_demote_old_owner(Error) ->
     Error.
 
 -spec apply_aff_users_change(AffUsers :: aff_users(),
                              AffUsersChanges :: aff_users()) ->
-                                change_aff_success() | {error, bad_request}.
+                                change_aff_success() | {error, bad_request()}.
 apply_aff_users_change(AU, AUC) ->
     JoiningUsers = proplists:get_keys(AUC) -- proplists:get_keys(AU),
     AffAndNewUsers = lists:sort(AU ++ [{U, none} || U <- JoiningUsers]),
@@ -234,16 +238,15 @@ apply_aff_users_change(AU, AUC) ->
                              NewAffUsers :: aff_users(),
                              AffUsersChanges :: aff_users(),
                              ChangesDone :: aff_users()) ->
-                                change_aff_success_without_users() | {error, bad_request}.
+                                change_aff_success_without_users() | {error, bad_request()}.
 apply_aff_users_change([], NAU, [], CD) ->
     %% User list must be sorted ascending but acc is currently sorted descending
     {ok, lists:reverse(NAU), CD};
 apply_aff_users_change(_AU, _NAU, [{User, _}, {User, _} | _RAUC], _CD) ->
-    %% Cannot change affiliation for the same user twice in the same request
-    {error, bad_request};
+    {error, {bad_request, <<"Cannot change affiliation for the same user "
+                            "twice in the same request">>}};
 apply_aff_users_change([AffUser | _], _NAU, [AffUser | _], _CD) ->
-    %% Meaningless change
-    {error, bad_request};
+    {error, {bad_request, <<"Meaningless change">>}};
 apply_aff_users_change([{User, _} | RAU], NAU, [{User, none} | RAUC], CD) ->
     %% removing user from the room
     apply_aff_users_change(RAU, NAU, RAUC, [{User, none} | CD]);
@@ -260,6 +263,28 @@ apply_aff_users_change([OldUser | RAU], NAU, AUC, CD) ->
     %% keep user affiliation unchanged
     apply_aff_users_change(RAU, [OldUser | NAU], AUC, CD).
 
+-spec acc_to_host_type(mongoose_acc:t()) -> mongooseim:host_type().
+acc_to_host_type(Acc) ->
+    case mongoose_acc:host_type(Acc) of
+        undefined ->
+            MucHost = mongoose_acc:lserver(Acc),
+            muc_host_to_host_type(MucHost);
+        HostType ->
+            HostType
+    end.
 
+server_host_to_host_type(LServer) ->
+    case mongoose_domain_api:get_host_type(LServer) of
+        {ok, HostType} ->
+            HostType;
+        {error, not_found} ->
+            LServer
+    end.
 
+muc_host_to_host_type(MucHost) ->
+    {ok, ServerHost} = mongoose_subhosts:get_host(MucHost),
+    server_host_to_host_type(ServerHost).
 
+run_forget_room_hook({Room, MucHost}) ->
+    HostType = muc_host_to_host_type(MucHost),
+    mongoose_hooks:forget_room(HostType, MucHost, Room).

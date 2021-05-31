@@ -11,7 +11,7 @@
 -behaviour(mod_muc_light_codec).
 
 %% API
--export([decode/3, encode/4, encode_error/5]).
+-export([decode/4, encode/5, encode_error/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -29,25 +29,29 @@
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, bad_request}).
 
+-type bad_request() :: bad_request | {bad_request, binary()}.
+
 %%====================================================================
 %% API
 %%====================================================================
 
--spec decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element()) ->
+-spec decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element(),
+             Acc :: mongoose_acc:t()) ->
     mod_muc_light_codec:decode_result().
-decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
-    {error, bad_request};
-decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
+decode(_From, #jid{ lresource = Resource }, _Stanza, _Acc) when Resource =/= <<>> ->
+    {error, {bad_request, <<"Resource expected to be empty">>}};
+decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza, _Acc) ->
     decode_message(Stanza);
-decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza) ->
+decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza, _Acc) ->
     decode_iq(From, jlib:iq_query_info(Stanza));
-decode(_, _, _) ->
-    {error, bad_request}.
+decode(_, _, _, _) ->
+    {error, {bad_request, <<"Failed to decode unknown format">>}}.
 
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
              RoomUS :: jid:simple_bare_jid(),
-             HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
-encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
+             HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
+             Acc :: mongoose_acc:t()) -> any().
+encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     FromNick = jid:to_binary(US),
     Aff = get_sender_aff(AffUsers, US),
@@ -63,15 +67,16 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                   room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     #xmlel{ children = Children }
-                     = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
+                     = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
       end, AffUsers);
-encode(OtherCase, Sender, RoomUS, HandleFun) ->
+encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
-    case encode_iq(OtherCase, Sender, RoomJID, RoomBin, HandleFun) of
+    case encode_iq(OtherCase, Sender, RoomJID, RoomBin, HandleFun, Acc) of
         {reply, ID} ->
             IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
@@ -126,7 +131,7 @@ ensure_id({_, Id}) -> Id.
 %%====================================================================
 
 -spec decode_iq(From :: jid:jid(), IQ :: jlib:iq()) ->
-    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
+    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request()} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_CONFIGURATION, type = get,
                       sub_el = QueryEl, id = ID }) ->
     Version = exml_query:path(QueryEl, [{element, <<"version">>}, cdata], <<>>),
@@ -187,21 +192,21 @@ decode_iq(_From, #iq{ type = error }) ->
 decode_iq(_From, #iq{} = IQ) ->
     {ok, IQ};
 decode_iq(_, _) ->
-    {error, bad_request}.
+    {error, {bad_request, <<"Unknown IQ format">>}}.
 
 %% ------------------ Parsers ------------------
 
 -spec parse_config(Els :: [jlib:xmlch()]) -> {ok, mod_muc_light_room_config:binary_kv()}
-                                             | {error, bad_request}.
+                                             | {error, bad_request()}.
 parse_config(Els) ->
     parse_config(Els, []).
 
 -spec parse_config(Els :: [jlib:xmlch()], ConfigAcc :: mod_muc_light_room_config:binary_kv()) ->
-    {ok, mod_muc_light_room_config:binary_kv()} | {error, bad_request}.
+    {ok, mod_muc_light_room_config:binary_kv()} | {error, bad_request()}.
 parse_config([], ConfigAcc) ->
     {ok, ConfigAcc};
 parse_config([#xmlel{ name = <<"version">> } | _], _) ->
-    {error, bad_request};
+    {error, {bad_request, <<"Version element not allowed">>}};
 parse_config([#xmlel{ name = Key, children = [ #xmlcdata{ content = Value } ] } | REls],
              ConfigAcc) ->
     parse_config(REls, [{Key, Value} | ConfigAcc]);
@@ -209,12 +214,12 @@ parse_config([_ | REls], ConfigAcc) ->
     parse_config(REls, ConfigAcc).
 
 -spec parse_aff_users(Els :: [jlib:xmlch()]) ->
-    {ok, aff_users()} | {error, bad_request}.
+    {ok, aff_users()} | {error, bad_request()}.
 parse_aff_users(Els) ->
     parse_aff_users(Els, []).
 
 -spec parse_aff_users(Els :: [jlib:xmlch()], AffUsersAcc :: aff_users()) ->
-    {ok, aff_users()} | {error, bad_request}.
+    {ok, aff_users()} | {error, bad_request()}.
 parse_aff_users([], AffUsersAcc) ->
     {ok, AffUsersAcc};
 parse_aff_users([#xmlcdata{} | RItemsEls], AffUsersAcc) ->
@@ -226,7 +231,7 @@ parse_aff_users([#xmlel{ name = <<"user">>, attrs = [{<<"affiliation">>, AffBin}
     Aff = mod_muc_light_utils:b2aff(AffBin),
     parse_aff_users(RItemsEls, [{jid:to_lus(JID), Aff} | AffUsersAcc]);
 parse_aff_users(_, _) ->
-    {error, bad_request}.
+    {error, {bad_request, <<"Failed to parse affiliations">>}}.
 
 -spec parse_blocking_list(Els :: [jlib:xmlch()]) -> {ok, [blocking_item()]} | {error, bad_request}.
 parse_blocking_list(ItemsEls) ->
@@ -250,7 +255,8 @@ parse_blocking_list(_, _) ->
 %% Encoding
 %%====================================================================
 
-encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #disco_info{ id = ID }},
+          Sender, RoomJID, _RoomBin, _HandleFun, _Acc) ->
     {result, RegisteredFeatures} = mod_disco:get_local_features(empty, Sender, RoomJID, <<>>, <<>>),
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
@@ -260,7 +266,7 @@ encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun) 
                [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures],
     {reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
-          _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
                          attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
                                   {<<"name">>, RoomName},
@@ -268,23 +274,26 @@ encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
                  || {{RoomU, RoomS}, RoomName, RoomVersion} <- Rooms ],
     {reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
 encode_iq({get, #config{ prev_version = SameVersion, version = SameVersion, id = ID }},
-          _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     {reply, ID};
-encode_iq({get, #config{} = Config}, _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #config{} = Config},
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     ConfigEls = [ kv_to_el(Field) || Field <- [{<<"version">>, Config#config.version}
                                                          | Config#config.raw_config] ],
     {reply, ?NS_MUC_LIGHT_CONFIGURATION, ConfigEls, Config#config.id};
 encode_iq({get, #affiliations{ prev_version = SameVersion, version = SameVersion, id = ID }},
-          _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     {reply, ID};
-encode_iq({get, #affiliations{ version = Version } = Affs}, _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #affiliations{ version = Version } = Affs},
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     AffEls = [ aff_user_to_el(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     {reply, ?NS_MUC_LIGHT_AFFILIATIONS, [kv_to_el(<<"version">>, Version) | AffEls],
      Affs#affiliations.id};
 encode_iq({get, #info{ prev_version = SameVersion, version = SameVersion, id = ID }},
-          _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     {reply, ID};
-encode_iq({get, #info{ version = Version } = Info}, _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #info{ version = Version } = Info},
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     ConfigEls = [ kv_to_el(Field) || Field <- Info#info.raw_config ],
     AffEls = [ aff_user_to_el(AffUser) || AffUser <- Info#info.aff_users ],
     InfoEls = [
@@ -293,7 +302,8 @@ encode_iq({get, #info{ version = Version } = Info}, _Sender, _RoomJID, _RoomBin,
                #xmlel{ name = <<"occupants">>, children = AffEls }
               ],
     {reply, ?NS_MUC_LIGHT_INFO, InfoEls, Info#info.id};
-encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, _Sender, RoomJID, RoomBin, HandleFun) ->
+encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
+          _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
     Attrs = [
              {<<"id">>, Affs#affiliations.id},
              {<<"type">>, <<"groupchat">>},
@@ -307,20 +317,24 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers}, _Sender, Room
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
     EventData = room_event(RoomJID),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
-        = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
+        = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
                                                   Affs#affiliations.prev_version),
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
                        FinalChildrenForCurrent, HandleFun),
 
     {reply, Affs#affiliations.id};
-encode_iq({get, #blocking{} = Blocking}, _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({get, #blocking{} = Blocking},
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     BlockingEls = [ blocking_to_el(BlockingItem) || BlockingItem <- Blocking#blocking.items ],
     {reply, ?NS_MUC_LIGHT_BLOCKING, BlockingEls, Blocking#blocking.id};
-encode_iq({set, #blocking{ id = ID }}, _Sender, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({set, #blocking{ id = ID }},
+          _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
     {reply, ID};
-encode_iq({set, #create{} = Create, UniqueRequested}, _Sender, RoomJID, RoomBin, HandleFun) ->
+encode_iq({set, #create{} = Create, UniqueRequested},
+          _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
     Attrs = [
              {<<"id">>, Create#create.id},
              {<<"type">>, <<"groupchat">>},
@@ -334,7 +348,8 @@ encode_iq({set, #create{} = Create, UniqueRequested}, _Sender, RoomJID, RoomBin,
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
     EventData = room_event(RoomJID),
-    mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
 
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
@@ -345,7 +360,8 @@ encode_iq({set, #create{} = Create, UniqueRequested}, _Sender, RoomJID, RoomBin,
                                    false -> {RoomJID, RoomBin}
                                end,
     {reply, ResFromJID, ResFromBin, <<>>, undefined, Create#create.id};
-encode_iq({set, #destroy{ id = ID }, AffUsers}, _Sender, RoomJID, RoomBin, HandleFun) ->
+encode_iq({set, #destroy{ id = ID }, AffUsers},
+          _Sender, RoomJID, RoomBin, HandleFun, _Acc) ->
     Attrs = [
              {<<"id">>, ID},
              {<<"type">>, <<"groupchat">>},
@@ -363,7 +379,22 @@ encode_iq({set, #destroy{ id = ID }, AffUsers}, _Sender, RoomJID, RoomBin, Handl
       end, AffUsers),
 
     {reply, ID};
-encode_iq({set, #config{} = Config, AffUsers}, _Sender, RoomJID, RoomBin, HandleFun) ->
+encode_iq({set, #config{} = Config, AffUsers},
+          _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
+    MsgForArch = encode_set_config(Config, RoomBin),
+    EventData = room_event(RoomJID),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    #xmlel{ children = FinalConfigNotif }
+        = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
+
+    lists:foreach(
+      fun({{U, S}, _}) ->
+              msg_to_aff_user(RoomJID, U, S, MsgForArch#xmlel.attrs, FinalConfigNotif, HandleFun)
+      end, AffUsers),
+
+    {reply, Config#config.id}.
+
+encode_set_config(Config, RoomBin) ->
     Attrs = [
              {<<"id">>, Config#config.id},
              {<<"type">>, <<"groupchat">>},
@@ -373,18 +404,8 @@ encode_iq({set, #config{} = Config, AffUsers}, _Sender, RoomJID, RoomBin, Handle
     ConfigNotif = [ kv_to_el(<<"prev-version">>, Config#config.prev_version),
                     kv_to_el(<<"version">>, Config#config.version)
                     | ConfigEls ],
-    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
-                         children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) },
-    EventData = room_event(RoomJID),
-    #xmlel{ children = FinalConfigNotif }
-        = mongoose_hooks:filter_room_packet(RoomJID#jid.lserver, MsgForArch, EventData),
-
-    lists:foreach(
-      fun({{U, S}, _}) ->
-              msg_to_aff_user(RoomJID, U, S, Attrs, FinalConfigNotif, HandleFun)
-      end, AffUsers),
-
-    {reply, Config#config.id}.
+    #xmlel{name = <<"message">>, attrs = Attrs,
+           children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) }.
 
 %% --------------------------- Helpers ---------------------------
 

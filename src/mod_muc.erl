@@ -322,8 +322,9 @@ restore_room(ServerHost, Host, Name) ->
 
 -spec forget_room(jid:server(), jid:server(), room()) -> ok | {error, term()}.
 forget_room(ServerHost, Host, Name) ->
+    HostType = server_host_to_host_type(ServerHost),
     %% Removes room from DB, even if it's already removed.
-    Result = mod_muc_db_backend:forget_room(ServerHost, Host, Name),
+    Result = mod_muc_db_backend:forget_room(HostType, Host, Name),
     case Result of
         ok ->
             %% TODO this hook should be refactored to be executed on ServerHost, not Host.
@@ -1323,3 +1324,12 @@ ensure_metrics(_Host) ->
 config_metrics(Host) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+
+-spec server_host_to_host_type(jid:lserver()) -> mongooseim:host_type().
+server_host_to_host_type(ServerHost) ->
+    case mongoose_domain_api:get_host_type(ServerHost) of
+        {ok, HostType} ->
+            HostType;
+        {error, not_found} ->
+            ServerHost
+    end.

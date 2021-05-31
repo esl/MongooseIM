@@ -43,10 +43,9 @@
 -export([start/2, stop/1]).
 
 %% ejabberd room handlers
--export([filter_room_packet/2,
+-export([filter_room_packet/3,
          room_process_mam_iq/4,
-         forget_room/2,
-         forget_room/3]).
+         forget_room/4]).
 
 %% gdpr callback
 -export([get_personal_data/2]).
@@ -156,7 +155,7 @@ start(Host, Opts) ->
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
                                   ?MODULE, room_process_mam_iq, IQDisc),
-    ejabberd_hooks:add(hooks(Host, MUCHost)),
+    ejabberd_hooks:add(hooks(Host)),
     ensure_metrics(Host),
     ok.
 
@@ -165,7 +164,7 @@ start(Host, Opts) ->
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(hooks(Host, MUCHost)),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
     [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, Host)],
@@ -175,14 +174,12 @@ stop(Host) ->
 %% hooks and handlers for MUC
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Packet :: packet(),
+-spec filter_room_packet(Packet :: packet(), HostType :: mongooseim:host_type(),
                          EventData :: mod_muc:room_event_data()) -> packet().
-filter_room_packet(Packet, EventData = #{
-                             room_jid := #jid{lserver = LServer}
-                            }) ->
+filter_room_packet(Packet, HostType, EventData = #{}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
-    IsArchivable = is_archivable_message(LServer, incoming, Packet),
+    IsArchivable = is_archivable_message(HostType, incoming, Packet),
     case IsArchivable of
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
@@ -260,15 +257,10 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
 
 %% #rh
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(map(), jid:lserver(), binary()) -> map().
-forget_room(Acc, LServer, RoomName) ->
-    forget_room(LServer, RoomName),
+-spec forget_room(map(), mongooseim:host_type(), jid:lserver(), binary()) -> map().
+forget_room(Acc, _HostType, MucServer, RoomName) ->
+    delete_archive(MucServer, RoomName),
     Acc.
-
-%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(jid:lserver(), binary()) -> 'ok'.
-forget_room(LServer, RoomName) ->
-    delete_archive(LServer, RoomName).
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -594,18 +586,18 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?LOG_ERROR(#{what => mam_muc_error, issue => Issue, reason => Reason,
                  user => LUser, server => LServer, iq => IQ, stacktrace => Stacktrace}).
 
--spec is_archivable_message(MUCHost :: jid:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(HostType :: mongooseim:host_type(),
+                            Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
-is_archivable_message(MUCHost, Dir, Packet) ->
-    {ok, Host} = mongoose_subhosts:get_host(MUCHost),
-    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
-    ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
+is_archivable_message(HostType, Dir, Packet) ->
+    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, HostType),
+    ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec hooks(jid:lserver(), jid:lserver()) -> [ejabberd_hooks:hook()].
-hooks(Host, MUCHost) ->
-    [{filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 60},
-     {forget_room, MUCHost, ?MODULE, forget_room, 90},
+-spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
+hooks(Host) ->
+    [{filter_room_packet, Host, ?MODULE, filter_room_packet, 60},
+     {forget_room, Host, ?MODULE, forget_room, 90},
      {get_personal_data, Host, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_muc_hooks(Host)].
 

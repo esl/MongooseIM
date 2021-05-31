@@ -118,7 +118,7 @@ codec_calls(_Config) ->
     HandleFun = fun(_, _, _) -> count_call(handler) end,
     ejabberd_hooks:add(filter_room_packet,
                        <<"localhost">>,
-                       fun(Acc, _EvData) -> count_call(hook), Acc end,
+                       fun(Acc, _HostType, _EvData) -> count_call(hook), Acc end,
                        50),
 
     % count_call/1 should've been called twice - by handler fun (for each affiliated user,
