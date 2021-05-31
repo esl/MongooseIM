@@ -493,7 +493,8 @@ create_room(Acc, From, FromUS, To, Create0, OrigPacket) ->
             mod_muc_light_codec_backend:encode({set, Details, To#jid.luser == <<>>}, From,
                                                FinalRoomUS, fun ejabberd_router:route/3);
         {error, exists} ->
-            mod_muc_light_codec_backend:encode_error({error, conflict}, From, To, OrigPacket,
+            mod_muc_light_codec_backend:encode_error({error, {conflict, <<"Room already exists">>}},
+                                                     From, To, OrigPacket,
                                                      make_handler_fun(Acc));
         {error, bad_request} ->
             mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
