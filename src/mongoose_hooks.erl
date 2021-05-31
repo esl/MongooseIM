@@ -19,7 +19,6 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
-         local_send_to_resource_hook/4,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
@@ -287,17 +286,6 @@ filter_packet(Acc) ->
     Result :: mongoose_acc:t().
 inbox_unread_count(LServer, Acc, User) ->
     ejabberd_hooks:run_for_host_type(inbox_unread_count, LServer, Acc, [User]).
-
--spec local_send_to_resource_hook(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: mongoose_acc:t().
-local_send_to_resource_hook(Acc, From, To, Packet) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(local_send_to_resource_hook, HostType, Acc,
-                                     [From, To, Packet]).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(LServer, KeyName) -> Result when
