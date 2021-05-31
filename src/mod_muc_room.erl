@@ -4603,7 +4603,8 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
     %% Custom IQ, addressed to this room's JID.
     case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
         {Acc1, error} ->
-            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet,
+                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_muc_room">>)),
             ejabberd_router:route(RoomJID, From, Acc2, Err);
         _ -> ok
     end,
