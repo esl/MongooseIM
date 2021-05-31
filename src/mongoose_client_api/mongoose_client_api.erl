@@ -53,7 +53,7 @@ to_json(Req, User) ->
     {<<"{}">>, Req, User}.
 
 bad_request(Req, State) ->
-    bad_request(Req, <<"Bad request without a reason">>, State).
+    bad_request(Req, <<"Bad request. The details are unknown.">>, State).
 
 bad_request(Req, Reason, State) ->
     reply(400, Req, Reason, State).
