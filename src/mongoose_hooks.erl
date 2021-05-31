@@ -1256,15 +1256,15 @@ disco_local_features(Server, From, To, Node, Lang) ->
                                      [From, To, Node, Lang]).
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
--spec disco_local_items(Server, From, To, Node, Lang) -> Result when
-    Server :: jid:server(),
+-spec disco_local_items(HostType, From, To, Node, Lang) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
     Result :: {result, [exml:element()]} | {error, any()}.
-disco_local_items(Server, From, To, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_local_items, Server, empty,
+disco_local_items(HostType, From, To, Node, Lang) ->
+    ejabberd_hooks:run_for_host_type(disco_local_items, HostType, empty,
                                      [From, To, Node, Lang]).
 
 %%% @doc `disco_local_identity' hook is called to get the identity of the server.
