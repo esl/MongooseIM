@@ -52,9 +52,11 @@ verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
         AutoSkipped > 0 ->
             io:format("Failing the test due to auto skipped cases~n"),
             erlang:halt(AutoSkipped);
+        FailedGroups + FailedTests - EventuallyOkTests > 0 ->
+            io:format("Failing the test due to failed rerun groups~n"),
+            erlang:halt(FailedGroups + FailedTests - EventuallyOkTests);
         true ->
-            io:format("Failing the test due failed rerun groups~n"),
-            erlang:halt(FailedGroups + FailedTests - EventuallyOkTests)
+            erlang:halt(0)
     end.
 
 suite_summaries(Directories) ->

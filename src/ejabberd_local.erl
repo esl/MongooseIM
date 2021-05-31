@@ -292,11 +292,9 @@ handle_call({unregister_host, Host}, _From, State) ->
      || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host),
         node(Pid) =:= Node],
     do_unregister_host(Host),
-    mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
     do_register_host(Host),
-    mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(sync, _From, State) ->
     {reply, ok, State};

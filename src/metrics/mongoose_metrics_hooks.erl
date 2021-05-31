@@ -36,115 +36,116 @@
          privacy_list_push/5
         ]).
 
--type metrics_notify_return() ::
-                map()
-                | {'error', _, 'nonexistent_metric' | 'unsupported_metric_type'}.
-
--export_type([metrics_notify_return/0]).
-
 %%-------------------
 %% Implementation
 %%-------------------
 
 %% @doc Here will be declared which hooks should be registered
 -spec get_hooks(_) -> [ejabberd_hooks:hook(), ...].
-get_hooks(Host) ->
-    [ {sm_register_connection_hook, Host, ?MODULE, sm_register_connection_hook, 50},
-      {sm_remove_connection_hook, Host, ?MODULE, sm_remove_connection_hook, 50},
-      {auth_failed, Host, ?MODULE, auth_failed, 50},
-      {user_send_packet, Host, ?MODULE, user_send_packet, 50},
-      {user_receive_packet, Host, ?MODULE, user_receive_packet, 50},
-      {xmpp_stanza_dropped, Host, ?MODULE, xmpp_stanza_dropped, 50},
-      {xmpp_bounce_message, Host, ?MODULE, xmpp_bounce_message, 50},
-      {xmpp_send_element, Host, ?MODULE, xmpp_send_element, 50},
-      {roster_get, Host, ?MODULE, roster_get, 55},
-      {roster_set, Host, ?MODULE, roster_set, 50},
-      {roster_push, Host, ?MODULE, roster_push, 50},
-      {roster_in_subscription, Host, ?MODULE, roster_in_subscription, 55},
-      {register_user, Host, ?MODULE, register_user, 50},
-      {remove_user, Host, ?MODULE, remove_user, 50},
-      {privacy_iq_get, Host, ?MODULE, privacy_iq_get, 1},
-      {privacy_iq_set, Host, ?MODULE, privacy_iq_set, 1},
-      {privacy_check_packet, Host, ?MODULE, privacy_check_packet, 55},
-      {sm_broadcast, Host, ?MODULE, privacy_list_push, 1}].
+get_hooks(HostType) ->
+    [ {sm_register_connection_hook, HostType, ?MODULE, sm_register_connection_hook, 50},
+      {sm_remove_connection_hook, HostType, ?MODULE, sm_remove_connection_hook, 50},
+      {auth_failed, HostType, ?MODULE, auth_failed, 50},
+      {user_send_packet, HostType, ?MODULE, user_send_packet, 50},
+      {user_receive_packet, HostType, ?MODULE, user_receive_packet, 50},
+      {xmpp_stanza_dropped, HostType, ?MODULE, xmpp_stanza_dropped, 50},
+      {xmpp_bounce_message, HostType, ?MODULE, xmpp_bounce_message, 50},
+      {xmpp_send_element, HostType, ?MODULE, xmpp_send_element, 50},
+      {roster_get, HostType, ?MODULE, roster_get, 55},
+      {roster_set, HostType, ?MODULE, roster_set, 50},
+      {roster_push, HostType, ?MODULE, roster_push, 50},
+      {roster_in_subscription, HostType, ?MODULE, roster_in_subscription, 55},
+      {register_user, HostType, ?MODULE, register_user, 50},
+      {remove_user, HostType, ?MODULE, remove_user, 50},
+      {privacy_iq_get, HostType, ?MODULE, privacy_iq_get, 1},
+      {privacy_iq_set, HostType, ?MODULE, privacy_iq_set, 1},
+      {privacy_check_packet, HostType, ?MODULE, privacy_check_packet, 55},
+      {sm_broadcast, HostType, ?MODULE, privacy_list_push, 1}].
 
--spec sm_register_connection_hook(map(), binary(), tuple(), jid:jid(), term()
-                                 ) -> metrics_notify_return().
-sm_register_connection_hook(Acc, _HostType, _, #jid{server = Server}, _) ->
-    mongoose_metrics:update(Server, sessionSuccessfulLogins, 1),
-    mongoose_metrics:update(Server, sessionCount, 1),
+-spec sm_register_connection_hook(any(), mongooseim:host_type(), tuple(), jid:jid(), term()
+                                 ) -> any().
+sm_register_connection_hook(Acc, HostType, _, _, _) ->
+    mongoose_metrics:update(HostType, sessionSuccessfulLogins, 1),
+    mongoose_metrics:update(HostType, sessionCount, 1),
     Acc.
 
--spec sm_remove_connection_hook(map(), tuple(), jid:jid(),
+-spec sm_remove_connection_hook(mongoose_acc:t(), tuple(), jid:jid(),
                                 term(), ejabberd_sm:close_reason()
-                               ) -> metrics_notify_return().
-sm_remove_connection_hook(Acc, _, #jid{server = Server}, _, _Reason) ->
-    mongoose_metrics:update(Server, sessionLogouts, 1),
-    mongoose_metrics:update(Server, sessionCount, -1),
+                               ) -> mongoose_acc:t().
+sm_remove_connection_hook(Acc, _, _, _, _Reason) ->
+    HT = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HT, sessionLogouts, 1),
+    mongoose_metrics:update(HT, sessionCount, -1),
     Acc.
 
--spec auth_failed(map(), binary(), binary()) -> metrics_notify_return().
+-spec auth_failed(any(), jid:user(), jid:server()) -> any().
 auth_failed(Acc, _, Server) ->
-    mongoose_metrics:update(Server, sessionAuthFails, 1),
+    LServer = jid:nameprep(Server),
+    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    mongoose_metrics:update(HostType, sessionAuthFails, 1),
     Acc.
 
--spec user_send_packet(map(), jid:jid(), tuple(), tuple()
-                      ) -> metrics_notify_return().
-user_send_packet(Acc, #jid{server = Server}, _, Packet) ->
-    mongoose_metrics:update(Server, xmppStanzaSent, 1),
-    user_send_packet_type(Server, Packet),
+-spec user_send_packet(mongoose_acc:t(), jid:jid(), tuple(), tuple()
+                      ) -> mongoose_acc:t().
+user_send_packet(Acc, _, _, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, xmppStanzaSent, 1),
+    user_send_packet_type(HostType, Packet),
     Acc.
 
--spec user_send_packet_type(Server :: jid:server(),
+-spec user_send_packet_type(HostType :: mongooseim:host_type(),
                             Packet :: exml:element()) -> ok | {error, not_found}.
-user_send_packet_type(Server, #xmlel{name = <<"message">>}) ->
-    mongoose_metrics:update(Server, xmppMessageSent, 1);
-user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
-    mongoose_metrics:update(Server, xmppIqSent, 1);
-user_send_packet_type(Server, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(Server, xmppPresenceSent, 1).
+user_send_packet_type(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppMessageSent, 1);
+user_send_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppIqSent, 1);
+user_send_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppPresenceSent, 1).
 
--spec user_receive_packet(map(), jid:jid(), tuple(), tuple(), tuple()) -> term().
-user_receive_packet(Acc, #jid{server = Server}, _, _, Packet) ->
-    mongoose_metrics:update(Server, xmppStanzaReceived, 1),
-    user_receive_packet_type(Server, Packet),
+-spec user_receive_packet(mongoose_acc:t(), jid:jid(), tuple(), tuple(), tuple()
+                         ) -> mongoose_acc:t().
+user_receive_packet(Acc, _, _, _, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, xmppStanzaReceived, 1),
+    user_receive_packet_type(HostType, Packet),
     Acc.
 
--spec user_receive_packet_type(Server :: jid:server(),
+-spec user_receive_packet_type(HostType :: mongooseim:host_type(),
                                Packet :: exml:element()) -> ok | {error, not_found}.
-user_receive_packet_type(Server, #xmlel{name = <<"message">>}) ->
-    mongoose_metrics:update(Server, xmppMessageReceived, 1);
-user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
-    mongoose_metrics:update(Server, xmppIqReceived, 1);
-user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
-    mongoose_metrics:update(Server, xmppPresenceReceived, 1).
+user_receive_packet_type(HostType, #xmlel{name = <<"message">>}) ->
+    mongoose_metrics:update(HostType, xmppMessageReceived, 1);
+user_receive_packet_type(HostType, #xmlel{name = <<"iq">>}) ->
+    mongoose_metrics:update(HostType, xmppIqReceived, 1);
+user_receive_packet_type(HostType, #xmlel{name = <<"presence">>}) ->
+    mongoose_metrics:update(HostType, xmppPresenceReceived, 1).
 
--spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> metrics_notify_return().
+-spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 xmpp_bounce_message(Acc) ->
-    Server = mongoose_acc:lserver(Acc),
-    mongoose_metrics:update(Server, xmppMessageBounced, 1),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, xmppMessageBounced, 1),
     Acc.
 
 -spec xmpp_stanza_dropped(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
-    metrics_notify_return().
-xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
-    mongoose_metrics:update(Server, xmppStanzaDropped, 1),
+    mongoose_acc:t().
+xmpp_stanza_dropped(Acc, _, _, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, xmppStanzaDropped, 1),
     Acc.
 
--spec xmpp_send_element(Acc :: map(), Server :: jid:server()) -> ok | metrics_notify_return().
+-spec xmpp_send_element(Acc :: mongoose_acc:t(), Server :: jid:server()) -> mongoose_acc:t().
 xmpp_send_element(Acc, _El) ->
-    Server = mongoose_acc:lserver(Acc),
-    mongoose_metrics:update(Server, xmppStanzaCount, 1),
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, xmppStanzaCount, 1),
     case mongoose_acc:stanza_type(Acc) of
         <<"error">> ->
-            mongoose_metrics:update(Server, xmppErrorTotal, 1),
+            mongoose_metrics:update(HostType, xmppErrorTotal, 1),
             case mongoose_acc:stanza_name(Acc) of
                 <<"iq">> ->
-                    mongoose_metrics:update(Server, xmppErrorIq, 1);
+                    mongoose_metrics:update(HostType, xmppErrorIq, 1);
                 <<"message">> ->
-                    mongoose_metrics:update(Server, xmppErrorMessage, 1);
+                    mongoose_metrics:update(HostType, xmppErrorMessage, 1);
                 <<"presence">> ->
-                    mongoose_metrics:update(Server, xmppErrorPresence, 1)
+                    mongoose_metrics:update(HostType, xmppErrorPresence, 1)
             end;
         _ -> ok
     end,
@@ -153,89 +154,99 @@ xmpp_send_element(Acc, _El) ->
 
 %% Roster
 
--spec roster_get(list(), jid:jid()) -> list().
-roster_get(Acc, #jid{lserver = LServer}) ->
-    mongoose_metrics:update(LServer, modRosterGets, 1),
+-spec roster_get(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
+roster_get(Acc, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modRosterGets, 1),
     Acc.
 
--spec roster_set(Acc :: map(), JID :: jid:jid(), tuple(), tuple()) ->
-    metrics_notify_return().
-roster_set(Acc, #jid{server = Server}, _, _) ->
-    mongoose_metrics:update(Server, modRosterSets, 1),
+-spec roster_set(Acc :: any(), JID :: jid:jid(), tuple(), tuple()) ->
+    any().
+roster_set(Acc, #jid{lserver = LServer}, _, _) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    mongoose_metrics:update(HostType, modRosterSets, 1),
     Acc.
 
 -spec roster_in_subscription(term(), jid:jid(), jid:jid(), atom(), term()) -> term().
-roster_in_subscription(Acc, #jid{lserver = LServer}, _, subscribed, _) ->
-    mongoose_metrics:update(LServer, modPresenceSubscriptions, 1),
+roster_in_subscription(Acc, _, _, subscribed, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modPresenceSubscriptions, 1),
     Acc;
-roster_in_subscription(Acc, #jid{lserver = LServer}, _, unsubscribed, _) ->
-    mongoose_metrics:update(LServer, modPresenceUnsubscriptions, 1),
+roster_in_subscription(Acc, _, _, unsubscribed, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modPresenceUnsubscriptions, 1),
     Acc;
 roster_in_subscription(Acc, _, _, _, _) ->
     Acc.
 
--spec roster_push(map(), jid:jid(), term()) -> metrics_notify_return().
-roster_push(Acc, #jid{server = Server}, _) ->
-    mongoose_metrics:update(Server, modRosterPush, 1),
+-spec roster_push(any(), jid:jid(), term()) -> any().
+roster_push(Acc, #jid{lserver = LServer}, _) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    mongoose_metrics:update(HostType, modRosterPush, 1),
     Acc.
 
 %% Register
 
 %% #rh
--spec register_user(map(), binary(), jid:server()) -> metrics_notify_return().
-register_user(Acc, _, Server) ->
-    mongoose_metrics:update(Server, modRegisterCount, 1),
+-spec register_user(any(), binary(), jid:lserver()) -> any().
+register_user(Acc, _, LServer) ->
+    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    mongoose_metrics:update(HostType, modRegisterCount, 1),
     Acc.
 
--spec remove_user(map(), binary(), jid:server()) -> metrics_notify_return().
-remove_user(Acc, _, Server) ->
-    mongoose_metrics:update(Server, modUnregisterCount, 1),
+-spec remove_user(mongoose_acc:t(), binary(), jid:server()) -> mongoose_acc:t().
+remove_user(Acc, _, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modUnregisterCount, 1),
     Acc.
 
 %% Privacy
 
--spec privacy_iq_get(term(), jid:jid(), jid:jid(), term(), term()) -> term().
-privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
-    mongoose_metrics:update(Server, modPrivacyGets, 1),
+-spec privacy_iq_get(mongoose_acc:t(), jid:jid(), jid:jid(), term(), term()) -> mongoose_acc:t().
+privacy_iq_get(Acc, _, _, _, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modPrivacyGets, 1),
     Acc.
 
--spec privacy_iq_set(Acc :: term(),
+-spec privacy_iq_set(Acc :: mongoose_acc:t(),
                      From :: jid:jid(),
                      _To :: jid:jid(),
-                     _IQ :: jlib:iq()) -> ok | metrics_notify_return() | term().
-privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
+                     _IQ :: jlib:iq()) -> mongoose_acc:t().
+privacy_iq_set(Acc, _, _To, #iq{sub_el = SubEl}) ->
+    HostType = mongoose_acc:host_type(Acc),
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"active">>}] ->
-            mongoose_metrics:update(Server, modPrivacySetsActive, 1);
+            mongoose_metrics:update(HostType, modPrivacySetsActive, 1);
         [#xmlel{name = <<"default">>}] ->
-            mongoose_metrics:update(Server, modPrivacySetsDefault, 1);
+            mongoose_metrics:update(HostType, modPrivacySetsDefault, 1);
         _ ->
             ok
     end,
-    mongoose_metrics:update(Server, modPrivacySets, 1),
+    mongoose_metrics:update(HostType, modPrivacySets, 1),
     Acc.
 
--spec privacy_list_push(Acc :: map(),
+-spec privacy_list_push(Acc :: mongoose_acc:t(),
                         _From :: jid:jid(),
                         To :: jid:jid(),
                         Broadcast :: ejabberd_c2s:broadcast(),
-                        SessionCount :: non_neg_integer()) -> ok | metrics_notify_return().
-privacy_list_push(Acc, _From, #jid{server = Server} = _To, _Broadcast, SessionCount) ->
-    mongoose_metrics:update(Server, modPrivacyPush, SessionCount),
+                        SessionCount :: non_neg_integer()) -> mongoose_acc:t().
+privacy_list_push(Acc, _From, _To, _Broadcast, SessionCount) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modPrivacyPush, SessionCount),
     Acc.
-
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                           JID :: jid:jid(),
                           term(), term(), term()) -> mongoose_acc:t().
-privacy_check_packet(Acc, #jid{lserver = Server}, _, {_, _, _, _}, _) ->
-    mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
+privacy_check_packet(Acc, _, _, {_, _, _, _}, _) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_metrics:update(HostType, modPrivacyStanzaAll, 1),
     case mongoose_acc:get(privacy, check, allow, Acc) of
         deny ->
-            mongoose_metrics:update(Server, modPrivacyStanzaDenied, 1);
+            mongoose_metrics:update(HostType, modPrivacyStanzaDenied, 1);
         block ->
-            mongoose_metrics:update(Server, modPrivacyStanzaBlocked, 1);
+            mongoose_metrics:update(HostType, modPrivacyStanzaBlocked, 1);
         allow ->
             ok
     end,

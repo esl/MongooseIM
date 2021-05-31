@@ -27,8 +27,8 @@
 -export([available_metrics/1,
          sum_metrics/1,
          sum_metric/1,
-         host_metric/1,
-         host_metrics/1,
+         host_type_metric/1,
+         host_type_metrics/1,
          global_metric/1,
          global_metrics/1
 ]).
@@ -47,8 +47,8 @@ routes() ->
      {"/all/:metric", [sum_metric]},
      {"/global", [global_metrics]},
      {"/global/:metric", [global_metric]},
-     {"/host/:host/:metric", [host_metric]},
-     {"/host/:host", [host_metrics]}].
+     {"/host_type/:host_type/:metric", [host_type_metric]},
+     {"/host_type/:host_type", [host_type_metrics]}].
 
 -spec handle_options(mongoose_api:bindings(), mongoose_api:options()) ->
     mongoose_api:methods().
@@ -64,9 +64,9 @@ handle_get(Bindings, [Command]) ->
 %% mongoose_api commands actual handlers
 %%--------------------------------------------------------------------
 available_metrics(_Bindings) ->
-    {Hosts, Metrics} = get_available_hosts_metrics(),
+    {HostTypes, Metrics} = get_available_host_type_metrics(),
     Global = get_available_global_metrics(),
-    Reply = [{hosts, Hosts}, {metrics, Metrics}, {global, Global}],
+    Reply = [{host_types, HostTypes}, {metrics, Metrics}, {global, Global}],
     {ok, Reply}.
 
 sum_metrics(_Bindings) ->
@@ -86,20 +86,20 @@ sum_metric(Bindings) ->
         {error, not_found}
     end.
 
-host_metric(Bindings) ->
-    {host, Host} = lists:keyfind(host, 1, Bindings),
+host_type_metric(Bindings) ->
+    {host_type, HostType} = lists:keyfind(host_type, 1, Bindings),
     {metric, Metric} = lists:keyfind(metric, 1, Bindings),
     try
         MetricAtom = binary_to_existing_atom(Metric, utf8),
-        {ok, Value} = mongoose_metrics:get_metric_value([Host, MetricAtom]),
+        {ok, Value} = mongoose_metrics:get_metric_value([HostType, MetricAtom]),
         {ok, {metric, Value}}
     catch error:badarg ->
         {error, not_found}
     end.
 
-host_metrics(Bindings) ->
-    {host, Host} = lists:keyfind(host, 1, Bindings),
-    case get_host_metrics(Host) of
+host_type_metrics(Bindings) ->
+    {host_type, HostType} = lists:keyfind(host_type, 1, Bindings),
+    case get_host_type_metrics(HostType) of
         [] ->
             {error, not_found};
         Metrics ->
@@ -117,7 +117,7 @@ global_metric(Bindings) ->
     end.
 
 global_metrics(_Bindings) ->
-    case get_host_metrics(global) of
+    case get_host_type_metrics(global) of
         [] ->
             {error, not_found};
         Metrics ->
@@ -128,36 +128,36 @@ global_metrics(_Bindings) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
--spec get_available_hosts() -> [jid:server()].
-get_available_hosts() ->
-    ?MYHOSTS.
+-spec get_available_host_types() -> [mongooseim:host_type()].
+get_available_host_types() ->
+    ?ALL_HOST_TYPES.
 
--spec get_available_metrics(Host :: jid:server()) -> [any()].
-get_available_metrics(Host) ->
-    mongoose_metrics:get_host_metric_names(Host).
+-spec get_available_metrics(HostType :: mongooseim:host_type()) -> [any()].
+get_available_metrics(HostType) ->
+    mongoose_metrics:get_host_type_metric_names(HostType).
 
--spec get_available_hosts_metrics() -> {[any(), ...], [any()]}.
-get_available_hosts_metrics() ->
-    Hosts = get_available_hosts(),
-    Metrics = [Metric || [Metric] <- get_available_metrics(hd(Hosts))],
-    {Hosts, Metrics}.
+-spec get_available_host_type_metrics() -> {[any(), ...], [any()]}.
+get_available_host_type_metrics() ->
+    HostTypes = get_available_host_types(),
+    Metrics = [Metric || [Metric] <- get_available_metrics(hd(HostTypes))],
+    {HostTypes, Metrics}.
 
 get_available_global_metrics() ->
     [Metric || [Metric] <- mongoose_metrics:get_global_metric_names()].
 
 -spec get_sum_metrics() -> [{_, _}].
 get_sum_metrics() ->
-    {_Hosts, Metrics} = get_available_hosts_metrics(),
+    {_HostTypes, Metrics} = get_available_host_type_metrics(),
     [{Metric, get_sum_metric(Metric)} || Metric <- Metrics].
 
 -spec get_sum_metric(atom()) -> [{_, _}].
 get_sum_metric(Metric) ->
     mongoose_metrics:get_aggregated_values(Metric).
 
--spec get_host_metrics(undefined | global | jid:server()) -> [{_, _}].
-get_host_metrics(Host) ->
-    Metrics = mongoose_metrics:get_metric_values(Host),
-    [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].
+-spec get_host_type_metrics(undefined | global | mongooseim:host_type()) -> [{_, _}].
+get_host_type_metrics(HostType) ->
+    Metrics = mongoose_metrics:get_metric_values(HostType),
+    [{prep_name(NameParts), Value} || {[_HostType | NameParts], Value} <- Metrics].
 
 prep_name(NameParts) ->
     ToStrings = [part_to_string(NamePart) || NamePart <- NameParts],
