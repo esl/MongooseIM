@@ -136,10 +136,10 @@ generate_rpc_jid({_,User}) ->
     LServer = escalus_utils:jid_to_lower(Server),
     {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
 
-create_instant_room(Host, Room, From, Nick, Opts) ->
+create_instant_room(ServerHost, Room, From, Nick, Opts) ->
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
     rpc(mim(), mod_muc, create_instant_room,
-        [Host, Room1, From, Nick, Opts]).
+        [ServerHost, muc_host(), Room1, From, Nick, Opts]).
 
 destroy_room(Config) ->
     destroy_room(muc_host(), ?config(room, Config)).
