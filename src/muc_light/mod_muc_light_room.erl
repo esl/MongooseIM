@@ -64,8 +64,9 @@ maybe_forget(_Acc, _, _) ->
                               NewAffUsers :: aff_users()) ->
     ok | {error, occupant_limit_exceeded}.
 participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
-    MaxOccupants = gen_mod:get_module_opt_by_subhost(
-                     MUCServer, mod_muc_light, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
+    MaxOccupants = gen_mod:get_module_opt(
+                     HostType, mod_muc_light, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case length(NewAffUsers) > MaxOccupants of
         true -> {error, occupant_limit_exceeded};
         false -> ok
@@ -119,14 +120,13 @@ process_request({get, #info{} = InfoReq},
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq},
-                _From, _UserUS, {_, MUCServer} = RoomUS,
-                {_, UserAff}, AffUsers, _Acc) ->
-    AllCanConfigure = gen_mod:get_module_opt_by_subhost(
-                        MUCServer, mod_muc_light, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE),
+                _From, _UserUS, RoomUS, {_, UserAff}, AffUsers, Acc) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    AllCanConfigure = all_can_configure(HostType),
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
-                _From, UserUS, {_, MUCServer} = RoomUS,
-                {_, UserAff}, AffUsers, Acc) ->
+                _From, UserUS, RoomUS, {_, UserAff}, AffUsers, Acc) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
                   false -> undefined;
                   {OwnerUS0, _} -> OwnerUS0
@@ -134,11 +134,10 @@ process_request({set, #affiliations{} = AffReq},
     ValidateResult
     = case UserAff of
           owner ->
-              {ok, mod_muc_light_utils:filter_out_prevented(
+              {ok, mod_muc_light_utils:filter_out_prevented(HostType,
                      UserUS, RoomUS, AffReq#affiliations.aff_users)};
           member ->
-              AllCanInvite = gen_mod:get_module_opt_by_subhost(
-                               MUCServer, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+              AllCanInvite = all_can_invite(HostType),
               validate_aff_changes_by_member(
                 AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,
@@ -153,6 +152,12 @@ process_request({set, #destroy{}},
     {error, not_allowed};
 process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers, _Acc) ->
     {error, bad_request}.
+
+all_can_invite(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE).
+
+all_can_configure(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE).
 
 %% --------- Config set ---------
 

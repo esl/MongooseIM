@@ -28,9 +28,11 @@
 -export([b2aff/1, aff2b/1]).
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
--export([filter_out_prevented/3]).
+-export([filter_out_prevented/4]).
 -export([acc_to_host_type/1]).
 -export([room_jid_to_host_type/1]).
+-export([muc_host_to_host_type/1]).
+-export([server_host_to_host_type/1]).
 -export([run_forget_room_hook/1]).
 
 -include("jlib.hrl").
@@ -84,21 +86,23 @@ light_aff_to_muc_role(owner) -> moderator;
 light_aff_to_muc_role(member) -> participant;
 light_aff_to_muc_role(none) -> none.
 
--spec room_limit_reached(UserUS :: jid:simple_bare_jid(), RoomS :: jid:lserver()) ->
+-spec room_limit_reached(UserUS :: jid:simple_bare_jid(), HostType :: mongooseim:host_type()) ->
     boolean().
-room_limit_reached(UserUS, RoomS) ->
-    room_limit_reached(
-      UserUS, RoomS, gen_mod:get_module_opt_by_subhost(
-                       RoomS, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
+room_limit_reached(UserUS, HostType) ->
+    check_room_limit_reached(UserUS, HostType, rooms_per_user(HostType)).
 
--spec filter_out_prevented(FromUS :: jid:simple_bare_jid(),
-                          RoomUS :: jid:simple_bare_jid(),
-                          AffUsers :: aff_users()) -> aff_users().
-filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
-    RoomsPerUser = gen_mod:get_module_opt_by_subhost(
-                     MUCServer, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
-    BlockingEnabled = gen_mod:get_module_opt_by_subhost(MUCServer, mod_muc_light,
-                                                        blocking, ?DEFAULT_BLOCKING),
+rooms_per_user(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light,
+                           rooms_per_user, ?DEFAULT_ROOMS_PER_USER).
+
+-spec filter_out_prevented(HostType :: mongooseim:host_type(),
+                           FromUS :: jid:simple_bare_jid(),
+                           RoomUS :: jid:simple_bare_jid(),
+                           AffUsers :: aff_users()) -> aff_users().
+filter_out_prevented(HostType, FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
+    RoomsPerUser = rooms_per_user(HostType),
+    BlockingEnabled = gen_mod:get_module_opt(HostType, mod_muc_light,
+                                             blocking, ?DEFAULT_BLOCKING),
     BlockingQuery = case {BlockingEnabled, RoomU} of
                         {true, <<>>} -> [{user, FromUS}];
                         {true, _} -> [{user, FromUS}, {room, RoomUS}];
@@ -106,7 +110,8 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
                     end,
     case BlockingQuery == undefined andalso RoomsPerUser == infinity of
         true -> AffUsers;
-        false -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
+        false -> filter_out_loop(HostType, FromUS, MUCServer,
+                                 BlockingQuery, RoomsPerUser, AffUsers)
     end.
 
 %%====================================================================
@@ -115,36 +120,39 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 
 %% ---------------- Checks ----------------
 
--spec room_limit_reached(UserUS :: jid:simple_bare_jid(),
-                         RoomS :: jid:lserver(),
+-spec check_room_limit_reached(UserUS :: jid:simple_bare_jid(),
+                         HostType :: mongooseim:host_type(),
                          RoomsPerUser :: infinity | pos_integer()) ->
     boolean().
-room_limit_reached(_UserUS, _RoomS, infinity) ->
+check_room_limit_reached(_UserUS, _HostType, infinity) ->
     false;
-room_limit_reached(UserUS, RoomS, RoomsPerUser) ->
-    mod_muc_light_db_backend:get_user_rooms_count(UserUS, RoomS) >= RoomsPerUser.
+check_room_limit_reached(UserUS, HostType, RoomsPerUser) ->
+    mod_muc_light_db_backend:get_user_rooms_count(UserUS, HostType) >= RoomsPerUser.
 
 %% ---------------- Filter for blocking ----------------
 
--spec filter_out_loop(FromUS :: jid:simple_bare_jid(),
+-spec filter_out_loop(HostType :: mongooseim:host_type(),
+                      FromUS :: jid:simple_bare_jid(),
                       MUCServer :: jid:lserver(),
                       BlockingQuery :: [{blocking_what(), jid:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
-filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser,
+filter_out_loop(HostType, FromUS, MUCServer, BlockingQuery, RoomsPerUser,
                 [{UserUS, _} = AffUser | RAffUsers]) ->
     NotBlocked = case (BlockingQuery == undefined orelse UserUS =:= FromUS) of
                      false -> mod_muc_light_db_backend:get_blocking(
                                 UserUS, MUCServer, BlockingQuery) == allow;
                      true -> true
                  end,
-    case NotBlocked andalso not room_limit_reached(FromUS, MUCServer, RoomsPerUser) of
+    case NotBlocked andalso not check_room_limit_reached(FromUS, HostType, RoomsPerUser) of
         true ->
-            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+            [AffUser | filter_out_loop(HostType, FromUS, MUCServer,
+                                       BlockingQuery, RoomsPerUser, RAffUsers)];
         false ->
-            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)
+            filter_out_loop(HostType, FromUS, MUCServer,
+                            BlockingQuery, RoomsPerUser, RAffUsers)
     end;
-filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
+filter_out_loop(_HostType, _FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
     [].
 
 %% ---------------- Affiliations manipulation ----------------
@@ -279,12 +287,8 @@ room_jid_to_host_type(#jid{lserver = MucHost}) ->
     muc_host_to_host_type(MucHost).
 
 server_host_to_host_type(LServer) ->
-    case mongoose_domain_api:get_host_type(LServer) of
-        {ok, HostType} ->
-            HostType;
-        {error, not_found} ->
-            LServer
-    end.
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    HostType.
 
 muc_host_to_host_type(MucHost) ->
     {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),

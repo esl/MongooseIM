@@ -25,8 +25,8 @@
 
 %% API
 -export([
-         start/2,
-         stop/2,
+         start/1,
+         stop/1,
 
          create_room/4,
          destroy_room/1,
@@ -71,13 +71,13 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-start(_Host, _MUCHost) ->
+-spec start(Host :: jid:server()) -> ok.
+start(_Host) ->
     prepare_queries(),
     ok.
 
--spec stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-stop(_Host, _MUCHost) ->
+-spec stop(Host :: jid:server()) -> ok.
+stop(_Host) ->
     ok.
 
 %% ------------------------ SQL -------------------------------------------
@@ -251,123 +251,123 @@ prepare_domain_removal_queries() ->
 
 %% ------------------------ Room SQL functions ------------------------
 
-select_room_id(MainHost, RoomU, RoomS) ->
+select_room_id(HostType, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_room_id, [RoomU, RoomS]).
+        HostType, muc_light_select_room_id, [RoomU, RoomS]).
 
-select_room_id_and_version(MainHost, RoomU, RoomS) ->
+select_room_id_and_version(HostType, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_room_id_and_version, [RoomU, RoomS]).
+        HostType, muc_light_select_room_id_and_version, [RoomU, RoomS]).
 
-select_user_rooms(MainHost, LUser, LServer) ->
+select_user_rooms(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_user_rooms, [LUser, LServer]).
+        HostType, muc_light_select_user_rooms, [LUser, LServer]).
 
-select_user_rooms_count(MainHost, LUser, LServer) ->
+select_user_rooms_count(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_user_rooms_count, [LUser, LServer]).
+        HostType, muc_light_select_user_rooms_count, [LUser, LServer]).
 
-insert_room(MainHost, RoomU, RoomS, Version) ->
+insert_room(HostType, RoomU, RoomS, Version) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_insert_room, [RoomU, RoomS, Version]).
+        HostType, muc_light_insert_room, [RoomU, RoomS, Version]).
 
-update_room_version(MainHost, RoomU, RoomS, Version) ->
+update_room_version(HostType, RoomU, RoomS, Version) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_update_room_version, [Version, RoomU, RoomS]).
+        HostType, muc_light_update_room_version, [Version, RoomU, RoomS]).
 
-delete_room(MainHost, RoomU, RoomS) ->
+delete_room(HostType, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_room, [RoomU, RoomS]).
+        HostType, muc_light_delete_room, [RoomU, RoomS]).
 
 %% ------------------------ Affiliation SQL functions ------------------------
 
 %% Returns affiliations with a version
-select_affs_by_us(MainHost, RoomU, RoomS) ->
+select_affs_by_us(HostType, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_affs_by_us, [RoomU, RoomS]).
+        HostType, muc_light_select_affs_by_us, [RoomU, RoomS]).
 
 %% Returns affiliations without a version
-select_affs_by_room_id(MainHost, RoomID) ->
+select_affs_by_room_id(HostType, RoomID) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_affs_by_room_id, [RoomID]).
+        HostType, muc_light_select_affs_by_room_id, [RoomID]).
 
-insert_aff(MainHost, RoomID, UserU, UserS, Aff) ->
+insert_aff(HostType, RoomID, UserU, UserS, Aff) ->
     DbAff = aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_insert_aff, [RoomID, UserU, UserS, DbAff]).
+        HostType, muc_light_insert_aff, [RoomID, UserU, UserS, DbAff]).
 
-update_aff(MainHost, RoomID, UserU, UserS, Aff) ->
+update_aff(HostType, RoomID, UserU, UserS, Aff) ->
     DbAff = aff_atom2db(Aff),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_update_aff, [DbAff, RoomID, UserU, UserS]).
+        HostType, muc_light_update_aff, [DbAff, RoomID, UserU, UserS]).
 
-delete_affs(MainHost, RoomID) ->
+delete_affs(HostType, RoomID) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_affs, [RoomID]).
+        HostType, muc_light_delete_affs, [RoomID]).
 
-delete_aff(MainHost, RoomID, UserU, UserS) ->
+delete_aff(HostType, RoomID, UserU, UserS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_aff, [RoomID, UserU, UserS]).
+        HostType, muc_light_delete_aff, [RoomID, UserU, UserS]).
 
 %% ------------------------ Config SQL functions ---------------------------
-select_config_by_room_id(MainHost, RoomID) ->
+select_config_by_room_id(HostType, RoomID) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_config_by_room_id, [RoomID]).
+        HostType, muc_light_select_config_by_room_id, [RoomID]).
 
-select_config_by_us(MainHost, RoomU, RoomS) ->
+select_config_by_us(HostType, RoomU, RoomS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_config_by_us, [RoomU, RoomS]).
+        HostType, muc_light_select_config_by_us, [RoomU, RoomS]).
 
-insert_config(MainHost, RoomID, Key, Val) ->
+insert_config(HostType, RoomID, Key, Val) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_insert_config, [RoomID, Key, Val]).
+        HostType, muc_light_insert_config, [RoomID, Key, Val]).
 
-update_config(MainHost, RoomID, Key, Val) ->
+update_config(HostType, RoomID, Key, Val) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_update_config, [Val, RoomID, Key]).
+        HostType, muc_light_update_config, [Val, RoomID, Key]).
 
-delete_config(MainHost, RoomID) ->
+delete_config(HostType, RoomID) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_config, [RoomID]).
+        HostType, muc_light_delete_config, [RoomID]).
 
 %% ------------------------ Blocking SQL functions -------------------------
 
-select_blocking(MainHost, LUser, LServer) ->
+select_blocking(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_blocking, [LUser, LServer]).
+        HostType, muc_light_select_blocking, [LUser, LServer]).
 
-select_blocking_cnt(MainHost, LUser, LServer, [{What, Who}]) ->
+select_blocking_cnt(HostType, LUser, LServer, [{What, Who}]) ->
     DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_blocking_cnt,
+        HostType, muc_light_select_blocking_cnt,
         [LUser, LServer, DbWhat, DbWho]);
-select_blocking_cnt(MainHost, LUser, LServer, [{What1, Who1}, {What2, Who2}]) ->
+select_blocking_cnt(HostType, LUser, LServer, [{What1, Who1}, {What2, Who2}]) ->
     DbWhat1 = what_atom2db(What1),
     DbWhat2 = what_atom2db(What2),
     DbWho1 = jid:to_binary(Who1),
     DbWho2 = jid:to_binary(Who2),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_select_blocking_cnt2,
+        HostType, muc_light_select_blocking_cnt2,
         [LUser, LServer, DbWhat1, DbWho1, DbWhat2, DbWho2]).
 
-insert_blocking(MainHost, LUser, LServer, What, Who) ->
+insert_blocking(HostType, LUser, LServer, What, Who) ->
     DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_insert_blocking,
+        HostType, muc_light_insert_blocking,
         [LUser, LServer, DbWhat, DbWho]).
 
-delete_blocking1(MainHost, LUser, LServer, What, Who) ->
+delete_blocking1(HostType, LUser, LServer, What, Who) ->
     DbWhat = what_atom2db(What),
     DbWho = jid:to_binary(Who),
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_blocking1,
+        HostType, muc_light_delete_blocking1,
         [LUser, LServer, DbWhat, DbWho]).
 
-delete_blocking(MainHost, UserU, UserS) ->
+delete_blocking(HostType, UserU, UserS) ->
     mongoose_rdbms:execute_successfully(
-        MainHost, muc_light_delete_blocking, [UserU, UserS]).
+        HostType, muc_light_delete_blocking, [UserU, UserS]).
 
 %% ------------------------ General room management ------------------------
 
@@ -375,33 +375,33 @@ delete_blocking(MainHost, UserU, UserS) ->
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room({<<>>, RoomS} = RoomUS, Config, AffUsers, Version) ->
-    MainHost = main_host(RoomUS),
-    create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, 10);
+    HostType = main_host(RoomUS),
+    create_room_with_random_name(HostType, RoomS, Config, AffUsers, Version, 10);
 create_room(RoomUS, Config, AffUsers, Version) ->
-    MainHost = main_host(RoomUS),
-    create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version).
+    HostType = main_host(RoomUS),
+    create_room_with_specified_name(HostType, RoomUS, Config, AffUsers, Version).
 
-create_room_with_random_name(_MainHost, RoomS, _Config, _AffUsers, _Version, 0) ->
+create_room_with_random_name(_HostType, RoomS, _Config, _AffUsers, _Version, 0) ->
     ?LOG_ERROR(#{what => muc_create_room_with_random_name_failed,
                  sub_host => RoomS}),
     error(create_room_with_random_name_failed);
-create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, Retries)
+create_room_with_random_name(HostType, RoomS, Config, AffUsers, Version, Retries)
     when Retries > 0 ->
     RoomU = mongoose_bin:gen_from_timestamp(),
     RoomUS = {RoomU, RoomS},
-    F = fun() -> create_room_transaction(MainHost, RoomUS, Config, AffUsers, Version) end,
-    case mongoose_rdbms:sql_transaction(MainHost, F) of
+    F = fun() -> create_room_transaction(HostType, RoomUS, Config, AffUsers, Version) end,
+    case mongoose_rdbms:sql_transaction(HostType, F) of
         {atomic, ok} ->
             {ok, RoomUS};
         Other ->
             ?LOG_ERROR(#{what => muc_create_room_with_random_name_retry,
                          candidate_room => RoomU, sub_host => RoomS, reason => Other}),
-            create_room_with_random_name(MainHost, RoomS, Config, AffUsers, Version, Retries-1)
+            create_room_with_random_name(HostType, RoomS, Config, AffUsers, Version, Retries-1)
     end.
 
-create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version) ->
-    F = fun() -> create_room_transaction(MainHost, RoomUS, Config, AffUsers, Version) end,
-    case mongoose_rdbms:sql_transaction(MainHost, F) of
+create_room_with_specified_name(HostType, RoomUS, Config, AffUsers, Version) ->
+    F = fun() -> create_room_transaction(HostType, RoomUS, Config, AffUsers, Version) end,
+    case mongoose_rdbms:sql_transaction(HostType, F) of
         {atomic, ok} ->
             {ok, RoomUS};
         Other ->
@@ -418,37 +418,36 @@ create_room_with_specified_name(MainHost, RoomUS, Config, AffUsers, Version) ->
 
 -spec destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room(RoomUS) ->
-    MainHost = main_host(RoomUS),
-    F = fun() -> destroy_room_transaction(MainHost, RoomUS) end,
-    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
+    HostType = main_host(RoomUS),
+    F = fun() -> destroy_room_transaction(HostType, RoomUS) end,
+    {atomic, Res} = mongoose_rdbms:sql_transaction(HostType, F),
     Res.
 
 -spec room_exists(RoomUS :: jid:simple_bare_jid()) -> boolean().
 room_exists({RoomU, RoomS} = RoomUS) ->
-    MainHost = main_host(RoomUS),
-    {selected, Res} = select_room_id(MainHost, RoomU, RoomS),
+    HostType = main_host(RoomUS),
+    {selected, Res} = select_room_id(HostType, RoomU, RoomS),
     Res /= [].
 
 -spec get_user_rooms(UserUS :: jid:simple_bare_jid(),
                      MUCServer :: jid:lserver() | undefined) ->
     [RoomUS :: jid:simple_bare_jid()].
-get_user_rooms({LUser, LServer}, undefined) ->
-    lists:usort(lists:flatmap(
-                  fun(Host) ->
-                          {selected, Rooms} = select_user_rooms(Host, LUser, LServer),
-                          Rooms
-                  end, ?MYHOSTS));
+get_user_rooms({LUser, LServer} = US, undefined) ->
+    %% Only one hosttype is handled here
+    %% It is used to be map over MYHOSTS
+    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
+    {selected, Rooms} = select_user_rooms(HostType, LUser, LServer),
+    Rooms;
 get_user_rooms({LUser, LServer}, MUCServer) ->
-    MainHost = main_host(MUCServer),
-    {selected, Rooms} = select_user_rooms(MainHost, LUser, LServer),
+    HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
+    {selected, Rooms} = select_user_rooms(HostType, LUser, LServer),
     Rooms.
 
 -spec get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
-                           MUCServer :: jid:lserver()) ->
+                           HostType :: mongooseim:host_type()) ->
     non_neg_integer().
-get_user_rooms_count({LUser, LServer}, MUCServer) ->
-    MainHost = main_host(MUCServer),
-    {selected, [{Cnt}]} = select_user_rooms_count(MainHost, LUser, LServer),
+get_user_rooms_count({LUser, LServer}, HostType) ->
+    {selected, [{Cnt}]} = select_user_rooms_count(HostType, LUser, LServer),
     mongoose_rdbms:result_to_integer(Cnt).
 
 -spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
@@ -481,8 +480,8 @@ remove_domain(HostType, RoomS, LServer) ->
 -spec get_config(RoomUS :: jid:simple_bare_jid()) ->
     {ok, mod_muc_light_room_config:kv(), Version :: binary()} | {error, not_exists}.
 get_config({RoomU, RoomS} = RoomUS) ->
-    MainHost = main_host(RoomUS),
-    {selected, Result} = select_config_by_us(MainHost, RoomU, RoomS),
+    HostType = main_host(RoomUS),
+    {selected, Result} = select_config_by_us(HostType, RoomU, RoomS),
     case Result of
         [] ->
             {error, not_exists};
@@ -499,10 +498,10 @@ get_config({RoomU, RoomS} = RoomUS) ->
                  Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomUS, ConfigChanges, Version) ->
-    MainHost = main_host(RoomUS),
+    HostType = main_host(RoomUS),
     {atomic, Res}
     = mongoose_rdbms:sql_transaction(
-        MainHost, fun() -> set_config_transaction(RoomUS, ConfigChanges, Version) end),
+        HostType, fun() -> set_config_transaction(RoomUS, ConfigChanges, Version) end),
     Res.
 
 -spec set_config(RoomUS :: jid:simple_bare_jid(),
@@ -516,8 +515,8 @@ set_config(RoomJID, Key, Val, Version) ->
 -spec get_blocking(UserUS :: jid:simple_bare_jid(), MUCServer :: jid:lserver()) ->
     [blocking_item()].
 get_blocking({LUser, LServer}, MUCServer) ->
-    MainHost = main_host(MUCServer),
-    {selected, WhatWhos} = select_blocking(MainHost, LUser, LServer),
+    HostType = main_host(MUCServer),
+    {selected, WhatWhos} = select_blocking(HostType, LUser, LServer),
     decode_blocking(WhatWhos).
 
 -spec get_blocking(UserUS :: jid:simple_bare_jid(),
@@ -525,8 +524,8 @@ get_blocking({LUser, LServer}, MUCServer) ->
                    WhatWhos :: [{blocking_what(), jid:simple_bare_jid()}]) ->
     blocking_action().
 get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
-    MainHost = main_host(MUCServer),
-    {selected, [{Count}]} = select_blocking_cnt(MainHost, LUser, LServer, WhatWhos),
+    HostType = main_host(MUCServer),
+    {selected, [{Count}]} = select_blocking_cnt(HostType, LUser, LServer, WhatWhos),
     case mongoose_rdbms:result_to_integer(Count) of
         0 -> allow;
         _ -> deny
@@ -536,27 +535,27 @@ get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
                    MUCServer :: jid:lserver(),
                    BlockingItems :: [blocking_item()]) -> ok.
 set_blocking(UserUS, MUCServer, BlockingItems) ->
-    MainHost = main_host(MUCServer),
-    set_blocking_loop(MainHost, UserUS, MUCServer, BlockingItems).
+    HostType = main_host(MUCServer),
+    set_blocking_loop(HostType, UserUS, MUCServer, BlockingItems).
 
-set_blocking_loop(_MainHost, _UserUS, _MUCServer, []) ->
+set_blocking_loop(_HostType, _UserUS, _MUCServer, []) ->
     ok;
-set_blocking_loop(MainHost, {LUser, LServer} = UserUS, MUCServer,
+set_blocking_loop(HostType, {LUser, LServer} = UserUS, MUCServer,
              [{What, deny, Who} | RBlockingItems]) ->
-    {updated, _} = insert_blocking(MainHost, LUser, LServer, What, Who),
-    set_blocking_loop(MainHost, UserUS, MUCServer, RBlockingItems);
-set_blocking_loop(MainHost, {LUser, LServer} = UserUS, MUCServer,
+    {updated, _} = insert_blocking(HostType, LUser, LServer, What, Who),
+    set_blocking_loop(HostType, UserUS, MUCServer, RBlockingItems);
+set_blocking_loop(HostType, {LUser, LServer} = UserUS, MUCServer,
              [{What, allow, Who} | RBlockingItems]) ->
-    {updated, _} = delete_blocking1(MainHost, LUser, LServer, What, Who),
-    set_blocking_loop(MainHost, UserUS, MUCServer, RBlockingItems).
+    {updated, _} = delete_blocking1(HostType, LUser, LServer, What, Who),
+    set_blocking_loop(HostType, UserUS, MUCServer, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
 -spec get_aff_users(RoomUS :: jid:simple_bare_jid()) ->
     {ok, aff_users(), Version :: binary()} | {error, not_exists}.
 get_aff_users({RoomU, RoomS} = RoomUS) ->
-    MainHost = main_host(RoomUS),
-    case select_affs_by_us(MainHost, RoomU, RoomS) of
+    HostType = main_host(RoomUS),
+    case select_affs_by_us(HostType, RoomU, RoomS) of
         {selected, []} ->
             {error, not_exists};
         {selected, [{Version, null, null, null}]} ->
@@ -572,10 +571,10 @@ get_aff_users({RoomU, RoomS} = RoomUS) ->
                        Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
 modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
-    MainHost = main_host(RoomUS),
-    F = fun() -> modify_aff_users_transaction(MainHost, RoomUS, AffUsersChanges,
+    HostType = main_host(RoomUS),
+    F = fun() -> modify_aff_users_transaction(HostType, RoomUS, AffUsersChanges,
                                               ExternalCheck, Version) end,
-    {atomic, Res} = mongoose_rdbms:sql_transaction(MainHost, F),
+    {atomic, Res} = mongoose_rdbms:sql_transaction(HostType, F),
     Res.
 
 %% ------------------------ Misc ------------------------
@@ -584,13 +583,13 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     {ok, mod_muc_light_room_config:kv(), aff_users(), Version :: binary()}
     | {error, not_exists}.
 get_info({RoomU, RoomS} = RoomUS) ->
-    MainHost = main_host(RoomUS),
-    case select_room_id_and_version(MainHost, RoomU, RoomS) of
+    HostType = main_host(RoomUS),
+    case select_room_id_and_version(HostType, RoomU, RoomS) of
         {selected, [{DbRoomID, Version}]} ->
             RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
-            {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
+            {selected, AffUsersDB} = select_affs_by_room_id(HostType, RoomID),
             AffUsers = decode_affs(AffUsersDB),
-            {selected, ConfigDB} = select_config_by_room_id(MainHost, RoomID),
+            {selected, ConfigDB} = select_config_by_room_id(HostType, RoomID),
             {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
                              ConfigDB, [], mod_muc_light:config_schema(RoomS)),
 
@@ -656,51 +655,51 @@ force_clear() ->
 %% ------------------------ General room management ------------------------
 
 %% Expects config to have unique fields!
--spec create_room_transaction(MainHost :: jid:lserver(),
+-spec create_room_transaction(HostType :: mongooseim:host_type(),
                               RoomUS :: jid:simple_bare_jid(),
                               Config :: mod_muc_light_room_config:kv(),
                               AffUsers :: aff_users(),
                               Version :: binary()) -> ok.
-create_room_transaction(MainHost, {RoomU, RoomS}, Config, AffUsers, Version) ->
-    insert_room(MainHost, RoomU, RoomS, Version),
-    RoomID = mongoose_rdbms:selected_to_integer(select_room_id(MainHost, RoomU, RoomS)),
+create_room_transaction(HostType, {RoomU, RoomS}, Config, AffUsers, Version) ->
+    insert_room(HostType, RoomU, RoomS, Version),
+    RoomID = mongoose_rdbms:selected_to_integer(select_room_id(HostType, RoomU, RoomS)),
     Schema = mod_muc_light:config_schema(RoomS),
     ConfigFields = mod_muc_light_room_config:to_binary_kv(Config, Schema),
-    [insert_aff_tuple(MainHost, RoomID, AffUser) || AffUser <- AffUsers],
-    [insert_config_kv(MainHost, RoomID, KV) || KV <- ConfigFields],
+    [insert_aff_tuple(HostType, RoomID, AffUser) || AffUser <- AffUsers],
+    [insert_config_kv(HostType, RoomID, KV) || KV <- ConfigFields],
     ok.
 
-insert_aff_tuple(MainHost, RoomID, {{UserU, UserS}, Aff}) ->
-    insert_aff(MainHost, RoomID, UserU, UserS, Aff).
+insert_aff_tuple(HostType, RoomID, {{UserU, UserS}, Aff}) ->
+    insert_aff(HostType, RoomID, UserU, UserS, Aff).
 
-insert_config_kv(MainHost, RoomID, {Key, Val}) ->
-    insert_config(MainHost, RoomID, Key, Val).
+insert_config_kv(HostType, RoomID, {Key, Val}) ->
+    insert_config(HostType, RoomID, Key, Val).
 
--spec destroy_room_transaction(MainHost :: jid:lserver(),
+-spec destroy_room_transaction(HostType :: mongooseim:host_type(),
                                RoomUS :: jid:simple_bare_jid()) ->
     ok | {error, not_exists}.
-destroy_room_transaction(MainHost, {RoomU, RoomS}) ->
-    case select_room_id(MainHost, RoomU, RoomS) of
+destroy_room_transaction(HostType, {RoomU, RoomS}) ->
+    case select_room_id(HostType, RoomU, RoomS) of
         {selected, [{DbRoomID}]} ->
             RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
-            {updated, _} = delete_affs(MainHost, RoomID),
-            {updated, _} = delete_config(MainHost, RoomID),
-            {updated, _} = delete_room(MainHost, RoomU, RoomS),
+            {updated, _} = delete_affs(HostType, RoomID),
+            {updated, _} = delete_config(HostType, RoomID),
+            {updated, _} = delete_room(HostType, RoomU, RoomS),
             ok;
         {selected, []} ->
             {error, not_exists}
     end.
 
--spec remove_user_transaction(MainHost :: jid:lserver(),
+-spec remove_user_transaction(HostType :: mongooseim:host_type(),
                               UserUS :: jid:simple_bare_jid(),
                               Version :: binary()) ->
     mod_muc_light_db:remove_user_return().
-remove_user_transaction(MainHost, {UserU, UserS} = UserUS, Version) ->
+remove_user_transaction(HostType, {UserU, UserS} = UserUS, Version) ->
     Rooms = get_user_rooms(UserUS, undefined),
-    {updated, _} = delete_blocking(MainHost, UserU, UserS),
+    {updated, _} = delete_blocking(HostType, UserU, UserS),
     lists:map(
       fun(RoomUS) ->
-              {RoomUS, modify_aff_users_transaction(MainHost,
+              {RoomUS, modify_aff_users_transaction(HostType,
                          RoomUS, [{UserUS, none}], fun(_, _) -> ok end, Version)}
       end, Rooms).
 
@@ -711,14 +710,14 @@ remove_user_transaction(MainHost, {UserU, UserS} = UserUS, Version) ->
                              Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
-    MainHost = main_host(RoomUS),
-    case select_room_id_and_version(MainHost, RoomU, RoomS) of
+    HostType = main_host(RoomUS),
+    case select_room_id_and_version(HostType, RoomU, RoomS) of
         {selected, [{DbRoomID, PrevVersion}]} ->
             RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
-            {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
+            {updated, _} = update_room_version(HostType, RoomU, RoomS, Version),
             lists:foreach(
               fun({Key, Val}) ->
-                      {updated, _} = update_config(MainHost, RoomID, Key, Val)
+                      {updated, _} = update_config(HostType, RoomID, Key, Val)
               end, mod_muc_light_room_config:to_binary_kv(
                      ConfigChanges, mod_muc_light:config_schema(RoomS))),
             {ok, PrevVersion};
@@ -730,24 +729,24 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec modify_aff_users_transaction(MainHost :: jid:lserver(),
+-spec modify_aff_users_transaction(HostType :: mongooseim:host_type(),
                                    RoomUS :: jid:simple_bare_jid(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
                                    Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
-modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
+modify_aff_users_transaction(HostType, {RoomU, RoomS} = RoomUS,
                              AffUsersChanges, CheckFun, Version) ->
-    case select_room_id_and_version(MainHost, RoomU, RoomS) of
+    case select_room_id_and_version(HostType, RoomU, RoomS) of
         {selected, [{DbRoomID, PrevVersion}]} ->
             RoomID = mongoose_rdbms:result_to_integer(DbRoomID),
-            modify_aff_users_transaction(MainHost,
+            modify_aff_users_transaction(HostType,
               RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVersion, Version);
         {selected, []} ->
             {error, not_exists}
     end.
 
--spec modify_aff_users_transaction(MainHost :: jid:lserver(),
+-spec modify_aff_users_transaction(HostType :: mongooseim:host_type(),
                                    RoomUS :: jid:simple_bare_jid(),
                                    RoomID :: room_id(),
                                    AffUsersChanges :: aff_users(),
@@ -755,17 +754,17 @@ modify_aff_users_transaction(MainHost, {RoomU, RoomS} = RoomUS,
                                    PrevVersion :: binary(),
                                    Version :: binary()) ->
     mod_muc_light_db:modify_aff_users_return().
-modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
+modify_aff_users_transaction(HostType, RoomUS, RoomID, AffUsersChanges,
                              CheckFun, PrevVersion, Version) ->
-    {selected, AffUsersDB} = select_affs_by_room_id(MainHost, RoomID),
+    {selected, AffUsersDB} = select_affs_by_room_id(HostType, RoomID),
     AffUsers = decode_affs(AffUsersDB),
     case mod_muc_light_utils:change_aff_users(AffUsers, AffUsersChanges) of
         {ok, NewAffUsers, AffUsersChanged, JoiningUsers, _LeavingUsers} ->
             case CheckFun(RoomUS, NewAffUsers) of
                 ok ->
-                    apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers),
+                    apply_aff_users_transaction(HostType, RoomID, AffUsersChanged, JoiningUsers),
                     {RoomU, RoomS} = RoomUS,
-                    {updated, _} = update_room_version(MainHost, RoomU, RoomS, Version),
+                    {updated, _} = update_room_version(HostType, RoomU, RoomS, Version),
                     {ok, AffUsers, NewAffUsers, AffUsersChanged, PrevVersion};
                 Error ->
                     Error
@@ -774,28 +773,27 @@ modify_aff_users_transaction(MainHost, RoomUS, RoomID, AffUsersChanges,
             Error
     end.
 
--spec apply_aff_users_transaction(MainHost :: jid:lserver(),
+-spec apply_aff_users_transaction(HostType :: mongooseim:host_type(),
                                   RoomID :: room_id(),
                                   AffUsersChanges :: aff_users(),
                                   JoiningUsers :: [jid:simple_bare_jid()]) -> ok.
-apply_aff_users_transaction(MainHost, RoomID, AffUsersChanged, JoiningUsers) ->
+apply_aff_users_transaction(HostType, RoomID, AffUsersChanged, JoiningUsers) ->
     lists:foreach(
       fun({{UserU, UserS}, none}) ->
-              {updated, _} = delete_aff(MainHost, RoomID, UserU, UserS);
+              {updated, _} = delete_aff(HostType, RoomID, UserU, UserS);
          ({{UserU, UserS} = UserUS, Aff}) ->
               case lists:member(UserUS, JoiningUsers) of
                   true ->
-                      {updated, _} = insert_aff(MainHost, RoomID, UserU, UserS, Aff);
+                      {updated, _} = insert_aff(HostType, RoomID, UserU, UserS, Aff);
                   false ->
-                      {updated, _} = update_aff(MainHost, RoomID, UserU, UserS, Aff)
+                      {updated, _} = update_aff(HostType, RoomID, UserU, UserS, Aff)
               end
       end, AffUsersChanged).
 
 %% ------------------------ Common ------------------------
 
--spec main_host(JIDOrServer :: jid:simple_bare_jid() | binary()) -> jid:lserver().
+-spec main_host(JIDOrServer :: jid:simple_bare_jid() | binary()) -> mongooseim:host_type().
 main_host({_, RoomS}) ->
     main_host(RoomS);
 main_host(MUCServer) ->
-    {ok, MainHost} = mongoose_subhosts:get_host(MUCServer),
-    MainHost.
+    mod_muc_light_utils:muc_host_to_host_type(MUCServer).
