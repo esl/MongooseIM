@@ -34,7 +34,6 @@
          unload_muc/0,
          muc_host/0,
          start_room/5,
-         create_instant_room/5,
          generate_rpc_jid/1,
          destroy_room/1,
          destroy_room/2,
@@ -273,7 +272,6 @@ groups() ->
                                   deny_creation_of_http_password_protected_room_wrong_password
                                  ]},
          {room_registration_race_condition, [], [
-                                                 load_already_registered_permanent_rooms,
                                                  create_already_registered_room,
                                                  check_presence_route_to_offline_room,
                                                  check_message_route_to_offline_room
@@ -462,10 +460,6 @@ end_per_group(_GroupName, Config) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-init_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
-    meck_room(),
-    meck_room_start(),
-    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = create_already_registered_room, Config) ->
     meck_room(),
     meck_room_start(),
@@ -546,7 +540,7 @@ meck_room() ->
 meck_room_start() ->
     rpc(mim(), meck, expect, [mod_muc_room, start,
         fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
-            mod_muc:register_room(Host, Room, ?FAKEPID),
+            mod_muc:register_room(Host, Host, Room, ?FAKEPID),
             meck:passthrough([Host,
                 ServerHost,
                 Access,
@@ -560,7 +554,7 @@ meck_room_start() ->
     rpc(mim(), meck, expect, [mod_muc_room, start,
         fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
 
-            mod_muc:register_room(Host, Room, ?FAKEPID),
+            mod_muc:register_room(Host, Host, Room, ?FAKEPID),
             meck:passthrough([Host,
                 ServerHost,
                 Access,
@@ -585,9 +579,6 @@ meck_room_route() ->
 %    destroy_room(Config),
 %    escalus:end_per_testcase(CaseName, Config);
 
-end_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
-    rpc(mim(), meck, unload, []),
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = create_already_registered_room, Config) ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
@@ -4534,34 +4525,6 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
              last = Last,
              count = Count}.
 
-%%--------------------------------------------------------------------
-%%  Room registration use cases
-%%  Tests for race condition that occurs when multiple users
-%%  attempt to start and/or register the same room at the same time
-%%--------------------------------------------------------------------
-load_already_registered_permanent_rooms(_Config) ->
-    Room = <<"testroom1">>,
-    Host = <<"localhost">>,
-    ServerHost = <<"localhost">>,
-    Access = none,
-    HistorySize = 10,
-    RoomShaper = none,
-    HttpAuthPool = none,
-
-    %% Write a permanent room
-    ok = rpc(mim(), mod_muc, store_room, [domain(), Host, Room, []]),
-
-    % Load permanent rooms
-    rpc(mim(), mod_muc, load_permanent_rooms,
-        [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
-
-    %% Read online room
-    RoomJID = mongoose_helper:make_jid(Room, Host, <<>>),
-    {ok, Pid} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
-
-    %% Check if the pid read from mnesia matches the fake pid
-    ?assert_equal(?FAKEPID, Pid).
-
 create_already_registered_room(Config) ->
     Room = <<"testroom2">>,
     Host = muc_host(),
@@ -4744,7 +4707,7 @@ stanza_change_nick(Room, NewNick) ->
 
 start_rsm_rooms(Config, User, Nick) ->
     From = generate_rpc_jid(User),
-    [create_instant_room(
+    [muc_helper:create_instant_room(
             <<"localhost">>, generate_room_name(N), From, Nick, [])
      || N <- lists:seq(1, 15)],
     Config.
