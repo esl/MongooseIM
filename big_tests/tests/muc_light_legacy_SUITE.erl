@@ -143,7 +143,7 @@ suite() ->
 
 init_per_suite(Config) ->
     HostType = host_type(),
-    dynamic_modules:start(HostType, mod_muc_light,
+    dynamic_modules:restart(HostType, mod_muc_light,
                           [{host, subhost_pattern(muc_helper:muc_host_pattern())},
                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
@@ -177,7 +177,7 @@ init_per_testcase(create_existing_room_deny = N, Config) ->
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     set_default_mod_config(),
-    dynamic_modules:start(host_type(), mod_mam_muc,
+    dynamic_modules:restart(host_type(), mod_mam_muc,
                           [{backend, rdbms},
                            {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
