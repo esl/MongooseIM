@@ -2276,7 +2276,8 @@ process_privacy_iq(Acc1, To, StateData) ->
             From = mongoose_acc:from_jid(Acc2),
             {Acc3, NewStateData} = process_privacy_iq(Acc2, Type, To, StateData),
             Res = mongoose_acc:get(hook, result,
-                                   {error, mongoose_xmpp_errors:feature_not_implemented()}, Acc3),
+                                   {error, mongoose_xmpp_errors:feature_not_implemented(
+                                             <<"en">>, <<"Failed to handle the privacy IQ request in c2s">>)}, Acc3),
             IQRes = case Res of
                         {result, Result} ->
                             IQ#iq{type = result, sub_el = Result};
