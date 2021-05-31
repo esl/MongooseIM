@@ -306,7 +306,8 @@ check_in_subscription(Acc, ToJID, _FromJID, _Type, _Reason) ->
       Packet :: exml:element().
 bounce_offline_message(Acc, From, To, Packet) ->
     Acc1 = mongoose_hooks:xmpp_bounce_message(Acc),
-    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
+    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Bounce offline message">>),
+    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
     Acc3 = ejabberd_router:route(To, From, Acc2, Err),
     {stop, Acc3}.
 
@@ -750,7 +751,8 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, Acc, _Packet) ->
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, Acc, _Packet) ->
     Acc;
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
-    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+    E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Route offline">>),
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
     ejabberd_router:route(To, From, Acc1, Err);
 do_route_offline(_, _, _, _, Acc, _) ->
     ?LOG_DEBUG(#{what => sm_packet_dropped, acc => Acc}),
@@ -830,8 +832,8 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                     mongoose_hooks:failed_to_store_message(Acc)
             end;
         _ ->
-            {Acc1, Err} = jlib:make_error_reply(
-                Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"User not found">>),
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             ejabberd_router:route(To, From, Acc1, Err)
     end.
 
@@ -972,8 +974,8 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
-            {Acc1, Err} = jlib:make_error_reply(
-                    Acc, Packet, mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns">>)),
+            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns">>),
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             ejabberd_router:route(To, From, Acc1, Err)
     end;
 process_iq(_, From, To, Acc, Packet) ->
