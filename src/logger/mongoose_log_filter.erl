@@ -6,6 +6,7 @@
 -export([format_stacktrace_filter/2]).
 -export([format_term_filter/2]).
 -export([preserve_acc_filter/2]).
+-export([remove_fields_filter/2]).
 -export([filter_module/2]).
 
 -include("mongoose.hrl").
@@ -90,6 +91,12 @@ format_stanza_map(_) ->
 preserve_acc_filter(Event=#{msg := {report, Msg=#{acc := Acc}}}, _) ->
     Event#{msg => {report, Msg#{acc_original => format_term(Acc)}}};
 preserve_acc_filter(Event, _) ->
+    Event.
+
+remove_fields_filter(Event=#{msg := {report, Msg=#{}}}, FieldNames) ->
+    Msg2 = maps:without(FieldNames, Msg),
+    Event#{msg => {report, Msg2}};
+remove_fields_filter(Event, _) ->
     Event.
 
 
