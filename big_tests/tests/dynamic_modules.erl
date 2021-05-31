@@ -8,13 +8,13 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
-save_modules(Domain, Config) ->
-    [{saved_modules, get_current_modules(Domain)} | Config].
+save_modules(HostType, Config) ->
+    [{saved_modules, get_current_modules(HostType)} | Config].
 
-ensure_modules(Domain, RequiredModules) ->
-    CurrentModules = get_current_modules(Domain),
+ensure_modules(HostType, RequiredModules) ->
+    CurrentModules = get_current_modules(HostType),
     {ToReplace, ReplaceWith} = to_replace(RequiredModules, CurrentModules, [], []),
-    ok = rpc(mim(), gen_mod_deps, replace_modules, [Domain, ToReplace, ReplaceWith]).
+    ok = rpc(mim(), gen_mod_deps, replace_modules, [HostType, ToReplace, ReplaceWith]).
 
 to_replace([], _CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
     {lists:usort(ReplaceAcc), ReplaceWithAcc};
@@ -30,74 +30,73 @@ to_replace([RequiredModule | Rest], CurrentModules, ReplaceAcc, ReplaceWithAcc) 
         end,
     to_replace(Rest, CurrentModules, NewReplaceAcc, NewReplaceWithAcc).
 
-restore_modules(Domain, Config) ->
+restore_modules(HostType, Config) ->
     SavedModules = ?config(saved_modules, Config),
-    CurrentModules = get_current_modules(Domain),
-    rpc(mim(), gen_mod_deps, replace_modules, [Domain, CurrentModules, SavedModules]).
+    CurrentModules = get_current_modules(HostType),
+    rpc(mim(), gen_mod_deps, replace_modules, [HostType, CurrentModules, SavedModules]).
 
-get_current_modules(Domain) ->
-    rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]).
+get_current_modules(HostType) ->
+    rpc(mim(), gen_mod, loaded_modules_with_opts, [HostType]).
 
-stop(Domain, Mod) ->
+stop(HostType, Mod) ->
     Node = escalus_ct:get_config(ejabberd_node),
-    stop(Node, Domain, Mod).
+    stop(Node, HostType, Mod).
 
-stop(#{node := Node}, Domain, Mod) ->
-    stop(Node, Domain, Mod);
-stop(Node, Domain, Mod) ->
+stop(#{node := Node}, HostType, Mod) ->
+    stop(Node, HostType, Mod);
+stop(Node, HostType, Mod) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    IsLoaded = escalus_rpc:call(Node, gen_mod, is_loaded, [Domain, Mod], 5000, Cookie),
+    IsLoaded = escalus_rpc:call(Node, gen_mod, is_loaded, [HostType, Mod], 5000, Cookie),
     case IsLoaded of
-        true -> unsafe_stop(Node, Cookie, Domain, Mod);
+        true -> unsafe_stop(Node, Cookie, HostType, Mod);
         false -> {error, stopped}
     end.
 
-unsafe_stop(Node, Cookie, Domain, Mod) ->
-    case escalus_rpc:call(Node, gen_mod, stop_module, [Domain, Mod], 5000, Cookie) of
+unsafe_stop(Node, Cookie, HostType, Mod) ->
+    case escalus_rpc:call(Node, gen_mod, stop_module, [HostType, Mod], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
         R -> R
     end.
 
-start(Domain, Mod, Args) ->
+start(HostType, Mod, Args) ->
     Node = escalus_ct:get_config(ejabberd_node),
-    start(Node, Domain, Mod, Args).
+    start(Node, HostType, Mod, Args).
 
-start(#{node := Node}, Domain, Mod, Args) ->
-    start(Node, Domain, Mod, Args);
-start(Node, Domain, Mod, Args) ->
+start(#{node := Node}, HostType, Mod, Args) ->
+    start(Node, HostType, Mod, Args);
+start(Node, HostType, Mod, Args) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
+    case escalus_rpc:call(Node, gen_mod, start_module, [HostType, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
         R -> R
     end.
 
-restart(Domain, Mod, Args) ->
-    stop(Domain, Mod),
+restart(HostType, Mod, Args) ->
+    stop(HostType, Mod),
     ModStr = atom_to_list(Mod),
     case lists:reverse(ModStr) of
         "smbdr_" ++ Str -> %%check if we need to start rdbms module or regular
-            stop(Domain, list_to_atom(lists:reverse(Str)));
+            stop(HostType, list_to_atom(lists:reverse(Str)));
         Str ->
-            stop(Domain, list_to_atom(lists:reverse(Str)++"_rdbms"))
+            stop(HostType, list_to_atom(lists:reverse(Str)++"_rdbms"))
     end,
-    start(Domain, Mod, Args).
+    start(HostType, Mod, Args).
 
 start_running(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(mim),
     case ?config(running, Config) of
         List when is_list(List) ->
-            _ = [start(Domain, Mod, Args) || {Mod, Args} <- List];
+            _ = [start(HostType, Mod, Args) || {Mod, Args} <- List];
         _ ->
             ok
     end.
 
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
-    Domain = escalus_ejabberd:unify_str_arg(
-               ct:get_config({hosts, mim, domain})),
-    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, Domain}]),
+    HostType = domain_helper:host_type(mim),
+    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, HostType}]),
     Filtered = lists:filter(fun({Module, _}) ->
                     ModuleL = atom_to_list(Module),
                     case lists:sublist(ModuleL, 1, length(ModL)) of
@@ -110,6 +109,6 @@ stop_running(Mod, Config) ->
         [] ->
             Config;
         [{Module,_Args}=Head|_] ->
-            stop(Domain, Module),
+            stop(HostType, Module),
             [{running, [Head]} | Config]
     end.

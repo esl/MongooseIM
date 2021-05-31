@@ -973,7 +973,7 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
             {Acc1, Err} = jlib:make_error_reply(
-                    Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+                    Acc, Packet, mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns">>)),
             ejabberd_router:route(To, From, Acc1, Err)
     end;
 process_iq(_, From, To, Acc, Packet) ->
