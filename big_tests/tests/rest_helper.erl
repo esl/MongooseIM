@@ -216,7 +216,7 @@ random_request_id() ->
 
 report_errors(Client, Path, Method, Headers, Body,
               {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result) ->
-    Code = list_to_integer(binary_to_list(CodeBin)),
+    Code = binary_to_integer(CodeBin),
     case Code >= 400 of
         true ->
             Req = {Client, Path, Method, Headers, Body},
