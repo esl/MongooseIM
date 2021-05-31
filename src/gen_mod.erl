@@ -64,8 +64,6 @@
          get_module_opts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
-         % Get opts by subhost
-         get_module_opt_by_subhost/4,
 
          loaded_modules/0,
          loaded_modules/1,
@@ -339,19 +337,6 @@ get_module_opts(HostType, Module) ->
         [] -> [];
         [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
-
-
--spec get_module_opt_by_subhost(
-        SubHost :: domain_name(),
-        Module :: module(),
-        Opt :: term(),
-        Default :: term()) -> term().
-get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
-    %% TODO: try to get rid of this interface or at least
-    %% refactor it with mongoose_subhosts module
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    get_module_opt(Host, Module, Opt, Default).
-
 
 %% @doc use this function only on init stage
 %% Non-atomic! You have been warned.
