@@ -81,7 +81,7 @@ pre_init_per_testcase(TC,Config,State=#state{}) ->
     State3 = ensure_initialized(Config, State2),
     State4 = pre_insert_line_numbers_into_report(State3, TC),
     test_server:timetrap_cancel(Dog),
-    {Config, State4 }.
+    {Config, State4}.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC,_Config,Return,State) ->
@@ -163,28 +163,28 @@ make_content(CurrentLineNum, Line) ->
     << (list_to_binary(integer_to_list(CurrentLineNum)))/binary, " ", Line/binary>>.
 
 ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undefined}) ->
-    PrivDir = proplists:get_value(priv_dir, Config),
     RunDir = path_helper:ct_run_dir(Config),
     File = atom_to_list(Node) ++ ".log.html",
     %% On disk
     OutFile = filename:join(RunDir, File),
     %% In browser
     UrlFile = ct_logs:uri(filename:join(path_helper:ct_run_dir_in_browser(Config), File)),
-    case spawn_log_reader(Node, Cookie) of
-        {ok, Reader} ->
-            %% self() process is temporary
-            {ok, Writer} = open_out_file(OutFile),
-            file:write(Writer, "<pre>"),
-            CurrentLineNum = read_and_write_lines(Node, Reader, Writer, 0),
-            ct:pal("issue=\"ct_mongoose_log_hook created log file\", "
-                   "ct_node=~p, reader=~p, reader_node=~p, writer=~p, out_file=~p",
-                   [node(), Reader, node(Reader), Writer, OutFile]),
-            State#state{reader=Reader, writer=Writer, out_file=OutFile,
-                        current_line_num=CurrentLineNum, url_file=UrlFile};
-        Reason ->
-            ct:pal("issue=\"Failed to init ct_mongoose_log_hook\", node=~p, reason=~p",
-                   [Node, Reason]),
-            State#state{out_file=OutFile}
+    try
+        {ok, Reader} = spawn_log_reader(Node, Cookie),
+        %% self() process is temporary
+        {ok, Writer} = open_out_file(OutFile),
+        file:write(Writer, "<pre>"),
+        CurrentLineNum = read_and_write_lines(Node, Reader, Writer, 0),
+        ct:pal("issue=\"ct_mongoose_log_hook created log file\", "
+               "ct_node=~p, reader=~p, reader_node=~p, writer=~p, out_file=~p",
+               [node(), Reader, node(Reader), Writer, OutFile]),
+        State#state{reader=Reader, writer=Writer, out_file=OutFile,
+                    current_line_num=CurrentLineNum, url_file=UrlFile}
+    catch Class:Reason:Stacktrace ->
+            ct:pal("issue=\"Failed to init ct_mongoose_log_hook\"~n node=~p~n "
+                   "reason=~p~n stacktrace=~p",
+                   [Node, Reason, Stacktrace]),
+            State
     end;
 ensure_initialized(_Config, State=#state{}) ->
     State.
@@ -254,12 +254,19 @@ open_out_file(OutFile) ->
 %% @doc Open file. The caller process will not be monitored by file_server.
 %% So, the file is not closed in case the parent process dies.
 open_file_without_linking(Node, File, Opts) when Node =:= node() ->
-    apply_in_new_process(file, open, [File, Opts]);
+    Res = apply_in_new_process(file, open, [File, Opts]),
+    check_result(Node, File, Res);
 open_file_without_linking(Node, File, Opts) ->
     %% Regular rpc:call/4 spawns a temporary process which
     %% cause file process termination.
     %% `block_call' is executed inside a long-living process.
-    rpc:block_call(Node, file, open, [File, Opts], 5000).
+    Res = rpc:block_call(Node, file, open, [File, Opts], 5000),
+    check_result(Node, File, Res).
+
+check_result(Node, File, {ok, _} = Res) ->
+    Res;
+check_result(Node, File, Res) ->
+    ct:fail({open_file_failed, Node, File, Res}).
 
 %% Spawns a long living process and executes function
 apply_in_new_process(M, F, A) ->

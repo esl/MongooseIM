@@ -81,9 +81,12 @@ post_end_per_group(Group,_Config,Return,State) ->
     {Return, State}.
 
 %% @doc Called before each test case.
-pre_init_per_testcase(TC,Config,State) ->
+pre_init_per_testcase(TC,Config,State = #state{suite_total = Total})
+      when is_integer(Total) ->
     print_case_enter(TC, State, "Starting"),
-    {Config, State#state{ ts = os:timestamp(), total = State#state.suite_total + 1 } }.
+    {Config, State#state{ ts = os:timestamp(), total = Total + 1 } };
+pre_init_per_testcase(TC, Config, State) ->
+    {Config, State}.
 
 %% @doc Called after each test case.
 post_end_per_testcase(TC, _Config, Return, State) ->

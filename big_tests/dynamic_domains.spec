@@ -17,6 +17,18 @@
 
 {suites, "tests", mod_ping_SUITE}.
 
+{suites, "tests", inbox_SUITE}.
+{skip_cases, "tests", inbox_SUITE, [disco_service],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+{skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
+ "at the moment mod_offline doesn't support dynamic domains"}.
+{skip_groups, "tests", inbox_SUITE, [muclight, muc],
+ "at the moment muc/muclight doesn't support dynamic domains"}.
+
+{suites, "tests", inbox_extensions_SUITE}.
+{skip_groups, "tests", inbox_extensions_SUITE, [muclight],
+ "at the moment muclight doesn't support dynamic domains"}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
 
 {logdir, "ct_report"}.

@@ -1,24 +1,18 @@
 -module(carbon_cache_server).
 
--export([start/2]).
+-export([start/0]).
 -export([server/2]).
 -export([wait_for_accepting/0]).
 
-start(Num,LPort) ->
-    case gen_tcp:listen(LPort,[{active, false},{packet,2}]) of
+start() ->
+    case gen_tcp:listen(0,[{active, false},{packet,2}]) of
         {ok, ListenSock} ->
-            start_servers(Num,ListenSock),
+            spawn(?MODULE, server, [ListenSock, self()]),
             {ok, Port} = inet:port(ListenSock),
             {Port, ListenSock};
         {error,Reason} ->
             {error,Reason}
     end.
-
-start_servers(0,_) ->
-    ok;
-start_servers(Num,LS) ->
-    spawn(?MODULE,server,[LS, self()]),
-    start_servers(Num-1,LS).
 
 server(LS, Parent) ->
     Parent ! {accepting, self()},

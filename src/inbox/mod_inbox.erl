@@ -21,8 +21,14 @@
 
 -export([get_personal_data/2]).
 
--export([start/2, stop/1, deps/2, config_spec/0]).
--export([process_iq/4,
+%% gen_mod
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
+-export([deps/2]).
+-export([config_spec/0]).
+
+-export([process_iq/5,
          user_send_packet/4,
          filter_packet/1,
          inbox_unread_count/2,
@@ -139,33 +145,37 @@ process_entry(#{remote_jid := RemJID,
 deps(_Host, Opts) ->
     groupchat_deps(Opts).
 
--spec start(Host :: jid:server(), Opts :: list()) -> ok.
-start(Host, Opts) ->
-    FullOpts = case lists:keyfind(backend, 1, Opts) of
-                   false -> [{backend, rdbms} | Opts];
-                   _ -> Opts
-               end,
-    gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
-    mod_inbox_backend:init(Host, FullOpts),
-    mod_disco:register_feature(Host, ?NS_ESL_INBOX),
+-spec start(HostType :: mongooseim:host_type(), Opts :: list()) -> ok.
+start(HostType, Opts) ->
+    FullOpts = add_default_backend(Opts),
     IQDisc = gen_mod:get_opt(iqdisc, FullOpts, no_queue),
-    MucTypes = get_groupchat_types(Host),
-    lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
-    ejabberd_hooks:add(hooks(Host)),
-    store_bin_reset_markers(Host, FullOpts),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX,
-                                  ?MODULE, process_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION,
-                                  mod_inbox_entries, process_iq_conversation, IQDisc).
+    MucTypes = gen_mod:get_opt(groupchat, FullOpts, [muclight]),
+    gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
+    mod_inbox_backend:init(HostType, FullOpts),
+    %% TODO: update code related to mod_disco
+    mod_disco:register_feature(HostType, ?NS_ESL_INBOX),
+    lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
+    ejabberd_hooks:add(hooks(HostType)),
+    store_bin_reset_markers(HostType, FullOpts),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
+                                             fun ?MODULE:process_iq/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
+                                             fun mod_inbox_entries:process_iq_conversation/5, #{}, IQDisc),
+    ok.
 
 
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
-    mod_inbox_muc:stop(Host),
-    ejabberd_hooks:delete(hooks(Host)),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION).
+
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    mod_disco:unregister_feature(HostType, ?NS_ESL_INBOX),
+    mod_inbox_muc:stop(HostType),
+    ejabberd_hooks:delete(hooks(HostType)),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -184,15 +194,16 @@ config_spec() ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
--spec process_iq(From :: jid:jid(),
+-spec process_iq(Acc :: mongoose_acc:t(),
+                 From :: jid:jid(),
                  To :: jid:jid(),
-                 Acc :: mongoose_acc:t(),
-                 IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
-process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+                 IQ :: jlib:iq(),
+                 Extra :: map()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     Form = build_inbox_form(),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
-process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
+process_iq(Acc, From, _To, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ, _Extra) ->
     Username = From#jid.luser,
     Host = From#jid.lserver,
     case query_to_params(QueryEl) of
@@ -217,7 +228,7 @@ forward_messages(Acc, List, QueryId, To) when is_list(List) ->
 -spec send_message(mongoose_acc:t(), jid:jid(), exml:element()) -> mongoose_acc:t().
 send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
     BareTo = jid:to_bare(To),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    HostType = mongoose_acc:host_type(Acc),
     NewAcc0 = mongoose_acc:new(#{location => ?LOCATION,
                                  host_type => HostType,
                                  lserver => LServer,
@@ -287,7 +298,7 @@ remove_domain(Acc, HostType, Domain) ->
                             Msg :: exml:element(),
                             Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
-    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(From, To, Dir) of
+    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
             maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, Type);
@@ -295,13 +306,16 @@ maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
             ok
     end.
 
--spec inbox_owner_exists(From :: jid:jid(),
+-spec inbox_owner_exists(Acc :: mongoose_acc:t(),
+                         From :: jid:jid(),
                          To :: jid:jid(),
                          Dir :: outgoing | incoming) -> boolean().
-inbox_owner_exists(From, _To, outgoing) ->
-    ejabberd_users:does_user_exist(From);
-inbox_owner_exists(_From, To, incoming) ->
-    ejabberd_users:does_user_exist(To).
+inbox_owner_exists(Acc, From, _To, outgoing) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_users:does_user_exist(HostType, From);
+inbox_owner_exists(Acc, _From, To, incoming) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_users:does_user_exist(HostType, To).
 
 maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, one2one) ->
             process_message(Host, From, To, Msg, Acc, Dir, one2one);
@@ -556,15 +570,21 @@ get_inbox_unread(undefined, Acc, To) ->
     {ok, Count} = mod_inbox_backend:get_inbox_unread(User, Host, RemBareJIDBin),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
-hooks(Host) ->
+hooks(HostType) ->
     [
-     {remove_user, Host, ?MODULE, remove_user, 50},
-     {remove_domain, Host, ?MODULE, remove_domain, 50},
-     {user_send_packet, Host, ?MODULE, user_send_packet, 70},
-     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
-     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
+     {remove_user, HostType, ?MODULE, remove_user, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
+     {user_send_packet, HostType, ?MODULE, user_send_packet, 70},
+     {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
+     {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
     ].
+
+add_default_backend(Opts) ->
+    case lists:keyfind(backend, 1, Opts) of
+        false -> [{backend, rdbms} | Opts];
+        _ -> Opts
+    end.
 
 get_groupchat_types(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).

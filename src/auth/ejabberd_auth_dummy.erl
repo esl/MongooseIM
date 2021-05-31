@@ -36,7 +36,10 @@ stop(_HostType) ->
     ok.
 
 authorize(Creds) ->
-    timer:sleep(50 + rand:uniform(450)),
+    HostType = mongoose_credentials:host_type(Creds),
+    Base = ejabberd_auth:get_opt(HostType, dummy_base_timeout, 50),
+    Variance = ejabberd_auth:get_opt(HostType, dummy_variance, 450),
+    timer:sleep(Base + rand:uniform(Variance)),
     {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)}.
 
 check_password(_HostType, _User, _Server, _Password) ->
