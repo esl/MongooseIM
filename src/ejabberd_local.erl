@@ -113,7 +113,9 @@ process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
-            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
+            T = <<"Local server does not implement this feature">>,
+            ejabberd_router:route_error_reply(To, From, Acc,
+                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, T))
     end;
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),

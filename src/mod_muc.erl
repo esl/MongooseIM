@@ -781,7 +781,8 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{} ->
             ?LOG_INFO(#{what => muc_ignore_unknown_iq, acc => Acc}),
-            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet,
+                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_muc">>)),
             ejabberd_router:route(To, From, Acc1, Err);
         Other ->
             ?LOG_INFO(#{what => muc_failed_to_parse_iq, acc => Acc, reason => Other}),

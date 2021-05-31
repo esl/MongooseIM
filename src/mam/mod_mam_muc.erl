@@ -546,11 +546,11 @@ handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
+    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>)]}};
 return_error_iq(IQ, item_not_found) ->
     {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
-    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
+    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_mam_muc">>)]}};
 return_error_iq(IQ, missing_with_jid) ->
     Error =  mongoose_xmpp_errors:bad_request(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",

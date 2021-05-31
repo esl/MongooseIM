@@ -734,7 +734,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
         %% In this state we bounce all message: We are waiting before
         %% trying to reconnect
         wait_before_retry ->
-            bounce_element(Acc, El, mongoose_xmpp_errors:remote_server_not_found()),
+            bounce_element(Acc, El, mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"From s2s">>)),
             {next_state, StateName, StateData};
         relay_to_bridge ->
             %% In this state we relay all outbound messages
@@ -794,9 +794,10 @@ terminate(Reason, StateName, StateData) ->
             ejabberd_s2s:remove_connection(
               {StateData#state.myname, StateData#state.server}, self())
     end,
+    E = mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"Bounced by s2s">>),
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
-    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_queue(StateData#state.queue, E),
+    bounce_messages(E),
     case StateData#state.socket of
         undefined ->
             ok;
@@ -1137,9 +1138,10 @@ get_timeout_interval(StateName) ->
 %% function that want to wait for a reconnect delay before stopping.
 -spec wait_before_reconnect(state()) -> fsm_return().
 wait_before_reconnect(StateData) ->
+    E = mongoose_xmpp_errors:remote_server_not_found(<<"en">>, <<"From s2s (waiting)">>),
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
-    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_queue(StateData#state.queue, E),
+    bounce_messages(E),
     cancel_timer(StateData#state.timer),
     Delay = case StateData#state.delay_to_retry of
                 undefined_delay ->

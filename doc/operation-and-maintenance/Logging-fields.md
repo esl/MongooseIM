@@ -49,12 +49,13 @@ Timestamp should be ordered first when possible, so that sorting is automatic.
 | port          | integer | TCP/UDP port number                                 | 5222                                |                                    |
 | peer          | tuple   | `peer() :: {inet:ip_address(), inet:port_number()}` | `{{127,0,0,1},5222}`                |                                    |
 | req           | map     | Cowboy request                                      |                                     | Provide when available             |
+| reply_body    | binary  | Body reply                                          | <<"ok">>                            |                                    |
 
 ## XMPP
 
 | Name          | Type    | Description                                         | Examples                            | Notes                              |
 |---------------|---------|-----------------------------------------------------|-------------------------------------|------------------------------------|
-| acc           | map     | Accumulator, that would be used by formatter        | `#{...}`                            |                                    |
+| acc           | map     | mongoose_acc, used to extract fields                | `#{...}`                            |                                    |
 | user          | binary  | Local Username                                      | `<<"alice">>`                       | Use `#jid.luser` when available    |
 | server        | binary  | Local Server (host) name                            | `<<"localhost">>`                   | Use `#jid.lserver` when available  |
 | sub_host      | binary  | Subhost when MUC or pubsub are used                 | `<<"muc.localhost">>`               | It's not the same as `server`      |
