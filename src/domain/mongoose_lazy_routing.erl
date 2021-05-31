@@ -408,9 +408,12 @@ check_that_domain_and_iq_match({#iq_table_key{host_type = HostType,
                                {_, {HostType, Pattern}}) when is_binary(Namespace),
                                                               Component =/= '_' ->
     true;
-check_that_domain_and_iq_match(IQ, Domain) ->
+check_that_domain_and_iq_match({Key = #iq_table_key{}, _} = IQEntry, Domain) ->
     %% we should not get here, log error
-    ?LOG_ERROR(#{what => domain_and_iq_doesnt_match, domain => Domain, iq => IQ}),
+    ?LOG_ERROR(#{what => domain_and_iq_doesnt_match, domain => Domain,
+                 iq_entry => IQEntry,
+                 iq_key_record => mongoose_record_pp:format(Key,
+                    iq_table_key, record_info(fields, iq_table_key))}),
     false.
 
 -spec register_iq(iq_entry(), domain_entry()) -> ok.
