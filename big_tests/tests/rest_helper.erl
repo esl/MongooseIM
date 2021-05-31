@@ -204,10 +204,30 @@ fusco_request(#{ role := Role, method := Method, path := Path, body := Body, ser
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
-    Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
+    Headers = [{<<"Content-Type">>, <<"application/json">>},
+               {<<"Request-Id">>, random_request_id()} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
+    report_errors(Client, Path, Method, Headers, Body, Result),
     Result.
+
+random_request_id() ->
+    base16:encode(crypto:strong_rand_bytes(8)).
+
+report_errors(Client, Path, Method, Headers, Body,
+              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result) ->
+    Code = list_to_integer(binary_to_list(CodeBin)),
+    case Code >= 400 of
+        true ->
+            Req = {Client, Path, Method, Headers, Body},
+            ct:log("REST request fails:~n"
+                   "Code: ~p~n"
+                   "Req: ~p~n"
+                   "Result: ~p~n",
+                   [Code, Req, Result]);
+        false ->
+            ok
+    end.
 
 -spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec()) -> Port :: integer().
 get_port(Role, Node) ->
