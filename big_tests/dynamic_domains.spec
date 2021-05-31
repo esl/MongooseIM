@@ -40,6 +40,10 @@
 {skip_cases, "tests", mam_SUITE,
  [messages_filtered_when_prefs_default_policy_is_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
+{skip_cases, "tests", mam_SUITE,
+ [metric_incremented_when_store_message,
+  metric_incremented_on_archive_request],
+ "this test is broken in PR #3120"}.
 
 {skip_groups, "tests", muc_SUITE,
  [disco, disco_non_parallel, disco_rsm, disco_rsm_with_offline],
