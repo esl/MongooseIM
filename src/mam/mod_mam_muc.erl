@@ -153,9 +153,9 @@ start(HostType, Opts) ->
 -spec stop(HostType :: host_type()) -> any().
 stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    unregister_features(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
+    unregister_features(HostType),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -595,6 +595,7 @@ hooks(HostType) ->
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
 
+%% TODO multitenancy
 register_features(HostType) ->
     MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
     [mod_disco:register_feature(MUCHost, Feature) || Feature <- features(?MODULE, HostType)],
@@ -605,18 +606,25 @@ unregister_features(HostType) ->
     [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, HostType)],
     ok.
 
+-spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
+default_host() ->
+    mod_muc:default_host().
+
+subdomain_pattern(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
+
 add_iq_handlers(HostType, Opts) ->
-    MUCHost = gen_mod:get_opt_subhost(HostType, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
+    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04,
                                   ?MODULE, room_process_mam_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
-                                  ?MODULE, room_process_mam_iq, IQDisc).
+    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    ok.
 
 remove_iq_handlers(HostType) ->
-    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06).
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06),
+    ok.
 
 ensure_metrics(HostType) ->
     lists:foreach(fun(Name) ->
