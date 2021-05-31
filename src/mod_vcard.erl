@@ -473,7 +473,7 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
     end;
 set_vcard({error, _} = E, _From, _VCARD) -> E.
 
--spec get_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
+-spec get_local_features(Acc :: {result, [XMLNS :: binary()]} | empty | {error, any()},
                          From :: jid:jid(),
                          To :: jid:jid(),
                          Node :: binary(),
