@@ -28,7 +28,7 @@ get_counter_value(HostType, Metric) ->
     end.
 
 assert_counter(Value, CounterName) ->
-    assert_counter(ct:get_config({hosts, mim, domain}), Value, CounterName).
+    assert_counter(domain_helper:host_type(mim), Value, CounterName).
 
 assert_counter(HostType, Value, CounterName) ->
     HostTypeName = make_host_type_name(HostType),
@@ -90,7 +90,7 @@ user_ids(Config) ->
     end.
 
 wait_for_counter(ExpectedValue, Counter) ->
-        wait_for_counter(ct:get_config({hosts, mim, domain}), ExpectedValue, Counter).
+        wait_for_counter(domain_helper:host_type(mim), ExpectedValue, Counter).
 
 wait_for_counter(HostType, ExpectedValue, Counter) ->
     mongoose_helper:wait_until(fun() ->
