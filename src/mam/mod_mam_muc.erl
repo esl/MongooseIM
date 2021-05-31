@@ -231,8 +231,8 @@ room_process_mam_iq(From, To, Acc, IQ) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     MucAction = action_to_muc_action(Action),
-    case is_action_allowed(HostType, To#jid.lserver, Action, MucAction, From, To) of
-        true ->
+    case check_action_allowed(HostType, To#jid.lserver, Action, MucAction, From, To) of
+        ok ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, MucAction, From) of
                 ok ->
                     handle_error_iq(Acc, HostType, To, Action,
@@ -241,11 +241,11 @@ room_process_mam_iq(From, To, Acc, IQ) ->
                     mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
-        false ->
+        {error, Reason} ->
             ?LOG_WARNING(#{what => action_not_allowed,
-                           action => Action, acc => Acc,
+                           action => Action, acc => Acc, reason => Reason,
                            can_access_room => can_access_room(HostType, From, To)}),
-            {Acc, return_action_not_allowed_error_iq(IQ)}
+            {Acc, return_action_not_allowed_error_iq(Reason, IQ)}
     end.
 
 -spec forget_room(map(), host_type(), jid:lserver(), binary()) -> map().
@@ -256,27 +256,35 @@ forget_room(Acc, _HostType, MucServer, RoomName) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec is_action_allowed(host_type(), jid:lserver(), mam_iq:action(), muc_action(),
-                        jid:jid(), jid:jid()) -> boolean().
-is_action_allowed(HostType, Domain, Action, MucAction, From, To) ->
+-spec check_action_allowed(host_type(), jid:lserver(), mam_iq:action(), muc_action(),
+                        jid:jid(), jid:jid()) -> ok | {error, binary()}.
+check_action_allowed(HostType, Domain, Action, MucAction, From, To) ->
     case acl:match_rule_for_host_type(HostType, Domain, MucAction, From, default) of
-        allow -> true;
-        deny -> false;
-        default -> is_room_action_allowed_by_default(HostType, Action, From, To)
+        allow -> ok;
+        deny -> {false, <<"Blocked by service policy.">>};
+        default -> check_room_action_allowed_by_default(HostType, Action, From, To)
     end.
 
 -spec action_to_muc_action(mam_iq:action()) -> atom().
 action_to_muc_action(Action) ->
     list_to_atom("muc_" ++ atom_to_list(Action)).
 
--spec is_room_action_allowed_by_default(HostType :: host_type(),
+-spec check_room_action_allowed_by_default(HostType :: host_type(),
                                         Action :: mam_iq:action(),
                                         From :: jid:jid(),
-                                        To :: jid:jid()) -> boolean().
-is_room_action_allowed_by_default(HostType, Action, From, To) ->
+                                        To :: jid:jid()) -> ok | {error, binary()}.
+check_room_action_allowed_by_default(HostType, Action, From, To) ->
     case mam_iq:action_type(Action) of
-        set -> is_room_owner(HostType, From, To);
-        get -> can_access_room(HostType, From, To)
+        set ->
+            case is_room_owner(HostType, From, To) of
+                true -> ok;
+                false -> {error, <<"Not a room owner.">>}
+            end;
+        get ->
+            case can_access_room(HostType, From, To) of
+                true -> ok;
+                false -> {error, <<"Not allowed to enter the room.">>}
+            end
     end.
 
 -spec is_room_owner(HostType :: host_type(),
@@ -546,10 +554,10 @@ return_error_iq(IQ, missing_with_jid) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
--spec return_action_not_allowed_error_iq(jlib:iq()) -> jlib:iq().
-return_action_not_allowed_error_iq(IQ) ->
+-spec return_action_not_allowed_error_iq(Reason :: binary(), jlib:iq()) -> jlib:iq().
+return_action_not_allowed_error_iq(Reason, IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
-                                 <<"en">>, <<"The action is not allowed.">>),
+                                 <<"en">>, <<"The action is not allowed. ", Reason/binary>>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 -spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
