@@ -2,14 +2,21 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([save_modules/2, ensure_modules/2, restore_modules/2]).
+-export([save_modules_for_host_types/2]).
+-export([save_modules/2, ensure_modules/2, restore_modules/2, restore_modules/1]).
 -export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+save_modules_for_host_types([HostType|HostTypes], Config) ->
+    Config2 = save_modules(HostType, Config),
+    save_modules_for_host_types(HostTypes, Config2);
+save_modules_for_host_types([], Config) ->
+    Config.
+
 save_modules(HostType, Config) ->
-    [{saved_modules, get_current_modules(HostType)} | Config].
+    [{{saved_modules, HostType}, get_current_modules(HostType)} | Config].
 
 ensure_modules(HostType, RequiredModules) ->
     CurrentModules = get_current_modules(HostType),
@@ -31,9 +38,14 @@ to_replace([RequiredModule | Rest], CurrentModules, ReplaceAcc, ReplaceWithAcc) 
     to_replace(Rest, CurrentModules, NewReplaceAcc, NewReplaceWithAcc).
 
 restore_modules(HostType, Config) ->
-    SavedModules = ?config(saved_modules, Config),
+    SavedModules = ?config({saved_modules, HostType}, Config),
     CurrentModules = get_current_modules(HostType),
     rpc(mim(), gen_mod_deps, replace_modules, [HostType, CurrentModules, SavedModules]).
+
+restore_modules(Config) ->
+    [restore_modules(HostType, Config)
+     || {{saved_modules, HostType}, _SavedModules} <- Config],
+    Config.
 
 get_current_modules(HostType) ->
     rpc(mim(), gen_mod, loaded_modules_with_opts, [HostType]).
@@ -70,7 +82,10 @@ start(Node, HostType, Mod, Args) ->
     case escalus_rpc:call(Node, gen_mod, start_module, [HostType, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
-        R -> R
+        {ok, _} = R ->
+            R;
+        Reason ->
+            ct:fail("Cannot start module ~p reason ~p", [Mod, Reason])
     end.
 
 restart(HostType, Mod, Args) ->

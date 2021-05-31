@@ -64,12 +64,12 @@
          get_module_opts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
-         % Get opts by subhost
-         get_module_opt_by_subhost/4,
 
          loaded_modules/0,
          loaded_modules/1,
+         loaded_modules_with_opts/0,
          loaded_modules_with_opts/1,
+         hosts_with_module/1,
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
@@ -328,7 +328,16 @@ set_opt(Opt, Opts, Value) ->
     lists:keystore(Opt, 1, Opts, {Opt, Value}).
 
 
+%%% TODO Make Opt an atom. Fix in mod_auth_token:
+%%% 374: The call gen_mod:get_module_opt(Domain::any(), 'mod_auth_token',
+%%% {'validity_period','access' | 'refresh'}, {1 | 25,'days' | 'hours'})
+%%% breaks the contract (mongooseim:host_type(), module(), atom(), term()) -> term()
+-spec get_module_opt(mongooseim:host_type(), module(), term(), term()) -> term().
 get_module_opt(HostType, Module, Opt, Default) ->
+    %% Fail in dev builds.
+    %% It protects against passing something weird as a Module argument
+    %% or against wrong argument order.
+    ?ASSERT_MODULE(Module),
     ModuleOpts = get_module_opts(HostType, Module),
     get_opt(Opt, ModuleOpts, Default).
 
@@ -339,19 +348,6 @@ get_module_opts(HostType, Module) ->
         [] -> [];
         [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
-
-
--spec get_module_opt_by_subhost(
-        SubHost :: domain_name(),
-        Module :: module(),
-        Opt :: term(),
-        Default :: term()) -> term().
-get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
-    %% TODO: try to get rid of this interface or at least
-    %% refactor it with mongoose_subhosts module
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    get_module_opt(Host, Module, Opt, Default).
-
 
 %% @doc use this function only on init stage
 %% Non-atomic! You have been warned.
@@ -417,6 +413,25 @@ loaded_modules_with_opts(HostType) ->
                                   opts = '$2'},
                  [],
                  [{{'$1', '$2'}}]}]).
+
+-spec loaded_modules_with_opts() -> #{host_type() => [{module(), list()}]}.
+loaded_modules_with_opts() ->
+    Res = ets:select(ejabberd_modules,
+               [{#ejabberd_module{_ = '_', module_host_type = {'$1', '$2'},
+                                  opts = '$3'},
+                 [],
+                 [{{'$2', '$1', '$3'}}]}]),
+    Hosts = lists:usort([H || {H, _, _} <- Res]),
+    maps:from_list([{H, [{M, Opts}
+                         || {HH, M, Opts} <- Res,
+                            H =:= HH]}
+                    || H <- Hosts]).
+
+-spec hosts_with_module(module()) -> [host_type()].
+hosts_with_module(Module) ->
+    ets:select(ejabberd_modules,
+               [{#ejabberd_module{_ = '_', module_host_type = {Module, '$1'}},
+                 [], ['$1']}]).
 
 -spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
     {'aborted', _} | {'atomic', _}.

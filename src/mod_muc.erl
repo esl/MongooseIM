@@ -37,19 +37,18 @@
          stop/1,
          config_spec/0,
          process_room_affiliation/1,
-         room_destroyed/3,
+         room_destroyed/4,
          store_room/4,
          restore_room/3,
          forget_room/3,
-         create_instant_room/5,
-         process_iq_disco_items/4,
+         create_instant_room/6,
          broadcast_service_message/2,
          can_use_nick/4,
          room_jid_to_pid/1,
          default_host/0]).
 
 %% For testing purposes only
--export([load_permanent_rooms/6, register_room/3]).
+-export([register_room/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -59,10 +58,10 @@
 -export([process_packet/5]).
 
 %% Hooks handlers
--export([is_room_owner/3,
-         muc_room_pid/2,
-         can_access_room/3,
-         can_access_identity/3]).
+-export([is_muc_room_owner/4,
+         can_access_room/4,
+         can_access_identity/4,
+         disco_local_items/5]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -93,6 +92,8 @@
         {From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
          Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
+-type host_type() :: mongooseim:host_type().
+-type muc_host() :: jid:lserver().
 
 -include("mod_muc.hrl").
 
@@ -103,6 +104,7 @@
 
 -type muc_online_room() :: #muc_online_room{
     name_host :: room_host(),
+    host_type :: host_type(),
     pid       :: pid()
 }.
 
@@ -120,8 +122,8 @@
        }.
 -export_type([room_event_data/0]).
 
--record(state, {host                :: jid:server(),
-                server_host         :: jid:literal_jid(),
+-record(state, {host_type         :: jid:literal_jid(),
+                subdomain_pattern   :: mongoose_subdomain_utils:subdomain_pattern(),
                 access,
                 history_size        :: integer(),
                 default_room_opts   :: list(),
@@ -145,36 +147,42 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(jid:server(), list())
-            -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
+-spec start_link(host_type(), list())
+            -> ignore | {error, _} | {ok, pid()}.
+start_link(HostType, Opts) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], []).
 
-
--spec start(jid:server(), _) ->
-    {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(Host, Opts) ->
-    ensure_metrics(Host),
+-spec start(host_type(), _) -> ok.
+start(HostType, Opts) ->
+    ensure_metrics(HostType),
     TrackedDBFuns = [store_room, restore_room, forget_room, get_rooms,
                      can_use_nick, get_nick, set_nick, unset_nick],
     gen_mod:start_backend_module(mod_muc_db, Opts, TrackedDBFuns),
-    start_supervisor(Host),
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+    start_supervisor(HostType),
+    start_server(HostType, Opts),
+    assert_server_running(HostType),
+    ok.
+
+-spec stop(host_type()) -> ok.
+stop(HostType) ->
+    stop_supervisor(HostType),
+    stop_gen_server(HostType),
+    ok.
+
+start_server(HostType, Opts) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     ChildSpec =
         {Proc,
-         {?MODULE, start_link, [Host, Opts]},
+         {?MODULE, start_link, [HostType, Opts]},
          temporary,
          1000,
          worker,
          [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    {ok, _} = ejabberd_sup:start_child(ChildSpec).
 
--spec stop(jid:server()) -> 'ok'
-    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop(Host) ->
-    stop_supervisor(Host),
-    stop_gen_server(Host).
+assert_server_running(HostType) ->
+    true = is_pid(whereis(gen_mod:get_module_proc(HostType, ?PROCNAME))).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -279,12 +287,11 @@ process_room_affiliation(KVs) ->
         proplists:split(KVs, [user, server, resource, affiliation]),
     {{User, Server, Res}, Aff}.
 
-stop_gen_server(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+stop_gen_server(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:call(Proc, stop),
     %% Proc can still be alive because of a race condition
     ejabberd_sup:stop_child(Proc).
-
 
 %% @doc This function is called by a room in three situations:
 %% A) The owner of the room destroyed it
@@ -292,47 +299,50 @@ stop_gen_server(Host) ->
 %% C) mod_muc:stop was called, and each room is being terminated
 %%    In this case, the mod_muc process died before the room processes
 %%    So the message sending must be catched
--spec room_destroyed(jid:server(), room(), pid()) -> 'ok'.
-room_destroyed(Host, Room, Pid) ->
-    F = fun() -> mnesia:delete_object(#muc_online_room{name_host = {Room, Host}, pid = Pid}) end,
+-spec room_destroyed(host_type(), jid:server(), room(), pid()) -> 'ok'.
+room_destroyed(HostType, MucHost, Room, Pid) ->
+    Obj = #muc_online_room{name_host = {Room, MucHost},
+                           host_type = HostType, pid = Pid},
+    F = fun() -> mnesia:delete_object(Obj) end,
     {atomic, ok} = mnesia:transaction(F),
     ok.
-
 
 %% @doc Create a room.
 %% If Opts = default, the default room options are used.
 %% Else use the passed options as defined in mod_muc_room.
--spec create_instant_room(jid:server(), Name :: room(),
+%% XXX Only used from tests.
+-spec create_instant_room(jid:lserver(), MucHost :: jid:lserver(), Name :: room(),
     From :: jid:jid(), Nick :: nick(), Opts :: list()) -> any().
-create_instant_room(Host, Name, From, Nick, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    gen_server:call(Proc, {create_instant, Name, From, Nick, Opts}).
-
+create_instant_room(ServerHost, MucHost, Name, From, Nick, Opts) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(ServerHost),
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    gen_server:call(Proc, {create_instant, ServerHost, MucHost, Name, From, Nick, Opts}).
 
 -spec store_room(jid:server(), jid:server(), room(), list()) ->
     {error, _} | ok.
-store_room(ServerHost, Host, Name, Opts) ->
-    mod_muc_db_backend:store_room(ServerHost, Host, Name, Opts).
+store_room(ServerHost, MucHost, Name, Opts) ->
+    mod_muc_db_backend:store_room(ServerHost, MucHost, Name, Opts).
 
 
--spec restore_room(jid:server(), jid:server(), room()) ->
+-spec restore_room(host_type(), jid:server(), room()) ->
         {error, _} | {ok, _}.
-restore_room(ServerHost, Host, Name) ->
-    mod_muc_db_backend:restore_room(ServerHost, Host, Name).
+restore_room(HostType, MucHost, Name) ->
+    mod_muc_db_backend:restore_room(HostType, MucHost, Name).
 
 -spec forget_room(jid:server(), jid:server(), room()) -> ok | {error, term()}.
-forget_room(ServerHost, Host, Name) ->
+forget_room(ServerHost, MucHost, Name) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     %% Removes room from DB, even if it's already removed.
-    Result = mod_muc_db_backend:forget_room(ServerHost, Host, Name),
+    Result = mod_muc_db_backend:forget_room(HostType, MucHost, Name),
     case Result of
         ok ->
-            %% TODO this hook should be refactored to be executed on ServerHost, not Host.
+            %% TODO this hook should be refactored to be executed on ServerHost, not MucHost.
             %% It also should be renamed to forget_room_hook.
             %% We also need to think how to remove stopped rooms
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            mongoose_hooks:forget_room(ServerHost, Host, Name);
+            mongoose_hooks:forget_room(ServerHost, MucHost, Name);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -340,57 +350,47 @@ forget_room(ServerHost, Host, Name) ->
     end,
     Result.
 
--spec process_iq_disco_items(Host :: jid:server(), From :: jid:jid(),
+%% For rooms
+-spec process_iq_disco_items(MucHost :: jid:server(), From :: jid:jid(),
         To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
-process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
+process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"query">>,
                                  attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}],
-                                 children = iq_disco_items(Host, From, Lang, Rsm)}]},
-    ejabberd_router:route(To,
-                          From,
-                          jlib:iq_to_xml(Res)).
-
+                                 children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
+    ejabberd_router:route(To, From, jlib:iq_to_xml(Res)).
 
 -spec can_use_nick(jid:server(), jid:server(), jid:jid(), nick()) -> boolean().
 can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
     false;
-can_use_nick(ServerHost, Host, JID, Nick) ->
-    mod_muc_db_backend:can_use_nick(ServerHost, Host, JID, Nick).
+can_use_nick(ServerHost, MucHost, JID, Nick) ->
+    mod_muc_db_backend:can_use_nick(ServerHost, MucHost, JID, Nick).
 
 set_nick(_LServer, _Host, _From, <<>>) ->
     {error, should_not_be_empty};
-set_nick(LServer, Host, From, Nick) ->
-    mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
+set_nick(LServer, MucHost, From, Nick) ->
+    mod_muc_db_backend:set_nick(LServer, MucHost, From, Nick).
 
-unset_nick(LServer, Host, From) ->
-    mod_muc_db_backend:unset_nick(LServer, Host, From).
+unset_nick(LServer, MucHost, From) ->
+    mod_muc_db_backend:unset_nick(LServer, MucHost, From).
 
-get_nick(LServer, Host, From) ->
-    mod_muc_db_backend:get_nick(LServer, Host, From).
+get_nick(LServer, MucHost, From) ->
+    mod_muc_db_backend:get_nick(LServer, MucHost, From).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
--spec init([jid:server() | list(), ...]) -> {'ok', state()}.
-init([Host, Opts]) ->
-    mod_muc_db_backend:init(Host, Opts),
+-spec init([host_type() | list(), ...]) -> {'ok', state()}.
+init([HostType, Opts]) ->
+    mod_muc_db_backend:init(HostType, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, muc_online_room)}]),
     mnesia:add_table_copy(muc_online_room, node(), ram_copies),
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
-    MyHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
-    clean_table_from_bad_node(node(), MyHost),
+    clean_table_from_bad_node(node(), HostType),
     mnesia:subscribe(system),
     Access = gen_mod:get_opt(access, Opts, all),
     AccessCreate = gen_mod:get_opt(access_create, Opts, all),
@@ -402,8 +402,9 @@ init([Host, Opts]) ->
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
     CheckInterval = gen_mod:get_opt(hibernated_room_check_interval, Opts, infinity),
     HibernatedTimeout = gen_mod:get_opt(hibernated_room_timeout, Opts, infinity),
-    State = #state{host = MyHost,
-                   server_host = Host,
+    SubdomainPattern = gen_mod:get_opt(host, Opts, default_host()),
+    State = #state{host_type = HostType,
+                   subdomain_pattern = SubdomainPattern,
                    access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
                    default_room_opts = DefRoomOpts,
                    history_size = HistorySize,
@@ -411,27 +412,29 @@ init([Host, Opts]) ->
                    http_auth_pool = HttpAuthPool,
                    hibernated_room_check_interval = CheckInterval,
                    hibernated_room_timeout = HibernatedTimeout},
-
-    ejabberd_hooks:add(is_muc_room_owner, MyHost, ?MODULE, is_room_owner, 50),
-    ejabberd_hooks:add(muc_room_pid, MyHost, ?MODULE, muc_room_pid, 50),
-    ejabberd_hooks:add(can_access_room, MyHost, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:add(can_access_identity, MyHost, ?MODULE, can_access_identity, 50),
-
-    ejabberd_router:register_route(MyHost, mongoose_packet_handler:new(?MODULE,
-                                                                       #{state => State})),
-    mongoose_subhosts:register(Host, MyHost),
-
-    case gen_mod:get_module_opt(Host, mod_muc, load_permanent_rooms_at_startup, false) of
+    %% Hooks
+    ejabberd_hooks:add(hooks(HostType)),
+    %% Handler
+    PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
+    case SubdomainPattern of
+       {prefix, _} -> ok;
+       _ -> ?LOG_WARNING(#{what => muc_host_pattern_missing,
+                           host_type => HostType,
+                           subdomain_pattern => SubdomainPattern,
+                           text => <<"Only one MUC domain would work with this host type">>})
+    end,
+    mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
+    register_for_global_distrib(HostType),
+    %% Loading
+    case gen_mod:get_module_opt(HostType, mod_muc, load_permanent_rooms_at_startup, false) of
         false ->
             ?LOG_INFO(#{what => load_permanent_rooms_at_startup, skip => true,
                         text => <<"Skip loading permanent rooms at startup. "
                                   "Each room is loaded when someone access the room">>});
         true ->
-            ?LOG_INFO(#{what => load_permanent_rooms_at_startup, skip => false,
-                        text => <<"Loading permanent rooms at startup">>}),
-            load_permanent_rooms(MyHost, Host,
-                                 {Access, AccessCreate, AccessAdmin, AccessPersistent},
-                                 HistorySize, RoomShaper, HttpAuthPool)
+            ?LOG_WARNING(#{what => load_permanent_rooms_at_startup_is_deprecated, skip => false,
+                           text => <<"Loading permanent rooms at startup is deprecated. "
+                                     "The option is ignored.">>})
     end,
     set_persistent_rooms_timer(State),
     {ok, State}.
@@ -441,78 +444,69 @@ set_persistent_rooms_timer(#state{hibernated_room_check_interval = infinity}) ->
 set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
     timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
-    ejabberd_hooks:delete(is_muc_room_owner, State#state.host, ?MODULE, is_room_owner, 50),
-    ejabberd_hooks:delete(muc_room_pid, State#state.host, ?MODULE, muc_room_pid, 50),
-    ejabberd_hooks:delete(can_access_room, State#state.host, ?MODULE, can_access_room, 50),
-    ejabberd_hooks:delete(can_access_identity, State#state.host, ?MODULE, can_access_identity, 50),
-
+    ejabberd_hooks:delete(hooks(State#state.host_type)),
     {stop, normal, ok, State};
-
-handle_call({create_instant, Room, From, Nick, Opts},
+handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
             _From,
-            #state{host = Host,
-                   server_host = ServerHost,
+            #state{host_type = HostType,
                    access = Access,
                    default_room_opts = DefOpts,
                    history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State) ->
-    ?LOG_DEBUG(#{what => muc_create_instant, room => Room, sub_host => Host}),
+    ?LOG_DEBUG(#{what => muc_create_instant, room => Room, sub_host => MucHost}),
     NewOpts = case Opts of
                   default -> DefOpts;
                   _ -> Opts
               end,
-    {ok, Pid} = mod_muc_room:start(
-                  Host, ServerHost, Access,
+    try
+        {ok, Pid} = mod_muc_room:start_new(HostType,
+                  MucHost, ServerHost, Access,
                   Room, HistorySize,
                   RoomShaper, HttpAuthPool, From,
           Nick, [{instant, true}|NewOpts]),
-    register_room_or_stop_if_duplicate(Host, Room, Pid),
-    {reply, ok, State}.
+        register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid),
+        {reply, ok, State}
+    catch Class:Reason:Stacktrace ->
+              Err = #{what => muc_create_instant_failed,
+                      server => ServerHost, host_type => HostType,
+                      room => Room, from_jid => From,
+                      class => Class, reason => Reason,
+                      stacktrace => Stacktrace},
+              ?LOG_ERROR(Err),
+              {reply, {error, Err}, State}
+    end.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
-            #state{server_host = ServerHost,
+            #state{host_type = HostType,
                    hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
-    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, server => ServerHost,
-                text => <<"Closing hibernated persistent rooms">>}),
-    Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
-    Now = os:timestamp(),
-    [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
-     {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)],
-
+    handle_stop_hibernated_persistent_rooms(HostType, Timeout),
     set_persistent_rooms_timer(State),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
+
+handle_stop_hibernated_persistent_rooms(HostType, Timeout) ->
+    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, host_type => HostType,
+               text => <<"Closing hibernated persistent rooms">>}),
+    try
+        Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
+        Now = os:timestamp(),
+        [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
+         {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)]
+    catch Error:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => stop_hibernated_persistent_rooms_failed,
+                           error => Error, reason => Reason,
+                           stacktrace => Stacktrace,
+                           host_type => HostType})
+    end.
 
 stop_if_hibernated(Pid, Now, Timeout) ->
     stop_if_hibernated(Pid, Now, Timeout, erlang:process_info(Pid, current_function)).
@@ -536,50 +530,39 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
             ok
     end.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-terminate(_Reason, State) ->
-    mongoose_subhosts:unregister(State#state.host),
-    ejabberd_router:unregister_route(State#state.host),
+terminate(_Reason, #state{host_type = HostType,
+                          subdomain_pattern = SubdomainPattern}) ->
+    mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
+    unregister_for_global_distrib(HostType),
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec start_supervisor(jid:server()) -> {'error', _}
-                                           | {'ok', 'undefined' | pid()}
-                                           | {'ok', 'undefined' | pid(), _}.
-start_supervisor(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
-    ChildSpec =
-        {Proc,
-         {ejabberd_tmp_sup, start_link,
-          [Proc, mod_muc_room]},
-         permanent,
-         infinity,
-         supervisor,
-         [ejabberd_tmp_sup]},
+-spec start_supervisor(host_type()) -> {error, _}
+                                           | {ok, undefined | pid()}
+                                           | {ok, undefined | pid(), _}.
+start_supervisor(HostType) ->
+    ChildSpec = sup_spec(HostType),
     ejabberd_sup:start_child(ChildSpec).
 
+sup_spec(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
+    {Proc,
+     {ejabberd_tmp_sup, start_link, [Proc, mod_muc_room]},
+     permanent,
+     infinity,
+     supervisor,
+     [ejabberd_tmp_sup]}.
 
--spec stop_supervisor(jid:server()) -> 'ok'
-    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-stop_supervisor(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+-spec stop_supervisor(jid:server()) -> ok | {error, Reason}
+    when Reason :: not_found | restarting | running | simple_one_for_one.
+stop_supervisor(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
     ejabberd_sup:stop_child(Proc).
-
 
 -spec process_packet(Acc :: mongoose_acc:t(),
                      From :: jid:jid(),
@@ -588,11 +571,12 @@ stop_supervisor(Host) ->
                      #{state := state()}) -> ok | mongoose_acc:t().
 process_packet(Acc, From, To, El, #{state := State}) ->
     {AccessRoute, _, _, _} = State#state.access,
-    ServerHost = State#state.server_host,
-    case acl:match_rule(ServerHost, AccessRoute, From) of
+    ServerHost = make_server_host(To, State),
+    HostType = State#state.host_type,
+    case acl:match_rule_for_host_type(HostType, ServerHost, AccessRoute, From) of
         allow ->
-            {Room, _, _} = jid:to_lower(To),
-            route_to_room(Room, {From, To, Acc, El}, State);
+            {Room, MucHost, _} = jid:to_lower(To),
+            route_to_room(MucHost, Room, {From, To, Acc, El}, State);
         _ ->
             #xmlel{attrs = Attrs} = El,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -602,14 +586,14 @@ process_packet(Acc, From, To, El, #{state := State}) ->
     end.
 
 
--spec route_to_room(room(), from_to_packet(), state()) -> 'ok' | pid().
-route_to_room(<<>>, {_, To, _Acc, _} = Routed, State) ->
+-spec route_to_room(jid:lserver(), room(), from_to_packet(), state()) -> ok | pid().
+route_to_room(_MucHost, <<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
-route_to_room(Room, Routed, #state{host=Host} = State) ->
-    case mnesia:dirty_read(muc_online_room, {Room, Host}) of
+route_to_room(MucHost, Room, Routed, #state{} = State) ->
+    case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
         [] ->
-            case get_registered_room_or_route_error(Room, Routed, State) of
+            case get_registered_room_or_route_error(MucHost, Room, Routed, State) of
                 {ok, Pid} ->
                     route_to_online_room(Pid, Routed);
                 {route_error, _ErrText} ->
@@ -625,41 +609,42 @@ route_to_online_room(Pid, {From, To, Acc, Packet}) ->
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
--spec get_registered_room_or_route_error(room(), from_to_packet(), state()) -> {ok, pid()} | {route_error, binary()}.
-get_registered_room_or_route_error(Room, {From, To, Acc, Packet}, State) ->
+-spec get_registered_room_or_route_error(muc_host(), room(), from_to_packet(), state()) -> {ok, pid()} | {route_error, binary()}.
+get_registered_room_or_route_error(MucHost, Room, {From, To, Acc, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
     case {Name, Type} of
         {<<"presence">>, <<>>} ->
-            get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet, State);
+            get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, Packet, State);
         _ ->
-            get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet, State)
+            get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Packet, State)
     end.
 
-get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
-                                   #state{server_host = ServerHost,
-                                          host = Host,
+get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, Packet,
+                                   #state{host_type = HostType,
                                           access = Access} = State) ->
     {_, AccessCreate, _, _} = Access,
-    case check_user_can_create_room(ServerHost, AccessCreate,
-                                    From, Room) of
-        true ->
+    ServerHost = make_server_host(To, State),
+    case check_user_can_create_room(HostType, ServerHost, AccessCreate, From, Room) of
+        ok ->
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool,
                    default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
-            Result = start_new_room(Host, ServerHost, Access, Room,
+            ServerHost = make_server_host(To, State),
+            Result = start_new_room(HostType, ServerHost, MucHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts, Acc),
             case Result of
                 {ok, Pid} ->
-                    register_room_or_stop_if_duplicate(Host, Room, Pid);
+                    register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid);
                 {error, {failed_to_restore, Reason}} ->
                     %% Notify user about our backend module error
                     ?LOG_WARNING(#{what => muc_send_service_unavailable,
                                    text => <<"Failed to restore room">>,
-                                   room => Room, server => ServerHost, sub_host => Host,
+                                   host_type => HostType,
+                                   room => Room, sub_host => MucHost,
                                    reason => Reason, acc => Acc}),
                     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
                     ErrText = <<"Service is temporary unavailable">>,
@@ -672,21 +657,21 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
                     %% Do not notify user (we can send "internal server error").
                     erlang:error({start_new_room_failed, Room, Result})
             end;
-        false ->
+        {error, Reason} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-            ErrText = <<"Room creation is denied by service policy">>,
+            Policy = iolist_to_binary(io_lib:format("~p", [Reason])),
+            ErrText = <<"Room creation is denied by service policy: ", Policy/binary>>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
             ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText}
     end.
 
-get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
-                                 #state{server_host = ServerHost,
-                                        host = Host,
+get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Packet,
+                                 #state{host_type = HostType,
                                         access = Access} = State) ->
-
-    case restore_room(ServerHost, Host, Room) of
+    ServerHost = make_server_host(To, State),
+    case restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
@@ -696,7 +681,7 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
             {route_error, ErrText};
         {error, Reason} ->
             ?LOG_WARNING(#{what => muc_send_service_unavailable,
-                           room => Room, server => ServerHost, sub_host => Host,
+                           room => Room, host_type => HostType, sub_host => MucHost,
                            reason => Reason, acc => Acc}),
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Service is temporary unavailable">>,
@@ -709,10 +694,11 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State,
-            {ok, Pid} = mod_muc_room:start(Host, ServerHost, Access,
+            {ok, Pid} = mod_muc_room:start_restored(HostType,
+                                           MucHost, ServerHost, Access,
                                            Room, HistorySize,
                                            RoomShaper, HttpAuthPool, Opts),
-            register_room_or_stop_if_duplicate(Host, Room, Pid)
+            register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid)
     end.
 
 -spec route_by_nick(room(), from_to_packet(), state()) -> 'ok' | pid().
@@ -731,22 +717,22 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
             ejabberd_router:route(To, From, Acc1, Err)
     end.
 
-
 -spec route_by_type(binary(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
-    ServerHost = State#state.server_host,
+route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
+    HostType = State#state.host_type,
+    MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = mongoose_hooks:disco_info(ServerHost, ?MODULE, <<"">>, Lang),
+            Info = mongoose_hooks:disco_info(HostType, ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
                                          children = iq_disco_info(Lang, From, To) ++ Info}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
-            spawn(?MODULE, process_iq_disco_items, [Host, From, To, IQ]);
+            proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
         #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
-            Result = iq_get_register_info(ServerHost, Host, From, Lang),
+            Result = iq_get_register_info(HostType, MucHost, From, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
@@ -756,7 +742,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
             xmlns = ?NS_REGISTER = XMLNS,
             lang = Lang,
             sub_el = SubEl} = IQ ->
-            case process_iq_register_set(ServerHost, Host, From, SubEl, Lang) of
+            case process_iq_register_set(HostType, MucHost, From, SubEl, Lang) of
                 {result, IQRes} ->
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"query">>,
@@ -789,17 +775,19 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
             ok
     end;
 route_by_type(<<"message">>, {From, To, Acc, Packet},
-              #state{host = Host, server_host = ServerHost,
-                     access = {_, _, AccessAdmin, _}}) ->
+              #state{host_type = HostType,
+                     access = {_, _, AccessAdmin, _}} = State) ->
+    MucHost = To#jid.lserver,
+    ServerHost = make_server_host(To, State),
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> ->
             ok;
         _ ->
-            case acl:match_rule(ServerHost, AccessAdmin, From) of
+            case acl:match_rule_for_host_type(HostType, ServerHost, AccessAdmin, From) of
                 allow ->
                     Msg = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
-                    broadcast_service_message(Host, Msg);
+                    broadcast_service_message(MucHost, Msg);
                 _ ->
                     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
@@ -811,64 +799,44 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
 route_by_type(<<"presence">>, _Routed, _State) ->
     ok.
 
-
--spec check_user_can_create_room('global' | jid:server(),
-        'allow' | atom(), jid:jid(), room()) -> boolean().
-check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
-    case acl:match_rule(ServerHost, AccessCreate, From) of
+-spec check_user_can_create_room(host_type(), jid:lserver(),
+        allow | atom(), jid:jid(), room()) -> ok | {error, term()}.
+check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
+    case acl:match_rule_for_host_type(HostType, ServerHost, AccessCreate, From) of
         allow ->
-            (size(RoomID) =< gen_mod:get_module_opt(ServerHost, mod_muc,
-                                                    max_room_id, infinity));
+            MaxLen = gen_mod:get_module_opt(HostType, mod_muc,
+                                            max_room_id, infinity),
+            case (size(RoomID) =< MaxLen) of
+                true -> ok;
+                false -> {error, room_id_too_long}
+            end;
         _ ->
-            false
+            ?LOG_WARNING(#{what => check_user_can_create_room_failed,
+                           host_type => HostType,
+                           server => ServerHost,
+                           access_create => AccessCreate,
+                           from_jid => From,
+                           room_id => RoomID}),
+            {error, no_matching_acl_rule}
     end.
 
--spec load_permanent_rooms(Host :: jid:server(), Srv :: jid:server(),
-        Access :: access(), HistorySize :: 'undefined' | integer(),
-        RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
-load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
-    RoomsToLoad =
-    case mod_muc_db_backend:get_rooms(ServerHost, Host) of
-        {ok, Rs} ->
-            Rs;
-        {error, Reason} ->
-            ?LOG_ERROR(#{what => muc_get_rooms_failed,
-                         text => <<"Skip load_permanent_rooms">>,
-                         reason => Reason, server => ServerHost, sub_host => Host}),
-            []
-    end,
-    lists:foreach(
-      fun(R) ->
-              {Room, Host} = R#muc_room.name_host,
-              {ok, Pid} = mod_muc_room:start(
-                  Host,
-                  ServerHost,
-                  Access,
-                  Room,
-                  HistorySize,
-                  RoomShaper,
-                  HttpAuthPool,
-                  R#muc_room.opts),
-          register_room_or_stop_if_duplicate(Host, Room, Pid)
-
-      end, RoomsToLoad).
-
--spec start_new_room(Host :: 'undefined' | jid:server(),
-        Srv :: jid:server(), Access :: access(), room(),
+-spec start_new_room(HostType :: host_type(), ServerHost :: jid:lserver(),
+        MucHost :: muc_host(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
         DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
             -> {'error', _}
              | {'ok', 'undefined' | pid()}
              | {'ok', 'undefined' | pid(), _}.
-start_new_room(Host, ServerHost, Access, Room,
+start_new_room(HostType, ServerHost, MucHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts, Acc) ->
-    case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
+    case mod_muc_db_backend:restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
             ?LOG_DEBUG(#{what => muc_start_new_room, acc => Acc,
-                         room => Room, server => ServerHost, sub_host => Host}),
-            mod_muc_room:start(Host, ServerHost, Access,
+                         room => Room, host_type => HostType, sub_host => MucHost}),
+            mod_muc_room:start_new(HostType,
+                               MucHost, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
@@ -876,14 +844,15 @@ start_new_room(Host, ServerHost, Access, Room,
             {error, {failed_to_restore, Reason}};
         {ok, Opts} ->
             ?LOG_DEBUG(#{what => muc_restore_room, acc => Acc, room => Room,
-                         server => ServerHost, sub_host => Host, room_opts => Opts}),
-            mod_muc_room:start(Host, ServerHost, Access,
+                         host_type => HostType, sub_host => MucHost, room_opts => Opts}),
+            mod_muc_room:start_restored(HostType,
+                               MucHost, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, Opts)
     end.
 
-register_room_or_stop_if_duplicate(Host, Room, Pid) ->
-    case register_room(Host, Room, Pid) of
+register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid) ->
+    case register_room(HostType, MucHost, Room, Pid) of
         {_, ok} ->
             {ok, Pid};
         {_, {exists, OldPid}} ->
@@ -891,13 +860,15 @@ register_room_or_stop_if_duplicate(Host, Room, Pid) ->
             {ok, OldPid}
     end.
 
--spec register_room('undefined' | jid:server(), room(),
-                    'undefined' | pid()) -> {'aborted', _} | {'atomic', _}.
-register_room(Host, Room, Pid) ->
+-spec register_room(HostType :: host_type(), jid:server(), room(),
+                    pid()) -> {'aborted', _} | {'atomic', _}.
+register_room(HostType, MucHost, Room, Pid) ->
     F = fun() ->
-            case mnesia:read(muc_online_room,  {Room, Host}, write) of
+            case mnesia:read(muc_online_room,  {Room, MucHost}, write) of
                 [] ->
-                    mnesia:write(#muc_online_room{name_host = {Room, Host}, pid = Pid});
+                    mnesia:write(#muc_online_room{name_host = {Room, MucHost},
+                                                  host_type = HostType,
+                                                  pid = Pid});
                 [R] ->
                     {exists, R#muc_online_room.pid}
             end
@@ -935,48 +906,50 @@ iq_disco_info(Lang, From, To) ->
     [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures].
 
 
--spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
+%% Disco for rooms
+-spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
                      Rsm :: none | jlib:rsm_in()) -> any().
-iq_disco_items(Host, From, Lang, none) ->
-    Rooms = lists:ukeysort(1, lists:map(
-        fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end,
-        get_vh_rooms(Host) ++ get_persistent_vh_rooms(Host))),
-    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms),
+iq_disco_items(MucHost, From, Lang, none) ->
+    AllRooms = get_vh_rooms(MucHost) ++ get_persistent_vh_rooms(MucHost),
+    Rooms = lists:ukeysort(1, lists:map(fun record_to_simple/1, AllRooms)),
+    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms),
     lists:ukeysort(3, BareRooms);
-iq_disco_items(Host, From, Lang, Rsm) ->
-    {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
+iq_disco_items(MucHost, From, Lang, Rsm) ->
+    {Rooms, RsmO} = get_vh_rooms(MucHost, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms) ++ RsmOut.
+    lists:filtermap(fun(Room) -> room_to_item(Room, MucHost, From, Lang) end, Rooms) ++ RsmOut.
 
-room_to_item({{Name, _}, Pid}, Host, From, Lang) when is_pid(Pid) ->
+room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
      case catch gen_fsm_compat:sync_send_all_state_event(
                   Pid, {get_disco_item, From, Lang}, 100) of
          {item, Desc} ->
              flush(),
              {true,
               #xmlel{name = <<"item">>,
-                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                     attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
                               {<<"name">>, Desc}]}};
          _ ->
              false
      end;
- room_to_item({{ Name, _ }, _}, Host, _, _) ->
+ room_to_item({{ Name, _ }, _}, MucHost, _, _) ->
      {true,
      #xmlel{name = <<"item">>,
-            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+            attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
                      {<<"name">>, Name}]}
      }.
+record_to_simple(#muc_online_room{name_host = Room, pid = Pid}) ->
+    {Room, Pid};
+record_to_simple(#muc_room{name_host = Room, opts = Opts}) ->
+    {Room, Opts}.
 
--spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
-get_vh_rooms(Host, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
+-spec get_vh_rooms(muc_host(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
+get_vh_rooms(MucHost, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
     NonUndefMax = case Max of
         undefined -> 134217728;
         _ -> Max
     end,
-    Rooms = get_vh_rooms(Host) ++ get_persistent_vh_rooms(Host),
-    BareSortedRooms = lists:ukeysort(1, lists:map(
-        fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end,
-        Rooms)),
+    Rooms = get_vh_rooms(MucHost) ++ get_persistent_vh_rooms(MucHost),
+    BareSortedRooms = lists:ukeysort(1, lists:map(fun record_to_simple/1, Rooms)),
     Count = erlang:length(BareSortedRooms),
     L2 = case {Index, Direction} of
         {undefined, undefined} ->
@@ -1068,9 +1041,9 @@ iq_get_unique(From) ->
 -spec iq_get_register_info(jid:server(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
             -> [jlib:xmlel(), ...].
-iq_get_register_info(ServerHost, Host, From, Lang) ->
+iq_get_register_info(ServerHost, MucHost, From, Lang) ->
     {Nick, Registered} =
-        case catch get_nick(ServerHost, Host, From) of
+        case catch get_nick(ServerHost, MucHost, From) of
             {'EXIT', _Reason} ->
                 {<<>>, []};
             {error, _} ->
@@ -1086,7 +1059,7 @@ iq_get_register_info(ServerHost, Host, From, Lang) ->
     EnterNicknameEl = #xmlel{name = <<"instructions">>,
                              children = [#xmlcdata{content = EnterNicknameText}]},
     TitleText = <<(translate:translate(Lang, <<"Nickname Registration at ">>))/binary,
-                  Host/binary>>,
+                  MucHost/binary>>,
     TitleEl = #xmlel{name = <<"title">>, children = [#xmlcdata{content = TitleText}]},
     Registered ++
     [ClientReqEl,
@@ -1099,8 +1072,8 @@ iq_get_register_info(ServerHost, Host, From, Lang) ->
 -spec iq_set_register_info(jid:server(), jid:server(),
         jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
-    case set_nick(ServerHost, Host, From, Nick) of
+iq_set_register_info(ServerHost, MucHost, From, Nick, Lang) ->
+    case set_nick(ServerHost, MucHost, From, Nick) of
         ok ->
             {result, []};
         {error, conflict} ->
@@ -1111,7 +1084,7 @@ iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_register_info_failed,
-                         server => ServerHost, sub_host => Host,
+                         server => ServerHost, sub_host => MucHost,
                          from_jid => jid:to_binary(From), nick => Nick,
                          reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -1120,13 +1093,13 @@ iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
 -spec iq_set_unregister_info(jid:server(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
-    case unset_nick(ServerHost, Host, From) of
+iq_set_unregister_info(ServerHost, MucHost, From, _Lang) ->
+    case unset_nick(ServerHost, MucHost, From) of
         ok ->
             {result, []};
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_unregister_info_failed,
-                         server => ServerHost, sub_host => Host,
+                         server => ServerHost, sub_host => MucHost,
                          from_jid => jid:to_binary(From), reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
@@ -1134,7 +1107,7 @@ iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
 -spec process_iq_register_set(jid:server(), jid:server(),
                               jid:jid(), jlib:xmlel(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-process_iq_register_set(ServerHost, Host, From, SubEl, Lang) ->
+process_iq_register_set(ServerHost, MucHost, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
@@ -1142,21 +1115,21 @@ process_iq_register_set(ServerHost, Host, From, SubEl, Lang) ->
                 [#xmlel{name = <<"x">>} = XEl] ->
                     process_register(xml:get_tag_attr_s(<<"xmlns">>, XEl),
                                      xml:get_tag_attr_s(<<"type">>, XEl),
-                                     ServerHost, Host, From, Lang, XEl);
+                                     ServerHost, MucHost, From, Lang, XEl);
                 _ ->
                     {error, mongoose_xmpp_errors:bad_request()}
             end;
         _ ->
-            iq_set_unregister_info(ServerHost, Host, From, Lang)
+            iq_set_unregister_info(ServerHost, MucHost, From, Lang)
     end.
 
 -spec process_register(XMLNS :: binary(), Type :: binary(),
-                       ServerHost :: jid:server(), Host :: jid:server(),
+                       ServerHost :: jid:server(), MucHost :: jid:server(),
                        From :: jid:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
     {error, exml:element()} | {result, []}.
 process_register(?NS_XDATA, <<"cancel">>, _ServerHost, _Host, _From, _Lang, _XEl) ->
     {result, []};
-process_register(?NS_XDATA, <<"submit">>, ServerHost, Host, From, Lang, XEl) ->
+process_register(?NS_XDATA, <<"submit">>, ServerHost, MucHost, From, Lang, XEl) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
@@ -1164,7 +1137,7 @@ process_register(?NS_XDATA, <<"submit">>, ServerHost, Host, From, Lang, XEl) ->
         _ ->
             case lists:keysearch(<<"nick">>, 1, XData) of
                 {value, {_, [Nick]}} when Nick /= <<>> ->
-                    iq_set_register_info(ServerHost, Host, From, Nick, Lang);
+                    iq_set_register_info(ServerHost, MucHost, From, Nick, Lang);
                 _ ->
                     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
@@ -1183,27 +1156,25 @@ iq_get_vcard(Lang) ->
                                   <<(translate:translate(Lang, <<"ejabberd MUC module">>))/binary,
                                     "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
-
--spec broadcast_service_message(jid:server(), binary() | string()) -> ok.
-broadcast_service_message(Host, Msg) ->
+-spec broadcast_service_message(muc_host(), binary() | string()) -> ok.
+broadcast_service_message(MucHost, Msg) ->
     lists:foreach(
       fun(#muc_online_room{pid = Pid}) ->
               gen_fsm_compat:send_all_state_event(
                 Pid, {service_message, Msg})
-      end, get_vh_rooms(Host)).
+      end, get_vh_rooms(MucHost)).
 
-
--spec get_vh_rooms(jid:server()) -> [muc_online_room()].
-get_vh_rooms(Host) ->
+-spec get_vh_rooms(muc_host()) -> [muc_online_room()].
+get_vh_rooms(MucHost) ->
     mnesia:dirty_select(muc_online_room,
                         [{#muc_online_room{name_host = '$1', _ = '_'},
-                          [{'==', {element, 2, '$1'}, Host}],
+                          [{'==', {element, 2, '$1'}, MucHost}],
                           ['$_']}]).
 
--spec get_persistent_vh_rooms(jid:server()) -> [muc_room()].
+-spec get_persistent_vh_rooms(muc_host()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
-    {ok, Host} = mongoose_subhosts:get_host(MucHost),
-    case mod_muc_db_backend:get_rooms(Host, MucHost) of
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
+    case mod_muc_db_backend:get_rooms(HostType, MucHost) of
         {ok, List} ->
             List;
         {error, _} ->
@@ -1225,13 +1196,13 @@ clean_table_from_bad_node(Node) ->
     mnesia:async_dirty(F).
 
 
--spec clean_table_from_bad_node(node(), jid:server()) -> any().
-clean_table_from_bad_node(Node, Host) ->
+-spec clean_table_from_bad_node(node(), host_type()) -> any().
+clean_table_from_bad_node(Node, HostType) ->
     F = fun() ->
                 Es = mnesia:select(
                        muc_online_room,
                        [{#muc_online_room{pid = '$1',
-                                          name_host = {'_', Host},
+                                          host_type = HostType,
                                           _ = '_'},
                          [{'==', {node, '$1'}, Node}],
                          ['$_']}]),
@@ -1245,36 +1216,42 @@ clean_table_from_bad_node(Node, Host) ->
 %% Hooks handlers
 %%====================================================================
 
--spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_room_owner(_, Room, User) ->
+-spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(true, _HostType, _Room, _User) ->
+    true;
+is_muc_room_owner(_, _HostType, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
--spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, pid()} | {error, not_found}.
-muc_room_pid(_, Room) ->
-    room_jid_to_pid(Room).
-
--spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                      Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(_, Room, User) ->
+can_access_room(true, _HostType, _Room, _User) ->
+    true;
+can_access_room(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_room(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
 
--spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                          Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_identity(_, Room, User) ->
+can_access_identity(true, _HostType, _Room, _User) ->
+    true;
+can_access_identity(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_identity(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess
     end.
 
 online_rooms_number() ->
-    lists:sum([online_rooms_number(Host) || Host <- ?MYHOSTS]).
+    lists:sum([online_rooms_number(HostType)
+               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
 
-online_rooms_number(Host) ->
+online_rooms_number(HostType) ->
     try
-        Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+        Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
         Stats = supervisor:count_children(Supervisor),
         proplists:get_value(active, Stats)
     catch _:_ ->
@@ -1282,21 +1259,22 @@ online_rooms_number(Host) ->
     end.
 
 hibernated_rooms_number() ->
-    lists:sum([hibernated_rooms_number(Host) || Host <- ?MYHOSTS]).
+    lists:sum([hibernated_rooms_number(HostType)
+               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
 
-hibernated_rooms_number(Host) ->
+hibernated_rooms_number(HostType) ->
     try
-        count_hibernated_rooms(Host)
+        count_hibernated_rooms(HostType)
     catch _:_ ->
               0
     end.
 
-count_hibernated_rooms(Host) ->
-    AllRooms = all_room_pids(Host),
+count_hibernated_rooms(HostType) ->
+    AllRooms = all_room_pids(HostType),
     lists:foldl(fun count_hibernated_rooms/2, 0, AllRooms).
 
-all_room_pids(Host) ->
-    Supervisor = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
+all_room_pids(HostType) ->
+    Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
     [Pid || {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)].
 
 
@@ -1320,6 +1298,57 @@ ensure_metrics(_Host) ->
                                    {function, mod_muc, online_rooms_number, [],
                                     eval, ?EX_EVAL_SINGLE_VALUE}).
 
-config_metrics(Host) ->
+config_metrics(HostType) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+
+hooks(HostType) ->
+    [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
+     {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
+     {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
+
+subdomain_pattern(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
+
+server_host_to_muc_host(HostType, ServerHost) ->
+    mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
+
+%% Exposes MUC-host, when querying the server host.
+%% To is the host name, not subdomain.
+-spec disco_local_items(Acc :: {result, [exml:element()]} | empty | {error, any()},
+                      From :: jid:jid(), To :: jid:jid(),
+                      NS :: binary(), ejabberd:lang())
+                     -> {result, [exml:element()]} | empty | {error, any()}.
+disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
+    Acc;
+disco_local_items(Result, _From, #jid{lserver = ServerHost} = _To, <<"">>, _Lang) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+    MUCHost = server_host_to_muc_host(HostType, ServerHost),
+    Item = #xmlel{name = <<"item">>,
+                  attrs = [{<<"jid">>, MUCHost},
+                           {<<"node">>, ?NS_MUC}]},
+    case Result of
+        {result, Nodes} ->
+            {result, [Item | Nodes]};
+        empty ->
+            {result, [Item]}
+    end.
+
+make_server_host(To, State = #state{host_type = HostType,
+                                    subdomain_pattern = SubdomainPattern}) ->
+    case SubdomainPattern of
+        {prefix, _} ->
+            mod_muc_light_utils:room_jid_to_server_host(To);
+        {fqdn, _} ->
+            HostType
+    end.
+
+register_for_global_distrib(HostType) ->
+    %% Would not work for multitenancy
+    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
+    mongoose_hooks:register_subhost(SubHost, false).
+
+unregister_for_global_distrib(HostType) ->
+    SubHost = gen_mod:get_module_opt_subhost(HostType, ?MODULE, default_host()),
+    mongoose_hooks:unregister_subhost(SubHost).

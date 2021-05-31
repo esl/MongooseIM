@@ -138,6 +138,22 @@ These rules set the permissions for MAM operations triggered by IQ stanzas and h
 They can return `"allow"`, `"deny"` or `"default"`.
 The last value uses the default setting for the operation, which is to allow the operation when the sender and recipient JID's are the same.
 
+MAM for MUC permissions has `muc_` prefix:
+
+```toml
+  muc_mam_set_prefs = [
+    {acl = "all", value = "default"}
+  ]
+
+  muc_mam_get_prefs = [
+    {acl = "all", value = "default"}
+  ]
+
+  muc_mam_lookup_messages = [
+    {acl = "all", value = "default"}
+  ]
+```
+
 ### MAM shapers
 
 These rules limit the rate of MAM operations triggered by IQ stanzas.
@@ -174,6 +190,8 @@ For each operation there are two rules:
 - `*_global_shaper` - limits the number of operations per server node per second.
 
 The values returned by the rules (`mam_shaper`, `mam_global_shaper`) are shaper names, which need to be defined in the [`shaper` section](shaper.md#mam-shapers).
+
+MAM for MUC shapers has `muc_` prefix.
 
 ### Maximum number of sessions
 

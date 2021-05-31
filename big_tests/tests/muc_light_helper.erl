@@ -22,8 +22,10 @@ room_bin_jid(Room) ->
     <<Room/binary, $@, (muc_host())/binary>>.
 
 muc_host() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    <<"muclight.", Host/binary>>.
+    ct:get_config({hosts, mim, muc_light_service}).
+
+muc_host_pattern() ->
+    ct:get_config({hosts, mim, muc_light_service_pattern}).
 
 create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     DefaultConfig = default_config(),
@@ -36,7 +38,9 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
                         [RoomUS, DefaultConfig, AffUsersSort, Version]).
 
 -spec default_config() -> list().
-default_config() -> rpc(mim(), mod_muc_light, default_config, [muc_host()]).
+default_config() -> assert_list(rpc(mim(), mod_muc_light, default_config, [muc_host()])).
+
+assert_list(X) when is_list(X) -> X.
 
 -spec ns_muc_light_affiliations() -> binary().
 ns_muc_light_affiliations() ->
@@ -251,7 +255,7 @@ stanza_aff_set(Room, AffUsers) ->
 
 clear_db() ->
     Node = mim(),
-    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light_db_backend, force_clear, []).
+    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light, force_clear_from_ct, []).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
@@ -259,8 +263,9 @@ ver(Int) ->
 
 -spec set_mod_config(K :: atom(), V :: any(), SubHost :: binary()) -> ok.
 set_mod_config(K, V, SubHost) ->
-    {ok, Host} = rpc(mim(), mongoose_subhosts, get_host, [SubHost]),
-    true = rpc(mim(), gen_mod, set_module_opt, [Host, mod_muc_light, K, V]).
+    {ok, HostType} = rpc(mim(), mongoose_domain_api,
+                         get_subdomain_host_type, [SubHost]),
+    true = rpc(mim(), mod_muc_light, set_module_opt_from_ct, [HostType, K, V]).
 
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],

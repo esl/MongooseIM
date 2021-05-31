@@ -223,7 +223,6 @@ This is the perfect place to plug in custom security control.
 * mam_set_prefs
 * mod_global_distrib_known_recipient
 * mod_global_distrib_unknown_recipient
-* muc_room_pid
 * offline_groupchat_message_hook
 * offline_message_hook
 * packet_to_component

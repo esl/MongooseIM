@@ -211,7 +211,7 @@ init_per_group(muclight, Config) ->
     muc_light_helper:create_room(?ROOM, muclight_domain(), alice,
                                  [bob, kate], Config, muc_light_helper:ver(1));
 init_per_group(muc, Config) ->
-    muc_helper:load_muc(muc_domain()),
+    muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
 init_per_group(_GroupName, Config) ->
     Config.

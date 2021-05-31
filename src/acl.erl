@@ -31,7 +31,9 @@
          add/3,
          delete/3,
          match_rule/3,
-         match_rule/4]).
+         match_rule/4,
+         match_rule_for_host_type/4,
+         match_rule_for_host_type/5]).
 
 -include("mongoose.hrl").
 
@@ -62,6 +64,7 @@
               aclspec :: aclspec()
              }).
 -type acl() :: #acl{}.
+-type acl_result() :: allow | deny | term().
 
 start() ->
     mnesia:create_table(acl,
@@ -117,27 +120,49 @@ normalize_spec(none) ->
     none.
 
 
+%% legacy API, use match_rule_for_host_type instead
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
-                 JID :: jid:jid()) -> allow | deny | term().
+                 JID :: jid:jid()) -> acl_result().
 match_rule(Host, Rule, JID) ->
     match_rule(Host, Rule, JID, deny).
 
-match_rule(_, all, _, _Default) ->
+-spec match_rule_for_host_type(HostType :: mongooseim:host_type() | global,
+                               Host :: host(),
+                               Rule :: rule(),
+                               JID :: jid:jid()) -> acl_result().
+match_rule_for_host_type(HostType, Host, Rule, JID) ->
+    match_rule_for_host_type(HostType, Host, Rule, JID, deny).
+
+%% legacy API, use match_rule_for_host_type instead
+-spec match_rule(Host :: host(),
+                 Rule :: rule(),
+                 JID :: jid:jid(),
+                 Default :: acl_result()) -> acl_result().
+match_rule(Host, Rule, JID, Default) ->
+    %% We don't want to cast Host to HostType here.
+    %% Developers should start using match_rule_for_host_type explicetly.
+    match_rule_for_host_type(Host, Host, Rule, JID, Default).
+
+-spec match_rule_for_host_type(HostType :: mongooseim:host_type() | global,
+                               Host :: host(),
+                               Rule :: rule(),
+                               JID :: jid:jid(),
+                               Default :: acl_result()) -> acl_result().
+match_rule_for_host_type(_HostType, _, all, _, _Default) ->
     allow;
-match_rule(_, none, _, _Default) ->
+match_rule_for_host_type(_HostType, _, none, _, _Default) ->
     deny;
-match_rule(global, Rule, JID, Default) ->
+match_rule_for_host_type(_HostType, global, Rule, JID, Default) ->
     case ejabberd_config:get_global_option({access, Rule, global}) of
         undefined ->
             Default;
         GACLs ->
             match_acls(GACLs, JID, global)
     end;
-match_rule(Host, Rule, JID, Default) ->
+match_rule_for_host_type(HostType, Host, Rule, JID, Default) ->
     GlobalACLs = ejabberd_config:get_global_option({access, Rule, global}),
-    HostACLs = ejabberd_config:get_global_option({access, Rule, Host}),
-
+    HostACLs = ejabberd_config:get_global_option({access, Rule, HostType}),
     case {GlobalACLs, HostACLs} of
         {undefined, undefined} ->
             Default;

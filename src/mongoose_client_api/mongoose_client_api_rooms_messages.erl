@@ -50,15 +50,15 @@ to_json(Req, #{role_in_room := none} = State) ->
     mongoose_client_api:forbidden_request(Req, State);
 to_json(Req, #{jid := UserJID, room := Room} = State) ->
     RoomJID = maps:get(jid, Room),
-    Server = UserJID#jid.server,
+    HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJID),
     Now = os:system_time(microsecond),
-    ArchiveID = mod_mam_muc:archive_id_int(Server, RoomJID),
+    ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
     QS = cowboy_req:parse_qs(Req),
     PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
     Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
     End = maybe_before_to_us(Before, Now),
     RSM = #rsm_in{direction = before, id = undefined},
-    R = mod_mam_muc:lookup_messages(Server,
+    R = mod_mam_muc:lookup_messages(HostType,
                                     #{archive_id => ArchiveID,
                                       owner_jid => RoomJID,
                                       caller_jid => UserJID,

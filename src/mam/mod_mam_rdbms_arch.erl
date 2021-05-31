@@ -238,6 +238,7 @@ archive_size(Size, Host, ArcID, ArcJID) when is_integer(Size) ->
 -spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
 archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
     try
+        assert_archive_id_provided(Params),
         Env = env_vars(Host, ArcJID),
         do_archive_message(Host, Params, Env),
         retract_message(Host, Params, Env),
@@ -348,3 +349,6 @@ lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
 
 lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
     mam_lookup_sql:lookup_query(QueryType, Env, Filters, Order, OffsetLimit).
+
+assert_archive_id_provided(#{archive_id := ArcID}) when is_integer(ArcID) ->
+    ok.

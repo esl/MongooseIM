@@ -261,10 +261,10 @@ init_per_testcase(CaseName, Config)
     {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     trigger_rebalance(asia_node, list_to_binary(EuropeHost)),
     %% Load muc on mim node
-    muc_helper:load_muc(<<"muc.localhost">>),
+    muc_helper:load_muc(),
     RegNode = ct:get_config({hosts, reg, node}),
     %% Wait for muc.localhost to become visible from reg node
-    wait_for_domain(RegNode, <<"muc.localhost">>),
+    wait_for_domain(RegNode, muc_helper:muc_host()),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
                                    CN == test_pm_with_ungraceful_reconnection_to_different_server;

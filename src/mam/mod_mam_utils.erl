@@ -81,13 +81,13 @@
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
          is_complete_result_page/4,
-         wait_shaper/3,
+         wait_shaper/4,
          check_for_item_not_found/3]).
 
 %% Ejabberd
 -export([send_message/4,
          maybe_set_client_xmlns/2,
-         is_jid_in_user_roster/2]).
+         is_jid_in_user_roster/3]).
 
 %% Shared logic
 -export([check_result_for_policy_violation/2]).
@@ -1048,12 +1048,12 @@ action_to_shaper_name(Action) ->
 action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 
--spec wait_shaper(jid:server(), mam_iq:action(), jid:jid()) ->
+-spec wait_shaper(mongooseim:host_type(), jid:server(), mam_iq:action(), jid:jid()) ->
     'ok' | {'error', 'max_delay_reached'}.
-wait_shaper(Host, Action, From) ->
-    case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
+wait_shaper(HostType, Host, Action, From) ->
+    case shaper_srv:wait(HostType, Host, action_to_shaper_name(Action), From, 1) of
         ok ->
-            shaper_srv:wait(Host, action_to_global_shaper_name(Action), global, 1);
+            shaper_srv:wait(HostType, Host, action_to_global_shaper_name(Action), global, 1);
         Err ->
             Err
     end.
@@ -1065,11 +1065,10 @@ wait_shaper(Host, Action, From) ->
 send_message(_Row, From, To, Mess) ->
     ejabberd_sm:route(From, To, Mess).
 
--spec is_jid_in_user_roster(jid:jid(), jid:jid()) -> boolean().
-is_jid_in_user_roster(#jid{lserver = LServer} = ToJID,
-                      #jid{} = RemJID) ->
+-spec is_jid_in_user_roster(mongooseim:host_type(), jid:jid(), jid:jid()) -> boolean().
+is_jid_in_user_roster(HostType, #jid{} = ToJID, #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
-    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(LServer, ToJID, RemBareJID),
+    {Subscription, _G} = mongoose_hooks:roster_get_jid_info(HostType, ToJID, RemBareJID),
     Subscription == from orelse Subscription == both.
 
 %% @doc Returns a UUIDv4 canonical form binary.

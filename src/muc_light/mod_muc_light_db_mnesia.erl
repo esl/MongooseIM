@@ -25,8 +25,8 @@
 
 %% API
 -export([
-         start/2,
-         stop/2,
+         start/1,
+         stop/1,
 
          create_room/4,
          destroy_room/1,
@@ -85,12 +85,12 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-start(_Host, _MUCHost) ->
+-spec start(Host :: jid:server()) -> ok.
+start(_Host) ->
     init_tables().
 
--spec stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
-stop(_Host, _MUCHost) ->
+-spec stop(Host :: jid:server()) -> ok.
+stop(_Host) ->
     ok.
 
 %% ------------------------ General room management ------------------------
@@ -120,9 +120,9 @@ get_user_rooms(UserUS, _MUCHost) ->
     [ UserRoom#muc_light_user_room.room || UserRoom <- UsersRooms ].
 
 -spec get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
-                           MUCServer :: jid:lserver()) ->
+                           HostType :: mongooseim:host_type()) ->
     non_neg_integer().
-get_user_rooms_count(UserUS, _MUCServer) ->
+get_user_rooms_count(UserUS, _HostType) ->
     length(mnesia:dirty_read(muc_light_user_room, UserUS)).
 
 -spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
@@ -234,7 +234,8 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
-    lists:foreach(fun({RoomU, RoomS}) -> mongoose_hooks:forget_room(RoomS, RoomS, RoomU) end,
+    %% XXX This is supported only by Mnesia backend!
+    lists:foreach(fun(RoomUS) -> mod_muc_light_utils:run_forget_room_hook(RoomUS) end,
                   mnesia:dirty_all_keys(muc_light_room)),
     lists:foreach(fun mnesia:clear_table/1,
                   [muc_light_room, muc_light_user_room, muc_light_blocking]).

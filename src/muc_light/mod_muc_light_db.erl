@@ -25,9 +25,9 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
+-callback start(HostType :: mongooseim:host_type()) -> ok.
 
--callback stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
+-callback stop(HostType :: mongooseim:host_type()) -> ok.
 
 %% ------------------------ General room management ------------------------
 
@@ -44,7 +44,7 @@
     [RoomUS :: jid:simple_bare_jid()].
 
 -callback get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
-                               MUCServer :: jid:lserver()) ->
+                               HostType :: mongooseim:host_type()) ->
     non_neg_integer().
 
 -callback remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->

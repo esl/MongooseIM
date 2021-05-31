@@ -157,7 +157,13 @@ init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
 init_per_group(G, Config) ->
     %% Some cleaning up
     C = init_modules(G, Config),
-    catch rpc(?RPC_SPEC, mod_muc_light_db_backend, force_clear, []),
+    ReqMods = proplists:get_value(required_modules, C, []),
+    case lists:keymember(mod_muc_light, 1, ReqMods) of
+        true ->
+            muc_light_helper:clear_db();
+        false ->
+            ct:log("Skip muc_light_helper:clear_db()", [])
+    end,
     C.
 
 end_per_group(_, Config) ->
@@ -968,7 +974,7 @@ init_modules(G, Config) ->
     C = dynamic_modules:save_modules(domain(), Config),
     Fun = fun() -> catch dynamic_modules:ensure_modules(domain(), Modules) end,
     mongoose_helper:wait_until(Fun, ok),
-    [{api_v, MongoosePushAPI} | C].
+    [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 
 mongoose_push_api_for_group(failure_cases_v2) ->
     "v2";

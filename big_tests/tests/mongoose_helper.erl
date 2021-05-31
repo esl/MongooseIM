@@ -231,14 +231,20 @@ ensure_muc_clean() ->
     forget_persistent_rooms().
 
 stop_online_rooms() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Supervisor = rpc(mim(), gen_mod, get_module_proc, [Host, ejabberd_mod_muc_sup]),
+    HostType = domain_helper:host_type(),
+    Supervisor = rpc(mim(), gen_mod, get_module_proc, [HostType, ejabberd_mod_muc_sup]),
     SupervisorPid = rpc(mim(), erlang, whereis, [Supervisor]),
+    case is_pid(SupervisorPid) of
+        true -> ok;
+        false -> ct:fail({ejabberd_mod_muc_sup_not_found, Supervisor, HostType})
+    end,
     rpc(mim(), erlang, exit, [SupervisorPid, kill]),
     rpc(mim(), mnesia, clear_table, [muc_online_room]),
     ok.
 
 forget_persistent_rooms() ->
+    %% To avoid `binary_to_existing_atom(<<"maygetmemberlist">>, utf8)' failing
+    rpc(mim(), mod_muc_room, module_info, []),
     Host = ct:get_config({hosts, mim, domain}),
     {ok, Rooms} = rpc(mim(), mod_muc_db_backend, get_rooms, [Host, muc_helper:muc_host()]),
     lists:foreach(

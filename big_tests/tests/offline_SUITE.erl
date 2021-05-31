@@ -55,28 +55,35 @@ init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(with_groupchat, C) ->
-    OfflineBackend = mongoose_helper:get_backend_name(mod_offline_backend),
-    MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
-    Modules = [{mod_offline, [{store_groupchat_messages, true},
-                              {backend, OfflineBackend}]},
-               {mod_muc_light, [{backend, MucLightBackend}]}],
     Config = dynamic_modules:save_modules(domain(), C),
-    dynamic_modules:ensure_modules(domain(), Modules),
+    dynamic_modules:ensure_modules(domain(), with_groupchat_modules()),
     Config;
 init_per_group(chatmarkers, C) ->
-    case mongoose_helper:is_rdbms_enabled(domain())of
-        false ->  {skip, require_rdbms};
-    true->
-        Modules = [{mod_offline, [{store_groupchat_messages, true},
-                                  {backend, rdbms}]},
-                   {mod_offline_chatmarkers,[{store_groupchat_messages, true}]},
-                   {mod_muc_light, [{backend, rdbms}]}],
-        Config = dynamic_modules:save_modules(domain(), C),
-        dynamic_modules:ensure_modules(domain(), Modules),
-        Config
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        false ->
+            {skip, require_rdbms};
+        true ->
+            Config = dynamic_modules:save_modules(domain(), C),
+            dynamic_modules:ensure_modules(domain(), chatmarkers_modules()),
+            Config
     end;
-
 init_per_group(_, C) -> C.
+
+with_groupchat_modules() ->
+    OfflineBackend = mongoose_helper:get_backend_name(mod_offline_backend),
+    MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
+    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{mod_offline, [{store_groupchat_messages, true},
+                    {backend, OfflineBackend}]},
+     {mod_muc_light, [{backend, MucLightBackend},
+                      {host, MucPattern}]}].
+
+chatmarkers_modules() ->
+    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{mod_offline, [{store_groupchat_messages, true},
+                    {backend, rdbms}]},
+     {mod_offline_chatmarkers, [{store_groupchat_messages, true}]},
+     {mod_muc_light, [{backend, rdbms}, {host, MucPattern}]}].
 
 end_per_group(Group, C) when Group =:= chatmarkers;
                              Group =:= with_groupchat ->
@@ -98,8 +105,7 @@ offline_message_is_stored_and_delivered_at_login(Config) ->
     Story =
         fun(FreshConfig, Alice, Bob) ->
                 logout(FreshConfig, Bob),
-                escalus:send(Alice, escalus_stanza:chat_to
-                                      (Bob, <<"msgtxt">>)),
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"msgtxt">>)),
                 NewBob = login_send_presence(FreshConfig, bob),
                 Stanzas = escalus:wait_for_stanzas(NewBob, 2),
                 escalus_new_assert:mix_match
