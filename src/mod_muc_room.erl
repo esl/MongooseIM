@@ -761,7 +761,9 @@ terminate(Reason, _StateName, StateData) ->
               tab_remove_online_user(LJID, StateData)
       end, StateData#state.users),
     add_to_log(room_existence, stopped, StateData),
-    mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self()),
+    mod_muc:room_destroyed(StateData#state.host_type,
+                           StateData#state.host,
+                           StateData#state.room, self()),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -4588,9 +4590,9 @@ route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_ITEMS, lang = L
     Res = process_iq_disco_items(From, Type, Lang, StateData),
     do_route_iq(Acc, Res, Routed, StateData);
 route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
-         #state{host = Host, jid = RoomJID} = StateData) ->
+         #state{host_type = HostType, jid = RoomJID} = StateData) ->
     %% Custom IQ, addressed to this room's JID.
-    case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
+    case mod_muc_iq:process_iq(HostType, From, RoomJID, Acc, IQ) of
         {Acc1, error} ->
             {Acc2, Err} = jlib:make_error_reply(Acc1, Packet,
                 mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_muc_room">>)),
