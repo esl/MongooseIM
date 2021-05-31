@@ -500,18 +500,24 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
 
 -spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
                         Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(true, _HostType, _Room, _User) ->
+    true;
 is_muc_room_owner(_, _HostType, Room, User) ->
     owner == get_affiliation(Room, User).
 
 -spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
                       Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
+can_access_room(true, _HostType, _Room, _User) ->
+    true;
 can_access_room(_, _HostType, Room, User) ->
     none =/= get_affiliation(Room, User).
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
                           Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
+can_access_identity(true, _HostType, _Room, _User) ->
+    true;
 can_access_identity(_Acc, _HostType, _Room, _User) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
     %% 0045 MUC element with user identity and we don't want it

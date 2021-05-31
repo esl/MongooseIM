@@ -1218,12 +1218,16 @@ clean_table_from_bad_node(Node, HostType) ->
 
 -spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
                         Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(true, _HostType, _Room, _User) ->
+    true;
 is_muc_room_owner(_, _HostType, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
 -spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
                       Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
+can_access_room(true, _HostType, _Room, _User) ->
+    true;
 can_access_room(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_room(Room, User) of
         {error, _} -> false;
@@ -1233,6 +1237,8 @@ can_access_room(_, _HostType, Room, User) ->
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
                           Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
+can_access_identity(true, _HostType, _Room, _User) ->
+    true;
 can_access_identity(_, _HostType, Room, User) ->
     case mod_muc_room:can_access_identity(Room, User) of
         {error, _} -> false;
