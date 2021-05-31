@@ -1,6 +1,13 @@
+%% Pretty prints a record including field names.
+%% It's useful to print records with many fields.
 -module(mongoose_record_pp).
 -export([format/3]).
 
+%% Takes a record tuple, record name, and record_info(fields, Name)
+%% Returns `#state{field1 = Value, field2 = Value2}'.
+%% usage:
+%% `mongoose_record_pp:format(State, state, record_info(fields, state))'
+-spec format(tuple(), atom(), [atom()]) -> binary().
 format(Record, Name, FieldDefs) when element(1, Record) =:= Name ->
     FieldVals = tl(tuple_to_list(Record)),
     FieldKV = print_pairs(FieldVals, FieldDefs),
