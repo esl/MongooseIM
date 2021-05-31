@@ -287,7 +287,7 @@ room_is_created(Config) ->
 
 room_is_created_with_given_identifier(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        GivenRoomID = <<"just_an_id">>,
+        GivenRoomID = muc_helper:fresh_room_name(),
         GivenRoomID = given_new_room({alice, Alice}, GivenRoomID),
         RoomInfo = get_room_info({alice, Alice}, GivenRoomID),
         assert_room_info(Alice, RoomInfo)
@@ -295,7 +295,7 @@ room_is_created_with_given_identifier(Config) ->
 
 config_can_be_changed_by_owner(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"som_othere_id">>,
+        RoomID = muc_helper:fresh_room_name(),
         RoomJID = room_jid(RoomID, Config),
         RoomID = given_new_room({alice, Alice}, RoomJID, <<"old_name">>),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
@@ -522,7 +522,7 @@ messages_can_be_paginated_in_room(Config) ->
 
 room_is_created_with_given_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"some_id">>,
+        RoomID = muc_helper:fresh_room_name(),
         RoomJID = room_jid(RoomID, Config),
         RoomID = given_new_room({alice, Alice}, RoomJID),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
@@ -531,7 +531,7 @@ room_is_created_with_given_jid(Config) ->
 
 room_is_not_created_with_jid_not_matching_hostname(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"some_id">>,
+        RoomID = muc_helper:fresh_room_name(),
         RoomJID = <<RoomID/binary, "@muclight.wrongdomain">>,
         Creds = credentials({alice, Alice}),
         {{Status, _}, _} = create_room_with_id_request(Creds,
@@ -543,7 +543,7 @@ room_is_not_created_with_jid_not_matching_hostname(Config) ->
 
 room_can_be_fetched_by_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        RoomID = <<"yet_another_id">>,
+        RoomID = muc_helper:fresh_room_name(),
         RoomJID = room_jid(RoomID, Config),
         RoomID = given_new_room({alice, Alice}, RoomJID),
         RoomInfo = get_room_info({alice, Alice}, RoomJID),
