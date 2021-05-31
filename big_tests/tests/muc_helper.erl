@@ -71,6 +71,9 @@ unload_muc() ->
 muc_host() ->
     ct:get_config({hosts, mim, muc_service}).
 
+muc_host_pattern() ->
+    ct:get_config({hosts, mim, muc_service_pattern}).
+
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
 
