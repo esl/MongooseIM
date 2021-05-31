@@ -67,7 +67,9 @@
 
          loaded_modules/0,
          loaded_modules/1,
+         loaded_modules_with_opts/0,
          loaded_modules_with_opts/1,
+         hosts_with_module/1,
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
@@ -411,6 +413,25 @@ loaded_modules_with_opts(HostType) ->
                                   opts = '$2'},
                  [],
                  [{{'$1', '$2'}}]}]).
+
+-spec loaded_modules_with_opts() -> #{host_type() => [{module(), list()}]}.
+loaded_modules_with_opts() ->
+    Res = ets:select(ejabberd_modules,
+               [{#ejabberd_module{_ = '_', module_host_type = {'$1', '$2'},
+                                  opts = '$3'},
+                 [],
+                 [{{'$2', '$1', '$3'}}]}]),
+    Hosts = lists:usort([H || {H, _, _} <- Res]),
+    maps:from_list([{H, [{M, Opts}
+                         || {HH, M, Opts} <- Res,
+                            H =:= HH]}
+                    || H <- Hosts]).
+
+-spec hosts_with_module(module()) -> [host_type()].
+hosts_with_module(Module) ->
+    ets:select(ejabberd_modules,
+               [{#ejabberd_module{_ = '_', module_host_type = {Module, '$1'}},
+                 [], ['$1']}]).
 
 -spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
     {'aborted', _} | {'atomic', _}.
