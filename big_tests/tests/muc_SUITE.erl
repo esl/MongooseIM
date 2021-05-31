@@ -543,11 +543,11 @@ meck_room() ->
 
 %% Meck will register a fake room right before a 'real' room is started
 meck_room_start() ->
-    rpc(mim(), meck, expect, [mod_muc_room, init,
-        fun(#{muc_host := Host, host_type := HostType, room_name := Room} = Args) ->
-            mod_muc:register_room(HostType, Host, Room, ?FAKEPID),
-            meck:passthrough([Args])
-        end]).
+    rpc(mim(), meck, expect, [mod_muc_room, init, fun ?MODULE:meck_init/1]).
+
+meck_init(#{muc_host := Host, host_type := HostType, room_name := Room} = Args) ->
+    mod_muc:register_room(HostType, Host, Room, ?FAKEPID),
+    meck:passthrough([Args]).
 
 %% Meck will forward all calls to route to the test case instead
 meck_room_route() ->
