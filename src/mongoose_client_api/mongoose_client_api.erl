@@ -53,7 +53,7 @@ to_json(Req, User) ->
     {<<"{}">>, Req, User}.
 
 bad_request(Req, State) ->
-    bad_request(Req, <<>>, State).
+    bad_request(Req, <<"Bad request without a reason">>, State).
 
 bad_request(Req, Reason, State) ->
     reply(400, Req, Reason, State).
@@ -65,6 +65,7 @@ forbidden_request(Req, Reason, State) ->
     reply(403, Req, Reason, State).
 
 reply(StatusCode, Req, Body, State) ->
+    maybe_report_error(StatusCode, Req, Body),
     Req1 = set_resp_body_if_missing(Body, Req),
     Req2 = cowboy_req:reply(StatusCode, Req1),
     {stop, Req2, State#{was_replied => true}}.
@@ -76,6 +77,14 @@ set_resp_body_if_missing(Body, Req) ->
         false ->
             cowboy_req:set_resp_body(Body, Req)
     end.
+
+maybe_report_error(StatusCode, Req, Body) when StatusCode >= 400 ->
+    ?LOG_WARNING(#{what => reply_error,
+                   stacktrace => element(2, erlang:process_info(self(), current_stacktrace)),
+                   status_code => StatusCode,
+                   cowboy_req => Req, body => Body});
+maybe_report_error(_StatusCode, _Req, _Body) ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% Authorization

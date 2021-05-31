@@ -327,6 +327,8 @@ error_response(ErrorType, Reason, Req, State) ->
                     L when is_list(L) -> list_to_binary(L);
                     Other -> list_to_binary(io_lib:format("~p", [Other]))
                 end,
+    ?LOG_ERROR(#{what => rest_common_error,
+                 error_type => ErrorType, reason => Reason, cowboy_req => Req}),
     Req1 = cowboy_req:reply(error_code(ErrorType), #{}, BinReason, Req),
     {stop, Req1, State}.
 
