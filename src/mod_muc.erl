@@ -162,6 +162,7 @@ start(HostType, Opts) ->
     gen_mod:start_backend_module(mod_muc_db, Opts, TrackedDBFuns),
     start_supervisor(HostType),
     start_server(HostType, Opts),
+    assert_server_running(HostType),
     ok.
 
 -spec stop(host_type()) -> ok.
@@ -179,7 +180,10 @@ start_server(HostType, Opts) ->
          1000,
          worker,
          [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
+    {ok, _} = ejabberd_sup:start_child(ChildSpec).
+
+assert_server_running(HostType) ->
+    true = is_pid(whereis(gen_mod:get_module_proc(HostType, ?PROCNAME))).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -379,13 +383,6 @@ get_nick(LServer, MucHost, From) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 -spec init([host_type() | list(), ...]) -> {'ok', state()}.
 init([HostType, Opts]) ->
     mod_muc_db_backend:init(HostType, Opts),
@@ -420,6 +417,13 @@ init([HostType, Opts]) ->
     ejabberd_hooks:add(hooks(HostType)),
     %% Handler
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
+    case SubdomainPattern of
+       {prefix, _} -> ok;
+       _ -> ?LOG_WARNING(#{what => muc_host_pattern_missing,
+                           host_type => HostType,
+                           subdomain_pattern => SubdomainPattern,
+                           text => <<"Only one MUC domain would work with this host type">>})
+    end,
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
     %% Loading
     case gen_mod:get_module_opt(HostType, mod_muc, load_permanent_rooms_at_startup, false) of
@@ -440,19 +444,9 @@ set_persistent_rooms_timer(#state{hibernated_room_check_interval = infinity}) ->
 set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
     timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
     ejabberd_hooks:delete(hooks(State#state.host_type)),
     {stop, normal, ok, State};
-
 handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
             _From,
             #state{host_type = HostType,
@@ -466,47 +460,53 @@ handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
                   default -> DefOpts;
                   _ -> Opts
               end,
-    {ok, Pid} = mod_muc_room:start(
+    try
+        {ok, Pid} = mod_muc_room:start_new(HostType,
                   MucHost, ServerHost, Access,
                   Room, HistorySize,
                   RoomShaper, HttpAuthPool, From,
           Nick, [{instant, true}|NewOpts]),
-    register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid),
-    {reply, ok, State}.
+        register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid),
+        {reply, ok, State}
+    catch Class:Reason:Stacktrace ->
+              Err = #{what => muc_create_instant_failed,
+                      server => ServerHost, host_type => HostType,
+                      room => Room, from_jid => From,
+                      class => Class, reason => Reason,
+                      stacktrace => Stacktrace},
+              ?LOG_ERROR(Err),
+              {reply, {error, Err}, State}
+    end.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
-            #state{host_type = ServerHost,
+            #state{host_type = HostType,
                    hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
-    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, server => ServerHost,
-                text => <<"Closing hibernated persistent rooms">>}),
-    Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
-    Now = os:timestamp(),
-    [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
-     {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)],
-
+    handle_stop_hibernated_persistent_rooms(HostType, Timeout),
     set_persistent_rooms_timer(State),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
+
+handle_stop_hibernated_persistent_rooms(HostType, Timeout) ->
+    ?LOG_INFO(#{what => muc_stop_hibernated_persistent_rooms, host_type => HostType,
+               text => <<"Closing hibernated persistent rooms">>}),
+    try
+        Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
+        Now = os:timestamp(),
+        [stop_if_hibernated(Pid, Now, Timeout * 1000) ||
+         {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)]
+    catch Error:Reason:Stacktrace ->
+              ?LOG_ERROR(#{what => stop_hibernated_persistent_rooms_failed,
+                           error => Error, reason => Reason,
+                           stacktrace => Stacktrace,
+                           host_type => HostType})
+    end.
 
 stop_if_hibernated(Pid, Now, Timeout) ->
     stop_if_hibernated(Pid, Now, Timeout, erlang:process_info(Pid, current_function)).
@@ -530,22 +530,11 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
             ok
     end.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-terminate(_Reason, State = #state{host_type = HostType,
-                                  subdomain_pattern = SubdomainPattern}) ->
+terminate(_Reason, #state{host_type = HostType,
+                          subdomain_pattern = SubdomainPattern}) ->
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -581,8 +570,9 @@ stop_supervisor(HostType) ->
                      #{state := state()}) -> ok | mongoose_acc:t().
 process_packet(Acc, From, To, El, #{state := State}) ->
     {AccessRoute, _, _, _} = State#state.access,
-    ServerHost = State#state.host_type,
-    case acl:match_rule(ServerHost, AccessRoute, From) of
+    ServerHost = make_server_host(To, State),
+    HostType = State#state.host_type,
+    case acl:match_rule_for_host_type(HostType, ServerHost, AccessRoute, From) of
         allow ->
             {Room, MucHost, _} = jid:to_lower(To),
             route_to_room(MucHost, Room, {From, To, Acc, El}, State);
@@ -633,14 +623,16 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, P
                                    #state{host_type = HostType,
                                           access = Access} = State) ->
     {_, AccessCreate, _, _} = Access,
-    case check_user_can_create_room(HostType, AccessCreate, From, Room) of
-        true ->
+    ServerHost = make_server_host(To, State),
+    case check_user_can_create_room(HostType, ServerHost, AccessCreate, From, Room) of
+        ok ->
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool,
                    default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
-            Result = start_new_room(HostType, MucHost, Access, Room,
+            ServerHost = make_server_host(To, State),
+            Result = start_new_room(HostType, ServerHost, MucHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts, Acc),
             case Result of
@@ -664,9 +656,10 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, P
                     %% Do not notify user (we can send "internal server error").
                     erlang:error({start_new_room_failed, Room, Result})
             end;
-        false ->
+        {error, Reason} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-            ErrText = <<"Room creation is denied by service policy">>,
+            Policy = iolist_to_binary(io_lib:format("~p", [Reason])),
+            ErrText = <<"Room creation is denied by service policy: ", Policy/binary>>,
             {Acc1, Err} = jlib:make_error_reply(
                     Acc, Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
             ejabberd_router:route(To, From, Acc1, Err),
@@ -676,6 +669,7 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, P
 get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Packet,
                                  #state{host_type = HostType,
                                         access = Access} = State) ->
+    ServerHost = make_server_host(To, State),
     case restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
@@ -699,7 +693,8 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
             #state{history_size = HistorySize,
                    room_shaper = RoomShaper,
                    http_auth_pool = HttpAuthPool} = State,
-            {ok, Pid} = mod_muc_room:start(MucHost, HostType, Access,
+            {ok, Pid} = mod_muc_room:start_restored(HostType,
+                                           MucHost, ServerHost, Access,
                                            Room, HistorySize,
                                            RoomShaper, HttpAuthPool, Opts),
             register_room_or_stop_if_duplicate(HostType, MucHost, Room, Pid)
@@ -723,11 +718,11 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
 
 -spec route_by_type(binary(), from_to_packet(), state()) -> 'ok' | pid().
 route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
-    ServerHost = State#state.host_type,
+    HostType = State#state.host_type,
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = mongoose_hooks:disco_info(ServerHost, ?MODULE, <<"">>, Lang),
+            Info = mongoose_hooks:disco_info(HostType, ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
@@ -736,7 +731,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
         #iq{type = get, xmlns = ?NS_REGISTER = XMLNS, lang = Lang} = IQ ->
-            Result = iq_get_register_info(ServerHost, MucHost, From, Lang),
+            Result = iq_get_register_info(HostType, MucHost, From, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
@@ -746,7 +741,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
             xmlns = ?NS_REGISTER = XMLNS,
             lang = Lang,
             sub_el = SubEl} = IQ ->
-            case process_iq_register_set(ServerHost, MucHost, From, SubEl, Lang) of
+            case process_iq_register_set(HostType, MucHost, From, SubEl, Lang) of
                 {result, IQRes} ->
                     Res = IQ#iq{type = result,
                                 sub_el = [#xmlel{name = <<"query">>,
@@ -779,15 +774,16 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
             ok
     end;
 route_by_type(<<"message">>, {From, To, Acc, Packet},
-              #state{host_type = ServerHost,
-                     access = {_, _, AccessAdmin, _}}) ->
+              #state{host_type = HostType,
+                     access = {_, _, AccessAdmin, _}} = State) ->
     MucHost = To#jid.lserver,
+    ServerHost = make_server_host(To, State),
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> ->
             ok;
         _ ->
-            case acl:match_rule(ServerHost, AccessAdmin, From) of
+            case acl:match_rule_for_host_type(HostType, ServerHost, AccessAdmin, From) of
                 allow ->
                     Msg = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
                     broadcast_service_message(MucHost, Msg);
@@ -802,33 +798,44 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
 route_by_type(<<"presence">>, _Routed, _State) ->
     ok.
 
--spec check_user_can_create_room(global | host_type(),
-        allow | atom(), jid:jid(), room()) -> boolean().
-check_user_can_create_room(HostType, AccessCreate, From, RoomID) ->
-    case acl:match_rule(HostType, AccessCreate, From) of
+-spec check_user_can_create_room(host_type(), jid:lserver(),
+        allow | atom(), jid:jid(), room()) -> ok | {error, term()}.
+check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
+    case acl:match_rule_for_host_type(HostType, ServerHost, AccessCreate, From) of
         allow ->
-            (size(RoomID) =< gen_mod:get_module_opt(HostType, mod_muc,
-                                                    max_room_id, infinity));
+            MaxLen = gen_mod:get_module_opt(HostType, mod_muc,
+                                            max_room_id, infinity),
+            case (size(RoomID) =< MaxLen) of
+                true -> ok;
+                false -> {error, room_id_too_long}
+            end;
         _ ->
-            false
+            ?LOG_WARNING(#{what => check_user_can_create_room_failed,
+                           host_type => HostType,
+                           server => ServerHost,
+                           access_create => AccessCreate,
+                           from_jid => From,
+                           room_id => RoomID}),
+            {error, no_matching_acl_rule}
     end.
 
--spec start_new_room(HostType :: host_type(), MucHost :: muc_host(),
-        Access :: access(), room(),
+-spec start_new_room(HostType :: host_type(), ServerHost :: jid:lserver(),
+        MucHost :: muc_host(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
         HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
         DefRoomOpts :: 'undefined' | [any()], Acc :: mongoose_acc:t())
             -> {'error', _}
              | {'ok', 'undefined' | pid()}
              | {'ok', 'undefined' | pid(), _}.
-start_new_room(HostType, MucHost, Access, Room,
+start_new_room(HostType, ServerHost, MucHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts, Acc) ->
     case mod_muc_db_backend:restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
             ?LOG_DEBUG(#{what => muc_start_new_room, acc => Acc,
                          room => Room, host_type => HostType, sub_host => MucHost}),
-            mod_muc_room:start(MucHost, HostType, Access,
+            mod_muc_room:start_new(HostType,
+                               MucHost, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
@@ -837,7 +844,8 @@ start_new_room(HostType, MucHost, Access, Room,
         {ok, Opts} ->
             ?LOG_DEBUG(#{what => muc_restore_room, acc => Acc, room => Room,
                          host_type => HostType, sub_host => MucHost, room_opts => Opts}),
-            mod_muc_room:start(MucHost, HostType, Access,
+            mod_muc_room:start_restored(HostType,
+                               MucHost, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, Opts)
     end.
@@ -1231,11 +1239,12 @@ can_access_identity(_, _HostType, Room, User) ->
     end.
 
 online_rooms_number() ->
-    lists:sum([online_rooms_number(MucHost) || MucHost <- ?MYHOSTS]).
+    lists:sum([online_rooms_number(HostType)
+               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
 
-online_rooms_number(MucHost) ->
+online_rooms_number(HostType) ->
     try
-        Supervisor = gen_mod:get_module_proc(MucHost, ejabberd_mod_muc_sup),
+        Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
         Stats = supervisor:count_children(Supervisor),
         proplists:get_value(active, Stats)
     catch _:_ ->
@@ -1243,21 +1252,22 @@ online_rooms_number(MucHost) ->
     end.
 
 hibernated_rooms_number() ->
-    lists:sum([hibernated_rooms_number(MucHost) || MucHost <- ?MYHOSTS]).
+    lists:sum([hibernated_rooms_number(HostType)
+               || HostType <- gen_mod:hosts_with_module(?MODULE)]).
 
-hibernated_rooms_number(MucHost) ->
+hibernated_rooms_number(HostType) ->
     try
-        count_hibernated_rooms(MucHost)
+        count_hibernated_rooms(HostType)
     catch _:_ ->
               0
     end.
 
-count_hibernated_rooms(MucHost) ->
-    AllRooms = all_room_pids(MucHost),
+count_hibernated_rooms(HostType) ->
+    AllRooms = all_room_pids(HostType),
     lists:foldl(fun count_hibernated_rooms/2, 0, AllRooms).
 
-all_room_pids(MucHost) ->
-    Supervisor = gen_mod:get_module_proc(MucHost, ejabberd_mod_muc_sup),
+all_room_pids(HostType) ->
+    Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
     [Pid || {undefined, Pid, worker, _} <- supervisor:which_children(Supervisor)].
 
 
@@ -1305,7 +1315,7 @@ server_host_to_muc_host(HostType, ServerHost) ->
                      -> {result, [exml:element()]} | empty | {error, any()}.
 disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
-disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang) ->
+disco_local_items(Result, _From, #jid{lserver = ServerHost} = _To, <<"">>, _Lang) ->
     HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Item = #xmlel{name = <<"item">>,
@@ -1316,4 +1326,13 @@ disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang)
             {result, [Item | Nodes]};
         empty ->
             {result, [Item]}
+    end.
+
+make_server_host(To, State = #state{host_type = HostType,
+                                    subdomain_pattern = SubdomainPattern}) ->
+    case SubdomainPattern of
+        {prefix, _} ->
+            mod_muc_light_utils:room_jid_to_server_host(To);
+        {fqdn, _} ->
+            HostType
     end.

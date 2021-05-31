@@ -34,7 +34,7 @@
 -export([start_link/2,
          start/2,
          stop/1,
-         check_access_log/2,
+         check_access_log/3,
          add_to_log/5,
          set_room_occupants/4]).
 
@@ -158,17 +158,17 @@ process_top_link(KVs) ->
     {[[{target, Target}], [{text, Text}]], []} = proplists:split(KVs, [target, text]),
     {Target, Text}.
 
--spec add_to_log(jid:server(), Type :: any(), Data :: any(), mod_muc:room(),
+-spec add_to_log(mongooseim:host_type(), Type :: any(), Data :: any(), mod_muc:room(),
                  list()) -> 'ok'.
-add_to_log(Host, Type, Data, Room, Opts) ->
-    gen_server:cast(get_proc_name(Host),
+add_to_log(HostType, Type, Data, Room, Opts) ->
+    gen_server:cast(get_proc_name(HostType),
                     {add_to_log, Type, Data, Room, Opts}).
 
 
--spec check_access_log(jid:server(), jid:jid()) -> any().
-check_access_log(Host, From) ->
-    case catch gen_server:call(get_proc_name(Host),
-                               {check_access_log, Host, From}) of
+-spec check_access_log(mongooseim:host_type(), jid:lserver(), jid:jid()) -> any().
+check_access_log(HostType, ServerHost, From) ->
+    case catch gen_server:call(get_proc_name(HostType),
+                               {check_access_log, HostType, ServerHost, From}) of
         {'EXIT', _Error} ->
             deny;
         Res ->
@@ -233,11 +233,12 @@ init([Host, Opts]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 -spec handle_call('stop'
-            | {'check_access_log', 'global' | jid:server(), jid:jid()},
+            | {'check_access_log', mongooseim:host_type(), 'global' | jid:server(), jid:jid()},
         From :: any(), logstate()) -> {'reply', 'allow' | 'deny', logstate()}
                                     | {'stop', 'normal', 'ok', _}.
-handle_call({check_access_log, ServerHost, FromJID}, _From, State) ->
-    Reply = acl:match_rule(ServerHost, State#logstate.access, FromJID),
+handle_call({check_access_log, HostType, ServerHost, FromJID}, _From, State) ->
+    Reply = acl:match_rule_for_host_type(HostType, ServerHost,
+                                         State#logstate.access, FromJID),
     {reply, Reply, State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.

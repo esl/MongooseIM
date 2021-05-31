@@ -31,6 +31,7 @@
 -export([filter_out_prevented/4]).
 -export([acc_to_host_type/1]).
 -export([room_jid_to_host_type/1]).
+-export([room_jid_to_server_host/1]).
 -export([muc_host_to_host_type/1]).
 -export([server_host_to_host_type/1]).
 -export([run_forget_room_hook/1]).
@@ -286,13 +287,30 @@ acc_to_host_type(Acc) ->
 room_jid_to_host_type(#jid{lserver = MucHost}) ->
     muc_host_to_host_type(MucHost).
 
+-spec room_jid_to_server_host(jid:jid()) -> jid:lserver().
+room_jid_to_server_host(#jid{lserver = MucHost}) ->
+    case mongoose_domain_api:get_subdomain_info(MucHost) of
+        {ok, #{parent_domain := ServerHost}} when is_binary(ServerHost) ->
+            ServerHost;
+        Other ->
+            error({room_jid_to_server_host_failed, MucHost, Other})
+    end.
+
 server_host_to_host_type(LServer) ->
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    HostType.
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            HostType;
+        Other ->
+            error({server_host_to_host_type_failed, LServer, Other})
+    end.
 
 muc_host_to_host_type(MucHost) ->
-    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
-    HostType.
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            HostType;
+        Other ->
+            error({muc_host_to_host_type_failed, MucHost, Other})
+    end.
 
 run_forget_room_hook({Room, MucHost}) ->
     HostType = muc_host_to_host_type(MucHost),
