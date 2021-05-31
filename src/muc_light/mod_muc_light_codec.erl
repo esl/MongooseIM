@@ -66,6 +66,8 @@ make_error_elem({error, bad_request, Text}) ->
     mongoose_xmpp_errors:bad_request(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
     mongoose_xmpp_errors:feature_not_implemented();
+make_error_elem({error, {feature_not_implemented, Text}}) ->
+    mongoose_xmpp_errors:feature_not_implemented(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, internal_server_error}) ->
     mongoose_xmpp_errors:internal_server_error();
 make_error_elem({error, registration_required}) ->

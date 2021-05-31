@@ -65,7 +65,7 @@
 -define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
--define(MUCHOST, (muc_helper:muc_host())).
+-define(MUCHOST, (muc_light_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -141,9 +141,9 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Host = domain(),
-    dynamic_modules:start(Host, mod_muc_light,
-                          [{host, subhost_pattern(?MUCHOST)},
+    HostType = host_type(),
+    dynamic_modules:start(HostType, mod_muc_light,
+                          [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
@@ -152,7 +152,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(domain(), mod_muc_light),
+    dynamic_modules:stop(host_type(), mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -176,7 +176,7 @@ init_per_testcase(create_existing_room_deny = N, Config) ->
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     set_default_mod_config(),
-    dynamic_modules:start(domain(), mod_mam_muc,
+    dynamic_modules:start(host_type(), mod_mam_muc,
                           [{backend, rdbms},
                            {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
@@ -188,7 +188,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
     clear_db(),
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     clear_db(),
@@ -494,7 +494,6 @@ manage_blocklist(Config) ->
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -563,7 +562,6 @@ blocking_disabled(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -679,7 +677,12 @@ parse_blocked_item(Item) ->
     MucHost = ?MUCHOST,
     case binary:split(Value, <<"/">>) of
         [MucHost, User] -> {user, deny, User};
-        [Room] -> {room, deny, Room}
+        [Room] -> {room, deny, Room};
+        Other ->
+            CfgHost = rpc(gen_mod, get_module_opt, [host_type(), mod_muc_light, host, undefined]),
+            ct:fail(#{what => parse_blocked_item_failed,
+                      muc_host => MucHost, other => Other,
+                      cfg_host => CfgHost})
     end.
 
 -spec verify_aff_bcast(CurrentOccupants :: [escalus:client()], AffUsersChanges :: ct_aff_users(),
@@ -876,10 +879,18 @@ set_default_mod_config() ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-muc_domain() ->
-    Domain = domain(),
-    <<"muc.", Domain/binary>>.
+host_type() ->
+    ct:get_config({hosts, mim, host_type}).
+
+muc_domain() -> muc_light_helper:muc_host().
 
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
     <<Room/binary, $@, (muc_domain())/binary>>.
+
+disco_disabled() ->
+    try
+        ct:get_config({disable_disco_tests})
+    catch _:_ ->
+              false
+    end.

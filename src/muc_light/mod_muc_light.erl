@@ -57,6 +57,8 @@
 -export([apply_rsm/3]).
 
 -export([config_metrics/1]).
+%% for mod_muc_light_codec_legacy
+-export([subdomain_pattern/1]).
 
 -type muc_server() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
@@ -319,7 +321,8 @@ process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, #iq{} = IQ}) ->
     case mod_muc_iq:process_iq(HostType, From, To, Acc, IQ) of
         {Acc1, error} ->
-            make_err(From, To, El, Acc1, {error, feature_not_implemented});
+            E = {error, {feature_not_implemented, <<"mod_muc_iq returns error">>}},
+            make_err(From, To, El, Acc1, E);
         _ -> ok
     end;
 process_decoded_packet(_HostType, From, To, Acc, El,
@@ -433,7 +436,7 @@ make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
+    MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
           gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->

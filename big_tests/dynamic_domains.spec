@@ -12,6 +12,8 @@
 {suites, "tests", acc_e2e_SUITE}.
 {suites, "tests", domain_isolation_SUITE}.
 {suites, "tests", muc_SUITE}.
+{suites, "tests", muc_light_SUITE}.
+{suites, "tests", muc_light_legacy_SUITE}.
 {suites, "tests", mam_SUITE}.
 
 {suites, "tests", carboncopy_SUITE}.
