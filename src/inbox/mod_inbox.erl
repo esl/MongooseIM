@@ -581,7 +581,7 @@ hooks(HostType) ->
     ].
 
 add_default_backend(Opts) ->
-    case lists:keyfind(backend, 2, Opts) of
+    case lists:keyfind(backend, 1, Opts) of
         false -> [{backend, rdbms} | Opts];
         _ -> Opts
     end.

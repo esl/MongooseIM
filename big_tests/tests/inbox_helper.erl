@@ -255,7 +255,7 @@ clear_inboxes(UserList) ->
     [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [User, Server]) || {User, Server} <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
     Args2 = lists:foldl(fun({K, V}, AccIn) ->
         lists:keyreplace(K, 1, AccIn, {K, V})
@@ -264,14 +264,14 @@ reload_inbox_option(Config, KeyValueList) ->
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args2}).
 
 reload_inbox_option(Config, Key, Value) ->
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
     Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
     dynamic_modules:restart(HostType, mod_inbox, Args1),
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 
 restore_inbox_option(Config) ->
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
     dynamic_modules:restart(HostType, mod_inbox, Args).
 

@@ -191,7 +191,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), inbox_modules()),
+    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
     InboxOptions = inbox_opts(),
     Config1 = escalus:init_per_suite(Config),
     Config2 = [{inbox_opts, InboxOptions} | Config1],
@@ -199,14 +199,14 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_inbox),
     escalus:end_per_suite(Config1).
 
 init_per_group(one_to_one, Config) ->
     inbox_helper:reload_inbox_option(Config, groupchat, []);
 init_per_group(muclight, Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), muclight_modules()),
+    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
     inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
     muc_light_helper:create_room(?ROOM, muclight_domain(), alice,
                                  [bob, kate], Config, muc_light_helper:ver(1));
@@ -218,7 +218,7 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(muclight, Config) ->
     muc_light_helper:clear_db(),
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc_light),
     Config;
 end_per_group(_GroupName, Config) ->

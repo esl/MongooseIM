@@ -85,7 +85,7 @@ restart(HostType, Mod, Args) ->
     start(HostType, Mod, Args).
 
 start_running(Config) ->
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     case ?config(running, Config) of
         List when is_list(List) ->
             _ = [start(HostType, Mod, Args) || {Mod, Args} <- List];
@@ -95,7 +95,7 @@ start_running(Config) ->
 
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
-    HostType = domain_helper:host_type(),
+    HostType = domain_helper:host_type(mim),
     Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, HostType}]),
     Filtered = lists:filter(fun({Module, _}) ->
                     ModuleL = atom_to_list(Module),

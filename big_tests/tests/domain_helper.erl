@@ -4,14 +4,10 @@
          delete_configured_domains/0,
          insert_domain/3,
          delete_domain/2,
-         host_type/0,
          host_type/1,
          host_type/2]).
 
 -import(distributed_helper, [get_or_fail/1, rpc/4]).
-
-host_type() ->
-    ct:get_config({hosts, mim, host_type}).
 
 host_type(NodeKey) ->
     host_type(NodeKey, domain).
