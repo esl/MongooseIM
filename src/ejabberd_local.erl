@@ -384,11 +384,9 @@ do_route(Acc, From, To, El) ->
                     Acc
             end;
         local_resource ->
-            case mongoose_acc:stanza_type(Acc) of
-                <<"error">> -> Acc;
-                <<"result">> -> Acc;
-                _ -> mongoose_hooks:local_send_to_resource_hook(Acc, From, To, El)
-            end
+            ?LOG_DEBUG(#{what => ignored_stanza_to_server_with_resource,
+                         from_jid => From, to_jid => To, acc => Acc}),
+            Acc
     end.
 
 -spec directed_to(jid:jid()) -> user | server | local_resource.
@@ -458,12 +456,8 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100).
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
 
 do_unregister_host(Host) ->
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100).
+    ejabberd_router:unregister_route(Host).
 
