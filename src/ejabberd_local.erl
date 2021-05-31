@@ -50,7 +50,6 @@
          unregister_host/1,
          unregister_iq_response_handler/2,
          refresh_iq_handlers/0,
-         bounce_resource_packet/4,
          sync/0
         ]).
 
@@ -224,11 +223,11 @@ refresh_iq_handlers() ->
 -spec bounce_resource_packet(Acc :: mongoose_acc:t(),
                              From :: jid:jid(),
                              To :: jid:jid(),
-                             El :: exml:element()) -> {'stop', mongoose_acc:t()}.
+                             El :: exml:element()) -> mongoose_acc:t().
 bounce_resource_packet(Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:item_not_found()),
     ejabberd_router:route(To, From, Acc1, Err),
-    {stop, Acc}.
+    Acc.
 
 -spec register_host(Host :: jid:server()) -> ok.
 register_host(Host) ->
@@ -274,7 +273,7 @@ init([]) ->
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
-    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
+    ejabberd_hooks:add(hooks()),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -354,8 +353,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    ok.
+    ejabberd_hooks:delete(hooks()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -367,6 +365,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+hooks() ->
+    [{node_cleanup, global, ?MODULE, node_cleanup, 50}].
+
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
                To :: jid:jid(),
@@ -387,7 +389,7 @@ do_route(Acc, From, To, El) ->
             case mongoose_acc:stanza_type(Acc) of
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
-                _ -> mongoose_hooks:local_send_to_resource_hook(Acc, From, To, El)
+                _ -> bounce_resource_packet(Acc, From, To, El)
             end
     end.
 
@@ -458,12 +460,8 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100).
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
 
 do_unregister_host(Host) ->
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100).
+    ejabberd_router:unregister_route(Host).
 
