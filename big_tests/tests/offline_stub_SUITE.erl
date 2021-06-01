@@ -1,9 +1,3 @@
-%%%===================================================================
-%%% @copyright (C) 2011, Erlang Solutions Ltd.
-%%% @doc Suite for testing mod_offline* modules
-%%% @end
-%%%===================================================================
-
 -module(offline_stub_SUITE).
 -compile(export_all).
 
@@ -22,24 +16,28 @@ suite() ->
 %%% Init & teardown
 %%%===================================================================
 
-init_per_suite(C) -> escalus:init_per_suite(C).
-end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
+init_per_suite(Config) ->
+    escalus:init_per_suite(Config).
 
-init_per_testcase(Name, C) ->
+end_per_suite(Config) ->
+    escalus_fresh:clean(),
+    escalus:end_per_suite(Config).
+
+init_per_testcase(Name, Config0) ->
     HostType = domain_helper:host_type(),
-    Config = dynamic_modules:save_modules(HostType, C),
+    Config1 = dynamic_modules:save_modules(HostType, Config0),
     dynamic_modules:ensure_stopped(HostType, [mod_offline]),
     case Name of
         with_mod_offline_stub ->
             dynamic_modules:ensure_modules(HostType, [{mod_offline_stub, []}]);
         _ -> ok
     end,
-    escalus:init_per_testcase(Name, Config).
+    escalus:init_per_testcase(Name, Config1).
 
-end_per_testcase(Name, C) ->
+end_per_testcase(Name, Config) ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:restore_modules(HostType, C),
-    escalus:end_per_testcase(Name, C).
+    dynamic_modules:restore_modules(HostType, Config),
+    escalus:end_per_testcase(Name, Config).
 
 %%%===================================================================
 %%% offline tests
