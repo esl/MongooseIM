@@ -25,6 +25,7 @@
 
 %% API
 -export([default_schema_definition/0, default_host/0]).
+-export([server_host_to_muc_host/2]).
 -export([config_schema/1, default_config/1]).
 
 %% For Administration API

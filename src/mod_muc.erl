@@ -46,6 +46,7 @@
          can_use_nick/4,
          room_jid_to_pid/1,
          default_host/0]).
+-export([server_host_to_muc_host/2]).
 
 %% For testing purposes only
 -export([register_room/4]).

@@ -74,7 +74,6 @@
 
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
-                       muclight_domain/0,
                        inbox_modules/0,
                        muclight_modules/0,
                        inbox_opts/0,
@@ -208,7 +207,7 @@ init_per_group(one_to_one, Config) ->
 init_per_group(muclight, Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
     inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    muc_light_helper:create_room(?ROOM, muclight_domain(), alice,
+    muc_light_helper:create_room(?ROOM, muc_light_helper:muc_host(), alice,
                                  [bob, kate], Config, muc_light_helper:ver(1));
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
@@ -231,22 +230,22 @@ init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
     escalus:init_per_testcase(create_groupchat_no_affiliation_stored, Config);
 init_per_testcase(groupchat_markers_one_reset, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM_MARKERS, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(groupchat_markers_one_reset, Config);
 init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS2, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM_MARKERS2, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
 init_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
 init_per_testcase(leave_and_remove_conversation, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM2, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM2, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(leave_and_remove_conversation, Config);
 init_per_testcase(leave_and_store_conversation, Config) ->
@@ -255,13 +254,13 @@ init_per_testcase(leave_and_store_conversation, Config) ->
     escalus:init_per_testcase(leave_and_store_conversation, Config);
 init_per_testcase(no_aff_stored_and_remove_on_kicked, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM3, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM3, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     inbox_helper:reload_inbox_option(Config, [{remove_on_kicked, true}, {aff_changes, false}]),
     escalus:init_per_testcase(no_aff_stored_and_remove_on_kicked, Config);
 init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
     clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM4, muclight_domain(), alice, [bob, kate],
+    muc_light_helper:create_room(?ROOM4, muc_light_helper:muc_host(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     inbox_helper:reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
     escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
@@ -306,7 +305,8 @@ end_per_testcase(no_stored_and_remain_after_kicked, Config) ->
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(no_stored_and_remain_after_kicked, Config);
 end_per_testcase(msg_sent_to_not_existing_user, Config) ->
-    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user">>,<<"localhost">>]),
+    HostType = domain_helper:host_type(mim),
+    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [HostType, <<"not_existing_user">>,<<"localhost">>]),
     escalus:end_per_testcase(msg_sent_to_not_existing_user, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).

@@ -139,7 +139,7 @@ inbox_modules() ->
 
 muclight_modules() ->
     [
-     {mod_muc_light, [{host, subhost_pattern(muclight_config_domain())},
+     {mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
                       {backend, rdbms}]}
     ].
 
@@ -249,10 +249,11 @@ clear_inbox_all() ->
     clear_inboxes([alice, bob, kate, mike]).
 
 clear_inboxes(UserList) ->
+    HostType = domain_helper:host_type(mim),
     Usernames = [{escalus_users:get_username(escalus_users:get_users(UserList),U),
                   escalus_users:get_server(escalus_users:get_users(UserList),U)}
                  || U <- UserList],
-    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [User, Server]) || {User, Server} <- Usernames].
+    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [HostType, User, Server]) || {User, Server} <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
     HostType = domain_helper:host_type(mim),

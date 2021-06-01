@@ -1,5 +1,6 @@
 -module(mod_inbox_entries).
 
+-include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
 -include("jlib.hrl").
 -include("mod_inbox.hrl").
@@ -20,7 +21,7 @@ process_iq_conversation(Acc, From, _To, #iq{type = get, sub_el = SubEl} = IQ, _E
 process_iq_conversation(Acc, From, _To, #iq{type = set,
                                             sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ,
                        _Extra) ->
-    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza);
+    maybe_process_reset_stanza(Acc, From, IQ, ResetStanza);
 process_iq_conversation(Acc, From, _To, #iq{type = set, sub_el = Query} = IQ, _Extra) ->
     process_iq_conversation_set(Acc, IQ, From, Query).
 
@@ -49,9 +50,9 @@ build_inbox_entry_form() ->
 -spec get_properties_for_jid(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid()) ->
     {mongoose_acc:t(), jlib:iq()}.
 get_properties_for_jid(Acc, IQ, From, EntryJID) ->
-    {LUser, LServer} = jid:to_lus(From),
-    BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    case mod_inbox_backend:get_entry_properties(LUser, LServer, BinEntryJID) of
+    HostType = mongoose_acc:host_type(Acc),
+    {_, _, BinEntryJID} = InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
+    case mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey) of
         [] -> return_error(Acc, IQ, <<"Entry not found">>);
         Result ->
             CurrentTS = mongoose_acc:timestamp(Acc),
@@ -88,18 +89,18 @@ extract_requests(Acc, IQ, From, EntryJID, Requests) ->
 -spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
-    {LUser, LServer} = jid:to_lus(From),
-    BinEntryJID = jid:to_binary(jid:to_lus(EntryJID)),
-    case mod_inbox_backend:set_entry_properties(LUser, LServer, BinEntryJID, Params) of
+    HostType = mongoose_acc:host_type(Acc),
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
+    case mod_inbox_backend:set_entry_properties(HostType, InboxEntryKey, Params) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
-            forward_result(Acc, IQ, From, BinEntryJID, Result, CurrentTS)
+            forward_result(Acc, IQ, From, InboxEntryKey, Result, CurrentTS)
     end.
 
--spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), binary(), entry_properties(), integer()) ->
+-spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties(), integer()) ->
     {mongoose_acc:t(), jlib:iq()}.
-forward_result(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
+forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, CurrentTS) ->
     Properties = build_result(Result, CurrentTS),
     X = [#xmlel{name = <<"x">>,
                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
@@ -111,16 +112,17 @@ forward_result(Acc, IQ, From, ToBareJidBin, Result, CurrentTS) ->
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
     {Acc1, IQ#iq{type = result, sub_el = []}}.
 
-maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
+maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of
         {error, Msg} ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         InterlocutorJID ->
-            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
+            process_reset_stanza(Acc, From, IQ, ResetStanza, InterlocutorJID)
     end.
 
-process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
-    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
+process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ok = mod_inbox_utils:reset_unread_count_to_zero(HostType, From, InterlocutorJID),
     {Acc, IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
