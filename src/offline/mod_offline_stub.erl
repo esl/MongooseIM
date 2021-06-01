@@ -28,7 +28,8 @@
 
 %% gen_mod callbacks
 -export([start/2,
-         stop/1]).
+         stop/1,
+         supported_features/0]).
 
 %% Hook handlers
 -export([stop_hook_processing/4]).
@@ -44,6 +45,8 @@ stop(HostType) ->
     [ejabberd_hooks:delete(Hook, HostType, M, F, Prio)
      || {Hook, M, F, Prio} <- handlers()],
     ok.
+
+supported_features() -> [dynamic_domains].
 
 %% Don't repeat yourself.
 handlers() ->
