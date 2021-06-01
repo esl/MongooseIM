@@ -93,6 +93,7 @@
   resume_expired_session_returns_correct_h,
   unacknowledged_message_hook_offline],
  "at the moment mod_offline doesn't support dynamic domains"}.
+{suites, "tests", rest_client_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
