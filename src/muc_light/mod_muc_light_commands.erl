@@ -183,8 +183,9 @@ invite_to_room(Domain, RoomName, Sender, Recipient0) ->
 
 change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
     Recipient1 = jid:binary_to_bare(Recipient0),
-    MUCLightDomain = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
-                                                    mod_muc_light:default_host()),
+    LServer = jid:nameprep(Domain),
+    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
+    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
     R = jid:make(RoomID, MUCLightDomain, <<>>),
     S = jid:binary_to_bare(Sender),
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
@@ -195,8 +196,8 @@ change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
 change_room_config(Domain, RoomID, RoomName, User, Subject) ->
     LServer = jid:nameprep(Domain),
     HostType = lserver_to_host_type(LServer),
-    MUCLightDomain = gen_mod:get_module_opt_subhost(
-                       Domain, mod_muc_light, mod_muc_light:default_host()),
+    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
+    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
     UserUS = jid:binary_to_bare(User),
     ConfigReq = #config{ raw_config =
                          [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
@@ -252,13 +253,14 @@ delete_room(DomainName, RoomName, Owner) ->
 %% Ancillary
 %%--------------------------------------------------------------------
 
-create_room(Domain, Identifier, RoomName, Creator, Subject) ->
-    C = jid:to_lus(jid:from_binary(Creator)),
-    MUCLightDomain = gen_mod:get_module_opt_subhost(
-                       Domain, mod_muc_light, mod_muc_light:default_host()),
-    MUCService = jid:make(Identifier, MUCLightDomain, <<>>),
-    Config = make_room_config(RoomName, Subject),
-    case mod_muc_light:try_to_create_room(C, MUCService, Config) of
+create_room(Domain, RoomId, RoomTitle, Creator, Subject) ->
+    LServer = jid:nameprep(Domain),
+    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
+    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
+    CreatorUS = jid:to_lus(jid:from_binary(Creator)),
+    MUCServiceJID = jid:make(RoomId, MUCLightDomain, <<>>),
+    Config = make_room_config(RoomTitle, Subject),
+    case mod_muc_light:try_to_create_room(CreatorUS, MUCServiceJID, Config) of
         {ok, RoomUS, _} ->
             jid:to_binary(RoomUS);
         {error, exists} ->

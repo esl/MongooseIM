@@ -119,7 +119,7 @@ init_per_suite(Config) ->
     Config1 = dynamic_modules:save_modules(HostType, Config),
     Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
     MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    dynamic_modules:start(HostType, mod_muc_light,
+    dynamic_modules:restart(HostType, mod_muc_light,
                           [{host, MucPattern},
                            {rooms_in_rosters, true}]),
     [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(Config2)].

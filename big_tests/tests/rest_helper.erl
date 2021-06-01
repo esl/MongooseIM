@@ -34,6 +34,7 @@
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PATHPREFIX, <<"/api">>).
@@ -330,20 +331,22 @@ to_list(V) when is_list(V) ->
 
 maybe_enable_mam(rdbms, Host, Config) ->
     maybe_disable_mam(rdbms, Host),
+    MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
     init_module(Host, mod_mam_rdbms_arch, []),
     init_module(Host, mod_mam_muc_rdbms_arch, []),
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
     init_module(Host, mod_mam_rdbms_user, [muc, pm]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+    init_module(Host, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     maybe_disable_mam(riak, Host),
+    MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+    init_module(Host, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
@@ -418,11 +421,11 @@ fill_room_archive(RoomID, Users) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
     Days = [Today - I || I <- lists:seq(0, 3)],
-    Host = ct:get_config({hosts, mim, domain}),
-    MUCLight = <<"muclight.", Host/binary>>,
+    HostType = host_type(),
+    MUCLight = ct:get_config({hosts, mim, muc_light_service}),
     RoomJID = mongoose_helper:make_jid(RoomID, MUCLight, <<>>),
     RoomBinJID = <<RoomID/binary, "@", MUCLight/binary>>,
-    RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [Host, RoomJID]),
+    RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [HostType, RoomJID]),
     Room = {RoomBinJID, RoomJID, RoomArcID},
     UserArcIDs = [make_room_arc_id(Room, User) || User <- Users],
     [put_room_msgs_in_day(Room, UserArcIDs, Day) || Day <- lists:reverse(Days)].
@@ -440,7 +443,6 @@ put_room_msg({{_, MsgID},
               {FromJIDBin, FromJID, _},
               {_, ToJID, ToArcID},
               {_, SrcJID, _}, Msg}) ->
-    Host = ct:get_config({hosts, mim, domain}),
     ok = mam_helper:rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
                                                                      archive_id => ToArcID,
                                                                      local_jid => ToJID,

@@ -157,7 +157,8 @@ user_to_json({UserServer, Role}) ->
       role => Role}.
 
 muc_light_domain(Server) ->
-    gen_mod:get_module_opt_subhost(Server, mod_muc_light, mod_muc_light:default_host()).
+    HostType = mod_muc_light_utils:server_host_to_host_type(Server),
+    mod_muc_light_utils:server_host_to_muc_host(HostType, Server).
 
 determine_role(US, Users) ->
     case lists:keyfind(US, 1, Users) of
