@@ -129,19 +129,20 @@ unavailable_resources_dont_get_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
-        enable_carbons([Alice1, Alice2]),
-        client_unsets_presence(Alice1),
-        escalus:assert(is_presence_with_type, [<<"unavailable">>],
-                       escalus_client:wait_for_stanza(Alice2)),
+          enable_carbons([Alice1, Alice2]),
+          client_unsets_presence(Alice1),
+          escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                         escalus_client:wait_for_stanza(Alice2)),
 
-        escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, ?BODY)),
-
-        client_sets_presence(Alice1),
-        %% no carbons for Alice1, only presences
-        escalus_new_assert:mix_match([is_presence, is_presence],
-                                     escalus:wait_for_stanzas(Alice1, 2)),
-        AliceReceived = escalus_client:wait_for_stanza(Alice2),
-        escalus:assert(is_chat_message, [?BODY], AliceReceived)
+          escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, ?BODY)),
+          %% Alice2 receives the message, no carbons for Alice1
+          AliceReceived = escalus_client:wait_for_stanza(Alice2),
+          escalus:assert(is_chat_message, [?BODY], AliceReceived),
+          [] = escalus:wait_for_stanzas(Alice1, 1, 500),
+          client_sets_presence(Alice1),
+          %% still no carbons for Alice1, only presences
+          escalus_new_assert:mix_match([is_presence, is_presence],
+                                       escalus:wait_for_stanzas(Alice1, 3, 500))
       end).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
