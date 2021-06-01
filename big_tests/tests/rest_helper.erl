@@ -329,44 +329,44 @@ to_list(V) when is_binary(V) ->
 to_list(V) when is_list(V) ->
     V.
 
-maybe_enable_mam(rdbms, Host, Config) ->
-    maybe_disable_mam(rdbms, Host),
+maybe_enable_mam(rdbms, HostType, Config) ->
+    maybe_disable_mam(rdbms, HostType),
     MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    init_module(Host, mod_mam_rdbms_arch, []),
-    init_module(Host, mod_mam_muc_rdbms_arch, []),
-    init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
-    init_module(Host, mod_mam_rdbms_user, [muc, pm]),
-    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, MucPattern},
+    init_module(HostType, mod_mam_rdbms_arch, []),
+    init_module(HostType, mod_mam_muc_rdbms_arch, []),
+    init_module(HostType, mod_mam_rdbms_prefs, [muc, pm]),
+    init_module(HostType, mod_mam_rdbms_user, [muc, pm]),
+    init_module(HostType, mod_mam, [{archive_chat_markers, true}]),
+    init_module(HostType, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
-maybe_enable_mam(riak, Host,  Config) ->
-    maybe_disable_mam(riak, Host),
+maybe_enable_mam(riak, HostType,  Config) ->
+    maybe_disable_mam(riak, HostType),
     MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
-    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, MucPattern},
+    init_module(HostType, mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(HostType, mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(HostType, mod_mam, [{archive_chat_markers, true}]),
+    init_module(HostType, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
 
-init_module(Host, Mod, Opts) ->
-    dynamic_modules:start(Host, Mod, Opts).
+init_module(HostType, Mod, Opts) ->
+    dynamic_modules:start(HostType, Mod, Opts).
 
-maybe_disable_mam(rdbms, Host) ->
-    stop_module(Host, mod_mam_muc_rdbms_arch),
-    stop_module(Host, mod_mam_rdbms_arch),
-    stop_module(Host, mod_mam_rdbms_prefs),
-    stop_module(Host, mod_mam_rdbms_user),
-    stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc);
-maybe_disable_mam(riak, Host) ->
-    stop_module(Host, mod_mam_riak_timed_arch_yz),
-    stop_module(Host, mod_mam_mnesia_prefs),
-    stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc);
+maybe_disable_mam(rdbms, HostType) ->
+    stop_module(HostType, mod_mam_muc_rdbms_arch),
+    stop_module(HostType, mod_mam_rdbms_arch),
+    stop_module(HostType, mod_mam_rdbms_prefs),
+    stop_module(HostType, mod_mam_rdbms_user),
+    stop_module(HostType, mod_mam),
+    stop_module(HostType, mod_mam_muc);
+maybe_disable_mam(riak, HostType) ->
+    stop_module(HostType, mod_mam_riak_timed_arch_yz),
+    stop_module(HostType, mod_mam_mnesia_prefs),
+    stop_module(HostType, mod_mam),
+    stop_module(HostType, mod_mam_muc);
 maybe_disable_mam(_, _) ->
     ok.
 
