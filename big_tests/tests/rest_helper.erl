@@ -189,43 +189,57 @@ normalize_headers(Headers) ->
 
 %% a request specifying credentials is directed to client http listener
 fusco_request(#{ role := Role, method := Method, creds := {User, Password},
-                 path := Path, body := Body, server := Server }) ->
+                 path := Path, body := Body, server := Server } = Params) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
     Basic = list_to_binary("Basic " ++ EncodedAuth),
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers,
-                  get_port(Role, Server), get_ssl_status(Role, Server));
+                  get_port(Role, Server), get_ssl_status(Role, Server), Params);
 %% an API to just send a request to a given port, without authentication
-fusco_request(#{ method := Method, path := Path, body := Body, port := Port}) ->
-    fusco_request(Method, Path, Body, [], Port, false);
+fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = Params) ->
+    fusco_request(Method, Path, Body, [], Port, false, Params);
 %% without credentials it is for admin (secure) interface
-fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server }) ->
-    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server)).
+fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
+    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
+    fusco_request(Method, Path, Body, HeadersIn, Port, SSL, #{}).
+
+fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>},
                {<<"Request-Id">>, random_request_id()} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
-    report_errors(Client, Path, Method, Headers, Body, Result),
+    report_errors(Client, Path, Method, Headers, Body, Result, Params),
     Result.
 
 random_request_id() ->
     base16:encode(crypto:strong_rand_bytes(8)).
 
 report_errors(Client, Path, Method, Headers, Body,
-              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result) ->
+              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result,
+              Params) ->
     Code = binary_to_integer(CodeBin),
     case Code >= 400 of
         true ->
             Req = {Client, Path, Method, Headers, Body},
-            ct:log("REST request fails:~n"
+            ct:log(error,
+                   "REST request fails:~n"
                    "Code: ~p~n"
                    "Req: ~p~n"
-                   "Result: ~p~n",
-                   [Code, Req, Result]);
+                   "Result: ~p~n"
+                   "Params: ~p~n",
+                   [Code, Req, Result, Params]);
         false ->
+            Req = {Client, Path, Method, Headers, Body},
+            ct:log(info,
+                   "REST request:~n"
+                   "Code: ~p~n"
+                   "Req: ~p~n"
+                   "Result: ~p~n"
+                   "Params: ~p~n",
+                   [Code, Req, Result, Params]),
             ok
     end.
 
