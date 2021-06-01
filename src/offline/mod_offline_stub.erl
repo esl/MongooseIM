@@ -34,14 +34,14 @@
 -export([stop_hook_processing/4]).
 
 -spec start(any(), any()) -> 'ok'.
-start(Host, _Opts) ->
-    [ejabberd_hooks:add(Hook, Host, M, F, Prio)
+start(HostType, _Opts) ->
+    [ejabberd_hooks:add(Hook, HostType, M, F, Prio)
      || {Hook, M, F, Prio} <- handlers()],
     ok.
 
 -spec stop(any()) -> 'ok'.
-stop(Host) ->
-    [ejabberd_hooks:delete(Hook, Host, M, F, Prio)
+stop(HostType) ->
+    [ejabberd_hooks:delete(Hook, HostType, M, F, Prio)
      || {Hook, M, F, Prio} <- handlers()],
     ok.
 

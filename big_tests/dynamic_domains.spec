@@ -21,6 +21,7 @@
  "at the moment mod_disco doesn't support dynamic domains"}.
 
 {suites, "tests", mod_ping_SUITE}.
+{suites, "tests", offline_stub_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
 {skip_cases, "tests", inbox_SUITE, [disco_service],

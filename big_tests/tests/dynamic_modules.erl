@@ -3,7 +3,8 @@
 -include_lib("common_test/include/ct.hrl").
 
 -export([save_modules_for_host_types/2]).
--export([save_modules/2, ensure_modules/2, restore_modules/2, restore_modules/1]).
+-export([save_modules/2, ensure_modules/2, ensure_stopped/2,
+         restore_modules/2, restore_modules/1]).
 -export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
 
 -import(distributed_helper, [mim/0,
@@ -22,6 +23,11 @@ ensure_modules(HostType, RequiredModules) ->
     CurrentModules = get_current_modules(HostType),
     {ToReplace, ReplaceWith} = to_replace(RequiredModules, CurrentModules, [], []),
     ok = rpc(mim(), gen_mod_deps, replace_modules, [HostType, ToReplace, ReplaceWith]).
+
+ensure_stopped(HostType, ModulesToStop) ->
+    CurrentModules = get_current_modules(HostType),
+    [stop(HostType, Mod) || {Mod, _Opts} <- CurrentModules,
+                            lists:member(Mod, ModulesToStop)].
 
 to_replace([], _CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
     {lists:usort(ReplaceAcc), ReplaceWithAcc};
