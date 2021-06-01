@@ -8,8 +8,7 @@
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
--export([adhoc_local_items/4,
-         adhoc_local_commands/4,
+-export([adhoc_local_commands/4,
          adhoc_sm_items/4,
          adhoc_sm_commands/4,
          anonymous_purge_hook/3,
@@ -170,16 +169,6 @@
 c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
     ejabberd_hooks:run_for_host_type(c2s_remote_hook, HostType, HandlerState,
                                      [Tag, Args, C2SState]).
-
--spec adhoc_local_items(LServer, From, To, Lang) -> Result when
-    LServer :: jid:lserver(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Lang :: ejabberd:lang(),
-    Result :: {result, [exml:element()]}.
-adhoc_local_items(LServer, From, To, Lang) ->
-    ejabberd_hooks:run_for_host_type(adhoc_local_items, LServer, {result, []},
-                                     [From, To, Lang]).
 
 -spec adhoc_local_commands(LServer, From, To, AdhocRequest) -> Result when
     LServer :: jid:lserver(),
@@ -1244,7 +1233,7 @@ disco_info(Server, Module, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: {error, any()} | {result, [exml:element()]}.
+    Result :: mongoose_disco:feature_acc().
 disco_local_features(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_features, Server, empty,
                                      [From, To, Node, Lang]).
@@ -1256,7 +1245,7 @@ disco_local_features(Server, From, To, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: {result, [exml:element()]} | {error, any()}.
+    Result :: mongoose_disco:item_acc().
 disco_local_items(HostType, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_items, HostType, empty,
                                      [From, To, Node, Lang]).

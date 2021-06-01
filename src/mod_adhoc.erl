@@ -42,7 +42,6 @@
          get_sm_commands/5,
          get_sm_identity/5,
          get_sm_features/5,
-         ping_item/4,
          ping_command/4]).
 
 -include("mongoose.hrl").
@@ -72,7 +71,6 @@ hooks(Host) ->
      {disco_sm_identity, Host, ?MODULE, get_sm_identity, 99},
      {disco_sm_features, Host, ?MODULE, get_sm_features, 99},
      {disco_sm_items, Host, ?MODULE, get_sm_commands, 99},
-     {adhoc_local_items, Host, ?MODULE, ping_item, 100},
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -84,33 +82,28 @@ config_spec() ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_commands(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()} | empty.
-get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
+-spec get_local_commands(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_local_commands(Acc, _From, #jid{lserver = LServer}, <<>>, Lang) ->
     Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
-    case Display of
-        false ->
-            Acc;
-        _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
-            Nodes = [#xmlel{name = <<"item">>,
-                            attrs = [{<<"jid">>, LServer},
-                                     {<<"node">>, ?NS_COMMANDS},
-                                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
-    end;
-get_local_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    mongoose_hooks:adhoc_local_items(LServer, From, To, Lang);
+    Items = case Display of
+                false ->
+                    [];
+                _ ->
+                    [item(LServer, ?NS_COMMANDS, <<"Commands">>, Lang)]
+            end,
+    mongoose_disco:add_items(Items, Acc);
+get_local_commands(Acc, _From, #jid{lserver = LServer}, ?NS_COMMANDS, Lang) ->
+    Items = [item(LServer, <<"ping">>, <<"Ping">>, Lang)],
+    mongoose_disco:add_items(Items, Acc);
 get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
-    {result, []};
+    {result, []}; % override the result
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
+
+item(LServer, Node, Name, Lang) ->
+    #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
 
 %%-------------------------------------------------------------------------
 
@@ -181,17 +174,11 @@ get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(Acc :: {result, [exml:element()]} | empty | {error, any()},
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         NS :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
-get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
+-spec get_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+get_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_COMMANDS], Acc);
 get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     {result, []};
@@ -257,23 +244,6 @@ run_request_hook(adhoc_local_commands, Host, From, To, AdhocRequest) ->
     mongoose_hooks:adhoc_local_commands(Host, From, To, AdhocRequest);
 run_request_hook(adhoc_sm_commands, Host, From, To, AdhocRequest) ->
     mongoose_hooks:adhoc_sm_commands(Host, From, To, AdhocRequest).
-
--spec ping_item(Acc :: {result, [exml:element()]},
-                From :: jid:jid(),
-                To :: jid:jid(),
-                ejabberd:lang()) -> {result, [exml:element()]}.
-ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
-    Items = case Acc of
-                {result, I} ->
-                    I;
-                _ ->
-                    []
-            end,
-    Nodes = [#xmlel{name = <<"item">>,
-                    attrs = [{<<"jid">>, Server},
-                             {<<"node">>, <<"ping">>},
-                             {<<"name">>, translate:translate(Lang, <<"Ping">>)}]}],
-    {result, Items ++ Nodes}.
 
 
 -spec ping_command(Acc :: command_hook_acc(),

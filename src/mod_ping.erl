@@ -80,7 +80,6 @@ hooks(HostType) ->
      {user_ping_response, HostType, ?MODULE, user_ping_response, 100},
      {c2s_remote_hook, HostType, ?MODULE, handle_remote_hook, 100}].
 
-
 ensure_metrics(HostType) ->
     mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response], spiral),
     mongoose_metrics:ensure_metric(HostType, [mod_ping, ping_response_timeout], spiral),
@@ -94,8 +93,6 @@ start(HostType, Opts) ->
     ensure_metrics(HostType),
     SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    %% TODO: update code related to mod_disco
-    mod_disco:register_feature(HostType, ?NS_PING),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm,
                                              fun ?MODULE:iq_ping/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local,
@@ -113,8 +110,7 @@ stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm),
-    %% TODO: update code related to mod_disco
-    mod_disco:unregister_feature(HostType, ?NS_PING).
+    ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

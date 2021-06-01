@@ -53,7 +53,6 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     SubHost = subhost(Host),
-    mod_disco:register_subhost(Host, SubHost),
     mongoose_subhosts:register(Host, SubHost),
     ejabberd_router:register_route(SubHost, mongoose_packet_handler:new(ejabberd_local)),
     ejabberd_hooks:add(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
@@ -62,6 +61,8 @@ start(Host, Opts) ->
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030, ?MODULE,
                                   iq_handler, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO,
+                                  mod_disco, process_local_iq_info, IQDisc),
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
@@ -69,13 +70,13 @@ start(Host, Opts) ->
 stop(Host) ->
     SubHost = subhost(Host),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
-    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 90),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO),
+    ejabberd_hooks:delete(disco_local_items, SubHost, ?MODULE, get_disco_items, 90),
     ejabberd_hooks:delete(disco_info, SubHost, ?MODULE, get_disco_info, 90),
     ejabberd_hooks:delete(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
     ejabberd_hooks:delete(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
     ejabberd_router:unregister_route(SubHost),
-    mongoose_subhosts:unregister(SubHost),
-    mod_disco:unregister_subhost(Host, SubHost).
+    mongoose_subhosts:unregister(SubHost).
 
 
 -spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
@@ -163,30 +164,20 @@ get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
 get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-
--spec get_disco_items(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                      From :: jid:jid(), To :: jid:jid(),
-                      Node :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | {error, any()}.
-get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
-    Item = #xmlel{name  = <<"item">>,
-                  attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},
-    {result, [Item | Nodes]};
-get_disco_items(empty, From, To, Node, Lang) ->
-    get_disco_items({result, []}, From, To, Node, Lang);
+-spec get_disco_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_disco_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
+    mongoose_disco:add_items([#{jid => subhost(Host), name => my_disco_name(Lang)}], Acc);
 get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-
--spec get_disco_features(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                         Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
-get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
-    {result, [?NS_HTTP_UPLOAD_030 | Nodes]};
-get_disco_features(empty, From, To, Node, Lang) ->
-    get_disco_features({result, []}, From, To, Node, Lang);
+-spec get_disco_features(Acc :: mongoose_disco:feature_acc(),
+                         From :: jid:jid(), To :: jid:jid(),
+                         Node :: binary(), ejabberd:lang()) -> mongoose_disco:feature_acc().
+get_disco_features(Acc, _From, _To, _Node = <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_HTTP_UPLOAD_030], Acc);
 get_disco_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
-
 
 -spec get_disco_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
                      Lang :: ejabberd:lang()) -> [exml:element()].

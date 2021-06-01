@@ -4,6 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -include("mam_helper.hrl").
 
@@ -263,10 +264,10 @@ has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    ?assert_equal_extra(Features,
-                        exml_query:paths(Query, [{element, <<"feature">>},
-                                        {attr, <<"var">>}]),
-                        [Iq]).
+    ExpectedFeatures = lists:sort(Features),
+    ActualFeatures = lists:sort(exml_query:paths(Query, [{element, <<"feature">>},
+                                                         {attr, <<"var">>}])),
+    ?assertEqual(ExpectedFeatures, ActualFeatures).
 
 assert_valid_affiliation(<<"owner">>) -> ok;
 assert_valid_affiliation(<<"admin">>) -> ok;

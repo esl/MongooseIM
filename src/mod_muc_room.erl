@@ -3911,18 +3911,11 @@ presence_stanza_of_type_unavailable(DestroyEl) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Disco
 
--spec feature(binary()) -> exml:element().
-feature(Var) ->
-    #xmlel{name = <<"feature">>,
-           attrs = [{<<"var">>, Var}]}.
-
-
--spec config_opt_to_feature(boolean(), Fiftrue :: binary(), Fiffalse :: binary())
-                            -> exml:element().
+-spec config_opt_to_feature(boolean(), Fiftrue :: binary(), Fiffalse :: binary()) -> binary().
 config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
     case Opt of
-        true -> feature(Fiftrue);
-        false -> feature(Fiffalse)
+        true -> Fiftrue;
+        false -> Fiffalse
     end.
 
 
@@ -3932,30 +3925,33 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_info(From, get, Lang, StateData) ->
-    Config = StateData#state.config,
     RoomJID = StateData#state.jid,
-    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, From, RoomJID, <<>>, <<>>),
-    RegisteredFeaturesXML = [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} ||
-                             {{URN, _Host}} <- RegisteredFeatures],
-    {result, [#xmlel{name = <<"identity">>,
-                     attrs = [{<<"category">>, <<"conference">>},
-                          {<<"type">>, <<"text">>},
-                          {<<"name">>, get_title(StateData)}]},
-              #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]},
-              config_opt_to_feature((Config#config.public),
-                         <<"muc_public">>, <<"muc_hidden">>),
-              config_opt_to_feature((Config#config.persistent),
-                         <<"muc_persistent">>, <<"muc_temporary">>),
-              config_opt_to_feature((Config#config.members_only),
-                         <<"muc_membersonly">>, <<"muc_open">>),
-              config_opt_to_feature((Config#config.anonymous),
-                         <<"muc_semianonymous">>, <<"muc_nonanonymous">>),
-              config_opt_to_feature((Config#config.moderated),
-                         <<"muc_moderated">>, <<"muc_unmoderated">>),
-              config_opt_to_feature((Config#config.password_protected),
-                         <<"muc_passwordprotected">>, <<"muc_unsecured">>)
-             ] ++ iq_disco_info_extras(Lang, StateData) ++ RegisteredFeaturesXML, StateData}.
+    Config = StateData#state.config,
+    Host = StateData#state.host,
+    RegisteredFeatures = mongoose_disco:get_local_features(Host, From, RoomJID, <<>>, Lang),
+    XML = [#xmlel{name = <<"identity">>,
+                  attrs = [{<<"category">>, <<"conference">>},
+                           {<<"type">>, <<"text">>},
+                           {<<"name">>, get_title(StateData)}]} |
+           mongoose_disco:features_to_xml(RegisteredFeatures ++ room_features(Config))] ++
+        iq_disco_info_extras(Lang, StateData),
+    {result, XML, StateData}.
 
+-spec room_features(config()) -> [moongoose_disco:feature()].
+room_features(Config) ->
+    [?NS_MUC,
+     config_opt_to_feature((Config#config.public),
+                           <<"muc_public">>, <<"muc_hidden">>),
+     config_opt_to_feature((Config#config.persistent),
+                           <<"muc_persistent">>, <<"muc_temporary">>),
+     config_opt_to_feature((Config#config.members_only),
+                           <<"muc_membersonly">>, <<"muc_open">>),
+     config_opt_to_feature((Config#config.anonymous),
+                           <<"muc_semianonymous">>, <<"muc_nonanonymous">>),
+     config_opt_to_feature((Config#config.moderated),
+                           <<"muc_moderated">>, <<"muc_unmoderated">>),
+     config_opt_to_feature((Config#config.password_protected),
+                           <<"muc_passwordprotected">>, <<"muc_unsecured">>)].
 
 -spec rfieldt(binary(), binary(), binary()) -> exml:element().
 rfieldt(Type, Var, Val) ->

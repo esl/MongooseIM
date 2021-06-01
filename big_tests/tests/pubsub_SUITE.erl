@@ -18,6 +18,8 @@
          init_per_testcase/2, end_per_testcase/2]).
 
 -export([
+         discover_features_test/1,
+         discover_service_features_test/1,
          discover_nodes_test/1,
          create_delete_node_test/1,
          subscribe_unsubscribe_test/1,
@@ -169,6 +171,8 @@ base_groups() ->
 
 basic_tests() ->
     [
+     discover_features_test,
+     discover_service_features_test,
      discover_nodes_test,
      create_delete_node_test,
      subscribe_unsubscribe_test,
@@ -339,6 +343,27 @@ end_per_testcase(TestName, Config) ->
 %%--------------------------------------------------------------------
 %% Main PubSub cases
 %%--------------------------------------------------------------------
+
+discover_features_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              Server = escalus_client:server(Alice),
+              escalus:send(Alice, escalus_stanza:disco_info(Server)),
+              Stanza = escalus:wait_for_stanza(Alice),
+              escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
+      end).
+
+discover_service_features_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              escalus:send(Alice, escalus_stanza:disco_info(node_addr())),
+              Stanza = escalus:wait_for_stanza(Alice),
+              escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
+      end).
 
 discover_nodes_test(Config) ->
     escalus:fresh_story(

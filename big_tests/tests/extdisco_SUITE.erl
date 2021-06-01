@@ -72,7 +72,7 @@ init_per_group(extdisco_configured, Config) ->
 init_per_group(multiple_extdisco_configured, Config) ->
     ExternalServices = [stun_service(), stun_service(), turn_service()],
     set_external_services(ExternalServices, Config);
-init_per_group(external_service_required_elements_configured, Config) ->
+init_per_group(extdisco_required_elements_configured, Config) ->
     ExternalServices = [[{type, ftp},{host, "3.3.3.3"}]],
     set_external_services(ExternalServices, Config);
 init_per_group(_GroupName, Config) ->

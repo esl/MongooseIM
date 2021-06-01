@@ -891,20 +891,15 @@ default_host() ->
 
 -spec iq_disco_info(ejabberd:lang(), jid:jid(), jid:jid()) -> [exml:element(), ...].
 iq_disco_info(Lang, From, To) ->
-    {result, RegisteredFeatures} = mod_disco:get_local_features(empty, From, To, <<>>, <<>>),
+    RegisteredFeatures = mongoose_disco:get_local_features(To#jid.lserver, From, To, <<>>, Lang),
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"conference">>},
                      {<<"type">>, <<"text">>},
-                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_MUC_UNIQUE}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_REGISTER}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_RSM}]},
-     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}] ++
-    [#xmlel{name = <<"feature">>, attrs = [{<<"var">>, URN}]} || {{URN, _Host}} <- RegisteredFeatures].
+                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]} |
+     mongoose_disco:features_to_xml(features() ++ RegisteredFeatures)].
 
+features() ->
+    [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].
 
 %% Disco for rooms
 -spec iq_disco_items(muc_host(), jid:jid(), ejabberd:lang(),
@@ -1314,29 +1309,19 @@ subdomain_pattern(HostType) ->
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
-%% Exposes MUC-host, when querying the server host.
-%% To is the host name, not subdomain.
--spec disco_local_items(Acc :: {result, [exml:element()]} | empty | {error, any()},
-                      From :: jid:jid(), To :: jid:jid(),
-                      NS :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | empty | {error, any()}.
-disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-disco_local_items(Result, _From, #jid{lserver = ServerHost} = _To, <<"">>, _Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
     HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
-    Item = #xmlel{name = <<"item">>,
-                  attrs = [{<<"jid">>, MUCHost},
-                           {<<"node">>, ?NS_MUC}]},
-    case Result of
-        {result, Nodes} ->
-            {result, [Item | Nodes]};
-        empty ->
-            {result, [Item]}
-    end.
+    Items = [#{jid => MUCHost, node => ?NS_MUC}],
+    mongoose_disco:add_items(Items, Acc);
+disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
-make_server_host(To, State = #state{host_type = HostType,
-                                    subdomain_pattern = SubdomainPattern}) ->
+make_server_host(To, #state{host_type = HostType,
+                            subdomain_pattern = SubdomainPattern}) ->
     case SubdomainPattern of
         {prefix, _} ->
             mod_muc_light_utils:room_jid_to_server_host(To);
