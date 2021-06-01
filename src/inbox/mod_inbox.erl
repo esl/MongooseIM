@@ -19,7 +19,7 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
 
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %% gen_mod
 -export([start/2]).
@@ -119,8 +119,9 @@
 %%--------------------------------------------------------------------
 %% gdpr callbacks
 %%--------------------------------------------------------------------
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, _HostType, #jid{luser = LUser, lserver = LServer}) ->
     Schema = ["jid", "content", "unread_count", "timestamp"],
     InboxParams = #{
         start => 0,

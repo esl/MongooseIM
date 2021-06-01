@@ -54,7 +54,7 @@
          sm_filter_offline_message/4]).
 
 %% gdpr callbacks
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %%private
 -export([archive_message_from_ct/1]).
@@ -161,9 +161,9 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{} = ArcJID) ->
-    HostType = jid_to_host_type(ArcJID),
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, HostType, ArcJID) ->
     Schema = ["id", "from", "message"],
     Entries = mongoose_hooks:get_mam_pm_gdpr_data(HostType, ArcJID),
     [{mam_pm, Schema, Entries} | Acc].

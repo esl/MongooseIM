@@ -101,7 +101,7 @@
 
 -export([default_host/0]).
 
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %% packet handler export
 -export([process_packet/5]).
@@ -334,8 +334,8 @@ process_packet(_Acc, From, To, El, #{state := State}) ->
 %% GDPR callback
 %%====================================================================
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
      Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
      Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
      Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),

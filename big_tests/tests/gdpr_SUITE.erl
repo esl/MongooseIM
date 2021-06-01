@@ -1553,10 +1553,7 @@ data_is_not_retrieved_for_missing_user(Config) ->
 %% -------------------------------------------------------------
 
 domain() ->
-    <<"localhost">>. % TODO: Make dynamic?
-
-muc_domain() ->
-    muc_helper:muc_host().
+    ct:get_config({hosts, mim, domain}).
 
 assert_personal_data_via_rpc(Client, ExpectedPersonalDataEntries) ->
     ExpectedKeys = [ Key || {Key, _, _} <- ExpectedPersonalDataEntries ],
