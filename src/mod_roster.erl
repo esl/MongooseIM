@@ -65,7 +65,7 @@
          remove_user/2, % for tests
          remove_user/3,
          get_versioning_feature/2,
-         get_personal_data/2
+         get_personal_data/3
         ]).
 
 % Deprecated Hooks
@@ -213,8 +213,8 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
     Records = mod_roster_backend:get_roster(LUser, LServer),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),

@@ -143,7 +143,9 @@ http_upload_item_discovery(Config) ->
               ServJID = escalus_client:server(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_items(ServJID)),
               escalus:assert(is_iq_result, Result),
-              escalus:assert(has_item, [upload_service(Bob)], Result)
+              Query = exml_query:subelement(Result, <<"query">>),
+              Item = exml_query:subelement_with_attr(Query, <<"jid">>, upload_service(Bob)),
+              ?assertEqual(<<"HTTP File Upload">>, exml_query:attr(Item, <<"name">>))
       end).
 
 http_upload_feature_discovery(Config) ->

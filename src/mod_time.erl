@@ -20,7 +20,6 @@
 -xep([{xep, 82}, {version, "1.1"}]).
 
 start(Host, Opts) ->
-    mod_disco:register_feature(Host, ?NS_TIME),
     IQDisc = gen_mod:get_opt(iqdisc, Opts,
                              one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
@@ -28,7 +27,6 @@ start(Host, Opts) ->
 
 
 stop(Host) ->
-    mod_disco:unregister_feature(Host, ?NS_TIME),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
                                      ?NS_TIME).
 

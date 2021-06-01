@@ -35,7 +35,7 @@
          process_sm_iq/4,
          remove_user/3]).
 
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 -export([config_metrics/1]).
 
@@ -81,8 +81,8 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["ns", "xml"],
     NSs = mod_private_backend:get_all_nss(LUser, LServer),
     Entries = lists:map(

@@ -55,6 +55,7 @@ groups() ->
 
 token_login_tests() ->
     [
+     disco_test,
      request_tokens_test,
      login_access_token_test,
      login_refresh_token_test,
@@ -144,6 +145,15 @@ end_per_testcase(CaseName, Config) ->
 %%
 %% Tests
 %%
+
+disco_test(Config) ->
+    escalus:story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
+              escalus_client:send(Alice, escalus_stanza:disco_info(domain())),
+              Response = escalus_client:wait_for_stanza(Alice),
+              escalus:assert(has_feature, [?NS_ESL_TOKEN_AUTH], Response)
+      end).
 
 request_tokens_test(Config) ->
     request_tokens_once_logged_in_impl(Config, bob).

@@ -43,12 +43,13 @@
 -export([start/2, stop/1]).
 
 %% ejabberd room handlers
--export([filter_room_packet/3,
+-export([add_local_features/5,
+         filter_room_packet/3,
          room_process_mam_iq/4,
          forget_room/4]).
 
 %% gdpr callback
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %% private
 -export([archive_message_for_ct/1]).
@@ -109,10 +110,11 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, HostType, ArcJID) ->
     Schema = ["id", "message"],
-    Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, JID),
+    Entries = mongoose_hooks:get_mam_muc_gdpr_data(HostType, ArcJID),
     [{mam_muc, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> ok.
@@ -147,7 +149,6 @@ start(HostType, Opts) ->
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     add_iq_handlers(HostType, Opts),
-    register_features(HostType),
     ok.
 
 -spec stop(HostType :: host_type()) -> any().
@@ -155,11 +156,18 @@ stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
-    unregister_features(HostType),
     ok.
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
+
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 %% @doc Handle public MUC-message.
 -spec filter_room_packet(Packet :: packet(), HostType :: host_type(),
@@ -598,21 +606,13 @@ is_archivable_message(HostType, Dir, Packet) ->
 
 -spec hooks(host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    [{filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
+    %% TODO multitenancy
+    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
+    [{disco_local_features, MUCHost, ?MODULE, add_local_features, 99},
+     {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
      {forget_room, HostType, ?MODULE, forget_room, 90},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
-
-%% TODO multitenancy
-register_features(HostType) ->
-    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
-    [mod_disco:register_feature(MUCHost, Feature) || Feature <- features(?MODULE, HostType)],
-    ok.
-
-unregister_features(HostType) ->
-    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
-    [mod_disco:unregister_feature(MUCHost, Feature) || Feature <- features(?MODULE, HostType)],
-    ok.
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),

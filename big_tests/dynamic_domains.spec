@@ -10,17 +10,11 @@
 {include, "tests"}.
 
 {suites, "tests", acc_e2e_SUITE}.
-{suites, "tests", domain_isolation_SUITE}.
-{suites, "tests", muc_SUITE}.
-{suites, "tests", muc_light_SUITE}.
-{suites, "tests", muc_light_legacy_SUITE}.
-{suites, "tests", mam_SUITE}.
 
 {suites, "tests", carboncopy_SUITE}.
 {skip_cases, "tests", carboncopy_SUITE, [discovering_support],
  "at the moment mod_disco doesn't support dynamic domains"}.
 
-{suites, "tests", mod_ping_SUITE}.
 {suites, "tests", offline_stub_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
@@ -28,24 +22,22 @@
  "at the moment mod_disco doesn't support dynamic domains"}.
 {skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
  "at the moment mod_offline doesn't support dynamic domains"}.
-{skip_groups, "tests", inbox_SUITE, [muclight, muc],
- "at the moment muc/muclight doesn't support dynamic domains"}.
 
 {suites, "tests", inbox_extensions_SUITE}.
-{skip_groups, "tests", inbox_extensions_SUITE, [muclight],
- "at the moment muclight doesn't support dynamic domains"}.
 
+{suites, "tests", mam_SUITE}.
 {skip_cases, "tests", mam_SUITE,
  [muc_service_discovery, mam_service_discovery],
  "at the moment mod_disco doesn't support dynamic domains"}.
 {skip_cases, "tests", mam_SUITE,
  [messages_filtered_when_prefs_default_policy_is_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
-{skip_cases, "tests", mam_SUITE,
- [metric_incremented_when_store_message,
-  metric_incremented_on_archive_request],
- "this test is broken in PR #3120"}.
 
+{suites, "tests", mod_ping_SUITE}.
+{skip_cases, "tests", mod_ping_SUITE, [disco],
+ "at the moment mod_disco doesn't support dynamic domains"}.
+
+{suites, "tests", muc_SUITE}.
 {skip_groups, "tests", muc_SUITE,
  [disco, disco_non_parallel, disco_rsm, disco_rsm_with_offline],
  "at the moment mod_disco doesn't support dynamic domains"}.
@@ -54,6 +46,7 @@
  "at the moment S2S doesn't support dynamic domains "
  "(requires mod_register creating CT users)"}.
 
+{suites, "tests", muc_light_SUITE}.
 {skip_cases, "tests", muc_light_SUITE,
  [disco_service,
   disco_features,
@@ -73,6 +66,7 @@
   no_roomname_in_schema_doesnt_break_disco_and_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
 
+{suites, "tests", muc_light_legacy_SUITE}.
 {skip_cases, "tests", muc_light_legacy_SUITE,
  [disco_service,
   disco_features,

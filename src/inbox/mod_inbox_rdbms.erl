@@ -16,18 +16,17 @@
 -behaviour(mod_inbox).
 
 %% API
--export([get_inbox/3,
+-export([get_inbox/4,
          init/2,
-         set_inbox/7,
-         set_inbox_incr_unread/6,
-         reset_unread/4,
-         remove_inbox_row/3,
+         set_inbox/6,
+         set_inbox_incr_unread/5,
+         reset_unread/3,
+         remove_inbox_row/2,
          remove_domain/2,
-         clear_inbox/1,
-         clear_inbox/2,
-         get_inbox_unread/3,
-         get_entry_properties/3,
-         set_entry_properties/4]).
+         clear_inbox/3,
+         get_inbox_unread/2,
+         get_entry_properties/2,
+         set_entry_properties/3]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -71,9 +70,7 @@ init(HostType, _Options) ->
                            [luser, lserver],
                            <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
     mongoose_rdbms:prepare(inbox_delete_domain, inbox,
-                           [lserver],
-                           <<"DELETE FROM inbox WHERE lserver = ?">>),
-    mongoose_rdbms:prepare(inbox_delete_all, inbox, [], <<"DELETE FROM inbox">>),
+                           [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>),
         UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
         UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
@@ -89,52 +86,52 @@ init(HostType, _Options) ->
                                  UniqueKeyFields),
     ok.
 
--spec get_inbox(LUsername :: jid:luser(),
+-spec get_inbox(HostType :: mongooseim:host_type(),
+                LUser :: jid:luser(),
                 LServer :: jid:lserver(),
                 Params :: mod_inbox:get_inbox_params()) -> get_inbox_res().
-get_inbox(LUsername, LServer, Params) ->
-    case get_inbox_rdbms(LUsername, LServer, Params) of
+get_inbox(HostType, LUser, LServer, Params) ->
+    case get_inbox_rdbms(HostType, LUser, LServer, Params) of
         {selected, []} ->
             [];
         {selected, Res} ->
-            [decode_row(LServer, R) || R <- Res]
+            [decode_row(HostType, R) || R <- Res]
     end.
 
--spec get_inbox_unread(jid:luser(), jid:lserver(), jid:literal_jid()) -> {ok, integer()}.
-get_inbox_unread(LUser, LServer, RemBareJID) ->
-    Res = execute_select_unread_count(LUser, LServer, RemBareJID),
+-spec get_inbox_unread(mongooseim:host_type(), mod_inbox:entry_key()) ->
+    {ok, integer()}.
+get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
+    Res = execute_select_unread_count(HostType, LUser, LServer, RemBareJID),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox
     %% so we have to add +1
     {ok, Val + 1}.
 
--spec set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
+-spec set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
     inbox_write_res() when
-      LUsername :: jid:luser(),
-      LServer :: jid:lserver(),
-      ToBareJid :: jid:literal_jid(),
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: mod_inbox:entry_key(),
       Content :: binary(),
       Count :: integer(),
       MsgId :: binary(),
       Timestamp :: integer().
-set_inbox(LUsername, LServer, ToBareJid, Content, Count, MsgId, Timestamp) ->
+set_inbox(HostType, {LUser, LServer, ToBareJid}, Content, Count, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    InsertParams = [LUsername, LServer, LToBareJid,
+    InsertParams = [LUser, LServer, LToBareJid,
                     Content, Count, MsgId, Timestamp],
     UpdateParams = [Content, Count, MsgId, Timestamp, false],
-    UniqueKeyValues  = [LUsername, LServer, LToBareJid],
-    Res = rdbms_queries:execute_upsert(LServer, inbox_upsert,
+    UniqueKeyValues  = [LUser, LServer, LToBareJid],
+    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
     %% MySQL returns 1 when an upsert is an insert
     %% and 2, when an upsert acts as update
     ok = check_result(Res, [1, 2]).
 
--spec remove_inbox_row(LUsername :: jid:luser(),
-                       LServer :: jid:lserver(),
-                       ToBareJid :: jid:literal_jid()) -> ok.
-remove_inbox_row(LUsername, LServer, ToBareJid) ->
+-spec remove_inbox_row(HostType :: mongooseim:host_type(),
+                       InboxEntryKey :: mod_inbox:entry_key()) -> ok.
+remove_inbox_row(HostType, {LUser, LServer, ToBareJid}) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = execute_delete(LUsername, LServer, LToBareJid),
+    Res = execute_delete(HostType, LUser, LServer, LToBareJid),
     check_result(Res).
 
 -spec remove_domain(HostType :: mongooseim:host_type(),
@@ -145,55 +142,52 @@ remove_domain(HostType, LServer) ->
 
 %% This function was not refatorected to use the generic upsert helper
 %% becase this helper doesn't support parametrized queries for incremental change
--spec set_inbox_incr_unread(LUsername :: jid:luser(),
-                            LServer :: jid:lserver(),
-                            ToBareJid :: jid:literal_jid(),
+-spec set_inbox_incr_unread(HostType :: mongooseim:host_type(),
+                            InboxEntryKey :: mod_inbox:entry_key(),
                             Content :: binary(),
                             MsgId :: binary(),
                             Timestamp :: integer()) -> ok | {ok, integer()}.
-set_inbox_incr_unread(LUsername, LServer, ToBareJid, Content, MsgId, Timestamp) ->
+set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    InsertParams = [LUsername, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
+    InsertParams = [LUser, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
     UpdateParams = [Content, MsgId, Timestamp, false],
-    UniqueKeyValues  = [LUsername, LServer, LToBareJid],
-    Res = rdbms_queries:execute_upsert(LServer, inbox_upsert_incr_unread,
+    UniqueKeyValues  = [LUser, LServer, LToBareJid],
+    Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread,
                                        InsertParams, UpdateParams, UniqueKeyValues),
     check_result(Res).
 
--spec reset_unread(LUsername :: jid:luser(),
-                   LServer :: jid:lserver(),
-                   BareJid :: jid:literal_jid(),
+-spec reset_unread(HosType :: mongooseim:host_type(),
+                   InboxEntryKey :: mod_inbox:entry_key(),
                    MsgId :: binary() | undefined) -> ok.
-reset_unread(LUsername, LServer, ToBareJid, MsgId) ->
+reset_unread(HostType, {LUser, LServer, ToBareJid}, MsgId) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = execute_reset_unread(LUsername, LServer, LToBareJid, MsgId),
+    Res = execute_reset_unread(HostType, LUser, LServer, LToBareJid, MsgId),
     check_result(Res).
 
--spec clear_inbox(LUsername :: jid:luser(), LServer :: jid:lserver()) -> inbox_write_res().
-clear_inbox(LUsername, LServer) ->
-    Res = execute_delete(LUsername, LServer),
+-spec clear_inbox(HostType :: mongooseim:host_type(),
+                  LUser :: jid:luser(),
+                  LServer :: jid:lserver()) -> inbox_write_res().
+clear_inbox(HostType, LUser, LServer) ->
+    Res = execute_delete(HostType, LUser, LServer),
     check_result(Res).
 
--spec clear_inbox(LServer :: jid:lserver()) -> inbox_write_res().
-clear_inbox(LServer) ->
-    Res = execute_delete(LServer),
-    check_result(Res).
-
-
--spec get_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+-spec get_entry_properties(HosType :: mongooseim:host_type(),
+                           InboxEntryKey :: mod_inbox:entry_key()) ->
     entry_properties().
-get_entry_properties(LUser, LServer, RemBareJID) ->
-    case execute_select_properties(LUser, LServer, RemBareJID) of
+get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
+    case execute_select_properties(HostType, LUser, LServer, RemBareJID) of
         {selected, []} ->
             [];
         {selected, [Selected]} ->
             decode_entries(Selected)
     end.
 
--spec set_entry_properties(jid:luser(), jid:lserver(), jid:literal_jid(), entry_properties()) ->
+-spec set_entry_properties(HostType :: mongooseim:host_type(),
+                           InboxEntryKey :: mod_inbox:entry_key(),
+                           entry_properties()) ->
     entry_properties() | {error, binary()}.
-set_entry_properties(LUser, LServer, RemBareJID, Properties) ->
-    case set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) of
+set_entry_properties(HostType, {LUser, LServer, RemBareJID}, Properties) ->
+    case set_entry_properties_rdbms(HostType, LUser, LServer, RemBareJID, Properties) of
         {error, Msg} when is_list(Msg) ->
             {error, list_to_binary(Msg)};
         {error, Msg} ->
@@ -225,9 +219,12 @@ esc_int(Integer) ->
 %% Internal functions
 %% ----------------------------------------------------------------------
 
--spec get_inbox_rdbms(jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->
+-spec get_inbox_rdbms(HostType :: mongooseim:host_type(),
+                      LUser :: jid:luser(),
+                      LServer :: jid:lserver(),
+                      Params :: mod_inbox:get_inbox_params()) ->
     mongoose_rdbms:query_result().
-get_inbox_rdbms(LUser, LServer, Params) ->
+get_inbox_rdbms(HostType, LUser, LServer, Params) ->
     QueryName = lookup_query_name(Params),
     case mongoose_rdbms:prepared(QueryName) of
         false ->
@@ -238,9 +235,9 @@ get_inbox_rdbms(LUser, LServer, Params) ->
             ok
     end,
     Args = lookup_query_args(LServer, LUser, Params),
-    mongoose_rdbms:execute_successfully(LServer, QueryName, Args).
+    mongoose_rdbms:execute_successfully(HostType, QueryName, Args).
 
-set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) ->
+set_entry_properties_rdbms(HostType, LUser, LServer, RemBareJID, Properties) ->
     QueryName = update_query_name(Properties),
     case mongoose_rdbms:prepared(QueryName) of
         false ->
@@ -253,17 +250,17 @@ set_entry_properties_rdbms(LUser, LServer, RemBareJID, Properties) ->
     {atomic, TransactionResult} =
         mongoose_rdbms:sql_transaction(
           LServer,
-          fun() -> set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) end),
+          fun() -> set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Properties) end),
     TransactionResult.
 
--spec set_entry_properties_t(atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
+-spec set_entry_properties_t(mongooseim:host_type(), atom(), jid:luser(), jid:lserver(), jid:literal_jid(),
                              entry_properties()) ->
           mongoose_rdbms:query_result().
-set_entry_properties_t(QueryName, LUser, LServer, RemBareJID, Properties) ->
+set_entry_properties_t(HostType, QueryName, LUser, LServer, RemBareJID, Properties) ->
     Args = update_query_args(LUser, LServer, RemBareJID, Properties),
-    case mongoose_rdbms:execute_successfully(LServer, QueryName, Args) of
+    case mongoose_rdbms:execute_successfully(HostType, QueryName, Args) of
         {updated, 1} ->
-            execute_select_properties(LUser, LServer, RemBareJID);
+            execute_select_properties(HostType, LUser, LServer, RemBareJID);
         Other ->
             Other
     end.
@@ -396,39 +393,36 @@ update_sql_part(muted_until, Val) when is_integer(Val) ->
 
 %% Query execution
 
--spec execute_select_unread_count(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+-spec execute_select_unread_count(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
-execute_select_unread_count(LUser, LServer, RemBareJID) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_select_unread_count,
+execute_select_unread_count(HostType, LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_select_unread_count,
                                         [LUser, LServer, RemBareJID]).
 
--spec execute_select_properties(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+-spec execute_select_properties(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
-execute_select_properties(LUser, LServer, RemBareJID) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_select_properties,
+execute_select_properties(HostType, LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_select_properties,
                                         [LUser, LServer, RemBareJID]).
 
--spec execute_reset_unread(jid:luser(), jid:lserver(), jid:literal_jid(), binary() | undefined) ->
+-spec execute_reset_unread(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid(), binary() | undefined) ->
           mongoose_rdbms:query_result().
-execute_reset_unread(LUser, LServer, RemBareJID, undefined) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_reset_unread,
+execute_reset_unread(HostType, LUser, LServer, RemBareJID, undefined) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_reset_unread,
                                         [LUser, LServer, RemBareJID]);
-execute_reset_unread(LUser, LServer, RemBareJID, MsgId) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_reset_unread_msg,
+execute_reset_unread(HostType, LUser, LServer, RemBareJID, MsgId) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_reset_unread_msg,
                                         [LUser, LServer, RemBareJID, MsgId]).
 
--spec execute_delete(jid:luser(), jid:lserver(), jid:literal_jid()) ->
+-spec execute_delete(mongooseim:host_type(),
+                     jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
-execute_delete(LUser, LServer, RemBareJID) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_delete_row, [LUser, LServer, RemBareJID]).
+execute_delete(HostType, LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_delete_row, [LUser, LServer, RemBareJID]).
 
--spec execute_delete(jid:luser(), jid:lserver()) -> mongoose_rdbms:query_result().
-execute_delete(LUser, LServer) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_delete, [LUser, LServer]).
-
--spec execute_delete(jid:lserver()) -> mongoose_rdbms:query_result().
-execute_delete(LServer) ->
-    mongoose_rdbms:execute_successfully(LServer, inbox_delete_all, [LServer]).
+-spec execute_delete(mongooseim:host_type(), jid:lserver(), jid:luser()) -> mongoose_rdbms:query_result().
+execute_delete(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_delete, [LUser, LServer]).
 
 -spec execute_delete_domain(HostType :: mongooseim:host_type(),
                             LServer :: jid:lserver()) ->
@@ -438,9 +432,9 @@ execute_delete_domain(HostType, LServer) ->
 
 %% Result processing
 
--spec decode_row(host(), db_return()) -> inbox_res().
-decode_row(LServer, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
-    Data = mongoose_rdbms:unescape_binary(LServer, Content),
+-spec decode_row(mongooseim:host_type(), db_return()) -> inbox_res().
+decode_row(HostType, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
+    Data = mongoose_rdbms:unescape_binary(HostType, Content),
     BCount = mongoose_rdbms:result_to_integer(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
     BoolArchive = mongoose_rdbms:to_bool(Archive),

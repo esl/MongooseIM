@@ -4,6 +4,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include("mam_helper.hrl").
 
 -export([ % service
@@ -290,7 +291,9 @@ disco_service(Config) ->
             Server = escalus_client:server(Alice),
             escalus:send(Alice, escalus_stanza:service_discovery(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
-            escalus:assert(has_service, [?MUCHOST], Stanza),
+            Query = exml_query:subelement(Stanza, <<"query">>),
+            Item = exml_query:subelement_with_attr(Query, <<"jid">>, ?MUCHOST),
+            ?assertEqual(?NS_MUC_LIGHT, exml_query:attr(Item, <<"node">>)),
             escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
@@ -308,13 +311,7 @@ disco_features_story(Config, HasMAM) ->
             <<"conference">> = exml_query:path(Stanza, [{element, <<"query">>},
                                                         {element, <<"identity">>},
                                                         {attr, <<"category">>}]),
-            FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
-                true -> mam_helper:namespaces();
-                false -> []
-            end,
-            FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},
-                                                         {element, <<"feature">>},
-                                                         {attr, <<"var">>}]),
+            check_features(Stanza, HasMAM),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
 
@@ -329,15 +326,23 @@ disco_info_story(Config, HasMAM) ->
             DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?ROOM),
             escalus:send(Alice, DiscoStanza),
             Stanza = escalus:wait_for_stanza(Alice),
-            FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
-                true -> mam_helper:namespaces();
-                false -> []
-            end,
-            FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},
-                                                         {element, <<"feature">>},
-                                                         {attr, <<"var">>}]),
+            check_features(Stanza, HasMAM),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
+
+check_features(Stanza, HasMAM) ->
+    ExpectedFeatures = expected_features(HasMAM),
+    ActualFeatures = exml_query:paths(Stanza, [{element, <<"query">>},
+                                               {element, <<"feature">>},
+                                               {attr, <<"var">>}]),
+    ?assertEqual(ExpectedFeatures, ActualFeatures).
+
+expected_features(HasMAM) ->
+    MamFeatures = case HasMAM of
+                      true -> mam_helper:namespaces();
+                      false -> []
+                  end,
+    lists:sort([?NS_MUC_LIGHT | MamFeatures]).
 
 %% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->

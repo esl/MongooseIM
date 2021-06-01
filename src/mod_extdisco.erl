@@ -31,14 +31,12 @@
 -spec start(jid:server(), list()) -> ok.
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    mod_disco:register_feature(Host, ?NS_EXTDISCO),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
         ?NS_EXTDISCO, ?MODULE, process_iq, IQDisc).
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    mod_disco:unregister_feature(Host, ?NS_EXTDISCO),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_EXTDISCO).
+    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_EXTDISCO).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

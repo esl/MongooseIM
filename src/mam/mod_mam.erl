@@ -45,7 +45,8 @@
 -export([start/2, stop/1]).
 
 %% ejabberd handlers
--export([process_mam_iq/5,
+-export([add_local_features/5,
+         process_mam_iq/5,
          user_send_packet/4,
          remove_user/3,
          filter_packet/1,
@@ -53,7 +54,7 @@
          sm_filter_offline_message/4]).
 
 %% gdpr callbacks
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %%private
 -export([archive_message_from_ct/1]).
@@ -160,9 +161,9 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{} = ArcJID) ->
-    HostType = jid_to_host_type(ArcJID),
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, HostType, ArcJID) ->
     Schema = ["id", "from", "message"],
     Entries = mongoose_hooks:get_mam_pm_gdpr_data(HostType, ArcJID),
     [{mam_pm, Schema, Entries} | Acc].
@@ -201,13 +202,11 @@ start(HostType, Opts) ->
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     add_id_handlers(HostType, Opts),
-    register_features(HostType),
     ok.
 
 -spec stop(HostType :: host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
-    unregister_features(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
@@ -244,6 +243,14 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
             mongoose_metrics:update(HostType, modMamDroppedIQ, 1),
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
+
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 %% @doc Handle an outgoing message.
 %%
@@ -688,7 +695,8 @@ config_metrics(HostType) ->
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 60},
+    [{disco_local_features, HostType, ?MODULE, add_local_features, 99},
+     {user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
      {remove_user, HostType, ?MODULE, remove_user, 50},
@@ -698,21 +706,12 @@ hooks(HostType) ->
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)].
 
-unregister_features(HostType) ->
-    [mod_disco:unregister_feature(HostType, Feature) || Feature <- features(?MODULE, HostType)],
-    ok.
-
-register_features(HostType) ->
-    [mod_disco:register_feature(HostType, Feature) || Feature <- features(?MODULE, HostType)],
-    ok.
-
 add_id_handlers(HostType, Opts) ->
     Component = ejabberd_sm,
     %% `parallel' is the only one recommended here.
     ExecutionType = gen_mod:get_opt(iqdisc, Opts, parallel),
     IQHandlerFn = fun ?MODULE:process_mam_iq/5,
     Extra = #{},
-    IQHandler = mongoose_iq_handler:new(IQHandlerFn, Extra, ExecutionType),
     [gen_iq_handler:add_iq_handler_for_domain(HostType, Namespace,
                                               Component, IQHandlerFn,
                                               Extra, ExecutionType)

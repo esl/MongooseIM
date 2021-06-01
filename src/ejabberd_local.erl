@@ -49,13 +49,13 @@
          unregister_iq_handler/2,
          unregister_host/1,
          unregister_iq_response_handler/2,
-         refresh_iq_handlers/0,
          sync/0
         ]).
 
 %% Hooks callbacks
 
--export([node_cleanup/2]).
+-export([node_cleanup/2,
+         add_local_features/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -80,6 +80,7 @@
                       timer}).
 
 -define(IQTABLE, local_iqtable).
+-define(NSTABLE, local_nstable).
 
 %% This value is used in SIP and Megaco for a transaction lifetime.
 -define(IQ_TIMEOUT, 32000).
@@ -219,9 +220,6 @@ unregister_iq_handler(Domain, XMLNS) ->
     ejabberd_local ! {unregister_iq_handler, Domain, XMLNS},
     ok.
 
-refresh_iq_handlers() ->
-    ejabberd_local ! refresh_iq_handlers.
-
 -spec bounce_resource_packet(Acc :: mongoose_acc:t(),
                              From :: jid:jid(),
                              To :: jid:jid(),
@@ -238,6 +236,15 @@ register_host(Host) ->
 -spec unregister_host(Host :: jid:server()) -> ok.
 unregister_host(Host) ->
     gen_server:call(?MODULE, {unregister_host, Host}).
+
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+    Features = ets:lookup_element(?NSTABLE, LServer, 2),
+    mongoose_disco:add_features(Features, Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 %%====================================================================
 %% API
@@ -270,6 +277,7 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 init([]) ->
     catch ets:new(?IQTABLE, [named_table, protected]),
+    catch ets:new(?NSTABLE, [named_table, bag, protected]),
     update_table(),
     mnesia:create_table(iq_response,
                         [{ram_copies, [node()]},
@@ -322,24 +330,18 @@ handle_info({route, Acc, From, To, El}, State) ->
     process_packet(Acc, From, To, El, #{}),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
+    ets:insert(?NSTABLE, {Host, XMLNS}),
     ets:insert(?IQTABLE, {{XMLNS, Host}, IQHandler}),
-    catch mod_disco:register_feature(Host, XMLNS),
     {noreply, State};
 handle_info({unregister_iq_handler, Host, XMLNS}, State) ->
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
         [{_, IQHandler}] ->
             gen_iq_component:stop_iq_handler(IQHandler),
-            ets:delete(?IQTABLE, {XMLNS, Host}),
-            catch mod_disco:unregister_feature(Host, XMLNS);
+            ets:delete_object(?NSTABLE, {Host, XMLNS}),
+            ets:delete(?IQTABLE, {XMLNS, Host});
         _ ->
             ok
     end,
-    {noreply, State};
-handle_info(refresh_iq_handlers, State) ->
-    lists:foreach(
-        fun({{XMLNS, Host}, _IQHandler}) ->
-            catch mod_disco:register_feature(Host, XMLNS)
-        end, ets:tab2list(?IQTABLE)),
     {noreply, State};
 handle_info({timeout, _TRef, ID}, State) ->
     process_iq_timeout(ID),
@@ -462,8 +464,9 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
+    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, add_local_features, 99).
 
 do_unregister_host(Host) ->
-    ejabberd_router:unregister_route(Host).
-
+    ejabberd_router:unregister_route(Host),
+    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, add_local_features, 99).

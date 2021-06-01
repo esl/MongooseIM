@@ -25,6 +25,7 @@
 
 %% API
 -export([default_schema_definition/0, default_host/0]).
+-export([server_host_to_muc_host/2]).
 -export([config_schema/1, default_config/1]).
 
 %% For Administration API
@@ -371,28 +372,20 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
-%% To is the host name, not subdomain.
--spec disco_local_items(Acc :: {result, [exml:element()]} | empty | {error, any()},
-                      From :: jid:jid(), To :: jid:jid(),
-                      NS :: binary(), ejabberd:lang())
-                     -> {result, [exml:element()]} | empty | {error, any()}.
-disco_local_items({error, _} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-disco_local_items(Result, _From, #jid{lserver = ServerHost} = To, <<"">>, _Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
     HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
     XMLNS = case legacy_mode(HostType) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
-    Item = #xmlel{name = <<"item">>,
-                  attrs = [{<<"jid">>, MUCHost}, {<<"node">>, XMLNS}]},
-    case Result of
-        {result, Nodes} ->
-            {result, [Item | Nodes]};
-        empty ->
-            {result, [Item]}
-    end.
+    Items = [#{jid => MUCHost, node => XMLNS}],
+    mongoose_disco:add_items(Items, Acc);
+disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 legacy_mode(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE).

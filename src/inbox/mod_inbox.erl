@@ -19,7 +19,7 @@
 -include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
 
--export([get_personal_data/2]).
+-export([get_personal_data/3]).
 
 %% gen_mod
 -export([start/2]).
@@ -33,77 +33,15 @@
          filter_packet/1,
          inbox_unread_count/2,
          remove_user/3,
-         remove_domain/3
+         remove_domain/3,
+         add_local_features/5
         ]).
 
 -export([config_metrics/1]).
 
--callback init(Host, Opts) -> ok when
-               Host :: jid:lserver(),
-               Opts :: list().
-
--callback get_inbox(LUsername, LServer, Params) -> get_inbox_res() when
-                    LUsername :: jid:luser(),
-                    LServer :: jid:lserver(),
-                    Params :: get_inbox_params().
-
--callback set_inbox(LUsername, LServer, ToBareJid,
-                    Content, Count, MsgId, Timestamp) -> inbox_write_res() when
-                    LUsername :: jid:luser(),
-                    LServer :: jid:lserver(),
-                    ToBareJid :: binary(),
-                    Content :: binary(),
-                    Count :: integer(),
-                    MsgId :: binary(),
-                    Timestamp :: integer().
-
--callback remove_inbox_row(LUsername, LServer, ToBareJid) -> inbox_write_res() when
-                           LUsername :: jid:luser(),
-                           LServer :: jid:lserver(),
-                           ToBareJid :: binary().
-
--callback set_inbox_incr_unread(LUsername, LServer, ToBareJid,
-                                Content, MsgId, Timestamp) -> {ok, integer()} | ok when
-                                LUsername :: jid:luser(),
-                                LServer :: jid:lserver(),
-                                ToBareJid :: binary(),
-                                Content :: binary(),
-                                MsgId :: binary(),
-                                Timestamp :: integer().
-
--callback reset_unread(LUsername, LServer, BareJid, MsgId) -> inbox_write_res() when
-                       LUsername :: jid:luser(),
-                       LServer :: jid:lserver(),
-                       BareJid :: binary(),
-                       MsgId :: binary().
-
--callback clear_inbox(LServer) -> inbox_write_res() when
-                      LServer :: jid:lserver().
-
--callback clear_inbox(LUsername, LServer) -> inbox_write_res() when
-                      LUsername :: jid:luser(),
-                      LServer :: jid:lserver().
-
--callback get_inbox_unread(LUsername, LServer, InterlocutorJID) -> {ok, integer()} when
-                      LUsername :: jid:luser(),
+-type entry_key() :: {LUser :: jid:luser(),
                       LServer :: jid:lserver(),
-                      InterlocutorJID :: jid:literal_jid().
-
--callback get_entry_properties(LUsername, LServer, EntryJID) -> Ret when
-                      LUsername :: jid:luser(),
-                      LServer :: jid:lserver(),
-                      EntryJID :: jid:literal_jid(),
-                      Ret :: entry_properties().
-
--callback set_entry_properties(LUsername, LServer, EntryJID, Params) -> Ret when
-                      LUsername :: jid:luser(),
-                      LServer :: jid:lserver(),
-                      EntryJID :: jid:literal_jid(),
-                      Params :: entry_properties(),
-                      Ret :: entry_properties() | {error, binary()}.
-
--callback remove_domain(HostType :: mongooseim:host_type(),
-                        LServer :: jid:lserver()) -> ok.
+                      ToBareJid :: jid:literal_jid()}.
 
 -type get_inbox_params() :: #{
         start => integer(),
@@ -113,13 +51,74 @@
         archive => boolean()
        }.
 
--export_type([get_inbox_params/0]).
+-export_type([entry_key/0, get_inbox_params/0]).
+
+-callback init(Host, Opts) -> ok when
+      Host :: mongooseim:host_type(),
+      Opts :: list().
+
+-callback get_inbox(HostType, LUser, LServer, Params) -> get_inbox_res() when
+      HostType :: mongooseim:host_type(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
+      Params :: get_inbox_params().
+
+-callback clear_inbox(HostType, LUser, LServer) -> inbox_write_res() when
+      HostType :: mongooseim:host_type(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver().
+
+-callback remove_domain(HostType, LServer) -> ok when
+      HostType :: mongooseim:host_type(),
+      LServer :: jid:lserver().
+
+-callback set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
+    inbox_write_res() when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key(),
+      Content :: binary(),
+      Count :: integer(),
+      MsgId :: binary(),
+      Timestamp :: integer().
+
+-callback remove_inbox_row(HostType, InboxEntryKey) -> inbox_write_res() when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key().
+
+-callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
+    {ok, integer()} | ok when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key(),
+      Content :: binary(),
+      MsgId :: binary(),
+      Timestamp :: integer().
+
+-callback reset_unread(HostType, InboxEntryKey, MsgId) -> inbox_write_res() when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key(),
+      MsgId :: binary().
+
+-callback get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key().
+
+-callback get_entry_properties(HostType, InboxEntryKey) -> Ret when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key(),
+      Ret :: entry_properties().
+
+-callback set_entry_properties(HostType, InboxEntryKey, Params) -> Ret when
+      HostType :: mongooseim:host_type(),
+      InboxEntryKey :: entry_key(),
+      Params :: entry_properties(),
+      Ret :: entry_properties() | {error, binary()}.
 
 %%--------------------------------------------------------------------
 %% gdpr callbacks
 %%--------------------------------------------------------------------
--spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) ->
+    gdpr:personal_data().
+get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Schema = ["jid", "content", "unread_count", "timestamp"],
     InboxParams = #{
         start => 0,
@@ -127,7 +126,7 @@ get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
         order => asc,
         hidden_read => false
        },
-    Entries = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
+    Entries = mod_inbox_backend:get_inbox(HostType, LUser, LServer, InboxParams),
     ProcessedEntries = lists:map(fun process_entry/1, Entries),
     [{inbox, Schema, ProcessedEntries} | Acc].
 
@@ -152,8 +151,6 @@ start(HostType, Opts) ->
     MucTypes = gen_mod:get_opt(groupchat, FullOpts, [muclight]),
     gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
     mod_inbox_backend:init(HostType, FullOpts),
-    %% TODO: update code related to mod_disco
-    mod_disco:register_feature(HostType, ?NS_ESL_INBOX),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     store_bin_reset_markers(HostType, FullOpts),
@@ -167,7 +164,6 @@ start(HostType, Opts) ->
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    mod_disco:unregister_feature(HostType, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
@@ -204,13 +200,14 @@ process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
 process_iq(Acc, From, _To, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ, _Extra) ->
-    Username = From#jid.luser,
-    Host = From#jid.lserver,
+    HostType = mongoose_acc:host_type(Acc),
+    LUser = From#jid.luser,
+    LServer = From#jid.lserver,
     case query_to_params(QueryEl) of
         {error, bad_request, Msg} ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         Params ->
-            List = mod_inbox_backend:get_inbox(Username, Host, Params),
+            List = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
             forward_messages(Acc, List, QueryId, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
@@ -245,8 +242,7 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
                        To :: jid:jid(),
                        Packet :: exml:element()) -> map().
 user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
-    Host = From#jid.lserver,
-    maybe_process_message(Acc, Host, From, To, Msg, outgoing),
+    maybe_process_message(Acc, From, To, Msg, outgoing),
     Acc;
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
@@ -264,12 +260,11 @@ inbox_unread_count(Acc, To) ->
 filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
-    Host = To#jid.lserver,
     %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
     %% (when push notification is created)
-    Acc0 = case maybe_process_message(Acc, Host, From, To, Msg, incoming) of
+    Acc0 = case maybe_process_message(Acc, From, To, Msg, incoming) of
                {ok, UnreadCount} ->
                    mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
                _ ->
@@ -281,7 +276,8 @@ filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
 remove_user(Acc, User, Server) ->
-    mod_inbox_utils:clear_inbox(User, Server),
+    HostType = mongoose_acc:host_type(Acc),
+    mod_inbox_utils:clear_inbox(HostType, User, Server),
     Acc.
 
 -spec remove_domain(mongoose_hooks:simple_acc(),
@@ -291,17 +287,25 @@ remove_domain(Acc, HostType, Domain) ->
     mod_inbox_backend:remove_domain(HostType, Domain),
     Acc.
 
+-spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_ESL_INBOX], Acc);
+add_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
+
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
-                            Host :: host(),
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
                             Dir :: outgoing | incoming) -> ok | {ok, integer()}.
-maybe_process_message(Acc, Host, From, To, Msg, Dir) ->
+maybe_process_message(Acc, From, To, Msg, Dir) ->
+    HostType = mongoose_acc:host_type(Acc),
     case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
-            maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, Type);
+            maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type);
         false ->
             ok
     end.
@@ -317,33 +321,33 @@ inbox_owner_exists(Acc, _From, To, incoming) ->
     HostType = mongoose_acc:host_type(Acc),
     mongoose_users:does_user_exist(HostType, To).
 
-maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, one2one) ->
-            process_message(Host, From, To, Msg, Acc, Dir, one2one);
-maybe_process_acceptable_message(Host, From, To, Msg, Acc, Dir, groupchat) ->
-            muclight_enabled(Host) andalso
-            process_message(Host, From, To, Msg, Acc, Dir, groupchat).
+maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
+            process_message(HostType, From, To, Msg, Acc, Dir, one2one);
+maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) ->
+            muclight_enabled(HostType) andalso
+            process_message(HostType, From, To, Msg, Acc, Dir, groupchat).
 
--spec process_message(Host :: host(),
+-spec process_message(HostType :: host(),
                       From :: jid:jid(),
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Acc :: mongoose_acc:t(),
                       Dir :: outgoing | incoming,
                       Type :: one2one | groupchat) -> ok | {ok, integer()}.
-process_message(Host, From, To, Message, Acc, outgoing, one2one) ->
-    mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message, Acc);
-process_message(Host, From, To, Message, Acc, incoming, one2one) ->
-    mod_inbox_one2one:handle_incoming_message(Host, From, To, Message, Acc);
-process_message(Host, From, To, Message, Acc, outgoing, groupchat) ->
-    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message, Acc);
-process_message(Host, From, To, Message, Acc, incoming, groupchat) ->
-    mod_inbox_muclight:handle_incoming_message(Host, From, To, Message, Acc);
-process_message(Host, From, To, Message, _TS, Dir, Type) ->
+process_message(HostType, From, To, Message, Acc, outgoing, one2one) ->
+    mod_inbox_one2one:handle_outgoing_message(HostType, From, To, Message, Acc);
+process_message(HostType, From, To, Message, Acc, incoming, one2one) ->
+    mod_inbox_one2one:handle_incoming_message(HostType, From, To, Message, Acc);
+process_message(HostType, From, To, Message, Acc, outgoing, groupchat) ->
+    mod_inbox_muclight:handle_outgoing_message(HostType, From, To, Message, Acc);
+process_message(HostType, From, To, Message, Acc, incoming, groupchat) ->
+    mod_inbox_muclight:handle_incoming_message(HostType, From, To, Message, Acc);
+process_message(HostType, From, To, Message, _TS, Dir, Type) ->
     ?LOG_WARNING(#{what => inbox_unknown_message,
                    text => <<"Unknown message was not written into inbox">>,
                    exml_packet => Message,
                    from_jid => jid:to_binary(From), to_jid => jid:to_binary(To),
-                   server => Host, dir => Dir, inbox_message_type => Type}),
+                   host_type => HostType, dir => Dir, inbox_message_type => Type}),
     ok.
 
 
@@ -563,11 +567,11 @@ invalid_field_value(Field, Value) ->
 get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
     Acc;
 get_inbox_unread(undefined, Acc, To) ->
-%% TODO this value should be bound to a stanza reference inside Acc
-    {User, Host} = jid:to_lus(To),
+    %% TODO this value should be bound to a stanza reference inside Acc
     InterlocutorJID = mongoose_acc:from_jid(Acc),
-    RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
-    {ok, Count} = mod_inbox_backend:get_inbox_unread(User, Host, RemBareJIDBin),
+    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(To, InterlocutorJID),
+    HostType = mongoose_acc:host_type(Acc),
+    {ok, Count} = mod_inbox_backend:get_inbox_unread(HostType, InboxEntryKey),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
 hooks(HostType) ->
@@ -577,7 +581,8 @@ hooks(HostType) ->
      {user_send_packet, HostType, ?MODULE, user_send_packet, 70},
      {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
      {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
-     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50},
+     {disco_local_features, HostType, ?MODULE, add_local_features, 99}
     ].
 
 add_default_backend(Opts) ->
@@ -586,18 +591,18 @@ add_default_backend(Opts) ->
         _ -> Opts
     end.
 
-get_groupchat_types(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
+get_groupchat_types(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, groupchat, [muclight]).
 
-config_metrics(Host) ->
+config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
 
--spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
-store_bin_reset_markers(Host, Opts) ->
+-spec store_bin_reset_markers(HostType :: mongooseim:host_type(), Opts :: list()) -> boolean().
+store_bin_reset_markers(HostType, Opts) ->
     ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
     ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
-    gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
+    gen_mod:set_module_opt(HostType, ?MODULE, reset_markers, ResetMarkersBin).
 
 groupchat_deps(Opts) ->
     case lists:keyfind(groupchat, 1, Opts) of
@@ -622,11 +627,11 @@ muc_dep(List) ->
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
      reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
-     get_entry_properties, set_entry_properties].
+     get_entry_properties, set_entry_properties, remove_domain].
 
--spec muclight_enabled(Host :: binary()) -> boolean().
-muclight_enabled(Host) ->
-    Groupchats = get_groupchat_types(Host),
+-spec muclight_enabled(HostType :: mongooseim:host_type()) -> boolean().
+muclight_enabled(HostType) ->
+    Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
 -spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.

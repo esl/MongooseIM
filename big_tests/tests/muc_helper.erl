@@ -4,6 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -include("mam_helper.hrl").
 
@@ -147,7 +148,7 @@ generate_rpc_jid({_,User}) ->
 create_instant_room(Room, From, Nick, Opts) ->
     ServerHost = ct:get_config({hosts, mim, domain}),
     assert_valid_server(ServerHost),
-    Room1 = rpc(mim(), jid, nodeprep, [Room]),
+    Room1 = jid:nodeprep(Room),
     ok = rpc(mim(), mod_muc, create_instant_room,
         [ServerHost, muc_host(), Room1, From, Nick, Opts]).
 
@@ -263,10 +264,10 @@ has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    ?assert_equal_extra(Features,
-                        exml_query:paths(Query, [{element, <<"feature">>},
-                                        {attr, <<"var">>}]),
-                        [Iq]).
+    ExpectedFeatures = lists:sort(Features),
+    ActualFeatures = lists:sort(exml_query:paths(Query, [{element, <<"feature">>},
+                                                         {attr, <<"var">>}])),
+    ?assertEqual(ExpectedFeatures, ActualFeatures).
 
 assert_valid_affiliation(<<"owner">>) -> ok;
 assert_valid_affiliation(<<"admin">>) -> ok;

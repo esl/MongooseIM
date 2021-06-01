@@ -87,7 +87,6 @@ start(Host, Opts) ->
     mod_event_pusher_push_plugin:init(Host),
 
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    mod_disco:register_feature(Host, ?NS_PUSH),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PUSH, ?MODULE,
@@ -102,7 +101,6 @@ stop(Host) ->
 
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PUSH),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
-    mod_disco:unregister_feature(Host, ?NS_PUSH),
 
     mongoose_wpool:stop(generic, Host, pusher_push),
     ok.
