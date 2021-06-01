@@ -599,9 +599,12 @@ terminate_sm() ->
     gen_server:stop(ejabberd_sm).
 
 set_meck(SMBackend) ->
-    meck:expect(ejabberd_config, get_global_option,
-        fun(sm_backend) -> SMBackend;
-            (hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_global_option, fun(sm_backend) -> SMBackend end),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun
+                    (hosts, _Default) -> [<<"localhost">>];
+                    (host_types, Default) -> Default
+                end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_hooks, add, fun(_) -> ok end),
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),

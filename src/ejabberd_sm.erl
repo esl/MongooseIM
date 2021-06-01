@@ -482,7 +482,8 @@ init([]) ->
     ets:new(sm_iqtable, [named_table]),
 
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    lists:foreach(fun(Host) -> ejabberd_hooks:add(hooks(Host)) end, ?ALL_HOST_TYPES),
+    lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,
+                  ?ALL_HOST_TYPES),
 
     ejabberd_commands:register_commands(commands()),
 
@@ -490,12 +491,12 @@ init([]) ->
 
     {ok, #state{}}.
 
-hooks(Host) ->
+hooks(HostType) ->
     [
-     {roster_in_subscription, Host, ejabberd_sm, check_in_subscription, 20},
-     {offline_message_hook, Host, ejabberd_sm, bounce_offline_message, 100},
-     {offline_groupchat_message_hook, Host, ejabberd_sm, bounce_offline_message, 100},
-     {remove_user, Host, ejabberd_sm, disconnect_removed_user, 100}
+     {roster_in_subscription, HostType, ejabberd_sm, check_in_subscription, 20},
+     {offline_message_hook, HostType, ejabberd_sm, bounce_offline_message, 100},
+     {offline_groupchat_message_hook, HostType, ejabberd_sm, bounce_offline_message, 100},
+     {remove_user, HostType, ejabberd_sm, disconnect_removed_user, 100}
     ].
 
 %%--------------------------------------------------------------------
