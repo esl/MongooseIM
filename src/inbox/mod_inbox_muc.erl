@@ -65,17 +65,21 @@ is_allowed_affiliation(_)       -> true.
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 update_inbox_for_user(HostType, Direction, Room, To, Packet) ->
-    Host = To#jid.lserver,
-    case {is_local_xmpp_host(Host), Direction} of
-        {true, outgoing} ->
-            handle_outgoing_message(HostType, Room, To, Packet);
-        {true, incoming} ->
-            handle_incoming_message(HostType, Room, To, Packet);
+    ReceiverDomain = To#jid.lserver,
+    MucDomain = mod_muc:server_host_to_muc_host(HostType, ReceiverDomain),
+    case Room#jid.lserver of
+        MucDomain ->
+            handle_message(HostType, Room, To, Packet, Direction);
         _ ->
             %% We ignore inbox for users on the remote (s2s) hosts
             %% We ignore inbox for components (also known as services or bots)
             ok
     end.
+
+handle_message(HostType, Room, To, Packet, outgoing) ->
+    handle_outgoing_message(HostType, Room, To, Packet);
+handle_message(HostType, Room, To, Packet, incoming) ->
+    handle_incoming_message(HostType, Room, To, Packet).
 
 -spec direction(From :: user_jid(), To :: user_jid()) -> incoming | outgoing.
 direction(From, To) ->
@@ -115,11 +119,3 @@ write_to_sender_inbox(Server, User, Remote, Packet, Acc) ->
 
 write_to_receiver_inbox(Server, User, Remote, Packet, Acc) ->
     mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, Packet, Acc).
-
-%% @doc Check, that the host is served by MongooseIM.
-%% A local host can be used to fire hooks or write into database on this node.
--spec is_local_xmpp_host(jid:lserver()) -> boolean().
-is_local_xmpp_host(LServer) ->
-    F = fun mongoose_domain_api:get_domains_by_host_type/1,
-    ServedDomains = lists:flatmap(F, ?ALL_HOST_TYPES),
-    lists:member(LServer, ServedDomains).
