@@ -94,6 +94,11 @@
   unacknowledged_message_hook_offline],
  "at the moment mod_offline doesn't support dynamic domains"}.
 {suites, "tests", rest_client_SUITE}.
+{skip_groups, "tests", rest_client_SUITE, [roster],
+ "at the moment mod_roster doesn't support dynamic domains"}.
+{skip_cases, "tests", rest_client_SUITE,
+ [non_default_http_server_name_is_returned_if_configured],
+ "at the moment mim2 node is not configured for dynamic domains"}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
