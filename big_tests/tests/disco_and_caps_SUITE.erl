@@ -63,8 +63,7 @@ extra_domains_are_advertised(Config) ->
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [extra_domain()], Stanza),
-        escalus:assert(is_stanza_from,
-                            [ct:get_config({hosts, mim, domain})], Stanza)
+        escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
 
 extra_domain() ->

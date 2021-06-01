@@ -82,8 +82,7 @@ disco_hidden(Config) ->
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 ?assertEqual(undefined,
                              exml_query:subelement_with_attr(Query, <<"node">>, ?NS_COMMANDS)),
-                escalus:assert(is_stanza_from,
-                               [domain()], Stanza)
+                escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
 disco_visible(Config) ->
@@ -95,8 +94,7 @@ disco_visible(Config) ->
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 Item = exml_query:subelement_with_attr(Query, <<"node">>, ?NS_COMMANDS),
                 ?assertEqual(Server, exml_query:attr(Item, <<"jid">>)),
-                escalus:assert(is_stanza_from,
-                               [domain()], Stanza)
+                escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
 disco_commands(Config) ->
@@ -108,18 +106,16 @@ disco_commands(Config) ->
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 Item = exml_query:subelement_with_attr(Query, <<"node">>, <<"ping">>),
                 ?assertEqual(Server, exml_query:attr(Item, <<"jid">>)),
-                escalus:assert(is_stanza_from,
-                               [domain()], Stanza)
+                escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
 ping(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-                Host = ct:get_config({hosts, mim, domain}),
                 %% Alice pings the server using adhoc command
                 escalus_client:send(Alice, escalus_stanza:to(
                                              escalus_stanza:adhoc_request(<<"ping">>),
-                                             Host)),
+                                             domain())),
                 %% Server replies to Alice with pong
                 AdHocResp = escalus_client:wait_for_stanza(Alice),
                 escalus:assert(is_adhoc_response, [<<"ping">>, <<"completed">>],
