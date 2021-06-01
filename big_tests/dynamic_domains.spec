@@ -15,7 +15,7 @@
 {skip_cases, "tests", carboncopy_SUITE, [discovering_support],
  "at the moment mod_disco doesn't support dynamic domains"}.
 
-{suites, "tests", domain_isolation_SUITE}.
+{suites, "tests", offline_stub_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
 {skip_cases, "tests", inbox_SUITE, [disco_service],
