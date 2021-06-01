@@ -482,7 +482,7 @@ init([]) ->
     ets:new(sm_iqtable, [named_table]),
 
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    lists:foreach(fun(Host) -> ejabberd_hooks:add(hooks(Host)) end, ?MYHOSTS),
+    lists:foreach(fun(Host) -> ejabberd_hooks:add(hooks(Host)) end, ?ALL_HOST_TYPES),
 
     ejabberd_commands:register_commands(commands()),
 
