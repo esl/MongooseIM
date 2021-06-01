@@ -52,15 +52,16 @@ to_json(Req, #{jid := JID} = State) ->
 maybe_to_json_with_jid(error, _, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
     {stop, Req2, State};
-maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
+maybe_to_json_with_jid(WithJID, #jid{} = JID, Req, State = #{creds := Creds}) ->
+    HostType = mongoose_credentials:host_type(Creds),
     Now = os:system_time(microsecond),
-    ArchiveID = mod_mam:archive_id_int(Server, JID),
+    ArchiveID = mod_mam:archive_id_int(HostType, JID),
     QS = cowboy_req:parse_qs(Req),
     PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
     Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
     End = maybe_before_to_us(Before, Now),
     RSM = #rsm_in{direction = before, id = undefined},
-    R = mod_mam:lookup_messages(Server,
+    R = mod_mam:lookup_messages(HostType,
                                 #{archive_id => ArchiveID,
                                   owner_jid => JID,
                                   rsm => RSM,
