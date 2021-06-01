@@ -18,7 +18,6 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
-         local_send_to_resource_hook/4,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
@@ -39,7 +38,7 @@
          user_ping_timeout/2,
          user_receive_packet/6,
          user_sent_keep_alive/2,
-         user_send_packet/5,
+         user_send_packet/4,
          vcard_set/3,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
@@ -84,8 +83,7 @@
 
 -export([is_muc_room_owner/3,
          can_access_identity/3,
-         can_access_room/3,
-         muc_room_pid/2]).
+         can_access_room/3]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -277,17 +275,6 @@ filter_packet(Acc) ->
 inbox_unread_count(LServer, Acc, User) ->
     ejabberd_hooks:run_for_host_type(inbox_unread_count, LServer, Acc, [User]).
 
--spec local_send_to_resource_hook(Acc, From, To, Packet) -> Result when
-    Acc :: mongoose_acc:t(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element(),
-    Result :: mongoose_acc:t().
-local_send_to_resource_hook(Acc, From, To, Packet) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(local_send_to_resource_hook, HostType, Acc,
-                                     [From, To, Packet]).
-
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(LServer, KeyName) -> Result when
     LServer :: jid:lserver(),
@@ -441,25 +428,25 @@ user_available_hook(HostType, Acc, JID) ->
     ejabberd_hooks:run_for_host_type(user_available_hook, HostType, Acc, [JID]).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping.
--spec user_ping_response(Server, Acc, JID, Response, TDelta) -> Result when
-    Server :: jid:server(),
+-spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Response :: timeout | jlib:iq(),
     TDelta :: non_neg_integer(),
     Result :: mongoose_acc:t().
-user_ping_response(Server, Acc, JID, Response, TDelta) ->
-    ejabberd_hooks:run_for_host_type(user_ping_response, Server, Acc,
-                                     [JID, Response, TDelta]).
+user_ping_response(HostType, Acc, JID, Response, TDelta) ->
+    ejabberd_hooks:run_for_host_type(user_ping_response, HostType, Acc,
+                                     [HostType, JID, Response, TDelta]).
 
 %%% @doc The `user_ping_timeout' hook is called when there is a timeout
 %%% when waiting for a ping response from a user.
--spec user_ping_timeout(Server, JID) -> Result when
-    Server :: jid:server(),
+-spec user_ping_timeout(HostType, JID) -> Result when
+    HostType :: mongooseim:host_type(),
     JID :: jid:jid(),
     Result :: any().
-user_ping_timeout(Server, JID) ->
-    ejabberd_hooks:run_for_host_type(user_ping_timeout, Server, ok, [JID]).
+user_ping_timeout(HostType, JID) ->
+    ejabberd_hooks:run_for_host_type(user_ping_timeout, HostType, ok, [JID]).
 
 -spec user_receive_packet(HostType, Acc, JID, From, To, El) -> Result when
     HostType :: binary(),
@@ -484,15 +471,14 @@ user_sent_keep_alive(HostType, JID) ->
 %%% The hook's handler is expected to accept four parameters:
 %%% `Acc', `From', `To' and `Packet'
 %%% The arguments and the return value types correspond to the following spec.
--spec user_send_packet(HostType, Acc, From, To, Packet) -> Result when
-    HostType :: binary(),
+-spec user_send_packet(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
-user_send_packet(HostType, Acc, From, To, Packet) ->
-    %% TODO: ejabberd_c2s calls this hook with host type, fix other places.
+user_send_packet(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(user_send_packet, HostType, Acc,
                                      [From, To, Packet]).
 
@@ -888,64 +874,51 @@ roster_set(LServer, From, To, SubEl) ->
 %%% `Acc', `Room', `User'.
 %%% The arguments and the return value types correspond to the
 %%% following spec.
--spec is_muc_room_owner(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec is_muc_room_owner(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-is_muc_room_owner(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(is_muc_room_owner, HookServer, false,
-                                     [Room, User]).
+is_muc_room_owner(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(is_muc_room_owner, HostType, false,
+                                     [HostType, Room, User]).
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.
--spec can_access_identity(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec can_access_identity(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-can_access_identity(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_identity, HookServer, false,
-                                     [Room, User]).
-
-%%% @doc The `muc_room_pid' hooks is called to get the pid for a given room's JID
--spec muc_room_pid(HookServer, Room) -> Result when
-      HookServer :: jid:lserver(),
-      Room :: jid:jid(),
-      Result :: undefined | {ok, processless | pid()} | {error, not_found}.
-muc_room_pid(HookServer, Room) ->
-    ejabberd_hooks:run_for_host_type(muc_room_pid, HookServer, undefined, [Room]).
+can_access_identity(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(can_access_identity, HostType, false,
+                                     [HostType, Room, User]).
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.
--spec can_access_room(HookServer, Room, User) -> Result when
-      HookServer :: jid:lserver(),
+-spec can_access_room(HostType, Room, User) -> Result when
+      HostType :: mongooseim:host_type(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-can_access_room(HookServer, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_room, HookServer, false, [Room, User]).
+can_access_room(HostType, Room, User) ->
+    ejabberd_hooks:run_for_host_type(can_access_room, HostType, false,
+                                     [HostType, Room, User]).
 
 %% MAM related hooks
 
-%%% @doc The `mam_archive_id' hook is called to determine the id of an archive
-%%% for a particular user or entity.
-%%% The hook handler is expected to accept the following arguments:
-%%% * Acc with an initial value of `undefined',
-%%% * Host as passed in the `HooksServer' variable,
-%%% * OwnerJID,
-%%%
-%%% and to return an integer value corresponding to the given owner's archive.
+%%% @doc The `mam_archive_id' hook is called to determine
+%%% the integer id of an archive for a particular user or entity.
 %%%
 %%% If a MAM backend doesn't support or doesn't require archive IDs,
 %%% `undefined' may be returned.
--spec mam_archive_id(HookServer, OwnerJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_archive_id(HostType, OwnerJID) -> Result when
+      HostType :: mongooseim:host_type(),
       OwnerJID :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
-mam_archive_id(HookServer, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_id, HookServer, undefined,
-                                     [HookServer, OwnerJID]).
+mam_archive_id(HostType, OwnerJID) ->
+    ejabberd_hooks:run_for_host_type(mam_archive_id, HostType, undefined,
+                                     [HostType, OwnerJID]).
 
 %%% @doc The `mam_archive_size' hook is called to determine the size
 %%% of the archive for a given JID
@@ -1069,80 +1042,80 @@ mam_muc_archive_size(HookServer, ArchiveID, RoomJID) ->
 
 %%% @doc The `mam_muc_get_behaviour' hooks is called to determine if a message should
 %%% be archived or not based on the given room and user JIDs.
--spec mam_muc_get_behaviour(HookServer, ArchiveID,
+-spec mam_muc_get_behaviour(HostType, ArchiveID,
                             RoomJID, RemoteJID) -> Result when
-      HookServer :: jid:lserver(),
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       RemoteJID :: jid:jid(),
       Result :: mod_mam:archive_behaviour().
-mam_muc_get_behaviour(HookServer, ArchiveID, RoomJID, RemoteJID) ->
+mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
     DefaultBehaviour = always, %% mod_mam:archive_behaviour() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_behaviour, HookServer, DefaultBehaviour,
-                                     [HookServer, ArchiveID, RoomJID, RemoteJID]).
+    ejabberd_hooks:run_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
+                                     [HostType, ArchiveID, RoomJID, RemoteJID]).
 
 %%% @doc The `mam_muc_set_prefs' hook is called to set a room's archive preferences.
 %%%
 %%% It's possible to set which JIDs are always or never allowed in the archive
--spec mam_muc_set_prefs(HookServer, ArchiveId, RoomJID,
+-spec mam_muc_set_prefs(HostType, ArchiveId, RoomJID,
                         DefaultMode, AlwaysJIDs, NeverJIDs) -> Result when
-      HookServer :: jid:lserver(),
+      HostType :: mongooseim:host_type(),
       ArchiveId :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       DefaultMode :: mod_mam:archive_behaviour(),
       AlwaysJIDs :: [jid:literal_jid()],
       NeverJIDs :: [jid:literel_jid()],
       Result :: any().
-mam_muc_set_prefs(HookServer, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     InitialAcc = {error, not_implemented},
-    ejabberd_hooks:run_for_host_type(mam_muc_set_prefs, HookServer, InitialAcc,
-                                     [HookServer, ArchiveID, RoomJID, DefaultMode,
+    ejabberd_hooks:run_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
+                                     [HostType, ArchiveID, RoomJID, DefaultMode,
                                       AlwaysJIDs, NeverJIDs]).
 
 %%% @doc The `mam_muc_get_prefs' hook is called to read
 %%% the archive settings for a given room.
--spec mam_muc_get_prefs(HookServer, DefaultMode, ArchiveID, RoomJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) -> Result when
+      HostType :: mongooseim:host_type(),
       DefaultMode :: mod_mam:archive_behaviour(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       Result :: mod_mam:preference() | {error, Reason :: term()}.
-mam_muc_get_prefs(HookServer, DefaultMode, ArchiveID, RoomJID) ->
+mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
     InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_prefs, HookServer, InitialAcc,
-                                     [HookServer, ArchiveID, RoomJID]).
+    ejabberd_hooks:run_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
+                                     [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_remove_archive' hook is called in order to remove the entire
 %%% archive for a particular user.
--spec mam_muc_remove_archive(HookServer, ArchiveID, RoomJID) -> any() when
-      HookServer :: jid:lserver(),
+-spec mam_muc_remove_archive(HostType, ArchiveID, RoomJID) -> any() when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid().
-mam_muc_remove_archive(HookServer, ArchiveID, RoomJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_remove_archive, HookServer, ok,
-                                     [HookServer, ArchiveID, RoomJID]).
+mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_for_host_type(mam_muc_remove_archive, HostType, ok,
+                                     [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_lookup_messages' hook is to retrieve archived
 %%% MUC messages for any given search parameters.
--spec mam_muc_lookup_messages(HookServer, Params) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_muc_lookup_messages(HostType, Params) -> Result when
+      HostType :: mongooseim:host_type(),
       Params :: map(),
       Result :: {ok, mod_mam:lookup_result()}.
-mam_muc_lookup_messages(HookServer, Params) ->
+mam_muc_lookup_messages(HostType, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
-    ejabberd_hooks:run_for_host_type(mam_muc_lookup_messages, HookServer,
+    ejabberd_hooks:run_for_host_type(mam_muc_lookup_messages, HostType,
                                      {ok, InitialLookupValue},
-                                     [HookServer, Params]).
+                                     [HostType, Params]).
 
 %%% @doc The `mam_muc_archive_message' hook is called in order
 %%% to store the MUC message in the archive.
--spec mam_muc_archive_message(HookServer, Params) -> Result when
-    HookServer :: jid:lserver(),
+-spec mam_muc_archive_message(HostType, Params) -> Result when
+    HostType :: mongooseim:host_type(),
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
-mam_muc_archive_message(HookServer, Params) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_message, HookServer, ok,
-                                     [HookServer, Params]).
+mam_muc_archive_message(HostType, Params) ->
+    ejabberd_hooks:run_for_host_type(mam_muc_archive_message, HostType, ok,
+                                     [HostType, Params]).
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.
@@ -1266,15 +1239,15 @@ disco_local_features(Server, From, To, Node, Lang) ->
                                      [From, To, Node, Lang]).
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
--spec disco_local_items(Server, From, To, Node, Lang) -> Result when
-    Server :: jid:server(),
+-spec disco_local_items(HostType, From, To, Node, Lang) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
     Result :: mongoose_disco:item_acc().
-disco_local_items(Server, From, To, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_local_items, Server, empty,
+disco_local_items(HostType, From, To, Node, Lang) ->
+    ejabberd_hooks:run_for_host_type(disco_local_items, HostType, empty,
                                      [From, To, Node, Lang]).
 
 %%% @doc `disco_local_identity' hook is called to get the identity of the server.
@@ -1381,22 +1354,22 @@ amp_verify_support(Server, Rules) ->
 
 %% MUC and MUC Light related hooks
 
--spec filter_room_packet(Server, Packet, EventData) -> Result when
-    Server :: jid:lserver(),
+-spec filter_room_packet(HostType, Packet, EventData) -> Result when
+    HostType :: mongooseim:host_type(),
     Packet :: exml:element(),
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
-filter_room_packet(Server, Packet, EventData) ->
-    ejabberd_hooks:run_for_host_type(filter_room_packet, Server, Packet, [EventData]).
+filter_room_packet(HostType, Packet, EventData) ->
+    ejabberd_hooks:run_for_host_type(filter_room_packet, HostType, Packet, [HostType, EventData]).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
--spec forget_room(HookServer, Host, Room) -> Result when
-    HookServer :: jid:server(),
-    Host :: jid:server(),
+-spec forget_room(HostType, MucHost, Room) -> Result when
+    HostType :: mongooseim:host_type(),
+    MucHost :: jid:server(),
     Room :: jid:luser(),
     Result :: any().
-forget_room(HookServer, Host, Room) ->
-    ejabberd_hooks:run_for_host_type(forget_room, HookServer, ok, [Host, Room]).
+forget_room(HostType, MucHost, Room) ->
+    ejabberd_hooks:run_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),

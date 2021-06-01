@@ -189,7 +189,7 @@ all_mam_testcases() ->
 init_per_suite(Config) ->
     #{node := MimNode} = distributed_helper:mim(),
     Config1 = [{{ejabberd_cwd, MimNode}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
-    muc_helper:load_muc(muc_domain()),
+    muc_helper:load_muc(),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
@@ -252,7 +252,7 @@ init_per_testcase(CN, Config) when
     Config1;
 init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
                                    CN =:= remove_inbox_muc ->
-    muc_helper:load_muc(muc_domain()),
+    muc_helper:load_muc(),
     Config0 = init_inbox(CN, Config, muc),
     Config0;
 
@@ -1556,8 +1556,7 @@ domain() ->
     <<"localhost">>. % TODO: Make dynamic?
 
 muc_domain() ->
-    Domain = inbox_helper:domain(),
-    <<"muc.", Domain/binary>>.
+    muc_helper:muc_host().
 
 assert_personal_data_via_rpc(Client, ExpectedPersonalDataEntries) ->
     ExpectedKeys = [ Key || {Key, _, _} <- ExpectedPersonalDataEntries ],
@@ -1808,7 +1807,7 @@ given_fresh_muc_room(UserSpec, RoomOpts) ->
     Username = proplists:get_value(username, UserSpec),
     RoomName = muc_helper:fresh_room_name(Username),
     From = muc_helper:generate_rpc_jid({user, UserSpec}),
-    muc_helper:create_instant_room(<<"localhost">>, RoomName, From, Username, RoomOpts),
+    muc_helper:create_instant_room(RoomName, From, Username, RoomOpts),
     {ok, RoomName}.
 
 send_recieve_muc_private_message(Room, Domain, {User1, Nickname1}, {User2, Nickname2}, Text) ->

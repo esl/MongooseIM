@@ -11,7 +11,7 @@
 -behaviour(mod_muc_light_codec).
 
 %% API
--export([decode/3, encode/4, encode_error/5]).
+-export([decode/4, encode/5, encode_error/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -22,8 +22,9 @@
 %%====================================================================
 
 -spec decode(From :: jid:jid(), To :: jid:jid(),
-             Stanza :: jlib:iq() | exml:element()) -> mod_muc_light_codec:decode_result().
-decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza)
+             Stanza :: jlib:iq() | exml:element(),
+             Acc :: mongoose_acc:t()) -> mod_muc_light_codec:decode_result().
+decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza, _Acc)
   when ToU =/= <<>> ->
     case {exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
          exml_query:attr(Stanza, <<"type">>)} of
@@ -31,21 +32,22 @@ decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanz
                                   Available =:= <<"available">> -> {ok, {set, #create{}}};
         _ -> ignore
     end;
-decode(_From, #jid{ lresource = Resource }, _Stanza) when Resource =/= <<>> ->
+decode(_From, #jid{ lresource = Resource }, _Stanza, _Acc) when Resource =/= <<>> ->
     {error, bad_request};
-decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza) ->
+decode(_From, _To, #xmlel{ name = <<"message">> } = Stanza, _Acc) ->
     decode_message(Stanza);
-decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza) ->
+decode(From, _To, #xmlel{ name = <<"iq">> } = Stanza, _Acc) ->
     decode_iq(From, jlib:iq_query_info(Stanza));
-decode(From, _To, #iq{} = IQ) ->
+decode(From, _To, #iq{} = IQ, _Acc) ->
     decode_iq(From, IQ);
-decode(_, _, _) ->
+decode(_, _, _, _Acc) ->
     {error, bad_request}.
 
--spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
-             RoomUS :: jid:simple_bare_jid(),
-             HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
-encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
+-spec encode(Request :: muc_light_encode_request(),
+             OriginalSender :: jid:jid(), RoomUS :: jid:simple_bare_jid(),
+             HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
+             Acc :: mongoose_acc:t()) -> any().
+encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     Aff = get_sender_aff(AffUsers, US),
     FromNick = jid:to_binary(jid:to_lus(Sender)),
@@ -61,15 +63,16 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
                   room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     #xmlel{ children = Children }
-        = mongoose_hooks:filter_room_packet(RoomS, MsgForArch, EventData),
+        = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
       end, AffUsers);
-encode(OtherCase, Sender, RoomUS, HandleFun) ->
+encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
-    case encode_meta(OtherCase, RoomJID, Sender, HandleFun) of
+    case encode_meta(OtherCase, RoomJID, Sender, HandleFun, Acc) of
         {iq_reply, ID} ->
             IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
             HandleFun(RoomJID, Sender, IQRes);
@@ -239,27 +242,28 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
 
 -spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: jid:jid(),
                   SenderJID :: jid:jid(),
-                  HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+                  HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
+                  Acc :: mongoose_acc:t()) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
     noreply.
-encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun) ->
+encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, _Acc) ->
     LServer = RoomJID#jid.lserver,
     RegisteredFeatures = mongoose_disco:get_local_features(LServer, SenderJID, RoomJID, <<>>, <<>>),
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light">>}]} |
+                                {<<"name">>, <<"MUC Light (legacy)">>}]} |
                 mongoose_disco:features_to_xml([?NS_MUC | RegisteredFeatures])],
     {iq_reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
-          _RoomJID, _SenderJID, _HandleFun) ->
+          _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     DiscoEls = [ #xmlel{ name = <<"item">>,
                          attrs = [{<<"jid">>, <<RoomU/binary, $@, RoomS/binary>>},
                                   {<<"name">>, RoomName}] }
                  || {{RoomU, RoomS}, RoomName, _RoomVersion} <- Rooms ],
     {iq_reply, ?NS_DISCO_ITEMS, jlib:rsm_encode(RSMOut) ++ DiscoEls, ID};
-encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun) ->
+encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     ConfigEls = [ jlib:form_field({K, <<"text-single">>, V, K})
                   || {K, V} <- Config#config.raw_config ],
     XEl = #xmlel{ name = <<"x">>,
@@ -270,25 +274,26 @@ encode_meta({get, #config{} = Config}, _RoomJID, _SenderJID, _HandleFun) ->
                                                <<"http://jabber.org/protocol/muc#roomconfig">>})
                               | ConfigEls] },
     {iq_reply, ?NS_MUC_OWNER, [XEl], Config#config.id};
-encode_meta({get, #affiliations{} = Affs}, _RoomJID, _SenderJID, _HandleFun) ->
+encode_meta({get, #affiliations{} = Affs}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     AffEls = [ aff_user_to_item(AffUser) || AffUser <- Affs#affiliations.aff_users ],
     {iq_reply, ?NS_MUC_ADMIN, AffEls, Affs#affiliations.id};
 encode_meta({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
-            RoomJID, SenderJID, HandleFun) ->
+            RoomJID, SenderJID, HandleFun, _Acc) ->
     bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, SenderJID,
                        Affs#affiliations.aff_users, HandleFun),
     {iq_reply, Affs#affiliations.id};
-encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun) ->
-    MUCHost = gen_mod:get_module_opt_subhost(
-                SenderBareJID#jid.lserver, mod_muc_light, mod_muc_light:default_host()),
+encode_meta({get, #blocking{} = Blocking}, SenderBareJID, _SenderJID, _HandleFun, Acc) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    ServerHost = SenderBareJID#jid.lserver,
+    MUCHost = mongoose_subdomain_utils:get_fqdn(mod_muc_light:subdomain_pattern(HostType), ServerHost),
     BlockingEls = [ blocking_to_el(BlockingItem, MUCHost)
                     || BlockingItem <- Blocking#blocking.items ],
     Blocklist = #xmlel{ name = <<"list">>, attrs = [{<<"name">>, ?NS_MUC_LIGHT}],
                         children = BlockingEls },
     {iq_reply, ?NS_PRIVACY, [Blocklist], Blocking#blocking.id};
-encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun) ->
+encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun, _Acc) ->
     {iq_reply, ID};
-encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun) ->
+encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun, _Acc) ->
     [{{ToU, ToS}, CreatorAff}] = Create#create.aff_users,
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource({RoomJID#jid.luser, RoomJID#jid.lserver}, ToBin),
@@ -304,7 +309,7 @@ encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, Ha
 
     send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, Children, HandleFun),
     noreply;
-encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
+encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun, _Acc) ->
     lists:foreach(
       fun({{U, S}, _}) ->
               FromJID = jid:replace_resource(RoomJID, jid:to_binary({U, S, <<>>})),
@@ -320,7 +325,7 @@ encode_meta({set, #destroy{ id = ID }, AffUsers}, RoomJID, _SenderJID, HandleFun
 
     {iq_reply, ID};
 encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, AffUsers},
-          RoomJID, _SenderJID, HandleFun) ->
+          RoomJID, _SenderJID, HandleFun, _Acc) ->
     Attrs = [
              {<<"id">>, ID},
              {<<"type">>, <<"groupchat">>},
@@ -332,7 +337,7 @@ encode_meta({set, #config{ raw_config = [{<<"subject">>, Subject}], id = ID }, A
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, [SubjectEl], HandleFun)
       end, AffUsers),
     noreply;
-encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun) ->
+encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun, _Acc) ->
     Attrs = [{<<"id">>, Config#config.id},
              {<<"from">>, jid:to_binary(RoomJID)},
              {<<"type">>, <<"groupchat">>}],
@@ -490,4 +495,3 @@ get_sender_aff(Users, US) ->
         {US, Aff} -> Aff;
         _ -> undefined
     end.
-

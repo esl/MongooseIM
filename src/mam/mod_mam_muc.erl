@@ -44,20 +44,17 @@
 
 %% ejabberd room handlers
 -export([add_local_features/5,
-         filter_room_packet/2,
+         filter_room_packet/3,
          room_process_mam_iq/4,
-         forget_room/2,
-         forget_room/3]).
+         forget_room/4]).
 
 %% gdpr callback
 -export([get_personal_data/2]).
 
 %% private
--export([archive_message/2]).
+-export([archive_message_for_ct/1]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
--export([handle_set_message_form/3]).
--export([handle_lookup_result/4]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -105,6 +102,8 @@
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
 -type row() :: mod_mam:message_row().
+-type host_type() :: mongooseim:host_type().
+-type muc_action() :: atom().
 
 -export_type([row/0, row_batch/0]).
 
@@ -117,57 +116,45 @@ get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
     Entries = mongoose_hooks:get_mam_muc_gdpr_data(LServer, JID),
     [{mam_muc, Schema, Entries} | Acc].
 
--spec delete_archive(jid:server(), jid:user()) -> 'ok'.
-delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
-    ?LOG_DEBUG(#{what => mam_delete_room, room => RoomName, sub_host => SubHost}),
-    ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    ArcID = archive_id_int(Host, ArcJID),
-    remove_archive(Host, ArcID, ArcJID),
+-spec delete_archive(jid:server(), jid:user()) -> ok.
+delete_archive(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
+    ?LOG_DEBUG(#{what => mam_delete_room, room => RoomName, sub_host => MucHost}),
+    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
+    ArcID = archive_id_int(HostType, ArcJID),
+    remove_archive(HostType, ArcID, ArcJID),
     ok.
 
-
 -spec archive_size(jid:server(), jid:user()) -> integer().
-
-archive_size(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
-    ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    ArcID = archive_id_int(Host, ArcJID),
-    archive_size(Host, ArcID, ArcJID).
-
+archive_size(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
+    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
+    ArcID = archive_id_int(HostType, ArcJID),
+    archive_size(HostType, ArcID, ArcJID).
 
 -spec archive_id(jid:server(), jid:user()) -> integer().
-archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
-    ArcJID = jid:make(RoomName, SubHost, <<>>),
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    archive_id_int(Host, ArcJID).
+archive_id(MucHost, RoomName) when is_binary(MucHost), is_binary(RoomName) ->
+    ArcJID = jid:make(RoomName, MucHost, <<>>),
+    HostType = mod_muc_light_utils:room_jid_to_host_type(ArcJID),
+    archive_id_int(HostType, ArcJID).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for MUC archives
 
--spec start(Host :: jid:server(), Opts :: list()) -> any().
-start(Host, Opts) ->
+-spec start(HostType :: host_type(), Opts :: list()) -> any().
+start(HostType, Opts) ->
     ?LOG_DEBUG(#{what => mam_muc_starting}),
-    %% MUC host.
-    MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
-    ejabberd_hooks:add(hooks(Host, MUCHost)),
-    ensure_metrics(Host),
+    ensure_metrics(HostType),
+    ejabberd_hooks:add(hooks(HostType)),
+    add_iq_handlers(HostType, Opts),
     ok.
 
--spec stop(Host :: jid:server()) -> any().
-
-stop(Host) ->
-    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
+-spec stop(HostType :: host_type()) -> any().
+stop(HostType) ->
     ?LOG_DEBUG(#{what => mam_muc_stopping}),
-    ejabberd_hooks:delete(hooks(Host, MUCHost)),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
+    ejabberd_hooks:delete(hooks(HostType)),
+    remove_iq_handlers(HostType),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -182,34 +169,33 @@ add_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %% @doc Handle public MUC-message.
--spec filter_room_packet(Packet :: packet(),
+-spec filter_room_packet(Packet :: packet(), HostType :: host_type(),
                          EventData :: mod_muc:room_event_data()) -> packet().
-filter_room_packet(Packet, EventData = #{
-                             room_jid := #jid{lserver = LServer}
-                            }) ->
+filter_room_packet(Packet, HostType, EventData = #{}) ->
     ?LOG_DEBUG(#{what => mam_room_packet, text => <<"Incoming room packet">>,
                  packet => Packet, event_data => EventData}),
-    IsArchivable = is_archivable_message(LServer, incoming, Packet),
+    IsArchivable = is_archivable_message(HostType, incoming, Packet),
     case IsArchivable of
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
               role := Role, affiliation := Affiliation} = EventData,
-            archive_room_packet(Packet, FromNick, FromJID, RoomJID, Role, Affiliation);
+            archive_room_packet(HostType, Packet, FromNick, FromJID,
+                                RoomJID, Role, Affiliation);
         false -> Packet
     end.
 
-
 %% @doc Archive without validation.
--spec archive_room_packet(Packet :: packet(), FromNick :: jid:user(),
+-spec archive_room_packet(HostType :: host_type(),
+                          Packet :: packet(), FromNick :: jid:user(),
                           FromJID :: jid:jid(), RoomJID :: jid:jid(),
                           Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
-archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
-    {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
-    ArcID = archive_id_int(Host, RoomJID),
+archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
+                    RoomJID=#jid{}, Role, Affiliation) ->
+    ArcID = archive_id_int(HostType, RoomJID),
     %% Occupant JID <room@service/nick>
     SrcJID = jid:replace_resource(RoomJID, FromNick),
     IsInteresting =
-        case get_behaviour(Host, ArcID, RoomJID, SrcJID) of
+        case get_behaviour(HostType, ArcID, RoomJID, SrcJID) of
             always -> true;
             never -> false;
             roster -> true
@@ -227,19 +213,18 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
                        origin_id => OriginID,
                        direction => incoming,
                        packet => Packet1},
-            Result = archive_message(Host, Params),
-            %% Packet2 goes to archive, Packet to other users
+            %% Packet to be broadcasted and packet to be archived are
+            %% not 100% the same
+            Result = archive_message(HostType, Params),
             case Result of
                 ok ->
-                    maybe_add_arcid_elems(RoomJID,
-                                          mess_id_to_external_binary(MessID),
-                                             Packet,
-                                             mod_mam_params:add_stanzaid_element(?MODULE, Host));
+                    ExtID = mess_id_to_external_binary(MessID),
+                    ShouldAdd = mod_mam_params:add_stanzaid_element(?MODULE, HostType),
+                    maybe_add_arcid_elems(RoomJID, ExtID, Packet, ShouldAdd);
                 {error, _} -> Packet
             end;
         false -> Packet
     end.
-
 
 %% @doc `To' is an account or server entity hosting the archive.
 %% Servers that archive messages on behalf of local users SHOULD expose archives
@@ -248,101 +233,111 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 %% (i.e `To.luser').
 -spec room_process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                           IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
+room_process_mam_iq(From, To, Acc, IQ) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
-    case is_action_allowed(Action, From, To) of
-        true ->
-            case mod_mam_utils:wait_shaper(Host, Action, From) of
+    MucAction = action_to_muc_action(Action),
+    case check_action_allowed(HostType, To#jid.lserver, Action, MucAction, From, To) of
+        ok ->
+            case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, MucAction, From) of
                 ok ->
-                    handle_error_iq(Acc, Host, To, Action,
-                                    handle_mam_iq(Action, From, To, IQ));
+                    handle_error_iq(Acc, HostType, To, Action,
+                                    handle_mam_iq(HostType, Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+                    mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
                     {Acc, return_max_delay_reached_error_iq(IQ)}
             end;
-        false -> {Acc, return_action_not_allowed_error_iq(IQ)}
+        {error, Reason} ->
+            ?LOG_WARNING(#{what => action_not_allowed,
+                           action => Action, acc => Acc, reason => Reason,
+                           can_access_room => can_access_room(HostType, From, To)}),
+            {Acc, return_action_not_allowed_error_iq(Reason, IQ)}
     end.
 
-
-%% #rh
-%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(map(), jid:lserver(), binary()) -> map().
-forget_room(Acc, LServer, RoomName) ->
-    forget_room(LServer, RoomName),
+-spec forget_room(map(), host_type(), jid:lserver(), binary()) -> map().
+forget_room(Acc, _HostType, MucServer, RoomName) ->
+    delete_archive(MucServer, RoomName),
     Acc.
-
-%% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(jid:lserver(), binary()) -> 'ok'.
-forget_room(LServer, RoomName) ->
-    delete_archive(LServer, RoomName).
 
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec is_action_allowed(atom(), jid:jid(), jid:jid()) -> boolean().
-is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
-    case acl:match_rule(Host, Action, From, default) of
-        allow -> true;
-        deny -> false;
-        default -> is_action_allowed_by_default(Action, From, To)
+-spec check_action_allowed(host_type(), jid:lserver(), mam_iq:action(), muc_action(),
+                        jid:jid(), jid:jid()) -> ok | {error, binary()}.
+check_action_allowed(HostType, Domain, Action, MucAction, From, To) ->
+    case acl:match_rule_for_host_type(HostType, Domain, MucAction, From, default) of
+        allow -> ok;
+        deny -> {false, <<"Blocked by service policy.">>};
+        default -> check_room_action_allowed_by_default(HostType, Action, From, To)
     end.
 
--spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: jid:jid(),
-                                   To :: jid:jid()) -> boolean().
-is_action_allowed_by_default(Action, From, To) ->
-    is_room_action_allowed_by_default(Action, From, To).
+-spec action_to_muc_action(mam_iq:action()) -> atom().
+action_to_muc_action(Action) ->
+    list_to_atom("muc_" ++ atom_to_list(Action)).
 
--spec is_room_action_allowed_by_default(Action :: mam_iq:action(),
-                                        From :: jid:jid(), To :: jid:jid()) -> boolean().
-is_room_action_allowed_by_default(Action, From, To) ->
+-spec check_room_action_allowed_by_default(HostType :: host_type(),
+                                        Action :: mam_iq:action(),
+                                        From :: jid:jid(),
+                                        To :: jid:jid()) -> ok | {error, binary()}.
+check_room_action_allowed_by_default(HostType, Action, From, To) ->
     case mam_iq:action_type(Action) of
-        set -> is_room_owner(From, To);
-        get -> can_access_room(From, To)
+        set ->
+            case is_room_owner(HostType, From, To) of
+                true -> ok;
+                false -> {error, <<"Not a room owner.">>}
+            end;
+        get ->
+            case can_access_room(HostType, From, To) of
+                true -> ok;
+                false -> {error, <<"Not allowed to enter the room.">>}
+            end
     end.
 
-
--spec is_room_owner(User :: jid:jid(), Room :: jid:jid()) -> boolean().
-is_room_owner(User, Room) ->
-    mongoose_hooks:is_muc_room_owner(Room#jid.lserver, Room, User).
-
+-spec is_room_owner(HostType :: host_type(),
+                    UserJid :: jid:jid(), RoomJid :: jid:jid()) -> boolean().
+is_room_owner(HostType, UserJid, RoomJid) ->
+    mongoose_hooks:is_muc_room_owner(HostType, UserJid, RoomJid).
 
 %% @doc Return true if user element should be removed from results
--spec is_user_identity_hidden(User :: jid:jid(), Room :: jid:jid()) -> boolean().
-is_user_identity_hidden(User, Room) ->
-    case mongoose_hooks:can_access_identity(Room#jid.lserver, Room, User) of
+-spec is_user_identity_hidden(HostType :: host_type(),
+                              UserJid :: jid:jid(),
+                              RoomJid :: jid:jid()) -> boolean().
+is_user_identity_hidden(HostType, UserJid, RoomJid) ->
+    case mongoose_hooks:can_access_identity(HostType, RoomJid, UserJid) of
         CanAccess when is_boolean(CanAccess) -> not CanAccess
     end.
 
--spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
-can_access_room(User, Room) ->
-    mongoose_hooks:can_access_room(Room#jid.lserver, Room, User).
+-spec can_access_room(HostType :: host_type(),
+                      UserJid :: jid:jid(), RoomJid :: jid:jid()) -> boolean().
+can_access_room(HostType, UserJid, RoomJid) ->
+    mongoose_hooks:can_access_room(HostType, RoomJid, UserJid).
 
--spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(), jlib:iq()) ->
+-spec handle_mam_iq(HostType :: host_type(), mam_iq:action(),
+                    From :: jid:jid(), jid:jid(), jlib:iq()) ->
                            jlib:iq() | {error, any(), jlib:iq()} | ignore.
-handle_mam_iq(Action, From, To, IQ) ->
+handle_mam_iq(HostType, Action, From, To, IQ) ->
     case Action of
         mam_get_prefs ->
-            handle_get_prefs(To, IQ);
+            handle_get_prefs(HostType, To, IQ);
         mam_set_prefs ->
-            handle_set_prefs(To, IQ);
+            handle_set_prefs(HostType, To, IQ);
         mam_set_message_form ->
-            handle_set_message_form(From, To, IQ);
+            handle_set_message_form(HostType, From, To, IQ);
         mam_get_message_form ->
-            handle_get_message_form(From, To, IQ)
+            handle_get_message_form(HostType, From, To, IQ)
     end.
 
--spec handle_set_prefs(jid:jid(), jlib:iq()) ->
+-spec handle_set_prefs(host_type(), jid:jid(), jlib:iq()) ->
                               jlib:iq() | {error, any(), jlib:iq()}.
-handle_set_prefs(ArcJID = #jid{},
+handle_set_prefs(HostType, ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
     ?LOG_DEBUG(#{what => mam_muc_set_prefs, archive_jid => ArcJID,
                  default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    Res = set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
+    ArcID = archive_id_int(HostType, ArcJID),
+    Res = set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs),
     handle_set_prefs_result(Res, DefaultMode, AlwaysJIDs, NeverJIDs, IQ).
 
 handle_set_prefs_result(ok, DefaultMode, AlwaysJIDs, NeverJIDs, IQ) ->
@@ -352,13 +347,11 @@ handle_set_prefs_result({error, Reason},
                         _DefaultMode, _AlwaysJIDs, _NeverJIDs, IQ) ->
     return_error_iq(IQ, Reason).
 
-
--spec handle_get_prefs(jid:jid(), jlib:iq()) ->
+-spec handle_get_prefs(host_type(), jid:jid(), jlib:iq()) ->
                               jlib:iq() | {error, any(), jlib:iq()}.
-handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    Res = get_prefs(Host, ArcID, ArcJID, always),
+handle_get_prefs(HostType, ArcJID=#jid{}, IQ=#iq{}) ->
+    ArcID = archive_id_int(HostType, ArcJID),
+    Res = get_prefs(HostType, ArcID, ArcJID, always),
     handle_get_prefs_result(ArcJID, Res, IQ).
 
 handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
@@ -370,37 +363,38 @@ handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
 handle_get_prefs_result(_ArcJID, {error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
 
--spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
+-spec handle_set_message_form(HostType :: host_type(),
+                              From :: jid:jid(), ArcJID :: jid:jid(),
                               IQ :: jlib:iq()) ->
                                   jlib:iq() | ignore | {error, term(), jlib:iq()}.
-handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
-                                           mod_mam_params:default_result_limit(?MODULE, Host),
-                                           mod_mam_params:extra_params_module(?MODULE, Host)),
+handle_set_message_form(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
+    ArcID = archive_id_int(HostType, ArcJID),
+    ResLimit = mod_mam_params:max_result_limit(?MODULE, HostType),
+    DefLimit = mod_mam_params:default_result_limit(?MODULE, HostType),
+    ExtMod = mod_mam_params:extra_params_module(?MODULE, HostType),
+    Params0 = mam_iq:form_to_lookup_params(IQ, ResLimit, DefLimit, ExtMod),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
-    Result = lookup_messages(Host, Params),
-    handle_lookup_result(Result, From, IQ, Params).
+    Result = lookup_messages(HostType, Params),
+    handle_lookup_result(Result, HostType, From, IQ, Params).
 
--spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, jid:jid(),
-                           jlib:iq(), map()) ->
+-spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()},
+                           host_type(), jid:jid(), jlib:iq(), map()) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
-handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
+handle_lookup_result(Result, HostType, From, IQ, #{owner_jid := ArcJID} = Params) ->
     case Result of
         {error, Reason} ->
             report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
             return_error_iq(IQ, Reason);
         {ok, Res} ->
-            send_messages_and_iq_result(Res, From, IQ, Params)
+            send_messages_and_iq_result(Res, HostType, From, IQ, Params)
     end.
 
-send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
+send_messages_and_iq_result({TotalCount, Offset, MessageRows}, HostType, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
                             #{owner_jid := ArcJID} = Params) ->
     %% Forward messages
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
+    {FirstMessID, LastMessID} = forward_messages(HostType, From, ArcJID, MamNs,
                                                  QueryID, MessageRows, true),
 
     %% Make fin iq
@@ -410,17 +404,16 @@ send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
     FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl),
     IQ#iq{type = result, sub_el = [FinElem]}.
 
-forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
+forward_messages(HostType, From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
     %% Forward messages
     {FirstMessID, LastMessID, HideUser} =
         case MessageRows of
             [] -> {undefined, undefined, undefined};
             [_ | _] -> {message_row_to_ext_id(hd(MessageRows)),
                         message_row_to_ext_id(lists:last(MessageRows)),
-                        is_user_identity_hidden(From, ArcJID)}
+                        is_user_identity_hidden(HostType, From, ArcJID)}
         end,
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    SendModule = mod_mam_params:send_message_mod(?MODULE, Host),
+    SendModule = mod_mam_params:send_message_mod(?MODULE, HostType),
     [send_message(SendModule, Row, ArcJID, From,
                   message_row_to_xml(MamNs, From, HideUser, SetClientNs, Row,
                                      QueryID))
@@ -430,78 +423,80 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
 send_message(SendModule, Row, ArcJID, From, Packet) ->
     mam_send_message:call_send_message(SendModule, Row, ArcJID, From, Packet).
 
--spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
+-spec handle_get_message_form(host_type(), jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
-handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
-    return_message_form_iq(Host, IQ).
+handle_get_message_form(HostType,
+                        _From = #jid{}, _ArcJID = #jid{}, IQ = #iq{}) ->
+    return_message_form_iq(HostType, IQ).
 
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
-archive_id_int(Host, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_id(Host, ArcJID).
+-spec archive_id_int(HostType :: host_type(), ArcJID :: jid:jid()) ->
+    integer() | undefined.
+archive_id_int(HostType, ArcJID = #jid{}) ->
+    mongoose_hooks:mam_muc_archive_id(HostType, ArcJID).
 
+-spec archive_size(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
+                   ArcJID ::jid:jid()) -> non_neg_integer().
+archive_size(HostType, ArcID, ArcJID = #jid{}) ->
+    mongoose_hooks:mam_muc_archive_size(HostType, ArcID, ArcJID).
 
--spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
-                  -> integer().
-archive_size(Host, ArcID, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_archive_size(Host, ArcID, ArcJID).
-
--spec get_behaviour(jid:server(), mod_mam:archive_id(),
+-spec get_behaviour(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
-get_behaviour(Host, ArcID,
-              LocJID = #jid{},
-              RemJID = #jid{}) ->
-    mongoose_hooks:mam_muc_get_behaviour(Host, ArcID, LocJID, RemJID).
+get_behaviour(HostType, ArcID, LocJID = #jid{}, RemJID = #jid{}) ->
+    mongoose_hooks:mam_muc_get_behaviour(HostType, ArcID, LocJID, RemJID).
 
-
--spec set_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
+-spec set_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                 ArcJID :: jid:jid(), DefaultMode :: mod_mam:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
-set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    mongoose_hooks:mam_muc_set_prefs(Host, ArcID, ArcJID, DefaultMode,
+set_prefs(HostType, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    mongoose_hooks:mam_muc_set_prefs(HostType, ArcID, ArcJID, DefaultMode,
                                      AlwaysJIDs, NeverJIDs).
 
-
 %% @doc Load settings from the database.
--spec get_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
+-spec get_prefs(HostType :: host_type(), ArcID :: mod_mam:archive_id(),
                 ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
-get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
-    mongoose_hooks:mam_muc_get_prefs(Host, GlobalDefaultMode, ArcID, ArcJID).
+get_prefs(HostType, ArcID, ArcJID, GlobalDefaultMode) ->
+    mongoose_hooks:mam_muc_get_prefs(HostType, GlobalDefaultMode, ArcID, ArcJID).
 
--spec remove_archive(jid:server(), mod_mam:archive_id() | undefined,
-                     jid:jid()) -> 'ok'.
-remove_archive(Host, ArcID, ArcJID = #jid{}) ->
-    mongoose_hooks:mam_muc_remove_archive(Host, ArcID, ArcJID),
+-spec remove_archive(host_type(), mod_mam:archive_id() | undefined,
+                     jid:jid()) -> ok.
+remove_archive(HostType, ArcID, ArcJID = #jid{}) ->
+    mongoose_hooks:mam_muc_remove_archive(HostType, ArcID, ArcJID),
     ok.
 
-
 %% See description in mod_mam.
--spec lookup_messages(Host :: jid:server(), Params :: map()) ->
+-spec lookup_messages(HostType :: host_type(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}
-    | {error, Reason :: term()}.%Result :: any(),
-lookup_messages(Host, Params) ->
-    Result = lookup_messages_without_policy_violation_check(Host, Params),
+    | {error, Reason :: term()}.
+lookup_messages(HostType, Params) ->
+    Result = lookup_messages_without_policy_violation_check(HostType, Params),
     %% If a query returns a number of stanzas greater than this limit and the
     %% client did not specify a limit using RSM then the server should return
     %% a policy-violation error to the client.
     mod_mam_utils:check_result_for_policy_violation(Params, Result).
 
-lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText} = Params) ->
-    case SearchText /= undefined andalso not mod_mam_params:has_full_text_search(?MODULE, Host) of
+lookup_messages_without_policy_violation_check(HostType,
+                                               #{search_text := SearchText} = Params) ->
+    case SearchText /= undefined andalso
+         not mod_mam_params:has_full_text_search(?MODULE, HostType) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
-            mongoose_hooks:mam_muc_lookup_messages(Host, Params)
+            mongoose_hooks:mam_muc_lookup_messages(HostType, Params)
     end.
 
--spec archive_message(jid:server(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
-archive_message(Host, Params) ->
-    mongoose_hooks:mam_muc_archive_message(Host, Params).
+archive_message_for_ct(Params = #{local_jid := RoomJid}) ->
+    HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJid),
+    archive_message(HostType, Params).
+
+-spec archive_message(host_type(), mod_mam:archive_message_params()) -> ok | {error, timeout}.
+archive_message(HostType, Params) ->
+    mongoose_hooks:mam_muc_archive_message(HostType, Params).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -542,22 +537,22 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
 message_row_to_ext_id(#{id := MessID}) ->
     mess_id_to_external_binary(MessID).
 
--spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
+-spec handle_error_iq(mongoose_acc:t(), host_type(), jid:jid(), atom(),
     {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-handle_error_iq(Acc, Host, _To, _Action, {error, _Reason, IQ}) ->
-    mongoose_metrics:update(Host, modMucMamDroppedIQ, 1),
+handle_error_iq(Acc, HostType, _To, _Action, {error, _Reason, IQ}) ->
+    mongoose_metrics:update(HostType, modMucMamDroppedIQ, 1),
     {Acc, IQ};
-handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
+handle_error_iq(Acc, _HostType, _To, _Action, IQ) ->
     {Acc, IQ}.
 
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
+    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>)]}};
 return_error_iq(IQ, item_not_found) ->
     {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
-    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
+    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented(<<"en">>, <<"From mod_mam_muc">>)]}};
 return_error_iq(IQ, missing_with_jid) ->
     Error =  mongoose_xmpp_errors:bad_request(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",
@@ -566,10 +561,10 @@ return_error_iq(IQ, missing_with_jid) ->
 return_error_iq(IQ, Reason) ->
     {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
--spec return_action_not_allowed_error_iq(jlib:iq()) -> jlib:iq().
-return_action_not_allowed_error_iq(IQ) ->
+-spec return_action_not_allowed_error_iq(Reason :: binary(), jlib:iq()) -> jlib:iq().
+return_action_not_allowed_error_iq(Reason, IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
-                                 <<"en">>, <<"The action is not allowed.">>),
+                                 <<"en">>, <<"The action is not allowed. ", Reason/binary>>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 -spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
@@ -579,9 +574,8 @@ return_max_delay_reached_error_iq(IQ) ->
                  <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
-return_message_form_iq(Host, IQ) ->
-    IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
-
+return_message_form_iq(HostType, IQ) ->
+    IQ#iq{type = result, sub_el = [message_form(?MODULE, HostType, IQ#iq.xmlns)]}.
 
 % the stacktrace is a big lie
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
@@ -601,25 +595,40 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?LOG_ERROR(#{what => mam_muc_error, issue => Issue, reason => Reason,
                  user => LUser, server => LServer, iq => IQ, stacktrace => Stacktrace}).
 
--spec is_archivable_message(MUCHost :: jid:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(HostType :: host_type(),
+                            Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
-is_archivable_message(MUCHost, Dir, Packet) ->
-    {ok, Host} = mongoose_subhosts:get_host(MUCHost),
-    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
-    ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
+is_archivable_message(HostType, Dir, Packet) ->
+    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, HostType),
+    ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
--spec hooks(jid:lserver(), jid:lserver()) -> [ejabberd_hooks:hook()].
-hooks(Host, MUCHost) ->
+-spec hooks(host_type()) -> [ejabberd_hooks:hook()].
+hooks(HostType) ->
+    %% TODO multitenancy
+    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
     [{disco_local_features, MUCHost, ?MODULE, add_local_features, 99},
-     {filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 60},
-     {forget_room, MUCHost, ?MODULE, forget_room, 90},
-     {get_personal_data, Host, ?MODULE, get_personal_data, 50}
-     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(Host)].
+     {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
+     {forget_room, HostType, ?MODULE, forget_room, 90},
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
+     | mongoose_metrics_mam_hooks:get_mam_muc_hooks(HostType)].
 
-ensure_metrics(Host) ->
+add_iq_handlers(HostType, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06,
+                                  ?MODULE, room_process_mam_iq, IQDisc),
+    ok.
+
+remove_iq_handlers(HostType) ->
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04),
+    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06),
+    ok.
+
+ensure_metrics(HostType) ->
     lists:foreach(fun(Name) ->
-                      mongoose_metrics:ensure_metric(Host, Name, spiral)
+                      mongoose_metrics:ensure_metric(HostType, Name, spiral)
                   end,
                   spirals()).
 

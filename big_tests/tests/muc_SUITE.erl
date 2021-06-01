@@ -30,11 +30,10 @@
 
 -import(muc_helper,
         [muc_host/0,
-         load_muc/1,
+         load_muc/0,
          unload_muc/0,
          muc_host/0,
          start_room/5,
-         create_instant_room/5,
          generate_rpc_jid/1,
          destroy_room/1,
          destroy_room/2,
@@ -52,6 +51,8 @@
          disco_service_story/1,
          story_with_room/4
          ]).
+
+-import(domain_helper, [host_type/0]).
 
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
@@ -273,7 +274,6 @@ groups() ->
                                   deny_creation_of_http_password_protected_room_wrong_password
                                  ]},
          {room_registration_race_condition, [], [
-                                                 load_already_registered_permanent_rooms,
                                                  create_already_registered_room,
                                                  check_presence_route_to_offline_room,
                                                  check_message_route_to_offline_room
@@ -319,8 +319,9 @@ init_per_suite(Config) ->
     %% For mocking with unnamed functions
     mongoose_helper:inject_module(?MODULE),
     Config2 = escalus:init_per_suite(Config),
-    Config3 = dynamic_modules:save_modules(domain(), Config2),
-    load_muc(muc_host()),
+    Config3 = dynamic_modules:save_modules(host_type(), Config2),
+    dynamic_modules:restart(host_type(), mod_disco, []),
+    load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.
 
@@ -328,7 +329,7 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
     unload_muc(),
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_suite(Config).
 
 
@@ -373,17 +374,17 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
     end,
-    ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), required_modules(http_auth)),
+    ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules(http_auth)),
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-            dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
-            dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
-            dynamic_modules:start(domain(), mod_mam_rdbms_user, [pm, muc]),
+            dynamic_modules:restart(host_type(), mod_mam_muc_rdbms_arch, [muc]),
+            dynamic_modules:restart(host_type(), mod_mam_rdbms_prefs, [muc]),
+            dynamic_modules:restart(host_type(), mod_mam_rdbms_user, [pm, muc]),
             HostPattern = subhost_pattern("muc.@HOST@"),
-            dynamic_modules:start(domain(), mod_mam_muc, [{host, HostPattern}]);
+            dynamic_modules:restart(host_type(), mod_mam_muc, [{host, HostPattern}]);
         _ ->
             ok
     end,
@@ -398,8 +399,9 @@ init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
 required_modules(http_auth) ->
+    MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     [{mod_muc, [
-                {host, subhost_pattern("muc.@HOST@")},
+                {host, subhost_pattern(MucHostPattern)},
                 {access, muc},
                 {access_create, muc_create},
                 {http_auth_pool, muc_http_auth_test},
@@ -441,14 +443,14 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
-    dynamic_modules:restore_modules(domain(), Config);
+    dynamic_modules:restore_modules(host_type(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-    dynamic_modules:stop(domain(), mod_mam_muc_rdbms_arch),
-    dynamic_modules:stop(domain(), mod_mam_rdbms_prefs),
-    dynamic_modules:stop(domain(), mod_mam_rdbms_user),
-            dynamic_modules:stop(domain(), mod_mam_muc);
+    dynamic_modules:stop(host_type(), mod_mam_muc_rdbms_arch),
+    dynamic_modules:stop(host_type(), mod_mam_rdbms_prefs),
+    dynamic_modules:stop(host_type(), mod_mam_rdbms_user),
+            dynamic_modules:stop(host_type(), mod_mam_muc);
         _ ->
             ok
     end,
@@ -462,10 +464,6 @@ end_per_group(_GroupName, Config) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-init_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
-    meck_room(),
-    meck_room_start(),
-    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName = create_already_registered_room, Config) ->
     meck_room(),
     meck_room_start(),
@@ -530,9 +528,9 @@ init_per_testcase(CN, Config)
 
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
-    dynamic_modules:start(domain(), mod_mam_muc,
+    dynamic_modules:restart(host_type(), mod_mam_muc,
                           [{backend, rdbms},
-                           {host, subhost_pattern(muc_host())}]),
+                           {host, subhost_pattern(muc_helper:muc_host_pattern())}]),
     escalus:init_per_testcase(CaseName, Config);
 
 init_per_testcase(CaseName, Config) ->
@@ -544,34 +542,11 @@ meck_room() ->
 
 %% Meck will register a fake room right before a 'real' room is started
 meck_room_start() ->
-    rpc(mim(), meck, expect, [mod_muc_room, start,
-        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
-            mod_muc:register_room(Host, Room, ?FAKEPID),
-            meck:passthrough([Host,
-                ServerHost,
-                Access,
-                Room,
-                HistorySize,
-                RoomShaper,
-                HttpAuthPool,
-                Opts])
-        end]),
+    rpc(mim(), meck, expect, [mod_muc_room, init, fun ?MODULE:meck_init/1]).
 
-    rpc(mim(), meck, expect, [mod_muc_room, start,
-        fun(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
-
-            mod_muc:register_room(Host, Room, ?FAKEPID),
-            meck:passthrough([Host,
-                ServerHost,
-                Access,
-                Room,
-                HistorySize,
-                RoomShaper,
-                HttpAuthPool,
-                Creator,
-                Nick,
-                DefRoomOpts])
-        end]).
+meck_init(#{muc_host := Host, host_type := HostType, room_name := Room} = Args) ->
+    mod_muc:register_room(HostType, Host, Room, ?FAKEPID),
+    meck:passthrough([Args]).
 
 %% Meck will forward all calls to route to the test case instead
 meck_room_route() ->
@@ -585,9 +560,6 @@ meck_room_route() ->
 %    destroy_room(Config),
 %    escalus:end_per_testcase(CaseName, Config);
 
-end_per_testcase(CaseName = load_already_registered_permanent_rooms, Config) ->
-    rpc(mim(), meck, unload, []),
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = create_already_registered_room, Config) ->
     rpc(mim(), meck, unload, []),
     escalus:end_per_testcase(CaseName, Config);
@@ -628,7 +600,7 @@ end_per_testcase(CaseName =reserved_nickname_request, Config) ->
 
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
@@ -3071,10 +3043,10 @@ create_instant_room(Config) ->
         %% Bob should receive (in that order): Alices presence, his presence and the topic
 
         Preds = [fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
-            escalus_pred:is_stanza_from(<<RoomName/binary, "@muc.localhost/bob">>, Stanza)
+            escalus_pred:is_stanza_from(room_address(RoomName, <<"bob">>), Stanza)
         end,
         fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
-            escalus_pred:is_stanza_from(<<RoomName/binary, "@muc.localhost/alice-the-owner">>, Stanza)
+            escalus_pred:is_stanza_from(room_address(RoomName, <<"alice-the-owner">>), Stanza)
         end],
         escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
         escalus:wait_for_stanza(Bob), %topic
@@ -3200,7 +3172,7 @@ reserved_room_configuration(Config) ->
             {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
             {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
         Result = escalus:send_iq_and_wait_for_result(Alice, Form),
-        escalus:assert(is_stanza_from, [<<RoomName/binary,"@muc.localhost">>], Result),
+        escalus:assert(is_stanza_from, [room_address(RoomName)], Result),
 
         %% Check if it worked
         Stanza = escalus:send_iq_and_wait_for_result(
@@ -4074,10 +4046,10 @@ create_instant_http_password_protected_room(Config) ->
         %% Bob should receive (in that order): Alices presence, his presence and the topic
 
         Preds = [fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
-            escalus_pred:is_stanza_from(<<RoomName/binary, "@muc.localhost/bob">>, Stanza)
+            escalus_pred:is_stanza_from(room_address(RoomName, <<"bob">>), Stanza)
         end,
         fun(Stanza) -> escalus_pred:is_presence(Stanza) andalso
-            escalus_pred:is_stanza_from(<<RoomName/binary, "@muc.localhost/alice-the-owner">>, Stanza)
+            escalus_pred:is_stanza_from(room_address(RoomName, <<"alice-the-owner">>), Stanza)
         end],
         escalus:assert_many(Preds, escalus:wait_for_stanzas(Bob, 2)),
         escalus:wait_for_stanza(Bob), %topic
@@ -4287,7 +4259,7 @@ can_found_in_db_when_stopped(Config) ->
         {ok, _, Pid} = given_fresh_room_is_hibernated(
                          Alice, RoomName, [{persistentroom, true}]),
         true = wait_for_room_to_be_stopped(Pid, timer:seconds(8)),
-        {ok, _} = rpc(mim(), mod_muc, restore_room, [domain(), muc_host(), RoomName])
+        {ok, _} = rpc(mim(), mod_muc, restore_room, [host_type(), muc_host(), RoomName])
     end),
 
     destroy_room(muc_host(), RoomName),
@@ -4327,8 +4299,8 @@ given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     Result.
 
 given_fresh_room_for_user(Owner, RoomName, Opts) ->
-    RoomJID = {jid, RoomName, muc_host(), <<>>,
-               escalus_utils:jid_to_lower(RoomName), muc_host(), <<>>},
+    RoomJID = rpc(mim(), jid, make, [RoomName, muc_host(), <<>>]),
+    ct:log("RoomJID ~p", [RoomJID]),
     Nick = escalus_utils:get_username(Owner),
     JoinRoom = stanza_join_room(RoomName, Nick),
     escalus:send(Owner, JoinRoom),
@@ -4344,7 +4316,7 @@ maybe_configure(Owner, RoomName, Opts) ->
     Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
 
     Result = escalus:send_iq_and_wait_for_result(Owner, Form),
-    escalus:assert(is_stanza_from, [<<RoomName/binary, "@muc.localhost">>], Result),
+    escalus:assert(is_stanza_from, [room_address(RoomName)], Result),
     maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName).
 
 opt_to_room_config({Name, Value}) when is_atom(Value) ->
@@ -4406,11 +4378,12 @@ wait_for_room_to_be_stopped(Pid, Timeout) ->
     end.
 
 wait_for_hibernation(Pid) ->
-    mongoose_helper:wait_until(fun() -> is_hibernated(Pid) end, true, #{name => is_hibernated}).
+    mongoose_helper:wait_until(fun() -> process_current_function(Pid) end,
+                               {current_function, {erlang, hibernate, 3}},
+                               #{name => is_hibernated}).
 
-is_hibernated(Pid) ->
-    CurrentFunction = rpc(mim(), erlang, process_info, [Pid, current_function]),
-    {current_function, {erlang, hibernate, 3}} == CurrentFunction.
+process_current_function(Pid) ->
+    rpc(mim(), erlang, process_info, [Pid, current_function]).
 
 wait_for_mam_result(RoomName, Client, Msg) ->
     Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
@@ -4533,34 +4506,6 @@ parse_result_query(#xmlel{name = <<"query">>, children = Children}) ->
              index = Index,
              last = Last,
              count = Count}.
-
-%%--------------------------------------------------------------------
-%%  Room registration use cases
-%%  Tests for race condition that occurs when multiple users
-%%  attempt to start and/or register the same room at the same time
-%%--------------------------------------------------------------------
-load_already_registered_permanent_rooms(_Config) ->
-    Room = <<"testroom1">>,
-    Host = <<"localhost">>,
-    ServerHost = <<"localhost">>,
-    Access = none,
-    HistorySize = 10,
-    RoomShaper = none,
-    HttpAuthPool = none,
-
-    %% Write a permanent room
-    ok = rpc(mim(), mod_muc, store_room, [domain(), Host, Room, []]),
-
-    % Load permanent rooms
-    rpc(mim(), mod_muc, load_permanent_rooms,
-        [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
-
-    %% Read online room
-    RoomJID = mongoose_helper:make_jid(Room, Host, <<>>),
-    {ok, Pid} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
-
-    %% Check if the pid read from mnesia matches the fake pid
-    ?assert_equal(?FAKEPID, Pid).
 
 create_already_registered_room(Config) ->
     Room = <<"testroom2">>,
@@ -4744,8 +4689,7 @@ stanza_change_nick(Room, NewNick) ->
 
 start_rsm_rooms(Config, User, Nick) ->
     From = generate_rpc_jid(User),
-    [create_instant_room(
-            <<"localhost">>, generate_room_name(N), From, Nick, [])
+    [muc_helper:create_instant_room(generate_room_name(N), From, Nick, [])
      || N <- lists:seq(1, 15)],
     Config.
 

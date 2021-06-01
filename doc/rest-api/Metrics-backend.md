@@ -1,12 +1,12 @@
 ## Introduction
 
 **Warning:** This API is considered obsolete.
-Please use WombatOAM for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
+Please use [WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/) for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
 
 To expose MongooseIM metrics, an adequate endpoint must be included in the [listen](../advanced-configuration/listen.md)
 section of `mongooseim.toml`. The specific configuration options are described in
 the [metrics API handlers](../advanced-configuration/listen.md#handler-types-metrics-api-obsolete-mongoose_api)
-section. 
+section.
 
 An example configuration:
 
@@ -61,7 +61,7 @@ Example response:
 
 Returns ```200 OK``` and two elements:
 
-* `hosts` - A list of XMPP host names available on the server.
+* `host_types` - A list of host type names available on the server.
 * `metrics` - A list of per-host metrics.
 * `global` - A list of global metrics.
 
@@ -69,31 +69,31 @@ Returns ```200 OK``` and two elements:
 
 Returns ```200 OK``` and an element:
 
-* `metrics` - A list of aggregated (sum of all domains) per-host metrics with their values.
+* `metrics` - A list of aggregated (sum of all domains) per host type metrics with their values.
 
 ### GET /api/metrics/all/:metric
 
 On success returns ```200 OK``` and an element:
 
-* `metric` - An aggregated (sum of all domains) per-host metric.
+* `metric` - An aggregated (sum of all domains) per host type metric.
 
 Returns ```404 Not Found``` when metric `:metric` doesn't exist.
 
-### GET /api/metrics/host/:host
+### GET /api/metrics/host_type/:host_type
 
 On success returns ```200 OK``` and an element:
 
-* `metrics` - A list of per-host metrics and their values for host `:host`.
+* `metrics` - A list of per host type metrics and their values for host_type `:host_type`.
 
-Returns ```404 Not Found``` when host `:host` doesn't exist.
+Returns ```404 Not Found``` when host_type `:host_type` doesn't exist.
 
-### GET /api/metrics/host/:host/:metric
+### GET /api/metrics/host_type/:host_type/:metric
 
 On success returns ```200 OK``` and an element:
 
-* `metric` - A per-host metric `:metric` and its value for host `:host`.
+* `metric` - A per host type metric `:metric` and its value for host_type `:host_type`.
 
-Returns ```404 Not Found``` when the pair (host `:host`, metric `:metric`) doesn't exist.
+Returns ```404 Not Found``` when the pair (host_type `:host_type`, metric `:metric`) doesn't exist.
 
 ### GET /api/metrics/global
 

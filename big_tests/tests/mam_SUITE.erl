@@ -35,6 +35,7 @@
          mam_service_discovery/1,
          muc_service_discovery/1,
          simple_archive_request/1,
+         simple_archive_request_for_the_receiver/1,
          text_search_query_fails_if_disabled/1,
          text_search_is_not_available/1,
          simple_text_search_request/1,
@@ -195,7 +196,7 @@
          parse_messages/1,
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
-         host/0
+         host_type/0
         ]).
 
 -import(muc_light_helper,
@@ -235,10 +236,10 @@ all_configurations() ->
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
-    cassandra_configs(is_cassandra_enabled(host()))
-    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host()))
-    ++ riak_configs(is_riak_enabled(host()))
-    ++ elasticsearch_configs(is_elasticsearch_enabled(host())).
+    cassandra_configs(is_cassandra_enabled(host_type()))
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host_type()))
+    ++ riak_configs(is_riak_enabled(host_type()))
+    ++ elasticsearch_configs(is_elasticsearch_enabled(host_type())).
 
 rdbms_configs(true) ->
     [rdbms,
@@ -284,7 +285,7 @@ all() ->
     Reasons =
     case ct_helper:is_ct_running() of
         true ->
-            case is_mam_possible(host())  of
+            case is_mam_possible(host_type())  of
                 false -> [require_rdbms];
                 true  -> []
             end;
@@ -312,7 +313,6 @@ groups() ->
 is_skipped(_, _) ->
     false.
 
-
 basic_groups() ->
     [
      {mam_all, [parallel],
@@ -335,8 +335,6 @@ basic_groups() ->
               {rsm04,      [parallel], rsm_cases()},
               {rsm04_comp, [parallel], complete_flag_cases()},
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
-     {chat_markers, [parallel], [archive_chat_markers,
-                                 dont_archive_chat_markers]},
      {muc_all, [parallel],
            [{muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases() ++ muc_retract_cases()},
@@ -347,15 +345,20 @@ basic_groups() ->
      {prefs_cases,      [parallel], prefs_cases()},
      {impl_specific,    [], impl_specific()},
      {disabled_text_search, [],
-         [
-          {mam04, [], disabled_text_search_cases()}
-         ]},
+         [{mam04, [], disabled_text_search_cases()}]},
+     {chat_markers, [parallel],
+         [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
-      [{mam06, [parallel], disabled_retract_cases() ++ [mam_service_discovery]}]},
+      [{mam06, [parallel], disabled_retract_cases() ++ 
+            [mam_service_discovery]}]},
      {muc_disabled_retraction, [],
-      [{muc06, [parallel], disabled_muc_retract_cases() ++ [muc_service_discovery]}]}
+      [{muc06, [parallel], disabled_muc_retract_cases() ++
+            [muc_service_discovery]}]}
     ].
 
+chat_markers_cases() ->
+    [archive_chat_markers,
+     dont_archive_chat_markers].
 
 mam_metrics_cases() ->
     [metric_incremented_on_archive_request,
@@ -364,6 +367,7 @@ mam_metrics_cases() ->
 mam_cases() ->
     [mam_service_discovery,
      simple_archive_request,
+     simple_archive_request_for_the_receiver,
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
@@ -508,13 +512,13 @@ prefs_cases() ->
      run_set_and_get_prefs_cases].
 
 impl_specific() ->
-  [check_user_exist].
+    [check_user_exist].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    muc_helper:load_muc(muc_host()),
+    muc_helper:load_muc(),
     disable_sessions_limit(disable_shaping(
       delete_users([{escalus_user_db, {module, escalus_ejabberd}}
                   | escalus:init_per_suite(Config)]))).
@@ -557,7 +561,7 @@ set_shaper({Mam, Norm, Fast}) ->
     rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, Mam]),
     rpc_apply(ejabberd_config, add_global_option, [{shaper, normal, global}, Norm]),
     rpc_apply(ejabberd_config, add_global_option, [{shaper, fast, global}, Fast]),
-    rpc_apply(shaper_srv, reset_all_shapers, [host()]).
+    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]).
 
 disable_sessions_limit(Config) ->
     OldLimit = get_sessions_limit(),
@@ -634,11 +638,11 @@ init_per_group(Group, ConfigIn) ->
    end.
 
 backup_module_opts(Module) ->
-    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam_muc])}.
+    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host_type(), mod_mam_muc])}.
 
 restore_module_opts(Module, Config) ->
     ParamsB = proplists:get_value({params_backup, Module}, Config),
-    rpc_apply(gen_mod, set_module_opts, [host(), Module, ParamsB]).
+    rpc_apply(gen_mod, set_module_opts, [host_type(), Module, ParamsB]).
 
 do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
@@ -676,94 +680,94 @@ end_per_group(Group, Config) ->
 
 init_modules(rdbms, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(rdbms, Config),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
-    dynamic_modules:start(host(), mod_muc_light, [{host, subhost_pattern(muc_light_host())}]),
-    init_modules(BT, generic, [{muc_domain, "muclight.@HOST@"} | Config]);
+    dynamic_modules:start(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
+    init_modules(BT, generic, [{muc_domain, muc_light_helper:muc_host_pattern()} | Config]);
 init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(cassandra, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_cassandra_arch, []),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
+    init_module(host_type(), mod_mam_muc_cassandra_arch, []),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
     Config;
 init_modules(BT = elasticsearch, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(elasticsearch, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_elasticsearch_arch, []),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
+    init_module(host_type(), mod_mam_muc_elasticsearch_arch, []),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
     Config;
 init_modules(rdbms, C, Config) when C =:= muc_all;
                                     C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_simple, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
                                                C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_cache, C, Config) when C =:= muc_all;
                                           C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_cache_user, [muc]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
                                                 C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_cache_user, [muc]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
                                                      C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_muc_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_muc_cache_user, [muc]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
     skip;
 init_modules(rdbms_mnesia_cache, C, Config) when C =:= muc_all;
                                                  C =:= muc_disabled_retraction ->
-    init_module(host(), mod_mam_muc_rdbms_arch, []),
-    init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_cache_user, [muc]),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
+    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
+    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host_type(), mod_mam_cache_user, [muc]),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(BackendType, muc_light, Config) ->
@@ -771,100 +775,100 @@ init_modules(BackendType, muc_light, Config) ->
     case BackendType of
         cassandra -> ok;
         elasticsearch -> ok;
-        _ -> init_module(host(), mod_mam_rdbms_user, [muc, pm])
+        _ -> init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
     end,
     Config1;
 init_modules(rdbms, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, []),
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_simple, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [rdbms_simple_opts()]),
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, [rdbms_simple_opts()]),
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(riak_timed_yz_buckets, C, Config) ->
-    init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm, muc,
+    init_module(host_type(), mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(host_type(), mod_mam_mnesia_prefs, [pm, muc,
                                                {archive_key, mam_archive_key_server_user}]),
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
 init_modules(cassandra, C, Config) ->
-    init_module(host(), mod_mam_cassandra_arch, [pm]),
-    init_module(host(), mod_mam_cassandra_prefs, [pm]),
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_cassandra_arch, [pm]),
+    init_module(host_type(), mod_mam_cassandra_prefs, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     Config;
 init_modules(elasticsearch, C, Config) ->
-    init_module(host(), mod_mam_elasticsearch_arch, [pm]),
-    init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_elasticsearch_arch, [pm]),
+    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     Config;
 init_modules(rdbms_async, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
+    init_module(host_type(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_async_pool, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
+    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_mnesia, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, []),
-    init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, []),
+    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_cache, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, []),
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, []),
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(rdbms_async_cache, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
+    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(rdbms_mnesia_cache, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, []),
-    init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_rdbms_user, [pm]),
-    init_module(host(), mod_mam_cache_user, [pm]),
+    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host_type(), mod_mam_rdbms_arch, []),
+    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host_type(), mod_mam_rdbms_user, [pm]),
+    init_module(host_type(), mod_mam_cache_user, [pm]),
     Config.
 
 rdbms_simple_opts() ->
     [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
 
 init_modules_for_muc_light(BackendType, Config) ->
-    dynamic_modules:start(host(), mod_muc_light, [{host, subhost_pattern(muc_light_host())}]),
-    Config1 = init_modules(BackendType, muc_all, [{muc_domain, "muclight.@HOST@"} | Config]),
+    dynamic_modules:restart(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
+    Config1 = init_modules(BackendType, muc_all, [{muc_domain, muc_helper:muc_host_pattern()} | Config]),
     init_modules(BackendType, pm, [{archive_groupchats, false} | Config1]).
 
 end_modules(C, muc_light, Config) ->
     end_modules(C, generic, Config),
-    dynamic_modules:stop(host(), mod_muc_light),
+    dynamic_modules:stop(host_type(), mod_muc_light),
     Config;
 end_modules(_, _, Config) ->
-    [stop_module(host(), M) || M <- mam_modules()],
+    [stop_module(host_type(), M) || M <- mam_modules()],
     Config.
 
 muc_domain(Config) ->
-    proplists:get_value(muc_domain, Config, "muc.@HOST@").
+    proplists:get_value(muc_domain, Config, muc_helper:muc_host_pattern()).
 
 addin_mam_options(disabled_text_search, Config) ->
     [{full_text_search, false} | addin_mam_options(Config)];
@@ -962,19 +966,19 @@ init_per_testcase(C=muc_archive_request, Config) ->
         end,
     escalus:init_per_testcase(C, start_alice_room(Config2));
 init_per_testcase(C=muc_no_elements, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, [no_stanzaid_element]]),
+    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam_muc, [no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_only_stanzaid, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, []]),
+    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam_muc, []]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=no_elements, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, [no_stanzaid_element]]),
+    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, [no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=only_stanzaid, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, []]),
+    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, []]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
@@ -1033,17 +1037,17 @@ init_per_testcase(C=muc_text_search_request, Config) ->
 
     skip_if_cassandra(Config, Init);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    OrigVal = rpc(mim(), gen_mod, get_module_opt, [host(), mod_mam, archive_groupchats, false]),
-    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, true]),
+    OrigVal = rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_mam, archive_groupchats, false]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, archive_groupchats, true]),
     clean_archives(Config),
     escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
 init_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, ConfigIn) ->
     Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
-    rpc_apply(gen_mod, set_module_opt, [host(), mod_mam_muc, archive_chat_markers, true]),
+    rpc_apply(gen_mod, set_module_opt, [host_type(), mod_mam_muc, archive_chat_markers, true]),
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, ConfigIn) ->
     Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
-    rpc_apply(gen_mod, set_module_opt, [host(), mod_mam_muc, archive_chat_markers, false]),
+    rpc_apply(gen_mod, set_module_opt, [host_type(), mod_mam_muc, archive_chat_markers, false]),
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
@@ -1125,7 +1129,7 @@ end_per_testcase(C=muc_only_stanzaid, Config) ->
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
-    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, OrigVal]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, archive_groupchats, OrigVal]),
     escalus:end_per_testcase(C, Config1);
 end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
     restore_module_opts(mod_mam_muc, Config),
@@ -1311,6 +1315,21 @@ simple_archive_request(Config) ->
         mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(Alice),
+        assert_respond_size(1, Res),
+        assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+simple_archive_request_for_the_receiver(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        BobMsg = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, BobMsg),
+        mam_helper:wait_for_archive_size(Bob, 1),
+        escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
+        Res = wait_archive_respond(Bob),
         assert_respond_size(1, Res),
         assert_respond_query_id(P, <<"q1">>, parse_result_iq(Res)),
         ok
@@ -2979,7 +2998,7 @@ metric_incremented_on_archive_request(ConfigIn) ->
         assert_respond_query_id(P, <<"metric_q1">>, parse_result_iq(Res)),
         ok
         end,
-    MongooseMetrics = [{[host(), backends, mod_mam, lookup], changed}],
+    MongooseMetrics = [{[host_type(), backends, mod_mam, lookup], changed}],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}], F).
 

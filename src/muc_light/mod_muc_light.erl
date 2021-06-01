@@ -29,7 +29,7 @@
 
 %% For Administration API
 -export([try_to_create_room/3,
-         change_room_config/4,
+         change_room_config/5,
          delete_room/1]).
 
 %% gen_mod callbacks
@@ -43,21 +43,29 @@
 
 %% Hook handlers
 -export([prevent_service_unavailable/4,
-         get_muc_service/5,
+         disco_local_items/5,
          remove_user/3,
          remove_domain/3,
          add_rooms_to_roster/2,
          process_iq_get/5,
          process_iq_set/4,
-         is_room_owner/3,
-         can_access_room/3,
-         can_access_identity/3,
-         muc_room_pid/2]).
+         is_muc_room_owner/4,
+         can_access_room/4,
+         can_access_identity/4]).
 
 %% For propEr
 -export([apply_rsm/3]).
 
 -export([config_metrics/1]).
+%% for mod_muc_light_codec_legacy
+-export([subdomain_pattern/1]).
+
+%% For tests
+-export([set_module_opt_from_ct/3,
+         force_clear_from_ct/0]).
+
+-type muc_server() :: jid:lserver().
+-type host_type() :: mongooseim:host_type().
 
 %%====================================================================
 %% API
@@ -72,13 +80,32 @@ default_schema_definition() ->
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"muclight.@HOST@">>).
 
--spec default_config(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:kv().
+-spec default_config(MUCServer :: muc_server()) -> mod_muc_light_room_config:kv().
 default_config(MUCServer) ->
-    gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, default_config, []).
+    HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
+    default_config_for_host_type(HostType).
 
--spec config_schema(MUCServer :: jid:lserver()) -> mod_muc_light_room_config:schema().
+-spec config_schema(MUCServer :: muc_server()) -> mod_muc_light_room_config:schema().
 config_schema(MUCServer) ->
-    gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
+    HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
+    config_schema_for_host_type(HostType).
+
+%% Internals
+-spec default_config_for_host_type(host_type()) -> mod_muc_light_room_config:kv().
+default_config_for_host_type(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, computed_default_config, []).
+
+-spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
+config_schema_for_host_type(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, computed_config_schema, undefined).
+
+set_module_opt_from_ct(HostType, K, V) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, K, V),
+    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    set_dynamic_opts(HostType, Opts).
+
+force_clear_from_ct() ->
+    mod_muc_light_db_backend:force_clear().
 
 %%====================================================================
 %% Administration API
@@ -87,17 +114,14 @@ config_schema(MUCServer) ->
 -spec try_to_create_room(CreatorUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(),
                          CreationCfg :: create_req_props()) ->
     {ok, jid:simple_bare_jid(), create_req_props()}
-    | {error, validation_error() | bad_request | exists}.
+    | {error, validation_error() | bad_request | exists | max_occupants_reached}.
 try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
-    {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
-    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
-                        CreatorUS, RoomUS, CreationCfg#create.aff_users),
-    MaxOccupants = gen_mod:get_module_opt_by_subhost(
-                     RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
-    case {mod_muc_light_room_config:apply_binary_kv(
-            RawConfig, default_config(RoomS), config_schema(RoomS)),
-          process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
-        {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
+    RoomUS = jid:to_lus(RoomJID),
+    HostType = mod_muc_light_utils:room_jid_to_host_type(RoomJID),
+    CfgRes = prepare_config(HostType, RawConfig),
+    AffRes = prepare_affs(HostType, CreatorUS, RoomUS, CreationCfg),
+    case {CfgRes, AffRes} of
+        {{ok, Config0}, {ok, FinalAffUsers}} ->
             Version = mongoose_bin:gen_from_timestamp(),
             case mod_muc_light_db_backend:create_room(
                    RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
@@ -109,21 +133,23 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             end;
         {{error, _} = Error, _} ->
             Error;
-        _ ->
-            {error, bad_request}
+        {_, {error, _} = Error} ->
+            Error
     end.
 
 -spec change_room_config(UserJid :: jid:jid(), RoomID :: jid:resource(),
-                         MUCLightDomain :: jid:server(), ConfigReq :: config_req_props()) ->
+                         MUCLightDomain :: jid:server(),
+                         ConfigReq :: config_req_props(),
+                         Acc :: mongoose_acc:t()) ->
     {ok, jid:jid(), config_req_props()}
     | {error, validation_error() | bad_request | not_allowed}.
-change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq) ->
+change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq, Acc) ->
     R = {RoomID, MUCLightDomain},
     RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
     RoomUS = jid:to_lus(RoomJID),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
 
-    case mod_muc_light_room:process_request(UserJid, R, {set, ConfigReq}, AffUsersRes) of
+    case mod_muc_light_room:process_request(UserJid, R, {set, ConfigReq}, AffUsersRes, Acc) of
         {set, ConfigResp, _} ->
             {ok, RoomJID, ConfigResp};
         {error, _Reason} = E ->
@@ -138,66 +164,60 @@ delete_room(RoomUS) ->
 %% gen_mod callbacks
 %%====================================================================
 
--spec start(Host :: jid:server(), Opts :: list()) -> ok.
-start(Host, Opts) ->
-    %% Prevent sending service-unavailable on groupchat messages
-
-    MUCHost = gen_mod:get_opt_subhost(Host, Opts, default_host()),
-    ejabberd_hooks:add(hooks(Host, MUCHost)),
-
-    case gen_mod:get_opt(rooms_in_rosters, Opts, ?DEFAULT_ROOMS_IN_ROSTERS) of
-        false -> ignore;
-        true -> ejabberd_hooks:add(roster_get, Host, ?MODULE, add_rooms_to_roster, 50)
-    end,
-
-    TrackedDBFuns = [create_room, destroy_room, room_exists, get_user_rooms,
-                     remove_user, remove_domain,
-                     get_config, set_config, get_blocking, set_blocking,
-                     get_aff_users, modify_aff_users],
-    gen_mod:start_backend_module(mod_muc_light_db, Opts, TrackedDBFuns),
-    Codec = case gen_mod:get_opt(legacy_mode, Opts, ?DEFAULT_LEGACY_MODE) of
-                false ->
-                    modern;
-                true ->
-                    ejabberd_hooks:add(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
-                    ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 1),
-                    legacy
-            end,
+-spec start(HostType :: host_type(), Opts :: list()) -> ok.
+start(HostType, Opts) ->
+    set_dynamic_opts(HostType, Opts),
+    Codec = host_type_to_codec(HostType),
+    gen_mod:start_backend_module(mod_muc_light_db, Opts, tracked_db_funs()),
     gen_mod:start_backend_module(mod_muc_light_codec, [{backend, Codec}], []),
+    mod_muc_light_db_backend:start(HostType),
+    ejabberd_hooks:add(hooks(HostType)),
+    %% Handler
+    SubdomainPattern = subdomain_pattern(HostType),
+    PacketHandler = mongoose_packet_handler:new(?MODULE),
+    mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
+    ok.
 
-    mod_muc_light_db_backend:start(Host, MUCHost),
-    mongoose_subhosts:register(Host, MUCHost),
-    ejabberd_router:register_route(MUCHost, mongoose_packet_handler:new(?MODULE)),
+-spec stop(HostType :: host_type()) -> ok.
+stop(HostType) ->
+    SubdomainPattern = subdomain_pattern(HostType),
+    mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
+    mod_muc_light_db_backend:stop(HostType),
+    ejabberd_hooks:delete(hooks(HostType)),
+    ok.
 
+%% Init helpers
+subdomain_pattern(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
+
+server_host_to_muc_host(HostType, ServerHost) ->
+    mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
+
+host_type_to_codec(HostType) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+        true ->
+            legacy;
+        false ->
+            modern
+    end.
+
+tracked_db_funs() ->
+    [create_room, destroy_room, room_exists, get_user_rooms,
+     remove_user, remove_domain,
+     get_config, set_config, get_blocking, set_blocking,
+     get_aff_users, modify_aff_users].
+
+set_dynamic_opts(HostType, Opts) ->
     %% Prepare config schema
-    ConfigSchema = mod_muc_light_room_config:schema_from_definition(
-                     gen_mod:get_opt(config_schema, Opts, default_schema_definition())),
-    gen_mod:set_module_opt(Host, ?MODULE, config_schema, ConfigSchema),
-
+    Def = gen_mod:get_opt(config_schema, Opts, default_schema_definition()),
+    ConfigSchema = mod_muc_light_room_config:schema_from_definition(Def),
+    %% XXX That is a bad style
+    gen_mod:set_module_opt(HostType, ?MODULE, computed_config_schema, ConfigSchema),
     %% Prepare default config
     DefaultConfig = mod_muc_light_room_config:default_from_schema(ConfigSchema),
-    gen_mod:set_module_opt(Host, ?MODULE, default_config, DefaultConfig),
+    gen_mod:set_module_opt(HostType, ?MODULE, computed_default_config, DefaultConfig).
 
-    ok.
-
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    MUCHost = gen_mod:get_module_opt_subhost(Host, ?MODULE, default_host()),
-    ejabberd_router:unregister_route(MUCHost),
-    mongoose_subhosts:unregister(MUCHost),
-
-    mod_muc_light_db_backend:stop(Host, MUCHost),
-
-    ejabberd_hooks:delete(hooks(Host, MUCHost)),
-
-    %% Hook for room in roster
-    ejabberd_hooks:delete(roster_get, Host, ?MODULE, add_rooms_to_roster, 50),
-    %% Hooks for legacy mode
-    ejabberd_hooks:delete(privacy_iq_get, Host, ?MODULE, process_iq_get, 1),
-    ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 1),
-
-    ok.
-
+%% Config callbacks
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
@@ -247,16 +267,28 @@ process_config_schema_value([{string_value, Val}]) -> {Val, binary};
 process_config_schema_value([{integer_value, Val}]) -> {Val, integer};
 process_config_schema_value([{float_value, Val}]) -> {Val, float}.
 
-hooks(Host, MUCHost) ->
-    [{is_muc_room_owner, MUCHost, ?MODULE, is_room_owner, 50},
-     {muc_room_pid, MUCHost, ?MODULE, muc_room_pid, 50},
-     {can_access_room, MUCHost, ?MODULE, can_access_room, 50},
-     {can_access_identity, MUCHost, ?MODULE, can_access_identity, 50},
-
-     {offline_groupchat_message_hook, Host, ?MODULE, prevent_service_unavailable, 90},
-     {remove_user, Host, ?MODULE, remove_user, 50},
-     {remove_domain, Host, ?MODULE, remove_domain, 50},
-     {disco_local_items, Host, ?MODULE, get_muc_service, 50}].
+hooks(HostType) ->
+    Codec = host_type_to_codec(HostType),
+    Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters, ?DEFAULT_ROOMS_IN_ROSTERS),
+    [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
+     {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
+      %% Prevent sending service-unavailable on groupchat messages
+     {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
+     {remove_user, HostType, ?MODULE, remove_user, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
+     {disco_local_items, HostType, ?MODULE, disco_local_items, 250}] ++
+    case Codec of
+        legacy ->
+            [{privacy_iq_get, HostType, ?MODULE, process_iq_get, 1},
+             {privacy_iq_set, HostType, ?MODULE, process_iq_set, 1}];
+        _ ->
+            []
+    end ++
+    case Roster of
+        false -> [];
+        true -> [{roster_get, HostType, ?MODULE, add_rooms_to_roster, 50}]
+    end.
 
 %%====================================================================
 %% Routing
@@ -265,60 +297,67 @@ hooks(Host, MUCHost) ->
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
                      El :: exml:element(), Extra :: map()) -> any().
 process_packet(Acc, From, To, El, _Extra) ->
-    process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), Acc, El).
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    DecodedPacket = mod_muc_light_codec_backend:decode(From, To, El, Acc),
+    process_decoded_packet(HostType, From, To, Acc, El, DecodedPacket).
 
--spec process_decoded_packet(From :: jid:jid(), To :: jid:jid(),
-                     DecodedPacket :: mod_muc_light_codec:decode_result(),
+-spec process_decoded_packet(
+                     HostType :: host_type(),
+                     From :: jid:jid(), To :: jid:jid(),
                      Acc :: mongoose_acc:t(),
-                     OrigPacket :: exml:element()) -> any().
-process_decoded_packet(From, To, {ok, {set, #create{} = Create}}, Acc, OrigPacket) ->
+                     OrigPacket :: exml:element(),
+                     DecodedPacket :: mod_muc_light_codec:decode_result()) -> any().
+process_decoded_packet(HostType, From, To, Acc, El,
+                       {ok, {set, #create{} = Create}}) ->
     FromUS = jid:to_lus(From),
-    case not mod_muc_light_utils:room_limit_reached(FromUS, To#jid.lserver) of
-        true ->
-            create_room(Acc, From, FromUS, To, Create, OrigPacket);
-        false ->
-            mod_muc_light_codec_backend:encode_error(
-              {error, bad_request}, From, To, OrigPacket, make_handler_fun(Acc))
+    case not mod_muc_light_utils:room_limit_reached(FromUS, HostType) of
+        true -> create_room(Acc, From, FromUS, To, Create, El);
+        false -> make_err(From, To, El, Acc, {error, room_limit_reached})
     end;
-process_decoded_packet(From, To, {ok, {get, #disco_info{} = DI}}, _Acc, _OrigPacket) ->
-    handle_disco_info_get(From, To, DI);
-process_decoded_packet(From, To, {ok, {get, #disco_items{} = DI}}, _Acc, OrigPacket) ->
-    handle_disco_items_get(From, To, DI, OrigPacket);
-process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, Acc, OrigPacket) ->
-    RouteFun = make_handler_fun(Acc),
-    case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
+process_decoded_packet(_HostType, From, To, Acc, _El,
+                       {ok, {get, #disco_info{} = DI}}) ->
+    handle_disco_info_get(From, To, DI, Acc);
+process_decoded_packet(HostType, From, To, Acc, El,
+                       {ok, {get, #disco_items{} = DI}}) ->
+    handle_disco_items_get(HostType, Acc, From, To, DI, El);
+process_decoded_packet(HostType, From, To, Acc, El,
+                       {ok, {_, #blocking{}} = Blocking}) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
-            case handle_blocking(From, To, Blocking) of
-                {error, _} = Res ->
-                    mod_muc_light_codec_backend:encode_error(Res, From, To, OrigPacket, RouteFun);
-                _ ->
-                    ok
+            case handle_blocking(Acc, From, To, Blocking) of
+                {error, _} = Res -> make_err(From, To, El, Acc, Res);
+                _ -> ok
             end;
-        false -> mod_muc_light_codec_backend:encode_error(
-                   {error, bad_request}, From, To, OrigPacket, RouteFun)
+        false -> make_err(From, To, El, Acc, {error, blocking_disabled})
     end;
-process_decoded_packet(From, To, {ok, #iq{} = IQ}, Acc, OrigPacket) ->
-    case mod_muc_iq:process_iq(To#jid.lserver, From, To, Acc, IQ) of
+process_decoded_packet(HostType, From, To, Acc, El,
+                       {ok, #iq{} = IQ}) ->
+    case mod_muc_iq:process_iq(HostType, From, To, Acc, IQ) of
         {Acc1, error} ->
-            mod_muc_light_codec_backend:encode_error(
-              {error, feature_not_implemented}, From, To, OrigPacket, make_handler_fun(Acc1));
+            E = {error, {feature_not_implemented, <<"mod_muc_iq returns error">>}},
+            make_err(From, To, El, Acc1, E);
         _ -> ok
     end;
-process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, Acc, OrigPacket)
-  when RoomU =/= <<>> ->
+process_decoded_packet(_HostType, From, To, Acc, El,
+                       {ok, RequestToRoom})
+  when To#jid.luser =/= <<>> ->
     case mod_muc_light_db_backend:room_exists(jid:to_lus(To)) of
-        true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom, Acc);
-        false -> mod_muc_light_codec_backend:encode_error(
-                   {error, item_not_found}, From, To, OrigPacket, make_handler_fun(Acc))
+        true -> mod_muc_light_room:handle_request(From, To, El, RequestToRoom, Acc);
+        false -> make_err(From, To, El, Acc, {error, item_not_found})
     end;
-process_decoded_packet(From, To, {error, _} = Err, Acc, OrigPacket) ->
-    mod_muc_light_codec_backend:encode_error(
-      Err, From, To, OrigPacket, make_handler_fun(Acc));
-process_decoded_packet(_From, _To, ignore, _Acc, _OrigPacket) ->
+process_decoded_packet(_HostType, From, To, Acc, El,
+                       {error, _} = Err) ->
+    make_err(From, To, El, Acc, Err);
+process_decoded_packet(_HostType, _From, _To, _Acc, _El, ignore) ->
      ok;
-process_decoded_packet(From, To, _InvalidReq, Acc, OrigPacket) ->
-    mod_muc_light_codec_backend:encode_error(
-      {error, bad_request}, From, To, OrigPacket, make_handler_fun(Acc)).
+process_decoded_packet(_HostType, From, To, Acc, El, InvalidReq) ->
+    ?LOG_WARNING(#{what => muc_light_invalid_request,
+                   acc => Acc, reason => InvalidReq}),
+    make_err(From, To, El, Acc, {error, bad_request}).
+
+make_err(From, To, El, Acc, Reason) ->
+    mod_muc_light_codec_backend:encode_error(Reason, From, To, El,
+                                             make_handler_fun(Acc)).
 
 %%====================================================================
 %% Hook handlers
@@ -332,18 +371,23 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
--spec get_muc_service(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+-spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
           mongoose_disco:item_acc().
-get_muc_service(Acc, _From, #jid{lserver = LServer} = _To, <<>>, _Lang) ->
-    XMLNS = case gen_mod:get_module_opt(LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+    XMLNS = case legacy_mode(HostType) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
             end,
-    SubHost = gen_mod:get_module_opt_subhost(LServer, ?MODULE, default_host()),
-    Items = [#{jid => SubHost, node => XMLNS}],
+    MUCHost = server_host_to_muc_host(HostType, ServerHost),
+    Items = [#{jid => MUCHost, node => XMLNS}],
     mongoose_disco:add_items(Items, Acc);
-get_muc_service(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
+
+legacy_mode(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE).
 
 -spec remove_user(Acc :: mongoose_acc:t(), User :: binary(), Server :: binary()) ->
     mongoose_acc:t().
@@ -353,12 +397,13 @@ remove_user(Acc, User, Server) ->
     UserUS = {LUser, LServer},
     Version = mongoose_bin:gen_from_timestamp(),
     case mod_muc_light_db_backend:remove_user(UserUS, Version) of
-        {error, Reason} = Err ->
+        {error, Reason} ->
             ?LOG_ERROR(#{what => muc_remove_user_failed,
-                         reason => Reason, acc => Acc});
+                         reason => Reason, acc => Acc}),
+            Acc;
         AffectedRooms ->
-            bcast_removed_user(UserUS, AffectedRooms, Version),
-            maybe_forget_rooms(AffectedRooms),
+            bcast_removed_user(Acc, UserUS, AffectedRooms, Version),
+            maybe_forget_rooms(Acc, AffectedRooms),
             Acc
     end.
 
@@ -366,8 +411,7 @@ remove_user(Acc, User, Server) ->
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    MUCHost = gen_mod:get_module_opt_subhost(Domain, ?MODULE, default_host()),
-    ?LOG_ERROR(#{what => remove_domain_muc, host_type => HostType, domain => Domain}),
+    MUCHost = server_host_to_muc_host(HostType, Domain),
     mod_muc_light_db_backend:remove_domain(HostType, MUCHost, Domain),
     Acc.
 
@@ -377,35 +421,35 @@ add_rooms_to_roster(Acc, UserJID) ->
     Items = mongoose_acc:get(roster, items, [], Acc),
     RoomList = mod_muc_light_db_backend:get_user_rooms(UserUS, undefined),
     Info = get_rooms_info(lists:sort(RoomList)),
-    NewItems = lists:foldl(
-      fun({{RoomU, RoomS}, RoomName, RoomVersion}, Items0) ->
-              JID = jid:make_noprep(RoomU, RoomS, <<>>),
-              Item = #roster{
-                        usj = {RoomU, RoomS, jid:to_lower(JID)},
-                        us = {RoomU, RoomS},
-                        jid = jid:to_lower(JID),
-                        name = RoomName,
-                        subscription = to,
-                        groups = [?NS_MUC_LIGHT],
-                        xs = [#xmlel{ name = <<"version">>,
-                                      children = [#xmlcdata{ content = RoomVersion }] }]
-                       },
-              [Item | Items0]
-      end, Items, Info),
+    NewItems = [make_roster_item(Item) || Item <- Info] ++ Items,
     mongoose_acc:set(roster, items, NewItems, Acc).
+
+make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
+    JID = jid:make_noprep(RoomU, RoomS, <<>>),
+    VerEl = #xmlel{ name = <<"version">>,
+                    children = [#xmlcdata{ content = RoomVersion }] },
+    #roster{usj = {RoomU, RoomS, jid:to_lower(JID)},
+            us = {RoomU, RoomS},
+            jid = jid:to_lower(JID),
+            name = RoomName,
+            subscription = to,
+            groups = [?NS_MUC_LIGHT],
+            xs = [VerEl] }.
 
 -spec process_iq_get(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                      IQ :: jlib:iq(), ActiveList :: binary()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
-    MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ),
-          gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    MUCHost = server_host_to_muc_host(HostType, FromS),
+    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
+          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), MUCHost),
             mod_muc_light_codec_backend:encode(
               {get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
-              fun(_, _, Packet) -> put(encode_res, Packet) end),
+              fun(_, _, Packet) -> put(encode_res, Packet) end,
+              Acc),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
             Result = {result, ResponseChildren},
             {stop, mongoose_acc:set(hook, result, Result, Acc)};
@@ -417,13 +461,15 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
             mongoose_acc:set(hook, result, Result, Acc)
     end.
 
+%% Blocking is done using your local domain
 -spec process_iq_set(Acc :: mongoose_acc:t(), From :: jid:jid(),
                      To :: jid:jid(), IQ :: jlib:iq()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
-    MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ),
-          gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    MUCHost = server_host_to_muc_host(HostType, FromS),
+    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
+          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             RouteFun = fun(_, _, Packet) -> put(encode_res, Packet) end,
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
@@ -433,7 +479,7 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
                                             {error, mongoose_xmpp_errors:bad_request()}, Acc)};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
-                    mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
+                    mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun, Acc),
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
                     {stop, mongoose_acc:set(hook, result, {result, ResponseChildren}, Acc)}
             end;
@@ -444,22 +490,27 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
--spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_room_owner(_, Room, User) ->
+-spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                        Room :: jid:jid(), User :: jid:jid()) -> boolean().
+is_muc_room_owner(true, _HostType, _Room, _User) ->
+    true;
+is_muc_room_owner(_, _HostType, Room, User) ->
     owner == get_affiliation(Room, User).
 
--spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, processless}.
-muc_room_pid(_, _) ->
-    {ok, processless}.
-
--spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                      Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(_, Room, User) ->
+can_access_room(true, _HostType, _Room, _User) ->
+    true;
+can_access_room(_, _HostType, Room, User) ->
     none =/= get_affiliation(Room, User).
 
--spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
+-spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
+                          Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_identity(_Acc, _Room, _User) ->
+can_access_identity(true, _HostType, _Room, _User) ->
+    true;
+can_access_identity(_Acc, _HostType, _Room, _User) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
     %% 0045 MUC element with user identity and we don't want it
     false.
@@ -467,6 +518,26 @@ can_access_identity(_Acc, _Room, _User) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+prepare_config(HostType, RawConfig) ->
+    DefConfig = default_config_for_host_type(HostType),
+    Schema = config_schema_for_host_type(HostType),
+    mod_muc_light_room_config:apply_binary_kv(RawConfig, DefConfig, Schema).
+
+prepare_affs(HostType, CreatorUS, RoomUS, #create{aff_users = AffUsers}) ->
+    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(HostType,
+                        CreatorUS, RoomUS, AffUsers),
+    Res = process_create_aff_users_if_valid(HostType, CreatorUS, InitialAffUsers),
+    MaxOccupants = max_occupants(HostType),
+    case Res of
+        {ok, FinalAffUsers} when length(FinalAffUsers) > MaxOccupants ->
+            {error, max_occupants_reached};
+        _ ->
+            Res
+    end.
+
+max_occupants(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS).
 
 get_affiliation(Room, User) ->
     case mod_muc_light_db_backend:get_aff_users(jid:to_lus(Room)) of
@@ -486,33 +557,40 @@ create_room(Acc, From, FromUS, To, Create0, OrigPacket) ->
     case try_to_create_room(FromUS, To, Create0) of
         {ok, FinalRoomUS, Details} ->
             mod_muc_light_codec_backend:encode({set, Details, To#jid.luser == <<>>}, From,
-                                               FinalRoomUS, fun ejabberd_router:route/3);
+                                               FinalRoomUS, fun ejabberd_router:route/3, Acc);
         {error, exists} ->
-            mod_muc_light_codec_backend:encode_error({error, conflict}, From, To, OrigPacket,
+            mod_muc_light_codec_backend:encode_error({error, {conflict, <<"Room already exists">>}},
+                                                      From, To, OrigPacket,
                                                      make_handler_fun(Acc));
         {error, bad_request} ->
             mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
                                                      make_handler_fun(Acc));
-        {error, Error} ->
+        {error, {_,_} = Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
+            mod_muc_light_codec_backend:encode_error(
+              {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc));
+        {error, Error} ->
+            ErrorText = io_lib:format("~p", [Error]),
             mod_muc_light_codec_backend:encode_error(
               {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc))
     end.
 
--spec process_create_aff_users_if_valid(MUCServer :: jid:lserver(),
+-spec process_create_aff_users_if_valid(HostType :: host_type(),
                                         Creator :: jid:simple_bare_jid(),
                                         AffUsers :: aff_users()) ->
     {ok, aff_users()} | {error, bad_request}.
-process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
+process_create_aff_users_if_valid(HostType, Creator, AffUsers) ->
     case lists:any(fun ({User, _}) when User =:= Creator -> true;
                        ({_, Aff}) -> Aff =:= none end, AffUsers) of
         false ->
-            process_create_aff_users(
-              Creator, AffUsers, gen_mod:get_module_opt_by_subhost(
-                                   MUCServer, ?MODULE, equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS));
+            process_create_aff_users(Creator, AffUsers, equal_occupants(HostType));
         true ->
             {error, bad_request}
     end.
+
+equal_occupants(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE,
+                           equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS).
 
 -spec process_create_aff_users(Creator :: jid:simple_bare_jid(), AffUsers :: aff_users(),
                                EqualOccupants :: boolean()) ->
@@ -527,14 +605,19 @@ process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
 creator_aff(true) -> member;
 creator_aff(false) -> owner.
 
--spec handle_disco_info_get(From ::jid:jid(), To ::jid:jid(), DiscoInfo :: disco_info_req_props()) -> ok.
-handle_disco_info_get(From, To, DiscoInfo) ->
+-spec handle_disco_info_get(From ::jid:jid(), To ::jid:jid(),
+                            DiscoInfo :: disco_info_req_props(),
+                            Acc :: mongoose_acc:t()) -> ok.
+handle_disco_info_get(From, To, DiscoInfo, Acc) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, jid:to_lus(To),
-                                       fun ejabberd_router:route/3).
+                                       fun ejabberd_router:route/3, Acc).
 
--spec handle_disco_items_get(From ::jid:jid(), To ::jid:jid(), DiscoItems :: disco_items_req_props(),
+-spec handle_disco_items_get(HostType :: host_type(),
+                             Acc :: mongoose_acc:t(),
+                             From ::jid:jid(), To ::jid:jid(),
+                             DiscoItems :: disco_items_req_props(),
                              OrigPacket :: exml:element()) -> ok.
-handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
+handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->
             ?LOG_ERROR(#{what => muc_get_user_rooms_failed,
@@ -545,14 +628,14 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
         Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
             RouteFun = fun ejabberd_router:route/3,
-            RoomsPerPage = gen_mod:get_module_opt_by_subhost(
-                             To#jid.lserver, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            RoomsPerPage = gen_mod:get_module_opt(HostType, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
                     DiscoItems = DiscoItems0#disco_items{ rooms = RoomsInfoSlice, rsm = RSMOut },
-                    mod_muc_light_codec_backend:encode({get, DiscoItems}, From, jid:to_lus(To),
-                                                       RouteFun);
+                    mod_muc_light_codec_backend:encode({get, DiscoItems},
+                                                       From, jid:to_lus(To),
+                                                       RouteFun, Acc);
                 {error, item_not_found} ->
                     mod_muc_light_codec_backend:encode_error({error, item_not_found},
                                                              From, To, OrigPacket, RouteFun)
@@ -635,38 +718,38 @@ find_room_pos(RoomUS, [{RoomUS, _, _} | _], Pos) -> Pos;
 find_room_pos(RoomUS, [_ | RRooms], Pos) -> find_room_pos(RoomUS, RRooms, Pos + 1);
 find_room_pos(_, [], _) -> {error, item_not_found}.
 
--spec handle_blocking(From :: jid:jid(), To :: jid:jid(),
+-spec handle_blocking(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                       BlockingReq :: {get | set, blocking_req_props()}) ->
     {error, bad_request} | ok.
-handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
+handle_blocking(Acc, From, To, {get, #blocking{} = Blocking}) ->
     BlockingItems = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), To#jid.lserver),
     mod_muc_light_codec_backend:encode({get, Blocking#blocking{ items = BlockingItems }},
-                                       From, jid:to_lus(To), fun ejabberd_router:route/3);
-handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
+                                       From, jid:to_lus(To), fun ejabberd_router:route/3, Acc);
+handle_blocking(Acc, From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
     case lists:any(fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end, Items) of
         true ->
             {error, bad_request};
         false ->
             ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), To#jid.lserver, Items),
             mod_muc_light_codec_backend:encode(
-              BlockingReq, From, jid:to_lus(To), fun ejabberd_router:route/3),
+              BlockingReq, From, jid:to_lus(To), fun ejabberd_router:route/3, Acc),
             ok
     end.
 
--spec bcast_removed_user(UserUS :: jid:simple_bare_jid(),
+-spec bcast_removed_user(Acc :: mongoose_acc:t(), UserUS :: jid:simple_bare_jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
                          Version :: binary()) -> ok.
-bcast_removed_user({UserU, UserS}, AffectedRooms, Version) ->
-    bcast_removed_user(jid:make_noprep(UserU, UserS, <<>>), AffectedRooms,
+bcast_removed_user(Acc, {UserU, UserS}, AffectedRooms, Version) ->
+    bcast_removed_user(Acc, jid:make_noprep(UserU, UserS, <<>>), AffectedRooms,
                        Version, mongoose_bin:gen_from_timestamp()).
 
--spec bcast_removed_user(UserJID :: jid:jid(),
+-spec bcast_removed_user(Acc :: mongoose_acc:t(), UserJID :: jid:jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
                          Version :: binary(),
                          PacketID :: binary()) -> ok.
-bcast_removed_user(_UserJID, [], _Version, _ID) ->
+bcast_removed_user(_Acc, _UserJID, [], _Version, _ID) ->
     ok;
-bcast_removed_user(UserJID,
+bcast_removed_user(Acc, UserJID,
                    [{RoomUS, {ok, OldAffUsers, NewAffUsers, AffUsersChanged, PrevVersion}}
                     | RAffected], Version, ID) ->
     Affiliations = #affiliations{
@@ -675,21 +758,22 @@ bcast_removed_user(UserJID,
                       version = Version,
                       aff_users = AffUsersChanged
                      },
-    mod_muc_light_codec_backend:encode({set, Affiliations, OldAffUsers, NewAffUsers},
-                                       UserJID, RoomUS, fun ejabberd_router:route/3),
-    bcast_removed_user(UserJID, RAffected, Version, ID);
-bcast_removed_user(UserJID, [{{RoomU, RoomS} = RoomUS, Error} | RAffected], Version, ID) ->
+    Cmd = {set, Affiliations, OldAffUsers, NewAffUsers},
+    mod_muc_light_codec_backend:encode(Cmd, UserJID, RoomUS, fun ejabberd_router:route/3, Acc),
+    bcast_removed_user(Acc, UserJID, RAffected, Version, ID);
+bcast_removed_user(Acc, UserJID, [{{RoomU, RoomS} = _RoomUS, Error} | RAffected], Version, ID) ->
     ?LOG_ERROR(#{what => muc_remove_user_failed,
                  user_jid => jid:to_binary(UserJID), room => RoomU, sub_host => RoomS,
                  reason => Error}),
-    bcast_removed_user(UserJID, RAffected, Version, ID).
+    bcast_removed_user(Acc, UserJID, RAffected, Version, ID).
 
--spec maybe_forget_rooms(AffectedRooms :: mod_muc_light_db:remove_user_return()) -> ok.
-maybe_forget_rooms([]) ->
+-spec maybe_forget_rooms(Acc :: mongoose_acc:t(),
+                         AffectedRooms :: mod_muc_light_db:remove_user_return()) -> ok.
+maybe_forget_rooms(_Acc, []) ->
     ok;
-maybe_forget_rooms([{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
-    mod_muc_light_room:maybe_forget(RoomUS, NewAffUsers),
-    maybe_forget_rooms(RAffectedRooms).
+maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
+    mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers),
+    maybe_forget_rooms(Acc, RAffectedRooms).
 
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.

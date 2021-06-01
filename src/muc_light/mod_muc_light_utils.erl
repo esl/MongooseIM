@@ -28,7 +28,13 @@
 -export([b2aff/1, aff2b/1]).
 -export([light_aff_to_muc_role/1]).
 -export([room_limit_reached/2]).
--export([filter_out_prevented/3]).
+-export([filter_out_prevented/4]).
+-export([acc_to_host_type/1]).
+-export([room_jid_to_host_type/1]).
+-export([room_jid_to_server_host/1]).
+-export([muc_host_to_host_type/1]).
+-export([server_host_to_host_type/1]).
+-export([run_forget_room_hook/1]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -45,18 +51,20 @@
 
 -export_type([change_aff_success/0]).
 
+-type bad_request() :: bad_request | {bad_request, binary()}.
+
 %%====================================================================
 %% API
 %%====================================================================
 
 -spec change_aff_users(CurrentAffUsers :: aff_users(), AffUsersChangesAssorted :: aff_users()) ->
-    change_aff_success() | {error, bad_request}.
+    change_aff_success() | {error, bad_request()}.
 change_aff_users(AffUsers, AffUsersChangesAssorted) ->
     case {lists:keyfind(owner, 2, AffUsers), lists:keyfind(owner, 2, AffUsersChangesAssorted)} of
         {false, false} -> % simple, no special cases
             apply_aff_users_change(AffUsers, AffUsersChangesAssorted);
         {false, {_, _}} -> % ownerless room!
-            {error, bad_request};
+            {error, {bad_request, <<"Ownerless room">>}};
         _ ->
             lists:foldl(fun(F, Acc) -> F(Acc) end,
                         apply_aff_users_change(AffUsers, AffUsersChangesAssorted),
@@ -79,21 +87,23 @@ light_aff_to_muc_role(owner) -> moderator;
 light_aff_to_muc_role(member) -> participant;
 light_aff_to_muc_role(none) -> none.
 
--spec room_limit_reached(UserUS :: jid:simple_bare_jid(), RoomS :: jid:lserver()) ->
+-spec room_limit_reached(UserUS :: jid:simple_bare_jid(), HostType :: mongooseim:host_type()) ->
     boolean().
-room_limit_reached(UserUS, RoomS) ->
-    room_limit_reached(
-      UserUS, RoomS, gen_mod:get_module_opt_by_subhost(
-                       RoomS, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
+room_limit_reached(UserUS, HostType) ->
+    check_room_limit_reached(UserUS, HostType, rooms_per_user(HostType)).
 
--spec filter_out_prevented(FromUS :: jid:simple_bare_jid(),
-                          RoomUS :: jid:simple_bare_jid(),
-                          AffUsers :: aff_users()) -> aff_users().
-filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
-    RoomsPerUser = gen_mod:get_module_opt_by_subhost(
-                     MUCServer, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER),
-    BlockingEnabled = gen_mod:get_module_opt_by_subhost(MUCServer, mod_muc_light,
-                                                        blocking, ?DEFAULT_BLOCKING),
+rooms_per_user(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light,
+                           rooms_per_user, ?DEFAULT_ROOMS_PER_USER).
+
+-spec filter_out_prevented(HostType :: mongooseim:host_type(),
+                           FromUS :: jid:simple_bare_jid(),
+                           RoomUS :: jid:simple_bare_jid(),
+                           AffUsers :: aff_users()) -> aff_users().
+filter_out_prevented(HostType, FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
+    RoomsPerUser = rooms_per_user(HostType),
+    BlockingEnabled = gen_mod:get_module_opt(HostType, mod_muc_light,
+                                             blocking, ?DEFAULT_BLOCKING),
     BlockingQuery = case {BlockingEnabled, RoomU} of
                         {true, <<>>} -> [{user, FromUS}];
                         {true, _} -> [{user, FromUS}, {room, RoomUS}];
@@ -101,7 +111,8 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
                     end,
     case BlockingQuery == undefined andalso RoomsPerUser == infinity of
         true -> AffUsers;
-        false -> filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, AffUsers)
+        false -> filter_out_loop(HostType, FromUS, MUCServer,
+                                 BlockingQuery, RoomsPerUser, AffUsers)
     end.
 
 %%====================================================================
@@ -110,42 +121,45 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 
 %% ---------------- Checks ----------------
 
--spec room_limit_reached(UserUS :: jid:simple_bare_jid(),
-                         RoomS :: jid:lserver(),
+-spec check_room_limit_reached(UserUS :: jid:simple_bare_jid(),
+                         HostType :: mongooseim:host_type(),
                          RoomsPerUser :: infinity | pos_integer()) ->
     boolean().
-room_limit_reached(_UserUS, _RoomS, infinity) ->
+check_room_limit_reached(_UserUS, _HostType, infinity) ->
     false;
-room_limit_reached(UserUS, RoomS, RoomsPerUser) ->
-    mod_muc_light_db_backend:get_user_rooms_count(UserUS, RoomS) >= RoomsPerUser.
+check_room_limit_reached(UserUS, HostType, RoomsPerUser) ->
+    mod_muc_light_db_backend:get_user_rooms_count(UserUS, HostType) >= RoomsPerUser.
 
 %% ---------------- Filter for blocking ----------------
 
--spec filter_out_loop(FromUS :: jid:simple_bare_jid(),
+-spec filter_out_loop(HostType :: mongooseim:host_type(),
+                      FromUS :: jid:simple_bare_jid(),
                       MUCServer :: jid:lserver(),
                       BlockingQuery :: [{blocking_what(), jid:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
-filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser,
+filter_out_loop(HostType, FromUS, MUCServer, BlockingQuery, RoomsPerUser,
                 [{UserUS, _} = AffUser | RAffUsers]) ->
     NotBlocked = case (BlockingQuery == undefined orelse UserUS =:= FromUS) of
                      false -> mod_muc_light_db_backend:get_blocking(
                                 UserUS, MUCServer, BlockingQuery) == allow;
                      true -> true
                  end,
-    case NotBlocked andalso not room_limit_reached(FromUS, MUCServer, RoomsPerUser) of
+    case NotBlocked andalso not check_room_limit_reached(FromUS, HostType, RoomsPerUser) of
         true ->
-            [AffUser | filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)];
+            [AffUser | filter_out_loop(HostType, FromUS, MUCServer,
+                                       BlockingQuery, RoomsPerUser, RAffUsers)];
         false ->
-            filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser, RAffUsers)
+            filter_out_loop(HostType, FromUS, MUCServer,
+                            BlockingQuery, RoomsPerUser, RAffUsers)
     end;
-filter_out_loop(_FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
+filter_out_loop(_HostType, _FromUS, _MUCServer, _BlockingQuery, _RoomsPerUser, []) ->
     [].
 
 %% ---------------- Affiliations manipulation ----------------
 
--spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
-    change_aff_success() | {error, bad_request}.
+-spec maybe_select_new_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+    change_aff_success() | {error, bad_request()}.
 maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = _AffRes) ->
     {AffUsers, AffUsersChanged} =
         case is_new_owner_needed(AU) andalso find_new_owner(AU, AUC, JoiningUsers) of
@@ -196,8 +210,8 @@ select_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
 select_promotion(_, _, _) ->
     false.
 
--spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
-    change_aff_success() | {error, bad_request}.
+-spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request()}) ->
+    change_aff_success() | {error, bad_request()}.
 maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
     Owners = [U || {U, owner} <- AU],
     PromotedOwners = [U || {U, owner} <- AUC],
@@ -210,14 +224,14 @@ maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
             NewAUC = [{OldOwner, member} | AUC],
             {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
         _ ->
-            {error, bad_request}
+            {error, {bad_request, <<"Failed to demote old owner">>}}
     end;
 maybe_demote_old_owner(Error) ->
     Error.
 
 -spec apply_aff_users_change(AffUsers :: aff_users(),
                              AffUsersChanges :: aff_users()) ->
-                                change_aff_success() | {error, bad_request}.
+                                change_aff_success() | {error, bad_request()}.
 apply_aff_users_change(AU, AUC) ->
     JoiningUsers = proplists:get_keys(AUC) -- proplists:get_keys(AU),
     AffAndNewUsers = lists:sort(AU ++ [{U, none} || U <- JoiningUsers]),
@@ -234,16 +248,15 @@ apply_aff_users_change(AU, AUC) ->
                              NewAffUsers :: aff_users(),
                              AffUsersChanges :: aff_users(),
                              ChangesDone :: aff_users()) ->
-                                change_aff_success_without_users() | {error, bad_request}.
+                                change_aff_success_without_users() | {error, bad_request()}.
 apply_aff_users_change([], NAU, [], CD) ->
     %% User list must be sorted ascending but acc is currently sorted descending
     {ok, lists:reverse(NAU), CD};
 apply_aff_users_change(_AU, _NAU, [{User, _}, {User, _} | _RAUC], _CD) ->
-    %% Cannot change affiliation for the same user twice in the same request
-    {error, bad_request};
+    {error, {bad_request, <<"Cannot change affiliation for the same user "
+                            "twice in the same request">>}};
 apply_aff_users_change([AffUser | _], _NAU, [AffUser | _], _CD) ->
-    %% Meaningless change
-    {error, bad_request};
+    {error, {bad_request, <<"Meaningless change">>}};
 apply_aff_users_change([{User, _} | RAU], NAU, [{User, none} | RAUC], CD) ->
     %% removing user from the room
     apply_aff_users_change(RAU, NAU, RAUC, [{User, none} | CD]);
@@ -260,6 +273,51 @@ apply_aff_users_change([OldUser | RAU], NAU, AUC, CD) ->
     %% keep user affiliation unchanged
     apply_aff_users_change(RAU, [OldUser | NAU], AUC, CD).
 
+-spec acc_to_host_type(mongoose_acc:t()) -> mongooseim:host_type().
+acc_to_host_type(Acc) ->
+    case mongoose_acc:host_type(Acc) of
+        undefined ->
+            MucHost = mongoose_acc:lserver(Acc),
+            muc_host_to_host_type(MucHost);
+        HostType ->
+            HostType
+    end.
 
+-spec room_jid_to_host_type(jid:jid()) -> mongooseim:host_type().
+room_jid_to_host_type(#jid{lserver = MucHost}) ->
+    muc_host_to_host_type(MucHost).
 
+-spec room_jid_to_server_host(jid:jid()) -> jid:lserver().
+room_jid_to_server_host(#jid{lserver = MucHost}) ->
+    case mongoose_domain_api:get_subdomain_info(MucHost) of
+        {ok, #{parent_domain := ServerHost}} when is_binary(ServerHost) ->
+            ServerHost;
+        Other ->
+            error({room_jid_to_server_host_failed, MucHost, Other})
+    end.
 
+server_host_to_host_type(LServer) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            HostType;
+        Other ->
+            error({server_host_to_host_type_failed, LServer, Other})
+    end.
+
+muc_host_to_host_type(MucHost) ->
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            HostType;
+        Other ->
+            error({muc_host_to_host_type_failed, MucHost, Other})
+    end.
+
+run_forget_room_hook({Room, MucHost}) ->
+    case mongoose_domain_api:get_subdomain_host_type(MucHost) of
+        {ok, HostType} ->
+            mongoose_hooks:forget_room(HostType, MucHost, Room);
+        Other ->
+            %% MUC light is not started probably
+            ?LOG_ERROR(#{what => run_forget_room_hook_skipped,
+                         room => Room, muc_host => MucHost})
+    end.

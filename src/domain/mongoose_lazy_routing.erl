@@ -233,7 +233,10 @@ handle_register_iq_handler_for_domain(HostType, Namespace, Component, IQHandler)
     NewIQHandler = mongoose_iq_handler:add_extra(IQHandler, #{host_type => HostType}),
     IQ = {IQKey, NewIQHandler},
     case ets:insert_new(?IQ_TABLE, IQ) of
-        false -> {error, already_registered};
+        false ->
+            ?LOG_WARNING(#{what => iq_already_registered, host_type => HostType,
+                           namespace => Namespace, component => Component}),
+            {error, already_registered};
         true ->
             Domains = ets:match_object(?ROUTING_TABLE, {'_', HostType}),
             register_iqs([IQ], Domains)
@@ -252,7 +255,11 @@ handle_register_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace,
     NewIQHandler = mongoose_iq_handler:add_extra(IQHandler, #{host_type => HostType}),
     IQ = {IQKey, NewIQHandler},
     case ets:insert_new(?IQ_TABLE, IQ) of
-        false -> {error, already_registered};
+        false ->
+            ?LOG_WARNING(#{what => iq_already_registered, host_type => HostType,
+                           subdomain_pattern => SubdomainPattern,
+                           namespace => Namespace, component => Component}),
+            {error, already_registered};
         true ->
             Domains = ets:match_object(?ROUTING_TABLE,
                                        {'_', {HostType, SubdomainPattern}}),
@@ -267,7 +274,10 @@ handle_unregister_iq_handler_for_domain(HostType, Namespace, Component) ->
     IQKey = #iq_table_key{host_type = HostType, namespace = Namespace,
                           component = Component},
     case ets:lookup(?IQ_TABLE, IQKey) of
-        [] -> {error, not_found};
+        [] ->
+            ?LOG_WARNING(#{what => iq_unregister_missing, host_type => HostType,
+                           namespace => Namespace, component => Component}),
+            {error, not_found};
         [{_, IQHandler} = IQ] ->
             Domains = ets:match_object(?ROUTING_TABLE, {'_', HostType}),
             unregister_iqs([IQ], Domains),
@@ -285,7 +295,11 @@ handle_unregister_iq_handler_for_subdomain(HostType, SubdomainPattern,
     IQKey = #iq_table_key{host_type = HostType, subdomain_pattern = SubdomainPattern,
                           namespace = Namespace, component = Component},
     case ets:lookup(?IQ_TABLE, IQKey) of
-        [] -> {error, not_found};
+        [] ->
+            ?LOG_WARNING(#{what => iq_unregister_missing, host_type => HostType,
+                           subdomain_pattern => SubdomainPattern,
+                           namespace => Namespace, component => Component}),
+            {error, not_found};
         [{_, IQHandler} = IQ] ->
             Domains = ets:match_object(?ROUTING_TABLE,
                                        {'_', {HostType, SubdomainPattern}}),
@@ -408,9 +422,12 @@ check_that_domain_and_iq_match({#iq_table_key{host_type = HostType,
                                {_, {HostType, Pattern}}) when is_binary(Namespace),
                                                               Component =/= '_' ->
     true;
-check_that_domain_and_iq_match(IQ, Domain) ->
+check_that_domain_and_iq_match({Key = #iq_table_key{}, _} = IQEntry, Domain) ->
     %% we should not get here, log error
-    ?LOG_ERROR(#{what => domain_and_iq_doesnt_match, domain => Domain, iq => IQ}),
+    ?LOG_ERROR(#{what => domain_and_iq_doesnt_match, domain => Domain,
+                 iq_entry => IQEntry,
+                 iq_key_record => mongoose_record_pp:format(Key,
+                    iq_table_key, record_info(fields, iq_table_key))}),
     false.
 
 -spec register_iq(iq_entry(), domain_entry()) -> ok.

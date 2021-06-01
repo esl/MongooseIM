@@ -33,7 +33,7 @@ all_metrics_list() ->
 init_per_suite(C) ->
     application:load(exometer_core),
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
-    {Port, Socket} = carbon_cache_server:start(1, 0),
+    {Port, Socket} = carbon_cache_server:start(),
     Sup = spawn(fun() ->
                         mim_ct_sup:start_link(ejabberd_sup),
                         Hooks =
@@ -60,6 +60,7 @@ init_per_suite(C) ->
     Reporters = get_reporters_cfg(Port),
     application:set_env(exometer_core, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),
+    gen_tcp:controlling_process(Socket, PortServer),
     {ok, _Apps} = application:ensure_all_started(exometer_core),
     exometer:new([carbon, packets], spiral),
     [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
@@ -80,8 +81,8 @@ init_per_group(Group, C) ->
     C.
 
 end_per_group(_Name, C) ->
-    mongoose_metrics:remove_host_metrics(<<"localhost">>),
-    mongoose_metrics:remove_host_metrics(global),
+    mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
+    mongoose_metrics:remove_host_type_metrics(global),
     meck:unload(),
     C.
 
@@ -159,6 +160,10 @@ wait_for_update({ok, [{count,0}]}, N) ->
 setup_meck(Group) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun (hosts, _Def) -> [<<"localhost">>];
+                    (_, _) -> []
+                end),
     meck:expect(ejabberd_config, get_local_option,
                 fun (all_metrics_are_global) -> Group =:= all_metrics_are_global;
                     (_) -> undefined

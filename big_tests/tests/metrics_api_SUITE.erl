@@ -249,11 +249,11 @@ metrics_only_global(_Config) ->
     Opts = string:split(V, ", ", all),
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
-    % List of hosts and metrics
+    % List of host types and metrics
     Res2 = simple_request(<<"GET">>, "/metrics/", Port),
     {_S2, _H2, B2} = Res2,
     assert_status(200, Res2),
-    #{<<"hosts">> := [_ExampleHost | _],
+    #{<<"host_types">> := [_ExampleHostType | _],
       <<"metrics">> := [],
       <<"global">> := [ExampleGlobal | _]} = B2,
 
@@ -282,11 +282,11 @@ metrics_msg_flow(_Config) ->
     Opts = string:split(V, ", ", all),
     ?assertEqual([<<"GET">>,<<"HEAD">>,<<"OPTIONS">>], lists:sort(Opts)),
 
-    % List of hosts and metrics
+    % List of host types and metrics
     Res2 = simple_request(<<"GET">>, "/metrics/", ?PORT),
     {_S2, _H2, B2} = Res2,
     assert_status(200, Res2),
-    #{<<"hosts">> := [ExampleHost | _],
+    #{<<"host_types">> := [ExampleHostType | _],
       <<"metrics">> := [ExampleMetric | _],
       <<"global">> := [ExampleGlobal | _]} = B2,
 
@@ -310,21 +310,21 @@ metrics_msg_flow(_Config) ->
     Res5 = simple_request(<<"GET">>, "/metrics/all/nonExistentMetric", ?PORT),
     assert_status(404, Res5),
 
-    % All metrics for an example host
+    % All metrics for an example host type
     Res6 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host/", ExampleHost]),
+                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType]),
                           ?PORT),
     {_S6, _H6, B6} = Res6,
     #{<<"metrics">> := _} = B6,
     ?assertEqual(1, maps:size(B6)),
 
-    % Negative case for a non-existent host
-    Res7 = simple_request(<<"GET">>, "/metrics/host/nonExistentHost", ?PORT),
+    % Negative case for a non-existent host type
+    Res7 = simple_request(<<"GET">>, "/metrics/host_type/nonExistentHostType", ?PORT),
     assert_status(404, Res7),
 
-    % An example metric for an example host
+    % An example metric for an example host type
     Res8 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType,
                                                "/", ExampleMetric]),
                           ?PORT),
     {_S8, _H8, B8} = Res8,
@@ -332,9 +332,9 @@ metrics_msg_flow(_Config) ->
     ?assertEqual(2, maps:size(IM2)),
     ?assertEqual(1, maps:size(B8)),
 
-    % Negative case for a non-existent (host, metric) pair
+    % Negative case for a non-existent (host type, metric) pair
     Res9 = simple_request(<<"GET">>,
-                          unicode:characters_to_list(["/metrics/host/", ExampleHost,
+                          unicode:characters_to_list(["/metrics/host_type/", ExampleHostType,
                                                "/nonExistentMetric"]),
                           ?PORT),
     assert_status(404, Res9),
@@ -384,21 +384,23 @@ find(CounterName, CounterList) ->
 
 fetch_counter_value(Counter, _Config) ->
     Metric = atom_to_binary(Counter, utf8),
-    Host = ct:get_config({hosts, mim, domain}),
+
+    HostType = domain_helper:host_type(mim),
+    HostTypeName = metrics_helper:make_host_type_name(HostType),
 
     Result = simple_request(<<"GET">>,
-                            unicode:characters_to_list(["/metrics/host/", Host, "/", Metric]),
+                            unicode:characters_to_list(["/metrics/host_type/", HostTypeName, "/", Metric]),
                             ?PORT),
     {_S, _H, B} = Result,
     assert_status(200, Result),
-    #{<<"metric">> := #{<<"count">> := HostValue}} = B,
+    #{<<"metric">> := #{<<"count">> := HostTypeValue}} = B,
 
     Result2 = simple_request(<<"GET">>,
-                             unicode:characters_to_list(["/metrics/host/", Host]),
+                             unicode:characters_to_list(["/metrics/host_type/", HostTypeName]),
                              ?PORT),
     {_S2, _H2, B2} = Result2,
     assert_status(200, Result2),
-    #{<<"metrics">> := #{Metric := #{<<"count">> := HostValueList}}} = B2,
+    #{<<"metrics">> := #{Metric := #{<<"count">> := HostTypeValueList}}} = B2,
 
     Result3 = simple_request(<<"GET">>,
                              unicode:characters_to_list(["/metrics/all/", Metric]),
@@ -412,7 +414,7 @@ fetch_counter_value(Counter, _Config) ->
     assert_status(200, Result4),
     #{<<"metrics">> := #{Metric := #{<<"count">> := TotalValueList}}} = B4,
 
-    [HostValue, HostValueList, TotalValue, TotalValueList].
+    [HostTypeValue, HostTypeValueList, TotalValue, TotalValueList].
 
 %% @doc Fetch counter that is static.
 fetch_global_gauge_value(Counter, Config) ->

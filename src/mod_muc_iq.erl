@@ -34,78 +34,52 @@ tbl_name() ->
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
-
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
--spec process_iq(jid:server(), jid:jid(), jid:jid(), mongoose_acc:t(),
+-spec process_iq(mongooseim:host_type(), jid:jid(), jid:jid(), mongoose_acc:t(),
         jlib:iq()) -> mongoose_acc:t() | {mongoose_acc:t(), error}.
-process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
-    case ets:lookup(tbl_name(), {XMLNS, Host}) of
+process_iq(HostType, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
+    case ets:lookup(tbl_name(), {XMLNS, HostType}) of
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, RoomJID, IQ);
         [] -> {Acc, error}
     end.
 
-
--spec register_iq_handler(jid:server(), binary(), mongoose_iq_handler:t()) -> ok.
-register_iq_handler(Host, XMLNS, IQHandler) ->
+-spec register_iq_handler(mongooseim:host_type(), binary(), mongoose_iq_handler:t()) -> ok.
+register_iq_handler(HostType, XMLNS, IQHandler) ->
     gen_server:cast(srv_name(),
-                    {register_iq_handler, Host, XMLNS, IQHandler}).
+                    {register_iq_handler, HostType, XMLNS, IQHandler}).
+
+-spec unregister_iq_handler(mongooseim:host_type(), binary()) -> ok.
+unregister_iq_handler(HostType, XMLNS) ->
+    gen_server:cast(srv_name(),
+                    {unregister_iq_handler, HostType, XMLNS}).
 
 -spec sync() -> ok.
 sync() ->
     gen_server:call(srv_name(), sync).
 
--spec unregister_iq_handler(jid:server(), binary()) -> ok.
-unregister_iq_handler(Host, XMLNS) ->
-    gen_server:cast(srv_name(),
-                    {unregister_iq_handler, Host, XMLNS}).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([]) ->
     ets:new(tbl_name(), [named_table, protected]),
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call(sync, _From, State) ->
     {reply, ok, State};
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-
-handle_cast({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
-    ets:insert(tbl_name(), {{XMLNS, Host}, IQHandler}),
+handle_cast({register_iq_handler, HostType, XMLNS, IQHandler}, State) ->
+    ets:insert(tbl_name(), {{XMLNS, HostType}, IQHandler}),
     {noreply, State};
-handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
-    case ets:lookup(tbl_name(), {XMLNS, Host}) of
+handle_cast({unregister_iq_handler, HostType, XMLNS}, State) ->
+    case ets:lookup(tbl_name(), {XMLNS, HostType}) of
         [{_, IQHandler}] ->
             gen_iq_component:stop_iq_handler(IQHandler),
-            ets:delete(tbl_name(), {XMLNS, Host});
+            ets:delete(tbl_name(), {XMLNS, HostType});
         _ ->
             ok
     end,
@@ -113,30 +87,12 @@ handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-
 handle_info(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

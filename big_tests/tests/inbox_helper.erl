@@ -11,7 +11,8 @@
 -export([
          skip_or_run_inbox_tests/1,
          inbox_opts/0,
-         required_modules/0,
+         inbox_modules/0,
+         muclight_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
@@ -80,7 +81,7 @@
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
--define(MUC_DOMAIN, <<"muc.localhost">>).
+-define(MUC_DOMAIN, (ct:get_config({hosts, mim, muc_service}))).
 
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
@@ -126,16 +127,20 @@ inbox_opts() ->
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
-            orelse mongoose_helper:is_rdbms_enabled(inbox_helper:domain()) of
+            orelse mongoose_helper:is_rdbms_enabled(domain()) of
         true -> TestCases;
         false -> {skip, require_rdbms}
     end.
 
-required_modules() ->
+inbox_modules() ->
+    [
+     {mod_inbox, inbox_opts()}
+    ].
+
+muclight_modules() ->
     [
      {mod_muc_light, [{host, subhost_pattern(muclight_config_domain())},
-                      {backend, rdbms}]},
-     {mod_inbox, inbox_opts()}
+                      {backend, rdbms}]}
     ].
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
@@ -241,32 +246,34 @@ timestamp_from_item(Item) ->
     calendar:rfc3339_to_system_time(binary_to_list(ISOTStamp), [{unit, microsecond}]).
 
 clear_inbox_all() ->
-    clear_inboxes([alice, bob, kate, mike], domain()).
+    clear_inboxes([alice, bob, kate, mike]).
 
-clear_inboxes(UserList, Host) ->
-    Usernames = [escalus_users:get_username(escalus_users:get_users(UserList),U) || U <- UserList],
-    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [Username,Host]) || Username <- Usernames].
+clear_inboxes(UserList) ->
+    Usernames = [{escalus_users:get_username(escalus_users:get_users(UserList),U),
+                  escalus_users:get_server(escalus_users:get_users(UserList),U)}
+                 || U <- UserList],
+    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [User, Server]) || {User, Server} <- Usernames].
 
 reload_inbox_option(Config, KeyValueList) ->
-    Host = domain(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
     Args2 = lists:foldl(fun({K, V}, AccIn) ->
         lists:keyreplace(K, 1, AccIn, {K, V})
                 end, Args, KeyValueList),
-    dynamic_modules:restart(Host, mod_inbox, Args2),
+    dynamic_modules:restart(HostType, mod_inbox, Args2),
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args2}).
 
 reload_inbox_option(Config, Key, Value) ->
-    Host = domain(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
     Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
-    dynamic_modules:restart(Host, mod_inbox, Args1),
+    dynamic_modules:restart(HostType, mod_inbox, Args1),
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 
 restore_inbox_option(Config) ->
-    Host = domain(),
+    HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
-    dynamic_modules:restart(Host, mod_inbox, Args).
+    dynamic_modules:restart(HostType, mod_inbox, Args).
 
 get_inner_msg(Msg) ->
     exml_query:paths(Msg, [{element, <<"result">>}, {element, <<"forwarded">>},
@@ -639,7 +646,7 @@ muclight_config_domain() ->
 
 -spec muc_domain() -> binary().
 muc_domain() ->
-    Domain = inbox_helper:domain(),
+    Domain = domain(),
     <<"muc.", Domain/binary>>.
 
 -spec domain() -> binary().
@@ -714,7 +721,7 @@ assert_invalid_reset_inbox(From, To, Field, Value) ->
     assert_invalid_form(From, ResetStanza, Field, Value).
 
 assert_invalid_inbox_form_value_error(User, Field, Value) ->
-    Stanza = inbox_helper:make_inbox_stanza( #{ Field => Value }, false),
+    Stanza = make_inbox_stanza( #{ Field => Value }, false),
     assert_invalid_form(User, Stanza, Field, Value).
 
 assert_invalid_form(User, Stanza, Field, Value) ->

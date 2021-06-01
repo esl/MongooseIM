@@ -144,8 +144,7 @@ get_chat_markers(ChatType, #jid{lserver = LServer} = To, Thread, TS) ->
     Host = case ChatType of
                one2one -> LServer;
                groupchat ->
-                   {ok, H} = mongoose_subhosts:get_host(LServer),
-                   H
+                   mod_muc_light_utils:muc_host_to_host_type(LServer)
            end,
     mod_smart_markers_backend:get_chat_markers(Host, To, Thread, TS).
 
@@ -216,10 +215,9 @@ is_valid_markers(From, To, Packet, TS) ->
 -spec get_host(chat_type(), jid:lserver(), jid:jid(), jid:jid()) ->
     false | {true, jid:lserver()}.
 get_host(groupchat, SubHost, From, To) ->
-    case mongoose_subhosts:get_host(SubHost) of
-        undefined -> false;
-        {ok, Host} ->
-            can_access_room(From, To) andalso {true, Host}
+    case mongoose_domain_api:get_subdomain_info(SubHost) of
+        {ok, #{host_type := HostType}} ->
+            can_access_room(HostType, From, To) andalso {true, HostType}
     end;
 get_host(one2one, Host, _, _) ->
     Hosts = ejabberd_config:get_global_option(hosts),
@@ -228,9 +226,10 @@ get_host(one2one, Host, _, _) ->
         _ -> {true, Host}
     end.
 
--spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
-can_access_room(User, Room) ->
-    mongoose_hooks:can_access_room(Room#jid.lserver, Room, User).
+-spec can_access_room(HostType :: mongooseim:host_type(),
+                      User :: jid:jid(), Room :: jid:jid()) -> boolean().
+can_access_room(HostType, User, Room) ->
+    mongoose_hooks:can_access_room(HostType, Room, User).
 
 add_default_backend(Opts) ->
     case lists:keyfind(backend, 2, Opts) of

@@ -29,10 +29,9 @@
 
 
 %% External exports
--export([start_link/10,
-         start_link/8,
-         start/10,
-         start/8,
+-export([start_link/1,
+         start_new/11,
+         start_restored/9,
          route/5,
          stop/1]).
 
@@ -151,62 +150,46 @@
 -define(FSMOPTS, []).
 -endif.
 
-%% Module start with or without supervisor:
--ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START,
-        gen_fsm_compat:start(?MODULE,
-                      [Host, ServerHost, Access, Room, HistorySize,
-                       RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
-                      ?FSMOPTS)).
--else.
--define(SUPERVISOR_START,
-        Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
-        supervisor:start_child(Supervisor,
-                               [Host, ServerHost, Access, Room, HistorySize,
-                                RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts])).
--endif.
-
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(Host :: jid:server(), ServerHost :: jid:server(),
+
+-spec start_new(HostType :: mongooseim:host_type(), Host :: jid:server(), ServerHost :: jid:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Creator :: jid:jid(), Nick :: mod_muc:nick(),
             DefRoomOpts :: list()) -> {'error', _}
                                           | {'ok', 'undefined' | pid()}
                                           | {'ok', 'undefined' | pid(), _}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-      Creator, Nick, DefRoomOpts) ->
-    ?SUPERVISOR_START.
+start_new(HostType, Host, ServerHost, Access, Room,
+          HistorySize, RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts) ->
+    Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
+    Args = #{init_type => start_new, host_type => HostType,
+             muc_host => Host, server_host => ServerHost, access => Access,
+             room_name => Room, history_size => HistorySize,
+             room_shaper => RoomShaper, http_auth_pool => HttpAuthPool,
+             creator => Creator, nick => Nick, def_opts => DefRoomOpts},
+    supervisor:start_child(Supervisor, [Args]).
 
-
--spec start(Host :: jid:server(), ServerHost :: jid:server(),
+-spec start_restored(HostType :: mongooseim:host_type(), Host :: jid:server(), ServerHost :: jid:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Opts :: list()) -> {'error', _}
                                    | {'ok', 'undefined' | pid()}
                                    | {'ok', 'undefined' | pid(), _}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
+start_restored(HostType, Host, ServerHost, Access, Room,
+               HistorySize, RoomShaper, HttpAuthPool, Opts)
     when is_list(Opts) ->
-    Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
-    supervisor:start_child(Supervisor, [Host, ServerHost, Access, Room,
-                                        HistorySize, RoomShaper, HttpAuthPool, Opts]).
+    Supervisor = gen_mod:get_module_proc(HostType, ejabberd_mod_muc_sup),
+    Args = #{init_type => start_restored, host_type => HostType,
+             muc_host => Host, server_host => ServerHost,
+             access => Access, room_name => Room, history_size => HistorySize,
+             room_shaper => RoomShaper, http_auth_pool => HttpAuthPool,
+             opts => Opts},
+    supervisor:start_child(Supervisor, [Args]).
 
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-       Creator, Nick, DefRoomOpts)
-    when is_list(DefRoomOpts) ->
-    gen_fsm_compat:start_link(?MODULE,
-                       [Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
-                       ?FSMOPTS).
-
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
-    when is_list(Opts) ->
-    gen_fsm_compat:start_link(?MODULE,
-                       [Host, ServerHost, Access, Room, HistorySize,
-                        RoomShaper, HttpAuthPool, Opts],
-                       ?FSMOPTS).
+start_link(Args = #{}) ->
+    gen_fsm_compat:start_link(?MODULE, Args, []).
 
 stop(Pid) ->
     gen_fsm_compat:stop(Pid).
@@ -268,14 +251,22 @@ can_access_identity(RoomJID, UserJID) ->
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
--spec init([any(), ...]) ->
+-spec init(map()) ->
     {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
-init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-      Creator, _Nick, DefRoomOpts]) when is_list(DefRoomOpts) ->
+init(#{init_type := start_new} = Args) ->
+    init_new(Args);
+init(#{init_type := start_restored} = Args) ->
+    init_restored(Args).
+
+init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
+           server_host := ServerHost, access := Access, room_name := Room,
+           history_size := HistorySize, room_shaper := RoomShaper,
+           http_auth_pool := HttpAuthPool, creator := Creator, nick := _Nick,
+           def_opts := DefRoomOpts}) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,
-                            #state{host = Host,
+                            #state{host = Host, host_type = HostType,
                                    server_host = ServerHost,
                                    access = Access,
                                    room = Room,
@@ -284,7 +275,7 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
                                    just_created = true,
                                    room_shaper = Shaper,
                                    http_auth_pool = HttpAuthPool,
-                                   hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                   hibernate_timeout = read_hibernate_timeout(HostType)
                                   }),
     State1 = set_opts(DefRoomOpts, State),
     ?LOG_INFO(ls(#{what => muc_room_started,
@@ -299,12 +290,18 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
         false ->
             %% Locked room waiting for configuration -- MUC request
             {ok, initial_state, State1}
-    end;
+    end.
+
 %% @doc A room is restored
-init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts]) ->
+init_restored(#{init_type := start_restored,
+                host_type := HostType, muc_host := Host,
+                server_host := ServerHost, access := Access,
+                room_name := Room, history_size := HistorySize,
+                room_shaper := RoomShaper, http_auth_pool := HttpAuthPool,
+                opts := Opts}) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
-    State = set_opts(Opts, #state{host = Host,
+    State = set_opts(Opts, #state{host = Host, host_type = HostType,
                                   server_host = ServerHost,
                                   access = Access,
                                   room = Room,
@@ -312,14 +309,11 @@ init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
                                   jid = jid:make(Room, Host, <<>>),
                                   room_shaper = Shaper,
                                   http_auth_pool = HttpAuthPool,
-                                  hibernate_timeout = read_hibernate_timeout(ServerHost)
+                                  hibernate_timeout = read_hibernate_timeout(HostType)
                                  }),
     add_to_log(room_existence, started, State),
     mongoose_metrics:update(global, [mod_muc, process_recreations], 1),
     {ok, normal_state, State, State#state.hibernate_timeout}.
-
-read_hibernate_timeout(Host) ->
-    gen_mod:get_module_opt(Host, mod_muc, hibernate_timeout, timer:seconds(90)).
 
 %%----------------------------------------------------------------------
 %% Func: StateName/2
@@ -486,8 +480,7 @@ normal_state({route, From, Nick, _Acc,
     Activity = get_user_activity(From, StateData),
     Now = os:system_time(microsecond),
     MinPresenceInterval =
-    trunc(gen_mod:get_module_opt(StateData#state.server_host,
-                                 mod_muc, min_presence_interval, 0) * 1000000),
+    trunc(get_opt(StateData, min_presence_interval, 0) * 1000000),
     case (Now >= Activity#activity.presence_time + MinPresenceInterval) and
          (Activity#activity.presence == undefined) of
         true ->
@@ -730,7 +723,7 @@ stop_if_only_owner_is_online(RoomName, 1, #state{users = Users, jid = RoomJID} =
 stop_if_only_owner_is_online(_, _, State) ->
     next_normal_state(State).
 
-do_stop_persistent_room(RoomName, State) ->
+do_stop_persistent_room(_RoomName, State) ->
     ?LOG_INFO(ls(#{what => muc_room_stopping_persistent,
                    text => <<"Stopping persistent room's process">>}, State)),
     mongoose_metrics:update(global, [mod_muc, deep_hibernations], 1),
@@ -761,7 +754,9 @@ terminate(Reason, _StateName, StateData) ->
               tab_remove_online_user(LJID, StateData)
       end, StateData#state.users),
     add_to_log(room_existence, stopped, StateData),
-    mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self()),
+    mod_muc:room_destroyed(StateData#state.host_type,
+                           StateData#state.host,
+                           StateData#state.room, self()),
     ok.
 
 %%%----------------------------------------------------------------------
@@ -880,7 +875,8 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
     EventData = #{from_nick => FromNick, from_jid => From,
                   room_jid => StateData#state.jid, role => Role,
                   affiliation => Affiliation},
-    FilteredPacket = mongoose_hooks:filter_room_packet(StateData#state.host, Packet, EventData),
+    FilteredPacket = mongoose_hooks:filter_room_packet(
+        StateData#state.host_type, Packet, EventData),
     RouteFrom = jid:replace_resource(StateData#state.jid,
                                      FromNick),
     RoomJid = StateData#state.jid,
@@ -1395,7 +1391,8 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
 -spec get_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
-    case acl:match_rule(StateData#state.server_host, AccessAdmin, JID) of
+    case acl:match_rule_for_host_type(StateData#state.host_type,
+                                      StateData#state.server_host, AccessAdmin, JID) of
         allow ->
             owner;
         _ ->
@@ -1421,7 +1418,8 @@ lookup_affiliation([], _Affiliations) ->
 -spec get_service_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_service_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
-    case acl:match_rule(StateData#state.server_host, AccessAdmin, JID) of
+    case acl:match_rule_for_host_type(StateData#state.host_type,
+                                      StateData#state.server_host, AccessAdmin, JID) of
     allow ->
         owner;
     _ ->
@@ -1499,15 +1497,11 @@ get_max_users(StateData) ->
 
 -spec get_service_max_users(state()) -> integer() | none.
 get_service_max_users(StateData) ->
-    gen_mod:get_module_opt(StateData#state.server_host,
-               mod_muc, max_users, ?MAX_USERS_DEFAULT).
-
+    get_opt(StateData, max_users, ?MAX_USERS_DEFAULT).
 
 -spec get_max_users_admin_threshold(state()) -> integer().
 get_max_users_admin_threshold(StateData) ->
-    gen_mod:get_module_opt(StateData#state.server_host,
-               mod_muc, max_users_admin_threshold, 5).
-
+    get_opt(StateData, max_users_admin_threshold, 5).
 
 -spec get_user_activity(jid:simple_jid() | jid:jid(), state())
                         -> activity().
@@ -1517,13 +1511,9 @@ get_user_activity(JID, StateData) ->
     {ok, _P, A} -> A;
     error ->
         MessageShaper =
-        shaper:new(gen_mod:get_module_opt(
-                 StateData#state.server_host,
-                 mod_muc, user_message_shaper, none)),
+        shaper:new(get_opt(StateData, user_message_shaper, none)),
         PresenceShaper =
-        shaper:new(gen_mod:get_module_opt(
-                 StateData#state.server_host,
-                 mod_muc, user_presence_shaper, none)),
+        shaper:new(get_opt(StateData, user_presence_shaper, none)),
         #activity{message_shaper = MessageShaper,
               presence_shaper = PresenceShaper}
     end.
@@ -1532,14 +1522,8 @@ get_user_activity(JID, StateData) ->
 -spec store_user_activity(jid:simple_jid() | jid:jid(), activity(),
                          state()) -> state().
 store_user_activity(JID, UserActivity, StateData) ->
-    MinMessageInterval =
-    gen_mod:get_module_opt(
-      StateData#state.server_host,
-      mod_muc, min_message_interval, 0),
-    MinPresenceInterval =
-    gen_mod:get_module_opt(
-      StateData#state.server_host,
-      mod_muc, min_presence_interval, 0),
+    MinMessageInterval = get_opt(StateData, min_message_interval, 0),
+    MinPresenceInterval = get_opt(StateData, min_presence_interval, 0),
     Key = jid:to_lower(JID),
     Now = os:system_time(microsecond),
     Activity1 = clean_treap(StateData#state.activity, {1, -Now}),
@@ -1789,9 +1773,7 @@ is_user_limit_reached(From, Affiliation, StateData) ->
     NUsers = count_users(StateData),
     ServiceAffiliation = get_service_affiliation(From, StateData),
     NConferences = tab_count_user(From),
-    MaxConferences = gen_mod:get_module_opt(
-               StateData#state.server_host,
-               mod_muc, max_user_conferences, 10),
+    MaxConferences = get_opt(StateData, max_user_conferences, 10),
     (ServiceAffiliation == owner orelse
        MaxUsers == none orelse
        ((Affiliation == admin orelse Affiliation == owner) andalso
@@ -1905,7 +1887,7 @@ perform_http_auth(From, Nick, Packet, Role, Password, StateData) ->
             handle_http_auth_result(Result, From, Nick, Packet, Role, StateData);
         false ->
             %% Perform the request in a separate process to prevent room freeze
-            Pid = spawn_link(
+            Pid = proc_lib:spawn_link(
                     fun() ->
                             Result = make_http_auth_request(From, RoomJid, Password, Pool),
                             gen_fsm_compat:send_event(RoomPid, {http_auth, self(), Result,
@@ -1994,6 +1976,8 @@ check_password(#state{http_auth_pool = none,
                       config = #config{password = Password}}, Password) ->
     allowed;
 check_password(#state{http_auth_pool = none}, _Password) ->
+    ?LOG_WARNING(#{what => muc_check_password_failed,
+                   text => <<"http_auth_pool not found">>}),
     invalid_password;
 check_password(#state{http_auth_pool = _Pool}, _Password) ->
     http_auth.
@@ -3307,7 +3291,7 @@ process_authorized_submit_owner(From, XEl, StateData) ->
          andalso is_allowed_room_name_desc_limits(XEl, StateData)
          andalso is_password_settings_correct(XEl, StateData) of
         true -> set_config(XEl, StateData);
-        false -> {error, mongoose_xmpp_errors:not_acceptable()}
+        false -> {error, mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"not allowed to configure">>)}
     end.
 
 -spec is_allowed_log_change(exml:element(), state(), jid:jid()) -> boolean().
@@ -3318,7 +3302,8 @@ is_allowed_log_change(XEl, StateData, From) ->
         true;
     true ->
         (allow == mod_muc_log:check_access_log(
-          StateData#state.server_host, From))
+                    StateData#state.host_type,
+                    StateData#state.server_host, From))
     end.
 
 
@@ -3330,7 +3315,9 @@ is_allowed_persistent_change(XEl, StateData, From) ->
         true;
     true ->
         AccessPersistent = access_persistent(StateData),
-        (allow == acl:match_rule(StateData#state.server_host, AccessPersistent, From))
+        (allow == acl:match_rule_for_host_type(StateData#state.host_type,
+                                               StateData#state.server_host,
+                                               AccessPersistent, From))
     end.
 
 
@@ -3342,9 +3329,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomname">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [N]}} ->
-        byte_size(N) =< gen_mod:get_module_opt(StateData#state.server_host,
-                            mod_muc, max_room_name,
-                            infinity);
+        byte_size(N) =< get_opt(StateData, max_room_name, infinity);
         _ ->
         true
     end,
@@ -3352,9 +3337,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomdesc">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [D]}} ->
-        byte_size(D) =< gen_mod:get_module_opt(StateData#state.server_host,
-                            mod_muc, max_room_desc,
-                            infinity);
+        byte_size(D) =< get_opt(StateData, max_room_desc, infinity);
         _ ->
         true
     end,
@@ -3401,8 +3384,7 @@ is_password_settings_correct(XEl, StateData) ->
 
 -spec get_default_room_maxusers(state()) -> any().
 get_default_room_maxusers(RoomState) ->
-    DefRoomOpts = gen_mod:get_module_opt(
-                    RoomState#state.server_host, mod_muc, default_room_options, []),
+    DefRoomOpts = get_opt(RoomState, default_room_options, []),
     RoomState2 = set_opts(DefRoomOpts, RoomState),
     (RoomState2#state.config)#config.max_users.
 
@@ -3430,7 +3412,9 @@ get_config(Lang, StateData, From) ->
                <<"muc#roomconfig_roomdesc">>,
                 Config#config.description, Lang)
     ] ++
-     case acl:match_rule(StateData#state.server_host, AccessPersistent, From) of
+     case acl:match_rule_for_host_type(StateData#state.host_type,
+                                       StateData#state.server_host,
+                                       AccessPersistent, From) of
         allow ->
             [boolxfield(<<"Make room persistent">>,
              <<"muc#roomconfig_persistentroom">>,
@@ -3486,7 +3470,8 @@ get_config(Lang, StateData, From) ->
              <<"muc#roomconfig_allowvisitornickchange">>,
               Config#config.allow_visitor_nickchange, Lang)
     ] ++
-     case mod_muc_log:check_access_log(StateData#state.server_host, From) of
+     case mod_muc_log:check_access_log(StateData#state.host_type,
+                                       StateData#state.server_host, From) of
          allow ->
              [boolxfield(
                 <<"Enable logging">>,
@@ -4396,8 +4381,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                               from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
     Now = os:system_time(microsecond),
-    MinMessageInterval = trunc(gen_mod:get_module_opt(StateData#state.server_host,
-                                                      mod_muc, min_message_interval, 0) * 1000000),
+    MinMessageInterval = trunc(get_opt(StateData, min_message_interval, 0) * 1000000),
     Size = element_size(Packet),
     {MessageShaper, MessageShaperInterval} = shaper:update(Activity#activity.message_shaper, Size),
     case {Activity#activity.message /= undefined,
@@ -4595,11 +4579,15 @@ route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_ITEMS, lang = L
     Res = process_iq_disco_items(From, Type, Lang, StateData),
     do_route_iq(Acc, Res, Routed, StateData);
 route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
-         #state{host = Host, jid = RoomJID} = StateData) ->
+         #state{host_type = HostType, jid = RoomJID} = StateData) ->
     %% Custom IQ, addressed to this room's JID.
-    case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
+    case mod_muc_iq:process_iq(HostType, From, RoomJID, Acc, IQ) of
         {Acc1, error} ->
-            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            ?LOG_WARNING(#{what => muc_process_iq_failed, acc => Acc,
+                           host_type => HostType, room_jid => RoomJID}),
+            E = mongoose_xmpp_errors:feature_not_implemented(
+                  <<"en">>, <<"From mod_muc_room">>),
+            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, E),
             ejabberd_router:route(RoomJID, From, Acc2, Err);
         _ -> ok
     end,
@@ -4639,7 +4627,7 @@ do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
 
 
 -spec route_nick_message(routed_nick_message(), state()) -> state().
-route_nick_message(#routed_nick_message{decide = {expulse_sender, Reason},
+route_nick_message(#routed_nick_message{decide = {expulse_sender, _Reason},
     packet = Packet, lang = Lang, from = From}, StateData) ->
     ErrorText = <<"This participant is kicked from the room because he",
                   "sent an error message to another participant">>,
@@ -4760,3 +4748,9 @@ notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = Sta
 ls(LogMap, State) ->
     maps:merge(LogMap, #{room => State#state.room,
                          sub_host => State#state.host}).
+
+get_opt(#state{host_type = HostType}, Opt, Def) ->
+    gen_mod:get_module_opt(HostType, mod_muc, Opt, Def).
+
+read_hibernate_timeout(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout, timer:seconds(90)).

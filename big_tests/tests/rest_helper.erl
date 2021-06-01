@@ -204,10 +204,30 @@ fusco_request(#{ role := Role, method := Method, path := Path, body := Body, ser
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
-    Headers = [{<<"Content-Type">>, <<"application/json">>} | HeadersIn],
+    Headers = [{<<"Content-Type">>, <<"application/json">>},
+               {<<"Request-Id">>, random_request_id()} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
+    report_errors(Client, Path, Method, Headers, Body, Result),
     Result.
+
+random_request_id() ->
+    base16:encode(crypto:strong_rand_bytes(8)).
+
+report_errors(Client, Path, Method, Headers, Body,
+              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result) ->
+    Code = binary_to_integer(CodeBin),
+    case Code >= 400 of
+        true ->
+            Req = {Client, Path, Method, Headers, Body},
+            ct:log("REST request fails:~n"
+                   "Code: ~p~n"
+                   "Req: ~p~n"
+                   "Result: ~p~n",
+                   [Code, Req, Result]);
+        false ->
+            ok
+    end.
 
 -spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec()) -> Port :: integer().
 get_port(Role, Node) ->
@@ -295,6 +315,7 @@ to_list(V) when is_list(V) ->
     V.
 
 maybe_enable_mam(rdbms, Host, Config) ->
+    maybe_disable_mam(rdbms, Host),
     init_module(Host, mod_mam_rdbms_arch, []),
     init_module(Host, mod_mam_muc_rdbms_arch, []),
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
@@ -304,6 +325,7 @@ maybe_enable_mam(rdbms, Host, Config) ->
                                     {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
+    maybe_disable_mam(riak, Host),
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
     init_module(Host, mod_mam, [{archive_chat_markers, true}]),
@@ -317,6 +339,7 @@ init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
 maybe_disable_mam(rdbms, Host) ->
+    stop_module(Host, mod_mam_muc_rdbms_arch),
     stop_module(Host, mod_mam_rdbms_arch),
     stop_module(Host, mod_mam_rdbms_prefs),
     stop_module(Host, mod_mam_rdbms_user),
@@ -368,29 +391,7 @@ put_msg(Aclient, Bclient, Content, Days) ->
     put_msg(Msg),
     ok.
 
-put_msg({{MsgIdOwner, MsgIdRemote},
-    {_FromBin, FromJID, FromArcID},
-    {_ToBin, ToJID, ToArcID},
-    {_, Source, _}, Packet}) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    OutArgs = [Host, #{message_id => MsgIdOwner,
-                       archive_id => FromArcID,
-                       local_jid => FromJID,
-                       remote_jid => ToJID,
-                       source_jid => Source,
-                       origin_id => none,
-                       direction => outgoing,
-                       packet => Packet}],
-    ok = mam_helper:rpc_apply(mod_mam, archive_message, OutArgs),
-    InArgs = [Host, #{message_id => MsgIdRemote,
-                      archive_id => ToArcID,
-                      local_jid => ToJID,
-                      remote_jid => FromJID,
-                      source_jid => Source,
-                      origin_id => none,
-                      direction => incoming,
-                      packet => Packet}],
-    ok = mam_helper:rpc_apply(mod_mam, archive_message, InArgs).
+put_msg(Msg) -> mam_helper:put_msg(Msg).
 
 make_arc_id(Client) ->
     User = escalus_client:username(Client),
@@ -426,7 +427,7 @@ put_room_msg({{_, MsgID},
               {_, ToJID, ToArcID},
               {_, SrcJID, _}, Msg}) ->
     Host = ct:get_config({hosts, mim, domain}),
-    ok = mam_helper:rpc_apply(mod_mam_muc, archive_message, [Host, #{message_id => MsgID,
+    ok = mam_helper:rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
                                                                      archive_id => ToArcID,
                                                                      local_jid => ToJID,
                                                                      remote_jid => FromJID,

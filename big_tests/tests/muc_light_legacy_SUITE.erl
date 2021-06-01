@@ -52,6 +52,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(domain_helper, [host_type/0]).
 -import(muc_light_helper, [
                            bin_aff_users/1,
                            to_lus/2,
@@ -65,7 +66,7 @@
 -define(NS_MUC_LIGHT, <<"urn:xmpp:muclight:0">>).
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
--define(MUCHOST, <<"muc.localhost">>).
+-define(MUCHOST, (muc_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 -define(BACKEND, mod_muc_light_db_backend).
@@ -141,9 +142,9 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Host = domain(),
-    dynamic_modules:start(Host, mod_muc_light,
-                          [{host, subhost_pattern(?MUCHOST)},
+    HostType = host_type(),
+    dynamic_modules:restart(HostType, mod_muc_light,
+                          [{host, subhost_pattern(muc_helper:muc_host_pattern())},
                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
@@ -152,7 +153,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(domain(), mod_muc_light),
+    dynamic_modules:stop(host_type(), mod_muc_light),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -176,7 +177,7 @@ init_per_testcase(create_existing_room_deny = N, Config) ->
 init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                          CaseName =:= disco_info_with_mam ->
     set_default_mod_config(),
-    dynamic_modules:start(domain(), mod_mam_muc,
+    dynamic_modules:restart(host_type(), mod_mam_muc,
                           [{backend, rdbms},
                            {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
@@ -188,7 +189,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
     clear_db(),
-    dynamic_modules:stop(domain(), mod_mam_muc),
+    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     clear_db(),
@@ -204,7 +205,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config) ->
     {ok, _RoomUS} = rpc(?BACKEND, create_room, [RoomUS, DefaultConfig, AffUsers, <<"-">>]).
 
 clear_db() ->
-    rpc(?BACKEND, force_clear, []).
+    muc_light_helper:clear_db().
 
 %%--------------------------------------------------------------------
 %% MUC light tests
@@ -229,7 +230,7 @@ disco_info_with_mam(Config) ->
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
+            {ok, {?ROOM2, _}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
             DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), ?MUCHOST),
             escalus:send(Alice, DiscoStanza),
             %% we should get 1 room, Alice is not in the second one
@@ -265,7 +266,7 @@ disco_rooms_rsm(Config) ->
             ProperJID2 = exml_query:attr(Item2, <<"jid">>),
 
             BadAfter = #xmlel{ name = <<"after">>,
-                               children = [#xmlcdata{ content = <<"oops@muc.localhost">> }] },
+                               children = [#xmlcdata{ content = <<"oops@", (?MUCHOST)/binary>> }] },
             RSM2 = #xmlel{ name = <<"set">>,
                           attrs = [{<<"xmlns">>, ?NS_RSM}],
                           children = [ #xmlel{ name = <<"max">>,
@@ -280,7 +281,7 @@ disco_rooms_rsm(Config) ->
 
 unauthorized_stanza(Config) ->
     escalus:story(Config, [{alice, 1}, {kate, 1}], fun(Alice, Kate) ->
-            {ok, {?ROOM2, ?MUCHOST}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
+            {ok, {?ROOM2, _}} = create_room(?ROOM2, ?MUCHOST, kate, [], Config),
             MsgStanza = escalus_stanza:groupchat_to(room_bin_jid(?ROOM2), <<"malicious">>),
             escalus:send(Alice, MsgStanza),
             escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>],
@@ -494,7 +495,6 @@ manage_blocklist(Config) ->
             QueryEl1 = exml_query:subelement(GetResult1, <<"query">>),
             verify_blocklist(QueryEl1, []),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -563,7 +563,6 @@ blocking_disabled(Config) ->
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
             Domain = domain(),
-
             BlocklistChange1 = [{user, deny, <<"user@", Domain/binary>>},
                                 {room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Alice, stanza_blocking_set(BlocklistChange1)),
@@ -676,14 +675,21 @@ parse_blocked_item(Item) ->
     <<"deny">> = exml_query:attr(Item, <<"action">>),
     <<"jid">> = exml_query:attr(Item, <<"type">>),
     Value = exml_query:attr(Item, <<"value">>),
+    MucHost = ?MUCHOST,
     case binary:split(Value, <<"/">>) of
-        [?MUCHOST, User] -> {user, deny, User};
-        [Room] -> {room, deny, Room}
+        [MucHost, User] -> {user, deny, User};
+        [Room] -> {room, deny, Room};
+        Other ->
+            CfgHost = rpc(gen_mod, get_module_opt, [host_type(), mod_muc_light, host, undefined]),
+            ct:fail(#{what => parse_blocked_item_failed,
+                      muc_host => MucHost, other => Other,
+                      cfg_host => CfgHost})
     end.
 
 -spec verify_aff_bcast(CurrentOccupants :: [escalus:client()], AffUsersChanges :: ct_aff_users(),
                        Newcomers :: [escalus:client()], Changer :: escalus:client()) -> ok.
 verify_aff_bcast(CurrentOccupants, AffUsersChanges, Newcomers, Changer) ->
+    MucHost = ?MUCHOST,
     PredList = [ presence_verify_fun(AffUser) || AffUser <- AffUsersChanges ],
     lists:foreach(
       fun(Occupant) ->
@@ -699,7 +705,7 @@ verify_aff_bcast(CurrentOccupants, AffUsersChanges, Newcomers, Changer) ->
       fun(Newcomer) ->
               #xmlel{ name = <<"message">> } = Incoming = escalus:wait_for_stanza(Newcomer),
               RoomBareJIDBin = exml_query:attr(Incoming, <<"from">>),
-              [_, ?MUCHOST] = binary:split(RoomBareJIDBin, <<"@">>),
+              [_, MucHost] = binary:split(RoomBareJIDBin, <<"@">>),
               X = exml_query:subelement(Incoming, <<"x">>),
               ?NS_MUC_USER = exml_query:attr(X, <<"xmlns">>),
               [Invite] = exml_query:subelements(X, <<"invite">>),
@@ -753,21 +759,23 @@ verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 
 -spec gc_message_verify_fun(Room :: binary(), MsgText :: binary(), Id :: binary()) -> verify_fun().
 gc_message_verify_fun(Room, MsgText, Id) ->
+    MucHost = ?MUCHOST,
     fun(Incoming) ->
             escalus:assert(is_groupchat_message, [MsgText], Incoming),
             [RoomBareJID, FromNick] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
-            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>),
+            [Room, MucHost] = binary:split(RoomBareJID, <<"@">>),
             [_] = binary:split(FromNick, <<"/">>), % nick is bare JID
             Id = exml_query:attr(Incoming, <<"id">>)
     end.
 
 -spec subject_message_verify_fun(Room :: binary(), Subject :: binary()) -> verify_fun().
 subject_message_verify_fun(Room, Subject) ->
+    MucHost = ?MUCHOST,
     fun(Incoming) ->
             escalus:assert(is_groupchat_message, Incoming),
             Subject = exml_query:path(Incoming, [{element, <<"subject">>}, cdata]),
             RoomBareJID = exml_query:attr(Incoming, <<"from">>),
-            [Room, ?MUCHOST] = binary:split(RoomBareJID, <<"@">>)
+            [Room, MucHost] = binary:split(RoomBareJID, <<"@">>)
     end.
 
 -spec config_msg_verify_fun() -> verify_fun().
@@ -808,9 +816,10 @@ presence_verify_fun({User, UserAff}) ->
 -spec presence_verify(User :: escalus:client(), UserAff :: none | member | owner,
                       Incoming :: xmlel()) -> true.
 presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
+    MucHost = ?MUCHOST,
     UserJIDBin = lbin(escalus_client:short_jid(User)),
     [RoomBareJIDBin, UserJIDBin] = binary:split(exml_query:attr(Incoming, <<"from">>), <<"/">>),
-    [_, ?MUCHOST] = binary:split(RoomBareJIDBin, <<"@">>),
+    [_, MucHost] = binary:split(RoomBareJIDBin, <<"@">>),
     X = exml_query:subelement(Incoming, <<"x">>),
     HasDestroy = exml_query:subelement(X, <<"destroy">>) =/= undefined,
     {ProperAff, ProperRole}
@@ -871,10 +880,13 @@ set_default_mod_config() ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-muc_domain() ->
-    Domain = domain(),
-    <<"muc.", Domain/binary>>.
-
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
-    <<Room/binary, $@, (muc_domain())/binary>>.
+    <<Room/binary, $@, (muc_helper:muc_host())/binary>>.
+
+disco_disabled() ->
+    try
+        ct:get_config({disable_disco_tests})
+    catch _:_ ->
+              false
+    end.

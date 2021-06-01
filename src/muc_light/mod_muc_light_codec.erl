@@ -26,12 +26,14 @@
 %% Behaviour callbacks
 %%====================================================================
 
--callback decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element()) ->
+-callback decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element(),
+                 Acc :: mongoose_acc:t()) ->
     decode_result().
 
 -callback encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
                  RoomUS :: jid:simple_bare_jid(), % may be just service domain
-                 HandleFun :: encoded_packet_handler()) -> any().
+                 HandleFun :: encoded_packet_handler(),
+                 Acc :: mongoose_acc:t()) -> any().
 
 -callback encode_error(ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
                        OrigPacket :: exml:element(), HandleFun :: encoded_packet_handler()) ->
@@ -53,15 +55,19 @@ encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
 make_error_elem({error, not_allowed}) ->
     mongoose_xmpp_errors:not_allowed();
 make_error_elem({error, bad_request}) ->
-    mongoose_xmpp_errors:bad_request();
+    mongoose_xmpp_errors:bad_request(<<"en">>, <<"Uncategorized bad request">>);
 make_error_elem({error, item_not_found}) ->
     mongoose_xmpp_errors:item_not_found();
-make_error_elem({error, conflict}) ->
-    mongoose_xmpp_errors:conflict();
+make_error_elem({error, {conflict, Text}}) ->
+    mongoose_xmpp_errors:conflict(<<"en">>, Text);
+make_error_elem({error, {bad_request, Text}}) ->
+    make_error_elem({error, bad_request, Text});
 make_error_elem({error, bad_request, Text}) ->
     mongoose_xmpp_errors:bad_request(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
     mongoose_xmpp_errors:feature_not_implemented();
+make_error_elem({error, {feature_not_implemented, Text}}) ->
+    mongoose_xmpp_errors:feature_not_implemented(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, internal_server_error}) ->
     mongoose_xmpp_errors:internal_server_error();
 make_error_elem({error, registration_required}) ->

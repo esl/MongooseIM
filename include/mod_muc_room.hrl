@@ -70,6 +70,7 @@
 
 -record(state, {room                :: mod_muc:room(),
                 host                :: jid:server(),
+                host_type           :: mongooseim:host_type(),
                 server_host         :: jid:server(),
                 access              :: mod_muc:access(),
                 jid                 :: jid:jid(),

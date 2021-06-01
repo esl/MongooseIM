@@ -111,7 +111,7 @@ inspect_packet(Acc, From, To, Packet) ->
 maybe_store_chat_marker(Acc, From, To, Packet) ->
     case mongoose_acc:get(mod_smart_markers, timestamp, undefined, Acc) of
         undefined -> false;
-        Timestamp when is_integer(Timestamp)->
+        Timestamp when is_integer(Timestamp) ->
             Room = get_room(Acc, From),
             Thread = get_thread(Packet),
             mod_offline_chatmarkers_backend:maybe_store(To, Thread, Room, Timestamp),

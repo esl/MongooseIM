@@ -8,7 +8,6 @@
 
 -include("assert_received_match.hrl").
 
--define(MUC_HOST, <<"muc.localhost">>).
 -define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
 -define(SNS_OPTS,
@@ -71,7 +70,7 @@ init_per_suite(Config) ->
             %% For mocking with unnamed functions
             mongoose_helper:inject_module(?MODULE),
 
-            muc_helper:load_muc(muc_host()),
+            muc_helper:load_muc(),
             escalus:init_per_suite(Config);
         {error, _} ->
             {skip, "erlcloud dependency is not enabled"}
@@ -310,12 +309,12 @@ stanza_to_room(Stanza, Room, Nick) ->
     escalus_stanza:to(Stanza, room_address(Room, Nick)).
 
 room_address(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
+    <<Room/binary, "@", (muc_host())/binary>>.
 
 room_address(Room, Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+    <<Room/binary, "@", (muc_host())/binary, "/", Nick/binary>>.
 
 nick(User) -> escalus_utils:get_username(User).
 
 muc_host() ->
-    ?MUC_HOST.
+    muc_helper:muc_host().

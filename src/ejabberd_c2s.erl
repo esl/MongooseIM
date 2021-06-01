@@ -893,11 +893,10 @@ process_outgoing_stanza(Acc, StateData) ->
 
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     #jid{user = User, server = Server} = FromJID = mongoose_acc:from_jid(Acc),
-    %% TODO: recheck that Acc has sender's host type here.
     HostType = mongoose_acc:host_type(Acc),
     Res = mongoose_hooks:c2s_update_presence(HostType, Acc),
     El = mongoose_acc:element(Res),
-    Res1 = mongoose_hooks:user_send_packet(HostType, Res, FromJID, ToJID, El),
+    Res1 = mongoose_hooks:user_send_packet(Res, FromJID, ToJID, El),
     {_Acc1, NState} = case ToJID of
                           #jid{user = User,
                                server = Server,
@@ -910,7 +909,6 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
 process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     {XMLNS, Acc} = mongoose_iq:xmlns(Acc0),
     FromJID = mongoose_acc:from_jid(Acc),
-    HostType = mongoose_acc:host_type(Acc),
     El = mongoose_acc:element(Acc),
     {_Acc, NState} = case XMLNS of
                          ?NS_PRIVACY ->
@@ -918,17 +916,16 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
                          ?NS_BLOCKING ->
                              process_privacy_iq(Acc, ToJID, StateData);
                          _ ->
-                             Acc2 = mongoose_hooks:user_send_packet(HostType, Acc,
-                                                                    FromJID, ToJID, El),
+                             Acc2 = mongoose_hooks:user_send_packet(Acc, FromJID,
+                                                                    ToJID, El),
                              Acc3 = check_privacy_and_route(Acc2, StateData),
                              {Acc3, StateData}
     end,
     NState;
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:from_jid(Acc),
-    HostType = mongoose_acc:host_type(Acc),
     El = mongoose_acc:element(Acc),
-    Acc1 = mongoose_hooks:user_send_packet(HostType, Acc, FromJID, ToJID, El),
+    Acc1 = mongoose_hooks:user_send_packet(Acc, FromJID, ToJID, El),
     _Acc2 = check_privacy_and_route(Acc1, StateData),
     StateData;
 process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
@@ -2276,7 +2273,8 @@ process_privacy_iq(Acc1, To, StateData) ->
             From = mongoose_acc:from_jid(Acc2),
             {Acc3, NewStateData} = process_privacy_iq(Acc2, Type, To, StateData),
             Res = mongoose_acc:get(hook, result,
-                                   {error, mongoose_xmpp_errors:feature_not_implemented()}, Acc3),
+                                   {error, mongoose_xmpp_errors:feature_not_implemented(
+                                             <<"en">>, <<"Failed to handle the privacy IQ request in c2s">>)}, Acc3),
             IQRes = case Res of
                         {result, Result} ->
                             IQ#iq{type = result, sub_el = Result};
@@ -2396,12 +2394,13 @@ process_unauthenticated_stanza(StateData, El) ->
                 <<>> ->
                     case StateData#state.lang of
                         <<>> -> El;
-                        Lang ->
-                            xml:replace_tag_attr(<<"xml:lang">>, Lang, El)
+                        L ->
+                            xml:replace_tag_attr(<<"xml:lang">>, L, El)
                     end;
                 _ ->
                     El
             end,
+    Lang = xml:get_tag_attr_s(<<"xml:lang">>, NewEl),
     case jlib:iq_query_info(NewEl) of
         #iq{} = IQ ->
             Res = mongoose_hooks:c2s_unauthenticated_iq(
@@ -2412,8 +2411,9 @@ process_unauthenticated_stanza(StateData, El) ->
                 empty ->
                     % The only reasonable IQ's here are auth and register IQ's
                     % They contain secrets, so don't include subelements to response
+                    Text = <<"Forbidden unauthenticated stanza">>,
                     ResIQ = IQ#iq{type = error,
-                                  sub_el = [mongoose_xmpp_errors:service_unavailable()]},
+                                  sub_el = [mongoose_xmpp_errors:service_unavailable(Lang, Text)]},
                     Res1 = jlib:replace_from_to(
                              jid:make_noprep(<<>>, StateData#state.server, <<>>),
                              jid:make_noprep(<<>>, <<>>, <<>>),

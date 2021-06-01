@@ -49,14 +49,13 @@
          unregister_iq_handler/2,
          unregister_host/1,
          unregister_iq_response_handler/2,
-         bounce_resource_packet/4,
-         sync/0,
-         add_local_features/5
+         sync/0
         ]).
 
 %% Hooks callbacks
 
--export([node_cleanup/2]).
+-export([node_cleanup/2,
+         add_local_features/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -115,7 +114,9 @@ process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
-            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
+            T = <<"Local server does not implement this feature">>,
+            ejabberd_router:route_error_reply(To, From, Acc,
+                mongoose_xmpp_errors:feature_not_implemented(<<"en">>, T))
     end;
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
@@ -222,11 +223,11 @@ unregister_iq_handler(Domain, XMLNS) ->
 -spec bounce_resource_packet(Acc :: mongoose_acc:t(),
                              From :: jid:jid(),
                              To :: jid:jid(),
-                             El :: exml:element()) -> {'stop', mongoose_acc:t()}.
+                             El :: exml:element()) -> mongoose_acc:t().
 bounce_resource_packet(Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:item_not_found()),
     ejabberd_router:route(To, From, Acc1, Err),
-    {stop, Acc}.
+    Acc.
 
 -spec register_host(Host :: jid:server()) -> ok.
 register_host(Host) ->
@@ -282,7 +283,7 @@ init([]) ->
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, iq_response)}]),
     mnesia:add_table_copy(iq_response, node(), ram_copies),
-    ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
+    ejabberd_hooks:add(hooks()),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -300,11 +301,9 @@ handle_call({unregister_host, Host}, _From, State) ->
      || #session{sid = {_, Pid}} <- ejabberd_sm:get_vh_session_list(Host),
         node(Pid) =:= Node],
     do_unregister_host(Host),
-    mongoose_metrics:remove_host_metrics(Host),
     {reply, ok, State};
 handle_call({register_host, Host}, _From, State) ->
     do_register_host(Host),
-    mongoose_metrics:init_predefined_host_metrics(Host),
     {reply, ok, State};
 handle_call(sync, _From, State) ->
     {reply, ok, State};
@@ -358,8 +357,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ejabberd_hooks:delete(node_cleanup, global, ?MODULE, node_cleanup, 50),
-    ok.
+    ejabberd_hooks:delete(hooks()).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -371,6 +369,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+hooks() ->
+    [{node_cleanup, global, ?MODULE, node_cleanup, 50}].
+
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
                To :: jid:jid(),
@@ -391,7 +393,7 @@ do_route(Acc, From, To, El) ->
             case mongoose_acc:stanza_type(Acc) of
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
-                _ -> mongoose_hooks:local_send_to_resource_hook(Acc, From, To, El)
+                _ -> bounce_resource_packet(Acc, From, To, El)
             end
     end.
 
@@ -463,13 +465,8 @@ cancel_timer(TRef) ->
 
 do_register_host(Host) ->
     ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, add_local_features, 99),
-    ejabberd_hooks:add(local_send_to_resource_hook, Host,
-                       ?MODULE, bounce_resource_packet, 100).
+    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, add_local_features, 99).
 
 do_unregister_host(Host) ->
     ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, add_local_features, 99),
-    ejabberd_hooks:delete(local_send_to_resource_hook, Host,
-                          ?MODULE, bounce_resource_packet, 100).
-
+    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, add_local_features, 99).

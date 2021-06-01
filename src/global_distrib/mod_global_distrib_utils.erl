@@ -43,6 +43,7 @@
 binary_to_metric_atom(Binary) ->
     List = lists:filtermap(fun
                                ($.) -> {true, $_};
+                               ($ ) -> {true, $_};
                                (C) when C > 31, C < 127 -> {true, C};
                                (_) -> false
                            end,

@@ -4,6 +4,7 @@
          }).
 
 -record(muc_online_room, {name_host,
+                          host_type,
                           pid
                          }).
 

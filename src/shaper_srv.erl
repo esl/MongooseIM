@@ -15,7 +15,7 @@
 
 -export([start_link/1,
          child_specs/0,
-         wait/4,
+         wait/5,
          reset_shapers/1,
          reset_all_shapers/1]).
 
@@ -48,7 +48,6 @@
 child_specs() ->
     [child_spec(ProcName) ||  ProcName <- worker_names(<<>>)].
 
-
 -spec child_spec(atom()) -> supervisor:child_spec().
 child_spec(ProcName) ->
     {ProcName,
@@ -58,51 +57,46 @@ child_spec(ProcName) ->
      worker,
      [?MODULE]}.
 
-
 -spec start_link(atom()) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [], []).
-
 
 -spec worker_prefix() -> string().
 worker_prefix() ->
     "ejabberd_shaper_".
 
-worker_count(_Host) ->
+worker_count(_HostType) ->
     10.
 
-
--spec worker_names(jid:server()) -> [atom()].
-worker_names(Host) ->
-    [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
-
+-spec worker_names(mongooseim:host_type()) -> [atom()].
+worker_names(HostType) ->
+    [worker_name(HostType, N) || N <- lists:seq(0, worker_count(HostType) - 1)].
 
 -spec worker_name(jid:server(), integer()) -> atom().
 worker_name(_Host, N) ->
     list_to_atom(worker_prefix() ++ integer_to_list(N)).
 
+-spec select_worker(mongooseim:host_type(), _) -> atom().
+select_worker(HostType, Tag) ->
+    N = worker_number(HostType, Tag),
+    worker_name(HostType, N).
 
--spec select_worker(jid:server(), _) -> atom().
-select_worker(Host, Tag) ->
-    N = worker_number(Host, Tag),
-    worker_name(Host, N).
-
-
--spec worker_number(jid:server(), _) -> non_neg_integer().
-worker_number(Host, Tag) ->
-    erlang:phash2(Tag, worker_count(Host)).
-
+-spec worker_number(mongooseim:host_type(), _) -> non_neg_integer().
+worker_number(HostType, Tag) ->
+    erlang:phash2(Tag, worker_count(HostType)).
 
 %% @doc Shapes the caller from executing the action.
--spec wait(_Host :: jid:server(), _Action :: atom(),
-           _FromJID :: jid:jid() | global, _Size :: integer()
+-spec wait(HostType :: mongooseim:host_type(),
+           Domain :: jid:server(), Action :: atom(),
+           FromJID :: jid:jid() | global, Size :: integer()
            ) -> ok | {error, max_delay_reached}.
-wait(Host, Action, FromJID, Size) ->
-    gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
+wait(HostType, Domain, Action, FromJID, Size) ->
+    gen_server:call(select_worker(HostType, FromJID),
+                    {wait, HostType, Domain, Action, FromJID, Size}).
 
 %% @doc Ask all shaper servers to forget current shapers and read settings again
-reset_all_shapers(Host) ->
-    [reset_shapers(ProcName) || ProcName <- worker_names(Host)].
+reset_all_shapers(HostType) ->
+    [reset_shapers(ProcName) || ProcName <- worker_names(HostType)].
 
 %% @doc Ask server to forget its shapers
 reset_shapers(ProcName) ->
@@ -122,10 +116,10 @@ init(Args) ->
     timer:send_interval(timer:seconds(GCInt), delete_old_shapers),
     {ok, State}.
 
-handle_call({wait, Host, Action, FromJID, Size},
+handle_call({wait, HostType, Domain, Action, FromJID, Size},
             From, State=#state{max_delay=MaxDelayMs}) ->
-    Key = new_key(Host, Action, FromJID),
-    Shaper = find_or_create_shaper(Key, State),
+    Key = new_key(Domain, Action, FromJID),
+    Shaper = find_or_create_shaper(HostType, Key, State),
     State1 = update_access_time(Key, erlang:system_time(), State),
     case shaper:update(Shaper, Size) of
         {UpdatedShaper, 0} ->
@@ -159,32 +153,28 @@ code_change(_OldVsn, State, _Extra) ->
 
 -type key() :: {global | jid:server(), atom(), jid:jid()}.
 -spec new_key(jid:server() | global, atom(), jid:jid()) -> key().
-new_key(Host, Action, FromJID) ->
-    {Host, Action, FromJID}.
+new_key(Domain, Action, FromJID) ->
+    {Domain, Action, FromJID}.
 
-
--spec find_or_create_shaper(key(), state()) -> shaper:shaper().
-find_or_create_shaper(Key, #state{shapers=Shapers}) ->
+-spec find_or_create_shaper(mongooseim:host_type(), key(), state()) ->
+    shaper:shaper().
+find_or_create_shaper(HostType, Key, #state{shapers=Shapers}) ->
     case dict:find(Key, Shapers) of
         {ok, Shaper} -> Shaper;
-        error -> create_shaper(Key)
+        error -> create_shaper(HostType, Key)
     end.
-
 
 -spec update_access_time(key(), _, state()) -> state().
 update_access_time(Key, Now, State=#state{a_times=Times}) ->
     State#state{a_times=dict:store(Key, Now, Times)}.
 
-
 -spec save_shaper(key(), shaper:shaper(), state()) -> state().
 save_shaper(Key, Shaper, State=#state{shapers=Shapers}) ->
     State#state{shapers=dict:store(Key, Shaper, Shapers)}.
 
-
 -spec init_dicts(state()) -> state().
 init_dicts(State) ->
     State#state{shapers=dict:new(), a_times=dict:new()}.
-
 
 -spec delete_old_shapers(state()) -> state().
 delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
@@ -197,27 +187,24 @@ delete_old_shapers(State=#state{shapers=Shapers, a_times=Times, ttl=TTL}) ->
             update_access_time(Key, ATime, save_shaper(Key, Shaper, Acc))
         end, init_dicts(State), Times).
 
+-spec create_shaper(mongooseim:host_type(), key()) ->
+    'none' | {'maxrate', _, 0, non_neg_integer()}.
+create_shaper(HostType, Key) ->
+    shaper:new(request_shaper_name(HostType, Key)).
 
--spec create_shaper(key()) -> 'none' | {'maxrate', _, 0, non_neg_integer()}.
-create_shaper(Key) ->
-    shaper:new(request_shaper_name(Key)).
-
-
--spec request_shaper_name(key()) -> atom().
-request_shaper_name({Host, Action, FromJID}) ->
-    get_shaper_name(Host, Action, FromJID, default_shaper()).
-
+-spec request_shaper_name(mongooseim:host_type(), key()) -> atom().
+request_shaper_name(HostType, {Domain, Action, FromJID}) ->
+    get_shaper_name(HostType, Domain, Action, FromJID, default_shaper()).
 
 default_shaper() ->
     none.
 
-
--spec get_shaper_name('global' | jid:server(),
-                      Action :: atom(),
-                      jid:jid(),
+-spec get_shaper_name(HostType :: mongooseim:host_type(),
+                      Domain :: 'global' | jid:server(),
+                      Action :: atom(), jid:jid(),
                       Default :: 'none') -> 'allow' | 'none'.
-get_shaper_name(Host, Action, FromJID, Default) ->
-    case acl:match_rule(Host, Action, FromJID) of
+get_shaper_name(HostType, Domain, Action, FromJID, Default) ->
+    case acl:match_rule_for_host_type(HostType, Domain, Action, FromJID) of
         deny -> Default;
         Value -> Value
     end.

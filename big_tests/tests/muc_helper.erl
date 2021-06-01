@@ -6,6 +6,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-include("mam_helper.hrl").
+
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
                              rpc/4]).
@@ -43,36 +45,42 @@ foreach_recipient(Users, VerifyFun) ->
               VerifyFun(escalus:wait_for_stanza(Recipient))
       end, Users).
 
-load_muc(Host) ->
+load_muc() ->
     %% Stop modules before trying to start them
     unload_muc(),
     Backend = muc_backend(),
-    %% TODO refactoring. "localhost" should be passed as a parameter
-    dynamic_modules:start(<<"localhost">>, mod_muc,
-                          [{host, subhost_pattern(Host)},
+    HostType = domain_helper:host_type(),
+    MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
+    ct:log("Starting MUC for ~p", [HostType]),
+    dynamic_modules:start(HostType, mod_muc,
+                          [{host, subhost_pattern(MucHostPattern)},
                            {backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},
                            {hibernated_room_timeout, 2000},
                            {access, muc},
                            {access_create, muc_create}]),
-    dynamic_modules:start(<<"localhost">>, mod_muc_log,
+    dynamic_modules:start(HostType, mod_muc_log,
                           [{outdir, "/tmp/muclogs"},
                            {access_log, muc}]).
 
 unload_muc() ->
-    dynamic_modules:stop(<<"localhost">>, mod_muc),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_log).
+    HostType = domain_helper:host_type(),
+    dynamic_modules:stop(HostType, mod_muc),
+    dynamic_modules:stop(HostType, mod_muc_log).
 
 muc_host() ->
-    <<"muc.localhost">>.
+    ct:get_config({hosts, mim, muc_service}).
+
+muc_host_pattern() ->
+    ct:get_config({hosts, mim, muc_service_pattern}).
 
 muc_backend() ->
     mongoose_helper:mnesia_or_rdbms_backend().
 
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
-    create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
+    create_instant_room(Room, From, Nick, Opts),
     RoomJID = room_address(Room),
     [{nick, Nick}, {room, Room}, {room_jid, RoomJID}, {muc_host, muc_host()} | Config].
 
@@ -137,10 +145,24 @@ generate_rpc_jid({_,User}) ->
     LServer = escalus_utils:jid_to_lower(Server),
     {jid, Username, Server, <<"rpc">>, LUsername, LServer, <<"rpc">>}.
 
-create_instant_room(Host, Room, From, Nick, Opts) ->
+create_instant_room(Room, From, Nick, Opts) ->
+    ServerHost = ct:get_config({hosts, mim, domain}),
+    assert_valid_server(ServerHost),
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
-    rpc(mim(), mod_muc, create_instant_room,
-        [Host, Room1, From, Nick, Opts]).
+    ok = rpc(mim(), mod_muc, create_instant_room,
+        [ServerHost, muc_host(), Room1, From, Nick, Opts]).
+
+assert_valid_server(ServerHost) ->
+    HostType = domain_helper:host_type(),
+    case rpc(mim(), mongoose_domain_api, get_domain_host_type, [ServerHost]) of
+        {ok, HostType} ->
+            ok;
+        Other ->
+            ct:fail(#{what => assert_valid_server_failed,
+                      server => ServerHost,
+                      expected_host_type => HostType,
+                      got_host_type => Other})
+    end.
 
 destroy_room(Config) ->
     destroy_room(muc_host(), ?config(room, Config)).
@@ -222,7 +244,7 @@ stanza_get_features() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
 
-has_features(#xmlel{children = [ Query ]}, Features) ->
+has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
     %%  to='hag66@shakespeare.lit/pda'
@@ -235,6 +257,10 @@ has_features(#xmlel{children = [ Query ]}, Features) ->
     %%      <feature var='http://jabber.org/protocol/muc'/>
     %%  </query>
     %%</iq>
+
+    HostType = domain_helper:host_type(),
+    Loaded = rpc(mim(), gen_mod, loaded_modules_with_opts, [HostType]),
+    ct:log("Loaded modules:~n~p", [Loaded]),
 
     Identity = exml_query:subelement(Query, <<"identity">>),
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
