@@ -38,6 +38,7 @@ common_disco_cases() ->
     [disco_info,
      disco_info_sm,
      disco_info_commands,
+     disco_info_sm_commands,
      disco_info_ping,
      disco_items_commands].
 
@@ -117,6 +118,16 @@ disco_info_commands(Config) ->
                 Stanza = escalus:wait_for_stanza(Alice),
                 escalus:assert(has_identity, [<<"automation">>, <<"command-list">>], Stanza),
                 escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_info_sm_commands(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(AliceJid, ?NS_COMMANDS)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-list">>], Stanza),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
         end).
 
 disco_info_ping(Config) ->

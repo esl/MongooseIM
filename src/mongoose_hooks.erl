@@ -1270,7 +1270,7 @@ disco_sm_features(Server, From, To, Node, Lang) ->
                         From :: jid:jid(),
                         To :: jid:jid(),
                         Node :: mod_pubsub:nodeId(),
-                        Lang :: ejabberd:lang()) -> [exml:element()].
+                        Lang :: ejabberd:lang()) -> [mongoose_disco:identity()].
 disco_sm_identity(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_sm_identity, Server, [],
                                      [From, To, Node, Lang]).

@@ -287,7 +287,7 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                     {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = Identity ++
+                                           children = mongoose_disco:identities_to_xml(Identity) ++
                                            mongoose_disco:features_to_xml(Features)}]}};
                 empty ->
                     Error = sm_error(From, To),
@@ -303,20 +303,14 @@ sm_error(#jid{luser = LUser, lserver = LServer},
 sm_error(_From, _To) ->
     mongoose_xmpp_errors:not_allowed().
 
--spec get_sm_identity(Acc :: [exml:element()],
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      Node :: binary(),
-                      Lang :: ejabberd:lang()) -> [exml:element()].
+-spec get_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
-    Acc ++ case ejabberd_auth:does_user_exist(JID) of
-               true ->
-                   [#xmlel{name = <<"identity">>,
-                           attrs = [{<<"category">>, <<"account">>},
-                                    {<<"type">>, <<"registered">>}]}];
-               _ ->
-                   []
-           end.
+    case ejabberd_auth:does_user_exist(JID) of
+        true -> [#{category => <<"account">>, type => <<"registered">>} | Acc];
+        false -> Acc
+    end.
 
 -spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID) ->

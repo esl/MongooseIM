@@ -145,6 +145,8 @@ disco_sm_test(Config) ->
               AliceJid = escalus_client:short_jid(Alice),
               escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
               Stanza = escalus:wait_for_stanza(Alice),
+              ?assertNot(escalus_pred:has_identity(<<"pubsub">>, <<"service">>, Stanza)),
+              escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
               escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
               escalus:assert(is_stanza_from, [AliceJid], Stanza)
       end).

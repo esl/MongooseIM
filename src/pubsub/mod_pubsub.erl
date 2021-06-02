@@ -649,13 +649,9 @@ disco_local_features(Acc, _From, To, <<>>, _Lang) ->
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec disco_sm_identity(
-        Acc :: [exml:element()],
-          From :: jid:jid(),
-          To :: jid:jid(),
-          Node :: mod_pubsub:nodeId(),
-          Lang :: ejabberd:lang())
-        -> [exml:element()].
+-spec disco_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
@@ -663,24 +659,13 @@ disco_sm_identity(Acc, From, To, Node, _Lang) ->
 disco_identity(error, _Node, _From) ->
     [];
 disco_identity(_Host, <<>>, _From) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"pubsub">>},
-                     {<<"type">>, <<"pep">>}]}];
+    [pep_identity()];
 disco_identity(Host, Node, From) ->
     Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
-                             {result, [#xmlel{name = <<"identity">>,
-                                              attrs = [{<<"category">>, <<"pubsub">>},
-                                                       {<<"type">>, <<"pep">>}]},
-                                       #xmlel{name = <<"identity">>,
-                                              attrs = [{<<"category">>, <<"pubsub">>},
-                                                       {<<"type">>, <<"leaf">>}
-                                                       | case get_option(Options, title) of
-                                                             false -> [];
-                                                             [Title] -> [{<<"name">>, Title}]
-                                                         end]}]};
+                             {result, [pep_identity(), pep_identity(Options)]};
                          _ ->
                              {result, []}
                      end
@@ -689,6 +674,16 @@ disco_identity(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+pep_identity(Options) ->
+    Identity = pep_identity(),
+    case get_option(Options, title) of
+        false -> Identity;
+        [Title] -> Identity#{name => Title}
+    end.
+
+pep_identity() ->
+    #{category => <<"pubsub">>, type => <<"pep">>}.
 
 -spec disco_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
                         ejabberd:lang()) ->
