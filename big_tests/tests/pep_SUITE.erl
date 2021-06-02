@@ -20,6 +20,7 @@
 
 -export([
          disco_test/1,
+         disco_sm_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
          publish_options_test/1,
@@ -54,6 +55,7 @@ groups() ->
          {pep_tests, [parallel],
           [
            disco_test,
+           disco_sm_test,
            pep_caps_test,
            publish_and_notify_test,
            publish_options_test,
@@ -130,6 +132,18 @@ disco_test(Config) ->
               escalus:assert(has_identity, [<<"pubsub">>, <<"service">>], Stanza),
               escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
               escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
+      end).
+
+disco_sm_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              AliceJid = escalus_client:short_jid(Alice),
+              escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
+              Stanza = escalus:wait_for_stanza(Alice),
+              escalus:assert(has_feature, [?NS_PUBSUB], Stanza),
+              escalus:assert(is_stanza_from, [AliceJid], Stanza)
       end).
 
 pep_caps_test(Config) ->

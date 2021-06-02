@@ -186,17 +186,11 @@ get_local_features(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                             From :: jid:jid(),
-                             To :: jid:jid(),
-                             NS :: binary(),
-                             ejabberd:lang()) -> {result, [exml:element()]} | {error, any()} | empty.
-get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
+-spec get_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+get_sm_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_COMMANDS], Acc);
 get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     {result, []};

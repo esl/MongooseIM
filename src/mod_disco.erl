@@ -42,7 +42,6 @@
          process_sm_iq_items/4,
          process_sm_iq_info/4,
          get_sm_identity/5,
-         get_sm_features/5,
          get_sm_items/5,
          get_info/5]).
 
@@ -71,7 +70,6 @@ hooks(Host) ->
      {disco_local_features, Host, ?MODULE, get_local_features, 100},
      {disco_local_identity, Host, ?MODULE, get_local_identity, 100},
      {disco_sm_items, Host, ?MODULE, get_sm_items, 100},
-     {disco_sm_features, Host, ?MODULE, get_sm_features, 100},
      {disco_sm_identity, Host, ?MODULE, get_sm_identity, 100},
      {disco_info, Host, ?MODULE, get_info, 100}].
 
@@ -315,13 +313,19 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
                                            children = Identity ++
                                            mongoose_disco:features_to_xml(Features)}]}};
-                {error, Error} ->
+                empty ->
+                    Error = sm_iq_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
+sm_iq_error(#jid{luser = LUser, lserver = LServer},
+            #jid{luser = LUser, lserver = LServer}) ->
+    mongoose_xmpp_errors:item_not_found();
+sm_iq_error(_From, _To) ->
+    mongoose_xmpp_errors:not_allowed().
 
 -spec get_sm_identity(Acc :: [exml:element()],
                       From :: jid:jid(),
@@ -337,25 +341,6 @@ get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
                _ ->
                    []
            end.
-
-
--spec get_sm_features(empty | {result, [exml:element()]} | {error, any()},
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      Node :: binary(),
-                      Lang :: ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
-get_sm_features(empty, From, To, _Node, _Lang) ->
-    #jid{luser = LFrom, lserver = LSFrom} = From,
-    #jid{luser = LTo, lserver = LSTo} = To,
-    case {LFrom, LSFrom} of
-        {LTo, LSTo} ->
-            {error, mongoose_xmpp_errors:item_not_found()};
-        _ ->
-            {error, mongoose_xmpp_errors:not_allowed()}
-    end;
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
 
 -spec get_user_resources(jid:jid()) -> [exml:element()].
 get_user_resources(JID) ->

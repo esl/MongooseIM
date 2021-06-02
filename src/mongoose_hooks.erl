@@ -1270,9 +1270,9 @@ disco_local_identity(Server, From, To, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: {error, any()} | {result, [exml:element()]}.
+    Result :: mongoose_disco:feature_acc().
 disco_sm_features(Server, From, To, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_local_features, Server, empty,
+    ejabberd_hooks:run_for_host_type(disco_sm_features, Server, empty,
                                      [From, To, Node, Lang]).
 
 %%% @doc `disco_sm_identity' hook is called to get the identity of the

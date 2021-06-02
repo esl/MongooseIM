@@ -11,6 +11,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([suite/0, all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1,
@@ -20,6 +21,7 @@
 -export([
          discover_features_test/1,
          discover_service_features_test/1,
+         discover_sm_features_test/1,
          discover_nodes_test/1,
          create_delete_node_test/1,
          subscribe_unsubscribe_test/1,
@@ -173,6 +175,7 @@ basic_tests() ->
     [
      discover_features_test,
      discover_service_features_test,
+     discover_sm_features_test,
      discover_nodes_test,
      create_delete_node_test,
      subscribe_unsubscribe_test,
@@ -365,6 +368,17 @@ discover_service_features_test(Config) ->
               escalus:assert(has_identity, [<<"pubsub">>, <<"service">>], Stanza),
               escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
       end).
+
+discover_sm_features_test(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                %% The feature shouldn't be present when PEP is disabled
+                ?assertNot(escalus_pred:has_feature(?NS_PUBSUB, Stanza)),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
 
 discover_nodes_test(Config) ->
     escalus:fresh_story(

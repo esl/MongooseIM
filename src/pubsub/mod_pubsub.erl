@@ -690,21 +690,14 @@ disco_identity(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]} | {error, any()},
-          From ::jid:jid(),
-          To   ::jid:jid(),
-          Node :: mod_pubsub:nodeId(),
-          Lang :: binary())
-        -> {result, Features::[Feature::binary()]} | {error, any()}.
-disco_sm_features(empty, From, To, Node, Lang) ->
-    disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
-    {result,
-     OtherFeatures ++
-         disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
-disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
+-spec disco_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+disco_sm_features(Acc, From, To, Node, _Lang) ->
+    Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_features(Features, Acc).
 
+-spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _Node, _From) ->
     [];
 disco_features(Host, <<>>, _From) ->

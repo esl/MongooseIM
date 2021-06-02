@@ -361,18 +361,16 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
+-spec get_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                      ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
 get_sm_features(Acc, _From, _To, <<"">> = _Node, _Lang) ->
-    add_feature(Acc, ?NS_FEATURE_MSGOFFLINE);
+    mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc);
 get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
     %% override all lesser features...
     {result, []};
 get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
-
-add_feature({result, Features}, Feature) ->
-    {result, Features ++ [Feature]};
-add_feature(_, Feature) ->
-    {result, [Feature]}.
 
 %% This function should be called only from a hook
 %% Calling it directly is dangerous and may store unwanted messages
