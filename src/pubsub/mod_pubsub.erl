@@ -718,23 +718,14 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
-                     From ::jid:jid(),
-                     To ::jid:jid(),
-                     Node :: mod_pubsub:nodeId(),
-                     Lang :: binary()) -> {result, [exml:element()]}.
-disco_sm_items(empty, From, To, Node, Lang) ->
-    disco_sm_items({result, []}, From, To, Node, Lang);
-disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
-    {result, lists:usort(OtherItems ++
-                             disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
-disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
+-spec disco_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                     ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+disco_sm_items(Acc, From, To, Node, _Lang) ->
+    Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_items(Items, Acc).
 
--spec disco_items(
-        Host :: mod_pubsub:host(),
-          Node :: mod_pubsub:nodeId(),
-          From :: jid:jid())
-        -> [exml:element()].
+-spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = O},
@@ -742,21 +733,14 @@ disco_items(Host, <<>>, From) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
-                             [#xmlel{name = <<"item">>,
-                                     attrs = [{<<"node">>, (Node)},
-                                              {<<"jid">>, jid:to_binary(Host)}
-                                              | case get_option(Options, title) of
-                                                    false -> [];
-                                                    [Title] -> [{<<"name">>, Title}]
-                                                end]}
-                              | Acc];
+                             [disco_item(Node, Host, Options) | Acc];
                          _ ->
                              Acc
                      end
              end,
     NodeBloc = fun() ->
                        {result,
-                        lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
+                        lists:foldl(Action, [], tree_call(Host, get_nodes, [Host, From]))}
                end,
     ErrorDebug = #{
       action => disco_items,
@@ -772,10 +756,8 @@ disco_items(Host, Node, From) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, Items} ->
-                             {result, [#xmlel{name = <<"item">>,
-                                              attrs = [{<<"jid">>, jid:to_binary(Host)},
-                                                       {<<"name">>, ItemId}]}
-                                       || #pubsub_item{itemid = {ItemId, _}} <- Items]};
+                             {result, [disco_item(Host, ItemId) ||
+                                          #pubsub_item{itemid = {ItemId, _}} <- Items]};
                          _ ->
                              {result, []}
                      end
@@ -784,6 +766,18 @@ disco_items(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+disco_item(Node, Host, Options) ->
+    Item = #{node => Node,
+             jid => jid:to_binary(Host)},
+    case get_option(Options, title) of
+        false -> Item;
+        [Title] -> Item#{name => Title}
+    end.
+
+disco_item(Host, ItemId) ->
+    #{jid => jid:to_binary(Host),
+      name => ItemId}.
 
 %% -------
 %% callback that prevents routing subscribe authorizations back to the sender

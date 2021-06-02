@@ -236,46 +236,22 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
                     {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]}};
-                {error, Error} ->
+                                           children = mongoose_disco:items_to_xml(Items)}]}};
+                empty ->
+                    Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
-
--spec get_sm_items(Acc :: 'empty' | {'error', _} | {'result', _},
-                   From :: jid:jid(),
-                   To :: jid:jid(),
-                   Node :: binary(),
-                   Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
-get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_sm_items(Acc, From, To, [], _Lang) ->
-    Items = case Acc of
-                {result, Its} -> Its;
-                empty -> []
-            end,
-    Items1 = case is_presence_subscribed(From, To) of
-                   true ->
-                       get_user_resources(To);
-                   _ ->
-                       []
-                end,
-    {result, Items ++ Items1};
-get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_sm_items(empty, From, To, _Node, _Lang) ->
-    #jid{luser = LFrom, lserver = LSFrom} = From,
-    #jid{luser = LTo, lserver = LSTo} = To,
-    case {LFrom, LSFrom} of
-        {LTo, LSTo} ->
-            {error, mongoose_xmpp_errors:item_not_found()};
-        _ ->
-            {error, mongoose_xmpp_errors:not_allowed()}
-    end.
-
+-spec get_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_sm_items(Acc, _From, To, <<>>, _Lang) ->
+    Items = get_user_resources(To),
+    mongoose_disco:add_items(Items, Acc);
+get_sm_items(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
@@ -314,17 +290,17 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
                                            children = Identity ++
                                            mongoose_disco:features_to_xml(Features)}]}};
                 empty ->
-                    Error = sm_iq_error(From, To),
+                    Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
-sm_iq_error(#jid{luser = LUser, lserver = LServer},
-            #jid{luser = LUser, lserver = LServer}) ->
+sm_error(#jid{luser = LUser, lserver = LServer},
+         #jid{luser = LUser, lserver = LServer}) ->
     mongoose_xmpp_errors:item_not_found();
-sm_iq_error(_From, _To) ->
+sm_error(_From, _To) ->
     mongoose_xmpp_errors:not_allowed().
 
 -spec get_sm_identity(Acc :: [exml:element()],
@@ -342,14 +318,13 @@ get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
                    []
            end.
 
--spec get_user_resources(jid:jid()) -> [exml:element()].
+-spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID) ->
     #jid{user = User, server = Server} = JID,
     Rs = ejabberd_sm:get_user_resources(JID),
     lists:map(fun(R) ->
-                BJID = jid:to_binary({User, Server, R}),
-                #xmlel{name = <<"item">>,
-                       attrs = [{<<"jid">>, BJID}, {<<"name">>, User}]}
+                      BJID = jid:to_binary({User, Server, R}),
+                      #{jid => BJID, name => User}
               end, lists:sort(Rs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

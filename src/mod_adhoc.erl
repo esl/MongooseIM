@@ -86,8 +86,7 @@ config_spec() ->
                          ejabberd:lang()) ->
           mongoose_disco:item_acc().
 get_local_commands(Acc, _From, #jid{lserver = LServer}, <<>>, Lang) ->
-    Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
-    Items = case Display of
+    Items = case are_commands_visible(LServer) of
                 false ->
                     [];
                 _ ->
@@ -102,38 +101,27 @@ get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-item(LServer, Node, Name, Lang) ->
-    #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
-
 %%-------------------------------------------------------------------------
 
--spec get_sm_commands(Acc :: [exml:element()],
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      NS :: binary(),
-                      ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
-get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
-    Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
-    case Display of
-        false ->
-            Acc;
-        _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
-            Nodes = [#xmlel{name = <<"item">>,
-                            attrs = [{<<"jid">>, jid:to_binary(To)},
-                                     {<<"node">>, ?NS_COMMANDS},
-                                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
-    end;
-
-get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    mongoose_hooks:adhoc_sm_items(LServer, From, To, Lang);
-
+-spec get_sm_commands(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<>>, Lang) ->
+    Items = case are_commands_visible(LServer) of
+                false ->
+                    [];
+                _ ->
+                    [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>, Lang)]
+            end,
+    mongoose_disco:add_items(Items, Acc);
 get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
+
+are_commands_visible(LServer) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false).
+
+item(LServer, Node, Name, Lang) ->
+    #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
 
 %%-------------------------------------------------------------------------
 

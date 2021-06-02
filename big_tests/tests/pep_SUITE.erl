@@ -12,6 +12,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([suite/0, all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1,
@@ -21,6 +22,7 @@
 -export([
          disco_test/1,
          disco_sm_test/1,
+         disco_sm_items_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
          publish_options_test/1,
@@ -56,6 +58,7 @@ groups() ->
           [
            disco_test,
            disco_sm_test,
+           disco_sm_items_test,
            pep_caps_test,
            publish_and_notify_test,
            publish_options_test,
@@ -146,6 +149,33 @@ disco_sm_test(Config) ->
               escalus:assert(is_stanza_from, [AliceJid], Stanza)
       end).
 
+disco_sm_items_test(Config) ->
+    NodeNS = random_node_ns(),
+    escalus:fresh_story(
+      set_caps_node(NodeNS, Config),
+      [{alice, 1}],
+      fun(Alice) ->
+              AliceJid = escalus_client:short_jid(Alice),
+
+              %% Node not present yet
+              escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+              Stanza1 = escalus:wait_for_stanza(Alice),
+              Query1 = exml_query:subelement(Stanza1, <<"query">>),
+              ?assertEqual(undefined, exml_query:subelement_with_attr(Query1, <<"node">>, NodeNS)),
+              escalus:assert(is_stanza_from, [AliceJid], Stanza1),
+
+              %% Publish an item to trigger node creation
+              pubsub_tools:publish(Alice, <<"item1">>, {pep, NodeNS}, []),
+
+              %% Node present
+              escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+              Stanza2 = escalus:wait_for_stanza(Alice),
+              Query2 = exml_query:subelement(Stanza2, <<"query">>),
+              Item = exml_query:subelement_with_attr(Query2, <<"node">>, NodeNS),
+              ?assertEqual(jid:str_tolower(AliceJid), exml_query:attr(Item, <<"jid">>)),
+              escalus:assert(is_stanza_from, [AliceJid], Stanza2)
+      end).
+
 pep_caps_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -167,11 +197,8 @@ pep_caps_test(Config) ->
 
 publish_and_notify_test(Config) ->
     NodeNS = random_node_ns(),
-
     escalus:fresh_story(
-      [{escalus_overrides,
-       [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
-       | Config],
+      set_caps_node(NodeNS, Config),
       [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
               escalus_story:make_all_clients_friends([Alice, Bob]),
@@ -180,6 +207,11 @@ publish_and_notify_test(Config) ->
               pubsub_tools:receive_item_notification(
                 Bob, <<"item1">>, {escalus_utils:get_short_jid(Alice), NodeNS}, [])
       end).
+
+set_caps_node(NodeNS, Config) ->
+    [{escalus_overrides,
+      [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
+    | Config].
 
 publish_options_test(Config) ->
     % Given pubsub is configured with pep plugin
