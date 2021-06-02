@@ -1257,7 +1257,7 @@ disco_local_items(HostType, From, To, Node, Lang) ->
     To :: jid:jid(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: [exml:element()].
+    Result :: [mongoose_disco:identity()].
 disco_local_identity(Server, From, To, Node, Lang) ->
     ejabberd_hooks:run_for_host_type(disco_local_identity, Server, [],
                                      [From, To, Node, Lang]).

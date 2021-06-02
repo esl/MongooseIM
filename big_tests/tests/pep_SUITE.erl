@@ -19,6 +19,7 @@
          init_per_testcase/2, end_per_testcase/2]).
 
 -export([
+         disco_test/1,
          pep_caps_test/1,
          publish_and_notify_test/1,
          publish_options_test/1,
@@ -52,6 +53,7 @@ groups() ->
     G = [
          {pep_tests, [parallel],
           [
+           disco_test,
            pep_caps_test,
            publish_and_notify_test,
            publish_options_test,
@@ -117,6 +119,18 @@ end_per_testcase(TestName, Config) ->
 %%--------------------------------------------------------------------
 
 %% Group: pep_tests (sequence)
+
+disco_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              escalus:send(Alice, escalus_stanza:disco_info(pubsub_tools:node_addr())),
+              Stanza = escalus:wait_for_stanza(Alice),
+              escalus:assert(has_identity, [<<"pubsub">>, <<"service">>], Stanza),
+              escalus:assert(has_identity, [<<"pubsub">>, <<"pep">>], Stanza),
+              escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
+      end).
 
 pep_caps_test(Config) ->
     escalus:fresh_story(

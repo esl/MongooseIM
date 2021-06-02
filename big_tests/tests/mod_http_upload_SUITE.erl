@@ -173,7 +173,8 @@ advertises_max_file_size(Config) ->
 
               escalus:assert(has_type, [<<"result">>], Form),
               escalus:assert(has_ns, [?NS_XDATA], Form),
-              escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form)
+              escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form),
+              escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
       end).
 
 does_not_advertise_max_size_if_unset(Config) ->
@@ -182,7 +183,8 @@ does_not_advertise_max_size_if_unset(Config) ->
       fun(Bob) ->
               ServJID = upload_service(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-              undefined = exml_query:path(Result, {element, <<"x">>})
+              undefined = exml_query:path(Result, {element, <<"x">>}),
+              escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
       end).
 
 rejects_set_iq(Config) ->

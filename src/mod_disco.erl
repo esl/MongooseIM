@@ -148,23 +148,21 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
             {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                   children = Identity ++ Info ++
-                                   mongoose_disco:features_to_xml(Features)}]}};
+                                   children = mongoose_disco:identities_to_xml(Identity) ++
+                                       Info ++
+                                       mongoose_disco:features_to_xml(Features)}]}};
         empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec get_local_identity(Acc :: [exml:element()],
-                        From :: jid:jid(),
-                        To :: jid:jid(),
-                        Node :: binary(),
-                        Lang :: ejabberd:lang()) -> [exml:element()].
+-spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
-    Acc ++ [#xmlel{name = <<"identity">>,
-                   attrs = [{<<"category">>, <<"server">>},
-                            {<<"type">>, <<"im">>},
-                            {<<"name">>, <<"MongooseIM">>}]}];
+    [#{category => <<"server">>,
+       type => <<"im">>,
+       name => <<"MongooseIM">>}] ++ Acc;
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 

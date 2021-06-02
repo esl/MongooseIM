@@ -30,8 +30,13 @@ all() ->
      {group, adhoc}].
 
 groups() ->
-    G = [{adhoc, [parallel], [disco_hidden, disco_commands, ping]},
-         {disco_visible, [parallel], [disco_visible, disco_commands]}],
+    G = [{adhoc, [parallel], [disco_hidden,
+                              disco_commands,
+                              disco_commands_info,
+                              disco_ping_info,
+                              ping]},
+         {disco_visible, [parallel], [disco_visible,
+                                      disco_commands]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
@@ -106,6 +111,26 @@ disco_commands(Config) ->
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 Item = exml_query:subelement_with_attr(Query, <<"node">>, <<"ping">>),
                 ?assertEqual(Server, exml_query:attr(Item, <<"jid">>)),
+                escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_commands_info(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Server = escalus_client:server(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(Server, ?NS_COMMANDS)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-list">>], Stanza),
+                escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_ping_info(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Server = escalus_client:server(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(Server, <<"ping">>)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-node">>], Stanza),
                 escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 

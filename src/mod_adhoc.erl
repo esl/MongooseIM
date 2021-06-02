@@ -138,21 +138,17 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_local_identity(Acc :: [exml:element()],
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         NS :: binary(),
-                         ejabberd:lang()) -> [exml:element()].
+-spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"automation">>},
-                     {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+    [#{category => <<"automation">>,
+       type => <<"command-list">>,
+       name => translate:translate(Lang, <<"Commands">>)} | Acc];
 get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"automation">>},
-                     {<<"type">>, <<"command-node">>},
-                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
+    [#{category => <<"automation">>,
+       type => <<"command-node">>,
+       name => translate:translate(Lang, <<"Ping">>)} | Acc];
 get_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 

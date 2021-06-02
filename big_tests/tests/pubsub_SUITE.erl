@@ -362,6 +362,7 @@ discover_service_features_test(Config) ->
       fun(Alice) ->
               escalus:send(Alice, escalus_stanza:disco_info(node_addr())),
               Stanza = escalus:wait_for_stanza(Alice),
+              escalus:assert(has_identity, [<<"pubsub">>, <<"service">>], Stanza),
               escalus:assert(has_feature, [?NS_PUBSUB], Stanza)
       end).
 

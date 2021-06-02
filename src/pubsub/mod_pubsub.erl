@@ -69,7 +69,7 @@
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
-         disco_local_identity/5, disco_local_features/5,
+         disco_local_features/5,
          disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
@@ -433,7 +433,6 @@ delete_hooks(ServerHost, Hooks) ->
 hooks() ->
     [
      {sm_remove_connection_hook, on_user_offline, 75},
-     {disco_local_identity, disco_local_identity, 75},
      {disco_local_features, disco_local_features, 75},
      {presence_probe_hook, presence_probe, 80},
      {roster_in_subscription, in_subscription, 50},
@@ -623,38 +622,22 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %% disco hooks handling functions
 %%
 
--spec disco_local_identity(
-        Acc    :: [exml:element()],
-          _From  ::jid:jid(),
-          To     ::jid:jid(),
-          Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: ejabberd:lang())
-        -> [exml:element()].
-disco_local_identity(Acc, _From, To, Node, Lang) ->
-    LServer = To#jid.lserver,
-    disco_local_identity(Acc, LServer, Node, Lang).
+-spec identities(jid:lserver(), ejabberd:lang()) -> [mongoose_disco:identity()].
+identities(Host, Lang) ->
+    pubsub_identity(Lang) ++ node_identity(Host, ?PEPNODE) ++ node_identity(Host, ?PUSHNODE).
 
-disco_local_identity(Acc, Host, <<>>, _Lang) ->
-    PepIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PEPNODE}]},
-    PushIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PUSHNODE}]},
-    HasPep = lists:member(?PEPNODE, plugins(Host)),
-    HasPush = lists:member(?PUSHNODE, plugins(Host)),
-    Plugins = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
-    lists:foldl(
-        fun
-            ({true, El}, AccIn) ->
-                [El | AccIn];
-            ({false, _}, AccIn) ->
-                AccIn
-        end, Acc, Plugins);
-disco_local_identity(Acc, _Host, _Node, _Lang) ->
-    Acc.
+-spec pubsub_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
+pubsub_identity(Lang) ->
+    [#{category => <<"pubsub">>,
+       type => <<"service">>,
+       name => translate:translate(Lang, <<"Publish-Subscribe">>)}].
+
+-spec node_identity(jid:lserver(), binary()) -> [mongoose_disco:identity()].
+node_identity(Host, Type) ->
+    case lists:member(Type, plugins(Host)) of
+        true -> [#{category => <<"pubsub">>, type => Type}];
+        false -> []
+    end.
 
 -spec disco_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
                            ejabberd:lang()) ->
@@ -1187,27 +1170,14 @@ iq_disco_info(Host, SNode, From, Lang) ->
                                                 %   Node = string_to_node(RealSNode),
     case Node of
         <<>> ->
-            InitAcc =
-                [#xmlel{name = <<"identity">>,
-                        attrs = [{<<"category">>, <<"pubsub">>},
-                                 {<<"type">>, <<"service">>},
-                                 {<<"name">>,
-                                  translate:translate(Lang, <<"Publish-Subscribe">>)}]}],
-            Identities = disco_local_identity(InitAcc, Host, Node, Lang),
-            {result, Identities ++
-                     [#xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_PUBSUB}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_COMMANDS}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_VCARD}]}]
-             ++ [#xmlel{name = <<"feature">>,
-                        attrs = [{<<"var">>, feature(F)}]}
-                 || F <- features(Host, Node)]};
+            Identities = identities(Host, Lang),
+            Features = [?NS_DISCO_INFO,
+                        ?NS_DISCO_ITEMS,
+                        ?NS_PUBSUB,
+                        ?NS_COMMANDS,
+                        ?NS_VCARD] ++ [feature(F) || F <- features(Host, Node)],
+            {result, mongoose_disco:identities_to_xml(Identities) ++
+                 mongoose_disco:features_to_xml(Features)};
         ?NS_COMMANDS ->
             command_disco_info(Host, Node, From);
         ?NS_PUBSUB_GET_PENDING ->
