@@ -114,7 +114,7 @@ disco_iq_handler(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = 
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     case Node of
         <<>> ->
-            Identity = disco_identity(Lang),
+            Identity = mongoose_disco:identities_to_xml(disco_identity(Lang)),
             Info = disco_info(LServer),
             Features = mongoose_disco:features_to_xml([?NS_HTTP_UPLOAD_030]),
             {Acc, IQ#iq{type = result,
@@ -125,7 +125,6 @@ disco_iq_handler(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = 
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
-
 
 -spec get_urls(Host :: jid:lserver(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
@@ -182,12 +181,11 @@ disco_local_items(Acc, _From, _To, _Node, _Lang) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec disco_identity(ejabberd:lang()) -> [exml:element()].
+-spec disco_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
 disco_identity(Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"store">>},
-                     {<<"type">>, <<"file">>},
-                     {<<"name">>, my_disco_name(Lang)}]}].
+    [#{category => <<"store">>,
+       type => <<"file">>,
+       name => my_disco_name(Lang)}].
 
 -spec disco_info(jid:lserver()) -> [exml:element()].
 disco_info(SubHost) ->
