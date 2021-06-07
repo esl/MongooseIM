@@ -1,6 +1,8 @@
 -module(disco_and_caps_SUITE).
 -compile(export_all).
 
+-include_lib("eunit/include/eunit.hrl").
+
 all() ->
     [{group, all_tests}].
 
@@ -11,6 +13,10 @@ groups() ->
 all_test_cases() ->
     [caps_feature_is_advertised,
      user_can_query_server_caps_via_disco,
+     user_cannot_query_stranger_resources,
+     user_can_query_friend_resources,
+     user_cannot_query_own_resources_with_unknown_node,
+     user_cannot_query_friend_resources_with_unknown_node,
      extra_domains_are_advertised].
 
 domain() ->
@@ -56,6 +62,54 @@ user_can_query_server_caps_via_disco(Config) ->
                                             {attr, <<"name">>}]),
     <<"MongooseIM">> = Identity,
     escalus_connection:stop(Alice).
+
+user_cannot_query_stranger_resources(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_items(BobJid),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
+user_can_query_friend_resources(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus_story:make_all_clients_friends([Alice, Bob]),
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(Alice, escalus_stanza:disco_items(BobJid)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        Query = exml_query:subelement(Stanza, <<"query">>),
+        BobFullJid = escalus_client:full_jid(Bob),
+        BobName = escalus_client:username(Bob),
+        Item = exml_query:subelement_with_attr(Query, <<"jid">>, BobFullJid),
+        ?assertEqual(BobName, exml_query:attr(Item, <<"name">>)),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
+user_cannot_query_own_resources_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceJid = escalus_client:short_jid(Alice),
+        Request = escalus_stanza:disco_items(AliceJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Stanza),
+        escalus:assert(is_stanza_from, [AliceJid], Stanza)
+    end).
+
+user_cannot_query_friend_resources_with_unknown_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus_story:make_all_clients_friends([Alice, Bob]),
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_items(BobJid, <<"unknown-node">>),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
 
 extra_domains_are_advertised(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
