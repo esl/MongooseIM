@@ -44,7 +44,7 @@ groups() ->
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
          {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
-    G.
+    ct_helper:repeat_all_until_any_fail(G).
 
 
 parallel_test_cases() ->
@@ -724,15 +724,15 @@ resume_session_state_send_message(Config) ->
     %% alice comes back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus_connection:get_stanza(NewAlice, presence)),
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
-    Stanzas = escalus:wait_for_stanzas(NewAlice, 4, 10000),
+    Stanzas = escalus:wait_for_stanzas(NewAlice, 3),
 
     % what about order ?
     % alice receive presence from herself and 3 unacked messages from bob
-    escalus_new_assert:mix_match([is_presence,
-                                  is_chat(<<"msg-1">>),
+    escalus_new_assert:mix_match([is_chat(<<"msg-1">>),
                                   is_chat(<<"msg-2">>),
                                   is_chat(<<"msg-3">>)],
                                  Stanzas),
@@ -779,12 +779,12 @@ resume_session_state_stop_c2s(Config) ->
     %% alice comes back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus_connection:get_stanza(NewAlice, presence)),
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
 
-    Stanzas = escalus:wait_for_stanzas(NewAlice, 2, 10000),
-    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)], Stanzas),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
     escalus_connection:stop(NewAlice),
     escalus_connection:stop(Bob).
