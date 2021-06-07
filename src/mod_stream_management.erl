@@ -7,6 +7,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
+         supported_features/0,
          process_buffer_and_ack/1]).
 
 %% hooks handlers
@@ -90,6 +91,8 @@ config_spec() ->
                  },
         process = fun ?MODULE:process_buffer_and_ack/1
       }.
+
+supported_features() -> [dynamic_domains].
 
 process_buffer_and_ack(KVs) ->
     {[Buffer, Ack], Opts} = proplists:split(KVs, [buffer, ack]),

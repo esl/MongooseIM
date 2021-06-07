@@ -280,22 +280,23 @@ wait_for_stream(_UnexpectedItem, #state{server = Server} = StateData) ->
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
-    StreamMgmtConfig = case gen_mod:is_loaded(Server, mod_stream_management) of
-                            true -> false;
-                            _ -> disabled
-                        end,
     Lang = get_xml_lang(Attrs),
-    S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
+    S1 = S0#state{server = Server, lang = Lang},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           mongoose_domain_api:get_domain_host_type(Server)} of
         {?NS_STREAM, {ok, HostType}} ->
+            StreamMgmtConfig = case gen_mod:is_loaded(HostType, mod_stream_management) of
+                                   true -> false;
+                                   _ -> disabled
+                               end,
+            S = S1#state{host_type = HostType, stream_mgmt = StreamMgmtConfig},
             change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
-            stream_start_by_protocol_version(Version, S#state{host_type = HostType});
+            stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, {error, not_found}} ->
-            stream_start_error(mongoose_xmpp_errors:host_unknown(), S);
+            stream_start_error(mongoose_xmpp_errors:host_unknown(), S1);
         {_InvalidNS, _} ->
-            stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S)
+            stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S1)
     end.
 
 stream_start_error(Error, StateData) ->
@@ -2730,7 +2731,7 @@ maybe_csi_inactive_optimisation(Acc, {From,To,El}, #state{csi_buffer = Buffer} =
     {ok, Acc, NewState}.
 
 flush_or_buffer_packets(State) ->
-    MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
+    MaxBuffSize = gen_mod:get_module_opt(State#state.host_type, mod_csi,
                                          buffer_max, 20),
     case length(State#state.csi_buffer) > MaxBuffSize of
         true ->
