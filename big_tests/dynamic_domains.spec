@@ -77,6 +77,23 @@
   disco_rooms_rsm],
  "at the moment mod_disco doesn't support dynamic domains"}.
 
+{suites, "tests", sm_SUITE}.
+{skip_cases, "tests", sm_SUITE,
+ [basic_ack,
+  h_ok_after_session_enabled_after_session,
+  subscription_requests_are_buffered_properly],
+ "at the moment mod_roster doesn't support dynamic domains"}.
+{skip_cases, "tests", sm_SUITE,
+ [resend_unacked_on_reconnection,
+  session_established,
+  wait_for_resumption,
+  resume_session_kills_old_C2S_gracefully,
+  resend_unacked_after_resume_timeout,
+  resend_more_offline_messages_than_buffer_size,
+  resume_expired_session_returns_correct_h,
+  unacknowledged_message_hook_offline],
+ "at the moment mod_offline doesn't support dynamic domains"}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
 
 {logdir, "ct_report"}.

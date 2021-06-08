@@ -280,22 +280,23 @@ wait_for_stream(_UnexpectedItem, #state{server = Server} = StateData) ->
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
-    StreamMgmtConfig = case gen_mod:is_loaded(Server, mod_stream_management) of
-                            true -> false;
-                            _ -> disabled
-                        end,
     Lang = get_xml_lang(Attrs),
-    S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
+    S1 = S0#state{server = Server, lang = Lang},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           mongoose_domain_api:get_domain_host_type(Server)} of
         {?NS_STREAM, {ok, HostType}} ->
+            StreamMgmtConfig = case gen_mod:is_loaded(HostType, mod_stream_management) of
+                                   true -> false;
+                                   _ -> disabled
+                               end,
+            S = S1#state{host_type = HostType, stream_mgmt = StreamMgmtConfig},
             change_shaper(S, jid:make_noprep(<<>>, Server, <<>>)),
             Version = xml:get_attr_s(<<"version">>, Attrs),
-            stream_start_by_protocol_version(Version, S#state{host_type = HostType});
+            stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, {error, not_found}} ->
-            stream_start_error(mongoose_xmpp_errors:host_unknown(), S);
+            stream_start_error(mongoose_xmpp_errors:host_unknown(), S1);
         {_InvalidNS, _} ->
-            stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S)
+            stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S1)
     end.
 
 stream_start_error(Error, StateData) ->
@@ -2730,7 +2731,7 @@ maybe_csi_inactive_optimisation(Acc, {From,To,El}, #state{csi_buffer = Buffer} =
     {ok, Acc, NewState}.
 
 flush_or_buffer_packets(State) ->
-    MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
+    MaxBuffSize = gen_mod:get_module_opt(State#state.host_type, mod_csi,
                                          buffer_max, 20),
     case length(State#state.csi_buffer) > MaxBuffSize of
         true ->
@@ -2757,7 +2758,7 @@ bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
-maybe_enable_stream_mgmt(NextState, El, StateData = #state{server = LServer}) ->
+maybe_enable_stream_mgmt(NextState, El, StateData = #state{host_type = HostType}) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           StateData#state.stream_mgmt,
           xml:get_tag_attr_s(<<"resume">>, El)}
@@ -2771,9 +2772,9 @@ maybe_enable_stream_mgmt(NextState, El, StateData = #state{server = LServer}) ->
                                          enable_stream_resumption(StateData)
                                  end,
             send_element_from_server_jid(NewSD, EnabledEl),
-            BufferMax = get_buffer_max(LServer),
-            AckFreq = get_ack_freq(LServer),
-            ResumeTimeout = get_resume_timeout(LServer),
+            BufferMax = get_buffer_max(HostType),
+            AckFreq = get_ack_freq(HostType),
+            ResumeTimeout = get_resume_timeout(HostType),
             fsm_next_state(NextState,
                            NewSD#state{stream_mgmt = true,
                                        stream_mgmt_buffer_max = BufferMax,
@@ -2958,17 +2959,17 @@ drop_last(N, List) ->
                                   end, {N, []}, List),
     {N - ToDrop, List2}.
 
--spec get_buffer_max(jid:lserver()) -> pos_integer() | infinity.
-get_buffer_max(LServer) ->
-    mod_stream_management:get_buffer_max(LServer, ?STREAM_MGMT_CACHE_MAX).
+-spec get_buffer_max(mongooseim:host_type()) -> pos_integer() | infinity.
+get_buffer_max(HostType) ->
+    mod_stream_management:get_buffer_max(HostType, ?STREAM_MGMT_CACHE_MAX).
 
--spec get_ack_freq(jid:lserver()) -> pos_integer().
-get_ack_freq(LServer) ->
-    mod_stream_management:get_ack_freq(LServer, ?STREAM_MGMT_ACK_FREQ).
+-spec get_ack_freq(mongooseim:host_type()) -> pos_integer().
+get_ack_freq(HostType) ->
+    mod_stream_management:get_ack_freq(HostType, ?STREAM_MGMT_ACK_FREQ).
 
--spec get_resume_timeout(jid:lserver()) -> pos_integer().
-get_resume_timeout(LServer) ->
-    mod_stream_management:get_resume_timeout(LServer, ?STREAM_MGMT_RESUME_TIMEOUT).
+-spec get_resume_timeout(mongooseim:host_type()) -> pos_integer().
+get_resume_timeout(HostType) ->
+    mod_stream_management:get_resume_timeout(HostType, ?STREAM_MGMT_RESUME_TIMEOUT).
 
 maybe_send_ack_request(Acc, #state{stream_mgmt = StreamMgmt})
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
@@ -3043,11 +3044,11 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
           end,
     {next_state, resume_session, NSD, hibernate()}.
 
-maybe_resume_session(NextState, El, StateData = #state{server = LServer}) ->
+maybe_resume_session(NextState, El, StateData = #state{host_type = HostType}) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           xml:get_tag_attr_s(<<"previd">>, El)} of
         {?NS_STREAM_MGNT_3, SMID} ->
-            FromSMID = mod_stream_management:get_session_from_smid(LServer, SMID),
+            FromSMID = mod_stream_management:get_session_from_smid(HostType, SMID),
             do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
             ?LOG_INFO(#{what => c2s_ignores_resume,

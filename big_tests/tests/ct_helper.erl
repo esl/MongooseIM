@@ -1,8 +1,9 @@
 -module(ct_helper).
 -export([is_ct_running/0,
-        repeat_all_until_all_ok/1,
-        repeat_all_until_all_ok/2
-        ]).
+         repeat_all_until_all_ok/1,
+         repeat_all_until_all_ok/2,
+         repeat_all_until_any_fail/1,
+         repeat_all_until_any_fail/2]).
 
 -type group_name() :: atom().
 
@@ -27,6 +28,11 @@ is_ct_running() ->
 repeat_all_until_all_ok(GroupDefs) ->
     repeat_all_until_all_ok(GroupDefs, 3).
 
+-spec repeat_all_until_any_fail([group_def() | group_def_dirty() | group_def_incomplete()]) ->
+    [group_def()].
+repeat_all_until_any_fail(GroupDefs) ->
+    repeat_all_until_any_fail(GroupDefs, 100).
+
 %% @doc repeat_all_until_all_ok/2 will rewrite your group definitions so that
 %% the `{repeat_until_all_ok, Retries}` property is added to all of them.
 %% For example, for the following definitions:
@@ -49,6 +55,13 @@ repeat_all_until_all_ok(GroupDefs) ->
     [group_def()].
 repeat_all_until_all_ok(GroupDefs, Retries) ->
     [ {Name, maybe_add_repeat_type(repeat_until_all_ok, Retries, Properties), Tests}
+      || {Name, Properties, Tests} <- prepare_group_defs(GroupDefs) ].
+
+-spec repeat_all_until_any_fail([group_def() | group_def_dirty() | group_def_incomplete()],
+                                 repeat_num()) ->
+    [group_def()].
+repeat_all_until_any_fail(GroupDefs, Retries) ->
+    [ {Name, maybe_add_repeat_type(repeat_until_any_fail, Retries, Properties), Tests}
       || {Name, Properties, Tests} <- prepare_group_defs(GroupDefs) ].
 
 -spec maybe_add_repeat_type(repeat_type(), repeat_num(), group_props()) -> group_props().
