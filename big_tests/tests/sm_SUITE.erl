@@ -44,7 +44,7 @@ groups() ->
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
          {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
-    ct_helper:repeat_all_until_any_fail(G).
+    ct_helper:repeat_all_until_all_ok(G).
 
 
 parallel_test_cases() ->
@@ -717,7 +717,7 @@ resume_session_state_send_message(Config) ->
     %% send some messages and check if c2s can handle it
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-3">>)),
-    %% suspend the process to ensure that Alice have enough time to reconnect,
+    %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
@@ -772,7 +772,7 @@ resume_session_state_stop_c2s(Config) ->
     1 = length(get_user_alive_resources(AliceSpec)),
     rpc(mim(), ejabberd_c2s, stop, [C2SPid] ),
     wait_for_c2s_state_change(C2SPid, resume_session),
-    %% suspend the process to ensure that Alice have enough time to reconnect,
+    %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
@@ -1077,7 +1077,6 @@ buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages) ->
     %% Alice receives them, but doesn't ack.
     Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
                || I <- lists:seq(1, 3)],
-    ct:pal("!!!~p~n",[Stanzas]),
     [escalus:assert(is_chat_message, [Msg], Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice's connection is violently terminated.
