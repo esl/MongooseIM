@@ -195,7 +195,6 @@ change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
 
 change_room_config(Domain, RoomID, RoomName, User, Subject) ->
     LServer = jid:nameprep(Domain),
-    HostType = lserver_to_host_type(LServer),
     HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
     MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
     UserUS = jid:binary_to_bare(User),
@@ -207,14 +206,6 @@ change_room_config(Domain, RoomID, RoomName, User, Subject) ->
             ok;
         {error, Reason} ->
             {error, internal, Reason}
-    end.
-
-lserver_to_host_type(LServer) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            HostType;
-        {error, not_found} ->
-            LServer
     end.
 
 send_message(Domain, RoomName, Sender, Message) ->
