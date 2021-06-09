@@ -20,6 +20,9 @@ init_per_suite(C) ->
            (_) ->
                 undefined
         end),
+    meck:new(mongoose_domain_api, [no_link]),
+    meck:expect(mongoose_domain_api, get_host_type,
+                fun(_) -> {error, not_found} end),
     application:ensure_all_started(exometer_core),
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
@@ -32,6 +35,7 @@ init_per_testcase(_, C) ->
 end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
+    meck:unload(),
     ok.
 
 registering(_C) ->
