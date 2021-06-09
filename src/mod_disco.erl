@@ -34,13 +34,13 @@
          stop/1,
          config_spec/0,
          process_server_info/1,
-         process_local_iq_items/4,
-         process_local_iq_info/4,
+         process_local_iq_items/5,
+         process_local_iq_info/5,
          get_local_identity/5,
          get_local_features/5,
          get_local_services/5,
-         process_sm_iq_items/4,
-         process_sm_iq_info/4,
+         process_sm_iq_items/5,
+         process_sm_iq_info/5,
          get_sm_identity/5,
          get_sm_items/5,
          get_info/5]).
@@ -51,33 +51,33 @@
 
 -type return_hidden() :: ejabberd_router:return_hidden().
 
--spec start(jid:server(), list()) -> 'ok'.
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), list()) -> 'ok'.
+start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    [gen_iq_handler:add_iq_handler(Module, Host, NS, ?MODULE, Handler, IQDisc) ||
-        {Module, NS, Handler} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(Host)).
+    [gen_iq_handler:add_iq_handler_for_domain(HostType, NS, Component, Handler, #{}, IQDisc) ||
+        {Component, NS, Handler} <- iq_handlers()],
+    ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
-    [gen_iq_handler:remove_iq_handler(Module, Host, NS) ||
-        {Module, NS, _Handler} <- iq_handlers()],
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, NS, Component) ||
+        {Component, NS, _Handler} <- iq_handlers()],
     ok.
 
-hooks(Host) ->
-    [{disco_local_items, Host, ?MODULE, get_local_services, 100},
-     {disco_local_features, Host, ?MODULE, get_local_features, 100},
-     {disco_local_identity, Host, ?MODULE, get_local_identity, 100},
-     {disco_sm_items, Host, ?MODULE, get_sm_items, 100},
-     {disco_sm_identity, Host, ?MODULE, get_sm_identity, 100},
-     {disco_info, Host, ?MODULE, get_info, 100}].
+hooks(HostType) ->
+    [{disco_local_items, HostType, ?MODULE, get_local_services, 100},
+     {disco_local_features, HostType, ?MODULE, get_local_features, 100},
+     {disco_local_identity, HostType, ?MODULE, get_local_identity, 100},
+     {disco_sm_items, HostType, ?MODULE, get_sm_items, 100},
+     {disco_sm_identity, HostType, ?MODULE, get_sm_identity, 100},
+     {disco_info, HostType, ?MODULE, get_info, 100}].
 
 iq_handlers() ->
-    [{ejabberd_local, ?NS_DISCO_ITEMS, process_local_iq_items},
-     {ejabberd_local, ?NS_DISCO_INFO, process_local_iq_info},
-     {ejabberd_sm, ?NS_DISCO_ITEMS, process_sm_iq_items},
-     {ejabberd_sm, ?NS_DISCO_INFO, process_sm_iq_info}].
+    [{ejabberd_local, ?NS_DISCO_ITEMS, fun ?MODULE:process_local_iq_items/5},
+     {ejabberd_local, ?NS_DISCO_INFO, fun ?MODULE:process_local_iq_info/5},
+     {ejabberd_sm, ?NS_DISCO_ITEMS, fun ?MODULE:process_sm_iq_items/5},
+     {ejabberd_sm, ?NS_DISCO_INFO, fun ?MODULE:process_sm_iq_info/5}].
 
 %% Configuration
 
@@ -112,11 +112,11 @@ process_server_info(KVs) ->
 
 %% IQ handlers
 
--spec process_local_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_local_iq_items(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+process_local_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Host = To#jid.lserver,
     case mongoose_hooks:disco_local_items(Host, From, To, Node, Lang) of
@@ -131,11 +131,11 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec process_local_iq_info(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_local_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     Identities = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
@@ -221,11 +221,11 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
-    {string(), jlib:iq()}.
-process_sm_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+-spec process_sm_iq_items(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
+    {mongoose_acc:t(), jlib:iq()}.
+process_sm_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     case is_presence_subscribed(From, To) of
         true ->
             Host = To#jid.lserver,
@@ -271,11 +271,11 @@ is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
     orelse LFromUser == LToUser andalso LFromServer == LToServer.
 
 
--spec process_sm_iq_info(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_sm_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_sm_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     case is_presence_subscribed(From, To) of
         true ->
             Host = To#jid.lserver,
