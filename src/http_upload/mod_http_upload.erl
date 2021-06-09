@@ -29,7 +29,7 @@
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
--export([start/2, stop/1, iq_handler/4, disco_iq_handler/4, get_urls/5, config_spec/0]).
+-export([start/2, stop/1, process_iq/4, process_disco_iq/4, get_urls/5, config_spec/0]).
 
 %% Hook handlers
 -export([disco_local_items/5]).
@@ -57,9 +57,9 @@ start(Host, Opts) ->
     ejabberd_router:register_route(SubHost, mongoose_packet_handler:new(ejabberd_local)),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, disco_local_items, 90),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030,
-                                  ?MODULE, iq_handler, IQDisc),
+                                  ?MODULE, process_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO,
-                                  ?MODULE, disco_iq_handler, IQDisc),
+                                  ?MODULE, process_disco_iq, IQDisc),
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
@@ -73,12 +73,13 @@ stop(Host) ->
     mongoose_subhosts:unregister(SubHost).
 
 
--spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+-spec process_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
-iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
+process_iq(_From, _To, Acc, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}) ->
+    Error = mongoose_xmpp_errors:not_allowed(Lang, <<"IQ set is not allowed for HTTP upload">>),
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+process_iq(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     Res = case parse_request(Request) of
         {Filename, Size, ContentType} ->
@@ -104,12 +105,14 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
     end,
     {Acc, Res}.
 
--spec disco_iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+-spec process_disco_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                        IQ :: jlib:iq()) ->
           {mongoose_acc:t(), jlib:iq()}.
-disco_iq_handler(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-disco_iq_handler(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+process_disco_iq(_From, _To, Acc, #iq{type = set, lang = Lang, sub_el = SubEl} = IQ) ->
+    ErrorMsg = <<"IQ set is not allowed for service discovery">>,
+    Error = mongoose_xmpp_errors:not_allowed(Lang, ErrorMsg),
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+process_disco_iq(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     LServer = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
     case Node of
@@ -122,7 +125,8 @@ disco_iq_handler(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = 
                                          attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
                                          children = Identity ++ Info ++ Features}]}};
         _ ->
-            Error = mongoose_xmpp_errors:item_not_found(),
+            ErrorMsg = <<"Node is not supported by HTTP upload">>,
+            Error = mongoose_xmpp_errors:item_not_found(Lang, ErrorMsg),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
