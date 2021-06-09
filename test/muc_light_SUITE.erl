@@ -68,7 +68,6 @@ init_per_testcase(codec_calls, Config) ->
     ejabberd_hooks:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    mongoose_subhosts:init(),
     gen_mod:start(),
     mod_muc_light:start(?DOMAIN, []),
     ets:new(testcalls, [named_table]),
@@ -81,7 +80,6 @@ init_per_testcase(_, Config) ->
 end_per_testcase(codec_calls, Config) ->
     mod_muc_light:stop(?DOMAIN),
     mnesia:stop(),
-    mongoose_subhosts:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
     meck:unload(),

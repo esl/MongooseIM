@@ -53,8 +53,11 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     SubHost = subhost(Host),
-    mongoose_subhosts:register(Host, SubHost),
-    ejabberd_router:register_route(SubHost, mongoose_packet_handler:new(ejabberd_local)),
+    %% TODO: Conversion of this module is not done, it doesn't support dynamic
+    %%       domains yet. Only subdomain registration is done properly.
+    SubdomainPattern = subdomain_pattern(Host),
+    PacketHandler = mongoose_packet_handler:new(ejabberd_local),
+    mongoose_domain_api:register_subdomain(Host, SubdomainPattern, PacketHandler),
     ejabberd_hooks:add(disco_local_items, Host, ?MODULE, disco_local_items, 90),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030,
                                   ?MODULE, process_iq, IQDisc),
@@ -69,8 +72,8 @@ stop(Host) ->
     ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, disco_local_items, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO),
-    ejabberd_router:unregister_route(SubHost),
-    mongoose_subhosts:unregister(SubHost).
+    SubdomainPattern = subdomain_pattern(Host),
+    mongoose_domain_api:unregister_subdomain(Host, SubdomainPattern).
 
 
 -spec process_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
@@ -80,15 +83,15 @@ process_iq(_From, _To, Acc, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}) -
     Error = mongoose_xmpp_errors:not_allowed(Lang, <<"IQ set is not allowed for HTTP upload">>),
     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
 process_iq(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(SubHost),
     Res = case parse_request(Request) of
         {Filename, Size, ContentType} ->
-            MaxFileSize = max_file_size(Host),
+            MaxFileSize = max_file_size(HostType),
             case MaxFileSize =:= undefined orelse Size =< MaxFileSize of
                 true ->
                     UTCDateTime = calendar:universal_time(),
-                    Token = generate_token(Host),
-                    Opts = module_opts(Host),
+                    Token = generate_token(HostType),
+                    Opts = module_opts(HostType),
 
                     {PutUrl, GetUrl, Headers} =
                         mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
@@ -193,8 +196,8 @@ disco_identity(Lang) ->
 
 -spec disco_info(jid:lserver()) -> [exml:element()].
 disco_info(SubHost) ->
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    case max_file_size(Host) of
+    {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(SubHost),
+    case max_file_size(HostType) of
         undefined ->
             [];
         MaxFileSize ->
@@ -202,11 +205,19 @@ disco_info(SubHost) ->
             [get_disco_info_form(MaxFileSizeBin)]
     end.
 
--spec subhost(Host :: jid:server()) -> binary().
-subhost(Host) ->
-    DefaultSubhost = mongoose_subdomain_utils:make_subdomain_pattern(?DEFAULT_SUBHOST),
-    gen_mod:get_module_opt_subhost(Host, ?MODULE, DefaultSubhost).
+-spec subhost(mongooseim:host_type()) -> mongooseim:domain_name().
+subhost(HostType) ->
+    %% TODO: this works only for statically configured hosts, when HostType =:= Domain.
+    DefaultSubdomainPattern =
+        mongoose_subdomain_utils:make_subdomain_pattern(?DEFAULT_SUBHOST),
+    gen_mod:get_module_opt_subhost(HostType, ?MODULE, DefaultSubdomainPattern).
 
+-spec subdomain_pattern(mongooseim:host_type()) ->
+    mongoose_subdomain_utils:subdomain_pattern().
+subdomain_pattern(HostType) ->
+    DefaultSubdomainPattern =
+        mongoose_subdomain_utils:make_subdomain_pattern(?DEFAULT_SUBHOST),
+    gen_mod:get_module_opt(HostType, ?MODULE, host, DefaultSubdomainPattern).
 
 -spec my_disco_name(ejabberd:lang()) -> binary().
 my_disco_name(Lang) ->

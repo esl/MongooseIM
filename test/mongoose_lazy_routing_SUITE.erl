@@ -353,7 +353,7 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
 %% internal functions
 %%-------------------------------------------------------------------
 setup_meck() ->
-    Modules = [ejabberd_local, ejabberd_router, gen_iq_component, mongoose_subhosts,
+    Modules = [ejabberd_local, ejabberd_router, gen_iq_component,
                mongoose_domain_core, mongoose_subdomain_core],
     [meck:new(M, [no_link]) || M <- Modules],
     meck:new(mongoose_lazy_routing, [no_link, passthrough]),
@@ -364,7 +364,6 @@ setup_meck() ->
     meck:expect(gen_iq_component, register_iq_handler, fun(_, _, _, _) -> ok end),
     meck:expect(gen_iq_component, sync, fun(_) -> ok end),
     meck:expect(gen_iq_component, unregister_iq_handler, fun(_, _, _) -> ok end),
-    meck:expect(mongoose_subhosts, get_host, fun(_) -> undefined end),
     meck:expect(mongoose_domain_core, get_host_type, fun get_domain_host_type/1),
     meck:expect(mongoose_subdomain_core, get_host_type, fun get_subdomain_host_type/1),
     meck:expect(mongoose_subdomain_core, get_subdomain_info, fun get_subdomain_info/1).
