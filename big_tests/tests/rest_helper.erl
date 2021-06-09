@@ -34,6 +34,7 @@
 -import(distributed_helper, [mim/0,
                              subhost_pattern/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PATHPREFIX, <<"/api">>).
@@ -189,43 +190,57 @@ normalize_headers(Headers) ->
 
 %% a request specifying credentials is directed to client http listener
 fusco_request(#{ role := Role, method := Method, creds := {User, Password},
-                 path := Path, body := Body, server := Server }) ->
+                 path := Path, body := Body, server := Server } = Params) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
     Basic = list_to_binary("Basic " ++ EncodedAuth),
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers,
-                  get_port(Role, Server), get_ssl_status(Role, Server));
+                  get_port(Role, Server), get_ssl_status(Role, Server), Params);
 %% an API to just send a request to a given port, without authentication
-fusco_request(#{ method := Method, path := Path, body := Body, port := Port}) ->
-    fusco_request(Method, Path, Body, [], Port, false);
+fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = Params) ->
+    fusco_request(Method, Path, Body, [], Port, false, Params);
 %% without credentials it is for admin (secure) interface
-fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server }) ->
-    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server)).
+fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
+    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
+    fusco_request(Method, Path, Body, HeadersIn, Port, SSL, #{}).
+
+fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>},
                {<<"Request-Id">>, random_request_id()} | HeadersIn],
     {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 10000),
     fusco_cp:stop(Client),
-    report_errors(Client, Path, Method, Headers, Body, Result),
+    report_errors(Client, Path, Method, Headers, Body, Result, Params),
     Result.
 
 random_request_id() ->
     base16:encode(crypto:strong_rand_bytes(8)).
 
 report_errors(Client, Path, Method, Headers, Body,
-              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result) ->
+              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result,
+              Params) ->
     Code = binary_to_integer(CodeBin),
     case Code >= 400 of
         true ->
             Req = {Client, Path, Method, Headers, Body},
-            ct:log("REST request fails:~n"
+            ct:log(error,
+                   "REST request fails:~n"
                    "Code: ~p~n"
                    "Req: ~p~n"
-                   "Result: ~p~n",
-                   [Code, Req, Result]);
+                   "Result: ~p~n"
+                   "Params: ~p~n",
+                   [Code, Req, Result, Params]);
         false ->
+            Req = {Client, Path, Method, Headers, Body},
+            ct:log(info,
+                   "REST request:~n"
+                   "Code: ~p~n"
+                   "Req: ~p~n"
+                   "Result: ~p~n"
+                   "Params: ~p~n",
+                   [Code, Req, Result, Params]),
             ok
     end.
 
@@ -314,42 +329,44 @@ to_list(V) when is_binary(V) ->
 to_list(V) when is_list(V) ->
     V.
 
-maybe_enable_mam(rdbms, Host, Config) ->
-    maybe_disable_mam(rdbms, Host),
-    init_module(Host, mod_mam_rdbms_arch, []),
-    init_module(Host, mod_mam_muc_rdbms_arch, []),
-    init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
-    init_module(Host, mod_mam_rdbms_user, [muc, pm]),
-    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+maybe_enable_mam(rdbms, HostType, Config) ->
+    maybe_disable_mam(rdbms, HostType),
+    MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    init_module(HostType, mod_mam_rdbms_arch, []),
+    init_module(HostType, mod_mam_muc_rdbms_arch, []),
+    init_module(HostType, mod_mam_rdbms_prefs, [muc, pm]),
+    init_module(HostType, mod_mam_rdbms_user, [muc, pm]),
+    init_module(HostType, mod_mam, [{archive_chat_markers, true}]),
+    init_module(HostType, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, rdbms} | Config];
-maybe_enable_mam(riak, Host,  Config) ->
-    maybe_disable_mam(riak, Host),
-    init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
-    init_module(Host, mod_mam, [{archive_chat_markers, true}]),
-    init_module(Host, mod_mam_muc, [{host, subhost_pattern("muclight.@HOST@")},
+maybe_enable_mam(riak, HostType,  Config) ->
+    maybe_disable_mam(riak, HostType),
+    MucPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    init_module(HostType, mod_mam_riak_timed_arch_yz, [pm, muc]),
+    init_module(HostType, mod_mam_mnesia_prefs, [pm, muc]),
+    init_module(HostType, mod_mam, [{archive_chat_markers, true}]),
+    init_module(HostType, mod_mam_muc, [{host, MucPattern},
                                     {archive_chat_markers, true}]),
     [{mam_backend, riak}, {archive_wait, 2500} | Config];
 maybe_enable_mam(_, _, C) ->
     [{mam_backend, disabled} | C].
 
-init_module(Host, Mod, Opts) ->
-    dynamic_modules:start(Host, Mod, Opts).
+init_module(HostType, Mod, Opts) ->
+    dynamic_modules:start(HostType, Mod, Opts).
 
-maybe_disable_mam(rdbms, Host) ->
-    stop_module(Host, mod_mam_muc_rdbms_arch),
-    stop_module(Host, mod_mam_rdbms_arch),
-    stop_module(Host, mod_mam_rdbms_prefs),
-    stop_module(Host, mod_mam_rdbms_user),
-    stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc);
-maybe_disable_mam(riak, Host) ->
-    stop_module(Host, mod_mam_riak_timed_arch_yz),
-    stop_module(Host, mod_mam_mnesia_prefs),
-    stop_module(Host, mod_mam),
-    stop_module(Host, mod_mam_muc);
+maybe_disable_mam(rdbms, HostType) ->
+    stop_module(HostType, mod_mam_muc_rdbms_arch),
+    stop_module(HostType, mod_mam_rdbms_arch),
+    stop_module(HostType, mod_mam_rdbms_prefs),
+    stop_module(HostType, mod_mam_rdbms_user),
+    stop_module(HostType, mod_mam),
+    stop_module(HostType, mod_mam_muc);
+maybe_disable_mam(riak, HostType) ->
+    stop_module(HostType, mod_mam_riak_timed_arch_yz),
+    stop_module(HostType, mod_mam_mnesia_prefs),
+    stop_module(HostType, mod_mam),
+    stop_module(HostType, mod_mam_muc);
 maybe_disable_mam(_, _) ->
     ok.
 
@@ -404,11 +421,11 @@ fill_room_archive(RoomID, Users) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
     Days = [Today - I || I <- lists:seq(0, 3)],
-    Host = ct:get_config({hosts, mim, domain}),
-    MUCLight = <<"muclight.", Host/binary>>,
+    HostType = host_type(),
+    MUCLight = ct:get_config({hosts, mim, muc_light_service}),
     RoomJID = mongoose_helper:make_jid(RoomID, MUCLight, <<>>),
     RoomBinJID = <<RoomID/binary, "@", MUCLight/binary>>,
-    RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [Host, RoomJID]),
+    RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [HostType, RoomJID]),
     Room = {RoomBinJID, RoomJID, RoomArcID},
     UserArcIDs = [make_room_arc_id(Room, User) || User <- Users],
     [put_room_msgs_in_day(Room, UserArcIDs, Day) || Day <- lists:reverse(Days)].
@@ -426,7 +443,6 @@ put_room_msg({{_, MsgID},
               {FromJIDBin, FromJID, _},
               {_, ToJID, ToArcID},
               {_, SrcJID, _}, Msg}) ->
-    Host = ct:get_config({hosts, mim, domain}),
     ok = mam_helper:rpc_apply(mod_mam_muc, archive_message_for_ct, [#{message_id => MsgID,
                                                                      archive_id => ToArcID,
                                                                      local_jid => ToJID,

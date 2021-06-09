@@ -115,14 +115,9 @@ security_test_cases() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(shotgun),
-    HostType = host_type(),
-    Config1 = dynamic_modules:save_modules(HostType, Config),
-    Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    dynamic_modules:start(HostType, mod_muc_light,
-                          [{host, MucPattern},
-                           {rooms_in_rosters, true}]),
-    [{muc_light_host, muc_light_helper:muc_host()} | escalus:init_per_suite(Config2)].
+    Config1 = init_modules(Config),
+    [{muc_light_host, muc_light_helper:muc_host()}
+     | escalus:init_per_suite(Config1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -130,6 +125,19 @@ end_per_suite(Config) ->
     application:stop(shotgun),
     dynamic_modules:restore_modules(HostType, Config),
     escalus:end_per_suite(Config).
+
+modules() ->
+    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
+    MucLight = {mod_muc_light, [{host, MucPattern},
+                                {rooms_in_rosters, true}]},
+    [MucLight].
+
+init_modules(Config) ->
+    HostType = host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
+    dynamic_modules:ensure_modules(HostType, modules()),
+    Config2.
 
 init_per_group(_GN, C) ->
     C.

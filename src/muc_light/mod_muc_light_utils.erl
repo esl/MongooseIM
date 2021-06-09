@@ -34,6 +34,7 @@
 -export([room_jid_to_server_host/1]).
 -export([muc_host_to_host_type/1]).
 -export([server_host_to_host_type/1]).
+-export([server_host_to_muc_host/2]).
 -export([run_forget_room_hook/1]).
 
 -include("jlib.hrl").
@@ -311,6 +312,12 @@ muc_host_to_host_type(MucHost) ->
         Other ->
             error({muc_host_to_host_type_failed, MucHost, Other})
     end.
+
+subdomain_pattern(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_muc_light, host, mod_muc_light:default_host()).
+
+server_host_to_muc_host(HostType, ServerHost) ->
+    mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
 run_forget_room_hook({Room, MucHost}) ->
     case mongoose_domain_api:get_subdomain_host_type(MucHost) of
