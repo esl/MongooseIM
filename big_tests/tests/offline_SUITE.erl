@@ -15,6 +15,7 @@
 
 -define(DELAY_NS, <<"urn:xmpp:delay">>).
 -define(AFFILIATION_NS, <<"urn:xmpp:muclight:0#affiliations">>).
+-define(NS_FEATURE_MSGOFFLINE,  <<"msgoffline">>).
 
 %%%===================================================================
 %%% Suite configuration
@@ -26,7 +27,8 @@ all() ->
      {group, with_groupchat}].
 
 all_tests() ->
-    [offline_message_is_stored_and_delivered_at_login,
+    [disco_info_sm,
+     offline_message_is_stored_and_delivered_at_login,
      error_message_is_not_stored,
      groupchat_message_is_not_stored,
      headline_message_is_not_stored,
@@ -100,6 +102,16 @@ end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
 %%%===================================================================
 %%% offline tests
 %%%===================================================================
+
+disco_info_sm(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_feature, [?NS_FEATURE_MSGOFFLINE], Stanza),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
 
 offline_message_is_stored_and_delivered_at_login(Config) ->
     Story =

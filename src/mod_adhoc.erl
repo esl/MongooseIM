@@ -86,8 +86,7 @@ config_spec() ->
                          ejabberd:lang()) ->
           mongoose_disco:item_acc().
 get_local_commands(Acc, _From, #jid{lserver = LServer}, <<>>, Lang) ->
-    Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
-    Items = case Display of
+    Items = case are_commands_visible(LServer) of
                 false ->
                     [];
                 _ ->
@@ -102,73 +101,55 @@ get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
 get_local_commands(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
+%%-------------------------------------------------------------------------
+
+-spec get_sm_commands(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<>>, Lang) ->
+    Items = case are_commands_visible(LServer) of
+                false ->
+                    [];
+                _ ->
+                    [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>, Lang)]
+            end,
+    mongoose_disco:add_items(Items, Acc);
+get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
+
+are_commands_visible(LServer) ->
+    gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false).
+
 item(LServer, Node, Name, Lang) ->
     #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_commands(Acc :: [exml:element()],
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      NS :: binary(),
-                      ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
-get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
-    Display = gen_mod:get_module_opt(LServer, ?MODULE, report_commands_node, false),
-    case Display of
-        false ->
-            Acc;
-        _ ->
-            Items = case Acc of
-                        {result, I} -> I;
-                        _ -> []
-                    end,
-            Nodes = [#xmlel{name = <<"item">>,
-                            attrs = [{<<"jid">>, jid:to_binary(To)},
-                                     {<<"node">>, ?NS_COMMANDS},
-                                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]}],
-            {result, Items ++ Nodes}
-    end;
-
-get_sm_commands(_Acc, From, #jid{lserver = LServer} = To, ?NS_COMMANDS, Lang) ->
-    mongoose_hooks:adhoc_sm_items(LServer, From, To, Lang);
-
-get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
-%%-------------------------------------------------------------------------
-
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_local_identity(Acc :: [exml:element()],
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         NS :: binary(),
-                         ejabberd:lang()) -> [exml:element()].
+-spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"automation">>},
-                     {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+    [#{category => <<"automation">>,
+       type => <<"command-list">>,
+       name => translate:translate(Lang, <<"Commands">>)} | Acc];
 get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"automation">>},
-                     {<<"type">>, <<"command-node">>},
-                     {<<"name">>, translate:translate(Lang, <<"Ping">>)}]} | Acc];
+    [#{category => <<"automation">>,
+       type => <<"command-node">>,
+       name => translate:translate(Lang, <<"Ping">>)} | Acc];
 get_local_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_sm_identity(Acc :: [exml:element()],
-                     From :: jid:jid(),
-                     To :: jid:jid(),
-                     NS :: binary(),
-                     ejabberd:lang()) -> [exml:element()].
+-spec get_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                      ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"automation">>},
-                     {<<"type">>, <<"command-list">>},
-                     {<<"name">>, translate:translate(Lang, <<"Commands">>)}]} | Acc];
+    [#{category => <<"automation">>,
+       type => <<"command-list">>,
+       name => translate:translate(Lang, <<"Commands">>)} | Acc];
 get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
@@ -190,17 +171,11 @@ get_local_features(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(Acc :: {result, [exml:element()]} | {error, any()} | empty,
-                             From :: jid:jid(),
-                             To :: jid:jid(),
-                             NS :: binary(),
-                             ejabberd:lang()) -> {result, [exml:element()]} | {error, any()} | empty.
-get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
-    Feats = case Acc of
-                {result, I} -> I;
-                _ -> []
-            end,
-    {result, Feats ++ [?NS_COMMANDS]};
+-spec get_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+get_sm_features(Acc, _From, _To, <<>>, _Lang) ->
+    mongoose_disco:add_features([?NS_COMMANDS], Acc);
 get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
     %% override all lesser features...
     {result, []};

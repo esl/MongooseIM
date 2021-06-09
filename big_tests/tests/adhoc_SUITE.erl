@@ -30,9 +30,25 @@ all() ->
      {group, adhoc}].
 
 groups() ->
-    G = [{adhoc, [parallel], [disco_hidden, disco_commands, ping]},
-         {disco_visible, [parallel], [disco_visible, disco_commands]}],
+    G = [{adhoc, [parallel], common_disco_cases() ++ hidden_disco_cases() ++ [ping]},
+         {disco_visible, [parallel], common_disco_cases() ++ visible_disco_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
+
+common_disco_cases() ->
+    [disco_info,
+     disco_info_sm,
+     disco_info_commands,
+     disco_info_sm_commands,
+     disco_info_ping,
+     disco_items_commands].
+
+hidden_disco_cases() ->
+    [disco_items_hidden,
+     disco_items_sm_hidden].
+
+visible_disco_cases() ->
+    [disco_items_visible,
+     disco_items_sm_visible].
 
 suite() ->
     escalus:suite().
@@ -73,11 +89,63 @@ restore_modules(_, Config) ->
 %%--------------------------------------------------------------------
 %% Adhoc tests
 %%--------------------------------------------------------------------
-disco_hidden(Config) ->
+
+disco_info(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Server = escalus_client:server(Alice),
-                escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+                escalus:send(Alice, escalus_stanza:disco_info(Server)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_feature, [?NS_COMMANDS], Stanza),
+                escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_info_sm(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(AliceJid)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_feature, [?NS_COMMANDS], Stanza),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
+disco_info_commands(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Server = escalus_client:server(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(Server, ?NS_COMMANDS)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-list">>], Stanza),
+                escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_info_sm_commands(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(AliceJid, ?NS_COMMANDS)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-list">>], Stanza),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
+disco_info_ping(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Server = escalus_client:server(Alice),
+                escalus:send(Alice, escalus_stanza:disco_info(Server, <<"ping">>)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_identity, [<<"automation">>, <<"command-node">>], Stanza),
+                escalus:assert(has_feature, [?NS_COMMANDS], Stanza),
+                escalus:assert(is_stanza_from, [domain()], Stanza)
+        end).
+
+disco_items_hidden(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                Server = escalus_client:server(Alice),
+                escalus:send(Alice, escalus_stanza:disco_items(Server)),
                 Stanza = escalus:wait_for_stanza(Alice),
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 ?assertEqual(undefined,
@@ -85,11 +153,23 @@ disco_hidden(Config) ->
                 escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
-disco_visible(Config) ->
+disco_items_sm_hidden(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                Query = exml_query:subelement(Stanza, <<"query">>),
+                ?assertEqual(undefined,
+                             exml_query:subelement_with_attr(Query, <<"node">>, ?NS_COMMANDS)),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
+disco_items_visible(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Server = escalus_client:server(Alice),
-                escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+                escalus:send(Alice, escalus_stanza:disco_items(Server)),
                 Stanza = escalus:wait_for_stanza(Alice),
                 Query = exml_query:subelement(Stanza, <<"query">>),
                 Item = exml_query:subelement_with_attr(Query, <<"node">>, ?NS_COMMANDS),
@@ -97,7 +177,19 @@ disco_visible(Config) ->
                 escalus:assert(is_stanza_from, [domain()], Stanza)
         end).
 
-disco_commands(Config) ->
+disco_items_sm_visible(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+                AliceJid = escalus_client:short_jid(Alice),
+                escalus:send(Alice, escalus_stanza:disco_items(AliceJid)),
+                Stanza = escalus:wait_for_stanza(Alice),
+                Query = exml_query:subelement(Stanza, <<"query">>),
+                Item = exml_query:subelement_with_attr(Query, <<"node">>, ?NS_COMMANDS),
+                ?assertEqual(AliceJid, exml_query:attr(Item, <<"jid">>)),
+                escalus:assert(is_stanza_from, [AliceJid], Stanza)
+        end).
+
+disco_items_commands(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
                 Server = escalus_client:server(Alice),

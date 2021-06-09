@@ -4,7 +4,8 @@
          add_features/2,
          features_to_xml/1,
          add_items/2,
-         items_to_xml/1]).
+         items_to_xml/1,
+         identities_to_xml/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -15,7 +16,9 @@
 -type item_acc() :: empty | {result, [item()]}.
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
 
--export_type([item_acc/0, feature_acc/0, item/0, feature/0]).
+-type identity() :: #{category := binary(), type := binary(), name => binary()}.
+
+-export_type([item_acc/0, feature_acc/0, item/0, feature/0, identity/0]).
 
 %% @doc Run the 'disco_local_features' hook and unpack the results.
 %% Used by extension modules which support their own subdomains
@@ -61,3 +64,12 @@ item_to_xml(Item) ->
     #xmlel{name = <<"item">>,
            attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
                              maps:to_list(Item))}.
+
+-spec identities_to_xml([identity()]) -> [exml:element()].
+identities_to_xml(Identities) ->
+    lists:map(fun identity_to_xml/1, Identities).
+
+identity_to_xml(Identity) ->
+    #xmlel{name = <<"identity">>,
+           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
+                             maps:to_list(Identity))}.

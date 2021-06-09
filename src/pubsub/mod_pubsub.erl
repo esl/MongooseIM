@@ -69,7 +69,7 @@
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
-         disco_local_identity/5, disco_local_features/5,
+         disco_local_features/5,
          disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
@@ -433,7 +433,6 @@ delete_hooks(ServerHost, Hooks) ->
 hooks() ->
     [
      {sm_remove_connection_hook, on_user_offline, 75},
-     {disco_local_identity, disco_local_identity, 75},
      {disco_local_features, disco_local_features, 75},
      {presence_probe_hook, presence_probe, 80},
      {roster_in_subscription, in_subscription, 50},
@@ -623,38 +622,22 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %% disco hooks handling functions
 %%
 
--spec disco_local_identity(
-        Acc    :: [exml:element()],
-          _From  ::jid:jid(),
-          To     ::jid:jid(),
-          Node   :: <<>> | mod_pubsub:nodeId(),
-          Lang   :: ejabberd:lang())
-        -> [exml:element()].
-disco_local_identity(Acc, _From, To, Node, Lang) ->
-    LServer = To#jid.lserver,
-    disco_local_identity(Acc, LServer, Node, Lang).
+-spec identities(jid:lserver(), ejabberd:lang()) -> [mongoose_disco:identity()].
+identities(Host, Lang) ->
+    pubsub_identity(Lang) ++ node_identity(Host, ?PEPNODE) ++ node_identity(Host, ?PUSHNODE).
 
-disco_local_identity(Acc, Host, <<>>, _Lang) ->
-    PepIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PEPNODE}]},
-    PushIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PUSHNODE}]},
-    HasPep = lists:member(?PEPNODE, plugins(Host)),
-    HasPush = lists:member(?PUSHNODE, plugins(Host)),
-    Plugins = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
-    lists:foldl(
-        fun
-            ({true, El}, AccIn) ->
-                [El | AccIn];
-            ({false, _}, AccIn) ->
-                AccIn
-        end, Acc, Plugins);
-disco_local_identity(Acc, _Host, _Node, _Lang) ->
-    Acc.
+-spec pubsub_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
+pubsub_identity(Lang) ->
+    [#{category => <<"pubsub">>,
+       type => <<"service">>,
+       name => translate:translate(Lang, <<"Publish-Subscribe">>)}].
+
+-spec node_identity(jid:lserver(), binary()) -> [mongoose_disco:identity()].
+node_identity(Host, Type) ->
+    case lists:member(Type, plugins(Host)) of
+        true -> [#{category => <<"pubsub">>, type => Type}];
+        false -> []
+    end.
 
 -spec disco_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
                            ejabberd:lang()) ->
@@ -666,13 +649,9 @@ disco_local_features(Acc, _From, To, <<>>, _Lang) ->
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec disco_sm_identity(
-        Acc :: [exml:element()],
-          From :: jid:jid(),
-          To :: jid:jid(),
-          Node :: mod_pubsub:nodeId(),
-          Lang :: ejabberd:lang())
-        -> [exml:element()].
+-spec disco_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
     disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
         ++ Acc.
@@ -680,24 +659,13 @@ disco_sm_identity(Acc, From, To, Node, _Lang) ->
 disco_identity(error, _Node, _From) ->
     [];
 disco_identity(_Host, <<>>, _From) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"pubsub">>},
-                     {<<"type">>, <<"pep">>}]}];
+    [pep_identity()];
 disco_identity(Host, Node, From) ->
     Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
-                             {result, [#xmlel{name = <<"identity">>,
-                                              attrs = [{<<"category">>, <<"pubsub">>},
-                                                       {<<"type">>, <<"pep">>}]},
-                                       #xmlel{name = <<"identity">>,
-                                              attrs = [{<<"category">>, <<"pubsub">>},
-                                                       {<<"type">>, <<"leaf">>}
-                                                       | case get_option(Options, title) of
-                                                             false -> [];
-                                                             [Title] -> [{<<"name">>, Title}]
-                                                         end]}]};
+                             {result, [pep_identity(), pep_identity(Options)]};
                          _ ->
                              {result, []}
                      end
@@ -707,21 +675,24 @@ disco_identity(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_features(
-        Acc  :: empty | {result, Features::[Feature::binary()]} | {error, any()},
-          From ::jid:jid(),
-          To   ::jid:jid(),
-          Node :: mod_pubsub:nodeId(),
-          Lang :: binary())
-        -> {result, Features::[Feature::binary()]} | {error, any()}.
-disco_sm_features(empty, From, To, Node, Lang) ->
-    disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
-    {result,
-     OtherFeatures ++
-         disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
-disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
+pep_identity(Options) ->
+    Identity = pep_identity(),
+    case get_option(Options, title) of
+        false -> Identity;
+        [Title] -> Identity#{name => Title}
+    end.
 
+pep_identity() ->
+    #{category => <<"pubsub">>, type => <<"pep">>}.
+
+-spec disco_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
+          mongoose_disco:feature_acc().
+disco_sm_features(Acc, From, To, Node, _Lang) ->
+    Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_features(Features, Acc).
+
+-spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _Node, _From) ->
     [];
 disco_features(Host, <<>>, _From) ->
@@ -742,23 +713,14 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
-                     From ::jid:jid(),
-                     To ::jid:jid(),
-                     Node :: mod_pubsub:nodeId(),
-                     Lang :: binary()) -> {result, [exml:element()]}.
-disco_sm_items(empty, From, To, Node, Lang) ->
-    disco_sm_items({result, []}, From, To, Node, Lang);
-disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
-    {result, lists:usort(OtherItems ++
-                             disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
-disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
+-spec disco_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                     ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+disco_sm_items(Acc, From, To, Node, _Lang) ->
+    Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_items(Items, Acc).
 
--spec disco_items(
-        Host :: mod_pubsub:host(),
-          Node :: mod_pubsub:nodeId(),
-          From :: jid:jid())
-        -> [exml:element()].
+-spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = O},
@@ -766,21 +728,14 @@ disco_items(Host, <<>>, From) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
-                             [#xmlel{name = <<"item">>,
-                                     attrs = [{<<"node">>, (Node)},
-                                              {<<"jid">>, jid:to_binary(Host)}
-                                              | case get_option(Options, title) of
-                                                    false -> [];
-                                                    [Title] -> [{<<"name">>, Title}]
-                                                end]}
-                              | Acc];
+                             [disco_item(Node, Host, Options) | Acc];
                          _ ->
                              Acc
                      end
              end,
     NodeBloc = fun() ->
                        {result,
-                        lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
+                        lists:foldl(Action, [], tree_call(Host, get_nodes, [Host, From]))}
                end,
     ErrorDebug = #{
       action => disco_items,
@@ -796,10 +751,8 @@ disco_items(Host, Node, From) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, Items} ->
-                             {result, [#xmlel{name = <<"item">>,
-                                              attrs = [{<<"jid">>, jid:to_binary(Host)},
-                                                       {<<"name">>, ItemId}]}
-                                       || #pubsub_item{itemid = {ItemId, _}} <- Items]};
+                             {result, [disco_item(Host, ItemId) ||
+                                          #pubsub_item{itemid = {ItemId, _}} <- Items]};
                          _ ->
                              {result, []}
                      end
@@ -808,6 +761,18 @@ disco_items(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+disco_item(Node, Host, Options) ->
+    Item = #{node => Node,
+             jid => jid:to_binary(Host)},
+    case get_option(Options, title) of
+        false -> Item;
+        [Title] -> Item#{name => Title}
+    end.
+
+disco_item(Host, ItemId) ->
+    #{jid => jid:to_binary(Host),
+      name => ItemId}.
 
 %% -------
 %% callback that prevents routing subscribe authorizations back to the sender
@@ -1187,27 +1152,14 @@ iq_disco_info(Host, SNode, From, Lang) ->
                                                 %   Node = string_to_node(RealSNode),
     case Node of
         <<>> ->
-            InitAcc =
-                [#xmlel{name = <<"identity">>,
-                        attrs = [{<<"category">>, <<"pubsub">>},
-                                 {<<"type">>, <<"service">>},
-                                 {<<"name">>,
-                                  translate:translate(Lang, <<"Publish-Subscribe">>)}]}],
-            Identities = disco_local_identity(InitAcc, Host, Node, Lang),
-            {result, Identities ++
-                     [#xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_DISCO_ITEMS}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_PUBSUB}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_COMMANDS}]},
-                      #xmlel{name = <<"feature">>,
-                             attrs = [{<<"var">>, ?NS_VCARD}]}]
-             ++ [#xmlel{name = <<"feature">>,
-                        attrs = [{<<"var">>, feature(F)}]}
-                 || F <- features(Host, Node)]};
+            Identities = identities(Host, Lang),
+            Features = [?NS_DISCO_INFO,
+                        ?NS_DISCO_ITEMS,
+                        ?NS_PUBSUB,
+                        ?NS_COMMANDS,
+                        ?NS_VCARD] ++ [feature(F) || F <- features(Host, Node)],
+            {result, mongoose_disco:identities_to_xml(Identities) ++
+                 mongoose_disco:features_to_xml(Features)};
         ?NS_COMMANDS ->
             command_disco_info(Host, Node, From);
         ?NS_PUBSUB_GET_PENDING ->

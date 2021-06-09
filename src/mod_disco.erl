@@ -42,7 +42,6 @@
          process_sm_iq_items/4,
          process_sm_iq_info/4,
          get_sm_identity/5,
-         get_sm_features/5,
          get_sm_items/5,
          get_info/5]).
 
@@ -71,7 +70,6 @@ hooks(Host) ->
      {disco_local_features, Host, ?MODULE, get_local_features, 100},
      {disco_local_identity, Host, ?MODULE, get_local_identity, 100},
      {disco_sm_items, Host, ?MODULE, get_sm_items, 100},
-     {disco_sm_features, Host, ?MODULE, get_sm_features, 100},
      {disco_sm_identity, Host, ?MODULE, get_sm_identity, 100},
      {disco_info, Host, ?MODULE, get_info, 100}].
 
@@ -140,31 +138,29 @@ process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
 process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
     Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Identity = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
+    Identities = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
     Info = mongoose_hooks:disco_info(Host, ?MODULE, Node, Lang),
     case mongoose_hooks:disco_local_features(Host, From, To, Node, Lang) of
         {result, Features} ->
             ANode = make_node_attr(Node),
+            IdentityXML = mongoose_disco:identities_to_xml(Identities),
+            FeatureXML = mongoose_disco:features_to_xml(Features),
             {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                   children = Identity ++ Info ++
-                                   mongoose_disco:features_to_xml(Features)}]}};
+                                   children = IdentityXML ++ Info ++ FeatureXML}]}};
         empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec get_local_identity(Acc :: [exml:element()],
-                        From :: jid:jid(),
-                        To :: jid:jid(),
-                        Node :: binary(),
-                        Lang :: ejabberd:lang()) -> [exml:element()].
+-spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
-    Acc ++ [#xmlel{name = <<"identity">>,
-                   attrs = [{<<"category">>, <<"server">>},
-                            {<<"type">>, <<"im">>},
-                            {<<"name">>, <<"MongooseIM">>}]}];
+    [#{category => <<"server">>,
+       type => <<"im">>,
+       name => <<"MongooseIM">>}] ++ Acc;
 get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     Acc.
 
@@ -240,46 +236,22 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
                     {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = Items}]}};
-                {error, Error} ->
+                                           children = mongoose_disco:items_to_xml(Items)}]}};
+                empty ->
+                    Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
-
--spec get_sm_items(Acc :: 'empty' | {'error', _} | {'result', _},
-                   From :: jid:jid(),
-                   To :: jid:jid(),
-                   Node :: binary(),
-                   Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
-get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_sm_items(Acc, From, To, [], _Lang) ->
-    Items = case Acc of
-                {result, Its} -> Its;
-                empty -> []
-            end,
-    Items1 = case is_presence_subscribed(From, To) of
-                   true ->
-                       get_user_resources(To);
-                   _ ->
-                       []
-                end,
-    {result, Items ++ Items1};
-get_sm_items({result, _} = Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_sm_items(empty, From, To, _Node, _Lang) ->
-    #jid{luser = LFrom, lserver = LSFrom} = From,
-    #jid{luser = LTo, lserver = LSTo} = To,
-    case {LFrom, LSFrom} of
-        {LTo, LSTo} ->
-            {error, mongoose_xmpp_errors:item_not_found()};
-        _ ->
-            {error, mongoose_xmpp_errors:not_allowed()}
-    end.
-
+-spec get_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          mongoose_disco:item_acc().
+get_sm_items(Acc, _From, To, <<>>, _Lang) ->
+    Items = get_user_resources(To),
+    mongoose_disco:add_items(Items, Acc);
+get_sm_items(Acc, _From, _To, _Node, _Lang) ->
+    Acc.
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
@@ -308,65 +280,46 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
         true ->
             Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identity = mongoose_hooks:disco_sm_identity(Host, From, To, Node, Lang),
+            Identities = mongoose_hooks:disco_sm_identity(Host, From, To, Node, Lang),
             case mongoose_hooks:disco_sm_features(Host, From, To, Node, Lang) of
                 {result, Features} ->
                     ANode = make_node_attr(Node),
+                    IdentityXML = mongoose_disco:identities_to_xml(Identities),
+                    FeatureXML = mongoose_disco:features_to_xml(Features),
                     {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = Identity ++
-                                           mongoose_disco:features_to_xml(Features)}]}};
-                {error, Error} ->
+                                           children = IdentityXML ++ FeatureXML}]}};
+                empty ->
+                    Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
+sm_error(#jid{luser = LUser, lserver = LServer},
+         #jid{luser = LUser, lserver = LServer}) ->
+    mongoose_xmpp_errors:item_not_found();
+sm_error(_From, _To) ->
+    mongoose_xmpp_errors:not_allowed().
 
--spec get_sm_identity(Acc :: [exml:element()],
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      Node :: binary(),
-                      Lang :: ejabberd:lang()) -> [exml:element()].
+-spec get_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
+                         ejabberd:lang()) ->
+          [mongoose_disco:identity()].
 get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
-    Acc ++ case ejabberd_auth:does_user_exist(JID) of
-               true ->
-                   [#xmlel{name = <<"identity">>,
-                           attrs = [{<<"category">>, <<"account">>},
-                                    {<<"type">>, <<"registered">>}]}];
-               _ ->
-                   []
-           end.
+    case ejabberd_auth:does_user_exist(JID) of
+        true -> [#{category => <<"account">>, type => <<"registered">>} | Acc];
+        false -> Acc
+    end.
 
-
--spec get_sm_features(empty | {result, [exml:element()]} | {error, any()},
-                      From :: jid:jid(),
-                      To :: jid:jid(),
-                      Node :: binary(),
-                      Lang :: ejabberd:lang()) -> {result, [exml:element()]} | {error, any()}.
-get_sm_features(empty, From, To, _Node, _Lang) ->
-    #jid{luser = LFrom, lserver = LSFrom} = From,
-    #jid{luser = LTo, lserver = LSTo} = To,
-    case {LFrom, LSFrom} of
-        {LTo, LSTo} ->
-            {error, mongoose_xmpp_errors:item_not_found()};
-        _ ->
-            {error, mongoose_xmpp_errors:not_allowed()}
-    end;
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
-
--spec get_user_resources(jid:jid()) -> [exml:element()].
+-spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID) ->
     #jid{user = User, server = Server} = JID,
     Rs = ejabberd_sm:get_user_resources(JID),
     lists:map(fun(R) ->
-                BJID = jid:to_binary({User, Server, R}),
-                #xmlel{name = <<"item">>,
-                       attrs = [{<<"jid">>, BJID}, {<<"name">>, User}]}
+                      BJID = jid:to_binary({User, Server, R}),
+                      #{jid => BJID, name => User}
               end, lists:sort(Rs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

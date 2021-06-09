@@ -29,10 +29,10 @@
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
--export([start/2, stop/1, iq_handler/4, get_urls/5, config_spec/0]).
+-export([start/2, stop/1, process_iq/4, process_disco_iq/4, get_urls/5, config_spec/0]).
 
-%% Hook implementations
--export([get_disco_identity/5, get_disco_items/5, get_disco_features/5, get_disco_info/5]).
+%% Hook handlers
+-export([disco_local_items/5]).
 
 -export([config_metrics/1]).
 
@@ -55,36 +55,31 @@ start(Host, Opts) ->
     SubHost = subhost(Host),
     mongoose_subhosts:register(Host, SubHost),
     ejabberd_router:register_route(SubHost, mongoose_packet_handler:new(ejabberd_local)),
-    ejabberd_hooks:add(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
-    ejabberd_hooks:add(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
-    ejabberd_hooks:add(disco_info, SubHost, ?MODULE, get_disco_info, 90),
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 90),
-    gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030, ?MODULE,
-                                  iq_handler, IQDisc),
+    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, disco_local_items, 90),
+    gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030,
+                                  ?MODULE, process_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO,
-                                  mod_disco, process_local_iq_info, IQDisc),
+                                  ?MODULE, process_disco_iq, IQDisc),
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     SubHost = subhost(Host),
+    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, disco_local_items, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_DISCO_INFO),
-    ejabberd_hooks:delete(disco_local_items, SubHost, ?MODULE, get_disco_items, 90),
-    ejabberd_hooks:delete(disco_info, SubHost, ?MODULE, get_disco_info, 90),
-    ejabberd_hooks:delete(disco_local_identity, SubHost, ?MODULE, get_disco_identity, 90),
-    ejabberd_hooks:delete(disco_local_features, SubHost, ?MODULE, get_disco_features, 90),
     ejabberd_router:unregister_route(SubHost),
     mongoose_subhosts:unregister(SubHost).
 
 
--spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+-spec process_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
-iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
+process_iq(_From, _To, Acc, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}) ->
+    Error = mongoose_xmpp_errors:not_allowed(Lang, <<"IQ set is not allowed for HTTP upload">>),
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+process_iq(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     Res = case parse_request(Request) of
         {Filename, Size, ContentType} ->
@@ -110,6 +105,30 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
     end,
     {Acc, Res}.
 
+-spec process_disco_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+                       IQ :: jlib:iq()) ->
+          {mongoose_acc:t(), jlib:iq()}.
+process_disco_iq(_From, _To, Acc, #iq{type = set, lang = Lang, sub_el = SubEl} = IQ) ->
+    ErrorMsg = <<"IQ set is not allowed for service discovery">>,
+    Error = mongoose_xmpp_errors:not_allowed(Lang, ErrorMsg),
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+process_disco_iq(_From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ) ->
+    LServer = To#jid.lserver,
+    Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+    case Node of
+        <<>> ->
+            Identity = mongoose_disco:identities_to_xml(disco_identity(Lang)),
+            Info = disco_info(LServer),
+            Features = mongoose_disco:features_to_xml([?NS_HTTP_UPLOAD_030]),
+            {Acc, IQ#iq{type = result,
+                        sub_el = [#xmlel{name = <<"query">>,
+                                         attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                         children = Identity ++ Info ++ Features}]}};
+        _ ->
+            ErrorMsg = <<"Node is not supported by HTTP upload">>,
+            Error = mongoose_xmpp_errors:item_not_found(Lang, ErrorMsg),
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
+    end.
 
 -spec get_urls(Host :: jid:lserver(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
@@ -154,47 +173,34 @@ s3_spec() ->
         required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>]
     }.
 
--spec get_disco_identity(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
-                         Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().
-get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"store">>},
-                     {<<"type">>, <<"file">>},
-                     {<<"name">>, my_disco_name(Lang)}]} | Acc];
-get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
--spec get_disco_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+-spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
+                        ejabberd:lang()) ->
           mongoose_disco:item_acc().
-get_disco_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
+disco_local_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
     mongoose_disco:add_items([#{jid => subhost(Host), name => my_disco_name(Lang)}], Acc);
-get_disco_items(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
--spec get_disco_features(Acc :: mongoose_disco:feature_acc(),
-                         From :: jid:jid(), To :: jid:jid(),
-                         Node :: binary(), ejabberd:lang()) -> mongoose_disco:feature_acc().
-get_disco_features(Acc, _From, _To, _Node = <<>>, _Lang) ->
-    mongoose_disco:add_features([?NS_HTTP_UPLOAD_030], Acc);
-get_disco_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
-
--spec get_disco_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
-                     Lang :: ejabberd:lang()) -> [exml:element()].
-get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
-    {ok, Host} = mongoose_subhosts:get_host(SubHost),
-    case max_file_size(Host) of
-        undefined -> Acc;
-        MaxFileSize ->
-            MaxFileSizeBin = integer_to_binary(MaxFileSize),
-            [get_disco_info_form(MaxFileSizeBin) | Acc]
-    end;
-get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
+disco_local_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec disco_identity(ejabberd:lang()) -> [mongoose_disco:identity()].
+disco_identity(Lang) ->
+    [#{category => <<"store">>,
+       type => <<"file">>,
+       name => my_disco_name(Lang)}].
+
+-spec disco_info(jid:lserver()) -> [exml:element()].
+disco_info(SubHost) ->
+    {ok, Host} = mongoose_subhosts:get_host(SubHost),
+    case max_file_size(Host) of
+        undefined ->
+            [];
+        MaxFileSize ->
+            MaxFileSizeBin = integer_to_binary(MaxFileSize),
+            [get_disco_info_form(MaxFileSizeBin)]
+    end.
 
 -spec subhost(Host :: jid:server()) -> binary().
 subhost(Host) ->

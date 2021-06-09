@@ -45,6 +45,8 @@
 	 advertises_max_file_size/1,
 	 request_slot/1,
 	 rejects_set_iq/1,
+	 rejects_disco_set_iq/1,
+	 rejects_feature_discovery_with_node/1,
 	 get_url_ends_with_filename/1,
 	 urls_contain_s3_hostname/1,
 	 rejects_empty_filename/1,
@@ -75,6 +77,8 @@ groups() ->
                                    advertises_max_file_size,
                                    request_slot,
                                    rejects_set_iq,
+                                   rejects_disco_set_iq,
+                                   rejects_feature_discovery_with_node,
                                    get_url_ends_with_filename,
                                    urls_contain_s3_hostname,
                                    rejects_empty_filename,
@@ -173,7 +177,8 @@ advertises_max_file_size(Config) ->
 
               escalus:assert(has_type, [<<"result">>], Form),
               escalus:assert(has_ns, [?NS_XDATA], Form),
-              escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form)
+              escalus:assert(fun has_field/4, [<<"max-file-size">>, undefined, <<"1234">>], Form),
+              escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
       end).
 
 does_not_advertise_max_size_if_unset(Config) ->
@@ -182,7 +187,8 @@ does_not_advertise_max_size_if_unset(Config) ->
       fun(Bob) ->
               ServJID = upload_service(Bob),
               Result = escalus:send_and_wait(Bob, escalus_stanza:disco_info(ServJID)),
-              undefined = exml_query:path(Result, {element, <<"x">>})
+              undefined = exml_query:path(Result, {element, <<"x">>}),
+              escalus:assert(has_identity, [<<"store">>, <<"file">>], Result)
       end).
 
 rejects_set_iq(Config) ->
@@ -194,6 +200,31 @@ rejects_set_iq(Config) ->
               Request = escalus_stanza:to(IQ, ServJID),
               Result = escalus:send_and_wait(Bob, Request),
               escalus_assert:is_error(Result, <<"cancel">>, <<"not-allowed">>)
+      end).
+
+rejects_disco_set_iq(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              IQ = escalus_stanza:iq_set(?NS_DISCO_INFO, []),
+              Request = escalus_stanza:to(IQ, ServJID),
+              Stanza = escalus:send_and_wait(Bob, Request),
+              escalus:assert(is_iq_error, [Request], Stanza),
+              escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>], Stanza),
+              escalus:assert(is_stanza_from, [ServJID], Stanza)
+      end).
+
+rejects_feature_discovery_with_node(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              ServJID = upload_service(Bob),
+              Request = escalus_stanza:disco_info(ServJID, <<"bad-node">>),
+              Stanza = escalus:send_and_wait(Bob, Request),
+              escalus:assert(is_iq_error, [Request], Stanza),
+              escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Stanza),
+              escalus:assert(is_stanza_from, [ServJID], Stanza)
       end).
 
 request_slot(Config) ->
