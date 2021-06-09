@@ -856,7 +856,7 @@ rdbms_simple_opts() ->
 
 init_modules_for_muc_light(BackendType, Config) ->
     dynamic_modules:restart(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
-    Config1 = init_modules(BackendType, muc_all, [{muc_domain, muc_helper:muc_host_pattern()} | Config]),
+    Config1 = init_modules(BackendType, muc_all, [{muc_domain, muc_light_helper:muc_host_pattern()} | Config]),
     init_modules(BackendType, pm, [{archive_groupchats, false} | Config1]).
 
 end_modules(C, muc_light, Config) ->
