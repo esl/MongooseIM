@@ -38,11 +38,11 @@
          process_local_iq_info/5,
          get_local_identity/5,
          get_local_features/5,
-         get_local_services/5,
+         disco_local_items/1,
          process_sm_iq_items/5,
          process_sm_iq_info/5,
          get_sm_identity/5,
-         get_sm_items/5,
+         disco_sm_items/1,
          get_info/5]).
 
 -include("mongoose.hrl").
@@ -66,10 +66,10 @@ stop(HostType) ->
     ok.
 
 hooks(HostType) ->
-    [{disco_local_items, HostType, ?MODULE, get_local_services, 100},
+    [{disco_local_items, HostType, ?MODULE, disco_local_items, 100},
      {disco_local_features, HostType, ?MODULE, get_local_features, 100},
      {disco_local_identity, HostType, ?MODULE, get_local_identity, 100},
-     {disco_sm_items, HostType, ?MODULE, get_sm_items, 100},
+     {disco_sm_items, HostType, ?MODULE, disco_sm_items, 100},
      {disco_sm_identity, HostType, ?MODULE, get_sm_identity, 100},
      {disco_info, HostType, ?MODULE, get_info, 100}].
 
@@ -117,18 +117,18 @@ process_server_info(KVs) ->
 process_local_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Host = To#jid.lserver,
-    case mongoose_hooks:disco_local_items(Host, From, To, Node, Lang) of
-        {result, Items} ->
+    case mongoose_hooks:disco_local_items(HostType, From, To, Node, Lang) of
+        #{result := empty} ->
+            Error = mongoose_xmpp_errors:item_not_found(),
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+        #{result := Items} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                   children = mongoose_disco:items_to_xml(Items)}]}};
-        empty ->
-            Error = mongoose_xmpp_errors:item_not_found(),
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
+                                   children = mongoose_disco:items_to_xml(Items)}]}}
     end.
 
 -spec process_local_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -172,26 +172,25 @@ get_local_features(Acc, _From, _To, <<>>, _Lang) ->
 get_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
--spec get_local_services(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-get_local_services(Acc, From, To, <<>>, _Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}) ->
     Host = To#jid.lserver,
-    ReturnHidden = should_return_hidden(Host, From),
-    Domains = get_vh_services(Host, ReturnHidden) ++ get_extra_domains(Host),
+    ReturnHidden = should_return_hidden(HostType, From),
+    Domains = get_vh_services(Host, ReturnHidden) ++ get_extra_domains(HostType),
     mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc);
-get_local_services(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
-get_extra_domains(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, extra_domains, []).
+-spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
+get_extra_domains(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains, []).
 
--spec should_return_hidden(Host :: jid:lserver(), From :: jid:jid()) -> return_hidden().
-should_return_hidden(_Host, #jid{ luser = <<>> } = _From) ->
+-spec should_return_hidden(mongooseim:host_type(), From :: jid:jid()) -> return_hidden().
+should_return_hidden(_HostType, #jid{ luser = <<>> } = _From) ->
     %% We respect "is hidden" flag only when a client performs the query
     all;
-should_return_hidden(Host, _From) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, users_can_see_hidden_services, true) of
+should_return_hidden(HostType, _From) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, users_can_see_hidden_services, true) of
         true -> all;
         false -> only_public
     end.
@@ -228,29 +227,28 @@ process_sm_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extr
 process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     case is_presence_subscribed(From, To) of
         true ->
-            Host = To#jid.lserver,
+            HostType = mongoose_acc:host_type(Acc),
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            case mongoose_hooks:disco_sm_items(Host, From, To, Node, Lang) of
-                {result, Items} ->
+            case mongoose_hooks:disco_sm_items(HostType, From, To, Node, Lang) of
+                #{result := empty} ->
+                    Error = sm_error(From, To),
+                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+                #{result := Items} ->
                     ANode = make_node_attr(Node),
                     {Acc, IQ#iq{type = result,
                           sub_el = [#xmlel{name = <<"query">>,
                                            attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = mongoose_disco:items_to_xml(Items)}]}};
-                empty ->
-                    Error = sm_error(From, To),
-                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
+                                           children = mongoose_disco:items_to_xml(Items)}]}}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
     end.
 
--spec get_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-get_sm_items(Acc, _From, To, <<>>, _Lang) ->
+-spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_sm_items(Acc = #{to_jid := To, node := <<>>}) ->
     Items = get_user_resources(To),
     mongoose_disco:add_items(Items, Acc);
-get_sm_items(Acc, _From, _To, _Node, _Lang) ->
+disco_sm_items(Acc) ->
     Acc.
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().

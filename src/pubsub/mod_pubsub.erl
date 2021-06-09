@@ -71,7 +71,7 @@
          on_user_offline/5, remove_user/3,
          disco_local_features/5,
          disco_sm_identity/5,
-         disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1,
+         disco_sm_features/5, disco_sm_items/1, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
 
 %% exported iq handlers
@@ -716,10 +716,8 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                     ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_sm_items(Acc, From, To, Node, _Lang) ->
+-spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
     Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
     mongoose_disco:add_items(Items, Acc).
 

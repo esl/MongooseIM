@@ -1236,8 +1236,8 @@ disco_local_features(Server, From, To, Node, Lang) ->
     Lang :: ejabberd:lang(),
     Result :: mongoose_disco:item_acc().
 disco_local_items(HostType, From, To, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_local_items, HostType, empty,
-                                     [From, To, Node, Lang]).
+    InitialAcc = mongoose_disco:new_item_acc(HostType, From, To, Node, Lang),
+    ejabberd_hooks:run_for_host_type(disco_local_items, HostType, InitialAcc, []).
 
 %%% @doc `disco_local_identity' hook is called to get the identity of the server.
 -spec disco_local_identity(Server, From, To, Node, Lang) -> Result when
@@ -1277,14 +1277,14 @@ disco_sm_identity(Server, From, To, Node, Lang) ->
 
 %%% @doc `disco_sm_items' hook is called to get the items associated
 %%% with the client when a discovery IQ gets to session management.
--spec disco_sm_items(Server :: jid:server(),
+-spec disco_sm_items(HostType :: mongooseim:host_type(),
                      From :: jid:jid(),
                      To :: jid:jid(),
                      Node :: binary(),
                      Lang :: ejabberd:lang()) -> mongoose_disco:item_acc().
-disco_sm_items(Server, From, To, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_sm_items, Server, empty,
-                                     [From, To, Node, Lang]).
+disco_sm_items(HostType, From, To, Node, Lang) ->
+    InitialAcc = mongoose_disco:new_item_acc(HostType, From, To, Node, Lang),
+    ejabberd_hooks:run_for_host_type(disco_sm_items, HostType, InitialAcc, []).
 
 %% AMP related hooks
 

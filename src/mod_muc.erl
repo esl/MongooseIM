@@ -62,7 +62,7 @@
 -export([is_muc_room_owner/4,
          can_access_room/4,
          can_access_identity/4,
-         disco_local_items/5]).
+         disco_local_items/1]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -1310,15 +1310,14 @@ subdomain_pattern(HostType) ->
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
--spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{host_type := HostType,
+                          to_jid := #jid{lserver = ServerHost},
+                          node := <<>>}) ->
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Items = [#{jid => MUCHost, node => ?NS_MUC}],
     mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
 make_server_host(To, #state{host_type = HostType,

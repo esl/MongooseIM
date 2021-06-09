@@ -44,7 +44,7 @@
 
 %% Hook handlers
 -export([prevent_service_unavailable/4,
-         disco_local_items/5,
+         disco_local_items/1,
          remove_user/3,
          remove_domain/3,
          add_rooms_to_roster/2,
@@ -372,11 +372,10 @@ prevent_service_unavailable(Acc, _From, _To, Packet) ->
         _Type -> Acc
     end.
 
--spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{host_type := HostType,
+                          to_jid := #jid{lserver = ServerHost},
+                          node := <<>>}) ->
     XMLNS = case legacy_mode(HostType) of
                 true -> ?NS_MUC;
                 false -> ?NS_MUC_LIGHT
@@ -384,7 +383,7 @@ disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Items = [#{jid => MUCHost, node => XMLNS}],
     mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
 legacy_mode(HostType) ->

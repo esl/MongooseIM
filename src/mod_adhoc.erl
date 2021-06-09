@@ -36,10 +36,10 @@
          config_spec/0,
          process_local_iq/4,
          process_sm_iq/4,
-         get_local_commands/5,
+         disco_local_items/1,
          get_local_identity/5,
          get_local_features/5,
-         get_sm_commands/5,
+         disco_sm_items/1,
          get_sm_identity/5,
          get_sm_features/5,
          ping_command/4]).
@@ -67,10 +67,10 @@ stop(Host) ->
 hooks(Host) ->
     [{disco_local_identity, Host, ?MODULE, get_local_identity, 99},
      {disco_local_features, Host, ?MODULE, get_local_features, 99},
-     {disco_local_items, Host, ?MODULE, get_local_commands, 99},
+     {disco_local_items, Host, ?MODULE, disco_local_items, 99},
      {disco_sm_identity, Host, ?MODULE, get_sm_identity, 99},
      {disco_sm_features, Host, ?MODULE, get_sm_features, 99},
-     {disco_sm_items, Host, ?MODULE, get_sm_commands, 99},
+     {disco_sm_items, Host, ?MODULE, disco_sm_items, 99},
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -82,10 +82,8 @@ config_spec() ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_commands(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-get_local_commands(Acc, _From, #jid{lserver = LServer}, <<>>, Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>, lang := Lang}) ->
     Items = case are_commands_visible(LServer) of
                 false ->
                     [];
@@ -93,20 +91,18 @@ get_local_commands(Acc, _From, #jid{lserver = LServer}, <<>>, Lang) ->
                     [item(LServer, ?NS_COMMANDS, <<"Commands">>, Lang)]
             end,
     mongoose_disco:add_items(Items, Acc);
-get_local_commands(Acc, _From, #jid{lserver = LServer}, ?NS_COMMANDS, Lang) ->
+disco_local_items(Acc = #{to_jid := #jid{lserver = LServer}, node := ?NS_COMMANDS, lang := Lang}) ->
     Items = [item(LServer, <<"ping">>, <<"Ping">>, Lang)],
     mongoose_disco:add_items(Items, Acc);
-get_local_commands(_Acc, _From, _To, <<"ping">>, _Lang) ->
-    {result, []}; % override the result
-get_local_commands(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc = #{node := <<"ping">>}) ->
+    Acc#{result := []}; % override the result
+disco_local_items(Acc) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_commands(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<>>, Lang) ->
+-spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_sm_items(Acc = #{to_jid := #jid{lserver = LServer} = To, node := <<>>, lang := Lang}) ->
     Items = case are_commands_visible(LServer) of
                 false ->
                     [];
@@ -114,7 +110,7 @@ get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<>>, Lang) ->
                     [item(jid:to_binary(To), ?NS_COMMANDS, <<"Commands">>, Lang)]
             end,
     mongoose_disco:add_items(Items, Acc);
-get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
+disco_sm_items(Acc) ->
     Acc.
 
 are_commands_visible(LServer) ->

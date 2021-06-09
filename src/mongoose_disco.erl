@@ -1,6 +1,7 @@
 -module(mongoose_disco).
 
--export([get_local_features/5,
+-export([new_item_acc/5,
+         get_local_features/5,
          add_features/2,
          features_to_xml/1,
          add_items/2,
@@ -13,12 +14,25 @@
 -type feature_acc() :: empty | {result, [feature()]}.
 -type feature() :: binary().
 
--type item_acc() :: empty | {result, [item()]}.
+-type item_acc() :: #{host_type := mongooseim:host_type(),
+                      from_jid := jid:jid(),
+                      to_jid := jid:jid(),
+                      node := binary(),
+                      lang := ejabberd:lang(),
+                      result := empty | [item()]}.
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
 
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
 
 -export_type([item_acc/0, feature_acc/0, item/0, feature/0, identity/0]).
+
+new_item_acc(HostType, From, To, Node, Lang) ->
+    #{host_type => HostType,
+      from_jid => From,
+      to_jid => To,
+      node => Node,
+      lang => Lang,
+      result => empty}.
 
 %% @doc Run the 'disco_local_features' hook and unpack the results.
 %% Used by extension modules which support their own subdomains
@@ -47,11 +61,11 @@ features_to_xml(Features) ->
 feature_to_xml(Feature) when is_binary(Feature) ->
     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feature}]}.
 
--spec add_items([item()], item_acc())  -> item_acc().
-add_items(Items, empty) ->
-    {result, Items};
-add_items(Items, {result, InitialItems}) ->
-    {result, Items ++ InitialItems}.
+-spec add_items([item()], item_acc()) -> item_acc().
+add_items(Items, Acc = #{result := empty}) ->
+    Acc#{result := Items};
+add_items(Items, Acc = #{result := InitialItems}) ->
+    Acc#{result := Items ++ InitialItems}.
 
 -spec items_to_xml([item()]) -> [exml:element()].
 items_to_xml(Items) ->
