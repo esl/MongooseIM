@@ -36,24 +36,24 @@ start_link() ->
 
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
--spec process_iq(mongooseim:host_type(), jid:jid(), jid:jid(), mongoose_acc:t(),
+-spec process_iq(jid:server(), jid:jid(), jid:jid(), mongoose_acc:t(),
         jlib:iq()) -> mongoose_acc:t() | {mongoose_acc:t(), error}.
-process_iq(HostType, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
-    case ets:lookup(tbl_name(), {XMLNS, HostType}) of
+process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
+    case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, RoomJID, IQ);
         [] -> {Acc, error}
     end.
 
--spec register_iq_handler(mongooseim:host_type(), binary(), mongoose_iq_handler:t()) -> ok.
-register_iq_handler(HostType, XMLNS, IQHandler) ->
+-spec register_iq_handler(jid:server(), binary(), mongoose_iq_handler:t()) -> ok.
+register_iq_handler(Host, XMLNS, IQHandler) ->
     gen_server:cast(srv_name(),
-                    {register_iq_handler, HostType, XMLNS, IQHandler}).
+                    {register_iq_handler, Host, XMLNS, IQHandler}).
 
--spec unregister_iq_handler(mongooseim:host_type(), binary()) -> ok.
-unregister_iq_handler(HostType, XMLNS) ->
+-spec unregister_iq_handler(jid:server(), binary()) -> ok.
+unregister_iq_handler(Host, XMLNS) ->
     gen_server:cast(srv_name(),
-                    {unregister_iq_handler, HostType, XMLNS}).
+                    {unregister_iq_handler, Host, XMLNS}).
 
 -spec sync() -> ok.
 sync() ->
@@ -72,14 +72,14 @@ handle_call(sync, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({register_iq_handler, HostType, XMLNS, IQHandler}, State) ->
-    ets:insert(tbl_name(), {{XMLNS, HostType}, IQHandler}),
+handle_cast({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
+    ets:insert(tbl_name(), {{XMLNS, Host}, IQHandler}),
     {noreply, State};
-handle_cast({unregister_iq_handler, HostType, XMLNS}, State) ->
-    case ets:lookup(tbl_name(), {XMLNS, HostType}) of
+handle_cast({unregister_iq_handler, Host, XMLNS}, State) ->
+    case ets:lookup(tbl_name(), {XMLNS, Host}) of
         [{_, IQHandler}] ->
             gen_iq_component:stop_iq_handler(IQHandler),
-            ets:delete(tbl_name(), {XMLNS, HostType});
+            ets:delete(tbl_name(), {XMLNS, Host});
         _ ->
             ok
     end,

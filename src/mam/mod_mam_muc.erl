@@ -45,7 +45,7 @@
 %% ejabberd room handlers
 -export([add_local_features/5,
          filter_room_packet/3,
-         room_process_mam_iq/4,
+         room_process_mam_iq/5,
          forget_room/4]).
 
 %% gdpr callback
@@ -232,10 +232,12 @@ archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec room_process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
-                          IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
-room_process_mam_iq(From, To, Acc, IQ) ->
-    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+-spec room_process_mam_iq(Acc :: mongoose_acc:t(),
+                          From :: jid:jid(),
+                          To :: jid:jid(),
+                          IQ :: jlib:iq(),
+                          Extra :: map()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
+room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     MucAction = action_to_muc_action(Action),
@@ -616,15 +618,26 @@ hooks(HostType) ->
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
+    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host,
+                                                 mod_muc:default_host()),
+
+    gen_iq_handler:add_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
+                                                ?NS_MAM_04, mod_muc_iq,
+                                                fun ?MODULE:room_process_mam_iq/5,
+                                                #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
+                                                ?NS_MAM_06, mod_muc_iq,
+                                                fun ?MODULE:room_process_mam_iq/5,
+                                                #{}, IQDisc),
     ok.
 
 remove_iq_handlers(HostType) ->
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_04),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, HostType, ?NS_MAM_06),
+    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host,
+                                                 mod_muc:default_host()),
+    gen_iq_handler:remove_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
+                                                   ?NS_MAM_04, mod_muc_iq),
+    gen_iq_handler:remove_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
+                                                   ?NS_MAM_06, mod_muc_iq),
     ok.
 
 ensure_metrics(HostType) ->

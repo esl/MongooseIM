@@ -331,9 +331,9 @@ process_decoded_packet(HostType, From, To, Acc, El,
             end;
         false -> make_err(From, To, El, Acc, {error, blocking_disabled})
     end;
-process_decoded_packet(HostType, From, To, Acc, El,
+process_decoded_packet(_HostType, From, To, Acc, El,
                        {ok, #iq{} = IQ}) ->
-    case mod_muc_iq:process_iq(HostType, From, To, Acc, IQ) of
+    case mod_muc_iq:process_iq(To#jid.lserver, From, To, Acc, IQ) of
         {Acc1, error} ->
             E = {error, {feature_not_implemented, <<"mod_muc_iq returns error">>}},
             make_err(From, To, El, Acc1, E);
