@@ -238,12 +238,21 @@ do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
 %% @doc Check if the component/route is already registered somewhere; ok means it is not, so we are
 %% ok to proceed, anything else means the domain/node pair is already serviced.
 %% true and false are there because that's how orelse works.
--spec check_component(binary(), Node :: node()) -> ok | true | false.
+-spec check_component(binary(), Node :: node()) -> ok | error.
 check_component(LDomain, Node) ->
-    check_component_route(LDomain)
+    case check_dynamic_domains(LDomain)
+        orelse check_component_route(LDomain)
         orelse check_component_local(LDomain, Node)
-        orelse check_component_global(LDomain, Node).
+        orelse check_component_global(LDomain, Node) of
+        true -> error;
+        false -> ok
+    end.
 
+check_dynamic_domains(LDomain)->
+    case mongoose_domain_api:get_host_type(LDomain) of
+        {error, not_found} -> false;
+        {ok, _} -> true
+    end.
 
 check_component_route(LDomain) ->
     %% check that route for this domain is not already registered
@@ -268,9 +277,9 @@ check_component_global(LDomain, Node) ->
     %% check that there is no component registered globally for this node
     case get_global_component(LDomain, Node) of
         undefined ->
-            ok;
+            false;
         _ ->
-            false
+            true
     end.
 
 get_global_component([], _) ->
