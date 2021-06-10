@@ -7,7 +7,7 @@
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--export([start/2, stop/1, config_spec/0, add_local_features/5, process_iq/4]).
+-export([start/2, stop/1, config_spec/0, process_iq/4]).
 
 -xep([{xep, 92}, {version, "1.1"}]).
 
@@ -15,16 +15,11 @@
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-                                  ?NS_VERSION, ?MODULE, process_iq, IQDisc),
-    ejabberd_hooks:add(hooks(Host)).
+                                  ?NS_VERSION, ?MODULE, process_iq, IQDisc).
 
 -spec stop(jid:server()) -> any().
 stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
-
-hooks(Host) ->
-    [{disco_local_features, Host, ?MODULE, add_local_features, 99}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -33,14 +28,6 @@ config_spec() ->
                  <<"os_info">> => #option{type = boolean}
                 }
       }.
-
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, <<>>, _Lang) ->
-    mongoose_disco:add_features([?NS_VERSION], Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
-    Acc.
 
 -spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
           {mongoose_acc:t(), jlib:iq()}.
