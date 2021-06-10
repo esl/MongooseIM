@@ -67,7 +67,6 @@
 %% Hook handlers
 -export([process_local_iq/4,
          process_sm_iq/4,
-         get_local_features/5,
          remove_user/3,
          set_vcard/3]).
 
@@ -353,7 +352,6 @@ hook_handlers() ->
     %% Hook, Module, Function, Priority
     [{remove_user,          ?MODULE, remove_user,        50},
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
-     {disco_local_features, ?MODULE, get_local_features, 50},
      {host_config_update,   ?MODULE, config_change,      50},
      {set_vcard,            ?MODULE, set_vcard,          50},
      {get_personal_data,    ?MODULE, get_personal_data,  50}].
@@ -474,26 +472,6 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
                {error, {E, R}}
     end;
 set_vcard({error, _} = E, _From, _VCARD) -> E.
-
--spec get_local_features(Acc :: {result, [XMLNS :: binary()]} | empty | {error, any()},
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         Node :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | empty | {error, any()}.
-get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_local_features(Acc, _From, _To, Node, _Lang) ->
-    case Node of
-        <<>> ->
-            case Acc of
-                {result, Features} ->
-                    {result, [?NS_VCARD | Features]};
-                empty ->
-                    {result, [?NS_VCARD]}
-            end;
-        _ ->
-            Acc
-    end.
 
 %% #rh
 remove_user(Acc, User, Server) ->
