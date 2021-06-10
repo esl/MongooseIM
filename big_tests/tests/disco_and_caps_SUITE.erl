@@ -17,7 +17,8 @@ all_test_cases() ->
      user_can_query_friend_resources,
      user_cannot_query_own_resources_with_unknown_node,
      user_cannot_query_friend_resources_with_unknown_node,
-     extra_domains_are_advertised].
+     user_can_query_extra_domains,
+     user_can_query_server_features].
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
@@ -111,12 +112,23 @@ user_cannot_query_friend_resources_with_unknown_node(Config) ->
         escalus:assert(is_stanza_from, [BobJid], Stanza)
     end).
 
-extra_domains_are_advertised(Config) ->
+user_can_query_extra_domains(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
         escalus:assert(has_service, [extra_domain()], Stanza),
+        escalus:assert(is_stanza_from, [domain()], Stanza)
+    end).
+
+user_can_query_server_features(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:disco_info(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_feature, [<<"iq">>], Stanza),
+        escalus:assert(has_feature, [<<"presence">>], Stanza),
+        escalus:assert(has_feature, [<<"presence-invisible">>], Stanza),
         escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
 
