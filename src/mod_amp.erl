@@ -11,7 +11,7 @@
 -export([start/2, stop/1]).
 -export([run_initial_check/2,
          check_packet/2,
-         add_local_features/5,
+         disco_local_features/1,
          add_stream_feature/2
         ]).
 
@@ -33,7 +33,7 @@ stop(Host) ->
 
 hooks(Host) ->
     [{c2s_stream_features, Host, ?MODULE, add_stream_feature, 50},
-     {disco_local_features, Host, ?MODULE, add_local_features, 99},
+     {disco_local_features, Host, ?MODULE, disco_local_features, 99},
      {c2s_preprocessing_hook, Host, ?MODULE, run_initial_check, 10},
      {amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10},
      {amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10},
@@ -57,10 +57,8 @@ check_packet(Acc, Event) ->
         Rules -> process_event(Acc, Rules, Event)
     end.
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, Node, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := Node}) ->
     case amp_features(Node) of
         [] -> Acc;
         Features -> mongoose_disco:add_features(Features, Acc)
@@ -112,7 +110,7 @@ process_event(Acc, Rules, Event) when Event =/= initial_check ->
     NewRules = process_rules(Packet, From, Event, Rules),
     mongoose_acc:set_permanent(amp, rules, NewRules, Acc).
 
--spec amp_features(binary()) -> [binary()].
+-spec amp_features(binary()) -> [mongoose_disco:feature()].
 amp_features(?NS_AMP) ->
     [<<?NS_AMP/binary, Suffix/binary>> || Suffix <- amp_feature_suffixes()];
 amp_features(<<>>) ->
