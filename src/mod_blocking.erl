@@ -16,7 +16,7 @@
          process_iq_get/5,
          process_iq_set/4,
          stop/1,
-         add_local_features/5
+         disco_local_features/1
         ]).
 
 -include("mongoose.hrl").
@@ -32,16 +32,14 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)).
 
 hooks(Host) ->
-    [{disco_local_features, Host, ?MODULE, add_local_features, 99},
+    [{disco_local_features, Host, ?MODULE, disco_local_features, 99},
      {privacy_iq_get, Host, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, Host, ?MODULE, process_iq_set, 50}].
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_BLOCKING], Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 
