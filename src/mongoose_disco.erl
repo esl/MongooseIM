@@ -6,7 +6,9 @@
          features_to_xml/1,
          add_items/2,
          items_to_xml/1,
-         identities_to_xml/1]).
+         add_identities/2,
+         identities_to_xml/1,
+         get_identities/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -19,12 +21,13 @@
                      result := empty | [Elem]}.
 -type feature_acc() :: acc(feature()).
 -type item_acc() :: acc(item()).
+-type identity_acc() :: acc(identity()).
 
 -type feature() :: binary().
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
 
--export_type([item_acc/0, feature_acc/0, item/0, feature/0, identity/0]).
+-export_type([item_acc/0, feature_acc/0, identity_acc/0, item/0, feature/0, identity/0]).
 
 -spec new_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
           acc(feature() | item()).
@@ -56,11 +59,6 @@ feature_to_xml(Feature) when is_binary(Feature) ->
 add_items(Items, Acc) ->
     add(Items, Acc).
 
-add(Elements, Acc = #{result := empty}) ->
-    Acc#{result := Elements};
-add(Elements, Acc = #{result := InitialElements}) ->
-    Acc#{result := Elements ++ InitialElements}.
-
 -spec items_to_xml([item()]) -> [exml:element()].
 items_to_xml(Items) ->
     %% For each JID, leave only the rightmost item with that JID (the one which was added first).
@@ -73,6 +71,10 @@ item_to_xml(Item) ->
            attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
                              maps:to_list(Item))}.
 
+-spec add_identities([identity()], identity_acc()) -> identity_acc().
+add_identities(Identities, Acc) ->
+    add(Identities, Acc).
+
 -spec identities_to_xml([identity()]) -> [exml:element()].
 identities_to_xml(Identities) ->
     lists:map(fun identity_to_xml/1, Identities).
@@ -81,3 +83,13 @@ identity_to_xml(Identity) ->
     #xmlel{name = <<"identity">>,
            attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
                              maps:to_list(Identity))}.
+
+-spec add([Elem], acc(Elem)) -> acc(Elem).
+add(Elements, Acc = #{result := empty}) ->
+    Acc#{result := Elements};
+add(Elements, Acc = #{result := InitialElements}) ->
+    Acc#{result := Elements ++ InitialElements}.
+
+-spec get_identities(identity_acc()) -> [identity()].
+get_identities(#{result := empty}) -> [];
+get_identities(#{result := Identities}) -> Identities.

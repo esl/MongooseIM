@@ -37,10 +37,10 @@
          process_local_iq/4,
          process_sm_iq/4,
          disco_local_items/1,
-         get_local_identity/5,
+         disco_local_identity/1,
          disco_local_features/1,
          disco_sm_items/1,
-         get_sm_identity/5,
+         disco_sm_identity/1,
          disco_sm_features/1,
          ping_command/4]).
 
@@ -65,10 +65,10 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_COMMANDS).
 
 hooks(Host) ->
-    [{disco_local_identity, Host, ?MODULE, get_local_identity, 99},
+    [{disco_local_identity, Host, ?MODULE, disco_local_identity, 99},
      {disco_local_features, Host, ?MODULE, disco_local_features, 99},
      {disco_local_items, Host, ?MODULE, disco_local_items, 99},
-     {disco_sm_identity, Host, ?MODULE, get_sm_identity, 99},
+     {disco_sm_identity, Host, ?MODULE, disco_sm_identity, 99},
      {disco_sm_features, Host, ?MODULE, disco_sm_features, 99},
      {disco_sm_items, Host, ?MODULE, disco_sm_items, 99},
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
@@ -122,32 +122,32 @@ item(LServer, Node, Name, Lang) ->
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#{category => <<"automation">>,
-       type => <<"command-list">>,
-       name => translate:translate(Lang, <<"Commands">>)} | Acc];
-get_local_identity(Acc, _From, _To, <<"ping">>, Lang) ->
-    [#{category => <<"automation">>,
-       type => <<"command-node">>,
-       name => translate:translate(Lang, <<"Ping">>)} | Acc];
-get_local_identity(Acc, _From, _To, _Node, _Lang) ->
+-spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_local_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}) ->
+    mongoose_disco:add_identities([command_list_identity(Lang)], Acc);
+disco_local_identity(Acc = #{node := <<"ping">>, lang := Lang}) ->
+    mongoose_disco:add_identities([ping_identity(Lang)], Acc);
+disco_local_identity(Acc) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
--spec get_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                      ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
-    [#{category => <<"automation">>,
-       type => <<"command-list">>,
-       name => translate:translate(Lang, <<"Commands">>)} | Acc];
-get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
+-spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{node := ?NS_COMMANDS, lang := Lang}) ->
+    mongoose_disco:add_identities([command_list_identity(Lang)], Acc);
+disco_sm_identity(Acc) ->
     Acc.
+
+ping_identity(Lang) ->
+    #{category => <<"automation">>,
+      type => <<"command-node">>,
+      name => translate:translate(Lang, <<"Ping">>)}.
+
+command_list_identity(Lang) ->
+    #{category => <<"automation">>,
+      type => <<"command-list">>,
+      name => translate:translate(Lang, <<"Commands">>)}.
 
 %%-------------------------------------------------------------------------
 

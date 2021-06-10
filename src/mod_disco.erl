@@ -36,12 +36,12 @@
          process_server_info/1,
          process_local_iq_items/5,
          process_local_iq_info/5,
-         get_local_identity/5,
+         disco_local_identity/1,
          disco_local_features/1,
          disco_local_items/1,
          process_sm_iq_items/5,
          process_sm_iq_info/5,
-         get_sm_identity/5,
+         disco_sm_identity/1,
          disco_sm_items/1,
          get_info/5]).
 
@@ -68,9 +68,9 @@ stop(HostType) ->
 hooks(HostType) ->
     [{disco_local_items, HostType, ?MODULE, disco_local_items, 100},
      {disco_local_features, HostType, ?MODULE, disco_local_features, 100},
-     {disco_local_identity, HostType, ?MODULE, get_local_identity, 100},
+     {disco_local_identity, HostType, ?MODULE, disco_local_identity, 100},
      {disco_sm_items, HostType, ?MODULE, disco_sm_items, 100},
-     {disco_sm_identity, HostType, ?MODULE, get_sm_identity, 100},
+     {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 100},
      {disco_info, HostType, ?MODULE, get_info, 100}].
 
 iq_handlers() ->
@@ -137,15 +137,16 @@ process_local_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Ex
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
-    Host = To#jid.lserver,
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    Identities = mongoose_hooks:disco_local_identity(Host, From, To, Node, Lang),
-    Info = mongoose_hooks:disco_info(Host, ?MODULE, Node, Lang),
     case mongoose_hooks:disco_local_features(HostType, From, To, Node, Lang) of
         #{result := empty} ->
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
         #{result := Features} ->
+            IdentityResult = mongoose_hooks:disco_local_identity(HostType, From, To, Node, Lang),
+            Identities = mongoose_disco:get_identities(IdentityResult),
+            Host = To#jid.lserver,
+            Info = mongoose_hooks:disco_info(Host, ?MODULE, Node, Lang),
             ANode = make_node_attr(Node),
             IdentityXML = mongoose_disco:identities_to_xml(Identities),
             FeatureXML = mongoose_disco:features_to_xml(Features),
@@ -155,14 +156,12 @@ process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl
                                    children = IdentityXML ++ Info ++ FeatureXML}]}}
     end.
 
--spec get_local_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
-    [#{category => <<"server">>,
-       type => <<"im">>,
-       name => <<"MongooseIM">>}] ++ Acc;
-get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
+-spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_local_identity(Acc = #{node := <<>>}) ->
+    mongoose_disco:add_identities([#{category => <<"server">>,
+                                     type => <<"im">>,
+                                     name => <<"MongooseIM">>}], Acc);
+disco_local_identity(Acc) ->
     Acc.
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
@@ -276,9 +275,9 @@ process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} =
     case is_presence_subscribed(From, To) of
         true ->
             HostType = mongoose_acc:host_type(Acc),
-            Host = To#jid.lserver,
             Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            Identities = mongoose_hooks:disco_sm_identity(Host, From, To, Node, Lang),
+            IdentityResult = mongoose_hooks:disco_sm_identity(HostType, From, To, Node, Lang),
+            Identities = mongoose_disco:get_identities(IdentityResult),
             case mongoose_hooks:disco_sm_features(HostType, From, To, Node, Lang) of
                 #{result := empty} ->
                     Error = sm_error(From, To),
@@ -302,12 +301,11 @@ sm_error(#jid{luser = LUser, lserver = LServer},
 sm_error(_From, _To) ->
     mongoose_xmpp_errors:not_allowed().
 
--spec get_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-get_sm_identity(Acc, _From, JID = #jid{}, _Node, _Lang) ->
+-spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{to_jid := JID}) ->
     case ejabberd_auth:does_user_exist(JID) of
-        true -> [#{category => <<"account">>, type => <<"registered">>} | Acc];
+        true -> mongoose_disco:add_identities([#{category => <<"account">>,
+                                                 type => <<"registered">>}], Acc);
         false -> Acc
     end.
 

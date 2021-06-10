@@ -70,7 +70,7 @@
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
          disco_local_features/1,
-         disco_sm_identity/5,
+         disco_sm_identity/1,
          disco_sm_features/1, disco_sm_items/1, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
 
@@ -649,12 +649,10 @@ disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) -
 disco_local_features(Acc) ->
     Acc.
 
--spec disco_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
-        ++ Acc.
+-spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
+    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_identities(Identities, Acc).
 
 disco_identity(error, _Node, _From) ->
     [];
