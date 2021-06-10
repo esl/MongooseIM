@@ -380,8 +380,11 @@ init([ServerHost, Opts]) ->
     {_, State} = init_send_loop(ServerHost),
 
     %% Pass State as extra into ?MODULE:process_packet/5 function
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE,
-                                                                     #{state => State})),
+    PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
+    %% TODO: Conversion of this module is not done, it doesn't support dynamic
+    %%       domains yet. Only subdomain registration is done properly.
+    SubdomainPattern = gen_mod:get_module_opt(ServerHost, ?MODULE, host, default_host()),
+    mongoose_domain_api:register_subdomain(ServerHost, SubdomainPattern, PacketHandler),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
@@ -960,7 +963,8 @@ handle_info(_Info, State) ->
 %% @private
 terminate(_Reason, #state{host = Host, server_host = ServerHost,
                           nodetree = TreePlugin, plugins = Plugins}) ->
-    ejabberd_router:unregister_route(Host),
+    SubdomainPattern = gen_mod:get_module_opt(ServerHost, ?MODULE, host, default_host()),
+    mongoose_domain_api:unregister_subdomain(ServerHost, SubdomainPattern),
     case lists:member(?PEPNODE, Plugins) of
         true ->
             delete_hooks(ServerHost, pep_hooks()),

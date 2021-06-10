@@ -32,7 +32,6 @@
         [muc_host/0,
          load_muc/0,
          unload_muc/0,
-         muc_host/0,
          start_room/5,
          generate_rpc_jid/1,
          destroy_room/1,
@@ -383,7 +382,7 @@ init_per_group(hibernation, Config) ->
             dynamic_modules:restart(host_type(), mod_mam_muc_rdbms_arch, [muc]),
             dynamic_modules:restart(host_type(), mod_mam_rdbms_prefs, [muc]),
             dynamic_modules:restart(host_type(), mod_mam_rdbms_user, [pm, muc]),
-            HostPattern = subhost_pattern("muc.@HOST@"),
+            HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
             dynamic_modules:restart(host_type(), mod_mam_muc, [{host, HostPattern}]);
         _ ->
             ok

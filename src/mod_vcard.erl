@@ -86,10 +86,8 @@
 
 -define(PROCNAME, ejabberd_mod_vcard).
 
--record(state, {search           :: boolean(),
-               host             :: binary(),
-               directory_host   :: binary()
-              }).
+-record(state, {search :: boolean(),
+                host :: binary()}).
 
 -type error() :: error | {error, any()}.
 
@@ -323,22 +321,26 @@ init([VHost, Opts]) ->
                                   ?MODULE, process_sm_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
                                   ?MODULE, process_local_iq, IQDisc),
-    DirectoryHost = gen_mod:get_opt_subhost(VHost, Opts, default_host()),
+    DirectoryHost = gen_mod:get_opt(host, Opts, default_host()),
+
     Search = gen_mod:get_opt(search, Opts, true),
     case Search of
         true ->
-            ejabberd_router:register_route(
-              DirectoryHost, mongoose_packet_handler:new(?MODULE, #{pid => self()}));
+            %% TODO: Conversion of this module is not done, it doesn't support dynamic
+            %%       domains yet. Only subdomain registration is done properly.
+            PacketHandler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
+            mongoose_domain_api:register_subdomain(VHost, DirectoryHost, PacketHandler);
         _ ->
             ok
     end,
-    {ok, #state{host = VHost, search = Search, directory_host = DirectoryHost}}.
+    {ok, #state{host = VHost, search = Search}}.
 
 terminate(_Reason, State) ->
     VHost = State#state.host,
     case State#state.search of
         true ->
-            ejabberd_router:unregister_route(State#state.directory_host);
+            DirectoryHost = gen_mod:get_module_opt(VHost, ?MODULE, host, default_host()),
+            mongoose_domain_api:unregister_subdomain(VHost, DirectoryHost);
         _ ->
             ok
     end,
