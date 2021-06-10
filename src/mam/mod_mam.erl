@@ -45,7 +45,7 @@
 -export([start/2, stop/1]).
 
 %% ejabberd handlers
--export([add_local_features/5,
+-export([disco_local_features/1,
          process_mam_iq/5,
          user_send_packet/4,
          remove_user/3,
@@ -244,12 +244,10 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
             {Acc, return_action_not_allowed_error_iq(IQ)}
     end.
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
     mongoose_disco:add_features(features(?MODULE, LServer), Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 %% @doc Handle an outgoing message.
@@ -695,7 +693,7 @@ config_metrics(HostType) ->
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    [{disco_local_features, HostType, ?MODULE, add_local_features, 99},
+    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
