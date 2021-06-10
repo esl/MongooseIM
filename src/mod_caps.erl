@@ -36,7 +36,7 @@
 -behaviour(mongoose_module_metrics).
 
 -export([read_caps/1, caps_stream_features/2,
-         disco_features/5, disco_identity/5, disco_info/5]).
+         disco_local_features/1, disco_identity/5, disco_info/5]).
 
 %% gen_mod callbacks
 -export([start/2, start_link/2, stop/1, config_spec/0]).
@@ -173,7 +173,8 @@ user_send_packet(Acc,
 user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
--spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
+-spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) ->
+          mongoose_acc:t().
 user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
                     #xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
@@ -204,11 +205,13 @@ caps_stream_features(Acc, MyHost) ->
              | Acc]
     end.
 
-disco_features(Acc, From, To, Node, Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{from_jid := From, to_jid := To, node := Node, lang := Lang}) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_local_features(To#jid.lserver,
-                                                From, To, <<"">>, Lang);
+            #{result := Result} =
+                mongoose_hooks:disco_local_features(To#jid.lserver, From, To, <<>>, Lang),
+            Acc#{result := Result};
         false ->
             Acc
     end.
@@ -216,7 +219,7 @@ disco_features(Acc, From, To, Node, Lang) ->
 disco_identity(Acc, From, To, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_local_identity(To#jid.lserver, From, To, <<"">>, Lang);
+            mongoose_hooks:disco_local_identity(To#jid.lserver, From, To, <<>>, Lang);
         false ->
             Acc
     end.
@@ -224,7 +227,7 @@ disco_identity(Acc, From, To, Node, Lang) ->
 disco_info(Acc, Host, Module, Node, Lang) ->
     case is_valid_node(Node) of
         true ->
-            mongoose_hooks:disco_info(Host, Module, <<"">>, Lang);
+            mongoose_hooks:disco_info(Host, Module, <<>>, Lang);
         false ->
             Acc
     end.
@@ -352,7 +355,7 @@ init([Host, Opts]) ->
     ejabberd_hooks:add(s2s_stream_features, Host, ?MODULE,
                        caps_stream_features, 75),
     ejabberd_hooks:add(disco_local_features, Host, ?MODULE,
-                       disco_features, 75),
+                       disco_local_features, 75),
     ejabberd_hooks:add(disco_local_identity, Host, ?MODULE,
                        disco_identity, 75),
     ejabberd_hooks:add(disco_info, Host, ?MODULE,
@@ -385,7 +388,7 @@ terminate(_Reason, State) ->
     ejabberd_hooks:delete(s2s_stream_features, Host,
                           ?MODULE, caps_stream_features, 75),
     ejabberd_hooks:delete(disco_local_features, Host,
-                          ?MODULE, disco_features, 75),
+                          ?MODULE, disco_local_features, 75),
     ejabberd_hooks:delete(disco_local_identity, Host,
                           ?MODULE, disco_identity, 75),
     ejabberd_hooks:delete(disco_info, Host, ?MODULE,
@@ -489,24 +492,16 @@ caps_delete_fun(Node) ->
     end.
 
 make_my_disco_hash(Host) ->
-    JID = jid:make(<<"">>, Host, <<"">>),
-    case {mongoose_hooks:disco_local_features(Host, JID, JID, <<"">>, <<"">>),
-          mongoose_hooks:disco_local_identity(Host, JID, JID, <<"">>, <<"">>),
-          mongoose_hooks:disco_info(Host, undefined, <<"">>, <<"">>)}
-    of
-        {{result, Features}, Identities, Info} ->
-            Feats = lists:map(fun ({{Feat, _Host}}) ->
-                                      #xmlel{name = <<"feature">>,
-                                             attrs = [{<<"var">>, Feat}],
-                                             children = []};
-                                  (Feat) ->
-                                      #xmlel{name = <<"feature">>,
-                                             attrs = [{<<"var">>, Feat}],
-                                             children = []}
-                              end,
-                              Features),
-            make_disco_hash(Identities ++ Info ++ Feats, sha1);
-        _Err -> <<"">>
+    JID = jid:make(<<>>, Host, <<>>),
+    %% TODO run the hook for host type
+    case mongoose_hooks:disco_local_features(Host, JID, JID, <<>>, <<>>) of
+        #{result := empty} ->
+            <<>>;
+        #{result := Features} ->
+            Identities = mongoose_hooks:disco_local_identity(Host, JID, JID, <<>>, <<>>),
+            Info = mongoose_hooks:disco_info(Host, undefined, <<>>, <<>>),
+            FeatureXML = mongoose_disco:features_to_xml(Features),
+            make_disco_hash(Identities ++ Info ++ FeatureXML, sha1)
     end.
 
 make_disco_hash(DiscoEls, Algo) ->
