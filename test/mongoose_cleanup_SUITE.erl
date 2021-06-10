@@ -173,6 +173,8 @@ setup_meck([ejabberd_local | R]) ->
     setup_meck(R);
 setup_meck([ejabberd_config | R]) ->
     meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_global_option,
                 fun
                     (hosts) -> [];
