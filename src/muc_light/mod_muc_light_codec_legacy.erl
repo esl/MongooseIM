@@ -247,9 +247,10 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
     noreply.
-encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, _Acc) ->
-    LServer = RoomJID#jid.lserver,
-    RegisteredFeatures = mongoose_disco:get_local_features(LServer, SenderJID, RoomJID, <<>>, <<>>),
+encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, Acc) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    FeatureAcc = mongoose_hooks:disco_muc_features(HostType, SenderJID, RoomJID, <<>>, <<>>),
+    RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
     DiscoEls = [#xmlel{name = <<"identity">>,
                        attrs = [{<<"category">>, <<"conference">>},
                                 {<<"type">>, <<"text">>},

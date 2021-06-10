@@ -120,7 +120,8 @@
          disco_local_items/5,
          disco_sm_features/5,
          disco_sm_identity/5,
-         disco_sm_items/5]).
+         disco_sm_items/5,
+         disco_muc_features/5]).
 
 -export([amp_check_condition/3,
          amp_determine_strategy/5,
@@ -1286,6 +1287,18 @@ disco_sm_identity(Server, From, To, Node, Lang) ->
 disco_sm_items(HostType, From, To, Node, Lang) ->
     InitialAcc = mongoose_disco:new_acc(HostType, From, To, Node, Lang),
     ejabberd_hooks:run_for_host_type(disco_sm_items, HostType, InitialAcc, []).
+
+%%% @doc `disco_muc_features' hook is called to get additional features supported by MUC (Light)
+-spec disco_muc_features(HostType, From, To, Node, Lang) -> Result when
+    HostType :: mongooseim:host_type(),
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Node :: binary(),
+    Lang :: ejabberd:lang(),
+    Result :: mongoose_disco:feature_acc().
+disco_muc_features(HostType, From, To, Node, Lang) ->
+    InitialAcc = mongoose_disco:new_acc(HostType, From, To, Node, Lang),
+    ejabberd_hooks:run_for_host_type(disco_muc_features, HostType, InitialAcc, []).
 
 %% AMP related hooks
 

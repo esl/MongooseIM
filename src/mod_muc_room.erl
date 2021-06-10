@@ -3929,8 +3929,9 @@ process_iq_disco_info(_From, set, _Lang, _StateData) ->
 process_iq_disco_info(From, get, Lang, StateData) ->
     RoomJID = StateData#state.jid,
     Config = StateData#state.config,
-    Host = StateData#state.host,
-    RegisteredFeatures = mongoose_disco:get_local_features(Host, From, RoomJID, <<>>, Lang),
+    HostType = StateData#state.host_type,
+    FeatureAcc = mongoose_hooks:disco_muc_features(HostType, From, RoomJID, <<>>, Lang),
+    RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
     XML = [#xmlel{name = <<"identity">>,
                   attrs = [{<<"category">>, <<"conference">>},
                            {<<"type">>, <<"text">>},
