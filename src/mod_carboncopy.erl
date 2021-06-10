@@ -38,7 +38,7 @@
          is_carbon_copy/1]).
 
 %% Hooks
--export([add_local_features/5,
+-export([disco_local_features/1,
          user_send_packet/4,
          user_receive_packet/5,
          iq_handler2/5,
@@ -87,7 +87,7 @@ stop(HostType) ->
     ok.
 
 hooks(HostType) ->
-    [{disco_local_features, HostType, ?MODULE, add_local_features, 99},
+    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {unset_presence_hook, HostType, ?MODULE, remove_connection, 10},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 89},
      {user_receive_packet, HostType, ?MODULE, user_receive_packet, 89}].
@@ -96,12 +96,10 @@ hooks(HostType) ->
 config_spec() ->
     #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_CC_1, ?NS_CC_2, ?NS_CC_RULES], Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 iq_handler2(Acc, From, _To, IQ, _Extra) ->
