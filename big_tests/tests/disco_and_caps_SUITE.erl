@@ -14,7 +14,9 @@ all_test_cases() ->
     [caps_feature_is_advertised,
      user_can_query_server_caps_via_disco,
      user_cannot_query_stranger_resources,
+     user_cannot_query_stranger_features,
      user_can_query_friend_resources,
+     user_can_query_friend_features,
      user_cannot_query_own_resources_with_unknown_node,
      user_cannot_query_friend_resources_with_unknown_node,
      user_can_query_extra_domains,
@@ -75,6 +77,17 @@ user_cannot_query_stranger_resources(Config) ->
         escalus:assert(is_stanza_from, [BobJid], Stanza)
     end).
 
+user_cannot_query_stranger_features(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:disco_info(BobJid),
+        escalus:send(Alice, Request),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Stanza),
+        escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Stanza),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
 user_can_query_friend_resources(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         escalus_story:make_all_clients_friends([Alice, Bob]),
@@ -86,6 +99,16 @@ user_can_query_friend_resources(Config) ->
         BobName = escalus_client:username(Bob),
         Item = exml_query:subelement_with_attr(Query, <<"jid">>, BobFullJid),
         ?assertEqual(BobName, exml_query:attr(Item, <<"name">>)),
+        escalus:assert(is_stanza_from, [BobJid], Stanza)
+    end).
+
+user_can_query_friend_features(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus_story:make_all_clients_friends([Alice, Bob]),
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(Alice, escalus_stanza:disco_info(BobJid)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_identity, [<<"account">>, <<"registered">>], Stanza),
         escalus:assert(is_stanza_from, [BobJid], Stanza)
     end).
 
@@ -126,6 +149,7 @@ user_can_query_server_features(Config) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
         Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_identity, [<<"server">>, <<"im">>], Stanza),
         escalus:assert(has_feature, [<<"iq">>], Stanza),
         escalus:assert(has_feature, [<<"presence">>], Stanza),
         escalus:assert(has_feature, [<<"presence-invisible">>], Stanza),
