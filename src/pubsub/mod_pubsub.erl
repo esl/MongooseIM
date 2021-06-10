@@ -69,9 +69,9 @@
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
-         disco_local_features/5,
+         disco_local_features/1,
          disco_sm_identity/5,
-         disco_sm_features/5, disco_sm_items/1, handle_pep_authorization_response/1,
+         disco_sm_features/1, disco_sm_items/1, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
 
 %% exported iq handlers
@@ -642,14 +642,11 @@ node_identity(Host, Type) ->
         false -> []
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                           ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-disco_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Host = To#jid.lserver,
-    Features = [?NS_PUBSUB | [feature(F) || F <- features(Host, <<>>)]],
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
+    Features = [?NS_PUBSUB | [feature(F) || F <- features(LServer, <<>>)]],
     mongoose_disco:add_features(Features, Acc);
-disco_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 -spec disco_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
@@ -688,10 +685,8 @@ pep_identity(Options) ->
 pep_identity() ->
     #{category => <<"pubsub">>, type => <<"pep">>}.
 
--spec disco_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-disco_sm_features(Acc, From, To, Node, _Lang) ->
+-spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
     Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
     mongoose_disco:add_features(Features, Acc).
 
