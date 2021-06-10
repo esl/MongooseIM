@@ -1,7 +1,7 @@
 -module(mongoose_disco).
 
--export([new_item_acc/5,
-         get_local_features/5,
+-export([new_acc/5,
+         get_features/1,
          add_features/2,
          features_to_xml/1,
          add_items/2,
@@ -11,22 +11,24 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--type feature_acc() :: empty | {result, [feature()]}.
+-type acc(Elem) :: #{host_type := mongooseim:host_type(),
+                     from_jid := jid:jid(),
+                     to_jid := jid:jid(),
+                     node := binary(),
+                     lang := ejabberd:lang(),
+                     result := empty | [Elem]}.
+-type feature_acc() :: acc(feature()).
+-type item_acc() :: acc(item()).
+
 -type feature() :: binary().
-
--type item_acc() :: #{host_type := mongooseim:host_type(),
-                      from_jid := jid:jid(),
-                      to_jid := jid:jid(),
-                      node := binary(),
-                      lang := ejabberd:lang(),
-                      result := empty | [item()]}.
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
-
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
 
 -export_type([item_acc/0, feature_acc/0, item/0, feature/0, identity/0]).
 
-new_item_acc(HostType, From, To, Node, Lang) ->
+-spec new_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          acc(feature() | item()).
+new_acc(HostType, From, To, Node, Lang) ->
     #{host_type => HostType,
       from_jid => From,
       to_jid => To,
@@ -34,24 +36,13 @@ new_item_acc(HostType, From, To, Node, Lang) ->
       lang => Lang,
       result => empty}.
 
-%% @doc Run the 'disco_local_features' hook and unpack the results.
-%% Used by extension modules which support their own subdomains
-%% and add their own features to the end result.
--spec get_local_features(jid:lserver(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          [feature()].
-get_local_features(Host, From, To, Node, Lang) ->
-    case mongoose_hooks:disco_local_features(Host, From, To, Node, Lang) of
-        empty ->
-            [];
-        {result, Features} ->
-            Features
-    end.
+-spec get_features(feature_acc()) -> [feature()].
+get_features(#{result := empty}) -> [];
+get_features(#{result := Features}) -> Features.
 
 -spec add_features([feature()], feature_acc())  -> feature_acc().
-add_features(Features, empty) ->
-    {result, Features};
-add_features(Features, {result, InitialFeatures}) ->
-    {result, Features ++ InitialFeatures}.
+add_features(Features, Acc) ->
+    add(Features, Acc).
 
 -spec features_to_xml([feature()]) -> [exml:element()].
 features_to_xml(Features) ->
@@ -62,10 +53,13 @@ feature_to_xml(Feature) when is_binary(Feature) ->
     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feature}]}.
 
 -spec add_items([item()], item_acc()) -> item_acc().
-add_items(Items, Acc = #{result := empty}) ->
-    Acc#{result := Items};
-add_items(Items, Acc = #{result := InitialItems}) ->
-    Acc#{result := Items ++ InitialItems}.
+add_items(Items, Acc) ->
+    add(Items, Acc).
+
+add(Elements, Acc = #{result := empty}) ->
+    Acc#{result := Elements};
+add(Elements, Acc = #{result := InitialElements}) ->
+    Acc#{result := Elements ++ InitialElements}.
 
 -spec items_to_xml([item()]) -> [exml:element()].
 items_to_xml(Items) ->
