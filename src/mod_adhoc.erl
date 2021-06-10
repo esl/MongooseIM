@@ -38,10 +38,10 @@
          process_sm_iq/4,
          disco_local_items/1,
          get_local_identity/5,
-         get_local_features/5,
+         disco_local_features/1,
          disco_sm_items/1,
          get_sm_identity/5,
-         get_sm_features/5,
+         disco_sm_features/1,
          ping_command/4]).
 
 -include("mongoose.hrl").
@@ -66,10 +66,10 @@ stop(Host) ->
 
 hooks(Host) ->
     [{disco_local_identity, Host, ?MODULE, get_local_identity, 99},
-     {disco_local_features, Host, ?MODULE, get_local_features, 99},
+     {disco_local_features, Host, ?MODULE, disco_local_features, 99},
      {disco_local_items, Host, ?MODULE, disco_local_items, 99},
      {disco_sm_identity, Host, ?MODULE, get_sm_identity, 99},
-     {disco_sm_features, Host, ?MODULE, get_sm_features, 99},
+     {disco_sm_features, Host, ?MODULE, disco_sm_features, 99},
      {disco_sm_items, Host, ?MODULE, disco_sm_items, 99},
      {adhoc_local_commands, Host, ?MODULE, ping_command, 100}].
 
@@ -151,31 +151,27 @@ get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec get_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-get_local_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_COMMANDS], Acc);
-get_local_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+disco_local_features(Acc = #{node := ?NS_COMMANDS}) ->
     %% override all lesser features...
-    {result, []};
-get_local_features(_Acc, _From, _To, <<"ping">>, _Lang) ->
+    Acc#{result := []};
+disco_local_features(Acc = #{node := <<"ping">>}) ->
     %% override all lesser features...
-    {result, [?NS_COMMANDS]};
-get_local_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc#{result := [?NS_COMMANDS]};
+disco_local_features(Acc) ->
     Acc.
 
 %%-------------------------------------------------------------------------
 
--spec get_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-get_sm_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_sm_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_COMMANDS], Acc);
-get_sm_features(_Acc, _From, _To, ?NS_COMMANDS, _Lang) ->
+disco_sm_features(Acc = #{node := ?NS_COMMANDS}) ->
     %% override all lesser features...
-    {result, []};
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc#{result := []};
+disco_sm_features(Acc) ->
     Acc.
 
 %%-------------------------------------------------------------------------
