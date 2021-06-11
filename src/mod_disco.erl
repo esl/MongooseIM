@@ -33,17 +33,16 @@
 -export([start/2,
          stop/1,
          config_spec/0,
-         process_server_info/1,
          process_local_iq_items/5,
          process_local_iq_info/5,
-         disco_local_identity/1,
-         disco_local_features/1,
-         disco_local_items/1,
          process_sm_iq_items/5,
          process_sm_iq_info/5,
+         disco_local_identity/1,
          disco_sm_identity/1,
+         disco_local_items/1,
          disco_sm_items/1,
-         disco_info/5]).
+         disco_local_features/1,
+         disco_info/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -101,14 +100,8 @@ server_info_spec() ->
                  <<"modules">> => #list{items = #option{type = atom,
                                                         validate = module}}
                 },
-       required = [<<"name">>, <<"urls">>],
-       process = fun ?MODULE:process_server_info/1
+       required = [<<"name">>, <<"urls">>]
       }.
-
-process_server_info(KVs) ->
-    {[[{name, Name}], [{urls, URLs}]], _} = proplists:split(KVs, [name, urls]),
-    Modules = proplists:get_value(modules, KVs, all),
-    {Modules, Name, URLs}.
 
 %% IQ handlers
 
@@ -119,16 +112,16 @@ process_local_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _E
 process_local_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    case mongoose_hooks:disco_local_items(HostType, From, To, Node, Lang) of
-        #{result := empty} ->
+    case mongoose_disco:get_local_items(HostType, From, To, Node, Lang) of
+        empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-        #{result := Items} ->
+        {result, ItemsXML} ->
             ANode = make_node_attr(Node),
             {Acc, IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                   children = mongoose_disco:items_to_xml(Items)}]}}
+                                   children = ItemsXML}]}}
     end.
 
 -spec process_local_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -138,22 +131,70 @@ process_local_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Ex
 process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-    case mongoose_hooks:disco_local_features(HostType, From, To, Node, Lang) of
-        #{result := empty} ->
+    case mongoose_disco:get_local_features(HostType, From, To, Node, Lang) of
+        empty ->
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-        #{result := Features} ->
-            IdentityResult = mongoose_hooks:disco_local_identity(HostType, From, To, Node, Lang),
-            Identities = mongoose_disco:get_identities(IdentityResult),
-            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, Node, Lang),
+        {result, FeaturesXML} ->
             ANode = make_node_attr(Node),
-            IdentityXML = mongoose_disco:identities_to_xml(Identities),
-            FeatureXML = mongoose_disco:features_to_xml(Features),
+            IdentityXML = mongoose_disco:get_local_identity(HostType, From, To, Node, Lang),
+            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, Node, Lang),
             {Acc, IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                         children = IdentityXML ++ InfoXML ++ FeatureXML}]}}
+                                         children = IdentityXML ++ InfoXML ++ FeaturesXML}]}}
     end.
+
+-spec process_sm_iq_items(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
+    {mongoose_acc:t(), jlib:iq()}.
+process_sm_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
+process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
+    case is_presence_subscribed(From, To) of
+        true ->
+            HostType = mongoose_acc:host_type(Acc),
+            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            case mongoose_disco:get_sm_items(HostType, From, To, Node, Lang) of
+                empty ->
+                    Error = sm_error(From, To),
+                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+                {result, ItemsXML} ->
+                    ANode = make_node_attr(Node),
+                    {Acc, IQ#iq{type = result,
+                          sub_el = [#xmlel{name = <<"query">>,
+                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
+                                           children = ItemsXML}]}}
+            end;
+        false ->
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
+    end.
+
+-spec process_sm_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
+    {mongoose_acc:t(), jlib:iq()}.
+process_sm_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
+process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
+    case is_presence_subscribed(From, To) of
+        true ->
+            HostType = mongoose_acc:host_type(Acc),
+            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
+            case mongoose_disco:get_sm_features(HostType, From, To, Node, Lang) of
+                empty ->
+                    Error = sm_error(From, To),
+                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
+                {result, FeaturesXML} ->
+                    ANode = make_node_attr(Node),
+                    IdentityXML = mongoose_disco:get_sm_identity(HostType, From, To, Node, Lang),
+                    {Acc, IQ#iq{type = result,
+                          sub_el = [#xmlel{name = <<"query">>,
+                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                           children = IdentityXML ++ FeaturesXML}]}}
+            end;
+        false ->
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
+    end.
+
+%% Hook handlers
 
 -spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
 disco_local_identity(Acc = #{node := <<>>}) ->
@@ -163,11 +204,13 @@ disco_local_identity(Acc = #{node := <<>>}) ->
 disco_local_identity(Acc) ->
     Acc.
 
--spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc);
-disco_local_features(Acc) ->
-    Acc.
+-spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{to_jid := JID}) ->
+    case ejabberd_auth:does_user_exist(JID) of
+        true -> mongoose_disco:add_identities([#{category => <<"account">>,
+                                                 type => <<"registered">>}], Acc);
+        false -> Acc
+    end.
 
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}) ->
@@ -178,9 +221,33 @@ disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To,
 disco_local_items(Acc) ->
     Acc.
 
+-spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_sm_items(Acc = #{to_jid := To, node := <<>>}) ->
+    Items = get_user_resources(To),
+    mongoose_disco:add_items(Items, Acc);
+disco_sm_items(Acc) ->
+    Acc.
+
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
+    mongoose_disco:add_features([<<"iq">>, <<"presence">>, <<"presence-invisible">>], Acc);
+disco_local_features(Acc) ->
+    Acc.
+
+%% @doc Support for: XEP-0157 Contact Addresses for XMPP Services
+-spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
+disco_info(Acc = #{host_type := HostType, module := Module, node := <<>>}) ->
+    ServerInfoList = gen_mod:get_module_opt(HostType, ?MODULE, server_info, []),
+    Fields = lists:filtermap(fun(Info) -> process_server_info(Module, Info) end, ServerInfoList),
+    mongoose_disco:add_info([#{xmlns => ?NS_SERVERINFO, fields => Fields}], Acc);
+disco_info(Acc) ->
+    Acc.
+
 -spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
 get_extra_domains(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, extra_domains, []).
+
+%% Internal functions
 
 -spec should_return_hidden(mongooseim:host_type(), From :: jid:jid()) -> return_hidden().
 should_return_hidden(_HostType, #jid{ luser = <<>> } = _From) ->
@@ -217,37 +284,6 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
-    {mongoose_acc:t(), jlib:iq()}.
-process_sm_iq_items(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
-    case is_presence_subscribed(From, To) of
-        true ->
-            HostType = mongoose_acc:host_type(Acc),
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            case mongoose_hooks:disco_sm_items(HostType, From, To, Node, Lang) of
-                #{result := empty} ->
-                    Error = sm_error(From, To),
-                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-                #{result := Items} ->
-                    ANode = make_node_attr(Node),
-                    {Acc, IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = mongoose_disco:items_to_xml(Items)}]}}
-            end;
-        false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
-    end.
-
--spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
-disco_sm_items(Acc = #{to_jid := To, node := <<>>}) ->
-    Items = get_user_resources(To),
-    mongoose_disco:add_items(Items, Acc);
-disco_sm_items(Acc) ->
-    Acc.
-
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
                        #jid{luser = LToUser, lserver = LToServer} = _To) ->
@@ -265,48 +301,11 @@ is_presence_subscribed(#jid{luser = LFromUser, lserver = LFromServer} = FromJID,
               Roster)
     orelse LFromUser == LToUser andalso LFromServer == LToServer.
 
-
--spec process_sm_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
-    {mongoose_acc:t(), jlib:iq()}.
-process_sm_iq_info(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
-    case is_presence_subscribed(From, To) of
-        true ->
-            HostType = mongoose_acc:host_type(Acc),
-            Node = xml:get_tag_attr_s(<<"node">>, SubEl),
-            IdentityResult = mongoose_hooks:disco_sm_identity(HostType, From, To, Node, Lang),
-            Identities = mongoose_disco:get_identities(IdentityResult),
-            case mongoose_hooks:disco_sm_features(HostType, From, To, Node, Lang) of
-                #{result := empty} ->
-                    Error = sm_error(From, To),
-                    {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
-                #{result := Features} ->
-                    ANode = make_node_attr(Node),
-                    IdentityXML = mongoose_disco:identities_to_xml(Identities),
-                    FeatureXML = mongoose_disco:features_to_xml(Features),
-                    {Acc, IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = IdentityXML ++ FeatureXML}]}}
-            end;
-        false ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
-    end.
-
 sm_error(#jid{luser = LUser, lserver = LServer},
          #jid{luser = LUser, lserver = LServer}) ->
     mongoose_xmpp_errors:item_not_found();
 sm_error(_From, _To) ->
     mongoose_xmpp_errors:not_allowed().
-
--spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
-disco_sm_identity(Acc = #{to_jid := JID}) ->
-    case ejabberd_auth:does_user_exist(JID) of
-        true -> mongoose_disco:add_identities([#{category => <<"account">>,
-                                                 type => <<"registered">>}], Acc);
-        false -> Acc
-    end.
 
 -spec get_user_resources(jid:jid()) -> [mongoose_disco:item()].
 get_user_resources(JID) ->
@@ -323,18 +322,14 @@ get_user_resources(JID) ->
 make_node_attr(<<>>) -> [];
 make_node_attr(Node) -> [{<<"node">>, Node}].
 
-%%% Support for: XEP-0157 Contact Addresses for XMPP Services
-
--spec disco_info([mongoose_disco:info()], mongooseim:host_type(), module(),
-                 binary(), ejabberd:lang()) ->
-          [mongoose_disco:info()].
-disco_info(Acc, HostType, Module, <<>>, _Lang) ->
-    ServerInfo = gen_mod:get_module_opt(HostType, ?MODULE, server_info, []),
-    Fields = [#{var => Name, values => Values} || {Modules, Name, Values} <- ServerInfo,
-                                                  is_module_allowed(Module, Modules)],
-    [#{xmlns => ?NS_SERVERINFO, fields => Fields}] ++ Acc;
-disco_info(Acc, _, _, _Node, _) ->
-    Acc.
+process_server_info(Module, ServerInfo) ->
+    case is_module_allowed(Module, proplists:get_value(modules, ServerInfo, all)) of
+        true ->
+            {true, #{var => proplists:get_value(name, ServerInfo),
+                     values => proplists:get_value(value, ServerInfo)}};
+        false ->
+            false
+    end.
 
 is_module_allowed(_Module, all) -> true;
 is_module_allowed(undefined, Modules) -> is_module_allowed(?MODULE, Modules);
