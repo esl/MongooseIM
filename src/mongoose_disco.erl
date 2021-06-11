@@ -1,19 +1,50 @@
+%%% @doc This module is responsible for running disco_* hooks that collect information
+%%% for service discovery. It also contains helpers for direct construction of XML elements
+%%% representing the advertised services.
+
 -module(mongoose_disco).
 
--export([new_acc/5,
-         get_features/1,
-         add_features/2,
-         features_to_xml/1,
+%% Hooks wrappers
+-export([get_local_identity/5,
+         get_sm_identity/5,
+         get_local_items/5,
+         get_sm_items/5,
+         get_local_features/5,
+         get_sm_features/5,
+         get_muc_features/6,
+         get_info/4]).
+
+%% Helpers used by hook handlers for Acc manipulation
+-export([add_identities/2,
          add_items/2,
+         add_features/2,
+         add_info/2]).
+
+%% XML construction helpers
+-export([identities_to_xml/1,
          items_to_xml/1,
-         add_identities/2,
-         identities_to_xml/1,
-         get_identities/1,
-         get_info/4,
+         features_to_xml/1,
          info_list_to_xml/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+
+-type feature_acc() :: acc(feature()).
+-type feature() :: binary().
+
+-type item_acc() :: acc(item()).
+-type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
+
+-type identity_acc() :: acc(identity()).
+-type identity() :: #{category := binary(), type := binary(), name => binary()}.
+
+-type info_acc() :: #{host_type := mongooseim:host_type(),
+                      module := module() | undefined,
+                      node := binary(),
+                      lang := ejabberd:lang(),
+                      result := empty | [info()]}.
+-type info() :: #{xmlns := binary(), fields := [info_field()]}.
+-type info_field() :: #{var := binary(), values := [binary()], label => binary()}.
 
 -type acc(Elem) :: #{host_type := mongooseim:host_type(),
                      from_jid := jid:jid(),
@@ -21,49 +52,105 @@
                      node := binary(),
                      lang := ejabberd:lang(),
                      result := empty | [Elem]}.
--type feature_acc() :: acc(feature()).
--type item_acc() :: acc(item()).
--type identity_acc() :: acc(identity()).
-
--type feature() :: binary().
--type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
--type identity() :: #{category := binary(), type := binary(), name => binary()}.
--type info() :: #{xmlns := binary(), fields := [info_field()]}.
--type info_field() :: #{var := binary(), values := [binary()], label => binary()}.
 
 -export_type([item_acc/0, feature_acc/0, identity_acc/0,
               item/0, feature/0, identity/0,
               info_field/0, info/0]).
 
--spec new_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          acc(feature() | item()).
-new_acc(HostType, From, To, Node, Lang) ->
-    #{host_type => HostType,
-      from_jid => From,
-      to_jid => To,
-      node => Node,
-      lang => Lang,
-      result => empty}.
+%% Hook wrapper API
 
--spec get_features(feature_acc()) -> [feature()].
-get_features(#{result := empty}) -> [];
-get_features(#{result := Features}) -> Features.
+-spec get_local_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          [exml:element()].
+get_local_identity(HostType, From, To, Node, Lang) ->
+    InitialAcc = new_acc(HostType, From, To, Node, Lang),
+    FinalAcc = mongoose_hooks:disco_local_identity(InitialAcc),
+    Identities = extract_result(FinalAcc),
+    identities_to_xml(Identities).
 
--spec add_features([feature()], feature_acc())  -> feature_acc().
-add_features(Features, Acc) ->
-    add(Features, Acc).
+-spec get_sm_identity(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          [exml:element()].
+get_sm_identity(HostType, From, To, Node, Lang) ->
+    InitialAcc = new_acc(HostType, From, To, Node, Lang),
+    IdentityAcc = mongoose_hooks:disco_sm_identity(InitialAcc),
+    Identities = extract_result(IdentityAcc),
+    identities_to_xml(Identities).
 
--spec features_to_xml([feature()]) -> [exml:element()].
-features_to_xml(Features) ->
-    %% Avoid duplicating features
-    [feature_to_xml(Feature) || Feature <- lists:usort(Features)].
+-spec get_local_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          {result, [exml:element()]} | empty.
+get_local_items(HostType, From, To, Node, Lang) ->
+    Acc = new_acc(HostType, From, To, Node, Lang),
+    case mongoose_hooks:disco_local_items(Acc) of
+        #{result := empty} -> empty;
+        #{result := Items} -> {result, items_to_xml(Items)}
+    end.
 
-feature_to_xml(Feature) when is_binary(Feature) ->
-    #xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feature}]}.
+-spec get_sm_items(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          {result, [exml:element()]} | empty.
+get_sm_items(HostType, From, To, Node, Lang) ->
+    Acc = new_acc(HostType, From, To, Node, Lang),
+    case mongoose_hooks:disco_sm_items(Acc) of
+        #{result := empty} -> empty;
+        #{result := Items} -> {result, items_to_xml(Items)}
+    end.
+
+-spec get_local_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          {result, [exml:element()]} | empty.
+get_local_features(HostType, From, To, Node, Lang) ->
+    Acc = new_acc(HostType, From, To, Node, Lang),
+    case mongoose_hooks:disco_local_features(Acc) of
+        #{result := empty} -> empty;
+        #{result := Features} -> {result, features_to_xml(Features)}
+    end.
+
+-spec get_sm_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          {result, [exml:element()]} | empty.
+get_sm_features(HostType, From, To, Node, Lang) ->
+    Acc = new_acc(HostType, From, To, Node, Lang),
+    case mongoose_hooks:disco_sm_features(Acc) of
+        #{result := empty} -> empty;
+        #{result := Features} -> {result, features_to_xml(Features)}
+    end.
+
+-spec get_muc_features(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang(),
+                   [mongoose_disco:feature()]) ->
+          [exml:element()].
+get_muc_features(HostType, From, To, Node, Lang, ExtraFeatures) ->
+    InitialAcc = new_acc(HostType, From, To, Node, Lang),
+    FinalAcc = mongoose_hooks:disco_muc_features(InitialAcc),
+    Features = ExtraFeatures ++ extract_result(FinalAcc),
+    features_to_xml(Features).
+
+-spec get_info(mongooseim:host_type(), module() | undefined, binary(), ejabberd:lang()) ->
+          [exml:element()].
+get_info(HostType, Module, Node, Lang) ->
+    InitialAcc = new_info_acc(HostType, Module, Node, Lang),
+    FinalAcc = mongoose_hooks:disco_info(InitialAcc),
+    InfoList = extract_result(FinalAcc),
+    info_list_to_xml(InfoList).
+
+%% Helper API
+
+-spec add_identities([identity()], identity_acc()) -> identity_acc().
+add_identities(Identities, Acc) ->
+    add(Identities, Acc).
 
 -spec add_items([item()], item_acc()) -> item_acc().
 add_items(Items, Acc) ->
     add(Items, Acc).
+
+-spec add_features([feature()], feature_acc()) -> feature_acc().
+add_features(Features, Acc) ->
+    add(Features, Acc).
+
+-spec add_info([info()], info_acc()) -> info_acc().
+add_info(InfoList, Acc) ->
+    add(InfoList, Acc).
+
+%% XML construction API
+
+-spec identities_to_xml([identity()]) -> [exml:element()].
+identities_to_xml(Identities) ->
+    lists:map(fun identity_to_xml/1, Identities).
 
 -spec items_to_xml([item()]) -> [exml:element()].
 items_to_xml(Items) ->
@@ -72,43 +159,64 @@ items_to_xml(Items) ->
     %% than the default which is obtained from the registered routes and contains only the JID.
     maps:values(maps:from_list([{JID, item_to_xml(Item)} || #{jid := JID} = Item <- Items])).
 
-item_to_xml(Item) ->
-    #xmlel{name = <<"item">>,
-           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
-                             maps:to_list(Item))}.
+-spec features_to_xml([feature()]) -> [exml:element()].
+features_to_xml(Features) ->
+    %% Avoid duplicating features
+    [feature_to_xml(Feature) || Feature <- lists:usort(Features)].
 
--spec add_identities([identity()], identity_acc()) -> identity_acc().
-add_identities(Identities, Acc) ->
-    add(Identities, Acc).
+-spec info_list_to_xml([info()]) -> [exml:element()].
+info_list_to_xml(InfoList) ->
+    [info_to_xml(Info) || Info <- InfoList].
 
--spec identities_to_xml([identity()]) -> [exml:element()].
-identities_to_xml(Identities) ->
-    lists:map(fun identity_to_xml/1, Identities).
+%% Acc manipulation
 
-identity_to_xml(Identity) ->
-    #xmlel{name = <<"identity">>,
-           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
-                             maps:to_list(Identity))}.
+-spec new_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
+          acc(any()).
+new_acc(HostType, From, To, Node, Lang) ->
+    #{host_type => HostType,
+      from_jid => From,
+      to_jid => To,
+      node => Node,
+      lang => Lang,
+      result => empty}.
 
--spec add([Elem], acc(Elem)) -> acc(Elem).
+-spec new_info_acc(mongooseim:host_type(), module(), binary(), ejabberd:lang()) -> info_acc().
+new_info_acc(HostType, Module, Node, Lang) ->
+    #{host_type => HostType,
+      module => Module,
+      node => Node,
+      lang => Lang,
+      result => empty}.
+
+-spec add([Elem], acc(Elem)) -> acc(Elem);
+         ([info()], info_acc()) -> info_acc().
 add(Elements, Acc = #{result := empty}) ->
     Acc#{result := Elements};
 add(Elements, Acc = #{result := InitialElements}) ->
     Acc#{result := Elements ++ InitialElements}.
 
--spec get_identities(identity_acc()) -> [identity()].
-get_identities(#{result := empty}) -> [];
-get_identities(#{result := Identities}) -> Identities.
+-spec extract_result(acc(Elem)) -> [Elem];
+                    (info_acc()) -> [info()].
+extract_result(#{result := empty}) -> [];
+extract_result(#{result := Elements}) -> Elements.
 
--spec get_info(mongooseim:host_type(), module() | undefined, binary(), ejabberd:lang()) ->
-          [exml:element()].
-get_info(HostType, Module, Node, Lang) ->
-    InfoList = mongoose_hooks:disco_info(HostType, Module, Node, Lang),
-    info_list_to_xml(InfoList).
+%% Conversion to XML
 
--spec info_list_to_xml([info()]) -> [exml:element()].
-info_list_to_xml(InfoList) ->
-    [info_to_xml(Info) || Info <- InfoList].
+feature_to_xml(Feature) when is_binary(Feature) ->
+    #xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feature}]}.
+
+
+item_to_xml(Item) ->
+    #xmlel{name = <<"item">>,
+           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
+                             maps:to_list(Item))}.
+
+
+
+identity_to_xml(Identity) ->
+    #xmlel{name = <<"identity">>,
+           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
+                             maps:to_list(Identity))}.
 
 -spec info_to_xml(info()) -> exml:element().
 info_to_xml(#{xmlns := NS, fields := Fields}) ->
@@ -135,4 +243,3 @@ form_type_field_xml(NS) ->
            attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
            children = [#xmlel{name = <<"value">>,
                               children = [#xmlcdata{content = NS}]}]}.
-
