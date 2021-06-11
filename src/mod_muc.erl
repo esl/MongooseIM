@@ -724,8 +724,9 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            IdentityXML = identity_xml(Lang),
-            FeatureXML = feature_xml(HostType, From, To, Lang),
+            IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+            FeatureXML =  mongoose_disco:get_muc_features(HostType, From, To, <<>>, Lang,
+                                                          features()),
             InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
@@ -891,17 +892,6 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
-
--spec identity_xml(ejabberd:lang()) -> [exml:element()].
-identity_xml(Lang) ->
-    mongoose_disco:identities_to_xml([identity(Lang)]).
-
--spec feature_xml(mongooseim:host_type(), jid:jid(), jid:jid(), ejabberd:lang()) ->
-          [exml:element()].
-feature_xml(HostType, From, To, Lang) ->
-    FeatureAcc = mongoose_hooks:disco_muc_features(HostType, From, To, <<>>, Lang),
-    RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
-    mongoose_disco:features_to_xml(features() ++ RegisteredFeatures).
 
 identity(Lang) ->
     #{category => <<"conference">>,

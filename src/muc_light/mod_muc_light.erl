@@ -278,7 +278,7 @@ hooks(HostType) ->
      {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {disco_local_items, HostType, ?MODULE, disco_local_items, 250}] ++
+     {disco_local_items, HostType, ?MODULE, disco_local_items, 50}] ++
     case Codec of
         legacy ->
             [{privacy_iq_get, HostType, ?MODULE, process_iq_get, 1},

@@ -3930,10 +3930,9 @@ process_iq_disco_info(From, get, Lang, StateData) ->
     RoomJID = StateData#state.jid,
     Config = StateData#state.config,
     HostType = StateData#state.host_type,
-    FeatureAcc = mongoose_hooks:disco_muc_features(HostType, From, RoomJID, <<>>, Lang),
-    RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
     IdentityXML = mongoose_disco:identities_to_xml([identity(get_title(StateData))]),
-    FeatureXML = mongoose_disco:features_to_xml(RegisteredFeatures ++ room_features(Config)),
+    FeatureXML =  mongoose_disco:get_muc_features(HostType, From, RoomJID, <<>>, Lang,
+                                                  room_features(Config)),
     InfoXML = iq_disco_info_extras(Lang, StateData),
     {result, IdentityXML ++ FeatureXML ++ InfoXML, StateData}.
 

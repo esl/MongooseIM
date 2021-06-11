@@ -257,13 +257,10 @@ parse_blocking_list(_, _) ->
 
 encode_iq({get, #disco_info{ id = ID }}, Sender, RoomJID, _RoomBin, _HandleFun, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    FeatureAcc = mongoose_hooks:disco_muc_features(HostType, Sender, RoomJID, <<>>, <<>>),
-    RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
-    DiscoEls = [#xmlel{name = <<"identity">>,
-                       attrs = [{<<"category">>, <<"conference">>},
-                                {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light (modern)">>}]} |
-                mongoose_disco:features_to_xml([?NS_MUC_LIGHT | RegisteredFeatures])],
+    IdentityXML = mongoose_disco:identities_to_xml([identity()]),
+    FeatureXML = mongoose_disco:get_muc_features(HostType, Sender, RoomJID, <<>>, <<>>,
+                                                 [?NS_MUC_LIGHT]),
+    DiscoEls = IdentityXML ++ FeatureXML,
     {reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_iq({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _Sender, _RoomJID, _RoomBin, _HandleFun, _Acc) ->
@@ -408,6 +405,10 @@ encode_set_config(Config, RoomBin) ->
            children = msg_envelope(?NS_MUC_LIGHT_CONFIGURATION, ConfigNotif) }.
 
 %% --------------------------- Helpers ---------------------------
+
+-spec identity() -> mongoose_disco:identity().
+identity() ->
+    #{category => <<"conference">>, type => <<"text">>, name => <<"MUC Light (modern)">>}.
 
 -spec aff_user_to_el(aff_user()) -> exml:element().
 aff_user_to_el({User, Aff}) ->
