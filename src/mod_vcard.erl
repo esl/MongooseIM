@@ -553,22 +553,13 @@ do_route(_VHost, From, To, Acc, #iq{type = set,
 do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = mongoose_hooks:disco_info(VHost, ?MODULE, <<"">>, <<"">>),
-    NameTxt = translate:translate(Lang, <<"vCard User Search">>),
+    IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+    FeatureXML = mongoose_disco:features_to_xml(features()),
+    InfoXML = mongoose_disco:get_info(VHost, ?MODULE, <<>>, <<>>),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
-                                   attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],
-                                   children = [#xmlel{name = <<"identity">>,
-                                                      attrs = [{<<"category">>, <<"directory">>},
-                                                               {<<"type">>, <<"user">>},
-                                                               {<<"name">>, NameTxt}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_SEARCH}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_VCARD}]}
-                                              ] ++ Info}]},
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                   children = IdentityXML ++ FeatureXML ++ InfoXML}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type=set,
                                        xmlns = ?NS_DISCO_ITEMS}) ->
@@ -615,6 +606,14 @@ find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
     end;
 find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
+
+features() ->
+    [?NS_DISCO_INFO, ?NS_SEARCH, ?NS_VCARD].
+
+identity(Lang) ->
+    #{category => <<"directory">>,
+      type => <<"user">>,
+      name => translate:translate(Lang, <<"vCard User Search">>)}.
 
 search_result(Lang, JID, VHost, Data, RSMIn) ->
     Text = translate:translate(Lang, <<"Search Results for ">>),

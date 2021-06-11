@@ -724,12 +724,13 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = iq_disco_info(HostType, Lang, From, To) ++
-                mongoose_hooks:disco_info(HostType, ?MODULE, <<"">>, Lang),
+            IdentityXML = identity_xml(Lang),
+            FeatureXML = feature_xml(HostType, From, To, Lang),
+            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<"">>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
-                                         children = Info}]},
+                                         children = IdentityXML ++ FeatureXML ++ InfoXML}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
@@ -891,16 +892,21 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
 
--spec iq_disco_info(mongooseim:host_type(), ejabberd:lang(), jid:jid(), jid:jid()) ->
+-spec identity_xml(ejabberd:lang()) -> [exml:element()].
+identity_xml(Lang) ->
+    mongoose_disco:identities_to_xml([identity(Lang)]).
+
+-spec feature_xml(mongooseim:host_type(), jid:jid(), jid:jid(), ejabberd:lang()) ->
           [exml:element()].
-iq_disco_info(HostType, Lang, From, To) ->
+feature_xml(HostType, From, To, Lang) ->
     FeatureAcc = mongoose_hooks:disco_muc_features(HostType, From, To, <<>>, Lang),
     RegisteredFeatures = mongoose_disco:get_features(FeatureAcc),
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"conference">>},
-                     {<<"type">>, <<"text">>},
-                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]} |
-     mongoose_disco:features_to_xml(features() ++ RegisteredFeatures)].
+    mongoose_disco:features_to_xml(features() ++ RegisteredFeatures).
+
+identity(Lang) ->
+    #{category => <<"conference">>,
+      type => <<"text">>,
+      name => translate:translate(Lang, <<"Chatrooms">>)}.
 
 features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].

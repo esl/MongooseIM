@@ -1001,15 +1001,14 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Info = mongoose_hooks:disco_info(ServerHost,
-                                             ?MODULE, <<>>, <<>>),
+            InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
                                                sub_el =
                                                [#xmlel{name = <<"query">>,
                                                        attrs = QAttrs,
-                                                       children = IQRes ++ Info}]});
+                                                       children = IQRes ++ InfoXML}]});
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,

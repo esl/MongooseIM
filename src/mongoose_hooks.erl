@@ -1205,15 +1205,15 @@ s2s_receive_packet(Acc) ->
 %% Discovery related hooks
 
 %%% @doc `disco_info' hook is called to extract information about the server.
--spec disco_info(Server, Module, Node, Lang) -> Result when
-    Server :: jid:server(),
+-spec disco_info(HostType, Module, Node, Lang) -> Result when
+    HostType :: mongooseim:host_type(),
     Module :: module(),
     Node :: binary(),
     Lang :: ejabberd:lang(),
-    Result :: [exml:element()].
-disco_info(Server, Module, Node, Lang) ->
-    ejabberd_hooks:run_for_host_type(disco_info, Server, [],
-                                     [Server, Module, Node, Lang]).
+    Result :: [mongoose_disco:info()].
+disco_info(HostType, Module, Node, Lang) ->
+    ejabberd_hooks:run_for_host_type(disco_info, HostType, [],
+                                     [HostType, Module, Node, Lang]).
 
 %%% @doc `disco_local_features' hook is called to extract features
 %%% offered by the server.
@@ -1227,7 +1227,6 @@ disco_info(Server, Module, Node, Lang) ->
 disco_local_features(HostType, From, To, Node, Lang) ->
     InitialAcc = mongoose_disco:new_acc(HostType, From, To, Node, Lang),
     ejabberd_hooks:run_for_host_type(disco_local_features, HostType, InitialAcc, []).
-
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(HostType, From, To, Node, Lang) -> Result when

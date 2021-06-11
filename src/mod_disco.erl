@@ -43,7 +43,7 @@
          process_sm_iq_info/5,
          disco_sm_identity/1,
          disco_sm_items/1,
-         get_info/5]).
+         disco_info/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -71,7 +71,7 @@ hooks(HostType) ->
      {disco_local_identity, HostType, ?MODULE, disco_local_identity, 100},
      {disco_sm_items, HostType, ?MODULE, disco_sm_items, 100},
      {disco_sm_identity, HostType, ?MODULE, disco_sm_identity, 100},
-     {disco_info, HostType, ?MODULE, get_info, 100}].
+     {disco_info, HostType, ?MODULE, disco_info, 100}].
 
 iq_handlers() ->
     [{ejabberd_local, ?NS_DISCO_ITEMS, fun ?MODULE:process_local_iq_items/5},
@@ -94,9 +94,9 @@ config_spec() ->
 
 server_info_spec() ->
     #section{
-       items = #{<<"name">> => #option{type = string,
+       items = #{<<"name">> => #option{type = binary,
                                        validate = non_empty},
-                 <<"urls">> => #list{items = #option{type = string,
+                 <<"urls">> => #list{items = #option{type = binary,
                                                      validate = url}},
                  <<"modules">> => #list{items = #option{type = atom,
                                                         validate = module}}
@@ -145,15 +145,14 @@ process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl
         #{result := Features} ->
             IdentityResult = mongoose_hooks:disco_local_identity(HostType, From, To, Node, Lang),
             Identities = mongoose_disco:get_identities(IdentityResult),
-            Host = To#jid.lserver,
-            Info = mongoose_hooks:disco_info(Host, ?MODULE, Node, Lang),
+            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, Node, Lang),
             ANode = make_node_attr(Node),
             IdentityXML = mongoose_disco:identities_to_xml(Identities),
             FeatureXML = mongoose_disco:features_to_xml(Features),
             {Acc, IQ#iq{type = result,
-                  sub_el = [#xmlel{name = <<"query">>,
-                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                   children = IdentityXML ++ Info ++ FeatureXML}]}}
+                        sub_el = [#xmlel{name = <<"query">>,
+                                         attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
+                                         children = IdentityXML ++ InfoXML ++ FeatureXML}]}}
     end.
 
 -spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
@@ -326,58 +325,17 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
--spec get_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
-        Lang :: ejabberd:lang()) -> [exml:element()].
-get_info(Acc, Host, Mod, Node, _Lang) when Node == <<>> ->
-    Module = case Mod of
-                 undefined ->
-                     ?MODULE;
-                 _ ->
-                     Mod
-             end,
-    ServerInfoFields = get_fields_xml(Host, Module),
-    FormTypeField = #xmlel{name = <<"field">>,
-                           attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
-                           children = [#xmlel{name = <<"value">>,
-                                              children = [#xmlcdata{content = ?NS_SERVERINFO}]}]},
-    [#xmlel{name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-            children = [FormTypeField | ServerInfoFields]} | Acc];
-get_info(Acc, _, _, _Node, _) ->
+-spec disco_info([mongoose_disco:info()], mongooseim:host_type(), module(),
+                 binary(), ejabberd:lang()) ->
+          [mongoose_disco:info()].
+disco_info(Acc, HostType, Module, <<>>, _Lang) ->
+    ServerInfo = gen_mod:get_module_opt(HostType, ?MODULE, server_info, []),
+    Fields = [#{var => Name, values => Values} || {Modules, Name, Values} <- ServerInfo,
+                                                  is_module_allowed(Module, Modules)],
+    [#{xmlns => ?NS_SERVERINFO, fields => Fields}] ++ Acc;
+disco_info(Acc, _, _, _Node, _) ->
     Acc.
 
-
--spec get_fields_xml(jid:server(), module()) -> [exml:element()].
-get_fields_xml(Host, Module) ->
-    Fields = gen_mod:get_module_opt(Host, ?MODULE, server_info, []),
-
-    %% filter, and get only the ones allowed for this module
-    FilteredFields = lists:filter(
-                       fun({Modules, _, _}) ->
-                               case Modules of
-                                   all -> true;
-                                   Modules -> lists:member(Module, Modules)
-                               end
-                       end,
-                       Fields),
-
-    fields_to_xml(FilteredFields).
-
-
--spec fields_to_xml([{Modules :: [module()], Var :: string(), Values :: [string()]}]) ->
-    [exml:element()].
-fields_to_xml(Fields) ->
-    [ field_to_xml(Field) || Field <- Fields].
-
-
--spec field_to_xml({Modules :: [module()], Var :: string(), Values :: [string()]}) -> exml:element().
-field_to_xml({_Module, Var, Values}) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, list_to_binary(Var)}],
-           children = values_to_xml(Values)}.
-
-
--spec values_to_xml([binary()]) -> [exml:element()].
-values_to_xml(Values) ->
-    [ #xmlel{name = <<"value">>, children = [#xmlcdata{content = list_to_binary(Value)}]}
-      || Value <- Values ].
-
+is_module_allowed(_Module, all) -> true;
+is_module_allowed(undefined, Modules) -> is_module_allowed(?MODULE, Modules);
+is_module_allowed(Module, Modules) -> lists:member(Module, Modules).

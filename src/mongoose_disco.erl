@@ -8,7 +8,9 @@
          items_to_xml/1,
          add_identities/2,
          identities_to_xml/1,
-         get_identities/1]).
+         get_identities/1,
+         get_info/4,
+         info_list_to_xml/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -26,8 +28,12 @@
 -type feature() :: binary().
 -type item() :: #{jid := jid:lserver(), name => binary(), node => binary()}.
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
+-type info() :: #{xmlns := binary(), fields := [info_field()]}.
+-type info_field() :: #{var := binary(), values := [binary()], label => binary()}.
 
--export_type([item_acc/0, feature_acc/0, identity_acc/0, item/0, feature/0, identity/0]).
+-export_type([item_acc/0, feature_acc/0, identity_acc/0,
+              item/0, feature/0, identity/0,
+              info_field/0, info/0]).
 
 -spec new_acc(mongooseim:host_type(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
           acc(feature() | item()).
@@ -93,3 +99,40 @@ add(Elements, Acc = #{result := InitialElements}) ->
 -spec get_identities(identity_acc()) -> [identity()].
 get_identities(#{result := empty}) -> [];
 get_identities(#{result := Identities}) -> Identities.
+
+-spec get_info(mongooseim:host_type(), module() | undefined, binary(), ejabberd:lang()) ->
+          [exml:element()].
+get_info(HostType, Module, Node, Lang) ->
+    InfoList = mongoose_hooks:disco_info(HostType, Module, Node, Lang),
+    info_list_to_xml(InfoList).
+
+-spec info_list_to_xml([info()]) -> [exml:element()].
+info_list_to_xml(InfoList) ->
+    [info_to_xml(Info) || Info <- InfoList].
+
+-spec info_to_xml(info()) -> exml:element().
+info_to_xml(#{xmlns := NS, fields := Fields}) ->
+    #xmlel{name = <<"x">>,
+           attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
+           children = [form_type_field_xml(NS) |
+                       [info_field_to_xml(Field) || Field <- Fields]]}.
+
+-spec info_field_to_xml(info_field()) -> exml:element().
+info_field_to_xml(InfoField) ->
+    {Values, Attrs} = maps:take(values, InfoField),
+    #xmlel{name = <<"field">>,
+           attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
+                             maps:to_list(Attrs)),
+           children = values_to_xml(Values)}.
+
+-spec values_to_xml([binary()]) -> [exml:element()].
+values_to_xml(Values) ->
+    [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]} || Value <- Values].
+
+-spec form_type_field_xml(binary()) -> exml:element().
+form_type_field_xml(NS) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"var">>, <<"FORM_TYPE">>}, {<<"type">>, <<"hidden">>}],
+           children = [#xmlel{name = <<"value">>,
+                              children = [#xmlcdata{content = NS}]}]}.
+

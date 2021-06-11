@@ -503,9 +503,9 @@ make_my_disco_hash(Host) ->
             IdentityResult = mongoose_hooks:disco_local_identity(Host, JID, JID, <<>>, <<>>),
             Identities = mongoose_disco:get_identities(IdentityResult),
             IdentityXML = mongoose_disco:identities_to_xml(Identities),
-            Info = mongoose_hooks:disco_info(Host, undefined, <<>>, <<>>),
+            InfoXML = mongoose_disco:get_info(Host, undefined, <<>>, <<>>),
             FeatureXML = mongoose_disco:features_to_xml(Features),
-            make_disco_hash(IdentityXML ++ Info ++ FeatureXML, sha1)
+            make_disco_hash(IdentityXML ++ InfoXML ++ FeatureXML, sha1)
     end.
 
 make_disco_hash(DiscoEls, Algo) ->
