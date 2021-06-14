@@ -214,9 +214,11 @@ disco_sm_identity(Acc = #{to_jid := JID}) ->
 
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_local_items(Acc = #{host_type := HostType, from_jid := From, to_jid := To, node := <<>>}) ->
-    Host = To#jid.lserver,
     ReturnHidden = should_return_hidden(HostType, From),
-    Domains = get_vh_services(Host, ReturnHidden) ++ get_extra_domains(HostType),
+    Subdomains = get_subdomains(To#jid.lserver),
+    Components = get_external_components(To#jid.lserver, ReturnHidden),
+    ExtraDomains = get_extra_domains(HostType),
+    Domains = Subdomains ++ Components ++ ExtraDomains,
     mongoose_disco:add_items([#{jid => Domain} || Domain <- Domains], Acc);
 disco_local_items(Acc) ->
     Acc.
@@ -259,16 +261,23 @@ should_return_hidden(HostType, _From) ->
         false -> only_public
     end.
 
--type route() :: binary().
--spec get_vh_services(jid:server(), return_hidden()) -> [route()].
-get_vh_services(Host, ReturnHidden) ->
-    VHosts = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
-    lists:filter(fun(Route) ->
-                         check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts)
-                 end, ejabberd_router:dirty_get_all_routes(ReturnHidden)).
+-spec get_subdomains(jid:lserver()) -> [jid:lserver()].
+get_subdomains(Domain) ->
+    [maps:get(subdomain, SubdomainInfo) ||
+        SubdomainInfo <- mongoose_domain_api:get_all_subdomains_for_domain(Domain)].
+
+%% TODO: This code can be removed when components register subdomains in the domain API.
+%% Until then, it works only for static domains.
+-spec get_external_components(jid:server(), return_hidden()) -> [jid:lserver()].
+get_external_components(Domain, ReturnHidden) ->
+    StaticDomains = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
+    lists:filter(
+      fun(Component) ->
+              check_if_host_is_the_shortest_suffix_for_route(Component, Domain, StaticDomains)
+      end, ejabberd_router:dirty_get_all_components(ReturnHidden)).
 
 -spec check_if_host_is_the_shortest_suffix_for_route(
-        Route :: route(), Host :: binary(), VHosts :: [binary()]) -> boolean().
+        Route :: jid:lserver(), Host :: jid:lserver(), VHosts :: [jid:lserver()]) -> boolean().
 check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
     RouteS = binary_to_list(Route),
     case lists:dropwhile(
@@ -280,7 +289,6 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
         [VH | _] ->
             VH == Host
     end.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -326,7 +334,7 @@ process_server_info(Module, ServerInfo) ->
     case is_module_allowed(Module, proplists:get_value(modules, ServerInfo, all)) of
         true ->
             {true, #{var => proplists:get_value(name, ServerInfo),
-                     values => proplists:get_value(value, ServerInfo)}};
+                     values => proplists:get_value(urls, ServerInfo)}};
         false ->
             false
     end.

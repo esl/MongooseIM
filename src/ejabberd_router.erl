@@ -40,6 +40,7 @@
          dirty_get_all_domains/0,
          dirty_get_all_routes/1,
          dirty_get_all_domains/1,
+         dirty_get_all_components/1,
          register_components/2,
          register_components/3,
          register_components/4,
@@ -400,6 +401,13 @@ all_routes(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_all_keys(route)
     ++
+    mnesia:dirty_select(external_component_global, [MatchNonHidden]).
+
+-spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
+dirty_get_all_components(all) ->
+    mnesia:dirty_all_keys(external_component_global);
+dirty_get_all_components(only_public) ->
+    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
 
