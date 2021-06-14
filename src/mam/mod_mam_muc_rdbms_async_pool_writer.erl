@@ -14,10 +14,7 @@
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
--export([archive_size/4,
-         archive_message/3,
-         lookup_messages/3,
-         remove_archive/4]).
+-export([archive_message/3]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -201,23 +198,6 @@ worker_queue_length(SrvName) ->
             {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
             Len
     end.
-
-
--spec archive_size(integer(), mongooseim:host_type(), mod_mam:archive_id(),
-                   jid:jid()) -> integer().
-archive_size(Size, HostType, ArcID, _ArcJID) when is_integer(Size) ->
-    Size.
-
-
--spec lookup_messages(Result :: any(), HostType :: mongooseim:host_type(), Params :: map()) ->
-    {ok, mod_mam:lookup_result()}.
-lookup_messages(Result, HostType, #{archive_id := ArcID, end_ts := End, now := Now}) ->
-    Result.
-
-%% #rh
--spec remove_archive(map(), mongooseim:host_type(), mod_mam:archive_id(), jid:jid()) -> map().
-remove_archive(Acc, HostType, ArcID, _ArcJID) ->
-    Acc.
 
 %%====================================================================
 %% Internal functions
