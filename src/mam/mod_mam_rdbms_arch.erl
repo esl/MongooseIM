@@ -31,6 +31,8 @@
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 
+-type host_type() :: mongooseim:host_type().
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -44,7 +46,7 @@
 %% Types
 
 -type env_vars() :: #{
-        host_type := mongooseim:host_type(),
+        host_type := host_type(),
         archive_jid := jid:jid(),
         table := atom(),
         index_hint_fn := fun((env_vars()) -> mam_lookup_sql:sql_part()),
@@ -64,19 +66,18 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(jid:server(), _) -> ok.
-start(Host, Opts) ->
-    start_hooks(Host, Opts),
+-spec start(host_type(), _) -> ok.
+start(HostType, Opts) ->
+    start_hooks(HostType, Opts),
     register_prepared_queries(),
     ok.
 
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    stop_hooks(Host).
+-spec stop(host_type()) -> ok.
+stop(HostType) ->
+    stop_hooks(HostType).
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-                           mongooseim:host_type(),
-                           jid:jid()) ->
+                           host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, HostType,
                      #jid{luser = LUser, lserver = LServer} = ArcJID) ->
@@ -96,27 +97,27 @@ uniform_to_gdpr(#{id := MessID, jid := RemoteJID, packet := Packet}) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_hooks(jid:server(), _) -> ok.
-start_hooks(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)).
+-spec start_hooks(host_type(), _) -> ok.
+start_hooks(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
--spec stop_hooks(jid:server()) -> ok.
-stop_hooks(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+-spec stop_hooks(host_type()) -> ok.
+stop_hooks(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
-hooks(Host) ->
-    NoWriter = gen_mod:get_module_opt(Host, ?MODULE, no_writer, false),
+hooks(HostType) ->
+    NoWriter = gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false),
     case NoWriter of
         true ->
             [];
         false ->
-            [{mam_archive_message, Host, ?MODULE, archive_message, 50}]
+            [{mam_archive_message, HostType, ?MODULE, archive_message, 50}]
     end ++
-    [{mam_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_lookup_messages, Host, ?MODULE, lookup_messages, 50},
-     {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
-     {remove_domain, Host, ?MODULE, remove_domain, 50},
-     {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
+    [{mam_archive_size, HostType, ?MODULE, archive_size, 50},
+     {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
+     {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
 %% ----------------------------------------------------------------------
 %% SQL queries
@@ -172,11 +173,11 @@ lookup_fields() ->
      #lookup_field{op = equal, column = remote_resource, param = remote_resource},
      #lookup_field{op = like, column = search_body, param = norm_search_text, value_maker = search_words}].
 
--spec env_vars(jid:lserver(), jid:jid()) -> env_vars().
-env_vars(Host, ArcJID) ->
-    %% Please, minimize the usage of the host field.
+-spec env_vars(host_type(), jid:jid()) -> env_vars().
+env_vars(HostType, ArcJID) ->
+    %% Please, minimize the usage of the host_type field.
     %% It's only for passing into RDBMS.
-    #{host => Host,
+    #{host_type => HostType,
       archive_jid => ArcJID,
       table => mam_message,
       index_hint_fn => fun index_hint_sql/1,
@@ -184,17 +185,17 @@ env_vars(Host, ArcJID) ->
       column_to_id_fn => fun column_to_id/1,
       lookup_fn => fun lookup_query/5,
       decode_row_fn => fun row_to_uniform_format/2,
-      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, Host),
-      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, Host),
-      db_jid_codec => db_jid_codec(Host, ?MODULE),
-      db_message_codec => db_message_codec(Host, ?MODULE)}.
+      has_message_retraction => mod_mam_utils:has_message_retraction(mod_mam, HostType),
+      has_full_text_search => mod_mam_utils:has_full_text_search(mod_mam, HostType),
+      db_jid_codec => db_jid_codec(HostType, ?MODULE),
+      db_message_codec => db_message_codec(HostType, ?MODULE)}.
 
 row_to_uniform_format(Row, Env) ->
     mam_decoder:decode_row(Row, Env).
 
 -spec index_hint_sql(env_vars()) -> string().
-index_hint_sql(#{host := Host}) ->
-    case mongoose_rdbms:db_engine(Host) of
+index_hint_sql(#{host_type := HostType}) ->
+    case mongoose_rdbms:db_engine(HostType) of
         mysql -> "USE INDEX(PRIMARY, i_mam_message_rem) ";
         _ -> ""
     end.
@@ -215,13 +216,13 @@ column_names(Mappings) ->
 %% ----------------------------------------------------------------------
 %% Options
 
--spec db_jid_codec(jid:server(), module()) -> module().
-db_jid_codec(Host, Module) ->
-    gen_mod:get_module_opt(Host, Module, db_jid_format, mam_jid_mini).
+-spec db_jid_codec(host_type(), module()) -> module().
+db_jid_codec(HostType, Module) ->
+    gen_mod:get_module_opt(HostType, Module, db_jid_format, mam_jid_mini).
 
--spec db_message_codec(jid:server(), module()) -> module().
-db_message_codec(Host, Module) ->
-    gen_mod:get_module_opt(Host, Module, db_message_format, mam_message_compressed_eterm).
+-spec db_message_codec(host_type(), module()) -> module().
+db_message_codec(HostType, Module) ->
+    gen_mod:get_module_opt(HostType, Module, db_message_format, mam_message_compressed_eterm).
 
 -spec get_retract_id(exml:element(), env_vars()) -> none | binary().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
@@ -230,81 +231,81 @@ get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec archive_size(Size :: integer(), Host :: jid:server(),
+-spec archive_size(Size :: integer(), HostType :: host_type(),
                    ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, ArcID, ArcJID) when is_integer(Size) ->
+archive_size(Size, HostType, ArcID, ArcJID) when is_integer(Size) ->
     Filter = [{equal, user_id, ArcID}],
-    Env = env_vars(Host, ArcJID),
+    Env = env_vars(HostType, ArcJID),
     Result = lookup_query(count, Env, Filter, unordered, all),
     mongoose_rdbms:selected_to_integer(Result).
 
--spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) -> ok.
-archive_message(_Result, Host, Params = #{local_jid := ArcJID}) ->
+-spec archive_message(_Result, host_type(), mod_mam:archive_message_params()) -> ok.
+archive_message(_Result, HostType, Params = #{local_jid := ArcJID}) ->
     try
         assert_archive_id_provided(Params),
-        Env = env_vars(Host, ArcJID),
-        do_archive_message(Host, Params, Env),
-        retract_message(Host, Params, Env),
+        Env = env_vars(HostType, ArcJID),
+        do_archive_message(HostType, Params, Env),
+        retract_message(HostType, Params, Env),
         ok
     catch error:Reason:StackTrace ->
               ?LOG_ERROR(#{what => archive_message_failed,
-                           host => Host, mam_params => Params,
+                           host_type => HostType, mam_params => Params,
                            reason => Reason, stacktrace => StackTrace}),
               erlang:raise(error, Reason, StackTrace)
     end.
 
-do_archive_message(Host, Params, Env) ->
+do_archive_message(HostType, Params, Env) ->
     Row = mam_encoder:encode_message(Params, Env, db_mappings()),
-    {updated, 1} = mongoose_rdbms:execute_successfully(Host, insert_mam_message, Row).
+    {updated, 1} = mongoose_rdbms:execute_successfully(HostType, insert_mam_message, Row).
 
 %% Retraction logic
 %% Called after inserting a new message
--spec retract_message(jid:server(), mod_mam:archive_message_params()) -> ok.
-retract_message(Host, #{local_jid := ArcJID} = Params)  ->
-    Env = env_vars(Host, ArcJID),
-    retract_message(Host, Params, Env).
+-spec retract_message(host_type(), mod_mam:archive_message_params()) -> ok.
+retract_message(HostType, #{local_jid := ArcJID} = Params)  ->
+    Env = env_vars(HostType, ArcJID),
+    retract_message(HostType, Params, Env).
 
--spec retract_message(jid:server(), mod_mam:archive_message_params(), env_vars()) -> ok.
-retract_message(Host, #{archive_id := ArcID, remote_jid := RemJID,
+-spec retract_message(host_type(), mod_mam:archive_message_params(), env_vars()) -> ok.
+retract_message(HostType, #{archive_id := ArcID, remote_jid := RemJID,
                         direction := Dir, packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
         OriginID ->
-            Info = get_retraction_info(Host, ArcID, RemJID, OriginID, Dir, Env),
-            make_tombstone(Host, ArcID, OriginID, Info, Env)
+            Info = get_retraction_info(HostType, ArcID, RemJID, OriginID, Dir, Env),
+            make_tombstone(HostType, ArcID, OriginID, Info, Env)
     end.
 
-get_retraction_info(Host, ArcID, RemJID, OriginID, Dir, Env) ->
+get_retraction_info(HostType, ArcID, RemJID, OriginID, Dir, Env) ->
     %% Code style notice:
     %% - Add Ext prefix for all externally encoded data
     %% (in cases, when we usually add Bin, B, S Esc prefixes)
     ExtBareRemJID = mam_encoder:encode_jid(jid:to_bare(RemJID), Env),
     ExtDir = mam_encoder:encode_direction(Dir),
     {selected, Rows} = execute_select_messages_to_retract(
-                         Host, ArcID, ExtBareRemJID, OriginID, ExtDir),
+                         HostType, ArcID, ExtBareRemJID, OriginID, ExtDir),
     mam_decoder:decode_retraction_info(Env, Rows).
 
-make_tombstone(_Host, ArcID, OriginID, skip, _Env) ->
+make_tombstone(_HostType, ArcID, OriginID, skip, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => ArcID, origin_id => OriginID});
-make_tombstone(Host, ArcID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
+make_tombstone(HostType, ArcID, OriginID, #{packet := Packet, message_id := MessID}, Env) ->
     Tombstone = mod_mam_utils:tombstone(Packet, OriginID),
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
-    execute_make_tombstone(Host, TombstoneData, ArcID, MessID).
+    execute_make_tombstone(HostType, TombstoneData, ArcID, MessID).
 
-execute_select_messages_to_retract(Host, ArcID, BareRemJID, OriginID, Dir) ->
-    mongoose_rdbms:execute_successfully(Host, mam_select_messages_to_retract,
+execute_select_messages_to_retract(HostType, ArcID, BareRemJID, OriginID, Dir) ->
+    mongoose_rdbms:execute_successfully(HostType, mam_select_messages_to_retract,
                                       [ArcID, BareRemJID, OriginID, Dir]).
 
-execute_make_tombstone(Host, TombstoneData, ArcID, MessID) ->
-    mongoose_rdbms:execute_successfully(Host, mam_make_tombstone,
+execute_make_tombstone(HostType, TombstoneData, ArcID, MessID) ->
+    mongoose_rdbms:execute_successfully(HostType, mam_make_tombstone,
                                         [TombstoneData, ArcID, MessID]).
 
 %% Insert logic
--spec prepare_message(jid:server(), mod_mam:archive_message_params()) -> list().
-prepare_message(Host, Params = #{local_jid := ArcJID}) ->
-    Env = env_vars(Host, ArcJID),
+-spec prepare_message(host_type(), mod_mam:archive_message_params()) -> list().
+prepare_message(HostType, Params = #{local_jid := ArcJID}) ->
+    Env = env_vars(HostType, ArcJID),
     mam_encoder:encode_message(Params, Env, db_mappings()).
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
@@ -316,15 +317,14 @@ prepare_insert(Name, NumRows) ->
     ok.
 
 %% Removal logic
--spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
+-spec remove_archive(Acc :: mongoose_acc:t(), HostType :: host_type(),
                      ArcID :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> mongoose_acc:t().
-remove_archive(Acc, Host, ArcID, _ArcJID) ->
-    mongoose_rdbms:execute_successfully(Host, mam_archive_remove, [ArcID]),
+remove_archive(Acc, HostType, ArcID, _ArcJID) ->
+    mongoose_rdbms:execute_successfully(HostType, mam_archive_remove, [ArcID]),
     Acc.
 
--spec remove_domain(mongoose_hooks:simple_acc(),
-                    mongooseim:host_type(), jid:lserver()) ->
+-spec remove_domain(mongoose_hooks:simple_acc(), host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
@@ -340,12 +340,12 @@ extract_gdpr_messages(Env, ArcID) ->
     lookup_query(lookup, Env, Filters, asc, all).
 
 %% Lookup logic
--spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason}=Result, _Host, _Params) ->
+lookup_messages({error, _Reason}=Result, _HostType, _Params) ->
     Result;
-lookup_messages(_Result, Host, Params = #{owner_jid := ArcJID}) ->
-    Env = env_vars(Host, ArcJID),
+lookup_messages(_Result, HostType, Params = #{owner_jid := ArcJID}) ->
+    Env = env_vars(HostType, ArcJID),
     ExdParams = mam_encoder:extend_lookup_params(Params, Env),
     Filter = mam_filter:produce_filter(ExdParams, lookup_fields()),
     mam_lookup:lookup(Env, Filter, ExdParams).

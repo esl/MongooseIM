@@ -254,7 +254,7 @@ get_retraction_info(HostType, ArcID, SenderID, OriginID, Env) ->
         execute_select_messages_to_retract(HostType, ArcID, SenderID, OriginID),
     mam_decoder:decode_retraction_info(Env, Rows).
 
-make_tombstone(_Host, ArcID, OriginID, skip, _Env) ->
+make_tombstone(_HostType, ArcID, OriginID, skip, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found by origin id">>,
                 user_id => ArcID, origin_id => OriginID});
@@ -321,7 +321,7 @@ extract_gdpr_messages(HostType, SenderID) ->
 %% Lookup logic
 -spec lookup_messages(Result :: any(), HostType :: mongooseim:host_type(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason} = Result, _Host, _Params) ->
+lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
     Result;
 lookup_messages(_Result, HostType, Params = #{owner_jid := ArcJID}) ->
     Env = env_vars(HostType, ArcJID),
