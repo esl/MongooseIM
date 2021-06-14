@@ -12,14 +12,19 @@
 {suites, "tests", acc_e2e_SUITE}.
 
 {suites, "tests", carboncopy_SUITE}.
-{skip_cases, "tests", carboncopy_SUITE, [discovering_support],
- "at the moment mod_disco doesn't support dynamic domains"}.
 
-{suites, "tests", offline_stub_SUITE}.
+{suites, "tests", disco_and_caps_SUITE}.
+{skip_cases, "tests", disco_and_caps_SUITE,
+ [caps_feature_is_advertised,
+  user_can_query_server_caps_via_disco],
+ "at the moment mod_caps doesn't support dynamic domains"}.
+{skip_cases, "tests", disco_and_caps_SUITE,
+ [user_can_query_friend_resources,
+  user_can_query_friend_features,
+  user_cannot_query_friend_resources_with_unknown_node],
+ "at the moment mod_roster doesn't support dynamic domains"}.
 
 {suites, "tests", inbox_SUITE}.
-{skip_cases, "tests", inbox_SUITE, [disco_service],
- "at the moment mod_disco doesn't support dynamic domains"}.
 {skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
  "at the moment mod_offline doesn't support dynamic domains"}.
 
@@ -28,19 +33,14 @@
 {suites, "tests", mam_SUITE}.
 {skip_cases, "tests", mam_SUITE,
  [muc_service_discovery, mam_service_discovery],
- "at the moment mod_disco doesn't support dynamic domains"}.
+ "at the moment mod_mam config options don't support dynamic domains"}.
 {skip_cases, "tests", mam_SUITE,
  [messages_filtered_when_prefs_default_policy_is_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
 
 {suites, "tests", mod_ping_SUITE}.
-{skip_cases, "tests", mod_ping_SUITE, [disco],
- "at the moment mod_disco doesn't support dynamic domains"}.
 
 {suites, "tests", muc_SUITE}.
-{skip_groups, "tests", muc_SUITE,
- [disco, disco_non_parallel, disco_rsm, disco_rsm_with_offline],
- "at the moment mod_disco doesn't support dynamic domains"}.
 {skip_groups, "tests", muc_SUITE,
  [register_over_s2s],
  "at the moment S2S doesn't support dynamic domains "
@@ -48,34 +48,14 @@
 
 {suites, "tests", muc_light_SUITE}.
 {skip_cases, "tests", muc_light_SUITE,
- [disco_service,
-  disco_features,
-  disco_features_with_mam,
-  disco_info,
-  disco_info_with_mam,
-  disco_rooms,
-  disco_rooms_rsm,
-  disco_rooms_created_page_1,
-  disco_rooms_created_page_infinity,
-  disco_rooms_empty_page_infinity,
-  disco_rooms_empty_page_1],
- "at the moment mod_disco doesn't support dynamic domains"}.
-{skip_cases, "tests", muc_light_SUITE,
  [rooms_in_rosters,
   rooms_in_rosters_doesnt_break_disco_info,
   no_roomname_in_schema_doesnt_break_disco_and_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
 
 {suites, "tests", muc_light_legacy_SUITE}.
-{skip_cases, "tests", muc_light_legacy_SUITE,
- [disco_service,
-  disco_features,
-  disco_features_with_mam,
-  disco_info,
-  disco_info_with_mam,
-  disco_rooms,
-  disco_rooms_rsm],
- "at the moment mod_disco doesn't support dynamic domains"}.
+
+{suites, "tests", offline_stub_SUITE}.
 
 {suites, "tests", sm_SUITE}.
 {skip_cases, "tests", sm_SUITE,
@@ -93,6 +73,7 @@
   resume_expired_session_returns_correct_h,
   unacknowledged_message_hook_offline],
  "at the moment mod_offline doesn't support dynamic domains"}.
+
 {suites, "tests", rest_client_SUITE}.
 {skip_groups, "tests", rest_client_SUITE, [roster],
  "at the moment mod_roster doesn't support dynamic domains"}.

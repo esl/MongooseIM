@@ -4,6 +4,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-import(domain_helper, [host_type/0]).
+
 all() ->
     [{group, disco_with_caps},
      {group, disco_with_extra_features}].
@@ -41,12 +43,12 @@ end_per_suite(C) ->
     escalus:end_per_suite(C).
 
 init_per_group(Name, C) ->
-    C2 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), C)),
-    dynamic_modules:ensure_modules(domain(), required_modules(Name)),
+    C2 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Name)),
     C2.
 
 end_per_group(Name, C) ->
-    dynamic_modules:restore_modules(domain(), C).
+    dynamic_modules:restore_modules(host_type(), C).
 
 init_per_testcase(Name, C) ->
     escalus:init_per_testcase(Name, C).
