@@ -26,7 +26,7 @@
 -export([prepared_queries/0]).
 
 %gdpr
--export([get_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/3]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -435,9 +435,10 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+                           mongooseim:host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, JID) ->
+get_mam_pm_gdpr_data(Acc, _HostType, JID) ->
     BinJID = jid:to_binary(jid:to_lower(JID)),
     FilterMap = #{user_jid => BinJID, with_jid => <<"">>},
     Rows = fetch_user_messages(pool_name(), JID, FilterMap),

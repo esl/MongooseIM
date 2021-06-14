@@ -1123,7 +1123,8 @@ mam_muc_flush_messages(HookServer, MessageCount) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_pm_gdpr_data, HostType, [], [JID]).
+    ejabberd_hooks:run_for_host_type(get_mam_pm_gdpr_data, HostType, [],
+                                     [HostType, JID]).
 
 %%% @doc `get_mam_muc_gdpr_data' hook is called to provide
 %%% a user's archive for GDPR purposes.
@@ -1132,7 +1133,8 @@ get_mam_pm_gdpr_data(HostType, JID) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_muc_gdpr_data, HostType, [], [JID]).
+    ejabberd_hooks:run_for_host_type(get_mam_muc_gdpr_data, HostType, [],
+                                     [HostType, JID]).
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.

@@ -18,7 +18,7 @@
          remove_archive/4]).
 
 %% mongoose_cassandra callbacks
--export([prepared_queries/0, get_mam_muc_gdpr_data/2]).
+-export([prepared_queries/0, get_mam_muc_gdpr_data/3]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -438,9 +438,10 @@ row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID}, Room
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
--spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
+                            mongooseim:host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(Acc, Jid) ->
+get_mam_muc_gdpr_data(Acc, _HostType, Jid) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),
     PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
     FilterMap = #{from_jid  => BinJid},

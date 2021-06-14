@@ -26,7 +26,7 @@
          remove_archive/4,
          remove_domain/3]).
 
--export([get_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/3]).
 
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
@@ -44,7 +44,7 @@
 %% Types
 
 -type env_vars() :: #{
-        host := jid:lserver(),
+        host_type := mongooseim:host_type(),
         archive_jid := jid:jid(),
         table := atom(),
         index_hint_fn := fun((env_vars()) -> mam_lookup_sql:sql_part()),
@@ -74,14 +74,17 @@ start(Host, Opts) ->
 stop(Host) ->
     stop_hooks(Host).
 
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+                           mongooseim:host_type(),
+                           jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, #jid{luser = User, lserver = Host} = ArcJID) ->
-    case mod_mam:archive_id(Host, User) of
+get_mam_pm_gdpr_data(Acc, HostType,
+                     #jid{luser = LUser, lserver = LServer} = ArcJID) ->
+    case mod_mam:archive_id(LServer, LUser) of
         undefined ->
             Acc;
         ArcID ->
-            Env = env_vars(Host, ArcJID),
+            Env = env_vars(HostType, ArcJID),
             {selected, Rows} = extract_gdpr_messages(Env, ArcID),
             [uniform_to_gdpr(row_to_uniform_format(Row, Env)) || Row <- Rows] ++ Acc
     end.
