@@ -33,6 +33,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
+         supported_features/0,
          process_local_iq_items/5,
          process_local_iq_info/5,
          process_sm_iq_items/5,
@@ -78,8 +79,6 @@ iq_handlers() ->
      {ejabberd_sm, ?NS_DISCO_ITEMS, fun ?MODULE:process_sm_iq_items/5},
      {ejabberd_sm, ?NS_DISCO_INFO, fun ?MODULE:process_sm_iq_info/5}].
 
-%% Configuration
-
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
@@ -102,6 +101,8 @@ server_info_spec() ->
                 },
        required = [<<"name">>, <<"urls">>]
       }.
+
+supported_features() -> [dynamic_domains].
 
 %% IQ handlers
 
