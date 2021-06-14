@@ -911,14 +911,14 @@ mam_archive_id(HostType, OwnerJID) ->
 
 %%% @doc The `mam_archive_size' hook is called to determine the size
 %%% of the archive for a given JID
--spec mam_archive_size(HookServer, ArchiveID, OwnerJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_archive_size(HostType, ArchiveID, OwnerJID) -> Result when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       OwnerJID :: jid:jid(),
       Result :: integer().
-mam_archive_size(HookServer, ArchiveID, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_size, HookServer, 0,
-                                     [HookServer, ArchiveID, OwnerJID]).
+mam_archive_size(HostType, ArchiveID, OwnerJID) ->
+    ejabberd_hooks:run_for_host_type(mam_archive_size, HostType, 0,
+                                     [HostType, ArchiveID, OwnerJID]).
 
 %%% @doc The `mam_get_behaviour' hooks is called to determine if a message
 %%% should be archived or not based on a given pair of JIDs.
@@ -1020,14 +1020,14 @@ mam_muc_archive_id(HookServer, OwnerJID) ->
 
 %%% @doc The `mam_muc_archive_size' hook is called to determine
 %%% the archive size for a given room.
--spec mam_muc_archive_size(HookServer, ArchiveID, RoomJID) -> Result when
-      HookServer :: jid:lserver(),
+-spec mam_muc_archive_size(HostType, ArchiveID, RoomJID) -> Result when
+      HostType :: mongooseim:host_type(),
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid(),
       Result :: integer().
-mam_muc_archive_size(HookServer, ArchiveID, RoomJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_size, HookServer, 0,
-                                     [HookServer, ArchiveID, RoomJID]).
+mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
+    ejabberd_hooks:run_for_host_type(mam_muc_archive_size, HostType, 0,
+                                     [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_get_behaviour' hooks is called to determine if a message should
 %%% be archived or not based on the given room and user JIDs.
