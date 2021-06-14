@@ -52,7 +52,7 @@
 %% Starting and stopping functions for users' archives
 
 -spec start(host_type(), _) -> ok.
-start(HostType, Opts) ->
+start(HostType, _Opts) ->
     start_hooks(HostType),
     register_prepared_queries(),
     ok.
