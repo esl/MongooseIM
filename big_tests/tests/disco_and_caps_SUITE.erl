@@ -2,39 +2,51 @@
 -compile(export_all).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 all() ->
-    [{group, all_tests}].
+    [{group, disco_with_caps},
+     {group, disco_with_extra_features}].
 
 groups() ->
-    G = [{all_tests, [parallel], all_test_cases()}],
+    G = [{disco_with_caps, [parallel], basic_test_cases() ++ caps_test_cases()},
+         {disco_with_extra_features, [parallel], basic_test_cases() ++ extra_feature_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
-all_test_cases() ->
-    [caps_feature_is_advertised,
-     user_can_query_server_caps_via_disco,
-     user_cannot_query_stranger_resources,
+basic_test_cases() ->
+    [user_cannot_query_stranger_resources,
      user_cannot_query_stranger_features,
      user_can_query_friend_resources,
      user_can_query_friend_features,
      user_cannot_query_own_resources_with_unknown_node,
      user_cannot_query_friend_resources_with_unknown_node,
-     user_can_query_extra_domains,
      user_can_query_server_features].
+
+caps_test_cases() ->
+    [caps_feature_is_advertised,
+     user_can_query_server_caps_via_disco].
+
+extra_feature_test_cases() ->
+    [user_can_query_extra_domains,
+     user_can_query_server_info].
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
 init_per_suite(C) ->
-    C2 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), C)),
-    dynamic_modules:ensure_modules(domain(), [{mod_caps, []},
-                                              {mod_disco, [{extra_domains, [extra_domain()]}]}]),
-    C2.
+    C.
 
 end_per_suite(C) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(domain(), C),
     escalus:end_per_suite(C).
+
+init_per_group(Name, C) ->
+    C2 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), C)),
+    dynamic_modules:ensure_modules(domain(), required_modules(Name)),
+    C2.
+
+end_per_group(Name, C) ->
+    dynamic_modules:restore_modules(domain(), C).
 
 init_per_testcase(Name, C) ->
     escalus:init_per_testcase(Name, C).
@@ -156,5 +168,56 @@ user_can_query_server_features(Config) ->
         escalus:assert(is_stanza_from, [domain()], Stanza)
     end).
 
+%% XEP-0157: Contact Addresses for XMPP Services
+user_can_query_server_info(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:disco_info(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_stanza_from, [domain()], Stanza),
+
+        %% 'sales' is hidden for mod_disco, so only 'abuse' and 'admin' are expected
+        [HiddenField, AbuseField, AdminField] = get_form_fields(Stanza),
+        ?assertEqual(<<"FORM_TYPE">>, exml_query:attr(HiddenField, <<"var">>)),
+        ?assertEqual(<<"hidden">>, exml_query:attr(HiddenField, <<"type">>)),
+        ?assertEqual([?NS_SERVERINFO], exml_query:paths(HiddenField, [{element, <<"value">>},
+                                                                      cdata])),
+        ?assertEqual(name(abuse), exml_query:attr(AbuseField, <<"var">>)),
+        ?assertEqual(urls(abuse), exml_query:paths(AbuseField, [{element, <<"value">>},
+                                                                              cdata])),
+        ?assertEqual(name(admin), exml_query:attr(AdminField, <<"var">>)),
+        ?assertEqual(urls(admin), exml_query:paths(AdminField, [{element, <<"value">>},
+                                                                cdata]))
+    end).
+
+%% Helpers
+
+required_modules(disco_with_caps) ->
+    [{mod_caps, []},
+     {mod_disco, []}];
+required_modules(disco_with_extra_features) ->
+    [{mod_disco, [{extra_domains, [extra_domain()]},
+                  {server_info, [server_info(abuse, []),
+                                 server_info(admin, [{modules, [mod_disco]}]),
+                                 server_info(sales, [{modules, [mod_pubsub]}])]
+                  }]
+     }].
+
+get_form_fields(Stanza) ->
+     exml_query:paths(Stanza, [{element_with_ns, <<"query">>, ?NS_DISCO_INFO},
+                               {element_with_ns, <<"x">>, ?NS_DATA_FORMS},
+                               {element, <<"field">>}]).
+
 extra_domain() ->
     <<"eXtra.example.com">>.
+
+server_info(Type, Extra) ->
+    [{name, name(Type)}, {urls, urls(Type)} | Extra].
+
+name(abuse) -> <<"abuse-addresses">>;
+name(admin) -> <<"admin-addresses">>;
+name(sales) -> <<"sales-addresses">>.
+
+urls(abuse) -> [<<"abuse@example.com">>];
+urls(admin) -> [<<"admin@example.com">>, <<"operations@example.com">>];
+urls(sales) -> [<<"sales@example.com">>].
