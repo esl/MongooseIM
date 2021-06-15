@@ -162,8 +162,8 @@ stop(HostType) ->
 %% hooks and handlers for MUC
 
 -spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_muc_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
-    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+disco_muc_features(Acc = #{host_type := HostType, node := <<>>}) ->
+    mongoose_disco:add_features(features(?MODULE, HostType), Acc);
 disco_muc_features(Acc) ->
     Acc.
 

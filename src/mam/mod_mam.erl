@@ -245,8 +245,8 @@ process_mam_iq(Acc, From, To, IQ, _Extra) ->
     end.
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
-    mongoose_disco:add_features(features(?MODULE, LServer), Acc);
+disco_local_features(Acc = #{host_type := HostType, node := <<>>}) ->
+    mongoose_disco:add_features(features(?MODULE, HostType), Acc);
 disco_local_features(Acc) ->
     Acc.
 

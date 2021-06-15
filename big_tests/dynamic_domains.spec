@@ -32,9 +32,6 @@
 
 {suites, "tests", mam_SUITE}.
 {skip_cases, "tests", mam_SUITE,
- [muc_service_discovery, mam_service_discovery],
- "at the moment mod_mam config options don't support dynamic domains"}.
-{skip_cases, "tests", mam_SUITE,
  [messages_filtered_when_prefs_default_policy_is_roster],
  "at the moment mod_roster doesn't support dynamic domains"}.
 

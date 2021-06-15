@@ -634,14 +634,14 @@ maybe_get_result_namespace(Packet) ->
 is_mam_namespace(NS) ->
     lists:member(NS, mam_features()).
 
-features(Module, Host) ->
-    mam_features() ++ retraction_features(Module, Host).
+features(Module, HostType) ->
+    mam_features() ++ retraction_features(Module, HostType).
 
 mam_features() ->
     [?NS_MAM_04, ?NS_MAM_06].
 
-retraction_features(Module, Host) ->
-    case has_message_retraction(Module, Host) of
+retraction_features(Module, HostType) ->
+    case has_message_retraction(Module, HostType) of
         true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE];
         false -> [?NS_RETRACT]
     end.
