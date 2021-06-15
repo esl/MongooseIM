@@ -727,7 +727,7 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
             IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
             FeatureXML =  mongoose_disco:get_muc_features(HostType, From, To, <<>>, Lang,
                                                           features()),
-            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<"">>, Lang),
+            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
