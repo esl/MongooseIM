@@ -22,7 +22,6 @@
 -export([init/0,
          create_global_metrics/0,
          init_predefined_host_type_metrics/1,
-         init_subscriptions/0,
          make_host_type_name/1,
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
@@ -42,8 +41,7 @@
          get_mnesia_running_db_nodes_count/0,
          remove_host_type_metrics/1,
          remove_all_metrics/0,
-         get_report_interval/0,
-         subscribe_metric/3
+         get_report_interval/0
         ]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
@@ -61,8 +59,7 @@ init() ->
     lists:foreach(
         fun(HostType) ->
             mongoose_metrics:init_predefined_host_type_metrics(HostType)
-        end, ?ALL_HOST_TYPES),
-    init_subscriptions().
+        end, ?ALL_HOST_TYPES).
 
 create_global_metrics() ->
     lists:foreach(fun({Metric, FunSpec, DataPoints}) ->
@@ -79,14 +76,6 @@ init_predefined_host_type_metrics(HostType) ->
     Hooks = mongoose_metrics_hooks:get_hooks(HostType),
     ejabberd_hooks:add(Hooks),
     ok.
-
-init_subscriptions() ->
-    Reporters = exometer_report:list_reporters(),
-    lists:foreach(
-        fun({Name, _ReporterPid}) ->
-                Interval = get_report_interval(),
-                subscribe_to_all(Name, Interval)
-        end, Reporters).
 
 -spec create_generic_hook_metric(mongooseim:host_type(), atom()) ->
     ok | {ok, already_present} | {error, any()}.
@@ -108,6 +97,7 @@ update(HostType, Name, Change) when is_list(Name) ->
 update(HostType, Name, Change) ->
     update(HostType, [Name], Change).
 
+%% @doc Ensure that a given metric exists and subscribe all reporters to it.
 -spec ensure_metric(mongooseim:host_type() | global, atom() | list(), term()) ->
     ok | {ok, already_present} | {error, any()}.
 ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
@@ -393,7 +383,7 @@ ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
 do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
     case catch exometer:new(PrefixedMetric, ExometerType, ExometerOpts) of
         {'EXIT', {exists, _}} -> {ok, already_present};
-        ok -> ok;
+        ok -> subscribe_metric(PrefixedMetric, ExometerType);
         {'EXIT', Error} -> {error, Error}
     end.
 
@@ -403,24 +393,20 @@ create_data_metrics() ->
     lists:foreach(fun({Metric, Spec}) -> ensure_metric(global, Metric, Spec) end,
         ?DATA_FUN_METRICS).
 
-start_metrics_subscriptions(Reporter, MetricPrefix, Interval) ->
-    [subscribe_metric(Reporter, Metric, Interval)
-     || Metric <- exometer:find_entries(MetricPrefix)].
-
-subscribe_metric(Reporter, {Name, counter, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, [value], Interval);
-subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, [min, mean, max, median, 95, 99, 999], Interval);
-subscribe_metric(Reporter, {Name, _, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, default, Interval).
-
-subscribe_to_all(Reporter, Interval) ->
-    HostTypePrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
+subscribe_metric(Name, Type) ->
+    Reporters = exometer_report:list_reporters(),
     lists:foreach(
-      fun(Prefix) ->
-              UnspacedPrefix = make_host_type_name(Prefix),
-              start_metrics_subscriptions(Reporter, [UnspacedPrefix], Interval)
-      end, [global | HostTypePrefixes]).
+        fun({ReporterName, _ReporterPid}) ->
+            Interval = get_report_interval(),
+            do_subscribe_metric(ReporterName, {Name, Type, ok}, Interval)
+        end, Reporters).
+
+do_subscribe_metric(Reporter, {Name, counter, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, [value], Interval);
+do_subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, [min, mean, max, median, 95, 99, 999], Interval);
+do_subscribe_metric(Reporter, {Name, _, _}, Interval) ->
+    exometer_report:subscribe(Reporter, Name, default, Interval).
 
 make_host_type_name(HT) when is_atom(HT) ->
     HT;
