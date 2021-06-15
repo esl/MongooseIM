@@ -377,14 +377,14 @@ get_message2(Host, MsgId, Bucket, Key) ->
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
                            mongooseim:host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, HostType, OwnerJid) ->
+get_mam_pm_gdpr_data(Acc, _HostType, OwnerJid) ->
     Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
     [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || #{id := Id, jid := Jid, packet := Packet} <- Messages] ++ Acc.
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
                             mongooseim:host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(Acc, _HosType, JID) ->
+get_mam_muc_gdpr_data(Acc, _HostType, JID) ->
     Messages = get_mam_gdpr_data(JID, <<"muc">>),
     [{MsgId, exml:to_binary(Packet)} || #{id := MsgId, packet := Packet} <- Messages] ++ Acc.
 
