@@ -518,6 +518,7 @@ workflows:
             - small_tests_22
             - small_tests_21_3
             - small_tests_23
+            - dynamic_domains
           filters: *all_tags
       # ============= DOCUMENTATION =============
       - docs_build_deploy:
