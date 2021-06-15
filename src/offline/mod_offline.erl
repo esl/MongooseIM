@@ -39,7 +39,7 @@
 %% Hook handlers
 -export([inspect_packet/4,
          pop_offline_messages/2,
-         get_sm_features/5,
+         disco_features/1,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2, % for tests
@@ -166,8 +166,8 @@ hooks(Host) ->
         {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 50},
         {remove_user, Host, ?MODULE, remove_user, 50},
         {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
-        {disco_sm_features, Host, ?MODULE, get_sm_features, 50},
-        {disco_local_features, Host, ?MODULE, get_sm_features, 50},
+        {disco_sm_features, Host, ?MODULE, disco_features, 50},
+        {disco_local_features, Host, ?MODULE, disco_features, 50},
         {amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 30},
         {failed_to_store_message, Host, ?MODULE, amp_failed_event, 30},
         {get_personal_data, Host, ?MODULE, get_personal_data, 50}
@@ -361,15 +361,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
--spec get_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                      ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-get_sm_features(Acc, _From, _To, <<"">> = _Node, _Lang) ->
+-spec disco_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc);
-get_sm_features(_Acc, _From, _To, ?NS_FEATURE_MSGOFFLINE, _Lang) ->
+disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}) ->
     %% override all lesser features...
-    {result, []};
-get_sm_features(Acc, _From, _To, _Node, _Lang) ->
+    Acc#{result := []};
+disco_features(Acc) ->
     Acc.
 
 %% This function should be called only from a hook

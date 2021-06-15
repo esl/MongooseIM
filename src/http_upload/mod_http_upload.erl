@@ -32,7 +32,7 @@
 -export([start/2, stop/1, process_iq/4, process_disco_iq/4, get_urls/5, config_spec/0]).
 
 %% Hook handlers
--export([disco_local_items/5]).
+-export([disco_local_items/1]).
 
 -export([config_metrics/1]).
 
@@ -176,12 +176,10 @@ s3_spec() ->
         required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>]
     }.
 
--spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_local_items(Acc, _From, #jid{lserver = Host} = _To, <<>>, Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{to_jid := #jid{lserver = Host}, node := <<>>, lang := Lang}) ->
     mongoose_disco:add_items([#{jid => subhost(Host), name => my_disco_name(Lang)}], Acc);
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
 %%--------------------------------------------------------------------

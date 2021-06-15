@@ -55,7 +55,7 @@
 %% Hooks callbacks
 
 -export([node_cleanup/2,
-         add_local_features/5]).
+         disco_local_features/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -237,13 +237,11 @@ register_host(Host) ->
 unregister_host(Host) ->
     gen_server:call(?MODULE, {unregister_host, Host}).
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
     Features = ets:lookup_element(?NSTABLE, LServer, 2),
     mongoose_disco:add_features(Features, Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 %%====================================================================
@@ -371,7 +369,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 hooks() ->
-    [{node_cleanup, global, ?MODULE, node_cleanup, 50}].
+    [{node_cleanup, global, ?MODULE, node_cleanup, 50} |
+     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99} ||
+         HostType <- ?ALL_HOST_TYPES]].
 
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
@@ -464,9 +464,7 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE, add_local_features, 99).
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
 
 do_unregister_host(Host) ->
-    ejabberd_router:unregister_route(Host),
-    ejabberd_hooks:delete(disco_local_features, Host, ?MODULE, add_local_features, 99).
+    ejabberd_router:unregister_route(Host).

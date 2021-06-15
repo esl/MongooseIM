@@ -43,7 +43,7 @@
 -export([start/2, stop/1]).
 
 %% ejabberd room handlers
--export([add_local_features/5,
+-export([disco_muc_features/1,
          filter_room_packet/3,
          room_process_mam_iq/5,
          forget_room/4]).
@@ -161,12 +161,10 @@ stop(HostType) ->
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, #jid{lserver = LServer}, <<>>, _Lang) ->
+-spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_muc_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
     mongoose_disco:add_features(features(?MODULE, LServer), Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_muc_features(Acc) ->
     Acc.
 
 %% @doc Handle public MUC-message.
@@ -608,9 +606,7 @@ is_archivable_message(HostType, Dir, Packet) ->
 
 -spec hooks(host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    %% TODO multitenancy
-    MUCHost = gen_mod:get_module_opt_subhost(HostType, mod_mam_muc, mod_muc:default_host()),
-    [{disco_local_features, MUCHost, ?MODULE, add_local_features, 99},
+    [{disco_muc_features, HostType, ?MODULE, disco_muc_features, 99},
      {filter_room_packet, HostType, ?MODULE, filter_room_packet, 60},
      {forget_room, HostType, ?MODULE, forget_room, 90},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}

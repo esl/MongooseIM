@@ -23,7 +23,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--export([start/2, stop/1, get_disco_items/5]).
+-export([start/2, stop/1, disco_local_items/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -41,14 +41,13 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(), ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-get_disco_items(Acc, From, To, <<>>, _Lang) ->
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{from_jid := From, to_jid := To, node := <<>>}) ->
     Domains = domains_for_disco(To#jid.lserver, From),
     ?LOG_DEBUG(#{what => gd_domains_fetched_for_disco, domains => Domains}),
     Items = [#{jid => Domain} || Domain <- Domains],
     mongoose_disco:add_items(Items, Acc);
-get_disco_items(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
 %%--------------------------------------------------------------------
@@ -58,12 +57,12 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
 -spec start() -> any().
 start() ->
     Host = opt(global_host),
-    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, get_disco_items, 99).
+    ejabberd_hooks:add(disco_local_items, Host, ?MODULE, disco_local_items, 99).
 
 -spec stop() -> any().
 stop() ->
     Host = opt(global_host),
-    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, get_disco_items, 99).
+    ejabberd_hooks:delete(disco_local_items, Host, ?MODULE, disco_local_items, 99).
 
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->

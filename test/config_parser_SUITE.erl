@@ -1563,14 +1563,17 @@ mod_disco(_Config) ->
          T(<<"extra_domains">>, [])),
     Info = #{<<"name">> => <<"abuse-address">>,
              <<"urls">> => [<<"admin@example.com">>]},
-    ?eqf(modopts(mod_disco, [{server_info, [{all, "abuse-address", ["admin@example.com"]},
-                                            {[mod_muc, mod_disco], "friendly-spirits",
-                                             ["spirit1@localhost", "spirit2@localhost"]}]}
+    SpiritUrls = [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
+    ?eqf(modopts(mod_disco, [{server_info, [[{name, <<"abuse-address">>},
+                                             {urls, [<<"admin@example.com">>]}],
+                                            [{modules, [mod_muc, mod_disco]},
+                                             {name, <<"friendly-spirits">>},
+                                             {urls, SpiritUrls}]
+                                           ]}
                             ]),
          T(<<"server_info">>, [Info, #{<<"modules">> => [<<"mod_muc">>, <<"mod_disco">>],
                                        <<"name">> => <<"friendly-spirits">>,
-                                       <<"urls">> => [<<"spirit1@localhost">>,
-                                                      <<"spirit2@localhost">>]}
+                                       <<"urls">> => SpiritUrls}
                               ])),
     ?errf(T(<<"users_can_see_hidden_services">>, 1)),
     ?errf(T(<<"users_can_see_hidden_services">>, <<"true">>)),

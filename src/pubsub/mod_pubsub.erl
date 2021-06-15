@@ -69,9 +69,9 @@
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/5, out_subscription/4,
          on_user_offline/5, remove_user/3,
-         disco_local_features/5,
-         disco_sm_identity/5,
-         disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1,
+         disco_local_features/1,
+         disco_sm_identity/1,
+         disco_sm_features/1, disco_sm_items/1, handle_pep_authorization_response/1,
          handle_remote_hook/4]).
 
 %% exported iq handlers
@@ -642,22 +642,17 @@ node_identity(Host, Type) ->
         false -> []
     end.
 
--spec disco_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                           ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-disco_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Host = To#jid.lserver,
-    Features = [?NS_PUBSUB | [feature(F) || F <- features(Host, <<>>)]],
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
+    Features = [?NS_PUBSUB | [feature(F) || F <- features(LServer, <<>>)]],
     mongoose_disco:add_features(Features, Acc);
-disco_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
--spec disco_sm_identity([mongoose_disco:identity()], jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          [mongoose_disco:identity()].
-disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
-        ++ Acc.
+-spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+disco_sm_identity(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
+    Identities = disco_identity(jid:to_lower(jid:to_bare(To)), Node, From),
+    mongoose_disco:add_identities(Identities, Acc).
 
 disco_identity(error, _Node, _From) ->
     [];
@@ -688,10 +683,8 @@ pep_identity(Options) ->
 pep_identity() ->
     #{category => <<"pubsub">>, type => <<"pep">>}.
 
--spec disco_sm_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-disco_sm_features(Acc, From, To, Node, _Lang) ->
+-spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
     Features = disco_features(jid:to_lower(jid:to_bare(To)), Node, From),
     mongoose_disco:add_features(Features, Acc).
 
@@ -716,10 +709,8 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                     ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_sm_items(Acc, From, To, Node, _Lang) ->
+-spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
     Items = disco_items(jid:to_lower(jid:to_bare(To)), Node, From),
     mongoose_disco:add_items(Items, Acc).
 
@@ -1010,15 +1001,14 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Info = mongoose_hooks:disco_info(ServerHost,
-                                             ?MODULE, <<>>, <<>>),
+            InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
             Res = case iq_disco_info(Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
                                                sub_el =
                                                [#xmlel{name = <<"query">>,
                                                        attrs = QAttrs,
-                                                       children = IQRes ++ Info}]});
+                                                       children = IQRes ++ InfoXML}]});
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,

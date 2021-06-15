@@ -62,7 +62,7 @@
 -export([is_muc_room_owner/4,
          can_access_room/4,
          can_access_identity/4,
-         disco_local_items/5]).
+         disco_local_items/1]).
 
 %% Stats
 -export([online_rooms_number/0]).
@@ -724,11 +724,14 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
-            Info = mongoose_hooks:disco_info(HostType, ?MODULE, <<"">>, Lang),
+            IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+            FeatureXML =  mongoose_disco:get_muc_features(HostType, From, To, <<>>, Lang,
+                                                          features()),
+            InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, Lang),
             Res = IQ#iq{type = result,
                         sub_el = [#xmlel{name = <<"query">>,
                                          attrs = [{<<"xmlns">>, XMLNS}],
-                                         children = iq_disco_info(Lang, From, To) ++ Info}]},
+                                         children = IdentityXML ++ FeatureXML ++ InfoXML}]},
             ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
             proc_lib:spawn(fun() -> process_iq_disco_items(MucHost, From, To, IQ) end);
@@ -890,14 +893,10 @@ room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"conference.@HOST@">>).
 
--spec iq_disco_info(ejabberd:lang(), jid:jid(), jid:jid()) -> [exml:element(), ...].
-iq_disco_info(Lang, From, To) ->
-    RegisteredFeatures = mongoose_disco:get_local_features(To#jid.lserver, From, To, <<>>, Lang),
-    [#xmlel{name = <<"identity">>,
-            attrs = [{<<"category">>, <<"conference">>},
-                     {<<"type">>, <<"text">>},
-                     {<<"name">>, translate:translate(Lang, <<"Chatrooms">>)}]} |
-     mongoose_disco:features_to_xml(features() ++ RegisteredFeatures)].
+identity(Lang) ->
+    #{category => <<"conference">>,
+      type => <<"text">>,
+      name => translate:translate(Lang, <<"Chatrooms">>)}.
 
 features() ->
     [?NS_DISCO_INFO, ?NS_DISCO_ITEMS, ?NS_MUC, ?NS_MUC_UNIQUE, ?NS_REGISTER, ?NS_RSM, ?NS_VCARD].
@@ -1310,15 +1309,14 @@ subdomain_pattern(HostType) ->
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
--spec disco_local_items(mongoose_disco:item_acc(), jid:jid(), jid:jid(), binary(),
-                        ejabberd:lang()) ->
-          mongoose_disco:item_acc().
-disco_local_items(Acc, _From, #jid{lserver = ServerHost} = _To, <<>>, _Lang) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+-spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
+disco_local_items(Acc = #{host_type := HostType,
+                          to_jid := #jid{lserver = ServerHost},
+                          node := <<>>}) ->
     MUCHost = server_host_to_muc_host(HostType, ServerHost),
     Items = [#{jid => MUCHost, node => ?NS_MUC}],
     mongoose_disco:add_items(Items, Acc);
-disco_local_items(Acc, _From, _To, _Node, _Lang) ->
+disco_local_items(Acc) ->
     Acc.
 
 make_server_host(To, #state{host_type = HostType,

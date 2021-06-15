@@ -18,7 +18,8 @@
 -export([register_subdomain/3,
          unregister_subdomain/2,
          get_subdomain_host_type/1,
-         get_subdomain_info/1]).
+         get_subdomain_info/1,
+         get_all_subdomains_for_domain/1]).
 
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
@@ -168,3 +169,8 @@ register_subdomain(HostType, SubdomainPattern, PacketHandler) ->
 -spec unregister_subdomain(host_type(), subdomain_pattern()) -> ok.
 unregister_subdomain(HostType, SubdomainPattern) ->
     mongoose_subdomain_core:unregister_subdomain(HostType, SubdomainPattern).
+
+-spec get_all_subdomains_for_domain(domain()) ->
+          [mongoose_subdomain_core:subdomain_info()].
+get_all_subdomains_for_domain(Domain) ->
+    mongoose_subdomain_core:get_all_subdomains_for_domain(Domain).

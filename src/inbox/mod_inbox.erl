@@ -34,7 +34,7 @@
          inbox_unread_count/2,
          remove_user/3,
          remove_domain/3,
-         add_local_features/5
+         disco_local_features/1
         ]).
 
 -export([config_metrics/1]).
@@ -287,12 +287,10 @@ remove_domain(Acc, HostType, Domain) ->
     mod_inbox_backend:remove_domain(HostType, Domain),
     Acc.
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_ESL_INBOX], Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
 
 -spec maybe_process_message(Acc :: mongoose_acc:t(),
@@ -582,7 +580,7 @@ hooks(HostType) ->
      {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
      {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50},
-     {disco_local_features, HostType, ?MODULE, add_local_features, 99}
+     {disco_local_features, HostType, ?MODULE, disco_local_features, 99}
     ].
 
 add_default_backend(Opts) ->

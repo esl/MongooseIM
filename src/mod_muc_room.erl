@@ -3923,21 +3923,23 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
 
 -spec process_iq_disco_info(jid:jid(), 'get' | 'set', ejabberd:lang(),
                             state()) -> {'error', exml:element()}
-                                      | {'result', [exml:element(), ...], state()}.
+                                      | {'result', [exml:element()], state()}.
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_info(From, get, Lang, StateData) ->
     RoomJID = StateData#state.jid,
     Config = StateData#state.config,
-    Host = StateData#state.host,
-    RegisteredFeatures = mongoose_disco:get_local_features(Host, From, RoomJID, <<>>, Lang),
-    XML = [#xmlel{name = <<"identity">>,
-                  attrs = [{<<"category">>, <<"conference">>},
-                           {<<"type">>, <<"text">>},
-                           {<<"name">>, get_title(StateData)}]} |
-           mongoose_disco:features_to_xml(RegisteredFeatures ++ room_features(Config))] ++
-        iq_disco_info_extras(Lang, StateData),
-    {result, XML, StateData}.
+    HostType = StateData#state.host_type,
+    IdentityXML = mongoose_disco:identities_to_xml([identity(get_title(StateData))]),
+    FeatureXML =  mongoose_disco:get_muc_features(HostType, From, RoomJID, <<>>, Lang,
+                                                  room_features(Config)),
+    InfoXML = iq_disco_info_extras(Lang, StateData),
+    {result, IdentityXML ++ FeatureXML ++ InfoXML, StateData}.
+
+identity(Name) ->
+    #{category => <<"conference">>,
+      type => <<"text">>,
+      name => Name}.
 
 -spec room_features(config()) -> [moongoose_disco:feature()].
 room_features(Config) ->
@@ -3955,37 +3957,18 @@ room_features(Config) ->
      config_opt_to_feature((Config#config.password_protected),
                            <<"muc_passwordprotected">>, <<"muc_unsecured">>)].
 
--spec rfieldt(binary(), binary(), binary()) -> exml:element().
-rfieldt(Type, Var, Val) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"type">>, Type}, {<<"var">>, Var}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Val}]}]}.
-
-
--spec rfield(binary(), binary(), binary() | iolist(), ejabberd:lang()) -> exml:element().
-rfield(Label, Var, Val, Lang) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"label">>, translate:translate(Lang, Label)},
-             {<<"var">>, Var}],
-           children = [#xmlel{name = <<"value">>,
-                              children = [#xmlcdata{content = Val}]}]}.
-
-
--spec iq_disco_info_extras(ejabberd:lang(), state()) -> [exml:element(), ...].
+-spec iq_disco_info_extras(ejabberd:lang(), state()) -> [exml:element()].
 iq_disco_info_extras(Lang, StateData) ->
-    Len = maps:size(StateData#state.users),
-    RoomDescription = (StateData#state.config)#config.description,
-    [#xmlel{name = <<"x">>,
-            attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"result">>}],
-            children = [rfieldt(<<"hidden">>, <<"FORM_TYPE">>,
-                         <<"http://jabber.org/protocol/muc#roominfo">>),
-                        rfield(<<"Room description">>, <<"muc#roominfo_description">>,
-                            RoomDescription, Lang),
-                        rfield(<<"Number of occupants">>, <<"muc#roominfo_occupants">>,
-                            (integer_to_binary(Len)), Lang)
-                       ]}].
+    Len = integer_to_binary(maps:size(StateData#state.users)),
+    Description = (StateData#state.config)#config.description,
+    Fields = [info_field(<<"Room description">>, <<"muc#roominfo_description">>, Description, Lang),
+              info_field(<<"Number of occupants">>, <<"muc#roominfo_occupants">>, Len, Lang)],
+    Info = #{xmlns => <<"http://jabber.org/protocol/muc#roominfo">>, fields => Fields},
+    mongoose_disco:info_list_to_xml([Info]).
 
+-spec info_field(binary(), binary(), binary(), ejabberd:lang()) -> mongoose_disco:info_field().
+info_field(Label, Var, Value, Lang) ->
+    #{label => translate:translate(Lang, Label), var => Var, values => [Value]}.
 
 -spec process_iq_disco_items(jid:jid(), 'get' | 'set', ejabberd:lang(),
                             state()) -> {'error', exml:element()}

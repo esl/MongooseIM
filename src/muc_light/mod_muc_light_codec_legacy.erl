@@ -247,14 +247,12 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
     noreply.
-encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, _Acc) ->
-    LServer = RoomJID#jid.lserver,
-    RegisteredFeatures = mongoose_disco:get_local_features(LServer, SenderJID, RoomJID, <<>>, <<>>),
-    DiscoEls = [#xmlel{name = <<"identity">>,
-                       attrs = [{<<"category">>, <<"conference">>},
-                                {<<"type">>, <<"text">>},
-                                {<<"name">>, <<"MUC Light (legacy)">>}]} |
-                mongoose_disco:features_to_xml([?NS_MUC | RegisteredFeatures])],
+encode_meta({get, #disco_info{ id = ID }}, RoomJID, SenderJID, _HandleFun, Acc) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    IdentityXML = mongoose_disco:identities_to_xml([identity()]),
+    FeatureXML = mongoose_disco:get_muc_features(HostType, SenderJID, RoomJID, <<>>, <<>>,
+                                                 [?NS_MUC]),
+    DiscoEls = IdentityXML ++ FeatureXML,
     {iq_reply, ?NS_DISCO_INFO, DiscoEls, ID};
 encode_meta({get, #disco_items{ rooms = Rooms, id = ID, rsm = RSMOut }},
           _RoomJID, _SenderJID, _HandleFun, _Acc) ->
@@ -350,6 +348,10 @@ encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun,
     {iq_reply, Config#config.id}.
 
 %% --------------------------- Helpers ---------------------------
+
+-spec identity() -> mongoose_disco:identity().
+identity() ->
+    #{category => <<"conference">>, type => <<"text">>, name => <<"MUC Light (legacy)">>}.
 
 -spec aff_user_to_item(aff_user()) -> exml:element().
 aff_user_to_item({User, Aff}) ->

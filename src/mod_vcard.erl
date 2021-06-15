@@ -67,7 +67,6 @@
 %% Hook handlers
 -export([process_local_iq/4,
          process_sm_iq/4,
-         get_local_features/5,
          remove_user/3,
          set_vcard/3]).
 
@@ -353,7 +352,6 @@ hook_handlers() ->
     %% Hook, Module, Function, Priority
     [{remove_user,          ?MODULE, remove_user,        50},
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
-     {disco_local_features, ?MODULE, get_local_features, 50},
      {host_config_update,   ?MODULE, config_change,      50},
      {set_vcard,            ?MODULE, set_vcard,          50},
      {get_personal_data,    ?MODULE, get_personal_data,  50}].
@@ -475,26 +473,6 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
     end;
 set_vcard({error, _} = E, _From, _VCARD) -> E.
 
--spec get_local_features(Acc :: {result, [XMLNS :: binary()]} | empty | {error, any()},
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         Node :: binary(),
-                         ejabberd:lang()) -> {result, [exml:element()]} | empty | {error, any()}.
-get_local_features({error, _Error}=Acc, _From, _To, _Node, _Lang) ->
-    Acc;
-get_local_features(Acc, _From, _To, Node, _Lang) ->
-    case Node of
-        <<>> ->
-            case Acc of
-                {result, Features} ->
-                    {result, [?NS_VCARD | Features]};
-                empty ->
-                    {result, [?NS_VCARD]}
-            end;
-        _ ->
-            Acc
-    end.
-
 %% #rh
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
@@ -575,22 +553,13 @@ do_route(_VHost, From, To, Acc, #iq{type = set,
 do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
-    Info = mongoose_hooks:disco_info(VHost, ?MODULE, <<"">>, <<"">>),
-    NameTxt = translate:translate(Lang, <<"vCard User Search">>),
+    IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+    FeatureXML = mongoose_disco:features_to_xml(features()),
+    InfoXML = mongoose_disco:get_info(VHost, ?MODULE, <<>>, <<>>),
     ResIQ = IQ#iq{type = result,
                   sub_el = [#xmlel{name = <<"query">>,
-                                   attrs =[{<<"xmlns">>, ?NS_DISCO_INFO}],
-                                   children = [#xmlel{name = <<"identity">>,
-                                                      attrs = [{<<"category">>, <<"directory">>},
-                                                               {<<"type">>, <<"user">>},
-                                                               {<<"name">>, NameTxt}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_DISCO_INFO}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_SEARCH}]},
-                                               #xmlel{name = <<"feature">>,
-                                                      attrs = [{<<"var">>, ?NS_VCARD}]}
-                                              ] ++ Info}]},
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                   children = IdentityXML ++ FeatureXML ++ InfoXML}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type=set,
                                        xmlns = ?NS_DISCO_ITEMS}) ->
@@ -637,6 +606,14 @@ find_xdata_el1([XE = #xmlel{attrs = Attrs} | Els]) ->
     end;
 find_xdata_el1([_ | Els]) ->
     find_xdata_el1(Els).
+
+features() ->
+    [?NS_DISCO_INFO, ?NS_SEARCH, ?NS_VCARD].
+
+identity(Lang) ->
+    #{category => <<"directory">>,
+      type => <<"user">>,
+      name => translate:translate(Lang, <<"vCard User Search">>)}.
 
 search_result(Lang, JID, VHost, Data, RSMIn) ->
     Text = translate:translate(Lang, <<"Search Results for ">>),

@@ -19,7 +19,7 @@
 
 %% Hook handlers
 -export([clean_tokens/3,
-         add_local_features/5]).
+         disco_local_features/1]).
 
 %% gen_iq_handler handlers
 -export([process_iq/4]).
@@ -133,7 +133,7 @@ default_opts(Opts) ->
 
 hook_handlers() ->
     [{remove_user, clean_tokens, 50},
-     {disco_local_features, add_local_features, 90}].
+     {disco_local_features, disco_local_features, 90}].
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
@@ -473,10 +473,8 @@ config_metrics(Host) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
 
--spec add_local_features(mongoose_disco:feature_acc(), jid:jid(), jid:jid(), binary(),
-                         ejabberd:lang()) ->
-          mongoose_disco:feature_acc().
-add_local_features(Acc, _From, _To, <<>>, _Lang) ->
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
     mongoose_disco:add_features([?NS_ESL_TOKEN_AUTH], Acc);
-add_local_features(Acc, _From, _To, _Node, _Lang) ->
+disco_local_features(Acc) ->
     Acc.
