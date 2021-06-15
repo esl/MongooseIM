@@ -123,11 +123,7 @@ process_local_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubE
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
         {result, ItemsXML} ->
-            ANode = make_node_attr(Node),
-            {Acc, IQ#iq{type = result,
-                  sub_el = [#xmlel{name = <<"query">>,
-                                   attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                   children = ItemsXML}]}}
+            {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, ItemsXML)}
     end.
 
 -spec process_local_iq_info(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -142,13 +138,9 @@ process_local_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl
             Error = mongoose_xmpp_errors:item_not_found(),
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
         {result, FeaturesXML} ->
-            ANode = make_node_attr(Node),
             IdentityXML = mongoose_disco:get_local_identity(HostType, From, To, Node, Lang),
             InfoXML = mongoose_disco:get_info(HostType, ?MODULE, Node, Lang),
-            {Acc, IQ#iq{type = result,
-                        sub_el = [#xmlel{name = <<"query">>,
-                                         attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                         children = IdentityXML ++ InfoXML ++ FeaturesXML}]}}
+            {Acc, make_iq_result(IQ, ?NS_DISCO_INFO, Node, IdentityXML ++ InfoXML ++ FeaturesXML)}
     end.
 
 -spec process_sm_iq_items(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -165,11 +157,7 @@ process_sm_iq_items(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} 
                     Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
                 {result, ItemsXML} ->
-                    ANode = make_node_attr(Node),
-                    {Acc, IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS} | ANode],
-                                           children = ItemsXML}]}}
+                    {Acc, make_iq_result(IQ, ?NS_DISCO_ITEMS, Node, ItemsXML)}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
@@ -189,12 +177,8 @@ process_sm_iq_info(Acc, From, To, #iq{type = get, lang = Lang, sub_el = SubEl} =
                     Error = sm_error(From, To),
                     {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}};
                 {result, FeaturesXML} ->
-                    ANode = make_node_attr(Node),
                     IdentityXML = mongoose_disco:get_sm_identity(HostType, From, To, Node, Lang),
-                    {Acc, IQ#iq{type = result,
-                          sub_el = [#xmlel{name = <<"query">>,
-                                           attrs = [{<<"xmlns">>, ?NS_DISCO_INFO} | ANode],
-                                           children = IdentityXML ++ FeaturesXML}]}}
+                    {Acc, make_iq_result(IQ, ?NS_DISCO_INFO, Node, IdentityXML ++ FeaturesXML)}
             end;
         false ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:service_unavailable()]}}
@@ -332,9 +316,17 @@ get_user_resources(JID) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec make_node_attr(Node :: binary()) -> [{binary(), binary()}].
-make_node_attr(<<>>) -> [];
-make_node_attr(Node) -> [{<<"node">>, Node}].
+-spec make_iq_result(jlib:iq(), binary(), binary(), [exml:element()]) -> jlib:iq().
+make_iq_result(IQ, NameSpace, Node, ChildrenXML) ->
+    IQ#iq{type = result,
+          sub_el = [#xmlel{name = <<"query">>,
+                           attrs = [{<<"xmlns">>, NameSpace} | make_node_attrs(Node)],
+                           children = ChildrenXML
+                          }]}.
+
+-spec make_node_attrs(Node :: binary()) -> [{binary(), binary()}].
+make_node_attrs(<<>>) -> [];
+make_node_attrs(Node) -> [{<<"node">>, Node}].
 
 process_server_info(Module, ServerInfo) ->
     case is_module_allowed(Module, proplists:get_value(modules, ServerInfo, all)) of
