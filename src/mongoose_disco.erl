@@ -205,13 +205,10 @@ extract_result(#{result := Elements}) -> Elements.
 feature_to_xml(Feature) when is_binary(Feature) ->
     #xmlel{name = <<"feature">>, attrs = [{<<"var">>, Feature}]}.
 
-
 item_to_xml(Item) ->
     #xmlel{name = <<"item">>,
            attrs = lists:map(fun({Key, Value}) -> {atom_to_binary(Key, utf8), Value} end,
                              maps:to_list(Item))}.
-
-
 
 identity_to_xml(Identity) ->
     #xmlel{name = <<"identity">>,

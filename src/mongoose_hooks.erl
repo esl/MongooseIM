@@ -114,8 +114,7 @@
          s2s_stream_features/2,
          s2s_send_packet/4]).
 
--export([
-         disco_local_identity/1,
+-export([disco_local_identity/1,
          disco_sm_identity/1,
          disco_local_items/1,
          disco_sm_items/1,
