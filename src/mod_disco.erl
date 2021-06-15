@@ -30,15 +30,20 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+%% gen_mod callbacks
 -export([start/2,
          stop/1,
          config_spec/0,
-         supported_features/0,
-         process_local_iq_items/5,
+         supported_features/0]).
+
+%% iq handlers
+-export([process_local_iq_items/5,
          process_local_iq_info/5,
          process_sm_iq_items/5,
-         process_sm_iq_info/5,
-         disco_local_identity/1,
+         process_sm_iq_info/5]).
+
+%% hook handlers
+-export([disco_local_identity/1,
          disco_sm_identity/1,
          disco_local_items/1,
          disco_sm_items/1,
