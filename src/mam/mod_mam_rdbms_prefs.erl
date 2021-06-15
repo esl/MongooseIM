@@ -10,7 +10,7 @@
 %% Exports
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_prefs).
@@ -66,6 +66,9 @@ stop(Host) ->
             ok
     end.
 
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 %% Prepared queries
 prepare_queries(Host) ->

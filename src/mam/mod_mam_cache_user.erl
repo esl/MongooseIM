@@ -17,7 +17,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([cached_archive_id/3,
@@ -90,6 +90,10 @@ stop(Host) ->
         false ->
             ok
     end.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 writer_child_spec() ->
     {?MODULE,

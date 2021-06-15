@@ -1,7 +1,7 @@
 -module(mod_mam_muc_cache_user).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([cached_archive_id/3,
@@ -48,6 +48,10 @@ stop(HostType) ->
     stop_server(HostType),
     clean_mnesia(HostType),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 %% ----------------------------------------------------------------------
 %% Init

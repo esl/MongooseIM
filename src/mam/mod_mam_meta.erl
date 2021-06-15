@@ -20,7 +20,7 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, config_spec/0,
+-export([start/2, stop/1, config_spec/0, supported_features/0,
          deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
 
 -export([config_metrics/1]).
@@ -30,6 +30,10 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(_Host, _Opts) ->

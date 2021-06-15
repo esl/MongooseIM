@@ -35,6 +35,7 @@
 -export([start_link/2,
          start/2,
          stop/1,
+         supported_features/0,
          config_spec/0,
          process_room_affiliation/1,
          room_destroyed/4,
@@ -170,6 +171,10 @@ stop(HostType) ->
     stop_supervisor(HostType),
     stop_gen_server(HostType),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 start_server(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
