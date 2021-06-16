@@ -45,7 +45,7 @@
 -export([c2s_broadcast_recipients/4,
          c2s_filter_packet/4,
          c2s_preprocessing_hook/3,
-         c2s_presence_in/5,
+         c2s_presence_in/4,
          c2s_stream_features/2,
          c2s_unauthenticated_iq/4,
          c2s_update_presence/2,
@@ -534,16 +534,15 @@ c2s_filter_packet(State, Feature, To, Packet) ->
 c2s_preprocessing_hook(HostType, Acc, State) ->
     ejabberd_hooks:run_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
 
--spec c2s_presence_in(HostType, State, From, To, Packet) -> Result when
-    HostType :: binary(),
+-spec c2s_presence_in(State, From, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: ejabberd_c2s:state().
-c2s_presence_in(HostType, State, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State,
-                                     [{From, To, Packet}]).
+c2s_presence_in(State, From, To, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
+    ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),

@@ -1398,8 +1398,7 @@ privacy_list_push_iq(PrivListName) ->
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Acc, StateData) ->
     Packet = mongoose_acc:element(Acc),
-    State = mongoose_hooks:c2s_presence_in(StateData#state.host_type,
-                                           StateData, From, To, Packet),
+    State = mongoose_hooks:c2s_presence_in(StateData, From, To, Packet),
     case mongoose_acc:stanza_type(Acc) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),

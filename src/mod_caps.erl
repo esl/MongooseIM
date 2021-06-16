@@ -227,17 +227,18 @@ disco_info(Acc = #{node := Node}) ->
         false -> Acc
     end.
 
-c2s_presence_in(C2SState,
-                {From, To, Packet = #xmlel{attrs = Attrs, children = Els}}) ->
+-spec c2s_presence_in(ejabberd_c2s:state(), mongooseim:host_type(),
+                      jid:jid(), jid:jid(), exml:element()) -> ejabberd_c2s:state().
+c2s_presence_in(C2SState, HostType, From, To, Packet = #xmlel{attrs = Attrs, children = Els}) ->
     ?LOG_DEBUG(#{what => caps_c2s_presence_in,
                  to => jid:to_binary(To), from => jid:to_binary(From),
                  exml_packet => Packet, c2s_state => C2SState}),
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Subscription = ejabberd_c2s:get_subscription(From, C2SState),
-    Insert = ((Type == <<"">>) or (Type == <<"available">>))
-        and ((Subscription == both) or (Subscription == to)),
-    Delete = (Type == <<"unavailable">>) or (Type == <<"error">>),
-    case Insert or Delete of
+    Insert = (Type == <<>> orelse Type == <<"available">>)
+        and (Subscription == both orelse Subscription == to),
+    Delete = Type == <<"unavailable">> orelse Type == <<"error">>,
+    case Insert orelse Delete of
         true ->
             LFrom = jid:to_lower(From),
             Rs = case ejabberd_c2s:get_aux_field(caps_resources,
