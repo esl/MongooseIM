@@ -46,7 +46,7 @@
          handle_cast/2, terminate/2, code_change/3]).
 
 -export([user_send_packet/4, user_receive_packet/5,
-         c2s_presence_in/2, c2s_filter_packet/6,
+         c2s_presence_in/2, c2s_filter_packet/5,
          c2s_broadcast_recipients/5]).
 
 %% for test cases
@@ -274,7 +274,10 @@ upsert_caps(LFrom, From, To, Caps, Rs) ->
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
-c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) ->
+-spec c2s_filter_packet(Acc, ejabberd_c2s:state(), {atom(), binary()},
+                        jid:jid(), exml:element()) -> Acc
+              when Acc :: boolean().
+c2s_filter_packet(InAcc, C2SState, {pep_message, Feature}, To, _Packet) ->
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
             ?LOG_DEBUG(#{what => caps_lookup, text => <<"Look for CAPS for To jid">>,
@@ -282,14 +285,15 @@ c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) -
             LTo = jid:to_lower(To),
             case gb_trees:lookup(LTo, Rs) of
                 {value, Caps} ->
-                    Drop = not lists:member(Feature, get_features_list(LHost, Caps)),
+                    HostType = ejabberd_c2s_state:host_type(C2SState),
+                    Drop = not lists:member(Feature, get_features_list(HostType, Caps)),
                     {stop, Drop};
                 none ->
                     {stop, true}
             end;
         _ -> InAcc
     end;
-c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
+c2s_filter_packet(Acc, _, _, _, _) -> Acc.
 
 -spec c2s_broadcast_recipients(Acc, ejabberd_c2s:state(), {atom(), binary()},
                                jid:jid(), exml:element()) -> Acc

@@ -1135,13 +1135,11 @@ handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
-    #state{server = Server, host_type = HostType} = StateData,
     Acc = new_acc(StateData, #{location => ?LOCATION,
                                from_jid => From,
                                to_jid => To,
                                element => Packet}),
-    Drop = mongoose_hooks:c2s_filter_packet(HostType, Server, StateData,
-                                            Feature, To, Packet),
+    Drop = mongoose_hooks:c2s_filter_packet(StateData, Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
             ?LOG_DEBUG(#{what => c2s_dropped_packet, acc => Acc,

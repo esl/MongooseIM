@@ -43,7 +43,7 @@
          xmpp_stanza_dropped/4]).
 
 -export([c2s_broadcast_recipients/4,
-         c2s_filter_packet/6,
+         c2s_filter_packet/4,
          c2s_preprocessing_hook/3,
          c2s_presence_in/5,
          c2s_stream_features/2,
@@ -515,17 +515,16 @@ c2s_broadcast_recipients(State, Type, From, Packet) ->
     ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, HostType, [],
                                      [State, Type, From, Packet]).
 
--spec c2s_filter_packet(HostType, Server, State, Feature, To, Packet) -> Result when
-    HostType :: binary(),
-    Server :: jid:server(),
+-spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     Feature :: {atom(), binary()},
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: boolean().
-c2s_filter_packet(HostType, Server, State, Feature, To, Packet) ->
+c2s_filter_packet(State, Feature, To, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
     ejabberd_hooks:run_for_host_type(c2s_filter_packet, HostType, true,
-                                     [Server, State, Feature, To, Packet]).
+                                     [State, Feature, To, Packet]).
 
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
     HostType :: binary(),
