@@ -354,14 +354,9 @@ init_db(mnesia) ->
 -spec init(list()) -> {ok, state()}.
 init([HostType, Opts]) ->
     init_db(db_type(HostType)),
-    MaxSize = gen_mod:get_opt(cache_size, Opts,
-                              fun(I) when is_integer(I), I>0 -> I end,
-                              1000),
-    LifeTime = gen_mod:get_opt(cache_life_time, Opts,
-                               fun(I) when is_integer(I), I>0 -> I end,
-                               timer:hours(24) div 1000),
-    cache_tab:new(caps_features,
-                  [{max_size, MaxSize}, {life_time, LifeTime}]),
+    MaxSize = gen_mod:get_opt(cache_size, Opts, 1000),
+    LifeTime = gen_mod:get_opt(cache_life_time, Opts, timer:hours(24) div 1000),
+    cache_tab:new(caps_features, [{max_size, MaxSize}, {life_time, LifeTime}]),
     ejabberd_hooks:add(hooks(HostType)),
     {ok, #state{host_type = HostType}}.
 
