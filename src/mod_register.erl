@@ -32,7 +32,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
-         stream_feature_register/2,
+         c2s_stream_features/3,
          unauthenticated_iq_register/4,
          try_register/5,
          process_iq/4,
@@ -50,7 +50,7 @@ start(Host, Opts) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_REGISTER,
                                   ?MODULE, process_iq, IQDisc),
     ejabberd_hooks:add(c2s_stream_features, Host,
-                       ?MODULE, stream_feature_register, 50),
+                       ?MODULE, c2s_stream_features, 50),
     ejabberd_hooks:add(c2s_unauthenticated_iq, Host,
                        ?MODULE, unauthenticated_iq_register, 50),
     mnesia:create_table(mod_register_ip,
@@ -62,7 +62,7 @@ start(Host, Opts) ->
 
 stop(Host) ->
     ejabberd_hooks:delete(c2s_stream_features, Host,
-                          ?MODULE, stream_feature_register, 50),
+                          ?MODULE, c2s_stream_features, 50),
     ejabberd_hooks:delete(c2s_unauthenticated_iq, Host,
                           ?MODULE, unauthenticated_iq_register, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_REGISTER),
@@ -110,7 +110,9 @@ process_welcome_message(KVs) ->
     Subject = proplists:get_value(subject, KVs, ""),
     {Subject, Body}.
 
-stream_feature_register(Acc, _Host) ->
+-spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
+          [exml:element()].
+c2s_stream_features(Acc, _HostType, _LServer) ->
     [#xmlel{name = <<"register">>,
             attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
 

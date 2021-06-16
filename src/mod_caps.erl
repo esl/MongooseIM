@@ -35,7 +35,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([read_caps/1, caps_stream_features/2,
+-export([read_caps/1, caps_stream_features/3,
          disco_local_features/1, disco_local_identity/1, disco_info/1]).
 
 %% gen_mod callbacks
@@ -191,10 +191,12 @@ user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
     Acc.
 
--spec caps_stream_features([exml:element()], binary()) -> [exml:element()].
-caps_stream_features(Acc, MyHost) ->
-    case make_my_disco_hash(MyHost) of
-        <<"">> -> Acc;
+-spec caps_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
+          [exml:element()].
+caps_stream_features(Acc, HostType, LServer) ->
+    case make_my_disco_hash(HostType, LServer) of
+        <<>> ->
+            Acc;
         Hash ->
             [#xmlel{name = <<"c">>,
                     attrs =
@@ -484,15 +486,15 @@ caps_delete_fun(Node) ->
             mnesia:dirty_delete(caps_features, Node)
     end.
 
-make_my_disco_hash(Host) ->
-    JID = jid:make(<<>>, Host, <<>>),
-    %% TODO run the hooks for host type when adding support for dynamic domains
-    case mongoose_disco:get_local_features(Host, JID, JID, <<>>, <<>>) of
+-spec make_my_disco_hash(mongooseim:host_type(), jid:lserver()) -> binary().
+make_my_disco_hash(HostType, LServer) ->
+    JID = jid:make(<<>>, LServer, <<>>),
+    case mongoose_disco:get_local_features(HostType, JID, JID, <<>>, <<>>) of
         empty ->
             <<>>;
         {result, FeaturesXML} ->
-            IdentityXML = mongoose_disco:get_local_identity(Host, JID, JID, <<>>, <<>>),
-            InfoXML = mongoose_disco:get_info(Host, undefined, <<>>, <<>>),
+            IdentityXML = mongoose_disco:get_local_identity(HostType, JID, JID, <<>>, <<>>),
+            InfoXML = mongoose_disco:get_info(HostType, undefined, <<>>, <<>>),
             make_disco_hash(IdentityXML ++ InfoXML ++ FeaturesXML, sha1)
     end.
 

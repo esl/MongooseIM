@@ -406,8 +406,8 @@ maybe_sasl_mechanisms(#state{host_type = HostType} = S) ->
                     children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M,S) ]}]
     end.
 
-hook_enabled_features(#state{server = Server, host_type = HostType}) ->
-    mongoose_hooks:c2s_stream_features(HostType, Server).
+hook_enabled_features(#state{host_type = HostType, server = LServer}) ->
+    mongoose_hooks:c2s_stream_features(HostType, LServer).
 
 starttls_stanza(TLSRequired)
   when TLSRequired =:= required;

@@ -12,7 +12,7 @@
 -export([run_initial_check/2,
          check_packet/2,
          disco_local_features/1,
-         add_stream_feature/2
+         c2s_stream_features/3
         ]).
 
 -include("amp.hrl").
@@ -32,7 +32,7 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)).
 
 hooks(Host) ->
-    [{c2s_stream_features, Host, ?MODULE, add_stream_feature, 50},
+    [{c2s_stream_features, Host, ?MODULE, c2s_stream_features, 50},
      {disco_local_features, Host, ?MODULE, disco_local_features, 99},
      {c2s_preprocessing_hook, Host, ?MODULE, run_initial_check, 10},
      {amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10},
@@ -64,7 +64,9 @@ disco_local_features(Acc = #{node := Node}) ->
         Features -> mongoose_disco:add_features(Features, Acc)
     end.
 
-add_stream_feature(Acc, _Host) ->
+-spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
+          [exml:element()].
+c2s_stream_features(Acc, _HostType, _Lserver) ->
     lists:keystore(<<"amp">>, #xmlel.name, Acc, ?AMP_FEATURE).
 
 %% Internal

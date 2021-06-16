@@ -546,12 +546,12 @@ c2s_presence_in(HostType, State, From, To, Packet) ->
     ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State,
                                      [{From, To, Packet}]).
 
--spec c2s_stream_features(HostType, Server) -> Result when
-    HostType :: binary(),
-    Server :: jid:server(),
+-spec c2s_stream_features(HostType, LServer) -> Result when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     Result :: [exml:element()].
-c2s_stream_features(HostType, Server) ->
-    ejabberd_hooks:run_for_host_type(c2s_stream_features, HostType, [], [Server]).
+c2s_stream_features(HostType, LServer) ->
+    ejabberd_hooks:run_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
 
 -spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
     HostType :: binary(),
@@ -1194,7 +1194,7 @@ s2s_send_packet(Acc, From, To, Packet) ->
     Server :: jid:server(),
     Result :: [exml:element()].
 s2s_stream_features(HostType, Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [Server]).
+    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [HostType, Server]).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
