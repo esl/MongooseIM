@@ -15,10 +15,6 @@
 
 {suites, "tests", disco_and_caps_SUITE}.
 {skip_cases, "tests", disco_and_caps_SUITE,
- [caps_feature_is_advertised,
-  user_can_query_server_caps_via_disco],
- "at the moment mod_caps doesn't support dynamic domains"}.
-{skip_cases, "tests", disco_and_caps_SUITE,
  [user_can_query_friend_resources,
   user_can_query_friend_features,
   user_cannot_query_friend_resources_with_unknown_node],
