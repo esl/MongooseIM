@@ -42,7 +42,7 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
--export([c2s_broadcast_recipients/5,
+-export([c2s_broadcast_recipients/4,
          c2s_filter_packet/6,
          c2s_preprocessing_hook/3,
          c2s_presence_in/5,
@@ -504,16 +504,16 @@ xmpp_stanza_dropped(HostType, From, To, Packet) ->
 
 %% C2S related hooks
 
--spec c2s_broadcast_recipients(Server, State, Type, From, Packet) -> Result when
-    Server :: jid:server(),
+-spec c2s_broadcast_recipients(State, Type, From, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     Type :: {atom(), any()},
     From :: jid:jid(),
     Packet :: exml:element(),
-    Result :: list().
-c2s_broadcast_recipients(Server, State, Type, From, Packet) ->
-    ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, Server, [],
-                                     [Server, State, Type, From, Packet]).
+    Result :: [jid:simple_jid()].
+c2s_broadcast_recipients(State, Type, From, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
+    ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, HostType, [],
+                                     [State, Type, From, Packet]).
 
 -spec c2s_filter_packet(HostType, Server, State, Feature, To, Packet) -> Result when
     HostType :: binary(),

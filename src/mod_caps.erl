@@ -47,7 +47,7 @@
 
 -export([user_send_packet/4, user_receive_packet/5,
          c2s_presence_in/2, c2s_filter_packet/6,
-         c2s_broadcast_recipients/6]).
+         c2s_broadcast_recipients/5]).
 
 %% for test cases
 -export([delete_caps/1, make_disco_hash/2]).
@@ -291,13 +291,17 @@ c2s_filter_packet(InAcc, LHost, C2SState, {pep_message, Feature}, To, _Packet) -
     end;
 c2s_filter_packet(Acc, _, _, _, _, _) -> Acc.
 
-c2s_broadcast_recipients(InAcc, LHost, C2SState, {pep_message, Feature}, _From, _Packet) ->
+-spec c2s_broadcast_recipients(Acc, ejabberd_c2s:state(), {atom(), binary()},
+                               jid:jid(), exml:element()) -> Acc
+              when Acc :: [jid:simple_jid()].
+c2s_broadcast_recipients(InAcc, C2SState, {pep_message, Feature}, _From, _Packet) ->
+    HostType = ejabberd_c2s_state:host_type(C2SState),
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            filter_recipients_by_caps(InAcc, Feature, LHost, Rs);
+            filter_recipients_by_caps(InAcc, Feature, HostType, Rs);
         _ -> InAcc
     end;
-c2s_broadcast_recipients(Acc, _, _, _, _, _) -> Acc.
+c2s_broadcast_recipients(Acc, _, _, _, _) -> Acc.
 
 filter_recipients_by_caps(InAcc, Feature, LHost, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
