@@ -69,7 +69,7 @@
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
--export_type([broadcast/0, packet/0]).
+-export_type([broadcast/0, packet/0, state/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 
@@ -403,7 +403,7 @@ maybe_sasl_mechanisms(#state{host_type = HostType} = S) ->
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
-                    children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M,S) ]}]
+                    children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M, S) ]}]
     end.
 
 hook_enabled_features(#state{host_type = HostType, server = LServer}) ->
