@@ -39,7 +39,6 @@
 
 -record(state, {}).
 
-%% @private
 srv_name() ->
     mod_mam_cache.
 
@@ -49,113 +48,70 @@ tbl_name_archive_id() ->
 group_name() ->
     mod_mam_cache.
 
-
 -spec su_key(jid:jid()) -> jid:simple_bare_jid().
 su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
-
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: jid:server(), Opts :: list()) -> any().
-start(Host, Opts) ->
-    start_server(Host),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end.
+-spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    start_server(),
+    ejabberd_hooks:add(hooks(HostType)),
+    ok.
 
--spec stop(Host :: jid:server()) -> any().
-stop(Host) ->
-    stop_server(Host),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    ok.
 
 writer_child_spec() ->
-    {?MODULE,
-     {?MODULE, start_link, []},
-     permanent,
-     5000,
-     worker,
-     [?MODULE]}.
+    MFA = {?MODULE, start_link, []},
+    {?MODULE, MFA, permanent, 5000, worker, [?MODULE]}.
 
-start_server(_Host) ->
+start_server() ->
     %% TODO make per host server
     supervisor:start_child(ejabberd_sup, writer_child_spec()).
 
-stop_server(_Host) ->
-    ok.
+hooks(HostType) ->
+    PM = gen_mod:get_module_opt(HostType, ?MODULE, pm, false),
+    MUC = gen_mod:get_module_opt(HostType, ?MODULE, muc, false),
+    case PM of
+        true ->
+            pm_hooks(HostType);
+        false ->
+            []
+    end ++
+    case MUC of
+        true ->
+            muc_hooks(HostType);
+        false ->
+            []
+    end.
 
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+pm_hooks(HostType) ->
+    [{mam_archive_id, HostType, ?MODULE, cached_archive_id, 30},
+     {mam_archive_id, HostType, ?MODULE, store_archive_id, 70},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 100}].
 
--spec start_pm(jid:server(), list()) -> 'ok'.
-start_pm(Host, _Opts) ->
-    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ok.
-
-
--spec stop_pm(jid:server()) -> 'ok'.
-stop_pm(Host) ->
-    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ok.
-
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc
-
--spec start_muc(jid:server(), list()) -> 'ok'.
-start_muc(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ok.
-
-
--spec stop_muc(jid:server()) -> 'ok'.
-stop_muc(Host) ->
-    ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
-    ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ok.
-
+muc_hooks(HostType) ->
+    [{mam_muc_archive_id, HostType, ?MODULE, cached_archive_id, 30},
+     {mam_muc_archive_id, HostType, ?MODULE, store_archive_id, 70},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 100}].
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link() -> ignore | {error, _} | {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
-
--spec cached_archive_id('undefined', _Host :: jid:server(),
-                        ArcJID :: jid:jid()) -> jid:user().
-cached_archive_id(undefined, _Host, ArcJID) ->
+-spec cached_archive_id(undefined, HostType :: mongooseim:host_type(),
+                        ArcJID :: jid:jid()) -> mod_mam:archive_id().
+cached_archive_id(undefined, _HostType, ArcJID) ->
     case lookup_archive_id(ArcJID) of
         not_found ->
             put(mam_not_cached_flag, true),
@@ -164,19 +120,15 @@ cached_archive_id(undefined, _Host, ArcJID) ->
             UserID
     end.
 
-
--spec store_archive_id(jid:user(), jid:server(), jid:jid())
-        -> jid:user().
-store_archive_id(UserID, _Host, ArcJID) ->
+-spec store_archive_id(mod_mam:archive_id(), mongooseim:host_type(), jid:jid())
+        -> mod_mam:archive_id().
+store_archive_id(UserID, _HostType, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
-
-%% #rh
--spec remove_archive(Acc :: map(), _Host :: jid:server(),
-                     _UserID :: jid:user(),
-                     ArcJID :: jid:jid()) -> map().
-remove_archive(Acc, _Host, _UserID, ArcJID) ->
+-spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
+                     UserID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> map().
+remove_archive(Acc, _HostType, _UserID, ArcJID) ->
     clean_cache(ArcJID),
     Acc.
 
@@ -184,24 +136,22 @@ remove_archive(Acc, _Host, _UserID, ArcJID) ->
 %% Internal functions
 %%====================================================================
 
--spec maybe_cache_archive_id(jid:jid(), jid:user()) -> jid:user() | ok.
+-spec maybe_cache_archive_id(jid:jid(), mod_mam:archive_id()) -> ok.
 maybe_cache_archive_id(ArcJID, UserID) ->
     case erase(mam_not_cached_flag) of
         undefined ->
-            UserID;
+            ok;
         true ->
             cache_archive_id(ArcJID, UserID)
     end.
 
-
 %% @doc Put the user id into cache.
 %% @private
--spec cache_archive_id(jid:jid(), jid:user()) -> ok.
+-spec cache_archive_id(jid:jid(), mod_mam:archive_id()) -> ok.
 cache_archive_id(ArcJID, UserID) ->
     gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID}).
 
-
--spec lookup_archive_id(jid:jid()) -> jid:user() | not_found.
+-spec lookup_archive_id(jid:jid()) -> mod_mam:archive_id() | not_found.
 lookup_archive_id(ArcJID) ->
     try
         ets:lookup_element(tbl_name_archive_id(), su_key(ArcJID), 2)
@@ -209,8 +159,7 @@ lookup_archive_id(ArcJID) ->
         not_found
     end.
 
-
--spec clean_cache(jid:jid()) -> 'ok'.
+-spec clean_cache(jid:jid()) -> ok.
 clean_cache(ArcJID) ->
     %% Send a broadcast message.
     case pg2:get_members(group_name()) of
@@ -225,13 +174,6 @@ clean_cache(ArcJID) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([]) ->
     pg2:create(group_name()),
     pg2:join(group_name(), self()),
@@ -241,26 +183,9 @@ init([]) ->
     ets:new(tbl_name_archive_id(), TOpts),
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call({cache_archive_id, ArcJID, UserID}, _From, State) ->
     ets:insert(tbl_name_archive_id(), {su_key(ArcJID), UserID}),
     {reply, ok, State}.
-
-
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 
 handle_cast({remove_user, ArcJID}, State) ->
     ets:delete(tbl_name_archive_id(), su_key(ArcJID)),
@@ -269,31 +194,13 @@ handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
