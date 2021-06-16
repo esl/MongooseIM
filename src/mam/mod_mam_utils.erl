@@ -765,15 +765,17 @@ packet_to_search_body(true, Packet) ->
 packet_to_search_body(false, _Packet) ->
     <<>>.
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
-has_full_text_search(Module, Host) ->
-    gen_mod:get_module_opt(Host, Module, full_text_search, true).
+-spec has_full_text_search(Module :: mod_mam | mod_mam_muc,
+                           HostType :: mongooseim:host_type()) -> boolean().
+has_full_text_search(Module, HostType) ->
+    gen_mod:get_module_opt(HostType, Module, full_text_search, true).
 
 %% Message retraction
 
--spec has_message_retraction(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
-has_message_retraction(Module, Host) ->
-    gen_mod:get_module_opt(Host, Module, message_retraction, true).
+-spec has_message_retraction(Module :: mod_mam | mod_mam_muc,
+                             HostType :: mongooseim:host_type()) -> boolean().
+has_message_retraction(Module, HostType) ->
+    gen_mod:get_module_opt(HostType, Module, message_retraction, true).
 
 %% -----------------------------------------------------------------------
 %% JID serialization

@@ -11,12 +11,14 @@
                           Params :: map()) -> Result when
       Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
--callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), jid:jid()) -> mam_pm_gdpr_data().
+-callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), mongooseim:host_type(), jid:jid()) -> mam_pm_gdpr_data().
 
--callback get_mam_muc_gdpr_data(mam_muc_gdpr_data(), jid:jid()) -> mam_muc_gdpr_data().
+-callback get_mam_muc_gdpr_data(mam_muc_gdpr_data(), mongooseim:host_type(), jid:jid()) -> mam_muc_gdpr_data().
 
--optional_callbacks([get_mam_pm_gdpr_data/2,
-                     get_mam_muc_gdpr_data/2]).
+-optional_callbacks([get_mam_pm_gdpr_data/3,
+                     get_mam_muc_gdpr_data/3,
+                     archive_size/4,
+                     lookup_messages/3]).
 
 -type mam_pm_gdpr_data() :: [{MessageID :: bitstring(), FromJID :: bitstring(), Message :: bitstring()}].
 

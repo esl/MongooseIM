@@ -20,8 +20,8 @@
 
 %% The ONLY usage of Env is in these functions:
 %% The rest of code should treat Env as opaque (i.e. the code just passes Env around).
--spec host(env_vars()) -> jid:lserver().
-host(#{host := Host}) -> Host.
+-spec host_type(env_vars()) -> mongooseim:host_type().
+host_type(#{host_type := HostType}) -> HostType.
 
 -spec table(env_vars()) -> atom().
 table(#{table := Table}) -> Table.
@@ -37,7 +37,7 @@ column_to_id(#{column_to_id_fn := F}, Col) -> F(Col).
 
 
 %% This function uses some fields from Env:
-%% - host
+%% - host_type
 %% - table
 %% - index_hint_fn
 %% - columns_sql_fn
@@ -49,7 +49,7 @@ column_to_id(#{column_to_id_fn := F}, Col) -> F(Col).
                    Order :: atom(), OffsetLimit :: offset_limit()) -> term().
 lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
     Table = table(Env),
-    Host = host(Env),
+    HostType = host_type(Env),
     StmtName = filters_to_statement_name(Env, QueryType, Table, Filters, Order, OffsetLimit),
     case mongoose_rdbms:prepared(StmtName) of
         false ->
@@ -61,7 +61,7 @@ lookup_query(QueryType, Env, Filters, Order, OffsetLimit) ->
             ok
     end,
     Args = filters_to_args(Filters, OffsetLimit),
-    mongoose_rdbms:execute_successfully(Host, StmtName, Args).
+    mongoose_rdbms:execute_successfully(HostType, StmtName, Args).
 
 lookup_sql_binary(QueryType, Table, Env, Filters, Order, OffsetLimit) ->
     iolist_to_binary(lookup_sql(QueryType, Table, Env, Filters, Order, OffsetLimit)).

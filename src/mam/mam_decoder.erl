@@ -49,5 +49,5 @@ decode_packet(ExtBin, Env = #{db_message_codec := Codec}) ->
     mam_message:decode(Codec, Bin).
 
 -spec unescape_binary(binary(), env_vars()) -> binary().
-unescape_binary(Bin, #{host := Host}) ->
-    mongoose_rdbms:unescape_binary(Host, Bin).
+unescape_binary(Bin, #{host_type := HostType}) ->
+    mongoose_rdbms:unescape_binary(HostType, Bin).

@@ -28,9 +28,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([archive_size/4,
-         archive_message/3,
-         lookup_messages/3]).
+-export([archive_message/3]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -50,7 +48,7 @@
 -record(state, {
     flush_interval, %% milliseconds
     max_batch_size,
-    host,
+    host_type :: mongooseim:host_type(),
     number,
     acc = [],
     flush_interval_tref}).
@@ -65,83 +63,83 @@ worker_prefix() ->
 %% `worker_count(_) = 32, partition_count() = 16'.
 %% or
 %% `worker_count(_) = 16, partition_count() = 16'.
-worker_count(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
+worker_count(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
-worker_names(Host) ->
-    [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
+worker_names(HostType) ->
+    [{N, worker_name(HostType, N)} || N <- lists:seq(0, worker_count(HostType) - 1)].
 
-worker_name(Host, N) ->
-    list_to_atom(worker_prefix() ++ "_" ++ binary_to_list(Host) ++ "_" ++ integer_to_list(N)).
+worker_name(HostType, N) ->
+    list_to_atom(worker_prefix() ++ "_" ++ binary_to_list(HostType) ++ "_" ++ integer_to_list(N)).
 
-select_worker(Host, ArcID) ->
-    N = worker_number(Host, ArcID),
-    worker_name(Host, N).
+select_worker(HostType, ArcID) ->
+    N = worker_number(HostType, ArcID),
+    worker_name(HostType, N).
 
-worker_number(Host, ArcID) when is_integer(ArcID) ->
-    ArcID rem worker_count(Host).
+worker_number(HostType, ArcID) when is_integer(ArcID) ->
+    ArcID rem worker_count(HostType).
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
-start(Host, Opts) ->
-    mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
-    mongoose_metrics:ensure_metric(Host, ?FLUSH_TIME, histogram),
-    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
+start(HostType, Opts) ->
+    mongoose_metrics:ensure_metric(HostType, ?PER_MESSAGE_FLUSH_TIME, histogram),
+    mongoose_metrics:ensure_metric(HostType, ?FLUSH_TIME, histogram),
+    MaxSize = gen_mod:get_module_opt(HostType, ?MODULE, max_batch_size, 30),
     mod_mam_rdbms_arch:prepare_insert(insert_mam_message, 1),
     mod_mam_rdbms_arch:prepare_insert(insert_mam_messages, MaxSize),
 
-    start_workers(Host, MaxSize),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+    start_workers(HostType, MaxSize),
+    case gen_mod:get_module_opt(HostType, ?MODULE, pm, false) of
         true ->
-            start_pm(Host, Opts);
+            start_pm(HostType, Opts);
         false ->
             ok
     end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, muc, false) of
         true ->
-            start_muc(Host, Opts);
+            start_muc(HostType, Opts);
         false ->
             ok
     end.
 
-stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+stop(HostType) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, pm, false) of
         true ->
-            stop_pm(Host);
+            stop_pm(HostType);
         false ->
             ok
     end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, muc, false) of
         true ->
-            stop_muc(Host);
+            stop_muc(HostType);
         false ->
             ok
     end,
-    stop_workers(Host).
+    stop_workers(HostType).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
-start_pm(Host, _Opts) ->
-    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
+start_pm(HostType, _Opts) ->
+    ejabberd_hooks:add(mam_archive_message, HostType, ?MODULE, archive_message, 50),
     ok.
 
-stop_pm(Host) ->
-    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
+stop_pm(HostType) ->
+    ejabberd_hooks:delete(mam_archive_message, HostType, ?MODULE, archive_message, 50),
     ok.
 
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
-start_muc(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
+start_muc(HostType, _Opts) ->
+    ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MODULE, archive_message, 50),
     ok.
 
-stop_muc(Host) ->
-    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
+stop_muc(HostType) ->
+    ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MODULE, archive_message, 50),
     ok.
 
 
@@ -149,17 +147,17 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
-start_workers(Host, MaxSize) ->
-    [start_worker(WriterProc, N, Host, MaxSize)
-     || {N, WriterProc} <- worker_names(Host)].
+start_workers(HostType, MaxSize) ->
+    [start_worker(WriterProc, N, HostType, MaxSize)
+     || {N, WriterProc} <- worker_names(HostType)].
 
-stop_workers(Host) ->
-    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
+stop_workers(HostType) ->
+    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(HostType)].
 
-start_worker(WriterProc, N, Host, MaxSize) ->
+start_worker(WriterProc, N, HostType, MaxSize) ->
     WriterChildSpec =
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, N, MaxSize], []]},
+     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [HostType, N, MaxSize], []]},
      permanent,
      5000,
      worker,
@@ -171,10 +169,10 @@ stop_worker(Proc) ->
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec archive_message(_Result, jid:server(), mod_mam:archive_message_params()) ->
+-spec archive_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
           ok | {error, timeout}.
-archive_message(_Result, Host, Params = #{archive_id := ArcID}) ->
-    Worker = select_worker(Host, ArcID),
+archive_message(_Result, HostType, Params = #{archive_id := ArcID}) ->
+    Worker = select_worker(HostType, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
     case is_overloaded(WorkerPid) of
@@ -187,7 +185,7 @@ archive_message(_Result, Host, Params = #{archive_id := ArcID}) ->
             receive
                 {'DOWN', MonRef, process, Pid, normal} -> ok;
                 {'DOWN', MonRef, process, Pid, _} ->
-                    mongoose_metrics:update(Host, modMamDropped, 1),
+                    mongoose_metrics:update(HostType, modMamDropped, 1),
                     {error, timeout}
             end
     end.
@@ -197,12 +195,12 @@ is_overloaded(Pid) ->
     Len > 500.
 
 %% For metrics.
-queue_length(Host) ->
-    Len = lists:sum(queue_lengths(Host)),
+queue_length(HostType) ->
+    Len = lists:sum(queue_lengths(HostType)),
     {ok, Len}.
 
-queue_lengths(Host) ->
-    [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(Host)].
+queue_lengths(HostType) ->
+    [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(HostType)].
 
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
@@ -213,44 +211,32 @@ worker_queue_length(SrvName) ->
             Len
     end.
 
-
--spec archive_size(Size :: integer(), Host :: jid:server(),
-                   ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
-    Size.
-
--spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
-    {ok, mod_mam:lookup_result()}.
-lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
-    when is_integer(ArcID) ->
-    Result.
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
 run_flush(State = #state{acc = []}) ->
     State;
-run_flush(State = #state{host = Host, acc = Acc}) ->
+run_flush(State = #state{host_type = HostType, acc = Acc}) ->
     MessageCount = length(Acc),
     {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
-    mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
-    mongoose_metrics:update(Host, ?FLUSH_TIME, FlushTime),
+    mongoose_metrics:update(HostType, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    mongoose_metrics:update(HostType, ?FLUSH_TIME, FlushTime),
     NewState.
 
-do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
+do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size = MaxSize,
                                           flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?LOG_DEBUG(#{what => mam_flush, message_count => MessageCount}),
 
-    Rows = [mod_mam_rdbms_arch:prepare_message(Host, Params) || Params <- Acc],
+    Rows = [mod_mam_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
 
     InsertResult =
         case MessageCount of
             MaxSize ->
-                mongoose_rdbms:execute(Host, insert_mam_messages, lists:append(Rows));
+                mongoose_rdbms:execute(HostType, insert_mam_messages, lists:append(Rows));
             OtherSize ->
-                Results = [mongoose_rdbms:execute(Host, insert_mam_message, Row) || Row <- Rows],
+                Results = [mongoose_rdbms:execute(HostType, insert_mam_message, Row) || Row <- Rows],
                 case lists:keyfind(error, 1, Results) of
                     false -> {updated, OtherSize};
                     Error -> Error
@@ -260,17 +246,17 @@ do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            mongoose_metrics:update(Host, modMamDropped2, MessageCount),
+            mongoose_metrics:update(HostType, modMamDropped2, MessageCount),
             ?LOG_ERROR(#{what => archive_message_failed,
                          text => <<"archive_message query failed">>,
                          message_count => MessageCount, reason => Reason}),
             ok
     end,
 
-    [mod_mam_rdbms_arch:retract_message(Host, Params) || Params <- Acc],
+    [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
 
     spawn_link(fun() ->
-                       mongoose_metrics:update(Host, modMamFlushed, MessageCount)
+                       mongoose_metrics:update(HostType, modMamFlushed, MessageCount)
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
@@ -298,10 +284,11 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, N, MaxSize]) ->
+init([HostType, N, MaxSize]) ->
     %% Use a private RDBMS-connection.
-    Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    {ok, #state{host=Host, number=N, flush_interval = Int, max_batch_size = MaxSize}}.
+    Int = gen_mod:get_module_opt(HostType, ?MODULE, flush_interval, 2000),
+    {ok, #state{host_type = HostType, number = N,
+                flush_interval = Int, max_batch_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

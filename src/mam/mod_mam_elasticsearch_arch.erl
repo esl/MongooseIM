@@ -32,7 +32,7 @@
 -export([remove_archive/4]).
 -export([archive_size/4]).
 
--export([get_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/3]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -56,9 +56,10 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     ok.
 
--spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
+                           mongooseim:host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
-get_mam_pm_gdpr_data(Acc, Owner) ->
+get_mam_pm_gdpr_data(Acc, _HostType, Owner) ->
     BinOwner = mod_mam_utils:bare_jid(Owner),
     Filter = #{term => #{owner => BinOwner}},
     Sorting = #{mam_id => #{order => asc}},
