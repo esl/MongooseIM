@@ -362,26 +362,7 @@ init([HostType, Opts]) ->
                                timer:hours(24) div 1000),
     cache_tab:new(caps_features,
                   [{max_size, MaxSize}, {life_time, LifeTime}]),
-    ejabberd_hooks:add(c2s_presence_in, HostType, ?MODULE,
-                       c2s_presence_in, 75),
-    ejabberd_hooks:add(c2s_filter_packet, HostType, ?MODULE,
-                       c2s_filter_packet, 75),
-    ejabberd_hooks:add(c2s_broadcast_recipients, HostType,
-                       ?MODULE, c2s_broadcast_recipients, 75),
-    ejabberd_hooks:add(user_send_packet, HostType, ?MODULE,
-                       user_send_packet, 75),
-    ejabberd_hooks:add(user_receive_packet, HostType, ?MODULE,
-                       user_receive_packet, 75),
-    ejabberd_hooks:add(c2s_stream_features, HostType, ?MODULE,
-                       caps_stream_features, 75),
-    ejabberd_hooks:add(s2s_stream_features, HostType, ?MODULE,
-                       caps_stream_features, 75),
-    ejabberd_hooks:add(disco_local_features, HostType, ?MODULE,
-                       disco_local_features, 1),
-    ejabberd_hooks:add(disco_local_identity, HostType, ?MODULE,
-                       disco_local_identity, 1),
-    ejabberd_hooks:add(disco_info, HostType, ?MODULE,
-                       disco_info, 1),
+    ejabberd_hooks:add(hooks(HostType)),
     {ok, #state{host_type = HostType}}.
 
 -spec handle_call(term(), any(), state()) ->
@@ -398,29 +379,20 @@ handle_cast(_Msg, State) -> {noreply, State}.
 handle_info(_Info, State) -> {noreply, State}.
 
 -spec terminate(any(), state()) -> ok.
-terminate(_Reason, State) ->
-    HostType = State#state.host_type,
-    ejabberd_hooks:delete(c2s_presence_in, HostType, ?MODULE,
-                          c2s_presence_in, 75),
-    ejabberd_hooks:delete(c2s_filter_packet, HostType, ?MODULE,
-                          c2s_filter_packet, 75),
-    ejabberd_hooks:delete(c2s_broadcast_recipients, HostType,
-                          ?MODULE, c2s_broadcast_recipients, 75),
-    ejabberd_hooks:delete(user_send_packet, HostType, ?MODULE,
-                          user_send_packet, 75),
-    ejabberd_hooks:delete(user_receive_packet, HostType,
-                          ?MODULE, user_receive_packet, 75),
-    ejabberd_hooks:delete(c2s_stream_features, HostType,
-                          ?MODULE, caps_stream_features, 75),
-    ejabberd_hooks:delete(s2s_stream_features, HostType,
-                          ?MODULE, caps_stream_features, 75),
-    ejabberd_hooks:delete(disco_local_features, HostType,
-                          ?MODULE, disco_local_features, 1),
-    ejabberd_hooks:delete(disco_local_identity, HostType,
-                          ?MODULE, disco_local_identity, 1),
-    ejabberd_hooks:delete(disco_info, HostType, ?MODULE,
-                          disco_info, 1),
-    ok.
+terminate(_Reason, #state{host_type = HostType}) ->
+    ejabberd_hooks:delete(hooks(HostType)).
+
+hooks(HostType) ->
+    [{c2s_presence_in, HostType, ?MODULE, c2s_presence_in, 75},
+     {c2s_filter_packet, HostType, ?MODULE, c2s_filter_packet, 75},
+     {c2s_broadcast_recipients, HostType, ?MODULE, c2s_broadcast_recipients, 75},
+     {user_send_packet, HostType, ?MODULE, user_send_packet, 75},
+     {user_receive_packet, HostType, ?MODULE, user_receive_packet, 75},
+     {c2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
+     {s2s_stream_features, HostType, ?MODULE, caps_stream_features, 75},
+     {disco_local_features, HostType, ?MODULE, disco_local_features, 1},
+     {disco_local_identity, HostType, ?MODULE, disco_local_identity, 1},
+     {disco_info, HostType, ?MODULE, disco_info, 1}].
 
 -spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
