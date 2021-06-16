@@ -39,14 +39,14 @@
          disco_local_features/1, disco_local_identity/1, disco_info/1]).
 
 %% gen_mod callbacks
--export([start/2, start_link/2, stop/1, config_spec/0]).
+-export([start/2, start_link/2, stop/1, config_spec/0, supported_features/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_info/2, handle_call/3,
          handle_cast/2, terminate/2, code_change/3]).
 
 -export([user_send_packet/4, user_receive_packet/5,
-         c2s_presence_in/2, c2s_filter_packet/5,
+         c2s_presence_in/4, c2s_filter_packet/5,
          c2s_broadcast_recipients/5]).
 
 %% for test cases
@@ -63,37 +63,47 @@
 
 -record(caps,
         {
-          node    = <<"">> :: binary(),
-          version = <<"">> :: binary(),
-          hash    = <<"">> :: binary(),
-          exts    = []     :: [binary()]
+          node = <<>> :: binary(),
+          version = <<>> :: binary(),
+          hash = <<>> :: binary(),
+          exts = [] :: [binary()]
         }).
 
 -type caps() :: #caps{}.
+-type caps_resources() :: gb_trees:tree(jid:simple_jid(), caps()).
 
 -export_type([caps/0]).
 
+-type features() :: [binary()].
+-type maybe_pending_features() :: features() | pos_integer().
+-type node_pair() :: {binary(), binary()}.
+
 -record(caps_features,
         {
-          node_pair = {<<"">>, <<"">>} :: {binary(), binary()},
-          features  = []               :: [binary()] | pos_integer()
+          node_pair = {<<>>, <<>>} :: node_pair(),
+          features = [] :: maybe_pending_features()
         }).
 
--record(state, {host = <<"">> :: binary()}).
+-record(state, {host_type :: mongooseim:host_type()}).
 
-start_link(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+-type state() :: #state{}.
+
+-spec start_link(mongooseim:host_type(), list()) -> any().
+start_link(HostType, Opts) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE,
-                          [Host, Opts], []).
+                          [HostType, Opts], []).
 
-start(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
+-spec start(mongooseim:host_type(), list()) -> any().
+start(HostType, Opts) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},
                  transient, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
-stop(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
 
@@ -107,20 +117,23 @@ config_spec() ->
                 }
       }.
 
-get_features_list(Host, Caps) ->
-    case get_features(Host, Caps) of
+supported_features() -> [dynamic_domains].
+
+-spec get_features_list(mongooseim:host_type(), nothing | caps()) -> features().
+get_features_list(HostType, Caps) ->
+    case get_features(HostType, Caps) of
         unknown -> [];
         Features -> Features
     end.
 
--spec get_features(jid:lserver(), nothing | caps()) -> unknown | list().
-get_features(_LHost, nothing) -> [];
-get_features(LHost, #caps{node = Node, version = Version, exts = Exts}) ->
+-spec get_features(mongooseim:host_type(), nothing | caps()) -> unknown | features().
+get_features(_HostType, nothing) -> [];
+get_features(HostType, #caps{node = Node, version = Version, exts = Exts}) ->
     SubNodes = [Version | Exts],
     lists:foldl(fun (SubNode, Acc) ->
                         NodePair = {Node, SubNode},
                         case cache_tab:lookup(caps_features, NodePair,
-                                              caps_read_fun(LHost, NodePair))
+                                              caps_read_fun(HostType, NodePair))
                         of
                             {ok, Features} when is_list(Features) ->
                                 Features ++ Acc;
@@ -133,7 +146,6 @@ get_features(LHost, #caps{node = Node, version = Version, exts = Exts}) ->
                 [], SubNodes).
 
 -spec read_caps([exml:element()]) -> nothing | caps().
-
 read_caps(Els) -> read_caps(Els, nothing).
 
 read_caps([#xmlel{name = <<"c">>, attrs = Attrs} | Tail], Result) ->
@@ -158,37 +170,38 @@ read_caps([], Result) -> Result.
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc,
                  #jid{luser = User, lserver = LServer} = From,
-                 #jid{luser = User, lserver = LServer, lresource = <<"">>},
-                 #xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
+                 #jid{luser = User, lserver = LServer, lresource = <<>>},
+                 #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    case Type == <<"">> orelse Type == <<"available">> of
-        true ->
-            case read_caps(Els) of
-                nothing -> Acc;
-                #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Acc, LServer, From, Caps, [Version | Exts])
-            end;
-        false -> Acc
-    end;
+    handle_presence(Acc, LServer, From, Type, Elements);
 user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
 -spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) ->
           mongoose_acc:t().
 user_receive_packet(Acc, #jid{lserver = LServer}, From, _To,
-                    #xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
+                    #xmlel{name = <<"presence">>, attrs = Attrs, children = Elements}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
-    case (not lists:member(From#jid.lserver, ?MYHOSTS))
-         andalso ((Type == <<"">>) or (Type == <<"available">>)) of
-        true ->
-            case read_caps(Els) of
-                nothing -> Acc;
-                #caps{version = Version, exts = Exts} = Caps ->
-                    feature_request(Acc, LServer, From, Caps, [Version | Exts])
-            end;
-        false -> Acc
+    case mongoose_domain_api:get_host_type(From#jid.lserver) of
+        {error, not_found} ->
+            handle_presence(Acc, LServer, From, Type, Elements);
+        {ok, _} ->
+            Acc %% it was already handled in 'user_send_packet'
     end;
 user_receive_packet(Acc, _JID, _From, _To, _Pkt) ->
+    Acc.
+
+-spec handle_presence(mongoose_acc:t(), jid:lserver(), jid:jid(), binary(), [exml:element()]) ->
+          mongoose_acc:t().
+handle_presence(Acc, LServer, From, Type, Elements) when Type =:= <<>>;
+                                                         Type =:= <<"available">> ->
+    case read_caps(Elements) of
+        nothing ->
+            Acc;
+        #caps{version = Version, exts = Exts} = Caps ->
+            feature_request(Acc, LServer, From, Caps, [Version | Exts])
+    end;
+handle_presence(Acc, _LServer, _From, _Type, _Elements) ->
     Acc.
 
 -spec caps_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
@@ -199,9 +212,8 @@ caps_stream_features(Acc, HostType, LServer) ->
             Acc;
         Hash ->
             [#xmlel{name = <<"c">>,
-                    attrs =
-                        [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
-                         {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
+                    attrs = [{<<"xmlns">>, ?NS_CAPS}, {<<"hash">>, <<"sha-1">>},
+                             {<<"node">>, ?MONGOOSE_URI}, {<<"ver">>, Hash}],
                     children = []}
              | Acc]
     end.
@@ -227,9 +239,9 @@ disco_info(Acc = #{node := Node}) ->
         false -> Acc
     end.
 
--spec c2s_presence_in(ejabberd_c2s:state(), mongooseim:host_type(),
-                      jid:jid(), jid:jid(), exml:element()) -> ejabberd_c2s:state().
-c2s_presence_in(C2SState, HostType, From, To, Packet = #xmlel{attrs = Attrs, children = Els}) ->
+-spec c2s_presence_in(ejabberd_c2s:state(), jid:jid(), jid:jid(), exml:element()) ->
+          ejabberd_c2s:state().
+c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = Els}) ->
     ?LOG_DEBUG(#{what => caps_c2s_presence_in,
                  to => jid:to_binary(To), from => jid:to_binary(From),
                  exml_packet => Packet, c2s_state => C2SState}),
@@ -254,7 +266,8 @@ c2s_presence_in(C2SState, HostType, From, To, Packet = #xmlel{attrs = Attrs, chi
                             ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
                                          to => jid:to_binary(To), from => jid:to_binary(From),
                                          exml_packet => Packet, c2s_state => C2SState}),
-                            upsert_caps(LFrom, From, To, Caps, Rs);
+                            HostType = ejabberd_c2s_state:host_type(C2SState),
+                            upsert_caps(HostType, LFrom, From, To, Caps, Rs);
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
             ejabberd_c2s:set_aux_field(caps_resources, NewRs,
@@ -262,16 +275,17 @@ c2s_presence_in(C2SState, HostType, From, To, Packet = #xmlel{attrs = Attrs, chi
         false -> C2SState
     end.
 
-upsert_caps(LFrom, From, To, Caps, Rs) ->
+-spec upsert_caps(mongooseim:host_type(), jid:simple_jid(), jid:jid(), jid:jid(),
+                  caps(), caps_resources()) ->
+          caps_resources().
+upsert_caps(HostType, LFrom, From, To, Caps, Rs) ->
     case gb_trees:lookup(LFrom, Rs) of
         {value, Caps} -> Rs;
         none ->
-            mongoose_hooks:caps_add(To#jid.lserver,
-                                    From, To, self(), get_features(To#jid.lserver, Caps)),
+            mongoose_hooks:caps_add(HostType, From, To, self(), get_features(HostType, Caps)),
             gb_trees:insert(LFrom, Caps, Rs);
         _ ->
-            mongoose_hooks:caps_update(To#jid.lserver,
-                                       From, To, self(), get_features(To#jid.lserver, Caps)),
+            mongoose_hooks:caps_update(HostType, From, To, self(), get_features(HostType, Caps)),
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
@@ -303,21 +317,24 @@ c2s_broadcast_recipients(InAcc, C2SState, {pep_message, Feature}, _From, _Packet
     HostType = ejabberd_c2s_state:host_type(C2SState),
     case ejabberd_c2s:get_aux_field(caps_resources, C2SState) of
         {ok, Rs} ->
-            filter_recipients_by_caps(InAcc, Feature, HostType, Rs);
+            filter_recipients_by_caps(HostType, InAcc, Feature, Rs);
         _ -> InAcc
     end;
 c2s_broadcast_recipients(Acc, _, _, _, _) -> Acc.
 
-filter_recipients_by_caps(InAcc, Feature, LHost, Rs) ->
+-spec filter_recipients_by_caps(mongooseim:host_type(), Acc,
+                                {atom(), binary()}, caps_resources()) -> Acc
+              when Acc :: [jid:simple_jid()].
+filter_recipients_by_caps(HostType, InAcc, Feature, Rs) ->
     gb_trees_fold(fun(USR, Caps, Acc) ->
-                          case lists:member(Feature, get_features_list(LHost, Caps)) of
+                          case lists:member(Feature, get_features_list(HostType, Caps)) of
                               true -> [USR | Acc];
                               false -> Acc
                           end
                   end,
                   InAcc, Rs).
 
-init_db(mnesia, _Host) ->
+init_db(mnesia) ->
     case catch mnesia:table_info(caps_features, storage_type) of
         {'EXIT', _} ->
             ok;
@@ -334,8 +351,9 @@ init_db(mnesia, _Host) ->
     mnesia:add_table_copy(caps_features, node(),
                           disc_only_copies).
 
-init([Host, Opts]) ->
-    init_db(mnesia, Host),
+-spec init(list()) -> {ok, state()}.
+init([HostType, Opts]) ->
+    init_db(db_type(HostType)),
     MaxSize = gen_mod:get_opt(cache_size, Opts,
                               fun(I) when is_integer(I), I>0 -> I end,
                               1000),
@@ -344,79 +362,85 @@ init([Host, Opts]) ->
                                timer:hours(24) div 1000),
     cache_tab:new(caps_features,
                   [{max_size, MaxSize}, {life_time, LifeTime}]),
-    ejabberd_hooks:add(c2s_presence_in, Host, ?MODULE,
+    ejabberd_hooks:add(c2s_presence_in, HostType, ?MODULE,
                        c2s_presence_in, 75),
-    ejabberd_hooks:add(c2s_filter_packet, Host, ?MODULE,
+    ejabberd_hooks:add(c2s_filter_packet, HostType, ?MODULE,
                        c2s_filter_packet, 75),
-    ejabberd_hooks:add(c2s_broadcast_recipients, Host,
+    ejabberd_hooks:add(c2s_broadcast_recipients, HostType,
                        ?MODULE, c2s_broadcast_recipients, 75),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE,
+    ejabberd_hooks:add(user_send_packet, HostType, ?MODULE,
                        user_send_packet, 75),
-    ejabberd_hooks:add(user_receive_packet, Host, ?MODULE,
+    ejabberd_hooks:add(user_receive_packet, HostType, ?MODULE,
                        user_receive_packet, 75),
-    ejabberd_hooks:add(c2s_stream_features, Host, ?MODULE,
+    ejabberd_hooks:add(c2s_stream_features, HostType, ?MODULE,
                        caps_stream_features, 75),
-    ejabberd_hooks:add(s2s_stream_features, Host, ?MODULE,
+    ejabberd_hooks:add(s2s_stream_features, HostType, ?MODULE,
                        caps_stream_features, 75),
-    ejabberd_hooks:add(disco_local_features, Host, ?MODULE,
+    ejabberd_hooks:add(disco_local_features, HostType, ?MODULE,
                        disco_local_features, 1),
-    ejabberd_hooks:add(disco_local_identity, Host, ?MODULE,
+    ejabberd_hooks:add(disco_local_identity, HostType, ?MODULE,
                        disco_local_identity, 1),
-    ejabberd_hooks:add(disco_info, Host, ?MODULE,
+    ejabberd_hooks:add(disco_info, HostType, ?MODULE,
                        disco_info, 1),
-    {ok, #state{host = Host}}.
+    {ok, #state{host_type = HostType}}.
 
+-spec handle_call(term(), any(), state()) ->
+          {stop, normal, ok, state()} | {reply, {error, any()}, state()}.
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 handle_call(_Req, _From, State) ->
     {reply, {error, badarg}, State}.
 
+-spec handle_cast(any(), state()) -> {noreply, state()}.
 handle_cast(_Msg, State) -> {noreply, State}.
 
+-spec handle_info(any(), state()) -> {noreply, state()}.
 handle_info(_Info, State) -> {noreply, State}.
 
+-spec terminate(any(), state()) -> ok.
 terminate(_Reason, State) ->
-    Host = State#state.host,
-    ejabberd_hooks:delete(c2s_presence_in, Host, ?MODULE,
+    HostType = State#state.host_type,
+    ejabberd_hooks:delete(c2s_presence_in, HostType, ?MODULE,
                           c2s_presence_in, 75),
-    ejabberd_hooks:delete(c2s_filter_packet, Host, ?MODULE,
+    ejabberd_hooks:delete(c2s_filter_packet, HostType, ?MODULE,
                           c2s_filter_packet, 75),
-    ejabberd_hooks:delete(c2s_broadcast_recipients, Host,
+    ejabberd_hooks:delete(c2s_broadcast_recipients, HostType,
                           ?MODULE, c2s_broadcast_recipients, 75),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE,
+    ejabberd_hooks:delete(user_send_packet, HostType, ?MODULE,
                           user_send_packet, 75),
-    ejabberd_hooks:delete(user_receive_packet, Host,
+    ejabberd_hooks:delete(user_receive_packet, HostType,
                           ?MODULE, user_receive_packet, 75),
-    ejabberd_hooks:delete(c2s_stream_features, Host,
+    ejabberd_hooks:delete(c2s_stream_features, HostType,
                           ?MODULE, caps_stream_features, 75),
-    ejabberd_hooks:delete(s2s_stream_features, Host,
+    ejabberd_hooks:delete(s2s_stream_features, HostType,
                           ?MODULE, caps_stream_features, 75),
-    ejabberd_hooks:delete(disco_local_features, Host,
+    ejabberd_hooks:delete(disco_local_features, HostType,
                           ?MODULE, disco_local_features, 1),
-    ejabberd_hooks:delete(disco_local_identity, Host,
+    ejabberd_hooks:delete(disco_local_identity, HostType,
                           ?MODULE, disco_local_identity, 1),
-    ejabberd_hooks:delete(disco_info, Host, ?MODULE,
+    ejabberd_hooks:delete(disco_info, HostType, ?MODULE,
                           disco_info, 1),
     ok.
 
+-spec code_change(any(), state(), any()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec feature_request(mongoose_acc:t(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
-feature_request(Acc, LHost, From, Caps, [SubNode | Tail] = SubNodes) ->
+feature_request(Acc, LServer, From, Caps, [SubNode | Tail] = SubNodes) ->
     Node = Caps#caps.node,
     NodePair = {Node, SubNode},
-    case cache_tab:lookup(caps_features, NodePair, caps_read_fun(LHost, NodePair)) of
+    HostType = mongoose_acc:host_type(Acc),
+    case cache_tab:lookup(caps_features, NodePair, caps_read_fun(HostType, NodePair)) of
         {ok, Fs} when is_list(Fs) ->
-            feature_request(Acc, LHost, From, Caps, Tail);
+            feature_request(Acc, LServer, From, Caps, Tail);
         Other ->
             NeedRequest = case Other of
                               {ok, TS} -> os:system_time(second) >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
             F = fun (_From, _To, Acc1, IQReply) ->
-                        feature_response(Acc1, IQReply, LHost, From, Caps,
-                                         SubNodes)
+                        feature_response(Acc1, IQReply, LServer, From, Caps, SubNodes)
                 end,
             case NeedRequest of
                 true ->
@@ -430,27 +454,27 @@ feature_request(Acc, LHost, From, Caps, [SubNode | Tail] = SubNodes) ->
                                                  SubNode/binary>>}],
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, os:system_time(second),
-                                     caps_write_fun(LHost, NodePair, os:system_time(second))),
-                    ejabberd_local:route_iq(jid:make_noprep(<<"">>, LHost, <<"">>), From, Acc, IQ, F),
+                                     caps_write_fun(HostType, NodePair, os:system_time(second))),
+                    ejabberd_local:route_iq(jid:make_noprep(<<>>, LServer, <<>>), From, Acc, IQ, F),
                     Acc;
-               false -> feature_request(Acc, LHost, From, Caps, Tail)
+               false -> feature_request(Acc, LServer, From, Caps, Tail)
             end
     end;
-feature_request(Acc, LHost, From, Caps, []) ->
+feature_request(Acc, _LServer, From, Caps, []) ->
     %% feature_request is never executed with empty SubNodes list
     %% so if we end up here, it means the caps are known
-    mongoose_hooks:caps_recognised(LHost, Acc,
-                            From, self(), get_features_list(LHost, Caps)).
+    HostType = mongoose_acc:host_type(Acc),
+    mongoose_hooks:caps_recognised(HostType, Acc, From, self(), get_features_list(HostType, Caps)).
 
 -spec feature_response(mongoose_acc:t(), jlib:iq(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
 feature_response(Acc, #iq{type = result, sub_el = [#xmlel{children = Els}]},
-                 LHost, From, Caps, [SubNode | SubNodes]) ->
+                 LServer, From, Caps, [SubNode | SubNodes]) ->
+    HostType = mongoose_acc:host_type(Acc),
     NodePair = {Caps#caps.node, SubNode},
     case check_hash(Caps, Els) of
         true ->
-            Features = lists:flatmap(fun (#xmlel{name =
-                                                     <<"feature">>,
+            Features = lists:flatmap(fun (#xmlel{name = <<"feature">>,
                                                  attrs = FAttrs}) ->
                                              [xml:get_attr_s(<<"var">>, FAttrs)];
                                          (_) -> []
@@ -458,18 +482,20 @@ feature_response(Acc, #iq{type = result, sub_el = [#xmlel{children = Els}]},
                                      Els),
             cache_tab:insert(caps_features, NodePair,
                              Features,
-                             caps_write_fun(LHost, NodePair, Features));
+                             caps_write_fun(HostType, NodePair, Features));
         false -> ok
     end,
-    feature_request(Acc, LHost, From, Caps, SubNodes);
-feature_response(Acc, _IQResult, LHost, From, Caps, [_SubNode | SubNodes]) ->
-    feature_request(Acc, LHost, From, Caps, SubNodes).
+    feature_request(Acc, LServer, From, Caps, SubNodes);
+feature_response(Acc, _IQResult, LServer, From, Caps, [_SubNode | SubNodes]) ->
+    feature_request(Acc, LServer, From, Caps, SubNodes).
 
-caps_read_fun(LServer, Node) ->
-    DBType = db_type(LServer),
-    caps_read_fun(LServer, Node, DBType).
+-spec caps_read_fun(mongooseim:host_type(), node_pair()) ->
+          fun(() -> {ok, maybe_pending_features()} | error).
+caps_read_fun(HostType, Node) ->
+    DBType = db_type(HostType),
+    caps_read_fun(HostType, Node, DBType).
 
-caps_read_fun(_LServer, Node, mnesia) ->
+caps_read_fun(_HostType, Node, mnesia) ->
     fun () ->
             case mnesia:dirty_read({caps_features, Node}) of
                 [#caps_features{features = Features}] -> {ok, Features};
@@ -477,19 +503,23 @@ caps_read_fun(_LServer, Node, mnesia) ->
             end
     end.
 
-caps_write_fun(LServer, Node, Features) ->
-    DBType = db_type(LServer),
-    caps_write_fun(LServer, Node, Features, DBType).
+-spec caps_write_fun(mongooseim:host_type(), node_pair(), maybe_pending_features()) ->
+          fun(() -> ok).
+caps_write_fun(HostType, Node, Features) ->
+    DBType = db_type(HostType),
+    caps_write_fun(HostType, Node, Features, DBType).
 
-caps_write_fun(_LServer, Node, Features, mnesia) ->
+caps_write_fun(_HostType, Node, Features, mnesia) ->
     fun () ->
             mnesia:dirty_write(#caps_features{node_pair = Node,
                                               features = Features})
     end.
 
+-spec delete_caps(node_pair()) -> ok.
 delete_caps(Node) ->
     cache_tab:delete(caps_features, Node, caps_delete_fun(Node)).
 
+-spec caps_delete_fun(node_pair()) -> fun(() -> ok).
 caps_delete_fun(Node) ->
     fun () ->
             mnesia:dirty_delete(caps_features, Node)
@@ -507,6 +537,7 @@ make_my_disco_hash(HostType, LServer) ->
             make_disco_hash(IdentityXML ++ InfoXML ++ FeaturesXML, sha1)
     end.
 
+-spec make_disco_hash([exml:element()], HashAlgorithm :: atom()) -> binary().
 make_disco_hash(DiscoEls, Algo) ->
     Concat = list_to_binary([concat_identities(DiscoEls),
                              concat_features(DiscoEls), concat_info(DiscoEls)]),
@@ -619,5 +650,5 @@ is_valid_node(Node) ->
             false
     end.
 
-db_type(_Host) ->
+db_type(_HostType) ->
     mnesia.
