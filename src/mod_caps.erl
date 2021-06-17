@@ -266,8 +266,7 @@ c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = El
                             ?LOG_DEBUG(#{what => caps_set_caps, caps => Caps,
                                          to => jid:to_binary(To), from => jid:to_binary(From),
                                          exml_packet => Packet, c2s_state => C2SState}),
-                            HostType = ejabberd_c2s_state:host_type(C2SState),
-                            upsert_caps(HostType, LFrom, From, To, Caps, Rs);
+                            upsert_caps(LFrom, Caps, Rs);
                         _ -> gb_trees:delete_any(LFrom, Rs)
                     end,
             ejabberd_c2s:set_aux_field(caps_resources, NewRs,
@@ -275,17 +274,13 @@ c2s_presence_in(C2SState, From, To, Packet = #xmlel{attrs = Attrs, children = El
         false -> C2SState
     end.
 
--spec upsert_caps(mongooseim:host_type(), jid:simple_jid(), jid:jid(), jid:jid(),
-                  caps(), caps_resources()) ->
-          caps_resources().
-upsert_caps(HostType, LFrom, From, To, Caps, Rs) ->
+-spec upsert_caps(jid:simple_jid(), caps(), caps_resources()) -> caps_resources().
+upsert_caps(LFrom, Caps, Rs) ->
     case gb_trees:lookup(LFrom, Rs) of
         {value, Caps} -> Rs;
         none ->
-            mongoose_hooks:caps_add(HostType, From, To, self(), get_features(HostType, Caps)),
             gb_trees:insert(LFrom, Caps, Rs);
         _ ->
-            mongoose_hooks:caps_update(HostType, From, To, self(), get_features(HostType, Caps)),
             gb_trees:update(LFrom, Caps, Rs)
     end.
 
@@ -431,7 +426,7 @@ feature_request(Acc, _LServer, From, Caps, []) ->
     %% feature_request is never executed with empty SubNodes list
     %% so if we end up here, it means the caps are known
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_hooks:caps_recognised(HostType, Acc, From, self(), get_features_list(HostType, Caps)).
+    mongoose_hooks:caps_recognised(Acc, From, self(), get_features_list(HostType, Caps)).
 
 -spec feature_response(mongoose_acc:t(), jlib:iq(), jid:lserver(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().

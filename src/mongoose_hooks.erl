@@ -137,9 +137,7 @@
          room_packet/5,
          update_inbox_for_muc/2]).
 
--export([caps_add/5,
-         caps_recognised/5,
-         caps_update/5]).
+-export([caps_recognised/4]).
 
 -export([pubsub_create_node/5,
          pubsub_delete_node/4,
@@ -1379,38 +1377,16 @@ update_inbox_for_muc(HostType, Info) ->
 
 %% Caps related hooks
 
--spec caps_add(HostType, From, To, Pid, Features) -> Result when
-    HostType :: mongooseim:host_type(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
-    Result :: any().
-caps_add(HostType, From, To, Pid, Features) ->
-    ejabberd_hooks:run_for_host_type(caps_add, HostType, ok,
-                                     [From, To, Pid, Features]).
-
--spec caps_recognised(HostType, Acc, From, Pid, Features) -> Result when
-    HostType :: mongooseim:host_type(),
+-spec caps_recognised(Acc, From, Pid, Features) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     Pid :: pid(),
     Features :: unknown | list(),
     Result :: mongoose_acc:t().
-caps_recognised(HostType, Acc, From, Pid, Features) ->
+caps_recognised(Acc, From, Pid, Features) ->
+    HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(caps_recognised, HostType, Acc,
                                      [From, Pid, Features]).
-
--spec caps_update(HostType, From, To, Pid, Features) -> Result when
-    HostType :: mongooseim:host_type(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
-    Result :: any().
-caps_update(HostType, From, To, Pid, Features) ->
-    ejabberd_hooks:run_for_host_type(caps_update, HostType, ok,
-                                     [From, To, Pid, Features]).
 
 %% PubSub related hooks
 
