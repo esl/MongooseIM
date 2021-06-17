@@ -40,7 +40,8 @@
 
 -type service_deps_list() :: [atom()].
 
--export_type([deps_list/0]).
+-export_type([deps_list/0,
+              module_opts/0]).
 
 -export([
          % Modules start & stop
@@ -86,6 +87,7 @@
 -type module_feature() :: atom().
 -type domain_name() :: mongooseim:domain_name().
 -type host_type() :: mongooseim:host_type().
+-type module_opts() :: list().
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -93,7 +95,7 @@
 %%      {stop, 1}];
 %% behaviour_info(_Other) ->
 %%     undefined.
--callback start(HostType :: host_type(), Opts :: list()) -> any().
+-callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
 -callback supported_features() -> [module_feature()].
 -callback config_spec() -> mongoose_config_spec:config_section().

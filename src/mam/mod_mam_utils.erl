@@ -685,18 +685,19 @@ find_field([], _Name) ->
 field_to_value(FieldEl) ->
     exml_query:path(FieldEl, [{element, <<"value">>}, cdata], <<>>).
 
--spec message_form(Mod :: mod_mam | mod_mam_muc, Host :: jid:lserver(), binary()) ->
+-spec message_form(Mod :: mod_mam | mod_mam_muc,
+                   HostType :: mongooseim:host_type(), binary()) ->
     exml:element().
-message_form(Module, Host, MamNs) ->
+message_form(Module, HostType, MamNs) ->
     SubEl = #xmlel{name = <<"x">>,
                    attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
                             {<<"type">>, <<"form">>}],
-                   children = message_form_fields(Module, Host, MamNs)},
+                   children = message_form_fields(Module, HostType, MamNs)},
     result_query(SubEl, MamNs).
 
-message_form_fields(Mod, Host, MamNs) ->
+message_form_fields(Mod, HostType, MamNs) ->
     TextSearch =
-        case has_full_text_search(Mod, Host) of
+        case has_full_text_search(Mod, HostType) of
             true -> [form_field(<<"text-single">>, <<"full-text-search">>)];
             false -> []
         end,
@@ -751,10 +752,11 @@ normalize_search_text(Text, WordSeparator) ->
     Re2 = re:replace(Re1, "\s+", unicode:characters_to_list(WordSeparator), ReOpts),
     unicode:characters_to_binary(Re2).
 
--spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: jid:server(),
+-spec packet_to_search_body(Module :: mod_mam | mod_mam_muc,
+                            HostType :: mongooseim:host_type(),
                             Packet :: exml:element()) -> binary().
-packet_to_search_body(Module, Host, Packet) ->
-    SearchEnabled = has_full_text_search(Module, Host),
+packet_to_search_body(Module, HostType, Packet) ->
+    SearchEnabled = has_full_text_search(Module, HostType),
     packet_to_search_body(SearchEnabled, Packet).
 
 -spec packet_to_search_body(Enabled :: boolean(),
