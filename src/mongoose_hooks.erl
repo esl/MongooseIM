@@ -42,10 +42,10 @@
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
--export([c2s_broadcast_recipients/5,
-         c2s_filter_packet/6,
+-export([c2s_broadcast_recipients/4,
+         c2s_filter_packet/4,
          c2s_preprocessing_hook/3,
-         c2s_presence_in/5,
+         c2s_presence_in/4,
          c2s_stream_features/2,
          c2s_unauthenticated_iq/4,
          c2s_update_presence/2,
@@ -137,9 +137,7 @@
          room_packet/5,
          update_inbox_for_muc/2]).
 
--export([caps_add/5,
-         caps_recognised/5,
-         caps_update/5]).
+-export([caps_recognised/4]).
 
 -export([pubsub_create_node/5,
          pubsub_delete_node/4,
@@ -504,57 +502,55 @@ xmpp_stanza_dropped(HostType, From, To, Packet) ->
 
 %% C2S related hooks
 
--spec c2s_broadcast_recipients(Server, State, Type, From, Packet) -> Result when
-    Server :: jid:server(),
+-spec c2s_broadcast_recipients(State, Type, From, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     Type :: {atom(), any()},
     From :: jid:jid(),
     Packet :: exml:element(),
-    Result :: list().
-c2s_broadcast_recipients(Server, State, Type, From, Packet) ->
-    ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, Server, [],
-                                     [Server, State, Type, From, Packet]).
+    Result :: [jid:simple_jid()].
+c2s_broadcast_recipients(State, Type, From, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
+    ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, HostType, [],
+                                     [State, Type, From, Packet]).
 
--spec c2s_filter_packet(HostType, Server, State, Feature, To, Packet) -> Result when
-    HostType :: binary(),
-    Server :: jid:server(),
+-spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     Feature :: {atom(), binary()},
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: boolean().
-c2s_filter_packet(HostType, Server, State, Feature, To, Packet) ->
+c2s_filter_packet(State, Feature, To, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
     ejabberd_hooks:run_for_host_type(c2s_filter_packet, HostType, true,
-                                     [Server, State, Feature, To, Packet]).
+                                     [State, Feature, To, Packet]).
 
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     State :: ejabberd_c2s:state(),
     Result :: mongoose_acc:t().
 c2s_preprocessing_hook(HostType, Acc, State) ->
     ejabberd_hooks:run_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
 
--spec c2s_presence_in(HostType, State, From, To, Packet) -> Result when
-    HostType :: binary(),
+-spec c2s_presence_in(State, From, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: ejabberd_c2s:state().
-c2s_presence_in(HostType, State, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State,
-                                     [{From, To, Packet}]).
+c2s_presence_in(State, From, To, Packet) ->
+    HostType = ejabberd_c2s_state:host_type(State),
+    ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
 
--spec c2s_stream_features(HostType, Server) -> Result when
-    HostType :: binary(),
-    Server :: jid:server(),
+-spec c2s_stream_features(HostType, LServer) -> Result when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     Result :: [exml:element()].
-c2s_stream_features(HostType, Server) ->
-    ejabberd_hooks:run_for_host_type(c2s_stream_features, HostType, [], [Server]).
+c2s_stream_features(HostType, LServer) ->
+    ejabberd_hooks:run_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
 
 -spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Server :: jid:server(),
     IQ :: jlib:iq(),
     IP :: {inet:ip_address(), inet:port_number()} | undefined,
@@ -564,7 +560,7 @@ c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
                                      [Server, IQ, IP]).
 
 -spec c2s_update_presence(HostType, Acc) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 c2s_update_presence(HostType, Acc) ->
@@ -577,7 +573,7 @@ check_bl_c2s(IP) ->
     ejabberd_hooks:run_global(check_bl_c2s, false, [IP]).
 
 -spec forbidden_session_hook(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
@@ -585,7 +581,7 @@ forbidden_session_hook(HostType, Acc, JID) ->
     ejabberd_hooks:run_for_host_type(forbidden_session_hook, HostType, Acc, [JID]).
 
 -spec session_opening_allowed_for_user(HostType, JID) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     JID :: jid:jid(),
     Result :: allow | any(). %% anything else than 'allow' is interpreted
                              %% as not allowed
@@ -1189,12 +1185,12 @@ s2s_send_packet(Acc, From, To, Packet) ->
 
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
--spec s2s_stream_features(HostType, Server) -> Result when
-    HostType :: binary(),
-    Server :: jid:server(),
+-spec s2s_stream_features(HostType, LServer) -> Result when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     Result :: [exml:element()].
-s2s_stream_features(HostType, Server) ->
-    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [Server]).
+s2s_stream_features(HostType, LServer) ->
+    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [HostType, LServer]).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
@@ -1381,38 +1377,16 @@ update_inbox_for_muc(HostType, Info) ->
 
 %% Caps related hooks
 
--spec caps_add(Server, From, To, Pid, Features) -> Result when
-    Server :: jid:server(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
-    Result :: any().
-caps_add(Server, From, To, Pid, Features) ->
-    ejabberd_hooks:run_for_host_type(caps_add, Server, ok,
-                                     [From, To, Pid, Features]).
-
--spec caps_recognised(Server, Acc, From, Pid, Features) -> Result when
-    Server :: jid:server(),
+-spec caps_recognised(Acc, From, Pid, Features) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     Pid :: pid(),
     Features :: unknown | list(),
     Result :: mongoose_acc:t().
-caps_recognised(Server, Acc, From, Pid, Features) ->
-    ejabberd_hooks:run_for_host_type(caps_recognised, Server, Acc,
+caps_recognised(Acc, From, Pid, Features) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_hooks:run_for_host_type(caps_recognised, HostType, Acc,
                                      [From, Pid, Features]).
-
--spec caps_update(Server, From, To, Pid, Features) -> Result when
-    Server :: jid:server(),
-    From :: jid:jid(),
-    To :: jid:jid(),
-    Pid :: pid(),
-    Features :: unknown | list(),
-    Result :: any().
-caps_update(Server, From, To, Pid, Features) ->
-    ejabberd_hooks:run_for_host_type(caps_update, Server, ok,
-                                     [From, To, Pid, Features]).
 
 %% PubSub related hooks
 

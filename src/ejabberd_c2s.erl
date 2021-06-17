@@ -69,7 +69,7 @@
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
 
--export_type([broadcast/0, packet/0]).
+-export_type([broadcast/0, packet/0, state/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
 
@@ -403,11 +403,11 @@ maybe_sasl_mechanisms(#state{host_type = HostType} = S) ->
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
-                    children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M,S) ]}]
+                    children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M, S) ]}]
     end.
 
-hook_enabled_features(#state{server = Server, host_type = HostType}) ->
-    mongoose_hooks:c2s_stream_features(HostType, Server).
+hook_enabled_features(#state{host_type = HostType, server = LServer}) ->
+    mongoose_hooks:c2s_stream_features(HostType, LServer).
 
 starttls_stanza(TLSRequired)
   when TLSRequired =:= required;
@@ -1135,13 +1135,11 @@ handle_incoming_message({route, From, To, Acc}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
-    #state{server = Server, host_type = HostType} = StateData,
     Acc = new_acc(StateData, #{location => ?LOCATION,
                                from_jid => From,
                                to_jid => To,
                                element => Packet}),
-    Drop = mongoose_hooks:c2s_filter_packet(HostType, Server, StateData,
-                                            Feature, To, Packet),
+    Drop = mongoose_hooks:c2s_filter_packet(StateData, Feature, To, Packet),
     case {Drop, StateData#state.jid} of
         {true, _} ->
             ?LOG_DEBUG(#{what => c2s_dropped_packet, acc => Acc,
@@ -1400,8 +1398,7 @@ privacy_list_push_iq(PrivListName) ->
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Acc, StateData) ->
     Packet = mongoose_acc:element(Acc),
-    State = mongoose_hooks:c2s_presence_in(StateData#state.host_type,
-                                           StateData, From, To, Packet),
+    State = mongoose_hooks:c2s_presence_in(StateData, From, To, Packet),
     case mongoose_acc:stanza_type(Acc) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),

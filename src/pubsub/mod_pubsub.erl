@@ -795,8 +795,7 @@ handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
 %%
 
 handle_remote_hook(HandlerState, pep_message, {Feature, From, Packet}, C2SState) ->
-    Host = ejabberd_c2s_state:server(C2SState),
-    Recipients = mongoose_hooks:c2s_broadcast_recipients(Host, C2SState,
+    Recipients = mongoose_hooks:c2s_broadcast_recipients(C2SState,
                                                          {pep_message, Feature},
                                                          From, Packet),
     lists:foreach(fun(USR) -> ejabberd_router:route(From, jid:make(USR), Packet) end,

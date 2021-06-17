@@ -11,7 +11,7 @@
          process_buffer_and_ack/1]).
 
 %% hooks handlers
--export([add_sm_feature/2,
+-export([c2s_stream_features/3,
          remove_smid/5,
          session_cleanup/5]).
 
@@ -73,7 +73,7 @@ stop(HostType) ->
 
 hooks(HostType) ->
     [{sm_remove_connection_hook, HostType, ?MODULE, remove_smid, 50},
-     {c2s_stream_features, HostType, ?MODULE, add_sm_feature, 50},
+     {c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
      {session_cleanup, HostType, ?MODULE, session_cleanup, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -125,7 +125,9 @@ stale_h_config_spec() ->
 %% hooks handlers
 %%
 
-add_sm_feature(Acc, _Server) ->
+-spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
+          [exml:element()].
+c2s_stream_features(Acc, _HostType, _Lserver) ->
     lists:keystore(<<"sm">>, #xmlel.name, Acc, sm()).
 
 sm() ->

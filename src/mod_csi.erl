@@ -10,7 +10,7 @@
 -export([start/2]).
 -export([stop/1]).
 -export([config_spec/0]).
--export([add_csi_feature/2]).
+-export([c2s_stream_features/3]).
 
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
@@ -38,13 +38,15 @@ config_spec() ->
       }.
 
 hooks() ->
-    [{c2s_stream_features, ?MODULE, add_csi_feature, 60}].
+    [{c2s_stream_features, ?MODULE, c2s_stream_features, 60}].
 
 ensure_metrics(Host) ->
     mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral),
     mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral).
 
-add_csi_feature(Acc, _Host) ->
+-spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
+          [exml:element()].
+c2s_stream_features(Acc, _HostType, _Lserver) ->
     lists:keystore(<<"csi">>, #xmlel.name, Acc, csi()).
 
 csi() ->
