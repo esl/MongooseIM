@@ -49,14 +49,13 @@ stop(HostType) ->
 hooks(HostType) ->
     PM = gen_mod:get_module_opt(HostType, ?MODULE, pm, false),
     MUC = gen_mod:get_module_opt(HostType, ?MODULE, muc, false),
-    case PM of
-        true -> pm_hooks(HostType);
-        false -> []
-    end ++
-    case MUC of
-         true -> muc_hooks(HostType);
-         false -> []
-    end.
+    maybe_pm_hooks(PM, HostType) ++ maybe_muc_hooks(MUC, HostType).
+
+maybe_pm_hooks(true, HostType) -> pm_hooks(HostType);
+maybe_pm_hooks(false, _HostType) -> [].
+
+maybe_muc_hooks(true, HostType) -> muc_hooks(HostType);
+maybe_muc_hooks(false, _HostType) -> [].
 
 pm_hooks(HostType) ->
     [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
