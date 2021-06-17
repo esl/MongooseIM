@@ -1186,7 +1186,7 @@ s2s_send_packet(Acc, From, To, Packet) ->
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
 -spec s2s_stream_features(HostType, LServer) -> Result when
-    HostType :: binary(),
+    HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     Result :: [exml:element()].
 s2s_stream_features(HostType, LServer) ->
