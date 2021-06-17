@@ -55,7 +55,7 @@ init_per_testcase(misconfigured, C) ->
     mongoose_service:start(),
     meck:new(ejabberd_config, [passthrough]),
     meck:expect(ejabberd_config, get_local_option_or_default,
-        fun(services, _) -> [{service_a, []}] end),
+                fun(services, _) -> [{service_a, []}] end),
     meck:new(service_a, [non_strict]),
     meck:expect(service_a, deps, fun() -> [service_b] end),
     C;
@@ -64,6 +64,8 @@ init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun(hosts, _) -> [<<"localhost">>] end),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
     meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),
