@@ -43,7 +43,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
-         process_iq/4,
+         process_iq/5,
          process_local_iq/4,
          get_roster_entry/2,
          get_roster_entry/3,
@@ -237,7 +237,8 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 %% mod_roster's callbacks
 %%--------------------------------------------------------------------
 
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), list()) -> any().
+start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     TrackedFuns = [read_roster_version,
                    write_roster_version,
@@ -247,19 +248,17 @@ start(Host, Opts) ->
                    get_subscription_lists,
                    roster_subscribe_t,
                    update_roster_t,
-                   del_roster_t
-                   ],
+                   del_roster_t],
     gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
-    mod_roster_backend:init(Host, Opts),
+    mod_roster_backend:init(HostType, Opts),
+    ejabberd_hooks:add(hooks(HostType)),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm,
+                                             fun ?MODULE:process_iq/5, #{}, IQDisc).
 
-    ejabberd_hooks:add(hooks(Host)),
-
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ROSTER,
-                                  ?MODULE, process_iq, IQDisc).
-
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ROSTER).
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -309,9 +308,9 @@ jid_arg_to_lower(Jid) when is_binary(Jid) ->
 jid_arg_to_lower(Jid) ->
     jid:to_lower(Jid).
 
--spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_iq(From, To, Acc, IQ) ->
+process_iq(Acc, From, To, IQ, _Extra) ->
     #iq{sub_el = SubEl} = IQ,
     #jid{lserver = LServer} = From,
     case lists:member(LServer, ?MYHOSTS) of
