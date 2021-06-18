@@ -44,7 +44,9 @@ groups() ->
                                  invisible_presence]},
          {presence_priority, [parallel], [negative_priority_presence]},
          {roster, [parallel], [get_roster,
+                               get_another_users_roster,
                                add_contact,
+                               add_contact_for_another_user,
                                remove_contact]},
          {roster_versioning, [parallel], [versioning,
                                           versioning_no_store]},
@@ -277,6 +279,15 @@ get_roster(Config) ->
 
         end).
 
+get_another_users_roster(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:roster_get(),
+        escalus:send(Alice, escalus_stanza:to(Request, BobJid)),
+        escalus_assert:is_roster_result(escalus:wait_for_stanza(Alice))
+
+        end).
+
 add_contact(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
@@ -298,6 +309,17 @@ add_contact(Config) ->
         escalus:assert(is_roster_result, Received2),
         BobJid = escalus_client:short_jid(Bob),
         escalus:assert(roster_contains, [BobJid], Received2)
+
+        end).
+
+add_contact_for_another_user(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:roster_add_contact(BobJid, bobs_default_groups(),
+                                                    bobs_default_name()),
+        escalus:send(Alice, escalus_stanza:to(Request, BobJid)),
+        Received = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([is_roster_set, is_iq_result], Received)
 
         end).
 
