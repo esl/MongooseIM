@@ -44,7 +44,6 @@
          stop/1,
          config_spec/0,
          process_iq/5,
-         process_local_iq/4,
          get_roster_entry/2,
          get_roster_entry/3,
          get_roster/2,
@@ -310,15 +309,15 @@ jid_arg_to_lower(Jid) ->
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_iq(Acc, From, To, IQ, _Extra) ->
-    #iq{sub_el = SubEl} = IQ,
-    #jid{lserver = LServer} = From,
-    case lists:member(LServer, ?MYHOSTS) of
-        true ->
-            process_local_iq(From, To, Acc, IQ);
-        _ ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]}}
-    end.
+process_iq(Acc, From = #jid{lserver = LServer, luser = LUser},
+           To = #jid{lserver = LServer, luser = LUser}, IQ, _Extra) ->
+    process_local_iq(From, To, Acc, IQ);
+process_iq(Acc, _From, _To, IQ = #iq{lang = Lang, sub_el = SubEl}, _Extra) ->
+    %% Error type 'forbidden' is specified in Section 2.3.3 of RFC6121 for iq set.
+    %% The behaviour is unspecified for iq get, but it makes sense to handle them consistently.
+    ErrorMsg = <<"It is forbidden to query the roster of another user">>,
+    ErrorEl = mongoose_xmpp_errors:forbidden(Lang, ErrorMsg),
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, ErrorEl]}}.
 
 -spec process_local_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
