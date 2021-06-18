@@ -17,8 +17,7 @@
 %%==============================================================================
 %%
 -module(mongoose_iq).
--export([try_to_handle_iq/4,
-         iq_to_sub_el/1,
+-export([iq_to_sub_el/1,
          empty_result_iq/1]).
 -export([update_acc_info/1]).
 -export([info/1, xmlns/1, command/1]).
@@ -29,22 +28,6 @@
 %% ---------------------------------------------------------
 %% API
 %% ---------------------------------------------------------
-
-%% @doc Generic error handling code for IQ.
-%% Use this function, instead of `try ... catch _:_ -> ok end'.
--spec try_to_handle_iq(jid:jid(), jid:jid(), jlib:iq(), HandlerF) -> jlib:iq()
-  when
-    HandlerF :: fun((jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq()).
-try_to_handle_iq(From, To, IQ = #iq{sub_el = SubEl}, HandlerF) ->
-    try
-        HandlerF(From, To, IQ)
-    catch Class:Reason:StackTrace ->
-        ?LOG_ERROR(#{what => iq_handler_failed,
-                     from_jid => jid:to_binary(From), to_jid => jid:to_binary(To), iq => IQ,
-                     class => Class, reason => Reason, stacktrace => StackTrace}),
-        IQ#iq{type = error,
-              sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
-    end.
 
 iq_to_sub_el(#iq{sub_el = SubEl}) ->
     SubEl.

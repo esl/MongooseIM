@@ -388,11 +388,7 @@ write_roster_version(LUser, LServer, InTransaction) ->
 %%       BUT the server isn't storing versions on db OR
 %%     - the roster version from client don't match current version.
 -spec process_iq_get(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
-process_iq_get(From, To, IQ) ->
-    mongoose_iq:try_to_handle_iq(From, To, IQ, fun do_process_iq_get/3).
-
--spec do_process_iq_get(jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
-do_process_iq_get(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
+process_iq_get(#jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
     AttrVer = exml_query:attr(SubEl, <<"ver">>), %% type binary() | undefined
     VersioningRequested = is_binary(AttrVer),
     VersioningEnabled = roster_versioning_enabled(LServer),
