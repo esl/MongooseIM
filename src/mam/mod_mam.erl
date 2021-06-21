@@ -280,7 +280,7 @@ user_send_packet(Acc, From, To, Packet) ->
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
-filter_packet({From, To = #jid{lserver = LServer}, Acc1, Packet}) ->
+filter_packet({From, To, Acc1, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),
     {AmpEvent, PacketAfterArchive, Acc3} =
