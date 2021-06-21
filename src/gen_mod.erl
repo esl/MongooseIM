@@ -192,9 +192,7 @@ check_dynamic_domains_support(HostType, Module) ->
             case gen_mod:does_module_support(Module, dynamic_domains) of
                 true -> ok;
                 false ->
-                    ErrorMsg = io_lib:format("dynamic_domains_feature_is_not_supported: ~p ~p", [Module, HostType]),
-                    error_logger:error_msg(lists:flatten(ErrorMsg)),
-                    ok
+                    error({Module, HostType, dynamic_domains_feature_is_not_supported})
             end
     end.
 
