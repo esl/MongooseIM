@@ -50,6 +50,9 @@ stop(_) ->
 
 -spec supported_features() -> [atom()].
 supported_features() ->
+    %% TODO: this module should be reworked into service
+    %% from the quick look it seems that the conversion for dynamic domains is done,
+    %% but there's no testing for this module enabled at dynamic_domains.spec yet.
     [dynamic_domains].
 
 %%--------------------------------------------------------------------
