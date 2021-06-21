@@ -413,6 +413,7 @@ http_handlers() ->
             <<"cowboy_static">>,
             <<"mongoose_api">>,
             <<"mongoose_api_admin">>,
+            <<"mongoose_domain_handler">>,
             default],
     #section{
        items = maps:from_list([{Key, #list{items = http_handler(Key),
@@ -457,6 +458,9 @@ http_handler_items(<<"mongoose_api">>) ->
     #{<<"handlers">> => #list{items = #option{type = atom,
                                               validate = module}}};
 http_handler_items(<<"mongoose_api_admin">>) ->
+    #{<<"username">> => #option{type = binary},
+      <<"password">> => #option{type = binary}};
+http_handler_items(<<"mongoose_domain_handler">>) ->
     #{<<"username">> => #option{type = binary},
       <<"password">> => #option{type = binary}};
 http_handler_items(_) ->

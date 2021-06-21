@@ -84,6 +84,11 @@ db_cases() -> [
      rest_cannot_insert_domain_twice_with_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_delete_domain_with_unknown_host_type,
+     rest_cannot_insert_domain_without_valid_auth,
+     rest_cannot_delete_domain_without_valid_auth,
+     rest_cannot_enable_domain_without_valid_auth,
+     rest_cannot_disable_domain_without_valid_auth,
+     rest_cannot_select_domain_without_valid_auth,
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
@@ -618,6 +623,22 @@ rest_cannot_delete_domain_with_unknown_host_type(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
         rest_delete_domain(<<"example.db">>, <<"type6">>).
 
+rest_cannot_insert_domain_without_valid_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
+        rest_put_domain_with_invalid_auth(<<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_without_valid_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
+        rest_delete_domain_with_invalid_auth(<<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_without_valid_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
+        rest_patch_enabled_with_invalid_auth(<<"example.db">>, true).
+
+rest_cannot_disable_domain_without_valid_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
+        rest_patch_enabled_with_invalid_auth(<<"example.db">>, false).
+
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
      {[{<<"what">>, <<"domain not found">>}]}} =
@@ -641,20 +662,25 @@ rest_cannot_select_domain_if_domain_not_found(Config) ->
      {[{<<"what">>, <<"domain not found">>}]}} =
         rest_select_domain(<<"example.db">>).
 
+rest_cannot_select_domain_without_valid_auth(Config) ->
+    {{<<"403">>, <<"Forbidden">>},
+     {[{<<"what">>, <<"valid auth is required">>}]}} =
+        rest_select_domain_with_invalid_auth(<<"example.db">>).
+
 rest_cannot_put_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, #{}).
+        rest_helper:putt(admin, <<"/domains/example.db">>, #{}, valid_creds()).
 
 rest_cannot_put_domain_without_body(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"body is empty">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, <<>>).
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<>>, valid_creds()).
 
 rest_cannot_put_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>).
+        rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>, valid_creds()).
 
 rest_cannot_put_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>},
@@ -861,31 +887,77 @@ maybe_teardown_meck(_) ->
     %% running unload meck makes no harm even if nothing is mocked
     rpc(mim(), meck, unload, []).
 
+valid_creds() ->
+    {<<"admin">>, <<"secret">>}.
+
+invalid_creds() ->
+    {<<"admin">>, <<"badsecret">>}.
+
+domain_path(Domain) ->
+    <<"/domains/", Domain/binary>>.
+
 rest_patch_enabled(Domain, Enabled) ->
     Params = #{enabled => Enabled},
     rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
-                                path => <<"/domains/", Domain/binary>>,
+                                path => domain_path(Domain),
+                                creds => valid_creds(),
+                                body => Params }).
+
+rest_patch_enabled_with_invalid_auth(Domain, Enabled) ->
+    Params = #{enabled => Enabled},
+    rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
+                                path => domain_path(Domain),
+                                creds => invalid_creds(),
                                 body => Params }).
 
 rest_put_domain(Domain, Type) ->
     Params = #{host_type => Type},
-    rest_helper:putt(admin, <<"/domains/", Domain/binary>>, Params).
+    rest_helper:make_request(#{ role => admin, method => <<"PUT">>,
+                                path => domain_path(Domain),
+                                creds => valid_creds(),
+                                body => Params }).
+
+rest_put_domain_with_invalid_auth(Domain, Type) ->
+    Params = #{host_type => Type},
+    rest_helper:make_request(#{ role => admin, method => <<"PUT">>,
+                                path => domain_path(Domain),
+                                creds => invalid_creds(),
+                                body => Params }).
 
 rest_select_domain(Domain) ->
-    rest_helper:gett(admin, <<"/domains/", Domain/binary>>, #{}).
+    Params = #{},
+    rest_helper:make_request(#{ role => admin, method => <<"GET">>,
+                                path => domain_path(Domain),
+                                creds => valid_creds(),
+                                body => Params }).
+
+rest_select_domain_with_invalid_auth(Domain) ->
+    Params = #{},
+    rest_helper:make_request(#{ role => admin, method => <<"GET">>,
+                                path => domain_path(Domain),
+                                creds => invalid_creds(),
+                                body => Params }).
 
 rest_delete_domain(Domain, HostType) ->
     Params = #{<<"host_type">> => HostType},
     rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
-                                path => <<"/domains/", Domain/binary>>,
+                                path => domain_path(Domain),
+                                creds => valid_creds(),
+                                body => Params }).
+
+rest_delete_domain_with_invalid_auth(Domain, HostType) ->
+    Params = #{<<"host_type">> => HostType},
+    rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
+                                path => domain_path(Domain),
+                                creds => invalid_creds(),
                                 body => Params }).
 
 delete_custom(Role, Path, Body) ->
     rest_helper:make_request(#{ role => Role, method => <<"DELETE">>,
-                                path => Path,
+                                path => Path, creds => valid_creds(),
                                 body => Body }).
 
 patch_custom(Role, Path, Body) ->
     rest_helper:make_request(#{ role => Role, method => <<"PATCH">>,
-                                path => Path,
+                                path => Path, creds => valid_creds(),
                                 body => Body }).

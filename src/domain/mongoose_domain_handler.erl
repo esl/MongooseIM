@@ -10,6 +10,7 @@
          allowed_methods/2,
          content_types_accepted/2,
          content_types_provided/2,
+         is_authorized/2,
          delete_resource/2]).
 
 %% Custom cowboy_rest callbacks.
@@ -17,16 +18,17 @@
          to_json/2]).
 
 -include("mongoose_logger.hrl").
--type state() :: term().
+-type state() :: map().
 
 -spec cowboy_router_paths(ejabberd_cowboy:path(), ejabberd_cowboy:options()) ->
         ejabberd_cowboy:implemented_result().
-cowboy_router_paths(Base, _Opts) ->
-    [{[Base, "/domains/:domain"], ?MODULE, []}].
+cowboy_router_paths(Base, Opts) ->
+    [{[Base, "/domains/:domain"], ?MODULE, Opts}].
 
 %% cowboy_rest callbacks:
+%% Opts could be `[{password, <<\"secret\">>}, {username, <<\"admin\">>}]'.
 init(Req, Opts) ->
-    {cowboy_rest, Req, Opts}.
+    {cowboy_rest, Req, maps:from_list(Opts)}.
 
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"PUT">>, <<"PATCH">>, <<"DELETE">>], Req, State}.
@@ -37,6 +39,28 @@ content_types_accepted(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[{{<<"application">>, <<"json">>, '*'}, to_json}], Req, State}.
+
+is_authorized(Req, State) ->
+    HeaderDetails = cowboy_req:parse_header(<<"authorization">>, Req),
+    ConfigDetails = state_to_details(State),
+    case check_auth(HeaderDetails, ConfigDetails) of
+        true ->
+            {true, Req, State};
+        false ->
+            {false, reply_error(403, <<"valid auth is required">>, Req), State}
+    end.
+
+state_to_details(#{username := User, password := Pass}) ->
+    {basic, User, Pass};
+state_to_details(_) ->
+    not_configured.
+
+check_auth(_HeaderDetails, _ConfigDetails = not_configured) ->
+    true;
+check_auth({basic, User, Pass}, {basic, User, Pass}) ->
+    true;
+check_auth(_, _) ->
+    false.
 
 %% Custom cowboy_rest callbacks:
 -spec to_json(Req, State) -> {Body, Req, State} | {stop, Req, State}

@@ -62,6 +62,8 @@
   [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
+    username = "admin"
+    password = "secret"
 
 [[listen.http]]
   {{#http_api_client_endpoint}}
