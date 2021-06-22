@@ -7,6 +7,11 @@
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
 -import(ejabberdctl_helper, [ejabberdctl/3]).
 
+-define(TEST_PORT, 8866).
+-define(INV_PWD, <<"basic auth provided, invalid password">>).
+-define(NO_PWD, <<"basic auth is required">>).
+-define(UNWANTED_PWD, <<"basic auth provided, but not configured">>).
+
 suite() ->
     require_rpc_nodes([mim, mim2]).
 
@@ -23,7 +28,11 @@ all() ->
     ].
 
 groups() ->
-    [{db, [], db_cases()}].
+    [{db, [], db_cases()},
+     {rest_with_auth, [], [{group, rest_with_auth_parallel}|rest_cases()]},
+     {rest_without_auth, [], [{group, rest_without_auth_parallel}|rest_cases()]},
+     {rest_with_auth_parallel, [parallel], rest_auth_cases(true)},
+     {rest_without_auth_parallel, [parallel], rest_auth_cases(false)}].
 
 db_cases() -> [
      db_inserted_domain_is_in_db,
@@ -76,7 +85,32 @@ db_cases() -> [
      cli_enable_domain_fails_if_service_disabled,
      cli_disable_domain_fails_if_db_fails,
      cli_disable_domain_fails_if_service_disabled,
-     rest_can_insert_domain,
+     {group, rest_with_auth},
+     {group, rest_without_auth}].
+
+rest_auth_cases(false) ->
+    %% auth provided but not configured:
+    [rest_cannot_insert_domain_if_auth_provided_but_not_configured,
+     rest_cannot_delete_domain_if_auth_provided_but_not_configured,
+     rest_cannot_enable_domain_if_auth_provided_but_not_configured,
+     rest_cannot_disable_domain_if_auth_provided_but_not_configured,
+     rest_cannot_select_domain_if_auth_provided_but_not_configured];
+rest_auth_cases(true) ->
+     %% basic auth, but wrong pass:
+    [rest_cannot_insert_domain_with_wrong_pass,
+     rest_cannot_delete_domain_with_wrong_pass,
+     rest_cannot_enable_domain_with_wrong_pass,
+     rest_cannot_disable_domain_with_wrong_pass,
+     rest_cannot_select_domain_with_wrong_pass,
+     %% no basic auth:
+     rest_cannot_insert_domain_without_auth,
+     rest_cannot_delete_domain_without_auth,
+     rest_cannot_enable_domain_without_auth,
+     rest_cannot_disable_domain_without_auth,
+     rest_cannot_select_domain_without_auth].
+
+rest_cases() ->
+    [rest_can_insert_domain,
      rest_can_disable_domain,
      rest_can_delete_domain,
      rest_cannot_delete_domain_without_correct_type,
@@ -84,11 +118,6 @@ db_cases() -> [
      rest_cannot_insert_domain_twice_with_another_host_type,
      rest_cannot_insert_domain_with_unknown_host_type,
      rest_cannot_delete_domain_with_unknown_host_type,
-     rest_cannot_insert_domain_without_valid_auth,
-     rest_cannot_delete_domain_without_valid_auth,
-     rest_cannot_enable_domain_without_valid_auth,
-     rest_cannot_disable_domain_without_valid_auth,
-     rest_cannot_select_domain_without_valid_auth,
      rest_cannot_enable_missing_domain,
      rest_cannot_disable_missing_domain,
      rest_can_enable_domain,
@@ -111,8 +140,7 @@ db_cases() -> [
      rest_delete_domain_fails_if_db_fails,
      rest_delete_domain_fails_if_service_disabled,
      rest_enable_domain_fails_if_db_fails,
-     rest_enable_domain_fails_if_service_disabled
-    ].
+     rest_enable_domain_fails_if_service_disabled].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
 
@@ -154,9 +182,21 @@ init_per_group(db, Config) ->
         true -> [{service, true}|Config];
         false -> {skip, require_rdbms}
     end;
+init_per_group(rest_with_auth, Config) ->
+    start_listener(),
+    [{auth_creds, valid}|Config];
+init_per_group(rest_without_auth, Config) ->
+    start_listener(#{skip_auth => true}),
+    Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(rest_with_auth, Config) ->
+    stop_listener(),
+    Config;
+end_per_group(rest_without_auth, Config) ->
+    stop_listener(),
+    Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -578,190 +618,233 @@ cli_disable_domain_fails_if_service_disabled(Config) ->
 
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
-        rest_put_domain(<<"example.db">>, <<"type1">>),
+        rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_disable_domain(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
-    rest_patch_enabled(<<"example.db">>, false),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    rest_patch_enabled(Config, <<"example.db">>, false),
     {ok, #{host_type := <<"type1">>, enabled := false}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_delete_domain(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {{<<"204">>, _}, _} =
-        rest_delete_domain(<<"example.db">>, <<"type1">>),
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>),
     {error, not_found} = select_domain(mim(), <<"example.db">>).
 
 rest_cannot_delete_domain_without_correct_type(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"wrong host type">>}]}} =
-        rest_delete_domain(<<"example.db">>, <<"type2">>),
+        rest_delete_domain(Config, <<"example.db">>, <<"type2">>),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
 rest_delete_missing_domain(Config) ->
     {{<<"204">>, _}, _} =
-        rest_delete_domain(<<"example.db">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 rest_cannot_enable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
      {[{<<"what">>, <<"domain not found">>}]}} =
-        rest_patch_enabled(<<"example.db">>, true).
+        rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_cannot_insert_domain_twice_with_another_host_type(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {{<<"409">>, <<"Conflict">>}, {[{<<"what">>, <<"duplicate">>}]}} =
-        rest_put_domain(<<"example.db">>, <<"type2">>).
+        rest_put_domain(Config, <<"example.db">>, <<"type2">>).
 
 rest_cannot_insert_domain_with_unknown_host_type(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
-        rest_put_domain(<<"example.db">>, <<"type6">>).
+        rest_put_domain(Config, <<"example.db">>, <<"type6">>).
 
 rest_cannot_delete_domain_with_unknown_host_type(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"unknown host type">>}]}} =
-        rest_delete_domain(<<"example.db">>, <<"type6">>).
+        rest_delete_domain(Config, <<"example.db">>, <<"type6">>).
 
-rest_cannot_insert_domain_without_valid_auth(Config) ->
-    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
-        rest_put_domain_with_invalid_auth(<<"example.db">>, <<"type1">>).
+%% auth provided, but not configured:
+rest_cannot_insert_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?UNWANTED_PWD}]}} =
+        rest_put_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
 
-rest_cannot_delete_domain_without_valid_auth(Config) ->
-    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
-        rest_delete_domain_with_invalid_auth(<<"example.db">>, <<"type1">>).
+rest_cannot_delete_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?UNWANTED_PWD}]}} =
+        rest_delete_domain(set_valid_creds(Config), <<"example.db">>, <<"type1">>).
 
-rest_cannot_enable_domain_without_valid_auth(Config) ->
-    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
-        rest_patch_enabled_with_invalid_auth(<<"example.db">>, true).
+rest_cannot_enable_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?UNWANTED_PWD}]}} =
+        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
 
-rest_cannot_disable_domain_without_valid_auth(Config) ->
-    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, <<"valid auth is required">>}]}} =
-        rest_patch_enabled_with_invalid_auth(<<"example.db">>, false).
+rest_cannot_disable_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?UNWANTED_PWD}]}} =
+        rest_patch_enabled(set_valid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_if_auth_provided_but_not_configured(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, {[{<<"what">>, ?UNWANTED_PWD}]}} =
+        rest_select_domain(set_valid_creds(Config), <<"example.db">>).
+
+%% with wrong pass:
+rest_cannot_insert_domain_with_wrong_pass(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
+        rest_put_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_with_wrong_pass(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
+        rest_delete_domain(set_invalid_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_with_wrong_pass(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
+        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_disable_domain_with_wrong_pass(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
+        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_with_wrong_pass(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
+        rest_select_domain(set_invalid_creds(Config), <<"example.db">>).
+
+%% without auth:
+rest_cannot_insert_domain_without_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
+        rest_put_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_delete_domain_without_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
+        rest_delete_domain(set_no_creds(Config), <<"example.db">>, <<"type1">>).
+
+rest_cannot_enable_domain_without_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
+        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
+
+rest_cannot_disable_domain_without_auth(Config) ->
+    {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
+        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
+
+rest_cannot_select_domain_without_auth(Config) ->
+    {{<<"403">>, <<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
+        rest_select_domain(set_no_creds(Config), <<"example.db">>).
+
 
 rest_cannot_disable_missing_domain(Config) ->
     {{<<"404">>, <<"Not Found">>},
      {[{<<"what">>, <<"domain not found">>}]}} =
-        rest_patch_enabled(<<"example.db">>, false).
+        rest_patch_enabled(Config, <<"example.db">>, false).
 
 rest_can_enable_domain(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
-    rest_patch_enabled(<<"example.db">>, false),
-    rest_patch_enabled(<<"example.db">>, true),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
+    rest_patch_enabled(Config, <<"example.db">>, false),
+    rest_patch_enabled(Config, <<"example.db">>, true),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
 rest_can_select_domain(Config) ->
-    rest_put_domain(<<"example.db">>, <<"type1">>),
+    rest_put_domain(Config, <<"example.db">>, <<"type1">>),
     {{<<"200">>, <<"OK">>},
      {[{<<"host_type">>, <<"type1">>}, {<<"enabled">>, true}]}} =
-        rest_select_domain(<<"example.db">>).
+        rest_select_domain(Config, <<"example.db">>).
 
 rest_cannot_select_domain_if_domain_not_found(Config) ->
     {{<<"404">>, <<"Not Found">>},
      {[{<<"what">>, <<"domain not found">>}]}} =
-        rest_select_domain(<<"example.db">>).
-
-rest_cannot_select_domain_without_valid_auth(Config) ->
-    {{<<"403">>, <<"Forbidden">>},
-     {[{<<"what">>, <<"valid auth is required">>}]}} =
-        rest_select_domain_with_invalid_auth(<<"example.db">>).
+        rest_select_domain(Config, <<"example.db">>).
 
 rest_cannot_put_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, #{}, valid_creds()).
+        putt_domain_with_custom_body(Config, #{}).
 
 rest_cannot_put_domain_without_body(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"body is empty">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, <<>>, valid_creds()).
+        putt_domain_with_custom_body(Config, <<>>).
 
 rest_cannot_put_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
-        rest_helper:putt(admin, <<"/domains/example.db">>, <<"{kek">>, valid_creds()).
+        putt_domain_with_custom_body(Config, <<"{kek">>).
 
 rest_cannot_put_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"domain is static">>}]}} =
-        rest_put_domain(<<"example.cfg">>, <<"type1">>).
+        rest_put_domain(Config, <<"example.cfg">>, <<"type1">>).
 
 rest_cannot_delete_domain_without_host_type(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'host_type' field is missing">>}]}} =
-        delete_custom(admin, <<"/domains/example.db">>, #{}).
+        delete_custom(Config, admin, <<"/domains/example.db">>, #{}).
 
 rest_cannot_delete_domain_without_body(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"body is empty">>}]}} =
-        delete_custom(admin, <<"/domains/example.db">>, <<>>).
+        delete_custom(Config, admin, <<"/domains/example.db">>, <<>>).
 
 rest_cannot_delete_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
-        delete_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+        delete_custom(Config, admin, <<"/domains/example.db">>, <<"{kek">>).
 
 rest_cannot_delete_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"domain is static">>}]}} =
-        rest_delete_domain(<<"example.cfg">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.cfg">>, <<"type1">>).
 
 rest_cannot_patch_domain_without_enabled_field(Config) ->
     {{<<"400">>, <<"Bad Request">>},
      {[{<<"what">>, <<"'enabled' field is missing">>}]}} =
-        patch_custom(admin, <<"/domains/example.db">>, #{}).
+        patch_custom(Config, admin, <<"/domains/example.db">>, #{}).
 
 rest_cannot_patch_domain_without_body(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"body is empty">>}]}} =
-        patch_custom(admin, <<"/domains/example.db">>, <<>>).
+        patch_custom(Config, admin, <<"/domains/example.db">>, <<>>).
 
 rest_cannot_patch_domain_with_invalid_json(Config) ->
     {{<<"400">>,<<"Bad Request">>},
      {[{<<"what">>,<<"failed to parse JSON">>}]}} =
-        patch_custom(admin, <<"/domains/example.db">>, <<"{kek">>).
+        patch_custom(Config, admin, <<"/domains/example.db">>, <<"{kek">>).
 
 %% SQL query is mocked to fail
 rest_insert_domain_fails_if_db_fails(Config) ->
     {{<<"500">>, <<"Internal Server Error">>},
      {[{<<"what">>, <<"database error">>}]}} =
-        rest_put_domain(<<"example.db">>, <<"type1">>).
+        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
 
 rest_insert_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"service disabled">>}]}} =
-        rest_put_domain(<<"example.db">>, <<"type1">>).
+        rest_put_domain(Config, <<"example.db">>, <<"type1">>).
 
 %% SQL query is mocked to fail
 rest_delete_domain_fails_if_db_fails(Config) ->
     {{<<"500">>, <<"Internal Server Error">>},
      {[{<<"what">>, <<"database error">>}]}} =
-        rest_delete_domain(<<"example.db">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 rest_delete_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"service disabled">>}]}} =
-        rest_delete_domain(<<"example.db">>, <<"type1">>).
+        rest_delete_domain(Config, <<"example.db">>, <<"type1">>).
 
 %% SQL query is mocked to fail
 rest_enable_domain_fails_if_db_fails(Config) ->
     {{<<"500">>, <<"Internal Server Error">>},
      {[{<<"what">>, <<"database error">>}]}} =
-        rest_patch_enabled(<<"example.db">>, true).
+        rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_enable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"service disabled">>}]}} =
-        rest_patch_enabled(<<"example.db">>, true).
+        rest_patch_enabled(Config, <<"example.db">>, true).
 
 rest_cannot_enable_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"domain is static">>}]}} =
-        rest_patch_enabled(<<"example.cfg">>, true).
+        rest_patch_enabled(Config, <<"example.cfg">>, true).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -887,77 +970,102 @@ maybe_teardown_meck(_) ->
     %% running unload meck makes no harm even if nothing is mocked
     rpc(mim(), meck, unload, []).
 
-valid_creds() ->
-    {<<"admin">>, <<"secret">>}.
+make_creds(Config) ->
+    case proplists:get_value(auth_creds, Config) of
+        valid ->
+            {<<"admin">>, <<"secret">>};
+        invalid ->
+            {<<"admin">>, <<"badsecret">>};
+        _ ->
+            false
+    end.
 
-invalid_creds() ->
-    {<<"admin">>, <<"badsecret">>}.
+set_invalid_creds(Config) ->
+    [{auth_creds, invalid}|Config].
+
+set_no_creds(Config) ->
+    [{auth_creds, false}|Config].
+
+set_valid_creds(Config) ->
+    [{auth_creds, valid}|Config].
 
 domain_path(Domain) ->
     <<"/domains/", Domain/binary>>.
 
-rest_patch_enabled(Domain, Enabled) ->
+rest_patch_enabled(Config, Domain, Enabled) ->
     Params = #{enabled => Enabled},
     rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
+                                port => ?TEST_PORT,
                                 path => domain_path(Domain),
-                                creds => valid_creds(),
+                                creds => make_creds(Config),
                                 body => Params }).
 
-rest_patch_enabled_with_invalid_auth(Domain, Enabled) ->
-    Params = #{enabled => Enabled},
-    rest_helper:make_request(#{ role => admin, method => <<"PATCH">>,
-                                path => domain_path(Domain),
-                                creds => invalid_creds(),
-                                body => Params }).
-
-rest_put_domain(Domain, Type) ->
+rest_put_domain(Config, Domain, Type) ->
     Params = #{host_type => Type},
     rest_helper:make_request(#{ role => admin, method => <<"PUT">>,
+                                port => ?TEST_PORT,
                                 path => domain_path(Domain),
-                                creds => valid_creds(),
+                                creds => make_creds(Config),
                                 body => Params }).
 
-rest_put_domain_with_invalid_auth(Domain, Type) ->
-    Params = #{host_type => Type},
+putt_domain_with_custom_body(Config, Body) ->
     rest_helper:make_request(#{ role => admin, method => <<"PUT">>,
-                                path => domain_path(Domain),
-                                creds => invalid_creds(),
-                                body => Params }).
+                                port => ?TEST_PORT,
+                                path => <<"/domains/example.db">>,
+                                creds => make_creds(Config),
+                                body => Body }).
 
-rest_select_domain(Domain) ->
+rest_select_domain(Config, Domain) ->
     Params = #{},
     rest_helper:make_request(#{ role => admin, method => <<"GET">>,
+                                port => ?TEST_PORT,
                                 path => domain_path(Domain),
-                                creds => valid_creds(),
+                                creds => make_creds(Config),
                                 body => Params }).
 
-rest_select_domain_with_invalid_auth(Domain) ->
-    Params = #{},
-    rest_helper:make_request(#{ role => admin, method => <<"GET">>,
-                                path => domain_path(Domain),
-                                creds => invalid_creds(),
-                                body => Params }).
-
-rest_delete_domain(Domain, HostType) ->
+rest_delete_domain(Config, Domain, HostType) ->
     Params = #{<<"host_type">> => HostType},
     rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
+                                port => ?TEST_PORT,
                                 path => domain_path(Domain),
-                                creds => valid_creds(),
+                                creds => make_creds(Config),
                                 body => Params }).
 
-rest_delete_domain_with_invalid_auth(Domain, HostType) ->
-    Params = #{<<"host_type">> => HostType},
-    rest_helper:make_request(#{ role => admin, method => <<"DELETE">>,
-                                path => domain_path(Domain),
-                                creds => invalid_creds(),
-                                body => Params }).
-
-delete_custom(Role, Path, Body) ->
+delete_custom(Config, Role, Path, Body) ->
     rest_helper:make_request(#{ role => Role, method => <<"DELETE">>,
-                                path => Path, creds => valid_creds(),
+                                port => ?TEST_PORT,
+                                path => Path, creds => make_creds(Config),
                                 body => Body }).
 
-patch_custom(Role, Path, Body) ->
+patch_custom(Config, Role, Path, Body) ->
     rest_helper:make_request(#{ role => Role, method => <<"PATCH">>,
-                                path => Path, creds => valid_creds(),
+                                port => ?TEST_PORT,
+                                path => Path, creds => make_creds(Config),
                                 body => Body }).
+
+start_listener() ->
+    start_listener(#{}).
+
+stop_listener() ->
+    PortIpNet = {?TEST_PORT, {127,0,0,1}, tcp},
+    ListenerModule = ejabberd_cowboy,
+    rpc(mim(), ejabberd_listener, stop_listener, [PortIpNet, ListenerModule]).
+
+start_listener(Params) ->
+    PortIpNet = {?TEST_PORT, {127,0,0,1}, tcp},
+    ListenerModule = ejabberd_cowboy,
+    ListenerOpts = [{modules, [domain_handler(Params)]},
+                    {transport_options, transport_options()}],
+    rpc(mim(), ejabberd_listener, start_listener,
+        [PortIpNet, ListenerModule, ListenerOpts]).
+
+transport_options() ->
+    [{max_connections, 1024}, {num_acceptors, 10}].
+
+domain_handler(Params) ->
+    {"localhost", "/api", mongoose_domain_handler, handler_opts(Params)}.
+
+handler_opts(#{skip_auth := true}) ->
+    [];
+handler_opts(_Params) ->
+    [{password, <<"secret">>}, {username, <<"admin">>}].

@@ -44,10 +44,14 @@ is_authorized(Req, State) ->
     HeaderDetails = cowboy_req:parse_header(<<"authorization">>, Req),
     ConfigDetails = state_to_details(State),
     case check_auth(HeaderDetails, ConfigDetails) of
-        true ->
+        ok ->
             {true, Req, State};
-        false ->
-            {false, reply_error(403, <<"valid auth is required">>, Req), State}
+        {error, auth_header_passed_but_not_expected} ->
+            {false, reply_error(403, <<"basic auth provided, but not configured">>, Req), State};
+        {error, auth_password_invalid} ->
+            {false, reply_error(403, <<"basic auth provided, invalid password">>, Req), State};
+        {error, no_basic_auth_provided} ->
+            {false, reply_error(403, <<"basic auth is required">>, Req), State}
     end.
 
 state_to_details(#{username := User, password := Pass}) ->
@@ -55,12 +59,16 @@ state_to_details(#{username := User, password := Pass}) ->
 state_to_details(_) ->
     not_configured.
 
+check_auth({basic, _User, _Pass}, _ConfigDetails = not_configured) ->
+    {error, auth_header_passed_but_not_expected};
 check_auth(_HeaderDetails, _ConfigDetails = not_configured) ->
-    true;
+    ok;
 check_auth({basic, User, Pass}, {basic, User, Pass}) ->
-    true;
-check_auth(_, _) ->
-    false.
+    ok;
+check_auth({basic, _, _}, {basic, _, _}) ->
+    {error, auth_password_invalid};
+check_auth(_, {basic, _, _}) ->
+    {error, no_basic_auth_provided}.
 
 %% Custom cowboy_rest callbacks:
 -spec to_json(Req, State) -> {Body, Req, State} | {stop, Req, State}
