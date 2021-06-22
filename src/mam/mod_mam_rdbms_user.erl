@@ -11,7 +11,7 @@
 -module(mod_mam_rdbms_user).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([archive_id/3,
@@ -25,7 +25,6 @@
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
-
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     prepare_queries(),
@@ -36,6 +35,10 @@ start(HostType, _Opts) ->
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 hooks(HostType) ->
     [{Hook, HostType, ?MODULE, Fun, N}

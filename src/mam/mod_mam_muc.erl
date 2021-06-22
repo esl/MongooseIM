@@ -40,7 +40,7 @@
          archive_id/2]).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd room handlers
 -export([disco_muc_features/1,
@@ -157,6 +157,10 @@ stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     remove_iq_handlers(HostType),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 %% ----------------------------------------------------------------------
 %% hooks and handlers for MUC

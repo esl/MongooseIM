@@ -17,7 +17,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([cached_archive_id/3,
@@ -55,7 +55,6 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
-
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     start_server(),
@@ -66,6 +65,10 @@ start(HostType, _Opts) ->
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 writer_child_spec() ->
     MFA = {?MODULE, start_link, []},

@@ -140,6 +140,7 @@ start_module_for_host_type(HostType, Module, Opts0) ->
     try
         lists:map(fun mongoose_service:assert_loaded/1,
                   get_required_services(HostType, Module, Opts)),
+        check_dynamic_domains_support(HostType, Module),
         Res = Module:start(HostType, Opts),
         {links, LinksAfter} = erlang:process_info(self(), links),
         case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
@@ -183,6 +184,17 @@ start_module_for_host_type(HostType, Module, Opts0) ->
                     timer:sleep(3000),
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                                               1, 199))
+            end
+    end.
+
+check_dynamic_domains_support(HostType, Module) ->
+    case lists:member(HostType, ?MYHOSTS) of
+        true -> ok;
+        false ->
+            case gen_mod:does_module_support(Module, dynamic_domains) of
+                true -> ok;
+                false ->
+                    error({Module, HostType, dynamic_domains_feature_is_not_supported})
             end
     end.
 

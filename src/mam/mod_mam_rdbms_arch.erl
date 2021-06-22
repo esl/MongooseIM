@@ -10,7 +10,7 @@
 %% Exports
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_archive).
@@ -75,6 +75,10 @@ start(HostType, Opts) ->
 -spec stop(host_type()) -> ok.
 stop(HostType) ->
     stop_hooks(HostType).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
                            host_type(), jid:jid()) ->

@@ -37,9 +37,18 @@ init_per_suite(C) ->
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(jid),
     {ok, _} = application:ensure_all_started(exometer_core),
+    meck:new(gen_iq_handler, [no_link]),
+    meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
+    meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
+    meck:new(mongoose_domain_api, [no_link]),
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
+    meck:new(ejabberd_config, [no_link, passthrough]),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun(hosts, _) -> [host()] end),
     C.
 
 end_per_suite(C) ->
+    meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     C.
@@ -47,11 +56,6 @@ end_per_suite(C) ->
 init_per_testcase(_TC, C) ->
     init_ets(),
     ejabberd_hooks:start_link(),
-    meck:new(gen_iq_handler),
-    meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
-    meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
-    meck:new(mongoose_domain_api),
-    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
     gen_mod:start(),
     gen_mod:start_module(host(), mod_roster, []),
     C.
@@ -60,8 +64,6 @@ end_per_testcase(_TC, C) ->
     mod_roster:remove_user(a(), host()),
     gen_mod:stop_module(host(), mod_roster),
     delete_ets(),
-    meck:unload(gen_iq_handler),
-    meck:unload(mongoose_domain_api),
     C.
 
 

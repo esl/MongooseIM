@@ -140,7 +140,7 @@ elif [ "$db" = 'pgsql' ]; then
     # make clean && make
     # Than rerun the script to create a new docker container.
     echo "Configuring postgres with SSL"
-    sudo -n service postgresql stop || echo "Failed to stop psql"
+    sudo -n service postgresql stop || echo "Failed to stop pgsql"
     docker rm -v -f $NAME || echo "Skip removing previous container"
     cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
     cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem

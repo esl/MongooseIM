@@ -34,7 +34,7 @@
          delete_room/1]).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% config processing callback
 -export([process_config_schema/1]).
@@ -71,6 +71,10 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec default_schema_definition() -> mod_muc_light_room_config:user_defined_schema().
 default_schema_definition() ->

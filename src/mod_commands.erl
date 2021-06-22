@@ -4,7 +4,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/0, stop/0,
+-export([start/0, stop/0, supported_features/0,
          start/2, stop/1,
          register/3,
          unregister/2,
@@ -42,6 +42,13 @@ stop() ->
 
 start(_, _) -> start().
 stop(_) -> stop().
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    %% TODO: this module should be reworked into service
+    %% from the quick look it seems that the conversion for dynamic domains is done,
+    %% but there's no testing for this module enabled at dynamic_domains.spec yet.
+    [dynamic_domains].
 
 %%%
 %%% mongoose commands
@@ -504,8 +511,8 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                lserver => LServer,
                                element => El }),
     % set subscription to
-    Acc2 = mongoose_hooks:roster_out_subscription(
-             LServer, Acc1, CallerJid, OtherJid, Type),
+    Acc2 = mongoose_hooks:roster_out_subscription(HostType, Acc1, CallerJid,
+                                                  OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

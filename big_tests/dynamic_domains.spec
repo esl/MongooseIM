@@ -50,6 +50,8 @@
 
 {suites, "tests", offline_stub_SUITE}.
 
+{suites, "tests", domain_isolation_SUITE}.
+
 {suites, "tests", sm_SUITE}.
 {skip_cases, "tests", sm_SUITE,
  [basic_ack,

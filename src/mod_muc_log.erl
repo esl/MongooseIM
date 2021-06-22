@@ -34,6 +34,7 @@
 -export([start_link/2,
          start/2,
          stop/1,
+         supported_features/0,
          check_access_log/3,
          add_to_log/5,
          set_room_occupants/4]).
@@ -98,7 +99,6 @@ start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
-
 -spec start(jid:server(), _) -> {'error', _}
                                   | {'ok', 'undefined' | pid()}
                                   | {'ok', 'undefined' | pid(), _}.
@@ -113,13 +113,16 @@ start(Host, Opts) ->
          [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
-
 -spec stop(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->

@@ -8,6 +8,7 @@
 %% gen_mod handlers
 -export([start/2, stop/1]).
 -export([config_spec/0]).
+-export([supported_features/0]).
 
 %% hooks
 -export([filter_local_packet/1]).
@@ -19,32 +20,16 @@
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"extra_domains">> => extra_domains()}
-      }.
+    #section{items = #{}}.
 
-extra_domains() ->
-    #list{items = #option{type = string,
-                          validate = subdomain_template,
-                          process = fun mongoose_subdomain_utils:make_subdomain_pattern/1}}.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(filter_local_packet, HostType, ?MODULE, filter_local_packet, 10).
 
-start(Host, Opts) ->
-    ExtraDomains = proplists:get_value(extra_domains, Opts, []),
-    SubHosts = [mongoose_subdomain_utils:get_fqdn(SubdomainPattern, Host)
-                || SubdomainPattern <- ExtraDomains],
-    AllHosts = [Host|SubHosts],
-    [ejabberd_hooks:add(filter_local_packet, H, ?MODULE, filter_local_packet, 10)
-     || H <- AllHosts],
-    ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(filter_local_packet, HostType, ?MODULE, filter_local_packet, 10).
 
-stop(Host) ->
-    ExtraDomains = gen_mod:get_module_opt(Host, ?MODULE, extra_domains, []),
-    SubHosts = [mongoose_subdomain_utils:get_fqdn(SubdomainPattern, Host)
-                || SubdomainPattern <- ExtraDomains],
-    AllHosts = [Host|SubHosts],
-    [ejabberd_hooks:delete(filter_local_packet, H, ?MODULE, filter_local_packet, 10)
-     || H <- AllHosts],
-    ok.
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
 
 -spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_local_packet(drop) ->
@@ -53,7 +38,7 @@ filter_local_packet({#jid{lserver = Server},
                      #jid{lserver = Server}, _Acc, _Packet} = Arg) ->
     Arg;
 filter_local_packet({#jid{lserver = FromServer} = From,
-                     #jid{lserver = ToServer} = To, Acc, Packet} = Arg) ->
+                     #jid{lserver = ToServer} = To, Acc, _Packet} = Arg) ->
     FromHost = domain_to_host(FromServer),
     ToHost = domain_to_host(ToServer),
     case FromHost =:= ToHost of

@@ -10,7 +10,7 @@
 %% Exports
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% MAM hook handlers
 -behaviour(ejabberd_gen_mam_prefs).
@@ -34,7 +34,6 @@
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
-
 -spec start(mongooseim:host_type(), _) -> ok.
 start(HostType, _Opts) ->
     prepare_queries(HostType),
@@ -45,6 +44,10 @@ start(HostType, _Opts) ->
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     ok.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 hooks(HostType) ->
     PM = gen_mod:get_module_opt(HostType, ?MODULE, pm, false),

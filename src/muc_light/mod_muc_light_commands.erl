@@ -22,7 +22,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 -export([create_unique_room/4]).
 -export([create_identifiable_room/5]).
@@ -48,6 +48,12 @@ start(_, _) ->
 stop(_) ->
     mongoose_commands:unregister(commands()).
 
+-spec supported_features() -> [atom()].
+supported_features() ->
+    %% TODO: this module should be reworked into service
+    %% from the quick look it seems that the conversion for dynamic domains is done,
+    %% but there's no testing for this module enabled at dynamic_domains.spec yet.
+    [dynamic_domains].
 
 %%--------------------------------------------------------------------
 %% Interface descriptions

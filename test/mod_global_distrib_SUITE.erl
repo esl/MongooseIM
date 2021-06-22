@@ -130,8 +130,8 @@ fake_acc_to_component(From) ->
 
 set_meck() ->
     meck:new(ejabberd_config, []),
-    meck:expect(ejabberd_config, get_global_option,
-                fun(hosts) -> [global_host(), local_host()] end),
+    meck:expect(ejabberd_config, get_global_option_or_default,
+                fun(hosts, _) -> [global_host(), local_host()] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
 
     meck:new(mongoose_metrics, []),

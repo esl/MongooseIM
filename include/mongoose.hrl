@@ -22,7 +22,7 @@
 %% If the ejabberd application description isn't loaded, returns atom: undefined
 -define(MONGOOSE_VERSION, element(2, application:get_key(mongooseim,vsn))).
 
--define(MYHOSTS, ejabberd_config:get_global_option(hosts)).
+-define(MYHOSTS, ejabberd_config:get_global_option_or_default(hosts, [])).
 -define(ALL_HOST_TYPES, ejabberd_config:get_global_option_or_default(hosts, []) ++
                         ejabberd_config:get_global_option_or_default(host_types, [])).
 -define(MYNAME,  ejabberd_config:get_global_option(default_server_domain)).
