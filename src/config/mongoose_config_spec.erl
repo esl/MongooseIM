@@ -1231,6 +1231,15 @@ process_http_handler_opts(<<"mongoose_api_admin">>, Opts) ->
         {[], []} -> [];
         {[{username, User}], [{password, Pass}]} -> [{auth, {User, Pass}}]
     end;
+process_http_handler_opts(<<"mongoose_domain_handler">>, Opts) ->
+    {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
+    case {UserOpts, PassOpts} of
+        {[], []} -> ok;
+        {[{username, User}], [{password, Pass}]} -> ok;
+        _ -> error(#{what => both_username_and_password_required,
+                     handler => mongoose_domain_handler, opts => Opts})
+    end,
+    Opts;
 process_http_handler_opts(<<"cowboy_swagger_redirect_handler">>, []) -> #{};
 process_http_handler_opts(<<"cowboy_swagger_json_handler">>, []) -> #{};
 process_http_handler_opts(_, Opts) -> Opts.
