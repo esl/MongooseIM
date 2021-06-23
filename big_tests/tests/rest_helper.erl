@@ -195,13 +195,13 @@ fusco_request(#{ role := Role, method := Method, creds := {User, Password},
     Basic = list_to_binary("Basic " ++ EncodedAuth),
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers,
-                  get_port(Role, Server), get_ssl_status(Role, Server), Params);
+                  get_port(Role, Server, Params), get_ssl_status(Role, Server), Params);
 %% an API to just send a request to a given port, without authentication
 fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = Params) ->
     fusco_request(Method, Path, Body, [], Port, false, Params);
 %% without credentials it is for admin (secure) interface
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
-    fusco_request(Method, Path, Body, [], get_port(Role, Server), get_ssl_status(Role, Server), Params).
+    fusco_request(Method, Path, Body, [], get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
     fusco_request(Method, Path, Body, HeadersIn, Port, SSL, #{}).
@@ -244,8 +244,10 @@ report_errors(Client, Path, Method, Headers, Body,
             ok
     end.
 
--spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec()) -> Port :: integer().
-get_port(Role, Node) ->
+-spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec(), map()) -> Port :: integer().
+get_port(_Role, _Node, #{port := Port}) ->
+    Port;
+get_port(Role, Node, Params) ->
     Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] =
         lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),

@@ -135,12 +135,30 @@ Configuration example:
   [[listen.http.handlers.mongoose_domain_handler]]
     host = "localhost"
     path = "/api"
+    username = "admin"
+    password = "secret"
 ```
+
+#### `listen.http.handlers.mongoose_domain_handler.username`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `username = "admin"`
+
+When set, enables authentication to access this endpoint. Requires setting `password`.
+
+#### `listen.http.handlers.mongoose_domain_handler.password`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `password = "secret"`
+
+Required to enable authentication for this endpoint.
+
 
 ## Add domain
 
 ```bash
 curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
+    --user admin:secret \
     -H 'content-type: application/json' \
     -d '{"host_type": "type1"}'
 ```
@@ -168,6 +186,7 @@ You must provide the domain's host type inside the body:
 
 ```bash
 curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
+    --user admin:secret \
     -H 'content-type: application/json' \
     -d '{"host_type": "type1"}'
 ```
@@ -189,6 +208,7 @@ Provide `{"enabled": false}` as a body to disable a domain.
 
 ```bash
 curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
+    --user admin:secret \
     -H 'content-type: application/json' \
     -d '{"enabled": true}'
 ```

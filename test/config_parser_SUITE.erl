@@ -98,7 +98,8 @@ groups() ->
                            listen_http_handlers_websockets,
                            listen_http_handlers_lasse,
                            listen_http_handlers_static,
-                           listen_http_handlers_api]},
+                           listen_http_handlers_api,
+                           listen_http_handlers_domain]},
      {auth, [parallel], [auth_methods,
                          auth_password_format,
                          auth_scram_iterations,
@@ -825,6 +826,21 @@ listen_http_handlers_api(_Config) ->
                                                                     <<"mongoose_api_users">>]})),
     ?err(parse_http_handler(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
     ?err(parse_http_handler(<<"mongoose_api">>, #{})).
+
+listen_http_handlers_domain(_Config) ->
+    ?eq(listener_config(ejabberd_cowboy,
+                        [{modules, [{"localhost", "/api", mongoose_domain_handler,
+                                     [{password, <<"cool">>}, {username, <<"admin">>}]
+                                    }]}]),
+        parse_http_handler(<<"mongoose_domain_handler">>,
+                           #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
+    ?eq(listener_config(ejabberd_cowboy,
+                        [{modules, [{"localhost", "/api", mongoose_domain_handler,
+                                     [] }]}]),
+        parse_http_handler(<<"mongoose_domain_handler">>, #{})),
+    %% Both username and password required. Or none.
+    ?err(parse_http_handler(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
+    ?err(parse_http_handler(<<"mongoose_domain_handler">>, #{<<"password">> => <<"cool">>})).
 
 %% tests: auth
 
