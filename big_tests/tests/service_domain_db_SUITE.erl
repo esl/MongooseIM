@@ -695,7 +695,7 @@ rest_cannot_delete_domain_with_wrong_pass(Config) ->
 
 rest_cannot_enable_domain_with_wrong_pass(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
-        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, false).
+        rest_patch_enabled(set_invalid_creds(Config), <<"example.db">>, true).
 
 rest_cannot_disable_domain_with_wrong_pass(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?INV_PWD}]}} =
@@ -716,7 +716,7 @@ rest_cannot_delete_domain_without_auth(Config) ->
 
 rest_cannot_enable_domain_without_auth(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
-        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, false).
+        rest_patch_enabled(set_no_creds(Config), <<"example.db">>, true).
 
 rest_cannot_disable_domain_without_auth(Config) ->
     {{<<"403">>,<<"Forbidden">>}, {[{<<"what">>, ?NO_PWD}]}} =
