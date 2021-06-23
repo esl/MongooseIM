@@ -86,7 +86,7 @@ remove_user(Acc, LUser, LServer) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     Tab = tbl_name(HostType),
-    ets:match_delete(Tab, {Domain, '_'}),
+    ets:match_delete(Tab, {{Domain, '_'}}),
     Acc.
 
 %%====================================================================
@@ -107,7 +107,7 @@ does_cached_user_exist(HostType, LServer, LUser) ->
 put_user_into_cache(HostType, LServer, LUser) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(HostType),
-    ets:insert(Tab, Key),
+    ets:insert(Tab, {Key}),
     ok.
 
 -spec delete_user(mongooseim:host_type(), jid:lserver(), jid:luser()) -> ok.
