@@ -834,6 +834,10 @@ listen_http_handlers_domain(_Config) ->
                                     }]}]),
         parse_http_handler(<<"mongoose_domain_handler">>,
                            #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
+    ?eq(listener_config(ejabberd_cowboy,
+                        [{modules, [{"localhost", "/api", mongoose_domain_handler,
+                                     [] }]}]),
+        parse_http_handler(<<"mongoose_domain_handler">>, #{})),
     %% Both username and password required. Or none.
     ?err(parse_http_handler(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
     ?err(parse_http_handler(<<"mongoose_domain_handler">>, #{<<"password">> => <<"cool">>})).
