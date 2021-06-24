@@ -24,6 +24,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [host_type/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -715,10 +717,9 @@ check_subscription_stanzas(Stanzas, Type) ->
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
 
 remove_roster(Config, UserSpec) ->
-    HostType = domain_helper:host_type(),
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
                                  Item <- escalus_users:get_usp(Config, UserSpec)],
-    Mods = rpc(mim(), gen_mod, loaded_modules, [Server]),
+    Mods = rpc(mim(), gen_mod, loaded_modules, [host_type()]),
     case lists:member(mod_roster, Mods) of
         true ->
             Acc = mongoose_helper:new_mongoose_acc(Server),
@@ -726,29 +727,27 @@ remove_roster(Config, UserSpec) ->
         false ->
             case lists:member(mod_roster_rdbms, Mods) of
                 true ->
-                    rpc(mim(), mod_roster_rdbms, remove_user_t, [HostType, Username, Server]);
+                    rpc(mim(), mod_roster_rdbms, remove_user_t, [host_type(), Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end
     end.
 
 set_versioning(Versioning, VersionStore, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = rpc(mim(), gen_mod, get_module_opt,
-                           [Host, mod_roster, versioning, false]),
+                           [host_type(), mod_roster, versioning, false]),
     RosterVersionOnDb = rpc(mim(), gen_mod, get_module_opt,
-                            [Host, mod_roster, store_current_id, false]),
-    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, versioning, Versioning]),
-    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, store_current_id, VersionStore]),
+                            [host_type(), mod_roster, store_current_id, false]),
+    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, versioning, Versioning]),
+    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, store_current_id, VersionStore]),
     [{versioning, RosterVersioning},
      {store_current_id, RosterVersionOnDb} | Config].
 
 restore_versioning(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = proplists:get_value(versioning, Config),
     RosterVersionOnDb = proplists:get_value(store_current_id, Config),
-    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
-    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
+    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, versioning, RosterVersioning]),
+    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, store_current_id, RosterVersionOnDb]).
 
 
 check_roster_count(User, ExpectedCount) ->
@@ -759,4 +758,3 @@ check_roster_count(User, ExpectedCount) ->
     % Roster contains all created users excluding user
     escalus:assert(is_roster_result, Roster),
     escalus:assert(count_roster_items, [ExpectedCount], Roster).
-
