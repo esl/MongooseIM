@@ -252,7 +252,7 @@ get_versioning_feature(Acc, HostType) ->
     end.
 
 roster_version(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
-    case roster_version_on_db(LServer) of
+    case roster_version_on_db(HostType) of
         true ->
             case read_roster_version(HostType, LUser, LServer) of
                 error -> not_found;
@@ -271,11 +271,11 @@ roster_version(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
 %%       BUT the server isn't storing versions on db OR
 %%     - the roster version from client don't match current version.
 -spec process_iq_get(mongooseim:host_type(), jid:jid(), jid:jid(), jlib:iq()) -> jlib:iq().
-process_iq_get(HostType, #jid{lserver = LServer} = From, To, #iq{sub_el = SubEl} = IQ) ->
+process_iq_get(HostType, From, To, #iq{sub_el = SubEl} = IQ) ->
     AttrVer = exml_query:attr(SubEl, <<"ver">>), %% type binary() | undefined
     VersioningRequested = is_binary(AttrVer),
-    VersioningEnabled = roster_versioning_enabled(LServer),
-    VersionOnDb = roster_version_on_db(LServer),
+    VersioningEnabled = roster_versioning_enabled(HostType),
+    VersionOnDb = roster_version_on_db(HostType),
     Strategy = choose_get_user_roster_strategy(VersioningRequested, VersioningEnabled, VersionOnDb),
     {ItemsToSend, VersionToSend} =
         get_user_roster_based_on_version(HostType, Strategy, AttrVer, From, To),
@@ -687,7 +687,7 @@ process_subscription_t(HostType, Direction, JID, ContactJID, Type, Reason) ->
                                   ask = Pending,
                                   askmessage = iolist_to_binary(AskMessage)},
             roster_subscribe_t(HostType, NewItem),
-            case roster_version_on_db(LServer) of
+            case roster_version_on_db(HostType) of
                 true -> write_roster_version_t(HostType, LUser, LServer);
                 false -> ok
             end,
