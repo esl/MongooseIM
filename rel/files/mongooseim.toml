@@ -256,7 +256,7 @@
   access = "register"
 {{#mod_roster}}
 
-{{{mod_roster}}}
+[modules.mod_roster]{{{mod_roster}}}
 {{/mod_roster}}
 
 [modules.mod_sic]
