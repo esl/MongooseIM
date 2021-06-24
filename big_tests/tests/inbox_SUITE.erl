@@ -215,6 +215,9 @@ init_per_group(muc, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(muc, Config) ->
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:stop(HostType, mod_muc);
 end_per_group(muclight, Config) ->
     muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
