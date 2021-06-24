@@ -43,6 +43,7 @@
 -export([start/2,
          stop/1,
          config_spec/0,
+         supported_features/0,
          process_iq/5,
          get_roster_entry/4,
          item_to_map/1,
@@ -194,6 +195,8 @@ riak_config_spec() ->
                                                             validate = non_empty}},
              format = none
             }.
+
+supported_features() -> [dynamic_domains].
 
 hooks(HostType) ->
     [{roster_get, HostType, ?MODULE, get_user_roster, 50},
