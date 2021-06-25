@@ -1,4 +1,4 @@
-# MongooseIM core component
+## MongooseIM core component
 
 Implemented by `mongoose_domain_core` module.
 
@@ -42,7 +42,7 @@ It must provide the following interfaces:
 - Static domains are not replicated.
 - Static domains has priority above DB domains.
 
-# MongooseIM service
+## MongooseIM service
 
 Implements the service behaviour.
 Implemented by `service_domain_db` module.
@@ -102,28 +102,37 @@ Configure host-type first to delete such domains.
 ## Service options
 
 ### `event_cleaning_interval`
-
 The number of seconds between cleaning attempts of the `domain_events` table.
-
 * **Syntax:** positive integer
 * **Default:** `1800` (30 minutes)
 * **Example:** `event_cleaning_interval = 1800`
 
 ### `event_max_age`
-
 The number of seconds after an event must be deleted from the `domain_events` table.
-
 * **Syntax:** positive integer
 * **Default:** `7200` (2 hours)
 * **Example:** `event_max_age = 7200`
 
-# REST API
+## REST API
 
 Provides API for adding/removing and enabling/disabling domains over HTTP.
-
 Implemented by `mongoose_domain_handler` module.
 
-Configuration example:
+### `listen.http.handlers.mongoose_domain_handler.username`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `username = "admin"`
+
+When set, enables authentication to access this endpoint. Requires setting `password`.
+
+### `listen.http.handlers.mongoose_domain_handler.password`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `password = "secret"`
+
+Required to enable authentication for this endpoint.
+
+### Example configuration
 
 ```toml
 [[listen.http]]
@@ -139,22 +148,7 @@ Configuration example:
     password = "secret"
 ```
 
-#### `listen.http.handlers.mongoose_domain_handler.username`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `username = "admin"`
-
-When set, enables authentication to access this endpoint. Requires setting `password`.
-
-#### `listen.http.handlers.mongoose_domain_handler.password`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `password = "secret"`
-
-Required to enable authentication for this endpoint.
-
-
-## Add domain
+### Add domain
 
 ```bash
 curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
@@ -180,7 +174,7 @@ Example of the result body with a failure reason:
 Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
 
 
-## Delete domain
+### Delete domain
 
 You must provide the domain's host type inside the body:
 
@@ -201,7 +195,7 @@ Result codes:
 * 500 - other errors.
 
 
-## Enable/disable domain
+### Enable/disable domain
 
 Provide `{"enabled": true}` as a body to enable a domain.
 Provide `{"enabled": false}` as a body to disable a domain.
@@ -221,11 +215,11 @@ Result codes:
 * 403 - service disabled.
 
 
-# Command Line Interface
+## Command Line Interface
 
 Implemented by `service_admin_extra_domain` module.
 
-Configuration example:
+### Configuration example:
 
 ```toml
 [services.service_admin_extra]
@@ -233,25 +227,25 @@ Configuration example:
              "roster", "last", "private", "stanza", "stats", "domain"]
 ```
  
-Add domain:
+### Add domain:
 
 ```
 ./mongooseimctl insert_domain domain host_type
 ```
 
-Delete domain:
+### Delete domain:
 
 ```
 ./mongooseimctl delete_domain domain host_type
 ```
 
-Disable domain:
+### Disable domain:
 
 ```
 ./mongooseimctl disable_domain domain
 ```
 
-Enable domain:
+### Enable domain:
 
 ```
 ./mongooseimctl enable_domain domain
