@@ -429,7 +429,7 @@ rooms_in_rosters(Config) ->
                         distributed_helper:mim(),
                         mod_roster,
                         get_user_rosters_length,
-                        [jid:make(AliceU, AliceS, <<>>)])
+                        [host_type(), jid:make(AliceU, AliceS, <<>>)])
                 end, 1, #{time_left => timer:seconds(10)}),
             RosterResult = escalus:wait_for_stanza(Alice),
             escalus_assert:is_roster_result(RosterResult),

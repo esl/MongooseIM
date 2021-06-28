@@ -715,16 +715,18 @@ check_subscription_stanzas(Stanzas, Type) ->
     escalus:assert_many([is_roster_set, IsPresWithType], Stanzas).
 
 remove_roster(Config, UserSpec) ->
+    HostType = domain_helper:host_type(),
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
                                  Item <- escalus_users:get_usp(Config, UserSpec)],
     Mods = rpc(mim(), gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->
-            rpc(mim(), mod_roster, remove_user, [Username, Server]);
+            Acc = mongoose_helper:new_mongoose_acc(Server),
+            rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]);
         false ->
             case lists:member(mod_roster_rdbms, Mods) of
                 true ->
-                    rpc(mim(), mod_roster_rdbms, remove_user, [Username, Server]);
+                    rpc(mim(), mod_roster_rdbms, remove_user_t, [HostType, Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end
