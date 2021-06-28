@@ -163,7 +163,12 @@ stop_roster_module(_) ->
 
 get_auth_method() ->
     XMPPDomain = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]).
+    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
+        [Method|_] ->
+            Method;
+        _ ->
+            none
+    end.
 
 get_ldap_args() ->
     [
