@@ -18,24 +18,18 @@
 %% API
 -export([init/2,
          transaction/2,
-         read_roster_version/2,
-         write_roster_version/4,
-         get_roster/2,
-         get_roster_entry/3,
-         get_roster_entry/4,
-         get_roster_entry_t/3,
-         get_roster_entry_t/4,
+         read_roster_version/3,
+         write_roster_version/5,
+         get_roster/3,
+         get_roster_entry/6,
          get_subscription_lists/3,
-         roster_subscribe_t/4,
-         remove_user/2,
-         update_roster_t/4,
-         del_roster_t/3
-         ]).
+         roster_subscribe_t/2,
+         update_roster_t/2,
+         del_roster_t/4,
+         remove_user_t/3]).
 
--export([raw_to_record/2]).
-
--spec init(jid:server(), list()) -> ok.
-init(_Host, _Opts) ->
+-spec init(mongooseim:host_type(), list()) -> ok.
+init(_HostType, _Opts) ->
     mnesia:create_table(roster,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, roster)}]),
@@ -46,29 +40,27 @@ init(_Host, _Opts) ->
     mnesia:add_table_index(roster_version, us),
     ok.
 
--spec transaction(LServer :: jid:lserver(), F :: fun()) ->
-    {aborted, Reason :: any()} | {atomic, Result :: any()}.
-transaction(_LServer, F) ->
+-spec transaction(mongooseim:host_type(), fun(() -> any())) ->
+    {aborted, any()} | {atomic, any()}.
+transaction(_HostType, F) ->
     mnesia:transaction(F).
 
--spec read_roster_version(jid:luser(), jid:lserver()) -> binary() | error.
-read_roster_version(LUser, LServer) ->
+-spec read_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+    binary() | error.
+read_roster_version(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     case mnesia:dirty_read(roster_version, US) of
         [#roster_version{version = V}] -> V;
         [] -> error
     end.
 
--spec write_roster_version(LUser :: jid:luser(),
-                           LServer :: jid:lserver(),
-                           InTransaction :: boolean(),
-                           Ver :: binary()) -> ok.
-write_roster_version(LUser, LServer, true, Ver) ->
-    mnesia:write(#roster_version{us = {LUser, LServer}, version = Ver});
-write_roster_version(LUser, LServer, _, Ver) ->
-    mnesia:dirty_write(#roster_version{us = {LUser, LServer}, version = Ver}).
+-spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                               mod_roster:transaction_state(), mod_roster:version()) -> ok.
+write_roster_version(_HostType, LUser, LServer, TransactionState, Ver) ->
+    write(#roster_version{us = {LUser, LServer}, version = Ver}, TransactionState).
 
-get_roster(LUser, LServer) ->
+-spec get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
+get_roster(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_index_read(roster, US,
                                        #roster.us)
@@ -77,29 +69,19 @@ get_roster(LUser, LServer) ->
         _ -> []
     end.
 
-get_roster_entry(LUser, LServer, LJID) ->
+-spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
+                           mod_roster:transaction_state(), mod_roster:entry_format()) ->
+    mod_roster:roster() | does_not_exist.
+get_roster_entry(_HostType, LUser, LServer, LJID, TransactionState, _Format) ->
     LowerJID = jid:to_lower(LJID),
-    case mnesia:dirty_read({roster, {LUser, LServer, LowerJID}}) of
+    case read({roster, {LUser, LServer, LowerJID}}, TransactionState) of
         [] ->
             does_not_exist;
         [I] ->
             I#roster{jid = LJID, xs = []}
     end.
 
-get_roster_entry(LUser, LServer, LJID, full) ->
-    get_roster_entry(LUser, LServer, LJID).
-
-get_roster_entry_t(LUser, LServer, LJID) ->
-    case mnesia:read({roster, {LUser, LServer, LJID}}) of
-        [] ->
-            does_not_exist;
-        [I] ->
-            I#roster{jid = LJID, xs = []}
-    end.
-
-get_roster_entry_t(LUser, LServer, LJID, full) ->
-    get_roster_entry_t(LUser, LServer, LJID).
-
+-spec get_subscription_lists(mongoose_acc:t(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
 get_subscription_lists(_, LUser, LServer) ->
     US = {LUser, LServer},
     case catch mnesia:dirty_index_read(roster, US, #roster.us) of
@@ -107,23 +89,29 @@ get_subscription_lists(_, LUser, LServer) ->
         _ -> []
     end.
 
-roster_subscribe_t(_LUser, _LServer, _LJID, Item) ->
+-spec roster_subscribe_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
+roster_subscribe_t(_HostType, Item) ->
     mnesia:write(Item).
 
-remove_user(LUser, LServer) ->
-    US = {LUser, LServer},
-    F = fun () ->
-                lists:foreach(fun (R) -> mnesia:delete_object(R) end,
-                              mnesia:index_read(roster, US, #roster.us))
-        end,
-    mnesia:transaction(F).
-
-update_roster_t(_LUser, _LServer, _LJID, Item) ->
+-spec update_roster_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
+update_roster_t(_HostType, Item) ->
     mnesia:write(Item).
 
-del_roster_t(LUser, LServer, LJID) ->
+-spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact()) -> ok.
+del_roster_t(_HostType, LUser, LServer, LJID) ->
     mnesia:delete({roster, {LUser, LServer, LJID}}).
 
+-spec remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user_t(_HostType, LUser, LServer) ->
+    US = {LUser, LServer},
+    lists:foreach(fun (R) -> mnesia:delete_object(R) end,
+                  mnesia:index_read(roster, US, #roster.us)),
+    ok.
 
-raw_to_record(_, Item) -> Item.
+%% Helpers
 
+write(Record, in_transaction) -> mnesia:write(Record);
+write(Record, no_transaction) -> mnesia:dirty_write(Record).
+
+read(TabKey, in_transaction) -> mnesia:read(TabKey);
+read(TabKey, no_transaction) -> mnesia:dirty_read(TabKey).
