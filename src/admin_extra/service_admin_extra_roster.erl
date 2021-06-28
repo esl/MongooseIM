@@ -168,10 +168,10 @@ add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
         true ->
             RemoteJID = jid:make(User, Server, <<>>),
             case subscribe(LocalJID, RemoteJID, Nick, Group, Subs, []) of
-                {atomic, _} ->
+                ok ->
                     do_add_rosteritem(LocalJID, RemoteJID, Nick, Group, Subs);
-                Other ->
-                    {error, io_lib:format("~p", [Other])}
+                {error, Reason} ->
+                    {error, io_lib:format("~p", [Reason])}
             end;
         false ->
             {user_does_not_exist,
@@ -197,13 +197,14 @@ do_add_rosteritem(LocalJID, RemoteJID, Nick, Group, Subs) ->
                 Nick :: binary(),
                 Group :: binary() | string(),
                 Subs :: subs(),
-                _Xattrs :: [jlib:binary_pair()]) -> any().
+                _Xattrs :: [jlib:binary_pair()]) -> ok | {error, any()}.
 subscribe(LocalJID, RemoteJID, Nick, Group, SubscriptionS, _Xattrs) ->
     ItemEl = build_roster_item(RemoteJID, {add, Nick, SubscriptionS, Group}),
     QueryEl = #xmlel{ name = <<"query">>,
                       attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
                       children = [ItemEl]},
-    mod_roster:set_items(LocalJID, QueryEl).
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LocalJID#jid.lserver),
+    mod_roster:set_items(HostType, LocalJID, QueryEl).
 
 
 -spec delete_rosteritem(LocalUser :: jid:user(),
@@ -217,12 +218,12 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
         true ->
             RemoteJID = jid:make(User, Server, <<>>),
             case unsubscribe(LocalJID, RemoteJID) of
-                {atomic, ok} ->
+                ok ->
                     push_roster_item(LocalJID, RemoteJID, remove),
                     {ok, io_lib:format("The item removed from roster of ~s",
                                        [jid:to_binary(LocalJID)])};
-                Other ->
-                    {error, io_lib:format("~p", [Other])}
+                {error, Reason} ->
+                    {error, io_lib:format("~p", [Reason])}
             end;
         false ->
             {user_does_not_exist,
@@ -232,13 +233,14 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
 
 
 %% @doc returns result of mnesia or rdbms transaction
--spec unsubscribe(LocalJID :: jid:jid(), RemoteJID :: jid:jid()) -> any().
+-spec unsubscribe(LocalJID :: jid:jid(), RemoteJID :: jid:jid()) -> ok | {error, any()}.
 unsubscribe(LocalJID, RemoteJID) ->
     ItemEl = build_roster_item(RemoteJID, remove),
     QueryEl = #xmlel{ name = <<"query">>,
               attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
               children = [ItemEl]},
-    mod_roster:set_items(LocalJID, QueryEl).
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LocalJID#jid.lserver),
+    mod_roster:set_items(HostType, LocalJID, QueryEl).
 
 %% -----------------------------
 %% Get Roster
