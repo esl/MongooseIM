@@ -511,8 +511,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                lserver => LServer,
                                element => El }),
     % set subscription to
-    Acc2 = mongoose_hooks:roster_out_subscription(HostType, Acc1, CallerJid,
-                                                  OtherJid, Type),
+    Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJid, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

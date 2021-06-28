@@ -40,7 +40,7 @@
          handle_info/2, terminate/2, code_change/3]).
 
 -export([get_user_roster/2, get_subscription_lists/2,
-         get_jid_info/3, process_item/2, in_subscription/5,
+         get_jid_info/4, process_item/2, in_subscription/5,
          out_subscription/4]).
 
 -export([config_change/4]).
@@ -193,7 +193,7 @@ get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
     mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
 
-get_jid_info({Subscription, Groups}, ToJID, JID) ->
+get_jid_info({Subscription, Groups}, _HostType, ToJID, JID) ->
     ToUS = jid:to_lus(ToJID),
     US1 = jid:to_lus(JID),
     SRUsers = get_user_to_groups_map(ToUS, false),

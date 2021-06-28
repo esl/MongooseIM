@@ -72,11 +72,11 @@
 -export([roster_get/2,
          roster_get_jid_info/3,
          roster_get_subscription_lists/3,
-         roster_get_versioning_feature/2,
+         roster_get_versioning_feature/1,
          roster_groups/1,
          roster_in_subscription/5,
-         roster_out_subscription/5,
-         roster_process_item/2,
+         roster_out_subscription/4,
+         roster_process_item/3,
          roster_push/3,
          roster_set/4]).
 
@@ -765,14 +765,14 @@ roster_groups(LServer) ->
 %%% * RemoteBareJID, a bare JID of the other user.
 %%%
 %%% The arguments and the return value types correspond to the following spec.
--spec roster_get_jid_info(LServer, ToJID, RemoteJID) -> Result when
-      LServer :: jid:lserver(),
+-spec roster_get_jid_info(HostType, ToJID, RemoteJID) -> Result when
+      HostType :: mongooseim:host_type(),
       ToJID :: jid:jid(),
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
-roster_get_jid_info(LServer, ToJID, RemBareJID) ->
-    ejabberd_hooks:run_for_host_type(roster_get_jid_info, LServer, {none, []},
-                                     [ToJID, RemBareJID]).
+roster_get_jid_info(HostType, ToJID, RemBareJID) ->
+    ejabberd_hooks:run_for_host_type(roster_get_jid_info, HostType, {none, []},
+                                     [HostType, ToJID, RemBareJID]).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract
 %%% user's subscription list.
@@ -787,13 +787,11 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
 
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
--spec roster_get_versioning_feature(HostType, Server) -> Result when
+-spec roster_get_versioning_feature(HostType) -> Result when
     HostType :: binary(),
-    Server :: jid:server(),
     Result :: [exml:element()].
-roster_get_versioning_feature(HostType, Server) ->
-    ejabberd_hooks:run_for_host_type(roster_get_versioning_feature, HostType, [],
-                                     [Server]).
+roster_get_versioning_feature(HostType) ->
+    ejabberd_hooks:run_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
@@ -811,25 +809,25 @@ roster_in_subscription(Acc, To, From, Type, Reason) ->
 
 %%% @doc The `roster_out_subscription' hook is called
 %%% when a user sends out subscription.
--spec roster_out_subscription(HostType, Acc, From, To, Type) -> Result when
-    HostType :: binary(),
+-spec roster_out_subscription(Acc, From, To, Type) -> Result when
     Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Type :: mod_roster:sub_presence(),
     Result :: mongoose_acc:t().
-roster_out_subscription(HostType, Acc, From, To, Type) ->
-    %% TODO: ejabberd_c2s calls this hook with host type, fix other places.
+roster_out_subscription(Acc, From, To, Type) ->
+    HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(roster_out_subscription, HostType, Acc,
                                      [jid:to_bare(From), To, Type]).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
--spec roster_process_item(LServer, Item) -> Result when
+-spec roster_process_item(HostType, LServer, Item) -> Result when
+    HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     Item :: mod_roster:roster(),
     Result :: mod_roster:roster().
-roster_process_item(LServer, Item) ->
-    ejabberd_hooks:run_for_host_type(roster_process_item, LServer, Item, [LServer]).
+roster_process_item(HostType, LServer, Item) ->
+    ejabberd_hooks:run_for_host_type(roster_process_item, HostType, Item, [LServer]).
 
 %%% @doc The `roster_push' hook is called when a roster item is
 %%% being pushed and roster versioning is not enabled.
@@ -842,14 +840,14 @@ roster_push(LServer, From, Item) ->
     ejabberd_hooks:run_for_host_type(roster_push, LServer, ok, [From, Item]).
 
 %%% @doc The `roster_set' hook is called when a user's roster is set through an IQ.
--spec roster_set(LServer, From, To, SubEl) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_set(HostType, From, To, SubEl) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     SubEl :: exml:element(),
     Result :: any().
-roster_set(LServer, From, To, SubEl) ->
-    ejabberd_hooks:run_for_host_type(roster_set, LServer, ok, [From, To, SubEl]).
+roster_set(HostType, From, To, SubEl) ->
+    ejabberd_hooks:run_for_host_type(roster_set, HostType, ok, [From, To, SubEl]).
 
 %% MUC related hooks
 
