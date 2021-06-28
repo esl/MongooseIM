@@ -51,7 +51,7 @@ to_json(Req, #{jid := Caller} = State) ->
     Jid = cowboy_req:binding(jid, Req),
     case Jid of
         undefined ->
-            {ok, Res} = handle_request(Method, Jid, undefined, CJid),
+            {ok, Res} = handle_request(Method, Jid, undefined, CJid, State),
             {jiffy:encode(lists:flatten([Res])), Req, State};
         _ ->
             Req2 = cowboy_req:reply(404, Req),
@@ -90,7 +90,7 @@ delete_resource(Req, #{jid := Caller} = State) ->
 handle_multiple_deletion(_, undefined, Req, State) ->
     mongoose_client_api:bad_request(Req, State);
 handle_multiple_deletion(CJid, ToDelete, Req, State) ->
-    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
+    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid, State) of
         {ok, NotDeleted} ->
             RespBody = #{not_deleted => NotDeleted},
             Req2 = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
@@ -103,7 +103,7 @@ handle_multiple_deletion(CJid, ToDelete, Req, State) ->
 handle_single_deletion(_, undefined, Req, State) ->
     mongoose_client_api:bad_request(Req, State);
 handle_single_deletion(CJid, ToDelete, Req, State) ->
-    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid) of
+    case handle_request(<<"DELETE">>, ToDelete, undefined, CJid, State) of
         ok ->
             {true, Req, State};
         Other ->
@@ -113,7 +113,7 @@ handle_single_deletion(CJid, ToDelete, Req, State) ->
 handle_request_and_respond(_, undefined, _, _, Req, State) ->
     mongoose_client_api:bad_request(Req, State);
 handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
-    case handle_request(Method, to_binary(Jid), Action, CJid) of
+    case handle_request(Method, to_binary(Jid), Action, CJid, State) of
         ok ->
             {true, Req, State};
         not_implemented ->
@@ -159,16 +159,17 @@ get_whole_body(Req, Acc) ->
             get_whole_body(Req2, <<Data/binary, Acc/binary>>)
     end.
 
-handle_request(<<"GET">>, undefined, undefined, CJid) ->
+handle_request(<<"GET">>, undefined, undefined, CJid, _State) ->
     mongoose_commands:execute(CJid, list_contacts, #{caller => CJid});
-handle_request(<<"POST">>, Jid, undefined, CJid) ->
+handle_request(<<"POST">>, Jid, undefined, CJid, _State) ->
     mongoose_commands:execute(CJid, add_contact, #{caller => CJid,
         jid => Jid});
-handle_request(<<"DELETE">>, Jids, _Action, CJid) when is_list(Jids) ->
+handle_request(<<"DELETE">>, Jids, _Action, CJid, _State) when is_list(Jids) ->
     mongoose_commands:execute(CJid, delete_contacts, #{caller => CJid,
         jids => Jids});
-handle_request(Method, Jid, Action, CJid) ->
-    case jid_exists(CJid, Jid) of
+handle_request(Method, Jid, Action, CJid, #{jid := CallerJid, creds := Creds}) ->
+    HostType = mongoose_credentials:host_type(Creds),
+    case contact_exists(HostType, CallerJid, jid:from_binary(Jid)) of
         true ->
             handle_contact_request(Method, Jid, Action, CJid);
         false -> not_found
@@ -191,8 +192,9 @@ to_binary(S) when is_binary(S) ->
 to_binary(S) ->
     list_to_binary(S).
 
--spec jid_exists(binary(), binary()) -> boolean().
-jid_exists(CJid, Jid) ->
-    #jid{} = FJid = jid:from_binary(CJid),
-    Res = mod_roster:get_roster_entry(FJid, Jid),
-    Res =/= does_not_exist.
+-spec contact_exists(mongooseim:host_type(), jid:jid(), jid:jid() | error) -> boolean().
+contact_exists(_, _, error) -> false;
+contact_exists(HostType, CallerJid, Jid) ->
+    LJid = jid:to_lower(Jid),
+    Res = mod_roster:get_roster_entry(HostType, CallerJid, LJid, short),
+    Res =/= does_not_exist andalso Res =/= error.
