@@ -90,16 +90,16 @@ does_user_exist(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
 remove_user(Acc, LUser, LServer) ->
     HostType = mongoose_acc:host_type(Acc),
     Key = key(LUser, LServer),
-    Tab = tbl_name(HostType),
-    del_member(Tab, Key, ets:first(Tab)),
+    ParentTab = tbl_name(HostType),
+    del_member(ParentTab, Key, ets:first(ParentTab)),
     Acc.
 
 -spec remove_domain(mongoose_hooks:simple_acc(),
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    Tab = tbl_name(HostType),
-    del_domain(Tab, Domain, ets:first(Tab)),
+    ParentTab = tbl_name(HostType),
+    del_domain(ParentTab, Domain, ets:first(ParentTab)),
     Acc.
 
 %%====================================================================
@@ -113,14 +113,14 @@ does_stored_user_exist(HostType, JID) ->
 -spec does_cached_user_exist(mongooseim:host_type(), jid:lserver(), jid:luser()) -> boolean().
 does_cached_user_exist(HostType, LServer, LUser) ->
     Key = key(LUser, LServer),
-    Tab = tbl_name(HostType),
-    is_member(Tab, Key, ets:last(Tab)).
+    ParentTab = tbl_name(HostType),
+    is_member(ParentTab, Key, ets:last(ParentTab)).
 
 -spec put_user_into_cache(mongooseim:host_type(), jid:lserver(), jid:luser()) -> ok.
 put_user_into_cache(HostType, LServer, LUser) ->
     Key = key(LUser, LServer),
-    Tab = tbl_name(HostType),
-    put_member(Tab, Key, ets:last(Tab)).
+    ParentTab = tbl_name(HostType),
+    put_member(ParentTab, Key, ets:last(ParentTab)).
 
 -spec key(jid:luser(), jid:lserver()) -> {jid:lserver(), jid:luser()}.
 key(LUser, LServer) ->
@@ -128,51 +128,51 @@ key(LUser, LServer) ->
 
 is_member(_, _, '$end_of_table') ->
     false;
-is_member(Tab, Key, Table) ->
-    case ets:lookup(Tab, Table) of
+is_member(ParentTab, Key, SegmentKey) ->
+    case ets:lookup(ParentTab, SegmentKey) of
         [{_, EtsSegment}] ->
             case ets:member(EtsSegment, Key) of
-                false -> is_member(Tab, Key, ets:prev(Tab, Table));
+                false -> is_member(ParentTab, Key, ets:prev(ParentTab, SegmentKey));
                 true -> true
             end;
         [] ->
-           is_member(Tab, Key, ets:prev(Tab, Table))
+           is_member(ParentTab, Key, ets:prev(ParentTab, SegmentKey))
     end.
 
 %% There's a chance that by the time we insert in the ets table, this table is not
 %% the first anymore because the cleaner has taken action and pushed it behind.
 %% That's fine, worst case this record will live a segment less than expected.
-put_member(Tab, Key, Table) ->
-    EtsSegment = ets:lookup_element(Tab, Table, 2),
+put_member(ParentTab, Key, SegmentKey) ->
+    EtsSegment = ets:lookup_element(ParentTab, SegmentKey, 2),
     ets:insert(EtsSegment, {Key}),
     ok.
 
 del_member(_, _, '$end_of_table') ->
     ok;
-del_member(Tab, Key, Table) ->
-    case ets:lookup(Tab, Table) of
+del_member(ParentTab, Key, SegmentKey) ->
+    case ets:lookup(ParentTab, SegmentKey) of
         [{_, EtsSegment}] ->
             ets:delete(EtsSegment, Key),
-            del_member(Tab, Key, ets:next(Tab, Table));
+            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey));
         [] ->
-            del_member(Tab, Key, ets:next(Tab, Table))
+            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey))
     end.
 
 del_domain(_, _, '$end_of_table') ->
     ok;
-del_domain(Tab, Domain, Table) ->
-    case ets:lookup(Tab, Table) of
+del_domain(ParentTab, Domain, SegmentKey) ->
+    case ets:lookup(ParentTab, SegmentKey) of
         [{_, EtsSegment}] ->
             ets:match_delete(EtsSegment, {{Domain, '_'}}),
-            del_domain(Tab, Domain, ets:next(Tab, Table));
+            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey));
         [] ->
-            del_domain(Tab, Domain, ets:next(Tab, Table))
+            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey))
     end.
 
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    Tab = tbl_name(HostType),
-    Spec = #{id => Tab, start => {?MODULE, start_link, [Tab, Opts]},
+    ParentTab = tbl_name(HostType),
+    Spec = #{id => ParentTab, start => {?MODULE, start_link, [ParentTab, Opts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
@@ -185,17 +185,17 @@ stop_cache(HostType) ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 
--record(cache_state, {tab :: atom()}).
+-record(cache_state, {tab :: atom(), ttl = timer:seconds(30) :: non_neg_integer()}).
 
-purge_tables(#cache_state{tab = Tab}) ->
-    First = ets:first(Tab),
-    Last = ets:last(Tab),
-    EtsSegment = case ets:info(Tab, size) of
+rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
+    First = ets:first(ParentTab),
+    Last = ets:last(ParentTab),
+    EtsSegment = case ets:info(ParentTab, size) of
                      1 ->
-                         ets:lookup_element(Tab, First, 2);
+                         ets:lookup_element(ParentTab, First, 2);
                      _ ->
-                         [{_, E}] = ets:take(Tab, First),
-                         true = ets:insert_new(Tab, {Last + 1, E}),
+                         [{_, E}] = ets:take(ParentTab, First),
+                         true = ets:insert_new(ParentTab, {Last + 1, E}),
                          E
                  end,
     ets:delete_all_objects(EtsSegment),
@@ -216,8 +216,8 @@ init([ParentTab, Opts]) ->
               Ref = ets:new(ParentTab, SegmentOpts),
               ets:insert(ParentTab, {I, Ref})
       end, lists:seq(1, N)),
-    erlang:send_after(TTL, self(), {purge, TTL}),
-    {ok, #cache_state{tab = ParentTab}}.
+    erlang:send_after(TTL, self(), purge),
+    {ok, #cache_state{tab = ParentTab, ttl = TTL}}.
 
 handle_call(Msg, From, State) ->
     ?UNEXPECTED_CALL(Msg, From),
@@ -227,9 +227,9 @@ handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
-handle_info({purge, TTL}, State) ->
-    purge_tables(State),
-    erlang:send_after(TTL, self(), {purge, TTL}),
+handle_info(purge, #cache_state{ttl = TTL} = State) ->
+    rotate_and_purge_last_segment(State),
+    erlang:send_after(TTL, self(), purge),
     {noreply, State};
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
