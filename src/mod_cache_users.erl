@@ -209,11 +209,14 @@ init([ParentTab, Opts]) ->
     TTL = gen_mod:get_opt(ttl, Opts, infinity),
     N   = gen_mod:get_opt(number_of_segments, Opts, 1),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
-    ParentTab = ets:new(ParentTab, EtsOpts),
+    ets:new(ParentTab, EtsOpts),
     lists:foreach(
       fun(I) ->
-              SegmentOpts = [set, public, {read_concurrency, true}, {write_concurrency, true}],
-              Ref = ets:new(ParentTab, SegmentOpts),
+              %% Note, these names are only for debugging purposes,
+              %% you're not supposed to use the name as an API
+              SegmentTab = list_to_atom(atom_to_list(ParentTab) ++ "_" ++ integer_to_list(I)),
+              SegmentOpts = [set, named_table, public, {read_concurrency, true}, {write_concurrency, true}],
+              Ref = ets:new(SegmentTab, SegmentOpts),
               ets:insert(ParentTab, {I, Ref})
       end, lists:seq(1, N)),
     erlang:send_after(TTL, self(), purge),
