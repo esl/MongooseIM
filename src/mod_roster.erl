@@ -936,9 +936,10 @@ process_item_attrs_ws(Item, []) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec get_jid_info(any(), mongooseim:host_type(),
+-spec get_jid_info(HookAcc, mongooseim:host_type(),
                    ToJID :: jid:jid(),
-                   JID :: jid:jid() | jid:ljid()) -> {subscription_state(), [binary()]}.
+                   JID :: jid:jid() | jid:ljid()) -> HookAcc
+              when HookAcc :: {subscription_state(), [binary()]}.
 get_jid_info(_, HostType, ToJID, JID) ->
     case get_roster_entry(HostType, ToJID, JID, full) of
         error -> {none, []};
@@ -979,18 +980,26 @@ config_metrics(HostType) ->
 
 %% Backend API wrappers
 
+-spec transaction(mongooseim:host_type(), fun(() -> any())) ->
+    {aborted, any()} | {atomic, any()} | {error, any()}.
 transaction(HostType, F) ->
     mod_roster_backend:transaction(HostType, F).
 
+-spec read_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+    binary() | error.
 read_roster_version(HostType, LUser, LServer) ->
     mod_roster_backend:read_roster_version(HostType, LUser, LServer).
 
+-spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver()) -> version().
 write_roster_version(HostType, LUser, LServer) ->
     write_roster_version(HostType, LUser, LServer, no_transaction).
 
+-spec write_roster_version_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> version().
 write_roster_version_t(HostType, LUser, LServer) ->
     write_roster_version(HostType, LUser, LServer, in_transaction).
 
+-spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                           transaction_state()) -> version().
 write_roster_version(HostType, LUser, LServer, TransactionState) ->
     Ver = sha:sha1_hex(term_to_binary(os:timestamp())),
     mod_roster_backend:write_roster_version(HostType, LUser, LServer, TransactionState, Ver),
@@ -1010,11 +1019,14 @@ get_roster_entry(HostType, #jid{luser = LUser, lserver = LServer}, LJid, Format)
 get_roster_entry_t(HostType, #jid{luser = LUser, lserver = LServer}, LJid, Format) ->
     mod_roster_backend:get_roster_entry(HostType, LUser, LServer, LJid, in_transaction, Format).
 
+-spec roster_subscribe_t(mongooseim:host_type(), roster()) -> ok.
 roster_subscribe_t(HostType, Item) ->
     mod_roster_backend:roster_subscribe_t(HostType, Item).
 
+-spec update_roster_t(mongooseim:host_type(), roster()) -> ok.
 update_roster_t(HostType, Item) ->
     mod_roster_backend:update_roster_t(HostType, Item).
 
+-spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), contact()) -> ok.
 del_roster_t(HostType, LUser, LServer, LJID) ->
     mod_roster_backend:del_roster_t(HostType, LUser, LServer, LJID).
