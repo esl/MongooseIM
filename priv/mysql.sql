@@ -59,31 +59,30 @@ CREATE INDEX i_last_seconds ON last(seconds);
 
 
 CREATE TABLE rosterusers (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid varchar(250) NOT NULL, -- must be a parsable jid
     nick text NOT NULL,
     subscription character(1) NOT NULL,
     ask character(1) NOT NULL,
     askmessage text NOT NULL,
-    server character(1) NOT NULL,
-    subscribe text NOT NULL,
-    type text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE UNIQUE INDEX i_rosteru_user_jid ON rosterusers(username(75), jid(75));
-CREATE INDEX i_rosteru_username ON rosterusers(username);
+CREATE UNIQUE INDEX i_rosteru_server_user_jid ON rosterusers (server, username, jid);
+CREATE INDEX i_rosteru_server_user ON rosterusers(server, username);
 CREATE INDEX i_rosteru_jid ON rosterusers(jid);
 
 CREATE TABLE rostergroups (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid varchar(250) NOT NULL,
     grp text NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX pk_rosterg_user_jid ON rostergroups(username(75), jid(75));
+CREATE INDEX i_rosterg_server_user_jid ON rostergroups(server, username, jid);
 
 
 CREATE TABLE vcard (
@@ -180,10 +179,11 @@ CREATE TABLE private_storage (
 CREATE INDEX i_private_storage_username USING BTREE ON private_storage(username);
 CREATE UNIQUE INDEX i_private_storage_username_namespace USING BTREE ON private_storage(username(75), namespace(75));
 
--- Not tested in mysql
 CREATE TABLE roster_version (
-    username varchar(250) PRIMARY KEY,
-    version text NOT NULL
+    server varchar(250),
+    username varchar(250),
+    version text NOT NULL,
+    PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
