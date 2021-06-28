@@ -896,6 +896,7 @@ configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
      mod_bosh,
+     mod_cache_users,
      mod_caps,
      mod_carboncopy,
      mod_csi,
