@@ -54,8 +54,7 @@ stop(HostType) ->
 config_spec() ->
     #section{items = #{
                        <<"time_to_live">> => #option{type = integer, format = {kv, ttl}},
-                       <<"number_of_segments">> => #option{type = integer, format = {kv, n}},
-                       <<"policy">> => #option{type = atom, validate = {enum, [fifo, lru]}}
+                       <<"number_of_segments">> => #option{type = integer}
                       }}.
 
 -spec supported_features() -> [atom()].
@@ -64,7 +63,6 @@ supported_features() ->
 
 hooks(HostType) ->
     [
-     {suspend_user, HostType, ?MODULE, remove_user, 20},
      {remove_user, HostType, ?MODULE, remove_user, 30},
      {remove_domain, HostType, ?MODULE, remove_domain, 30}
     ].
@@ -116,13 +114,13 @@ does_stored_user_exist(HostType, JID) ->
 does_cached_user_exist(HostType, LServer, LUser) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(HostType),
-    is_member(Tab, Key, ets:first(Tab)).
+    is_member(Tab, Key, ets:last(Tab)).
 
 -spec put_user_into_cache(mongooseim:host_type(), jid:lserver(), jid:luser()) -> ok.
 put_user_into_cache(HostType, LServer, LUser) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(HostType),
-    put_member(Tab, Key, ets:first(Tab)).
+    put_member(Tab, Key, ets:last(Tab)).
 
 -spec key(jid:luser(), jid:lserver()) -> {jid:lserver(), jid:luser()}.
 key(LUser, LServer) ->
@@ -132,29 +130,29 @@ is_member(_, _, '$end_of_table') ->
     false;
 is_member(Tab, Key, Table) ->
     case ets:lookup(Tab, Table) of
-        [{_, Ets}] ->
-            case ets:member(Ets, Key) of
-                false -> is_member(Tab, Key, ets:next(Tab, Table));
+        [{_, EtsSegment}] ->
+            case ets:member(EtsSegment, Key) of
+                false -> is_member(Tab, Key, ets:prev(Tab, Table));
                 true -> true
             end;
         [] ->
-           is_member(Tab, Key, ets:next(Tab, Table))
+           is_member(Tab, Key, ets:prev(Tab, Table))
     end.
 
 %% There's a chance that by the time we insert in the ets table, this table is not
 %% the first anymore because the cleaner has taken action and pushed it behind.
 %% That's fine, worst case this record will live a segment less than expected.
 put_member(Tab, Key, Table) ->
-    Ets = ets:lookup_element(Tab, Table, 2),
-    ets:insert(Ets, {Key}),
+    EtsSegment = ets:lookup_element(Tab, Table, 2),
+    ets:insert(EtsSegment, {Key}),
     ok.
 
 del_member(_, _, '$end_of_table') ->
     ok;
 del_member(Tab, Key, Table) ->
     case ets:lookup(Tab, Table) of
-        [{_, Ets}] ->
-            ets:delete(Ets, Key),
+        [{_, EtsSegment}] ->
+            ets:delete(EtsSegment, Key),
             del_member(Tab, Key, ets:next(Tab, Table));
         [] ->
             del_member(Tab, Key, ets:next(Tab, Table))
@@ -164,8 +162,8 @@ del_domain(_, _, '$end_of_table') ->
     ok;
 del_domain(Tab, Domain, Table) ->
     case ets:lookup(Tab, Table) of
-        [{_, Ets}] ->
-            ets:match_delete(Ets, {{Domain, '_'}}),
+        [{_, EtsSegment}] ->
+            ets:match_delete(EtsSegment, {{Domain, '_'}}),
             del_domain(Tab, Domain, ets:next(Tab, Table));
         [] ->
             del_domain(Tab, Domain, ets:next(Tab, Table))
@@ -174,17 +172,7 @@ del_domain(Tab, Domain, Table) ->
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
     Tab = tbl_name(HostType),
-    N   = gen_mod:get_opt(n, Opts, 1),
-    TTL = gen_mod:get_opt(ttl, Opts, infinity),
-    RC  = gen_mod:get_opt(read_concurrency, Opts, true),
-    WC  = gen_mod:get_opt(write_concurrency, Opts, true),
-    ParentTab = ets:new(Tab, [ordered_set, named_table, public, {read_concurrency, true}]),
-    lists:foreach(
-      fun(I) ->
-              Ref = ets:new(Tab, [set, public, {read_concurrency, RC}, {write_concurrency, WC}]),
-              ets:insert(ParentTab, {I, Ref})
-      end, lists:seq(1, N)),
-    Spec = #{id => Tab, start => {?MODULE, start_link, [ParentTab, TTL]},
+    Spec = #{id => Tab, start => {?MODULE, start_link, [Tab, Opts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
@@ -202,21 +190,32 @@ stop_cache(HostType) ->
 purge_tables(#cache_state{tab = Tab}) ->
     First = ets:first(Tab),
     Last = ets:last(Tab),
-    Ets = case ets:info(Tab, size) of
-              1 ->
-                  ets:lookup_element(Tab, First, 2);
-              _ ->
-                  [{_, E}] = ets:take(Tab, First),
-                   true = ets:insert_new(Tab, {Last + 1, E})
-          end,
-    ets:delete_all_objects(Ets),
+    EtsSegment = case ets:info(Tab, size) of
+                     1 ->
+                         ets:lookup_element(Tab, First, 2);
+                     _ ->
+                         [{_, E}] = ets:take(Tab, First),
+                         true = ets:insert_new(Tab, {Last + 1, E}),
+                         E
+                 end,
+    ets:delete_all_objects(EtsSegment),
     ok.
 
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
-start_link(ParentTab, TTL) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [ParentTab, TTL], []).
+start_link(ParentTab, Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [ParentTab, Opts], []).
 
-init([ParentTab, TTL]) ->
+init([ParentTab, Opts]) ->
+    TTL = gen_mod:get_opt(ttl, Opts, infinity),
+    N   = gen_mod:get_opt(number_of_segments, Opts, 1),
+    EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
+    ParentTab = ets:new(ParentTab, EtsOpts),
+    lists:foreach(
+      fun(I) ->
+              SegmentOpts = [set, public, {read_concurrency, true}, {write_concurrency, true}],
+              Ref = ets:new(ParentTab, SegmentOpts),
+              ets:insert(ParentTab, {I, Ref})
+      end, lists:seq(1, N)),
     erlang:send_after(TTL, self(), {purge, TTL}),
     {ok, #cache_state{tab = ParentTab}}.
 
