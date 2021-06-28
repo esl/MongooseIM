@@ -28,7 +28,7 @@
 -include("jlib.hrl").
 
 tbl_name() ->
-    mongoose_users.
+    mod_cache_users.
 
 -spec tbl_name(mongooseim:host_type()) -> atom().
 tbl_name(HostType) ->
@@ -88,18 +88,28 @@ does_user_exist(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
                   LUser :: jid:luser(),
                   LServer :: jid:lserver() | string()) -> mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    HostType = mongoose_acc:host_type(Acc),
     Key = key(LUser, LServer),
-    ParentTab = tbl_name(HostType),
-    del_member(ParentTab, Key, ets:first(ParentTab)),
+    HostType = mongoose_acc:host_type(Acc),
+    ParentName = tbl_name(HostType),
+    case pg2:get_members(ParentName) of
+        Pids when is_list(Pids) ->
+            [gen_server:cast(Pid, {remove_user, Key}) || Pid <- Pids];
+        {error, _Reason} ->
+            ok
+    end,
     Acc.
 
 -spec remove_domain(mongoose_hooks:simple_acc(),
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    ParentTab = tbl_name(HostType),
-    del_domain(ParentTab, Domain, ets:first(ParentTab)),
+    ParentName = tbl_name(HostType),
+    case pg2:get_members(ParentName) of
+        Pids when is_list(Pids) ->
+            [gen_server:cast(Pid, {remove_domain, Domain}) || Pid <- Pids];
+        {error, _Reason} ->
+            ok
+    end,
     Acc.
 
 %%====================================================================
@@ -147,28 +157,6 @@ put_member(ParentTab, Key, SegmentKey) ->
     ets:insert(EtsSegment, {Key}),
     ok.
 
-del_member(_, _, '$end_of_table') ->
-    ok;
-del_member(ParentTab, Key, SegmentKey) ->
-    case ets:lookup(ParentTab, SegmentKey) of
-        [{_, EtsSegment}] ->
-            ets:delete(EtsSegment, Key),
-            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey));
-        [] ->
-            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey))
-    end.
-
-del_domain(_, _, '$end_of_table') ->
-    ok;
-del_domain(ParentTab, Domain, SegmentKey) ->
-    case ets:lookup(ParentTab, SegmentKey) of
-        [{_, EtsSegment}] ->
-            ets:match_delete(EtsSegment, {{Domain, '_'}}),
-            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey));
-        [] ->
-            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey))
-    end.
-
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
     ParentTab = tbl_name(HostType),
@@ -201,31 +189,62 @@ rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
     ets:delete_all_objects(EtsSegment),
     ok.
 
+del_member(_, _, '$end_of_table') ->
+    ok;
+del_member(ParentTab, Key, SegmentKey) ->
+    case ets:lookup(ParentTab, SegmentKey) of
+        [{_, EtsSegment}] ->
+            ets:delete(EtsSegment, Key),
+            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey));
+        [] ->
+            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey))
+    end.
+
+del_domain(_, _, '$end_of_table') ->
+    ok;
+del_domain(ParentTab, Domain, SegmentKey) ->
+    case ets:lookup(ParentTab, SegmentKey) of
+        [{_, EtsSegment}] ->
+            ets:match_delete(EtsSegment, {{Domain, '_'}}),
+            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey));
+        [] ->
+            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey))
+    end.
+
+
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
 start_link(ParentTab, Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [ParentTab, Opts], []).
+    gen_server:start_link(?MODULE, [ParentTab, Opts], []).
 
-init([ParentTab, Opts]) ->
+init([ParentName, Opts]) ->
+    pg2:create(ParentName),
+    pg2:join(ParentName, self()),
     TTL = gen_mod:get_opt(ttl, Opts, infinity),
     N   = gen_mod:get_opt(number_of_segments, Opts, 1),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
-    ets:new(ParentTab, EtsOpts),
+    ets:new(ParentName, EtsOpts),
     lists:foreach(
       fun(I) ->
               %% Note, these names are only for debugging purposes,
               %% you're not supposed to use the name as an API
-              SegmentTab = list_to_atom(atom_to_list(ParentTab) ++ "_" ++ integer_to_list(I)),
+              SegmentTab = list_to_atom(atom_to_list(ParentName) ++ "_" ++ integer_to_list(I)),
               SegmentOpts = [set, named_table, public, {read_concurrency, true}, {write_concurrency, true}],
               Ref = ets:new(SegmentTab, SegmentOpts),
-              ets:insert(ParentTab, {I, Ref})
+              ets:insert(ParentName, {I, Ref})
       end, lists:seq(1, N)),
     erlang:send_after(TTL, self(), purge),
-    {ok, #cache_state{tab = ParentTab, ttl = TTL}}.
+    {ok, #cache_state{tab = ParentName, ttl = TTL}}.
 
 handle_call(Msg, From, State) ->
     ?UNEXPECTED_CALL(Msg, From),
     {reply, ok, State}.
 
+handle_cast({remove_user, Key}, #cache_state{tab = ParentTab} = State) ->
+    del_member(ParentTab, Key, ets:first(ParentTab)),
+    {noreply, State};
+handle_cast({remove_domain, Domain}, #cache_state{tab = ParentTab} = State) ->
+    del_domain(ParentTab, Domain, ets:first(ParentTab)),
+    {noreply, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
