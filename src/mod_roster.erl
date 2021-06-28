@@ -67,21 +67,6 @@
          get_personal_data/3
         ]).
 
-% Deprecated Hooks
--deprecated({in_subscription, 6, eventually}).
--deprecated({out_subscription, 5, eventually}).
--deprecated({get_subscription_lists, 3, eventually}).
--deprecated({get_jid_info, 4, eventually}).
--export([
-         % get_user_roster/2,
-             % This means that the clause of get_user_roster/2
-             % accepting a tuple of binaries is to be deprecated.
-         in_subscription/6,
-         out_subscription/5,
-         get_subscription_lists/3,
-         get_jid_info/4
-        ]).
-
 -export([remove_test_user/2,
          transaction/2,
          process_subscription_transaction/5,
@@ -177,36 +162,6 @@
     LServer :: jid:lserver(),
     Item :: term(),
     Result :: error | roster().
-
-%====================================================================
-% Deprecated API
-%====================================================================
- -define(FUNCTION_STRING,
-            ?MODULE_STRING ++ ":" ++
-               atom_to_list(?FUNCTION_NAME) ++ "/" ++
-                  integer_to_list(?FUNCTION_ARITY)).
- -define(DEPRECATE_FUNCTION,
-         mongoose_deprecations:log(
-           {?MODULE, ?FUNCTION_NAME, ?FUNCTION_ARITY},
-           #{what => roster_function_deprecated,
-             text => <<"The function ", (list_to_binary(?FUNCTION_STRING))/binary,
-                       " is deprecated, please use the #jid{} equivalent instead">>},
-           [{log_level, warning}])).
- in_subscription(Acc, U, S, JID, Type, Reason) ->
-     ?DEPRECATE_FUNCTION,
-     in_subscription(Acc, jid:make(U, S, <<>>), JID, Type, Reason).
- out_subscription(Acc, U, S, JID, Type) ->
-     ?DEPRECATE_FUNCTION,
-     out_subscription(Acc, jid:make(U, S, <<>>), JID, Type).
- get_subscription_lists(Acc, U, S) ->
-     ?DEPRECATE_FUNCTION,
-     get_subscription_lists(Acc, jid:make(U, S, <<>>)).
- get_jid_info(Acc, U, S, JID) ->
-     ?DEPRECATE_FUNCTION,
-     get_jid_info(Acc, jid:make(U, S, <<>>), JID).
-%====================================================================
-% Deprecated API
-%====================================================================
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -664,13 +619,6 @@ fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
             fill_subscription_lists(JID, LServer, Is, [J | F], T, NewP);
         to -> fill_subscription_lists(JID, LServer, Is, F, [J | T], NewP);
         _ -> fill_subscription_lists(JID, LServer, Is, F, T, NewP)
-    end;
-fill_subscription_lists(JID, LServer, [RawI | Is], F, T, P) ->
-    I = mod_roster_backend:raw_to_record(LServer, RawI),
-    case I of
-        %% Bad JID in database:
-        error -> fill_subscription_lists(JID, LServer, Is, F, T, P);
-        _ -> fill_subscription_lists(JID, LServer, [I | Is], F, T, P)
     end;
 fill_subscription_lists(_, _LServer, [], F, T, P) -> {F, T, P}.
 
