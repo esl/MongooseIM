@@ -20,175 +20,191 @@
 %% API
 -export([init/2,
          transaction/2,
-         read_roster_version/2,
-         write_roster_version/4,
-         get_roster/2,
-         get_roster_entry/3,
-         get_roster_entry/4,
-         get_roster_entry_t/3,
-         get_roster_entry_t/4,
+         read_roster_version/3,
+         write_roster_version/5,
+         get_roster/3,
+         get_roster_entry/6,
          get_subscription_lists/3,
-         roster_subscribe_t/4,
-         update_roster_t/4,
-         remove_user/2,
-         del_roster_t/3
-         ]).
+         roster_subscribe_t/2,
+         update_roster_t/2,
+         del_roster_t/4,
+         remove_user_t/3]).
 
--export([raw_to_record/2]).
+%% mod_roster backend API
 
--spec init(jid:server(), list()) -> ok.
-init(Host, _Opts) ->
-    prepare_queries(Host),
+-spec init(mongooseim:host_type(), list()) -> ok.
+init(HostType, _Opts) ->
+    prepare_queries(HostType),
     ok.
 
-prepare_queries(Host) ->
-    mongoose_rdbms:prepare(roster_group_insert, rostergroups, [username, jid, grp],
-                           <<"INSERT INTO rostergroups(username, jid, grp) "
-                             "VALUES (?, ?, ?)">>),
-    mongoose_rdbms:prepare(roster_version_get, roster_version, [username],
+-spec transaction(mongooseim:host_type(), fun(() -> any())) ->
+    {aborted, any()} | {atomic, any()} | {error, any()}.
+transaction(HostType, F) ->
+    mongoose_rdbms:sql_transaction(HostType, F).
+
+-spec read_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver()) -> binary() | error.
+read_roster_version(HostType, LUser, LServer) ->
+    case mongoose_rdbms:execute_successfully(HostType, roster_version_get, [LServer, LUser]) of
+        {selected, [{Version}]} -> Version;
+        {selected, []} -> error
+    end.
+
+-spec write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                           mod_roster:transaction_state(), mod_roster:version()) -> ok.
+write_roster_version(HostType, LUser, LServer, _TransactionState, Ver) ->
+    version_upsert(HostType, LUser, LServer, Ver),
+    ok.
+
+-spec get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
+get_roster(HostType, LUser, LServer) ->
+    {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
+    {selected, GroupRows} =
+        mongoose_rdbms:execute_successfully(HostType, roster_group_get, [LServer, LUser]),
+    decode_roster_rows(LServer, Rows, GroupRows).
+
+-spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact(),
+                           mod_roster:transaction_state(), mod_roster:entry_format()) ->
+    mod_roster:roster() | does_not_exist.
+get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, full) ->
+    case get_roster_entry(HostType, LUser, LServer, LJID) of
+        does_not_exist ->
+            does_not_exist;
+        Rec ->
+            Groups = get_groups_by_jid(HostType, LUser, LServer, LJID),
+            record_with_groups(Rec, Groups)
+    end;
+get_roster_entry(HostType, LUser, LServer, LJID, _TransactionState, short) ->
+    get_roster_entry(HostType, LUser, LServer, LJID).
+
+-spec get_subscription_lists(mongoose_acc:t(), jid:luser(), jid:lserver()) -> [mod_roster:roster()].
+get_subscription_lists(Acc, LUser, LServer) ->
+    HostType = mongoose_acc:host_type(Acc),
+    {selected, Rows} = execute_roster_get(HostType, LUser, LServer),
+    [row_to_record(LServer, Row) || Row <- Rows].
+
+-spec roster_subscribe_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
+roster_subscribe_t(HostType, Item) ->
+    RosterRow = record_to_row(Item),
+    roster_upsert(HostType, RosterRow),
+    ok.
+
+-spec update_roster_t(mongooseim:host_type(), mod_roster:roster()) -> ok.
+update_roster_t(HostType, Item) ->
+    RosterRow = [LServer, LUser, BinJID | _] = record_to_row(Item),
+    GroupRows = groups_to_rows(Item),
+    roster_upsert(HostType, RosterRow),
+    mongoose_rdbms:execute_successfully(HostType, roster_group_delete_by_jid,
+                                        [LServer, LUser, BinJID]),
+    [mongoose_rdbms:execute_successfully(HostType, roster_group_insert, GroupRow)
+     || GroupRow <- GroupRows],
+    ok.
+
+-spec del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:contact()) -> ok.
+del_roster_t(HostType, LUser, LServer, LJID) ->
+    BinJID = jid:to_binary(LJID),
+    mongoose_rdbms:execute_successfully(HostType, roster_delete_by_jid,
+                                        [LServer, LUser, BinJID]),
+    mongoose_rdbms:execute_successfully(HostType, roster_group_delete_by_jid,
+                                        [LServer, LUser, BinJID]),
+    ok.
+
+-spec remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user_t(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, roster_delete, [LServer, LUser]),
+    mongoose_rdbms:execute_successfully(HostType, roster_group_delete, [LServer, LUser]),
+    ok.
+
+%% Query preparation
+
+prepare_queries(HostType) ->
+    mongoose_rdbms:prepare(roster_group_insert, rostergroups, [server, username, jid, grp],
+                           <<"INSERT INTO rostergroups(server, username, jid, grp) "
+                             "VALUES (?, ?, ?, ?)">>),
+    mongoose_rdbms:prepare(roster_version_get, roster_version, [server, username],
                            <<"SELECT version FROM roster_version "
-                             "WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_get, rosterusers, [username],
+                             "WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_get, rosterusers, [server, username],
         <<"SELECT ", (roster_fields())/binary,
-           " FROM rosterusers WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_get_by_jid, rostergroups, [username, jid],
+           " FROM rosterusers WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_get_by_jid, rostergroups, [server, username, jid],
         <<"SELECT ", (roster_fields())/binary,
-           " FROM rosterusers WHERE username=? AND jid=?">>),
-    mongoose_rdbms:prepare(roster_group_get, rostergroups, [username],
-        <<"SELECT jid, grp FROM rostergroups WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_group_get_by_jid, rostergroups, [username, jid],
+           " FROM rosterusers WHERE server = ? AND username = ? AND jid = ?">>),
+    mongoose_rdbms:prepare(roster_group_get, rostergroups, [server, username],
+        <<"SELECT jid, grp FROM rostergroups WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_group_get_by_jid, rostergroups, [server, username, jid],
         <<"SELECT grp FROM rostergroups "
-          "WHERE username=? AND jid=?">>),
-    mongoose_rdbms:prepare(roster_delete, rosterusers, [username],
-                           <<"DELETE FROM rosterusers WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_group_delete, rostergroups, [username],
-                           <<"DELETE FROM rostergroups WHERE username=?">>),
-    mongoose_rdbms:prepare(roster_delete_by_jid, rosterusers, [username, jid],
-                           <<"DELETE FROM rosterusers WHERE username=? AND jid=?">>),
-    mongoose_rdbms:prepare(roster_group_delete_by_jid, rostergroups, [username, jid],
-                           <<"DELETE FROM rostergroups WHERE username=? AND jid=?">>),
-    prepare_roster_upsert(Host),
-    prepare_version_upsert(Host),
+          "WHERE server = ? AND username = ? AND jid = ?">>),
+    mongoose_rdbms:prepare(roster_delete, rosterusers, [server, username],
+                           <<"DELETE FROM rosterusers WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_group_delete, rostergroups, [server, username],
+                           <<"DELETE FROM rostergroups WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(roster_delete_by_jid, rosterusers, [server, username, jid],
+                           <<"DELETE FROM rosterusers"
+                             " WHERE server = ? AND username = ? AND jid = ?">>),
+    mongoose_rdbms:prepare(roster_group_delete_by_jid, rostergroups, [server, username, jid],
+                           <<"DELETE FROM rostergroups"
+                             " WHERE server = ? AND username = ? AND jid = ?">>),
+    prepare_roster_upsert(HostType),
+    prepare_version_upsert(HostType),
     ok.
-
 
 %% We don't care about `server, subscribe, type' fields
 roster_fields() ->
     <<"username, jid, nick, subscription, ask, askmessage">>.
 
-prepare_roster_upsert(Host) ->
-    Fields = [<<"nick">>, <<"subscription">>, <<"ask">>,
-              <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
-    Filter = [<<"username">>, <<"jid">>],
-    rdbms_queries:prepare_upsert(Host, roster_upsert, rosterusers,
+prepare_roster_upsert(HostType) ->
+    Fields = [<<"nick">>, <<"subscription">>, <<"ask">>, <<"askmessage">>],
+    Filter = [<<"server">>, <<"username">>, <<"jid">>],
+    rdbms_queries:prepare_upsert(HostType, roster_upsert, rosterusers,
                                  Filter ++ Fields, Fields, Filter).
 
-prepare_version_upsert(Host) ->
+prepare_version_upsert(HostType) ->
     Fields = [<<"version">>],
-    Filter = [<<"username">>],
-    rdbms_queries:prepare_upsert(Host, roster_version_upsert, roster_version,
+    Filter = [<<"server">>, <<"username">>],
+    rdbms_queries:prepare_upsert(HostType, roster_version_upsert, roster_version,
                                  Filter ++ Fields, Fields, Filter).
 
 %% Query Helpers
 
-execute_roster_get(LServer, LUser) ->
-    mongoose_rdbms:execute_successfully(LServer, roster_get, [LUser]).
+-spec execute_roster_get(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          mongoose_rdbms:query_result().
+execute_roster_get(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, roster_get, [LServer, LUser]).
 
-roster_upsert(Host, LUser, BinJID, RosterRow) ->
-    [_LUser, _BinJID|Rest] = RosterRow,
+-spec roster_upsert(mongooseim:host_type(), list()) -> mongoose_rdbms:query_result().
+roster_upsert(HostType, [LServer, LUser, BinJID | Rest] = RosterRow) ->
     InsertParams = RosterRow,
     UpdateParams = Rest,
-    UniqueKeyValues = [LUser, BinJID],
-    rdbms_queries:execute_upsert(Host, roster_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    UniqueKeyValues = [LServer, LUser, BinJID],
+    {updated, _} = rdbms_queries:execute_upsert(HostType, roster_upsert,
+                                                InsertParams, UpdateParams, UniqueKeyValues).
 
-version_upsert(Host, LUser, Version) ->
-    InsertParams = [LUser, Version],
+-spec version_upsert(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_roster:version()) ->
+          mongoose_rdbms:query_result().
+version_upsert(HostType, LUser, LServer, Version) ->
+    InsertParams = [LServer, LUser, Version],
     UpdateParams = [Version],
-    UniqueKeyValues = [LUser],
-    rdbms_queries:execute_upsert(Host, roster_version_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    UniqueKeyValues = [LServer, LUser],
+    {updated, _} = rdbms_queries:execute_upsert(HostType, roster_version_upsert,
+                                                InsertParams, UpdateParams, UniqueKeyValues).
 
-%% API functions
-
--spec transaction(LServer :: jid:lserver(), F :: fun()) ->
-    {aborted, Reason :: any()} | {atomic, Result :: any()}.
-transaction(LServer, F) ->
-    mongoose_rdbms:sql_transaction(LServer, F).
-
--spec read_roster_version(jid:luser(), jid:lserver()) -> binary() | error.
-read_roster_version(LUser, LServer) ->
-    case mongoose_rdbms:execute_successfully(LServer, roster_version_get, [LUser]) of
-        {selected, [{Version}]} -> Version;
-        {selected, []} -> error
-    end.
-
-write_roster_version(LUser, LServer, _InTransaction, Ver) ->
-    version_upsert(LServer, LUser, Ver).
-
-get_roster(LUser, LServer) ->
-    {selected, Rows} = execute_roster_get(LServer, LUser),
-    {selected, GroupRows} = mongoose_rdbms:execute_successfully(LServer, roster_group_get, [LUser]),
-    decode_roster_rows(LServer, Rows, GroupRows).
-
-get_roster_entry_t(LUser, LServer, LJID) ->
-    %% `mongoose_rdbms:execute' automatically detects if we are in a transaction or not.
-    get_roster_entry(LUser, LServer, LJID).
-
-get_roster_entry(LUser, LServer, LJID) ->
+-spec get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
+          mod_roster:roster() | does_not_exist.
+get_roster_entry(HostType, LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
-    {selected, Rows} = mongoose_rdbms:execute_successfully(LServer, roster_get_by_jid, [LUser, BinJID]),
+    {selected, Rows} = mongoose_rdbms:execute_successfully(HostType, roster_get_by_jid,
+                                                           [LServer, LUser, BinJID]),
     case Rows of
         [] -> does_not_exist;
         [Row] -> row_to_record(LServer, Row)
     end.
 
-get_roster_entry_t(LUser, LServer, LJID, full) ->
-    get_roster_entry(LUser, LServer, LJID, full).
-
-%% full means we should query for groups too
-get_roster_entry(LUser, LServer, LJID, full) ->
-    case get_roster_entry(LUser, LServer, LJID) of
-        does_not_exist -> does_not_exist;
-        Rec ->
-            Groups = get_groups_by_jid(LUser, LServer, LJID),
-            record_with_groups(Rec, Groups)
-    end.
-
-get_subscription_lists(_, LUser, LServer) ->
-    {selected, Rows} = execute_roster_get(LServer, LUser),
-    [row_to_record(LServer, Row) || Row <- Rows].
-
-roster_subscribe_t(LUser, LServer, LJID, Item) ->
-    BinJID = jid:to_binary(LJID),
-    RosterRow = record_to_row(Item),
-    roster_upsert(LServer, LUser, BinJID, RosterRow).
-
-remove_user(LUser, LServer) ->
-    F = fun() ->
-            mongoose_rdbms:execute_successfully(LServer, roster_delete, [LUser]),
-            mongoose_rdbms:execute_successfully(LServer, roster_group_delete, [LUser])
-        end,
-    mongoose_rdbms:sql_transaction(LServer, F),
-    ok.
-
-update_roster_t(LUser, LServer, LJID, Item) ->
-    BinJID = jid:to_binary(LJID),
-    RosterRow = record_to_row(Item),
-    GroupRows = groups_to_rows(Item),
-    roster_upsert(LServer, LUser, BinJID, RosterRow),
-    mongoose_rdbms:execute_successfully(LServer, roster_group_delete_by_jid, [LUser, BinJID]),
-    [mongoose_rdbms:execute_successfully(LServer, roster_group_insert, GroupRow)
-     || GroupRow <- GroupRows],
-    ok.
-
-del_roster_t(LUser, LServer, LJID) ->
-    BinJID = jid:to_binary(LJID),
-    mongoose_rdbms:execute_successfully(LServer, roster_delete_by_jid, [LUser, BinJID]),
-    mongoose_rdbms:execute_successfully(LServer, roster_group_delete_by_jid, [LUser, BinJID]).
-
-get_groups_by_jid(LUser, LServer, LJID) ->
+-spec get_groups_by_jid(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:simple_jid()) ->
+          [binary()].
+get_groups_by_jid(HostType, LUser, LServer, LJID) ->
     BinJID = jid:to_binary(LJID),
     {selected, Rows} = mongoose_rdbms:execute_successfully(
-                         LServer, roster_group_get_by_jid, [LUser, BinJID]),
+                         HostType, roster_group_get_by_jid, [LServer, LUser, BinJID]),
     [Group || {Group} <- Rows].
 
 %%==============================================================================
@@ -219,23 +235,19 @@ encode_ask(out)  -> <<"O">>;
 encode_ask(in)   -> <<"I">>;
 encode_ask(none) -> <<"N">>.
 
-record_to_row(#roster{us = {LUser, _Server},
+record_to_row(#roster{us = {LUser, LServer},
                       jid = JID, name = Nick, subscription = Subscription,
                       ask = Ask, askmessage = AskMessage}) ->
     BinJID = jid:to_binary(jid:to_lower(JID)),
     ExtSubscription = encode_subscription(Subscription),
     ExtAsk = encode_ask(Ask),
-    [LUser, BinJID, Nick, ExtSubscription, ExtAsk, AskMessage,
-     <<"N">>, <<>>, <<"item">>].
+    [LServer, LUser, BinJID, Nick, ExtSubscription, ExtAsk, AskMessage].
 
-groups_to_rows(#roster{us = {LUser, _LServer}, jid = JID, groups = Groups}) ->
+groups_to_rows(#roster{us = {LUser, LServer}, jid = JID, groups = Groups}) ->
     BinJID = jid:to_binary(jid:to_lower(JID)),
     lists:foldl(fun (<<>>, Acc) -> Acc;
-                    (Group, Acc) -> [[LUser, BinJID, Group] | Acc]
+                    (Group, Acc) -> [[LServer, LUser, BinJID, Group] | Acc]
                 end, [], Groups).
-
-%% We must not leak our external RDBMS format representation into MongooseIM
-raw_to_record(_LServer, Rec) -> Rec.
 
 %% Decode fields from `roster_fields()' into a record
 row_to_record(LServer,
