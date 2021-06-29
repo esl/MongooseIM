@@ -39,22 +39,22 @@
 
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic
               | rabbit | ldap.
--type host() :: global | host | jid:lserver().
+-type scope() :: global | host | mongooseim:host_type().
 -type tag() :: atom().
 -type name() :: atom().
 
 -export_type([type/0]).
 -export_type([tag/0]).
--export_type([host/0]).
+-export_type([scope/0]).
 -export_type([name/0]).
 
 -callback init() -> ok | {error, term()}.
--callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
+-callback start(scope(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
     {external, pid()} | {error, Reason :: term()}.
 -callback default_opts() -> proplist:proplists().
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
--callback stop(host(), tag()) -> ok.
+-callback stop(scope(), tag()) -> ok.
 
 -optional_callbacks([default_opts/0, is_supported_strategy/1]).
 
@@ -247,7 +247,7 @@ get_pools() ->
 stats(Type, Host, Tag) ->
     wpool:stats(make_pool_name(Type, Host, Tag)).
 
--spec make_pool_name(type(), host(), tag()) -> atom().
+-spec make_pool_name(type(), scope(), tag()) -> atom().
 make_pool_name(Type, Host, Tag) when is_atom(Host) ->
     make_pool_name(Type, atom_to_binary(Host, utf8), Tag);
 make_pool_name(Type, Host, Tag) when is_binary(Host) ->
