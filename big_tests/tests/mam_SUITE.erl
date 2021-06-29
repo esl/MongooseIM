@@ -3068,9 +3068,9 @@ check_user_exist(Config) ->
   ok = rpc(mim(), ejabberd_auth, try_register, [JID, AdminP]),
   %% admin user already registered
   {ok, HostType} = rpc(mim(), mongoose_domain_core, get_host_type, [AdminS]),
-  true = rpc(mim(), mongoose_users, does_user_exist, [HostType, JID]),
-  false = rpc(mim(), mongoose_users, does_user_exist, [HostType, mongoose_helper:make_jid(<<"fake-user">>, AdminS)]),
-  false = rpc(mim(), mongoose_users, does_user_exist, [HostType, mongoose_helper:make_jid(AdminU, <<"fake-domain">>)]),
+  #{result := true} = rpc(mim(), mongoose_hooks, does_user_exist, [HostType, JID]),
+  #{result := false} = rpc(mim(), mongoose_hooks, does_user_exist, [HostType, mongoose_helper:make_jid(<<"fake-user">>, AdminS)]),
+  #{result := false} = rpc(mim(), mongoose_hooks, does_user_exist, [HostType, mongoose_helper:make_jid(AdminU, <<"fake-domain">>)]),
   %% cleanup
   ok = rpc(mim(), ejabberd_auth, remove_user, [JID]).
 

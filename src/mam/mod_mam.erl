@@ -284,10 +284,10 @@ filter_packet({From, To, Acc1, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),
     {AmpEvent, PacketAfterArchive, Acc3} =
-        case mongoose_users:does_user_exist(HostType, To) of
-            false ->
+        case mongoose_hooks:does_user_exist(HostType, To) of
+            #{result := false} ->
                 {mam_failed, Packet, Acc1};
-            true ->
+            #{result := true} ->
                 case process_incoming_packet(From, To, Packet, Acc1) of
                     {undefined, Acc2} ->
                         {mam_failed, Packet, Acc2};

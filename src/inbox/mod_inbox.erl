@@ -314,10 +314,12 @@ maybe_process_message(Acc, From, To, Msg, Dir) ->
                          Dir :: outgoing | incoming) -> boolean().
 inbox_owner_exists(Acc, From, _To, outgoing) ->
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_users:does_user_exist(HostType, From);
+    #{result := Exists} = mongoose_hooks:does_user_exist(HostType, From),
+    Exists;
 inbox_owner_exists(Acc, _From, To, incoming) ->
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_users:does_user_exist(HostType, To).
+    #{result := Exists} = mongoose_hooks:does_user_exist(HostType, To),
+    Exists.
 
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
             process_message(HostType, From, To, Msg, Acc, Dir, one2one);

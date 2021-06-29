@@ -221,6 +221,8 @@
 
 [modules.mod_commands]
 
+[modules.mod_cache_users]
+
 [modules.mod_muc_commands]
 
 [modules.mod_muc_light_commands]
