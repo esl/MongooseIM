@@ -63,8 +63,8 @@ supported_features() ->
 
 hooks(HostType) ->
     [
-     {does_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
-     {does_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
+     {does_stored_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
+     {does_stored_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
      {remove_user, HostType, ?MODULE, remove_user, 30},
      {remove_domain, HostType, ?MODULE, remove_domain, 30}
     ].

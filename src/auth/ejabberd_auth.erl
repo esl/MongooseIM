@@ -97,14 +97,14 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ejabberd_hooks:add(does_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
+    ejabberd_hooks:add(does_stored_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
     ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
     ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
-    ejabberd_hooks:delete(does_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
+    ejabberd_hooks:delete(does_stored_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
