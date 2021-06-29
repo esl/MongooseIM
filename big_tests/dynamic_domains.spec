@@ -15,10 +15,12 @@
 
 {suites, "tests", disco_and_caps_SUITE}.
 {skip_cases, "tests", disco_and_caps_SUITE,
- [user_can_query_friend_resources,
-  user_can_query_friend_features,
-  user_cannot_query_friend_resources_with_unknown_node],
- "at the moment mod_roster doesn't support dynamic domains"}.
+ [user_can_query_friend_features],
+ "at the moment neither mod_offline nor mod_adhoc supports dynamic domains"
+ " and this test requires at least one of them to be enabled"
+ " to have a non-empty feature list"}.
+
+{suites, "tests", domain_isolation_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
 {skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
@@ -27,9 +29,6 @@
 {suites, "tests", inbox_extensions_SUITE}.
 
 {suites, "tests", mam_SUITE}.
-{skip_cases, "tests", mam_SUITE,
- [messages_filtered_when_prefs_default_policy_is_roster],
- "at the moment mod_roster doesn't support dynamic domains"}.
 
 {suites, "tests", mod_ping_SUITE}.
 
@@ -41,23 +40,25 @@
 
 {suites, "tests", muc_light_SUITE}.
 {skip_cases, "tests", muc_light_SUITE,
- [rooms_in_rosters,
-  rooms_in_rosters_doesnt_break_disco_info,
-  no_roomname_in_schema_doesnt_break_disco_and_roster],
- "at the moment mod_roster doesn't support dynamic domains"}.
+ [rooms_in_rosters_doesnt_break_disco_info],
+ "at the moment neither mod_offline nor mod_adhoc supports dynamic domains"
+ " and this test requires at least one of them to be enabled"
+ " to have a non-empty feature list"}.
 
 {suites, "tests", muc_light_legacy_SUITE}.
 
 {suites, "tests", offline_stub_SUITE}.
 
-{suites, "tests", domain_isolation_SUITE}.
+{suites, "tests", presence_SUITE}.
+
+{suites, "tests", race_conditions_SUITE}.
+
+{suites, "tests", rest_client_SUITE}.
+{skip_cases, "tests", rest_client_SUITE,
+ [non_default_http_server_name_is_returned_if_configured],
+ "at the moment mim2 node is not configured for dynamic domains"}.
 
 {suites, "tests", sm_SUITE}.
-{skip_cases, "tests", sm_SUITE,
- [basic_ack,
-  h_ok_after_session_enabled_after_session,
-  subscription_requests_are_buffered_properly],
- "at the moment mod_roster doesn't support dynamic domains"}.
 {skip_cases, "tests", sm_SUITE,
  [resend_unacked_on_reconnection,
   session_established,
@@ -68,13 +69,6 @@
   resume_expired_session_returns_correct_h,
   unacknowledged_message_hook_offline],
  "at the moment mod_offline doesn't support dynamic domains"}.
-
-{suites, "tests", rest_client_SUITE}.
-{skip_groups, "tests", rest_client_SUITE, [roster],
- "at the moment mod_roster doesn't support dynamic domains"}.
-{skip_cases, "tests", rest_client_SUITE,
- [non_default_http_server_name_is_returned_if_configured],
- "at the moment mim2 node is not configured for dynamic domains"}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 

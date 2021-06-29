@@ -239,7 +239,7 @@ unregister_host(Host) ->
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{to_jid := #jid{lserver = LServer}, node := <<>>}) ->
-    Features = ets:lookup_element(?NSTABLE, LServer, 2),
+    Features = [Feature || {_, Feature} <- ets:lookup(?NSTABLE, LServer)],
     mongoose_disco:add_features(Features, Acc);
 disco_local_features(Acc) ->
     Acc.

@@ -24,6 +24,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [host_type/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -36,19 +38,21 @@ all() ->
      {group, subscribe_group}].
 
 groups() ->
-    G = [{presence, [sequence], [available,
+    G = [{presence, [parallel], [available,
                                  available_direct,
                                  available_direct_then_unavailable,
                                  available_direct_then_disconnect,
                                  additions,
                                  invisible_presence]},
-         {presence_priority, [sequence], [negative_priority_presence]},
-         {roster, [sequence], [get_roster,
+         {presence_priority, [parallel], [negative_priority_presence]},
+         {roster, [parallel], [get_roster,
+                               fail_to_get_another_users_roster,
                                add_contact,
+                               fail_to_add_contact_for_another_user,
                                remove_contact]},
-         {roster_versioning, [sequence], [versioning,
+         {roster_versioning, [parallel], [versioning,
                                           versioning_no_store]},
-         {subscribe_group, [sequence], [subscribe,
+         {subscribe_group, [parallel], [subscribe,
                                         subscribe_decline,
                                         subscribe_relog,
                                         subscribe_preserves_extra_info,
@@ -115,7 +119,7 @@ end_rosters_remove(Config) ->
 %%--------------------------------------------------------------------
 
 available(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
 
         escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
         escalus:assert(is_presence, escalus:wait_for_stanza(Alice))
@@ -123,9 +127,9 @@ available(Config) ->
         end).
 
 available_direct(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        BobJid = escalus_users:get_jid(Config, bob),
+        BobJid = escalus_client:short_jid(Bob),
         escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"available">>)),
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence, Received),
@@ -134,7 +138,7 @@ available_direct(Config) ->
         end).
 
 available_direct_then_unavailable(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% given Alice has sent direct presence to Bob
         escalus:send(Alice, escalus_stanza:presence_direct(Bob, <<"available">>)),
         Received1 = escalus:wait_for_stanza(Bob),
@@ -151,7 +155,7 @@ available_direct_then_unavailable(Config) ->
         end).
 
 available_direct_then_disconnect(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% given Alice has sent direct presence to Bob
         escalus:send(Alice, escalus_stanza:presence_direct(Bob, <<"available">>)),
         Received1 = escalus:wait_for_stanza(Bob),
@@ -168,14 +172,14 @@ available_direct_then_disconnect(Config) ->
         end).
 
 additions(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         Tags = escalus_stanza:tags([
             {<<"show">>, <<"dnd">>},
             {<<"priority">>, <<"1">>},
             {<<"status">>, <<"Short break">>}
         ]),
-        BobJid = escalus_users:get_jid(Config, bob),
+        BobJid = escalus_client:short_jid(Bob),
         Presence = escalus_stanza:presence_direct(BobJid, <<"available">>, Tags),
         escalus:send(Alice, Presence),
 
@@ -188,7 +192,7 @@ additions(Config) ->
         end).
 
 negative_priority_presence(Config) ->
-    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% Alice1 updates presense priority
         Tags = escalus_stanza:tags([
@@ -215,9 +219,9 @@ negative_priority_presence(Config) ->
         end).
 
 invisible_presence(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -271,14 +275,26 @@ invisible_presence(Config) ->
         end).
 
 get_roster(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         escalus:send(Alice, escalus_stanza:roster_get()),
         escalus_assert:is_roster_result(escalus:wait_for_stanza(Alice))
 
         end).
 
+fail_to_get_another_users_roster(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:roster_get(),
+        escalus:send(Alice, escalus_stanza:to(Request, BobJid)),
+        Response = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Response),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Response),
+        escalus:assert(is_stanza_from, [BobJid], Response)
+
+        end).
+
 add_contact(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
@@ -296,13 +312,26 @@ add_contact(Config) ->
         Received2 = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_roster_result, Received2),
-        BobJid = escalus_users:get_jid(Config, bob),
+        BobJid = escalus_client:short_jid(Bob),
         escalus:assert(roster_contains, [BobJid], Received2)
 
         end).
 
-remove_contact(Config) ->
+fail_to_add_contact_for_another_user(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        Request = escalus_stanza:roster_add_contact(BobJid, bobs_default_groups(),
+                                                    bobs_default_name()),
+        escalus:send(Alice, escalus_stanza:to(Request, BobJid)),
+        Response = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_error, [Request], Response),
+        escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Response),
+        escalus:assert(is_stanza_from, [BobJid], Response)
+
+        end).
+
+remove_contact(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -329,7 +358,7 @@ remove_contact(Config) ->
     end).
 
 versioning(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         escalus:send(Alice, escalus_stanza:roster_get(<<"">>)),
         RosterResult = escalus:wait_for_stanza(Alice),
@@ -362,7 +391,7 @@ versioning(Config) ->
         Received2 = escalus:wait_for_stanza(Alice),
 
         escalus:assert(is_roster_result, Received2),
-        BobJid = escalus_users:get_jid(Config, bob),
+        BobJid = escalus_client:short_jid(Bob),
         escalus:assert(roster_contains, [BobJid], Received2),
 
         %% check version
@@ -386,9 +415,9 @@ versioning_no_store(Config) ->
     versioning(Config).
 
 subscribe(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -443,9 +472,9 @@ subscribe(Config) ->
         end).
 
 subscribe_decline(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -471,9 +500,11 @@ subscribe_decline(Config) ->
     end).
 
 subscribe_relog(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    Users = [{alice, 1}, {bob, 1}],
+    FreshConfig = escalus_fresh:create_users(Config, Users),
+    escalus:story(FreshConfig, Users, fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
@@ -489,9 +520,8 @@ subscribe_relog(Config) ->
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
 
         %% New Bob resource connects, should receive subscription request again
-        {ok, NewBob} = escalus_client:start_for(Config, bob, <<"newbob">>),
-        escalus:send(NewBob,
-            escalus_stanza:presence(<<"available">>)),
+        {ok, NewBob} = escalus_client:start_for(FreshConfig, bob, <<"newbob">>),
+        escalus:send(NewBob, escalus_stanza:presence(<<"available">>)),
 
         escalus:assert(is_presence_with_type, [<<"available">>],
                        escalus:wait_for_stanza(Bob)),
@@ -523,7 +553,7 @@ subscribe_relog(Config) ->
 %% This test verifies that a subscription request doesn't remove nickname of a contact
 %% and doesn't remove them from a group.
 subscribe_preserves_extra_info(Config) ->
-    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% Alice adds Bob as a contact
         add_sample_contact(Alice, Bob),
 
@@ -553,9 +583,9 @@ subscribe_preserves_extra_info(Config) ->
         end).
 
 unsubscribe(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -608,9 +638,9 @@ unsubscribe(Config) ->
     end).
 
 remove_unsubscribe(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
-        BobJid = escalus_users:get_jid(Config, bob),
-        AliceJid = escalus_users:get_jid(Config, alice),
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJid = escalus_client:short_jid(Bob),
+        AliceJid = escalus_client:short_jid(Alice),
 
         %% add contact
         add_sample_contact(Alice, Bob),
@@ -689,36 +719,35 @@ check_subscription_stanzas(Stanzas, Type) ->
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
                                  Item <- escalus_users:get_usp(Config, UserSpec)],
-    Mods = rpc(mim(), gen_mod, loaded_modules, [Server]),
+    Mods = rpc(mim(), gen_mod, loaded_modules, [host_type()]),
     case lists:member(mod_roster, Mods) of
         true ->
-            rpc(mim(), mod_roster, remove_user, [Username, Server]);
+            Acc = mongoose_helper:new_mongoose_acc(Server),
+            rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]);
         false ->
             case lists:member(mod_roster_rdbms, Mods) of
                 true ->
-                    rpc(mim(), mod_roster_rdbms, remove_user, [Username, Server]);
+                    rpc(mim(), mod_roster_rdbms, remove_user_t, [host_type(), Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end
     end.
 
 set_versioning(Versioning, VersionStore, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = rpc(mim(), gen_mod, get_module_opt,
-                           [Host, mod_roster, versioning, false]),
+                           [host_type(), mod_roster, versioning, false]),
     RosterVersionOnDb = rpc(mim(), gen_mod, get_module_opt,
-                            [Host, mod_roster, store_current_id, false]),
-    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, versioning, Versioning]),
-    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, store_current_id, VersionStore]),
+                            [host_type(), mod_roster, store_current_id, false]),
+    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, versioning, Versioning]),
+    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, store_current_id, VersionStore]),
     [{versioning, RosterVersioning},
      {store_current_id, RosterVersionOnDb} | Config].
 
 restore_versioning(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = proplists:get_value(versioning, Config),
     RosterVersionOnDb = proplists:get_value(store_current_id, Config),
-    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
-    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
+    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, versioning, RosterVersioning]),
+    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, store_current_id, RosterVersionOnDb]).
 
 
 check_roster_count(User, ExpectedCount) ->
@@ -729,4 +758,3 @@ check_roster_count(User, ExpectedCount) ->
     % Roster contains all created users excluding user
     escalus:assert(is_roster_result, Roster),
     escalus:assert(count_roster_items, [ExpectedCount], Roster).
-

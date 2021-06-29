@@ -22,8 +22,11 @@
 -define(ne(E, I), ?assert(E =/= I)).
 
 -define(ACC_PARAMS, #{location => ?LOCATION,
-                      lserver => <<"localhost">>,
+                      lserver => domain(),
+                      host_type => host_type(),
                       element => undefined}).
+
+-define(HOST_TYPE, <<"test type">>).
 
 all() -> [
     roster_old,
@@ -38,13 +41,13 @@ init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
     {ok, _} = application:ensure_all_started(exometer_core),
     meck:new(gen_iq_handler, [no_link]),
-    meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
-    meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
+    meck:expect(gen_iq_handler, add_iq_handler_for_domain, fun(_, _, _, _, _, _) -> ok end),
+    meck:expect(gen_iq_handler, remove_iq_handler_for_domain, fun(_, _, _) -> ok end),
     meck:new(mongoose_domain_api, [no_link]),
-    meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
+    meck:expect(mongoose_domain_api, get_domain_host_type, fun(_) -> {ok, host_type()} end),
     meck:new(ejabberd_config, [no_link, passthrough]),
     meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [host()] end),
+                fun(hosts, Default) -> Default end),
     C.
 
 end_per_suite(C) ->
@@ -57,12 +60,13 @@ init_per_testcase(_TC, C) ->
     init_ets(),
     ejabberd_hooks:start_link(),
     gen_mod:start(),
-    gen_mod:start_module(host(), mod_roster, []),
+    gen_mod:start_module(host_type(), mod_roster, []),
     C.
 
 end_per_testcase(_TC, C) ->
-    mod_roster:remove_user(a(), host()),
-    gen_mod:stop_module(host(), mod_roster),
+    Acc = mongoose_acc:new(?ACC_PARAMS),
+    mod_roster:remove_user(Acc, a(), domain()),
+    gen_mod:stop_module(host_type(), mod_roster),
     delete_ets(),
     C.
 
@@ -75,7 +79,7 @@ end_per_testcase(_TC, C) ->
 roster_old(_C) ->
     R1 = get_roster_old(),
     ?assertEqual(length(R1), 0),
-    mod_roster:set_items(alice_jid(), addbob_stanza()),
+    ok = mod_roster:set_items(host_type(), alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     subscription(out, subscribe),
     assert_state_old(none, out),
@@ -84,7 +88,7 @@ roster_old(_C) ->
 roster_old_with_filter(_C) ->
     R1 = get_roster_old(),
     ?assertEqual(0, length(R1)),
-    mod_roster:set_items(alice_jid(), addbob_stanza()),
+    ok = mod_roster:set_items(host_type(), alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     subscription(in, subscribe),
     R2 = get_roster_old(),
@@ -94,29 +98,29 @@ roster_old_with_filter(_C) ->
     ok.
 
 roster_new(_C) ->
-    R1 = mod_roster:get_roster_entry(alice_jid(), bob()),
+    R1 = mod_roster:get_roster_entry(host_type(), alice_jid(), bob_ljid(), short),
     ?assertEqual(does_not_exist, R1),
-    mod_roster:set_items(alice_jid(), addbob_stanza()),
+    ok = mod_roster:set_items(host_type(), alice_jid(), addbob_stanza()),
     assert_state_old(none, none),
     ct:pal("get_roster_old(): ~p", [get_roster_old()]),
-    R2 = mod_roster:get_roster_entry(alice_jid(), bob()),
+    R2 = mod_roster:get_roster_entry(host_type(), alice_jid(), bob_ljid(), short),
     ?assertMatch(#roster{}, R2), % is not guaranteed to contain full info
-    R3 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
+    R3 = mod_roster:get_roster_entry(host_type(), alice_jid(), bob_ljid(), full),
     assert_state(R3, none, none, [<<"friends">>]),
     subscription(out, subscribe),
-    R4 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
+    R4 = mod_roster:get_roster_entry(host_type(), alice_jid(), bob_ljid(), full),
     assert_state(R4, none, out, [<<"friends">>]).
 
 
 roster_case_insensitive(_C) ->
-    mod_roster:set_items(alice_jid(), addbob_stanza()),
+    ok = mod_roster:set_items(host_type(), alice_jid(), addbob_stanza()),
     R1 = get_roster_old(),
     ?assertEqual(1, length(R1)),
     R2 = get_roster_old(ae()),
     ?assertEqual(1, length(R2)),
-    R3 = mod_roster:get_roster_entry(alice_jid(), bob(), full),
+    R3 = mod_roster:get_roster_entry(host_type(), alice_jid(), bob_ljid(), full),
     assert_state(R3, none, none, [<<"friends">>]),
-    R3 = mod_roster:get_roster_entry(alicE_jid(), bob(), full),
+    R3 = mod_roster:get_roster_entry(host_type(), alicE_jid(), bob_ljid(), full),
     assert_state(R3, none, none, [<<"friends">>]),
     ok.
 
@@ -131,21 +135,18 @@ assert_state(Rentry, Subscription, Ask, Groups) ->
     ?assertEqual(Groups, Rentry#roster.groups).
 
 subscription(Direction, Type) ->
-    BobJID = jid:from_binary(bob()),
-    TFun = fun() -> mod_roster:process_subscription_transaction(Direction,
-                                                                alice_jid(),
-                                                                BobJID,
-                                                                Type,
-                                                                <<"">>)
+    TFun = fun() ->
+                   mod_roster:process_subscription_t(host_type(), Direction, alice_jid(),
+                                                     bob_jid(), Type, <<>>)
            end,
-    {atomic, _} = mod_roster:transaction(host(), TFun).
+    {atomic, _} = mod_roster:transaction(host_type(), TFun).
 
 get_roster_old() ->
     get_roster_old(a()).
 
 get_roster_old(User) ->
     Acc = mongoose_acc:new(?ACC_PARAMS),
-    Acc1 = mod_roster:get_user_roster(Acc, jid:make(User, host(), <<>>)),
+    Acc1 = mod_roster:get_user_roster(Acc, jid:make(User, domain(), <<>>)),
     mongoose_acc:get(roster, items, Acc1).
 
 get_full_roster() ->
@@ -170,17 +171,25 @@ delete_ets() ->
     ok.
 
 alice_jid() ->
-    jid:make(a(), host(), <<>>).
+    jid:make(a(), domain(), <<>>).
 
 alicE_jid() ->
-    jid:make(ae(), host(), <<>>).
+    jid:make(ae(), domain(), <<>>).
 
 a() -> <<"alice">>.
 ae() -> <<"alicE">>.
 
-host() -> <<"localhost">>.
+domain() -> <<"localhost">>.
 
 bob() -> <<"bob@localhost">>.
+
+bob_jid() ->
+    jid:make(<<"bob">>, domain(), <<>>).
+
+bob_ljid() ->
+    jid:to_lower(bob_jid()).
+
+host_type() -> <<"test type">>.
 
 addbob_stanza() ->
     #xmlel{children = [

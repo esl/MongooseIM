@@ -359,8 +359,8 @@ stream_start_features_after_auth(#state{} = S) ->
     send_element_from_server_jid(S, stream_features(Features)),
     fsm_next_state(wait_for_feature_after_auth, S).
 
-maybe_roster_versioning_feature(#state{server = Server, host_type = HostType}) ->
-    mongoose_hooks:roster_get_versioning_feature(HostType, Server).
+maybe_roster_versioning_feature(#state{host_type = HostType}) ->
+    mongoose_hooks:roster_get_versioning_feature(HostType).
 
 stream_features(FeatureElements) ->
     #xmlel{name = <<"stream:features">>,
@@ -2034,9 +2034,8 @@ presence_track(Acc, StateData) ->
                                               StateData :: state()) -> mongoose_acc:t().
 process_presence_subscription_and_route(Acc, Type, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    HostType = StateData#state.host_type,
     To = mongoose_acc:to_jid(Acc),
-    Acc1 = mongoose_hooks:roster_out_subscription(HostType, Acc, From, To, Type),
+    Acc1 = mongoose_hooks:roster_out_subscription(Acc, From, To, Type),
     check_privacy_and_route(Acc1, jid:to_bare(From), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),

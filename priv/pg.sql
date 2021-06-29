@@ -52,30 +52,29 @@ CREATE INDEX i_last_seconds ON last USING btree (seconds);
 
 
 CREATE TABLE rosterusers (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid text NOT NULL,
     nick text NOT NULL,
     subscription character(1) NOT NULL,
     ask character(1) NOT NULL,
     askmessage text NOT NULL,
-    server character(1) NOT NULL,
-    subscribe text,
-    "type" text,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX i_rosteru_user_jid ON rosterusers USING btree (username, jid);
-CREATE INDEX i_rosteru_username ON rosterusers USING btree (username);
+CREATE UNIQUE INDEX i_rosteru_server_user_jid ON rosterusers USING btree (server, username, jid);
+CREATE INDEX i_rosteru_server_user ON rosterusers USING btree (server, username);
 CREATE INDEX i_rosteru_jid ON rosterusers USING btree (jid);
 
 
 CREATE TABLE rostergroups (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     jid text NOT NULL,
     grp text NOT NULL
 );
 
-CREATE INDEX pk_rosterg_user_jid ON rostergroups USING btree (username, jid);
+CREATE INDEX i_rosterg_server_user_jid ON rostergroups USING btree (server, username, jid);
 
 
 CREATE TABLE vcard (
@@ -166,8 +165,10 @@ CREATE UNIQUE INDEX i_private_storage_username_namespace ON private_storage USIN
 
 
 CREATE TABLE roster_version (
-    username varchar(250) PRIMARY KEY,
-    version text NOT NULL
+    server varchar(250),
+    username varchar(250),
+    version text NOT NULL,
+    PRIMARY KEY (server, username)
 );
 
 -- To update from 0.9.8:

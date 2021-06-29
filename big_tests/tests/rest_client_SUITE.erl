@@ -1130,28 +1130,28 @@ add_and_remove(Config) ->
 
 add_and_remove_some_contacts_properly(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {carol, 1}],
-        fun(Alice, Bob, Kate, Carol) ->
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+        fun(Alice, Bob, Kate, Mike) ->
             BCred = credentials({bob, Bob}),
             % adds all the other users
             lists:foreach(fun(AddContact) ->
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
-                         [Alice, Kate, Carol]),
+                         [Alice, Kate, Mike]),
             AliceJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Alice)),
             KateJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Kate)),
-            CarolJID = escalus_utils:jid_to_lower(
-                escalus_client:short_jid(Carol)),
+            MikeJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Mike)),
             AliceContact = create_contact(AliceJID),
             KateContact = create_contact(KateJID),
-            CarolContact = create_contact(CarolJID),
+            MikeContact = create_contact(MikeJID),
             % delete Alice and Kate
             Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID]}),
             {?OK, {[{<<"not_deleted">>,[]}]}} = delete(client, "/contacts", BCred, Body),
-            % Bob's roster consists now of only Carol
+            % Bob's roster consists now of only Mike
             {?OK, R4} = gett(client, "/contacts", BCred),
-            [CarolContact] = decode_maplist(R4),
+            [MikeContact] = decode_maplist(R4),
             is_subscription_remove(Bob),
             ok
         end
@@ -1161,8 +1161,8 @@ add_and_remove_some_contacts_properly(Config) ->
 
 add_and_remove_some_contacts_with_nonexisting(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {carol, 1}],
-        fun(Alice, Bob, Kate, Carol) ->
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
+        fun(Alice, Bob, Kate, Mike) ->
             BCred = credentials({bob, Bob}),
             % adds all the other users
             lists:foreach(fun(AddContact) ->
@@ -1172,14 +1172,14 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
                 escalus_client:short_jid(Alice)),
             KateJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Kate)),
-            CarolJID = escalus_utils:jid_to_lower(
-                escalus_client:short_jid(Carol)),
+            MikeJID = escalus_utils:jid_to_lower(
+                escalus_client:short_jid(Mike)),
             AliceContact = create_contact(AliceJID),
             KateContact = create_contact(KateJID),
-            CarolContact = create_contact(CarolJID),
-            % delete Alice, Kate and Carol (who is absent)
-            Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID, CarolJID]}),
-            {?OK, {[{<<"not_deleted">>,[CarolJID]}]}} = delete(client, "/contacts", BCred, Body),
+            MikeContact = create_contact(MikeJID),
+            % delete Alice, Kate and Mike (who is absent)
+            Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID, MikeJID]}),
+            {?OK, {[{<<"not_deleted">>,[MikeJID]}]}} = delete(client, "/contacts", BCred, Body),
             % Bob's roster is empty now
             {?OK, R4} = gett(client, "/contacts", BCred),
             [] = decode_maplist(R4),

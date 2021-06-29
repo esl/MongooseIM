@@ -366,8 +366,13 @@ add_contact(Caller, JabberID, Name) ->
 
 add_contact(Caller, Other, Name, Groups) ->
     case parse_from_to(Caller, Other) of
-        {ok, CallerJid, OtherJid} ->
-            mod_roster:set_roster_entry(CallerJid, OtherJid, Name, Groups);
+        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
+            case mongoose_domain_api:get_domain_host_type(LServer) of
+                {ok, HostType} ->
+                    mod_roster:set_roster_entry(HostType, CallerJid, OtherJid, Name, Groups);
+                {error, not_found} ->
+                    {error, unknown_domain}
+            end;
         E ->
             E
     end.
@@ -380,26 +385,22 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
     case delete_contact(Caller, H) of
         ok ->
             maybe_delete_contacts(Caller, T, NotDeleted);
-        error ->
+        {error, _Reason} ->
             maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
 delete_contact(Caller, Other) ->
     case parse_from_to(Caller, Other) of
-        {ok, CallerJid, OtherJid} ->
-            case jid_exists(CallerJid, OtherJid) of
-                false -> error;
-                true ->
-                    mod_roster:remove_from_roster(CallerJid, OtherJid)
+        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
+            case mongoose_domain_api:get_domain_host_type(LServer) of
+                {ok, HostType} ->
+                    mod_roster:remove_from_roster(HostType, CallerJid, OtherJid);
+                {error, not_found} ->
+                    {error, unknown_domain}
             end;
         E ->
             E
     end.
-
--spec jid_exists(jid:jid(), jid:jid()) -> boolean().
-jid_exists(CallerJid, OtherJid) ->
-    Res = mod_roster:get_roster_entry(CallerJid, OtherJid),
-    Res =/= does_not_exist.
 
 registered_commands() ->
     [#{name => mongoose_commands:name(C),
@@ -511,8 +512,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                lserver => LServer,
                                element => El }),
     % set subscription to
-    Acc2 = mongoose_hooks:roster_out_subscription(HostType, Acc1, CallerJid,
-                                                  OtherJid, Type),
+    Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJid, OtherJid, Type),
     ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 

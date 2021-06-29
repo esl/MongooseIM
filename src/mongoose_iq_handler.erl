@@ -1,6 +1,7 @@
 
 -module(mongoose_iq_handler).
 -include("mongoose.hrl").
+-include("jlib.hrl").
 
 %%----------------------------------------------------------------------
 %% Types
@@ -99,19 +100,26 @@ add_extra(#iq_handler{ extra = OldExtra } = Handler, Extra) ->
                       To :: jid:jid(),
                       IQ :: jlib:iq()) -> mongoose_acc:t().
 execute_handler(#iq_handler{handler_fn = IQHandlerFn, extra = Extra},
-                Acc, From, To, IQ) ->
+                Acc, From, To, IQ = #iq{sub_el = SubEl, lang = Lang}) ->
     try IQHandlerFn(Acc, From, To, IQ, Extra) of
         {Acc1, ignore} ->
             Acc1;
         {Acc1, ResIQ} ->
-            ejabberd_router:route(To, From, Acc1,
-                                  jlib:iq_to_xml(ResIQ))
-    catch Class:Reason:StackTrace ->
-        ?LOG_WARNING(#{what => process_iq_error, from => From, to => To, iq => IQ,
-                       acc => Acc, extra => Extra, handler_function => IQHandlerFn,
-                       class => Class, reason => Reason, stacktrace => StackTrace}),
-        Acc
+            reply(From, To, Acc1, ResIQ)
+    catch
+        Class:Reason:StackTrace ->
+            ?LOG_WARNING(#{what => process_iq_error, from => From, to => To, iq => IQ,
+                           acc => Acc, extra => Extra, handler_function => IQHandlerFn,
+                           class => Class, reason => Reason, stacktrace => StackTrace}),
+            ErrorMsg = <<"The server could not process the IQ stanza">>,
+            ErrorEl = mongoose_xmpp_errors:internal_server_error(Lang, ErrorMsg),
+            ErrorIQ = IQ#iq{type = error, sub_el = [SubEl, ErrorEl]},
+            reply(From, To, Acc, ErrorIQ)
     end.
+
+-spec reply(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) -> mongoose_acc:t().
+reply(From, To, Acc, IQReply) ->
+    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(IQReply)).
 
 %%--------------------------------------------------------------------
 %% Internal functions
