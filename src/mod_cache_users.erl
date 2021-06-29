@@ -63,8 +63,8 @@ supported_features() ->
 
 hooks(HostType) ->
     [
-     {does_stored_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
-     {does_stored_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
+     {does_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
+     {does_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
      {remove_user, HostType, ?MODULE, remove_user, 30},
      {remove_domain, HostType, ?MODULE, remove_domain, 30}
     ].
@@ -107,6 +107,8 @@ send_to_group(HostType, Msg) ->
                              Jid :: jid:jid()) -> ejabberd_auth:does_user_exist().
 does_cached_user_exist(#{result := true} = Status, _, _) ->
     Status;
+does_cached_user_exist(#{type := with_anonymous} = Status, _HostType, _Jid) ->
+    Status;
 does_cached_user_exist(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Key = key(LUser, LServer),
     ParentTab = tbl_name(HostType),
@@ -119,6 +121,8 @@ does_cached_user_exist(Status, HostType, #jid{luser = LUser, lserver = LServer})
 maybe_put_user_into_cache(#{result := false} = Status, _, _) ->
     Status;
 maybe_put_user_into_cache(#{result := true, cached := true} = Status, _, _) ->
+    Status;
+maybe_put_user_into_cache(#{type := with_anonymous} = Status, _HostType, _Jid) ->
     Status;
 maybe_put_user_into_cache(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Key = key(LUser, LServer),

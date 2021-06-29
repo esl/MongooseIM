@@ -12,7 +12,7 @@
          adhoc_sm_commands/4,
          anonymous_purge_hook/3,
          auth_failed/3,
-         does_stored_user_exist/2,
+         does_user_exist/3,
          ejabberd_ctl_process/2,
          failed_to_store_message/1,
          filter_local_packet/1,
@@ -208,13 +208,14 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
 auth_failed(HostType, Server, Username) ->
     ejabberd_hooks:run_for_host_type(auth_failed, HostType, ok, [Username, Server]).
 
--spec does_stored_user_exist(HostType, Jid) -> Result when
-    HostType :: mongooseim:host_type(),
+-spec does_user_exist(HostType, Jid, Type) -> Result when
+    HostType :: mongoseim:host_type(),
     Jid :: jid:jid(),
+    Type :: stored | with_anonymous,
     Result :: ejabberd_auth:does_user_exist().
-does_stored_user_exist(HostType, Jid) ->
-    ejabberd_hooks:run_for_host_type(does_stored_user_exist, HostType,
-                                     #{result => false, cached => false},
+does_user_exist(HostType, Jid, Type) ->
+    ejabberd_hooks:run_for_host_type(does_user_exist, HostType,
+                                     #{result => false, cached => false, type => Type},
                                      [HostType, Jid]).
 
 -spec remove_domain(HostType, Domain) -> Result when

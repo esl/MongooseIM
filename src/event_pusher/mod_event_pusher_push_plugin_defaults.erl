@@ -80,7 +80,7 @@ publish_notification(Acc, _, Payload, Services) ->
 -spec should_publish(Acc :: mongoose_acc:t(), To :: jid:jid()) -> boolean().
 should_publish(Acc, #jid{} = To) ->
     HostType = mongoose_acc:host_type(Acc),
-    try mongoose_hooks:does_stored_user_exist(HostType, To) of
+    try mongoose_hooks:does_user_exist(HostType, To, stored) of
         #{result := false} ->
             false;
         #{result := true} ->

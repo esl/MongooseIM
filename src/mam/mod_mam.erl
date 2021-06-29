@@ -284,7 +284,7 @@ filter_packet({From, To, Acc1, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),
     {AmpEvent, PacketAfterArchive, Acc3} =
-        case mongoose_hooks:does_stored_user_exist(HostType, To) of
+        case mongoose_hooks:does_user_exist(HostType, To, stored) of
             #{result := false} ->
                 {mam_failed, Packet, Acc1};
             #{result := true} ->
