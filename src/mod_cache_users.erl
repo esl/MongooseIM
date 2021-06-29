@@ -11,7 +11,7 @@
 -export([handle_cast/2]).
 -export([handle_info/2]).
 
-%% API
+%% gen_mod API
 -export([start/2]).
 -export([stop/1]).
 -export([config_spec/0]).
@@ -40,14 +40,14 @@ tbl_name(HostType) ->
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    start_cache(HostType, Opts),
+    start_server(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
-    stop_cache(HostType),
+    stop_server(HostType),
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -90,27 +90,24 @@ does_user_exist(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
 remove_user(Acc, LUser, LServer) ->
     Key = key(LUser, LServer),
     HostType = mongoose_acc:host_type(Acc),
-    ParentName = tbl_name(HostType),
-    case pg2:get_members(ParentName) of
-        Pids when is_list(Pids) ->
-            [gen_server:cast(Pid, {remove_user, Key}) || Pid <- Pids];
-        {error, _Reason} ->
-            ok
-    end,
+    send_to_group(HostType, {remove_user, Key}),
     Acc.
 
 -spec remove_domain(mongoose_hooks:simple_acc(),
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
+    send_to_group(HostType, {remove_domain, Domain}),
+    Acc.
+
+send_to_group(HostType, Msg) ->
     ParentName = tbl_name(HostType),
     case pg2:get_members(ParentName) of
         Pids when is_list(Pids) ->
-            [gen_server:cast(Pid, {remove_domain, Domain}) || Pid <- Pids];
+            [gen_server:cast(Pid, Msg) || Pid <- Pids];
         {error, _Reason} ->
             ok
-    end,
-    Acc.
+    end.
 
 %%====================================================================
 %% Helpers
@@ -157,16 +154,16 @@ put_member(ParentTab, Key, SegmentKey) ->
     ets:insert(EtsSegment, {Key}),
     ok.
 
--spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start_cache(HostType, Opts) ->
+-spec start_server(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start_server(HostType, Opts) ->
     ParentTab = tbl_name(HostType),
     Spec = #{id => ParentTab, start => {?MODULE, start_link, [ParentTab, Opts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
--spec stop_cache(mongooseim:host_type()) -> any().
-stop_cache(HostType) ->
+-spec stop_server(mongooseim:host_type()) -> any().
+stop_server(HostType) ->
     ok = ejabberd_sup:stop_child(tbl_name(HostType)).
 
 %%--------------------------------------------------------------------
@@ -189,28 +186,19 @@ rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
     ets:delete_all_objects(EtsSegment),
     ok.
 
-del_member(_, _, '$end_of_table') ->
+iterate_through_tables(ParentTab, Action) when is_atom(ParentTab), is_function(Action, 1) ->
+    iterate_(ParentTab, Action, ets:first(ParentTab)).
+
+iterate_(_, _, '$end_of_table') ->
     ok;
-del_member(ParentTab, Key, SegmentKey) ->
+iterate_(ParentTab, Action, SegmentKey) when is_atom(ParentTab), is_function(Action, 1) ->
     case ets:lookup(ParentTab, SegmentKey) of
         [{_, EtsSegment}] ->
-            ets:delete(EtsSegment, Key),
-            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey));
+            Action(EtsSegment),
+            iterate_(ParentTab, Action, ets:next(ParentTab, SegmentKey));
         [] ->
-            del_member(ParentTab, Key, ets:next(ParentTab, SegmentKey))
+            iterate_(ParentTab, Action, ets:next(ParentTab, SegmentKey))
     end.
-
-del_domain(_, _, '$end_of_table') ->
-    ok;
-del_domain(ParentTab, Domain, SegmentKey) ->
-    case ets:lookup(ParentTab, SegmentKey) of
-        [{_, EtsSegment}] ->
-            ets:match_delete(EtsSegment, {{Domain, '_'}}),
-            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey));
-        [] ->
-            del_domain(ParentTab, Domain, ets:next(ParentTab, SegmentKey))
-    end.
-
 
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
 start_link(ParentTab, Opts) ->
@@ -240,10 +228,24 @@ handle_call(Msg, From, State) ->
     {reply, ok, State}.
 
 handle_cast({remove_user, Key}, #cache_state{tab = ParentTab} = State) ->
-    del_member(ParentTab, Key, ets:first(ParentTab)),
+    try
+        Action = fun(EtsSegment) -> ets:delete(EtsSegment, Key) end,
+        iterate_through_tables(ParentTab, Action)
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => remove_user_from_cache_error,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
+    end,
     {noreply, State};
 handle_cast({remove_domain, Domain}, #cache_state{tab = ParentTab} = State) ->
-    del_domain(ParentTab, Domain, ets:first(ParentTab)),
+    try
+        Action = fun(EtsSegment) -> ets:match_delete(EtsSegment, {{Domain, '_'}}) end,
+        iterate_through_tables(ParentTab, Action)
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => remove_domain_from_cache_error,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
+    end,
     {noreply, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
