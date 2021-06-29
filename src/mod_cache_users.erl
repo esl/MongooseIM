@@ -17,9 +17,9 @@
 -export([config_spec/0]).
 -export([supported_features/0]).
 
--export([does_user_exist/2]).
-
 %% Hooks.
+-export([does_cached_user_exist/3]).
+-export([maybe_put_user_into_cache/3]).
 -export([remove_user/3]).
 -export([remove_domain/3]).
 
@@ -63,22 +63,11 @@ supported_features() ->
 
 hooks(HostType) ->
     [
+     {does_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
+     {does_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
      {remove_user, HostType, ?MODULE, remove_user, 30},
      {remove_domain, HostType, ?MODULE, remove_domain, 30}
     ].
-
--spec does_user_exist(HostType :: mongooseim:host_type(), JID :: jid:jid()) -> boolean().
-does_user_exist(HostType, #jid{luser = LUser, lserver = LServer} = JID) ->
-    case does_cached_user_exist(HostType, LServer, LUser) of
-        true -> true;
-        false ->
-            case does_stored_user_exist(HostType, JID) of
-                true ->
-                    put_user_into_cache(HostType, LServer, LUser),
-                    true;
-                false -> false
-            end
-    end.
 
 %%====================================================================
 %% Hooks
@@ -113,21 +102,29 @@ send_to_group(HostType, Msg) ->
 %% Helpers
 %%====================================================================
 
--spec does_stored_user_exist(mongooseim:host_type(), jid:jid()) -> boolean().
-does_stored_user_exist(HostType, JID) ->
-    true =:= ejabberd_auth:does_stored_user_exist(HostType, JID).
-
--spec does_cached_user_exist(mongooseim:host_type(), jid:lserver(), jid:luser()) -> boolean().
-does_cached_user_exist(HostType, LServer, LUser) ->
+-spec does_cached_user_exist(Status :: mongoose_hooks:simple_acc(),
+                             HostType :: mongooseim:host_type(),
+                             Jid :: jid:jid()) -> ejabberd_auth:does_user_exist().
+does_cached_user_exist(#{result := true} = Status, _, _) ->
+    Status;
+does_cached_user_exist(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Key = key(LUser, LServer),
     ParentTab = tbl_name(HostType),
-    is_member(ParentTab, Key, ets:last(ParentTab)).
+    Result = is_member(ParentTab, Key, ets:last(ParentTab)),
+    Status#{result => Result, cached => Result}.
 
--spec put_user_into_cache(mongooseim:host_type(), jid:lserver(), jid:luser()) -> ok.
-put_user_into_cache(HostType, LServer, LUser) ->
+-spec maybe_put_user_into_cache(Status :: mongoose_hooks:simple_acc(),
+                                HostType :: mongooseim:host_type(),
+                                Jid :: jid:jid()) -> ejabberd_auth:does_user_exist().
+maybe_put_user_into_cache(#{result := false} = Status, _, _) ->
+    Status;
+maybe_put_user_into_cache(#{result := true, cached := true} = Status, _, _) ->
+    Status;
+maybe_put_user_into_cache(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Key = key(LUser, LServer),
     ParentTab = tbl_name(HostType),
-    put_member(ParentTab, Key, ets:last(ParentTab)).
+    Cached = put_member(ParentTab, Key, ets:last(ParentTab)),
+    Status#{cached => Cached}.
 
 -spec key(jid:luser(), jid:lserver()) -> {jid:lserver(), jid:luser()}.
 key(LUser, LServer) ->
@@ -151,8 +148,7 @@ is_member(ParentTab, Key, SegmentKey) ->
 %% That's fine, worst case this record will live a segment less than expected.
 put_member(ParentTab, Key, SegmentKey) ->
     EtsSegment = ets:lookup_element(ParentTab, SegmentKey, 2),
-    ets:insert(EtsSegment, {Key}),
-    ok.
+    ets:insert(EtsSegment, {Key}).
 
 -spec start_server(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_server(HostType, Opts) ->
@@ -207,8 +203,8 @@ start_link(ParentTab, Opts) ->
 init([ParentName, Opts]) ->
     pg2:create(ParentName),
     pg2:join(ParentName, self()),
-    TTL = gen_mod:get_opt(ttl, Opts, infinity),
-    N   = gen_mod:get_opt(number_of_segments, Opts, 1),
+    TTL = timer:minutes(gen_mod:get_opt(ttl, Opts, 60)),
+    N   = gen_mod:get_opt(number_of_segments, Opts, 3),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
     ets:new(ParentName, EtsOpts),
     lists:foreach(

@@ -61,15 +61,18 @@
 
 %% Hook handlers
 -export([remove_domain/3]).
+-export([does_stored_user_exist/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export_type([authmodule/0,
-              passterm/0]).
+              passterm/0,
+              does_user_exist/0]).
 
 -type authmodule() :: module().
 -type passterm() :: binary() | mongoose_scram:scram_tuple() | mongoose_scram:scram_map().
+-type does_user_exist() :: #{result := boolean(), cached := boolean(), '_' := '_'}.
 
 %% Types defined below are used in call_auth_modules_*
 -type mod_res() :: any().
@@ -94,12 +97,14 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
+    ejabberd_hooks:add(does_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
     ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
     ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
+    ejabberd_hooks:delete(does_user_exist, HostType, ?MODULE, does_stored_user_exist, 50),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
@@ -327,6 +332,15 @@ does_stored_user_exist(HostType, #jid{luser = LUser, lserver = LServer}) ->
     call_auth_modules_for_host_type(HostType, F, #{default => false});
 does_stored_user_exist(_HostType, error) ->
     false.
+
+-spec does_stored_user_exist(Status :: mongoose_hooks:simple_acc(),
+                      HostType :: mongooseim:host_type(),
+                      Jid :: jid:jid()) -> does_user_exist().
+does_stored_user_exist(#{result := true} = Status, _, _) ->
+    Status;
+does_stored_user_exist(Status, HostType, Jid) ->
+    Result = does_stored_user_exist(HostType, Jid),
+    Status#{result => Result}.
 
 does_user_exist_in_module(HostType, LUser, LServer, Mod) ->
     case mongoose_gen_auth:does_user_exist(Mod, HostType, LUser, LServer) of
