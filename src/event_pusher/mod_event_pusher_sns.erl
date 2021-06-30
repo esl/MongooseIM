@@ -41,16 +41,26 @@
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
 
--spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> ok.
+-spec start(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 start(Host, Opts) ->
     application:ensure_all_started(erlcloud),
     application:ensure_all_started(worker_pool),
-
-    WorkerNum = gen_mod:get_opt(pool_size, Opts, 100),
-    {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns,
-                                   [{workers, WorkerNum}, {strategy, available_worker}]),
-
+    start_pool(Host, Opts),
     ok.
+
+-spec start_pool(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) ->
+    term().
+start_pool(Host, Opts) ->
+    {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns, pool_opts(Opts)).
+
+-spec pool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
+pool_opts(Opts) ->
+    WorkerNum = get_worker_num(Opts),
+    [{workers, WorkerNum}, {strategy, available_worker}].
+
+-spec get_worker_num(gen_mod:module_opts()) -> pos_integer().
+get_worker_num(Opts) ->
+    gen_mod:get_opt(pool_size, Opts, 100).
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->

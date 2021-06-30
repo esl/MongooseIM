@@ -41,7 +41,7 @@
 start_link(PoolType) ->
     supervisor:start_link({local, name(PoolType)}, ?MODULE, [PoolType]).
 
--spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:name().
+-spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
 name(PoolType) ->
     list_to_atom("mongoose_wpool_" ++ atom_to_list(PoolType) ++ "_sup").
 
@@ -60,7 +60,7 @@ name(PoolType) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) -> {ok, {#{strategy => one_for_one, intensity => 100, period => 5},
-                                    [#{id := mongoose_wpool:name(),
+                                    [#{id := mongoose_wpool:proc_name(),
                                        start := {mongoose_wpool_mgr, start_link, [mongoose_wpool:pool_type()]},
                                        restart => transient,
                                        shutdown => brutal_kill,
