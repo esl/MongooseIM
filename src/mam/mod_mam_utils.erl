@@ -99,7 +99,7 @@
                    rsm_ns_binary/0,
                    mam_ns_binary/0,
                    is_archived_elem_for/2,
-                   is_valid_message/3,
+                   is_valid_message/4,
                    is_valid_message_type/3,
                    is_valid_message_children/3,
                    encode_compact_uuid/2,
@@ -340,9 +340,11 @@ is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->
     %% Used in mod_offline
     Delay      = exml_query:subelement(Packet, <<"delay">>, false),
     %% Message Processing Hints (XEP-0334)
-    NoStore    = exml_query:subelement(Packet, <<"no-store">>, false),
+    NoStore    = exml_query:path(Packet, [{element_with_ns, <<"no-store">>, ?NS_HINTS}], false),
+    %% Message Processing Hints (XEP-0334)
+    Store      = exml_query:path(Packet, [{element_with_ns, <<"store">>, ?NS_HINTS}], false),
 
-    has_any([Body, ChatMarker, Retract]) andalso not has_any([Result, Delay, NoStore]).
+    has_any([Store, Body, ChatMarker, Retract]) andalso not has_any([Result, Delay, NoStore]).
 
 has_any(Elements) ->
     lists:any(fun(El) -> El =/= false end, Elements).

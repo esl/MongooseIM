@@ -30,6 +30,7 @@
         ]).
 -export([msg_sent_stored_in_inbox/1,
          msg_with_no_store_is_not_stored_in_inbox/1,
+         msg_with_store_hint_is_always_stored/1,
          carbons_are_not_stored/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
@@ -133,6 +134,7 @@ groups() ->
            user_has_empty_inbox,
            msg_sent_stored_in_inbox,
            msg_with_no_store_is_not_stored_in_inbox,
+           msg_with_store_hint_is_always_stored,
            carbons_are_not_stored,
            user_has_two_conversations,
            msg_sent_to_offline_user,
@@ -445,6 +447,19 @@ msg_with_no_store_is_not_stored_in_inbox(Config) ->
         check_inbox(Bob, []),
         %% Alice has no conv in her inbox either
         check_inbox(Alice, [])
+      end).
+
+msg_with_store_hint_is_always_stored(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
+        Msg1 = escalus_stanza:to(#xmlel{name = <<"message">>}, Bob),
+        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
+        Msg3 = mam_helper:add_store_hint(Msg2),
+        escalus:send(Alice, Msg3),
+        escalus:wait_for_stanza(Bob),
+        %% Alice and Bob has a body-less message in their inbox
+        check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}]),
+        check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}])
       end).
 
 carbons_are_not_stored(Config) ->
