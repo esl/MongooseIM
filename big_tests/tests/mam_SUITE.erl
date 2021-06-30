@@ -2439,7 +2439,7 @@ dont_archive_chat_markers(Config) ->
                 escalus_stanza:chat_marker(Alice, <<"received">>, MessageID),
             ResultEl = #xmlel{name = <<"result">>},
             DelayEl = #xmlel{name = <<"delay">>},
-            NoStoreEl = #xmlel{name = <<"no-store">>},
+            NoStoreEl = mam_helper:hint_elem(no_store),
 
             escalus:send(Bob, Marker#xmlel{children = [ResultEl|Children]}),
             escalus:send(Bob, Marker#xmlel{children = [DelayEl|Children]}),

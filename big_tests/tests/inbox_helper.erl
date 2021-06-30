@@ -193,7 +193,7 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     [InnerMsg] = get_inner_msg(Message),
     JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
-    InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
+    InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], <<>>),
     Content = InnerContent,
     case Fun of
         F when is_function(F, 2) ->

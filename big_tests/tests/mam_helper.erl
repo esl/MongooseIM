@@ -72,6 +72,7 @@
          assert_only_one_of_many_is_equal/2,
          add_store_hint/1,
          add_nostore_hint/1,
+         hint_elem/1,
          assert_not_stored/2,
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
