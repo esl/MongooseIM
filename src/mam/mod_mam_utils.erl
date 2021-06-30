@@ -323,6 +323,7 @@ is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}, ArchiveChat
 is_archivable_message(_, _, _, _) ->
     false.
 
+is_valid_message_type(mod_inbox, _, <<"groupchat">>) -> true;
 is_valid_message_type(_, _, <<"normal">>) -> true;
 is_valid_message_type(_, _, <<"chat">>) -> true;
 is_valid_message_type(_, incoming, <<"groupchat">>) -> true;
