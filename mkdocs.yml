@@ -140,6 +140,7 @@ nav:
       - 'mod_blocking': 'modules/mod_blocking.md'
       - 'mod_bosh': 'modules/mod_bosh.md'
       - 'mod_caps': 'modules/mod_caps.md'
+      - 'mod_cache_users': 'modules/mod_cache_users.md'
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
       - 'mod_commands': 'modules/mod_commands.md'
       - 'mod_csi': 'modules/mod_csi.md'

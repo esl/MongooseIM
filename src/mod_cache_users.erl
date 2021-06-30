@@ -53,7 +53,9 @@ stop(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{
-                       <<"time_to_live">> => #option{type = integer, format = {kv, ttl}},
+                       <<"time_to_live">> => #option{type = int_or_infinity,
+                                                     validate = non_negative,
+                                                     format = {kv, ttl}},
                        <<"number_of_segments">> => #option{type = integer}
                       }}.
 
@@ -170,7 +172,8 @@ stop_server(HostType) ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 
--record(cache_state, {tab :: atom(), ttl = timer:seconds(30) :: non_neg_integer()}).
+-record(cache_state, {tab :: atom(),
+                      ttl = timer:hours(8) :: timeout()}).
 
 rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
     First = ets:first(ParentTab),
@@ -207,7 +210,7 @@ start_link(ParentTab, Opts) ->
 init([ParentName, Opts]) ->
     pg2:create(ParentName),
     pg2:join(ParentName, self()),
-    TTL = timer:minutes(gen_mod:get_opt(ttl, Opts, 60)),
+    TTL0 = gen_mod:get_opt(ttl, Opts, 8 * 60), %% 8h
     N   = gen_mod:get_opt(number_of_segments, Opts, 3),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
     ets:new(ParentName, EtsOpts),
@@ -220,7 +223,12 @@ init([ParentName, Opts]) ->
               Ref = ets:new(SegmentTab, SegmentOpts),
               ets:insert(ParentName, {I, Ref})
       end, lists:seq(1, N)),
-    erlang:send_after(TTL, self(), purge),
+    TTL = case TTL0 of
+              infinity -> infinity;
+              _ ->
+                  erlang:send_after(timer:minutes(TTL0), self(), purge),
+                  timer:minutes(TTL0)
+          end,
     {ok, #cache_state{tab = ParentName, ttl = TTL}}.
 
 handle_call(Msg, From, State) ->
