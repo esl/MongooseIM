@@ -222,6 +222,9 @@
 [modules.mod_commands]
 
 [modules.mod_cache_users]
+{{#mod_cache_users}}
+{{{mod_cache_users}}}
+{{/mod_cache_users}}
 
 [modules.mod_muc_commands]
 
