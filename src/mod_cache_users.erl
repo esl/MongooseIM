@@ -96,12 +96,7 @@ remove_domain(Acc, HostType, Domain) ->
 
 send_to_group(HostType, Msg) ->
     ParentName = tbl_name(HostType),
-    case pg2:get_members(ParentName) of
-        Pids when is_list(Pids) ->
-            [gen_server:cast(Pid, Msg) || Pid <- Pids];
-        {error, _Reason} ->
-            ok
-    end.
+    [{Node, ParentName} ! Msg || Node <- [node() | nodes()]].
 
 %%====================================================================
 %% Helpers
@@ -207,22 +202,19 @@ iterate_(ParentTab, Action, SegmentKey) when is_atom(ParentTab), is_function(Act
 
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
 start_link(ParentTab, Opts) ->
-    gen_server:start_link(?MODULE, [ParentTab, Opts], []).
+    gen_server:start_link({local, ParentTab}, ?MODULE, [ParentTab, Opts], []).
 
 init([ParentName, Opts]) ->
-    pg2:create(ParentName),
-    pg2:join(ParentName, self()),
     TTL0 = gen_mod:get_opt(ttl, Opts, 8 * 60), %% 8h
-    N   = gen_mod:get_opt(number_of_segments, Opts, 3),
+    N    = gen_mod:get_opt(number_of_segments, Opts, 3),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
     ets:new(ParentName, EtsOpts),
     lists:foreach(
       fun(I) ->
               %% Note, these names are only for debugging purposes,
               %% you're not supposed to use the name as an API
-              SegmentTab = list_to_atom(atom_to_list(ParentName) ++ "_" ++ integer_to_list(I)),
-              SegmentOpts = [set, named_table, public, {read_concurrency, true}, {write_concurrency, true}],
-              Ref = ets:new(SegmentTab, SegmentOpts),
+              SegmentOpts = [set, public, {read_concurrency, true}, {write_concurrency, true}],
+              Ref = ets:new(undefined, SegmentOpts),
               ets:insert(ParentName, {I, Ref})
       end, lists:seq(1, N)),
     TTL = case TTL0 of
