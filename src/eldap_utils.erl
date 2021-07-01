@@ -52,6 +52,16 @@
 -include("mongoose.hrl").
 -include("eldap.hrl").
 
+-type dn() :: binary().
+-type deref() :: neverDerefAliases | derefInSearching
+                 | derefFindingBaseObj | derefAlways.
+%% Used to access mongoose_wpool
+-type eldap_id() :: {HostType :: mongooseim:host_type(), Tag :: mongoose_wpool:tag()}.
+
+-export_type([dn/0,
+              deref/0,
+              eldap_id/0]).
+
 %% @doc Generate an 'or' LDAP query on one or several attributes
 %% If there is only one attribute
 -spec generate_subfilter([{binary()} | {binary(), binary()}]) -> binary().
