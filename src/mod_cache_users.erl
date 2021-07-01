@@ -68,8 +68,10 @@ hooks(HostType) ->
      %% These hooks must run before and after the ejabberd_auth does_user_exist hook
      {does_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
      {does_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
-     {remove_user, HostType, ?MODULE, remove_user, 30},
-     {remove_domain, HostType, ?MODULE, remove_domain, 30}
+     %% It is important that these two handlers happen _after_ ejabberd_auth
+     %% but _before_ all other modules
+     {remove_user, HostType, ?MODULE, remove_user, 10},
+     {remove_domain, HostType, ?MODULE, remove_domain, 20}
     ].
 
 %%====================================================================

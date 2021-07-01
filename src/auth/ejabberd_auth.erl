@@ -98,17 +98,23 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ejabberd_hooks:add(does_user_exist, HostType, ?MODULE, does_user_exist, 50),
-    ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
+    ejabberd_hooks:add(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
-    ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
-    ejabberd_hooks:delete(does_user_exist, HostType, ?MODULE, does_user_exist, 50),
+    ejabberd_hooks:delete(hooks(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
+
+hooks(HostType) ->
+    [
+     %% These hooks must run in between those of mod_cache_users
+     {does_user_exist, HostType, ?MODULE, does_user_exist, 50},
+     %% It is important that this handler happens _before_ all other modules
+     {remove_domain, HostType, ?MODULE, remove_domain, 10}
+    ].
 
 -spec set_opts(HostType :: mongooseim:host_type(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
