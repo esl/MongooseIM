@@ -300,7 +300,7 @@ disco_local_features(Acc) ->
                             Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Acc, From, To, Msg, Dir) ->
     HostType = mongoose_acc:host_type(Acc),
-    case should_be_stored_in_inbox(Msg) andalso inbox_owner_exists(Acc, From, To, Dir) of
+    case should_be_stored_in_inbox(Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
             Type = get_message_type(Msg),
             maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type);
@@ -643,36 +643,7 @@ get_message_type(Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
--spec should_be_stored_in_inbox(Msg :: exml:element()) -> boolean().
-should_be_stored_in_inbox(Msg) ->
-    not is_forwarded_message(Msg) andalso
-        not is_error_message(Msg) andalso
-        not is_offline_message(Msg) andalso
-        mod_inbox_entries:should_be_stored_in_inbox(Msg).
-
--spec is_forwarded_message(Msg :: exml:element()) -> boolean().
-is_forwarded_message(Msg) ->
-    case exml_query:subelement_with_ns(Msg, ?NS_FORWARD, undefined) of
-        undefined ->
-            false;
-        _ ->
-            true
-    end.
-
--spec is_error_message(Msg :: exml:element()) -> boolean().
-is_error_message(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"error">> ->
-            true;
-        _ ->
-            false
-    end.
-
--spec is_offline_message(Msg :: exml:element()) -> boolean().
-is_offline_message(Msg) ->
-    case exml_query:subelement_with_ns(Msg, ?NS_DELAY, undefined) of
-        undefined ->
-            false;
-        _ ->
-            true
-    end.
+-spec should_be_stored_in_inbox(Msg :: exml:element(), outgoing | incoming) -> boolean().
+should_be_stored_in_inbox(Msg, Dir) ->
+    mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true) andalso
+    mod_inbox_entries:should_be_stored_in_inbox(Msg).

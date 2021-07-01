@@ -70,7 +70,9 @@
          parse_forwarded_message/1,
          login_send_presence/2,
          assert_only_one_of_many_is_equal/2,
+         add_store_hint/1,
          add_nostore_hint/1,
+         hint_elem/1,
          assert_not_stored/2,
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
@@ -1216,10 +1218,15 @@ maybe_binary_to_integer(B) when is_binary(B) ->
 maybe_binary_to_integer(undefined) ->
     undefined.
 
-add_nostore_hint(#xmlel{children=Children}=Elem) ->
-    Elem#xmlel{children=Children ++ [nostore_hint_elem()]}.
+add_store_hint(#xmlel{children=Children}=Elem) ->
+    Elem#xmlel{children=Children ++ [hint_elem(store)]}.
 
-nostore_hint_elem() ->
+add_nostore_hint(#xmlel{children=Children}=Elem) ->
+    Elem#xmlel{children=Children ++ [hint_elem(no_store)]}.
+
+hint_elem(store) ->
+    #xmlel{name = <<"store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]};
+hint_elem(no_store) ->
     #xmlel{name = <<"no-store">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:hints">>}]}.
 
 has_x_user_element(ArcMsg) ->

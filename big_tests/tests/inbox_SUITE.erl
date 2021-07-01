@@ -29,6 +29,9 @@
          returns_error_when_unknown_field_sent/1
         ]).
 -export([msg_sent_stored_in_inbox/1,
+         msg_with_no_store_is_not_stored_in_inbox/1,
+         msg_with_store_hint_is_always_stored/1,
+         carbons_are_not_stored/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
          other_resources_do_not_interfere/1,
@@ -130,6 +133,9 @@ groups() ->
           [
            user_has_empty_inbox,
            msg_sent_stored_in_inbox,
+           msg_with_no_store_is_not_stored_in_inbox,
+           msg_with_store_hint_is_always_stored,
+           carbons_are_not_stored,
            user_has_two_conversations,
            msg_sent_to_offline_user,
            msg_sent_to_not_existing_user,
@@ -425,6 +431,44 @@ msg_sent_stored_in_inbox(Config) ->
         %% Both check inbox
         check_inbox(Alice, AliceConvs),
         check_inbox(Bob, BobConvs)
+      end).
+
+msg_with_no_store_is_not_stored_in_inbox(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a no-store hint
+        Body = <<"test">>,
+        Msg1 = escalus_stanza:chat_to(Bob, Body),
+        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
+        Msg3 = mam_helper:add_nostore_hint(Msg2),
+        escalus:send(Alice, Msg3),
+        MsgSent = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message, MsgSent),
+        %% Bob has no unread messages in conversation with Alice
+        check_inbox(Bob, []),
+        %% Alice has no conv in her inbox either
+        check_inbox(Alice, [])
+      end).
+
+msg_with_store_hint_is_always_stored(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
+        Msg1 = escalus_stanza:to(#xmlel{name = <<"message">>}, Bob),
+        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
+        Msg3 = mam_helper:add_store_hint(Msg2),
+        escalus:send(Alice, Msg3),
+        escalus:wait_for_stanza(Bob),
+        %% Alice and Bob has a body-less message in their inbox
+        check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}]),
+        check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}])
+      end).
+
+carbons_are_not_stored(Config) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 2}], fun(Alice1, Alice2, Bob1, Bob2) ->
+        mongoose_helper:enable_carbons([Alice1, Alice2, Bob1, Bob2]),
+        #{ Alice1 := AliceConvs, Bob1 := BobConvs } = given_conversations_between(Alice1, [Bob1]),
+        %% Both check inbox and carbons aren't there
+        check_inbox(Alice1, AliceConvs),
+        check_inbox(Bob1, BobConvs)
       end).
 
 user_has_two_conversations(Config) ->
