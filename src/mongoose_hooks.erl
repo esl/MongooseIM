@@ -208,15 +208,14 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
 auth_failed(HostType, Server, Username) ->
     ejabberd_hooks:run_for_host_type(auth_failed, HostType, ok, [Username, Server]).
 
--spec does_user_exist(HostType, Jid, Type) -> Result when
-    HostType :: mongoseim:host_type(),
-    Jid :: jid:jid(),
-    Type :: stored | with_anonymous,
-    Result :: ejabberd_auth:does_user_exist().
-does_user_exist(HostType, Jid, Type) ->
+-spec does_user_exist(HostType, Jid, RequestType) -> Result when
+      HostType :: mongooseim:host_type(),
+      Jid :: jid:jid(),
+      RequestType :: ejabberd_auth:exist_type(),
+      Result :: boolean().
+does_user_exist(HostType, Jid, RequestType) ->
     ejabberd_hooks:run_for_host_type(does_user_exist, HostType,
-                                     #{result => false, cached => false, type => Type},
-                                     [HostType, Jid]).
+                                     false, [HostType, Jid, RequestType]).
 
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),

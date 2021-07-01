@@ -18,8 +18,8 @@
 -export([supported_features/0]).
 
 %% Hooks.
--export([does_cached_user_exist/3]).
--export([maybe_put_user_into_cache/3]).
+-export([does_cached_user_exist/4]).
+-export([maybe_put_user_into_cache/4]).
 -export([remove_user/3]).
 -export([remove_domain/3]).
 
@@ -65,6 +65,7 @@ supported_features() ->
 
 hooks(HostType) ->
     [
+     %% These hooks must run before and after the ejabberd_auth does_user_exist hook
      {does_user_exist, HostType, ?MODULE, does_cached_user_exist, 30},
      {does_user_exist, HostType, ?MODULE, maybe_put_user_into_cache, 70},
      {remove_user, HostType, ?MODULE, remove_user, 30},
@@ -104,33 +105,32 @@ send_to_group(HostType, Msg) ->
 %% Helpers
 %%====================================================================
 
--spec does_cached_user_exist(Status :: mongoose_hooks:simple_acc(),
+-spec does_cached_user_exist(Status :: boolean(),
                              HostType :: mongooseim:host_type(),
-                             Jid :: jid:jid()) -> ejabberd_auth:does_user_exist().
-does_cached_user_exist(#{result := true} = Status, _, _) ->
-    Status;
-does_cached_user_exist(#{type := with_anonymous} = Status, _HostType, _Jid) ->
-    Status;
-does_cached_user_exist(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
+                             Jid :: jid:jid(),
+                             RequestType :: ejabberd_auth:exist_type()) ->
+    boolean().
+does_cached_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, stored) ->
     Key = key(LUser, LServer),
     ParentTab = tbl_name(HostType),
-    Result = is_member(ParentTab, Key, ets:last(ParentTab)),
-    Status#{result => Result, cached => Result}.
+    case is_member(tbl_name(HostType), Key, ets:last(ParentTab)) of
+        true -> {stop, true};
+        false -> false
+    end;
+does_cached_user_exist(Status, _, _, _) ->
+    Status.
 
--spec maybe_put_user_into_cache(Status :: mongoose_hooks:simple_acc(),
+-spec maybe_put_user_into_cache(Status :: boolean(),
                                 HostType :: mongooseim:host_type(),
-                                Jid :: jid:jid()) -> ejabberd_auth:does_user_exist().
-maybe_put_user_into_cache(#{result := false} = Status, _, _) ->
-    Status;
-maybe_put_user_into_cache(#{result := true, cached := true} = Status, _, _) ->
-    Status;
-maybe_put_user_into_cache(#{type := with_anonymous} = Status, _HostType, _Jid) ->
-    Status;
-maybe_put_user_into_cache(Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
+                                Jid :: jid:jid(),
+                                RequestType :: ejabberd_auth:exist_type()) ->
+    boolean().
+maybe_put_user_into_cache(true, HostType, #jid{luser = LUser, lserver = LServer}, stored) ->
     Key = key(LUser, LServer),
     ParentTab = tbl_name(HostType),
-    Cached = put_member(ParentTab, Key, ets:last(ParentTab)),
-    Status#{cached => Cached}.
+    put_member(ParentTab, Key, ets:last(ParentTab));
+maybe_put_user_into_cache(Status, _, _, _) ->
+    Status.
 
 -spec key(jid:luser(), jid:lserver()) -> {jid:lserver(), jid:luser()}.
 key(LUser, LServer) ->

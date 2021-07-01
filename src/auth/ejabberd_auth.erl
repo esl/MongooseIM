@@ -44,6 +44,7 @@
          get_password_s/1,
          get_passterm_with_authmodule/2,
          does_user_exist/1,
+         does_user_exist/3,
          does_stored_user_exist/2,
          does_method_support/2,
          remove_user/1,
@@ -61,18 +62,18 @@
 
 %% Hook handlers
 -export([remove_domain/3]).
--export([does_user_exist/3]).
+-export([does_user_exist/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export_type([authmodule/0,
               passterm/0,
-              does_user_exist/0]).
+              exist_type/0]).
 
 -type authmodule() :: module().
 -type passterm() :: binary() | mongoose_scram:scram_tuple() | mongoose_scram:scram_map().
--type does_user_exist() :: #{result := boolean(), cached := boolean(), '_' := '_'}.
+-type exist_type() :: stored | with_anonymous.
 
 %% Types defined below are used in call_auth_modules_*
 -type mod_res() :: any().
@@ -307,8 +308,8 @@ get_passterm_with_authmodule(HostType, #jid{luser = LUser, lserver = LServer}) -
         end,
     call_auth_modules_for_host_type(HostType, F, #{default => false}).
 
-%% @doc Returns true if the user exists in the DB or if an anonymous user is
-%% logged under the given name
+%% @doc Returns true if the user exists in the DB
+%% or if an anonymous user is logged under the given name
 %% Returns 'false' in case of an error
 -spec does_user_exist(JID :: jid:jid() | error) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
@@ -321,6 +322,30 @@ does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
 does_user_exist(error) ->
     false.
 
+%% Hook interface
+-spec does_user_exist(HostType, Jid, RequestType) -> Res when
+      HostType :: mongooseim:host_type(),
+      Jid :: jid:jid(),
+      RequestType :: stored | with_anonymous,
+      Res :: boolean().
+does_user_exist(HostType, Jid, RequestType) ->
+    mongoose_hooks:does_user_exist(HostType, Jid, RequestType).
+
+%% Hook handler
+-spec does_user_exist(Status :: boolean(),
+                      HostType :: mongooseim:host_type(),
+                      Jid :: jid:jid(),
+                      RequestType :: stored | with_anonymous) -> boolean().
+does_user_exist(false, HostType, Jid, stored) ->
+    does_stored_user_exist(HostType, Jid);
+does_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, with_anonymous) ->
+    F = fun(Mod) ->
+                does_user_exist_in_module(HostType, LUser, LServer, Mod)
+        end,
+    call_auth_modules_for_host_type(HostType, F, #{default => false});
+does_user_exist(Status, _, _, _) ->
+    Status.
+
 %% @doc Returns true if the user exists in the DB
 %% In case of a backend error, it is propagated to the caller
 -spec does_stored_user_exist(mongooseim:host_type(), jid:jid() | error) ->
@@ -332,21 +357,6 @@ does_stored_user_exist(HostType, #jid{luser = LUser, lserver = LServer}) ->
     call_auth_modules_for_host_type(HostType, F, #{default => false});
 does_stored_user_exist(_HostType, error) ->
     false.
-
--spec does_user_exist(Status :: mongoose_hooks:simple_acc(),
-                      HostType :: mongooseim:host_type(),
-                      Jid :: jid:jid()) -> does_user_exist().
-does_user_exist(#{result := true} = Status, _, _) ->
-    Status;
-does_user_exist(#{type := stored} = Status, HostType, Jid) ->
-    Result = does_stored_user_exist(HostType, Jid),
-    Status#{result => Result};
-does_user_exist(#{type := with_anonymous} = Status, HostType, #jid{luser = LUser, lserver = LServer}) ->
-    F = fun(Mod) ->
-                does_user_exist_in_module(HostType, LUser, LServer, Mod)
-        end,
-    Result = call_auth_modules_for_host_type(HostType, F, #{default => false}),
-    Status#{result => Result}.
 
 does_user_exist_in_module(HostType, LUser, LServer, Mod) ->
     case mongoose_gen_auth:does_user_exist(Mod, HostType, LUser, LServer) of
