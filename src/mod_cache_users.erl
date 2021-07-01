@@ -96,7 +96,7 @@ remove_domain(Acc, HostType, Domain) ->
 
 send_to_group(HostType, Msg) ->
     ParentName = tbl_name(HostType),
-    [{Node, ParentName} ! Msg || Node <- [node() | nodes()]].
+    [gen_server:cast({ParentName, Node}, Msg) || Node <- [node() | nodes()]].
 
 %%====================================================================
 %% Helpers
