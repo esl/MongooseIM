@@ -26,7 +26,7 @@
          register_subhost/2,
          register_user/3,
          remove_user/3,
-         resend_offline_messages_hook/3,
+         resend_offline_messages_hook/2,
          rest_user_send_packet/4,
          session_cleanup/5,
          set_vcard/3,
@@ -349,12 +349,12 @@ remove_user(Acc, LServer, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 
--spec resend_offline_messages_hook(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+-spec resend_offline_messages_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-resend_offline_messages_hook(HostType, Acc, JID) ->
+resend_offline_messages_hook(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
     ejabberd_hooks:run_for_host_type(resend_offline_messages_hook, HostType, Acc, [JID]).
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends

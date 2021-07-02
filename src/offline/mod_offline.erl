@@ -180,6 +180,8 @@ hooks(HostType) ->
         _ -> DefaultHooks
     end.
 
+
+
 %% Server side functions
 %% ------------------------------------------------------------------
 
@@ -267,15 +269,6 @@ srv_name() ->
 srv_name(HostType) ->
     gen_mod:get_module_proc(HostType, srv_name()).
 
-determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
-                       _FromJID, ToJID, _Packet, initial_check) ->
-    case ejabberd_auth:does_user_exist(ToJID) of
-        true -> Strategy#amp_strategy{deliver = [stored, none]};
-        false -> Strategy
-    end;
-determine_amp_strategy(Strategy, _, _, _, _) ->
-    Strategy.
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -329,19 +322,10 @@ code_change(_OldVsn, State, _Extra) ->
 %% Handlers
 %% ------------------------------------------------------------------
 
--spec disco_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
-disco_features(Acc = #{node := <<>>}) ->
-    mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc);
-disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}) ->
-    %% override all lesser features...
-    Acc#{result := []};
-disco_features(Acc) ->
-    Acc.
-
 %% This function should be called only from a hook
 %% Calling it directly is dangerous and may store unwanted messages
 %% in the offline storage (e.g. messages of type error)
-%% #rh
+-spec inspect_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 inspect_packet(Acc, From, To, Packet) ->
     case check_event_chatstates(Acc, From, To, Packet) of
         true ->
@@ -351,6 +335,7 @@ inspect_packet(Acc, From, To, Packet) ->
             Acc
     end.
 
+-spec store_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              Packet = #xmlel{children = Els}) ->
     TimeStamp = get_or_build_timestamp_from_packet(Packet),
@@ -460,9 +445,12 @@ find_x_expire(TimeStamp, [El | Els]) ->
             find_x_expire(TimeStamp, Els)
     end.
 
+-spec pop_offline_messages(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
 pop_offline_messages(Acc, JID) ->
     mongoose_acc:append(offline, messages, offline_messages(Acc, JID), Acc).
 
+-spec offline_messages(mongoose_acc:t(), jid:jid()) ->
+          [{route, jid:jid(), jid:jid(), mongoose_acc:t()}].
 offline_messages(Acc, #jid{lserver = LServer} = JID) ->
     HostType = mongoose_acc:host_type(Acc),
     case pop_messages(HostType, JID) of
@@ -476,6 +464,7 @@ offline_messages(Acc, #jid{lserver = LServer} = JID) ->
             []
     end.
 
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [msg()]} | {error, any()}.
 pop_messages(HostType, JID) ->
     case gen_server:call(srv_name(HostType), {pop_offline_messages, jid:to_bare(JID)}) of
         {ok, RsAll} ->
@@ -485,6 +474,32 @@ pop_messages(HostType, JID) ->
         Other ->
             Other
     end.
+
+-spec remove_user(mongoose_acc:t(), jid:luser(), jid:lserver()) -> mongoose_acc:t().
+remove_user(Acc, LUser, LServer) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mod_offline_backend:remove_user(HostType, LUser, LServer),
+    Acc.
+
+-spec disco_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_features(Acc = #{node := <<>>}) ->
+    mongoose_disco:add_features([?NS_FEATURE_MSGOFFLINE], Acc);
+disco_features(Acc = #{node := ?NS_FEATURE_MSGOFFLINE}) ->
+    %% override all lesser features...
+    Acc#{result := []};
+disco_features(Acc) ->
+    Acc.
+
+-spec determine_amp_strategy(amp_strategy(), jid:jid(), jid:jid(), exml:element(), amp_event()) ->
+          amp_strategy().
+determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
+                       _FromJID, ToJID, _Packet, initial_check) ->
+    case ejabberd_auth:does_user_exist(ToJID) of
+        true -> Strategy#amp_strategy{deliver = [stored, none]};
+        false -> Strategy
+    end;
+determine_amp_strategy(Strategy, _, _, _, _) ->
+    Strategy.
 
 -spec get_personal_data(gdpr:personal_data(), host_type(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, HostType, #jid{} = JID) ->
@@ -545,12 +560,6 @@ remove_old_messages(HostType, LServer, HowManyDays) ->
     Result = mod_offline_backend:remove_old_messages(HostType, LServer, Timestamp),
     mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [HostType, Timestamp]),
     Result.
-
--spec remove_user(mongoose_acc:t(), jid:luser(), jid:lserver()) -> mongoose_acc:t().
-remove_user(Acc, LUser, LServer) ->
-    HostType = mongoose_acc:host_type(Acc),
-    mod_offline_backend:remove_user(HostType, LUser, LServer),
-    Acc.
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Msgs) ->
