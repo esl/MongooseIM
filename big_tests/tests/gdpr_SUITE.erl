@@ -942,10 +942,11 @@ retrieve_offline(Config) ->
             %% Well, jid_to_lower works for any binary :)
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            HostType = domain_helper:host_type(),
             mongoose_helper:wait_until(
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
-                                                     [AliceU, AliceS, 10])
+                                                     [HostType, AliceU, AliceS, 10])
               end, 3),
 
             BobJid = escalus_client:full_jid(Bob),
@@ -977,10 +978,11 @@ remove_offline(Config) ->
             %% Well, jid_to_lower works for any binary :)
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            HostType = domain_helper:host_type(),
             mongoose_helper:wait_until(
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
-                                                     [AliceU, AliceS, 10])
+                                                     [HostType, AliceU, AliceS, 10])
               end, 3),
 
             {0, _} = unregister(Alice, Config),

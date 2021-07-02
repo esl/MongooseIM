@@ -761,9 +761,8 @@ delete_room_archive(Server, Username) ->
     rpc_apply(mod_mam_muc, delete_archive, [Server, Username]).
 
 delete_offline_messages(Server, Username) ->
-    %% Do not care
-    catch rpc_apply(mod_offline, remove_user, [Username, Server]),
-    ok.
+    HostType = domain_helper:host_type(),
+    rpc_apply(mod_offline_backend, remove_user, [HostType, Username, Server]).
 
 wait_message_range(Client, FromN, ToN) ->
     wait_message_range(Client, 15, FromN-1, FromN, ToN).
