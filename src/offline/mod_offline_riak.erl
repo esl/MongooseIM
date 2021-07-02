@@ -51,7 +51,7 @@
 init(_Host, _Opts) ->
     ok.
 
--spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]} | {error, any()}.
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
 pop_messages(HostType, To = #jid{luser = LUser, lserver = LServer}) ->
     Keys = read_user_idx(HostType, LUser, LServer),
     Msgs = [pop_msg(HostType, Key, LUser, LServer, To) || Key <- Keys],

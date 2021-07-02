@@ -50,7 +50,8 @@ init(_HostType, _Opts) ->
     upgrade_table(),
     ok.
 
--spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
+-spec pop_messages(mongooseim:host_type(), jid:jid()) ->
+          {ok, [mod_offline:msg()]} | {error, any()}.
 pop_messages(_HostType, To) ->
     US = jid:to_lus(To),
     F = fun() ->
@@ -65,7 +66,8 @@ pop_messages(_HostType, To) ->
             {error, Reason}
     end.
 
--spec fetch_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
+-spec fetch_messages(mongooseim:host_type(), jid:jid()) ->
+          {ok, [mod_offline:msg()]} | {error, any()}.
 fetch_messages(_HostType, To) ->
     US = jid:to_lus(To),
     F = fun() -> mnesia:wread({offline_msg, US}) end,
@@ -99,7 +101,8 @@ write_all_messages_t(Len, Msgs) ->
     [mnesia:write(M) || M <- Msgs],
     ok.
 
--spec count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_offline:msg_count()) ->
+-spec count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                             mod_offline:msg_count()) ->
           mod_offline:msg_count().
 count_offline_messages(_HostType, LUser, LServer, _MaxNeeded) ->
     US = {LUser, LServer},

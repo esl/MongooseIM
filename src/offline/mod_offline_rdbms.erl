@@ -128,7 +128,7 @@ push_offline_messages(HostType, Rows) ->
 
 %% API functions
 
--spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]} | {error, any()}.
 pop_messages(HostType, #jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
     ExtTimeStamp = os:system_time(microsecond),
