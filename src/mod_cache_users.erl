@@ -54,9 +54,10 @@ stop(HostType) ->
 config_spec() ->
     #section{items = #{
                        <<"time_to_live">> => #option{type = int_or_infinity,
-                                                     validate = non_negative,
+                                                     validate = positive,
                                                      format = {kv, ttl}},
-                       <<"number_of_segments">> => #option{type = integer}
+                       <<"number_of_segments">> => #option{type = integer,
+                                                           validate = positive}
                       }}.
 
 -spec supported_features() -> [atom()].
@@ -169,8 +170,7 @@ stop_server(HostType) ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 
--record(cache_state, {tab :: atom(),
-                      ttl = timer:hours(8) :: timeout()}).
+-record(cache_state, {tab :: atom(), ttl :: timeout()}).
 
 rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
     First = ets:first(ParentTab),
@@ -186,18 +186,18 @@ rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
     ets:delete_all_objects(EtsSegment),
     ok.
 
-iterate_through_tables(ParentTab, Action) when is_atom(ParentTab), is_function(Action, 1) ->
-    iterate_(ParentTab, Action, ets:first(ParentTab)).
+iterate_tables(ParentTab, Action) when is_atom(ParentTab), is_function(Action, 1) ->
+    iterate_tables(ParentTab, Action, ets:first(ParentTab)).
 
-iterate_(_, _, '$end_of_table') ->
+iterate_tables(_, _, '$end_of_table') ->
     ok;
-iterate_(ParentTab, Action, SegmentKey) when is_atom(ParentTab), is_function(Action, 1) ->
+iterate_tables(ParentTab, Action, SegmentKey) when is_atom(ParentTab), is_function(Action, 1) ->
     case ets:lookup(ParentTab, SegmentKey) of
         [{_, EtsSegment}] ->
             Action(EtsSegment),
-            iterate_(ParentTab, Action, ets:next(ParentTab, SegmentKey));
+            iterate_tables(ParentTab, Action, ets:next(ParentTab, SegmentKey));
         [] ->
-            iterate_(ParentTab, Action, ets:next(ParentTab, SegmentKey))
+            iterate_tables(ParentTab, Action, ets:next(ParentTab, SegmentKey))
     end.
 
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
@@ -206,13 +206,11 @@ start_link(ParentTab, Opts) ->
 
 init([ParentName, Opts]) ->
     TTL0 = gen_mod:get_opt(ttl, Opts, 8 * 60), %% 8h
-    N    = gen_mod:get_opt(number_of_segments, Opts, 3),
+    N = gen_mod:get_opt(number_of_segments, Opts, 3),
     EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
     ets:new(ParentName, EtsOpts),
     lists:foreach(
       fun(I) ->
-              %% Note, these names are only for debugging purposes,
-              %% you're not supposed to use the name as an API
               SegmentOpts = [set, public, {read_concurrency, true}, {write_concurrency, true}],
               Ref = ets:new(undefined, SegmentOpts),
               ets:insert(ParentName, {I, Ref})
@@ -232,7 +230,7 @@ handle_call(Msg, From, State) ->
 handle_cast({remove_user, Key}, #cache_state{tab = ParentTab} = State) ->
     try
         Action = fun(EtsSegment) -> ets:delete(EtsSegment, Key) end,
-        iterate_through_tables(ParentTab, Action)
+        iterate_tables(ParentTab, Action)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => remove_user_from_cache_error,
@@ -242,7 +240,7 @@ handle_cast({remove_user, Key}, #cache_state{tab = ParentTab} = State) ->
 handle_cast({remove_domain, Domain}, #cache_state{tab = ParentTab} = State) ->
     try
         Action = fun(EtsSegment) -> ets:match_delete(EtsSegment, {{Domain, '_'}}) end,
-        iterate_through_tables(ParentTab, Action)
+        iterate_tables(ParentTab, Action)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => remove_domain_from_cache_error,

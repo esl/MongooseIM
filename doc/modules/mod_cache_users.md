@@ -1,6 +1,6 @@
 ## Module Description
 
-`mod_cache_users` is a module that caches whether a user exists. This is useful for example to decide if a message should be stored in [MAM] or [Inbox] — for example, the receiver might not exist, so no message should be stored on his archive nor his inbox.
+`mod_cache_users` is a module that caches whether a user exists. This is useful for example to decide if a message should be stored in [MAM] or [Inbox] — for example, the receiver might not exist, so no message should be stored in his archive nor his inbox.
 
 This cache has a coarse-grained FIFO strategy, that is, it keeps a set of ETS tables that are periodically rotated, and on rotation, the last table is cleared. Records are simply inserted in the first table and aren't moved afterwards, only the table order is.
 

@@ -329,21 +329,15 @@ does_user_exist(error) ->
     false.
 
 %% Hook interface
--spec does_user_exist(HostType, Jid, RequestType) -> Res when
-      HostType :: mongooseim:host_type(),
-      Jid :: jid:jid(),
-      RequestType :: stored | with_anonymous,
-      Res :: boolean().
+-spec does_user_exist(mongooseim:host_type(), jid:jid(), exist_type()) -> boolean().
 does_user_exist(HostType, Jid, RequestType) ->
     mongoose_hooks:does_user_exist(HostType, Jid, RequestType).
 
-%% Hook handler
--spec does_user_exist(Status :: boolean(),
-                      HostType :: mongooseim:host_type(),
-                      Jid :: jid:jid(),
-                      RequestType :: stored | with_anonymous) -> boolean().
+%% @doc does_user_exist hook handler
+%% Returns 'false' in case of an error
+-spec does_user_exist(boolean(), mongooseim:host_type(), jid:jid(), exist_type()) -> boolean().
 does_user_exist(false, HostType, Jid, stored) ->
-    does_stored_user_exist(HostType, Jid);
+    true =:= does_stored_user_exist(HostType, Jid);
 does_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, with_anonymous) ->
     F = fun(Mod) ->
                 does_user_exist_in_module(HostType, LUser, LServer, Mod)
