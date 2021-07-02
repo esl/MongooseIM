@@ -220,10 +220,9 @@
   users_can_see_hidden_services = false
 
 [modules.mod_commands]
-
-[modules.mod_cache_users]
 {{#mod_cache_users}}
-{{{mod_cache_users}}}
+
+[modules.mod_cache_users]{{{mod_cache_users}}}
 {{/mod_cache_users}}
 
 [modules.mod_muc_commands]
