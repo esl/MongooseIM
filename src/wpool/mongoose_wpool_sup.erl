@@ -68,9 +68,9 @@ init([]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec child_spec(mongoose_wpool:type()) ->
-    #{id := mongoose_wpool:name(),
-      start := {mongoose_wpool_type_sup, start_link, [mongoose_wpool:type()]},
+-spec child_spec(mongoose_wpool:pool_type()) ->
+    #{id := mongoose_wpool:proc_name(),
+      start := {mongoose_wpool_type_sup, start_link, [mongoose_wpool:pool_type()]},
       restart => transient,
       shutdown => brutal_kill,
       type => supervisor,

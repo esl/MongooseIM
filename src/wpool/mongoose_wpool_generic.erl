@@ -5,12 +5,14 @@
 -export([start/4]).
 -export([stop/2]).
 
+%% --------------------------------------------------------------
+%% mongoose_wpool callbacks
 init() ->
     ok.
 
-start(Host, Tag, WpoolOptsIn, _ConnOpts) ->
-    Name = mongoose_wpool:make_pool_name(generic, Host, Tag),
-    mongoose_wpool:start_sup_pool(generic, Name, WpoolOptsIn).
+start(HostType, Tag, WpoolOptsIn, _ConnOpts) ->
+    ProcName = mongoose_wpool:make_pool_name(generic, HostType, Tag),
+    mongoose_wpool:start_sup_pool(generic, ProcName, WpoolOptsIn).
 
 stop(_, _) ->
     ok.

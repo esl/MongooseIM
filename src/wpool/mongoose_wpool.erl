@@ -79,6 +79,8 @@
 -export_type([scope/0]).
 -export_type([proc_name/0]).
 -export_type([pool_opts/0]).
+-export_type([conn_opts/0]).
+-export_type([host_type_or_global/0]).
 
 -type callback_fun() :: init | start | default_opts | is_supported_strategy | stop.
 
@@ -117,11 +119,11 @@ start_configured_pools() ->
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
-    start_configured_pools(PoolsIn, ?MYHOSTS).
+    start_configured_pools(PoolsIn, ?ALL_HOST_TYPES).
 
-start_configured_pools(PoolsIn, Hosts) ->
+start_configured_pools(PoolsIn, HostTypes) ->
     [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
-    Pools = expand_pools(PoolsIn, Hosts),
+    Pools = expand_pools(PoolsIn, HostTypes),
     [start(Pool) || Pool <- Pools].
 
 -spec start(pool_tuple()) -> start_result().
@@ -303,7 +305,7 @@ get_pools() ->
 stats(PoolType, HostType, Tag) ->
     wpool:stats(make_pool_name(PoolType, HostType, Tag)).
 
--spec make_pool_name(pool_type(), scope(), tag()) -> atom().
+-spec make_pool_name(pool_type(), scope(), tag()) -> proc_name().
 make_pool_name(PoolType, HostType, Tag) when is_atom(HostType) ->
     make_pool_name(PoolType, atom_to_binary(HostType, utf8), Tag);
 make_pool_name(PoolType, HostType, Tag) when is_binary(HostType) ->
@@ -343,7 +345,7 @@ default_opts(PoolType) ->
     end.
 
 -spec expand_pools([pool_tuple_in()], [mongooseim:host_type()]) -> [pool_tuple()].
-expand_pools(Pools, AllHosts) ->
+expand_pools(Pools, HostTypes) ->
     %% First we select only pools for a specific vhost
     HostSpecific = [{PoolType, HostType, Tag} ||
                      {PoolType, HostType, Tag, _, _} <- Pools,
@@ -352,7 +354,7 @@ expand_pools(Pools, AllHosts) ->
     %% if they were provided
     F = fun({PoolType, host, Tag, WpoolOpts, ConnOpts}) ->
                 [{PoolType, HostType, Tag, WpoolOpts, ConnOpts} ||
-                 HostType <- AllHosts,
+                 HostType <- HostTypes,
                  not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]
         end,
