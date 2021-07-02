@@ -35,6 +35,10 @@
 
 {suites, "tests", muc_light_legacy_SUITE}.
 
+{suites, "tests", offline_SUITE}.
+{skip_groups, "tests", offline_SUITE, [chatmarkers],
+ "at the moment mod_offline_chatmarkers does not support dynamic domains"}.
+
 {suites, "tests", offline_stub_SUITE}.
 
 {suites, "tests", presence_SUITE}.
