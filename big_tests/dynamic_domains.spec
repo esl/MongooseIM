@@ -14,17 +14,10 @@
 {suites, "tests", carboncopy_SUITE}.
 
 {suites, "tests", disco_and_caps_SUITE}.
-{skip_cases, "tests", disco_and_caps_SUITE,
- [user_can_query_friend_features],
- "at the moment neither mod_offline nor mod_adhoc supports dynamic domains"
- " and this test requires at least one of them to be enabled"
- " to have a non-empty feature list"}.
 
 {suites, "tests", domain_isolation_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
-{skip_cases, "tests", inbox_SUITE, [msg_sent_to_offline_user],
- "at the moment mod_offline doesn't support dynamic domains"}.
 
 {suites, "tests", inbox_extensions_SUITE}.
 
@@ -39,11 +32,6 @@
  "(requires mod_register creating CT users)"}.
 
 {suites, "tests", muc_light_SUITE}.
-{skip_cases, "tests", muc_light_SUITE,
- [rooms_in_rosters_doesnt_break_disco_info],
- "at the moment neither mod_offline nor mod_adhoc supports dynamic domains"
- " and this test requires at least one of them to be enabled"
- " to have a non-empty feature list"}.
 
 {suites, "tests", muc_light_legacy_SUITE}.
 
@@ -59,16 +47,6 @@
  "at the moment mim2 node is not configured for dynamic domains"}.
 
 {suites, "tests", sm_SUITE}.
-{skip_cases, "tests", sm_SUITE,
- [resend_unacked_on_reconnection,
-  session_established,
-  wait_for_resumption,
-  resume_session_kills_old_C2S_gracefully,
-  resend_unacked_after_resume_timeout,
-  resend_more_offline_messages_than_buffer_size,
-  resume_expired_session_returns_correct_h,
-  unacknowledged_message_hook_offline],
- "at the moment mod_offline doesn't support dynamic domains"}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 
