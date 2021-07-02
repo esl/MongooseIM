@@ -59,9 +59,6 @@
 %% helpers to be used from backend moudules
 -export([is_expired_message/2]).
 
-%% GDPR related
--export([]).
-
 -export([config_metrics/1]).
 
 -include("mongoose.hrl").
@@ -84,7 +81,7 @@
 
 -type poppers() :: monitored_map:t({jid:luser(), jid:lserver()}, pid()).
 
--record(state, {host_type :: mongooseim:host_type(),
+-record(state, {host_type :: host_type(),
                 access_max_user_messages :: atom(),
                 message_poppers = monitored_map:new() :: poppers()
                }).
@@ -106,8 +103,7 @@
 -callback write_messages(host_type(), jid:luser(), jid:lserver(), [msg()]) ->
     ok | {error, any()}.
 
--callback count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
-                                 Limit :: msg_count()) ->
+-callback count_offline_messages(host_type(), jid:luser(), jid:lserver(), Limit :: msg_count()) ->
     msg_count().
 
 -callback remove_expired_messages(host_type(), jid:lserver()) ->
@@ -464,7 +460,7 @@ offline_messages(Acc, #jid{lserver = LServer} = JID) ->
             []
     end.
 
--spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [msg()]} | {error, any()}.
+-spec pop_messages(host_type(), jid:jid()) -> {ok, [msg()]} | {error, any()}.
 pop_messages(HostType, JID) ->
     case gen_server:call(srv_name(HostType), {pop_offline_messages, jid:to_bare(JID)}) of
         {ok, RsAll} ->
@@ -546,14 +542,13 @@ timestamp_xml(LServer, Time) ->
     TS = calendar:system_time_to_rfc3339(Time, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, FromJID, <<"Offline Storage">>).
 
--spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) ->
-          {ok, msg_count()} | {error, any()}.
+-spec remove_expired_messages(host_type(), jid:lserver()) -> {ok, msg_count()} | {error, any()}.
 remove_expired_messages(HostType, LServer) ->
     Result = mod_offline_backend:remove_expired_messages(HostType, LServer),
     mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [HostType]),
     Result.
 
--spec remove_old_messages(mongooseim:host_type(), jid:lserver(), non_neg_integer()) ->
+-spec remove_old_messages(host_type(), jid:lserver(), non_neg_integer()) ->
           {ok, msg_count()} | {error, any()}.
 remove_old_messages(HostType, LServer, HowManyDays) ->
     Timestamp = fallback_timestamp(HowManyDays, erlang:system_time(microsecond)),
