@@ -34,7 +34,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([inspect_packet/4,
@@ -157,6 +157,8 @@ riak_config_spec() ->
                                                      validate = non_empty}},
              format = none
             }.
+
+supported_features() -> [dynamic_domains].
 
 hooks(HostType) ->
     DefaultHooks = [
