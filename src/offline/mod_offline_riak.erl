@@ -28,13 +28,13 @@
 -behaviour(mod_offline).
 
 -export([init/2]).
--export([pop_messages/1]).
--export([fetch_messages/1]).
--export([write_messages/3]).
--export([remove_expired_messages/1]).
--export([remove_old_messages/2]).
--export([remove_user/2]).
--export([count_offline_messages/3]).
+-export([pop_messages/2]).
+-export([fetch_messages/2]).
+-export([write_messages/4]).
+-export([count_offline_messages/4]).
+-export([remove_expired_messages/2]).
+-export([remove_old_messages/3]).
+-export([remove_user/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -47,81 +47,69 @@
 
 -define(INFINITY, 99999999999). %% Wed, 16 Nov 5138 09:46:39 GMT
 
--spec init(Host :: jid:lserver(), Opts :: []) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec pop_messages(To) -> {ok, Result} | {error, Reason} when
-    To :: jid:jid(),
-    Reason :: term(),
-    Result :: list(mod_offline:msg()).
-pop_messages(To = #jid{luser = LUser, lserver = LServer}) ->
-    Keys = read_user_idx(LUser, LServer),
-    Msgs = [pop_msg(Key, LUser, LServer, To) || Key <- Keys],
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]} | {error, any()}.
+pop_messages(HostType, To = #jid{luser = LUser, lserver = LServer}) ->
+    Keys = read_user_idx(HostType, LUser, LServer),
+    Msgs = [pop_msg(HostType, Key, LUser, LServer, To) || Key <- Keys],
     {ok, lists:flatten(Msgs)}.
 
--spec write_messages(LUser, LServer, Msgs) ->
-    ok  when
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
-    Msgs :: list().
-write_messages(LUser, LServer, Msgs) ->
-    [write_msg(LUser, LServer, Msg) || Msg <- Msgs],
+-spec fetch_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
+fetch_messages(HostType, To) ->
+    {LUser, LServer} = jid:to_lus(To),
+    Keys = read_user_idx(HostType, LUser, LServer),
+    {ok, [fetch_msg(HostType, Key, LUser, LServer, To) || Key <- Keys]}.
+
+-spec write_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), [mod_offline:msg()]) -> ok.
+write_messages(HostType, LUser, LServer, Msgs) ->
+    [write_msg(HostType, LUser, LServer, Msg) || Msg <- Msgs],
     ok.
 
--spec count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    integer() when
-      LUser :: jid:luser(),
-      LServer :: jid:lserver(),
-      MaxArchivedMsgs :: integer().
-count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    {ok, IdxResult} = mongoose_riak:get_index(bucket_type(LServer), ?USER_IDX,
+-spec count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                             mod_offline:msg_count()) ->
+          mod_offline:msg_count().
+count_offline_messages(HostType, LUser, LServer, MaxArchivedMsgs) ->
+    {ok, IdxResult} = mongoose_riak:get_index(bucket_type(HostType, LServer), ?USER_IDX,
                                               LUser, [{max_results, MaxArchivedMsgs}]),
     length(IdxResult?INDEX_RESULTS.keys).
 
--spec remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
-    Host :: jid:lserver(),
-    Reason :: term(),
-    Count :: integer().
-remove_expired_messages(Host) ->
+-spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) -> {ok, mod_offline:msg_count()}.
+remove_expired_messages(HostType, LServer) ->
     TimestampInt = os:system_time(microsecond),
-    {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?EXPIRE_IDX,
+    {ok, Result} = mongoose_riak:get_index_range(bucket_type(HostType, LServer), ?EXPIRE_IDX,
                                                  0, TimestampInt, []),
     Keys = Result?INDEX_RESULTS.keys,
-    [mongoose_riak:delete(bucket_type(Host), Key) || Key <- Keys],
+    [mongoose_riak:delete(bucket_type(HostType, LServer), Key) || Key <- Keys],
     {ok, length(Keys)}.
 
--spec remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
-    Host :: jid:lserver(),
-    Days :: integer(),
-    Reason :: term(),
-    Count :: integer().
-remove_old_messages(Host, Timestamp) ->
-    TimestampInt = Timestamp,
-    {ok, Result} = mongoose_riak:get_index_range(bucket_type(Host), ?TIMESTAMP_IDX,
+-spec remove_old_messages(mongooseim:host_type(), jid:lserver(), mod_offline:timestamp()) ->
+          {ok, mod_offline:msg_count()}.
+remove_old_messages(HostType, LServer, TimestampInt) ->
+    {ok, Result} = mongoose_riak:get_index_range(bucket_type(HostType, LServer), ?TIMESTAMP_IDX,
                                                  0, TimestampInt, []),
     Keys = Result?INDEX_RESULTS.keys,
-    [mongoose_riak:delete(bucket_type(Host), Key) || Key <- Keys],
+    [mongoose_riak:delete(bucket_type(HostType, LServer), Key) || Key <- Keys],
     {ok, length(Keys)}.
 
--spec remove_user(LUser, LServer) -> any() when
-    LUser :: binary(),
-    LServer :: binary().
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, LUser, LServer) ->
+    Keys = read_user_idx(HostType, LUser, LServer),
+    [mongoose_riak:delete(bucket_type(HostType, LServer), Key) || Key <- Keys],
+    ok.
 
-remove_user(LUser, LServer) ->
-    Keys = read_user_idx(LUser, LServer),
-    [mongoose_riak:delete(bucket_type(LServer), Key) || Key <- Keys].
-
-read_user_idx(LUser, LServer) ->
-    {ok, IdxResult} = mongoose_riak:get_index(bucket_type(LServer), ?USER_IDX,
+read_user_idx(HostType, LUser, LServer) ->
+    {ok, IdxResult} = mongoose_riak:get_index(bucket_type(HostType, LServer), ?USER_IDX,
                                               LUser, []),
     IdxResult?INDEX_RESULTS.keys.
 
-write_msg(LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
-                                       timestamp = TimestampIn, expire = Expire,
-                                       permanent_fields = PermanentFields}) ->
+write_msg(HostType, LUser, LServer, #offline_msg{from = FromJID, packet = Packet,
+                                                 timestamp = TimestampIn, expire = Expire,
+                                                 permanent_fields = PermanentFields}) ->
     Timestamp = TimestampIn,
-    Obj = riakc_obj:new(bucket_type(LServer), key(LUser, Timestamp), exml:to_binary(Packet)),
+    Obj = riakc_obj:new(bucket_type(HostType, LServer), key(LUser, Timestamp), exml:to_binary(Packet)),
     MD = riakc_obj:get_update_metadata(Obj),
     SecondaryIndexes = [{?TIMESTAMP_IDX, [Timestamp]},
                         {?USER_IDX, [LUser]},
@@ -140,9 +128,9 @@ set_obj_user_metadata(MD, [UserMD | Rest]) ->
     UpdatedMD = riakc_obj:set_user_metadata_entry(MD, UserMD),
     set_obj_user_metadata(UpdatedMD, Rest).
 
-pop_msg(Key, LUser, LServer, To) ->
+pop_msg(HostType, Key, LUser, LServer, To) ->
     try
-        {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
+        {ok, Obj} = mongoose_riak:get(bucket_type(HostType, LServer), Key),
 
         PacketRaw = riakc_obj:get_value(Obj),
         {ok, Packet} = exml:parse(PacketRaw),
@@ -152,7 +140,7 @@ pop_msg(Key, LUser, LServer, To) ->
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
         PermanentFields = extract_permanent_fields(MD),
 
-        mongoose_riak:delete(bucket_type(LServer), Key),
+        mongoose_riak:delete(bucket_type(HostType, LServer), Key),
 
         #offline_msg{us = {LUser, LServer},
                      timestamp = Timestamp,
@@ -177,9 +165,9 @@ extract_permanent_fields(MD) ->
         Fields -> binary_to_term(Fields)
     end.
 
--spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
-bucket_type(LServer) ->
-    {gen_mod:get_module_opt(LServer, mod_offline, bucket_type, <<"offline">>), LServer}.
+-spec bucket_type(mongooseim:host_type(), jid:lserver()) -> {binary(), jid:lserver()}.
+bucket_type(HostType, LServer) ->
+    {gen_mod:get_module_opt(LServer, mod_offline, bucket_type, <<"offline">>), HostType}.
 
 -spec key(binary(), integer()) -> binary().
 key(LUser, TimestampInt) ->
@@ -197,15 +185,9 @@ maybe_decode_timestamp(?INFINITY) ->
 maybe_decode_timestamp(TS) ->
     TS.
 
-
-fetch_messages(To) ->
-    {LUser, LServer} = jid:to_lus(To),
-    Keys = read_user_idx(LUser, LServer),
-    {ok, [fetch_msg(Key, LUser, LServer, To) || Key <- Keys]}.
-
-fetch_msg(Key, LUser, LServer, To) ->
+fetch_msg(HostType, Key, LUser, LServer, To) ->
     try
-        {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
+        {ok, Obj} = mongoose_riak:get(bucket_type(HostType, LServer), Key),
 
         PacketRaw = riakc_obj:get_value(Obj),
         {ok, Packet} = exml:parse(PacketRaw),
