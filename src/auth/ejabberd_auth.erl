@@ -44,6 +44,7 @@
          get_password_s/1,
          get_passterm_with_authmodule/2,
          does_user_exist/1,
+         does_user_exist/3,
          does_stored_user_exist/2,
          does_method_support/2,
          remove_user/1,
@@ -61,15 +62,18 @@
 
 %% Hook handlers
 -export([remove_domain/3]).
+-export([does_user_exist/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export_type([authmodule/0,
-              passterm/0]).
+              passterm/0,
+              exist_type/0]).
 
 -type authmodule() :: module().
 -type passterm() :: binary() | mongoose_scram:scram_tuple() | mongoose_scram:scram_map().
+-type exist_type() :: stored | with_anonymous.
 
 %% Types defined below are used in call_auth_modules_*
 -type mod_res() :: any().
@@ -94,15 +98,23 @@ start(HostType) ->
     ensure_metrics(HostType),
     F = fun(Mod) -> mongoose_gen_auth:start(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
-    ejabberd_hooks:add(remove_domain, HostType, ?MODULE, remove_domain, 50),
+    ejabberd_hooks:add(hooks(HostType)),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> 'ok'.
 stop(HostType) ->
-    ejabberd_hooks:delete(remove_domain, HostType, ?MODULE, remove_domain, 50),
+    ejabberd_hooks:delete(hooks(HostType)),
     F = fun(Mod) -> mongoose_gen_auth:stop(Mod, HostType) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
     ok.
+
+hooks(HostType) ->
+    [
+     %% These hooks must run in between those of mod_cache_users
+     {does_user_exist, HostType, ?MODULE, does_user_exist, 50},
+     %% It is important that this handler happens _before_ all other modules
+     {remove_domain, HostType, ?MODULE, remove_domain, 10}
+    ].
 
 -spec set_opts(HostType :: mongooseim:host_type(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
@@ -302,8 +314,8 @@ get_passterm_with_authmodule(HostType, #jid{luser = LUser, lserver = LServer}) -
         end,
     call_auth_modules_for_host_type(HostType, F, #{default => false}).
 
-%% @doc Returns true if the user exists in the DB or if an anonymous user is
-%% logged under the given name
+%% @doc Returns true if the user exists in the DB
+%% or if an anonymous user is logged under the given name
 %% Returns 'false' in case of an error
 -spec does_user_exist(JID :: jid:jid() | error) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
@@ -315,6 +327,24 @@ does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
     end;
 does_user_exist(error) ->
     false.
+
+%% Hook interface
+-spec does_user_exist(mongooseim:host_type(), jid:jid(), exist_type()) -> boolean().
+does_user_exist(HostType, Jid, RequestType) ->
+    mongoose_hooks:does_user_exist(HostType, Jid, RequestType).
+
+%% @doc does_user_exist hook handler
+%% Returns 'false' in case of an error
+-spec does_user_exist(boolean(), mongooseim:host_type(), jid:jid(), exist_type()) -> boolean().
+does_user_exist(false, HostType, Jid, stored) ->
+    true =:= does_stored_user_exist(HostType, Jid);
+does_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, with_anonymous) ->
+    F = fun(Mod) ->
+                does_user_exist_in_module(HostType, LUser, LServer, Mod)
+        end,
+    call_auth_modules_for_host_type(HostType, F, #{default => false});
+does_user_exist(Status, _, _, _) ->
+    Status.
 
 %% @doc Returns true if the user exists in the DB
 %% In case of a backend error, it is propagated to the caller

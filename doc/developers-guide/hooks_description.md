@@ -181,6 +181,7 @@ This is the perfect place to plug in custom security control.
 * disco_sm_features
 * disco_sm_identity
 * disco_sm_items
+* does_user_exist
 * ejabberd_ctl_process
 * empty
 * failed_to_store_message

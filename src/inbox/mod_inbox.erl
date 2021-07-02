@@ -314,10 +314,10 @@ maybe_process_message(Acc, From, To, Msg, Dir) ->
                          Dir :: outgoing | incoming) -> boolean().
 inbox_owner_exists(Acc, From, _To, outgoing) ->
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_users:does_user_exist(HostType, From);
+    ejabberd_auth:does_user_exist(HostType, From, stored);
 inbox_owner_exists(Acc, _From, To, incoming) ->
     HostType = mongoose_acc:host_type(Acc),
-    mongoose_users:does_user_exist(HostType, To).
+    ejabberd_auth:does_user_exist(HostType, To, stored).
 
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
             process_message(HostType, From, To, Msg, Acc, Dir, one2one);

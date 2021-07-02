@@ -178,6 +178,7 @@ groups() ->
                             mod_auth_token,
                             mod_bosh,
                             mod_caps,
+                            mod_cache_users,
                             mod_carboncopy,
                             mod_csi,
                             mod_disco,
@@ -1554,6 +1555,16 @@ mod_caps(_Config) ->
     ?errf(T(<<"cache_size">>, <<"infinity">>)),
     ?errf(T(<<"cache_life_time">>, 0)),
     ?errf(T(<<"cache_life_time">>, <<"infinity">>)).
+
+mod_cache_users(_Config) ->
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_cache_users">> => #{K => V}}} end,
+    M = fun(K, V) -> modopts(mod_cache_users, [{K, V}]) end,
+    ?eqf(M(ttl, 8600), T(<<"time_to_live">>, 8600)),
+    ?eqf(M(ttl, infinity), T(<<"time_to_live">>, <<"infinity">>)),
+    ?eqf(M(number_of_segments, 10), T(<<"number_of_segments">>, 10)),
+    ?errf(T(<<"time_to_live">>, 0)),
+    ?errf(T(<<"number_of_segments">>, 0)),
+    ?errf(T(<<"number_of_segments">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
