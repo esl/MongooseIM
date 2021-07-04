@@ -279,7 +279,7 @@ run_hook([{_Priority, Module, Function} | Ls], Key, Acc, Args) ->
     Res = hook_apply_function(Module, Function, Acc, Args),
     case Res of
         {'EXIT', Reason} ->
-            error_running_hook(Reason, Key, Args),
+            ?MODULE:error_running_hook(Reason, Key, Args),
             run_hook(Ls, Key, Acc, Args);
         stop ->
             stopped;
