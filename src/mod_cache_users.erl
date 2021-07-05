@@ -10,6 +10,7 @@
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
+-export([terminate/2]).
 
 %% gen_mod API
 -export([start/2]).
@@ -110,8 +111,8 @@ send_to_group(HostType, Msg) ->
     boolean().
 does_cached_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, stored) ->
     Key = key(LUser, LServer),
-    ParentTab = tbl_name(HostType),
-    case is_member(tbl_name(HostType), Key, ets:last(ParentTab)) of
+    ParentName = tbl_name(HostType),
+    case is_member(ParentName, Key) of
         true -> {stop, true};
         false -> false
     end;
@@ -125,39 +126,54 @@ does_cached_user_exist(Status, _, _, _) ->
     boolean().
 maybe_put_user_into_cache(true, HostType, #jid{luser = LUser, lserver = LServer}, stored) ->
     Key = key(LUser, LServer),
-    ParentTab = tbl_name(HostType),
-    put_member(ParentTab, Key, ets:last(ParentTab));
+    ParentName = tbl_name(HostType),
+    put_member(ParentName, Key);
 maybe_put_user_into_cache(Status, _, _, _) ->
     Status.
+
+-compile({inline, [key/2, is_member/2, check_segment/3]}).
 
 -spec key(jid:luser(), jid:lserver()) -> {jid:lserver(), jid:luser()}.
 key(LUser, LServer) ->
     {LServer, LUser}.
 
-is_member(_, _, '$end_of_table') ->
-    false;
-is_member(ParentTab, Key, SegmentKey) ->
-    case ets:lookup(ParentTab, SegmentKey) of
-        [{_, EtsSegment}] ->
-            case ets:member(EtsSegment, Key) of
-                false -> is_member(ParentTab, Key, ets:prev(ParentTab, SegmentKey));
-                true -> true
-            end;
-        [] ->
-           is_member(ParentTab, Key, ets:prev(ParentTab, SegmentKey))
-    end.
+is_member(ParentName, Key) ->
+    Segments = persistent_term:get({ParentName, segments}),
+    Size = tuple_size(Segments),
+    Index = persistent_term:get({ParentName, index}),
+    LastTableToCheck = case Index of
+                           1 -> Size;
+                           _ -> Index - 1
+                       end,
+    is_member(Key, Segments, Size, LastTableToCheck, Index).
+
+% if we arrived to the last table we finish here
+is_member(Key, Segments, _, LastIndex, LastIndex) ->
+    check_segment(Key, Segments, LastIndex);
+% if we arrived to the last slot, we check and wrap around
+is_member(Key, Segments, Size, LastIndex, Size) ->
+    check_segment(Key, Segments, Size) orelse is_member(Key, Segments, Size, LastIndex, 1);
+% else we check the current table and if it fails we move forwards
+is_member(Key, Segments, Size, LastIndex, Index) ->
+    check_segment(Key, Segments, Index) orelse is_member(Key, Segments, Size, LastIndex, Index + 1).
+
+check_segment(Key, Segments, Index) ->
+    EtsSegment = element(Index, Segments),
+    ets:member(EtsSegment, Key).
 
 %% There's a chance that by the time we insert in the ets table, this table is not
 %% the first anymore because the cleaner has taken action and pushed it behind.
 %% That's fine, worst case this record will live a segment less than expected.
-put_member(ParentTab, Key, SegmentKey) ->
-    EtsSegment = ets:lookup_element(ParentTab, SegmentKey, 2),
+put_member(ParentName, Key) ->
+    Index = persistent_term:get({ParentName, index}),
+    Segments = persistent_term:get({ParentName, segments}),
+    EtsSegment = element(Index, Segments),
     ets:insert(EtsSegment, {Key}).
 
 -spec start_server(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_server(HostType, Opts) ->
-    ParentTab = tbl_name(HostType),
-    Spec = #{id => ParentTab, start => {?MODULE, start_link, [ParentTab, Opts]},
+    ParentName = tbl_name(HostType),
+    Spec = #{id => ParentName, start => {?MODULE, start_link, [ParentName, Opts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
@@ -170,77 +186,49 @@ stop_server(HostType) ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 
--record(cache_state, {tab :: atom(), ttl :: timeout()}).
-
-rotate_and_purge_last_segment(#cache_state{tab = ParentTab}) ->
-    First = ets:first(ParentTab),
-    Last = ets:last(ParentTab),
-    EtsSegment = case ets:info(ParentTab, size) of
-                     1 ->
-                         ets:lookup_element(ParentTab, First, 2);
-                     _ ->
-                         [{_, E}] = ets:take(ParentTab, First),
-                         true = ets:insert_new(ParentTab, {Last + 1, E}),
-                         E
-                 end,
-    ets:delete_all_objects(EtsSegment),
-    ok.
-
-iterate_tables(ParentTab, Action) when is_atom(ParentTab), is_function(Action, 1) ->
-    iterate_tables(ParentTab, Action, ets:first(ParentTab)).
-
-iterate_tables(_, _, '$end_of_table') ->
-    ok;
-iterate_tables(ParentTab, Action, SegmentKey) when is_atom(ParentTab), is_function(Action, 1) ->
-    case ets:lookup(ParentTab, SegmentKey) of
-        [{_, EtsSegment}] ->
-            Action(EtsSegment),
-            iterate_tables(ParentTab, Action, ets:next(ParentTab, SegmentKey));
-        [] ->
-            iterate_tables(ParentTab, Action, ets:next(ParentTab, SegmentKey))
-    end.
+-record(cache_state, {key :: atom(), ttl :: timeout()}).
 
 -spec start_link(atom(), gen_mod:module_opts()) -> {ok, pid()}.
-start_link(ParentTab, Opts) ->
-    gen_server:start_link({local, ParentTab}, ?MODULE, [ParentTab, Opts], []).
+start_link(ParentName, Opts) ->
+    gen_server:start_link({local, ParentName}, ?MODULE, [ParentName, Opts], []).
 
 init([ParentName, Opts]) ->
     TTL0 = gen_mod:get_opt(ttl, Opts, 8 * 60), %% 8h
     N = gen_mod:get_opt(number_of_segments, Opts, 3),
-    EtsOpts = [ordered_set, named_table, protected, {read_concurrency, true}],
-    ets:new(ParentName, EtsOpts),
-    lists:foreach(
-      fun(I) ->
+    SegmentsList = lists:map(
+      fun(_) ->
               SegmentOpts = [set, public, {read_concurrency, true}, {write_concurrency, true}],
-              Ref = ets:new(undefined, SegmentOpts),
-              ets:insert(ParentName, {I, Ref})
+              ets:new(undefined, SegmentOpts)
       end, lists:seq(1, N)),
+    Segments = list_to_tuple(SegmentsList),
+    persistent_term:put({ParentName, index}, 1),
+    persistent_term:put({ParentName, segments}, Segments),
     TTL = case TTL0 of
               infinity -> infinity;
               _ ->
                   erlang:send_after(timer:minutes(TTL0), self(), purge),
                   timer:minutes(TTL0)
           end,
-    {ok, #cache_state{tab = ParentName, ttl = TTL}}.
+    {ok, #cache_state{key = ParentName, ttl = TTL}}.
 
 handle_call(Msg, From, State) ->
     ?UNEXPECTED_CALL(Msg, From),
     {reply, ok, State}.
 
-handle_cast({remove_user, Key}, #cache_state{tab = ParentTab} = State) ->
+handle_cast({remove_user, Key}, #cache_state{key = ParentName} = State) ->
     try
         Action = fun(EtsSegment) -> ets:delete(EtsSegment, Key) end,
-        iterate_tables(ParentTab, Action)
+        iterate_tables(ParentName, Action)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => remove_user_from_cache_error,
                          class => Class, reason => Reason, stacktrace => Stacktrace})
     end,
     {noreply, State};
-handle_cast({remove_domain, Domain}, #cache_state{tab = ParentTab} = State) ->
+handle_cast({remove_domain, Domain}, #cache_state{key = ParentName} = State) ->
     try
         Action = fun(EtsSegment) -> ets:match_delete(EtsSegment, {{Domain, '_'}}) end,
-        iterate_tables(ParentTab, Action)
+        iterate_tables(ParentName, Action)
     catch
         Class:Reason:Stacktrace ->
             ?LOG_ERROR(#{what => remove_domain_from_cache_error,
@@ -258,3 +246,30 @@ handle_info(purge, #cache_state{ttl = TTL} = State) ->
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
+
+terminate(_Reason, #cache_state{key = ParentName}) ->
+    persistent_term:erase({ParentName, index}),
+    persistent_term:erase({ParentName, segments}),
+    ok.
+
+rotate_and_purge_last_segment(#cache_state{key = ParentName}) ->
+    %% Clear the oldest segment (Index-1) and then make it the first
+    Index = persistent_term:get({ParentName, index}),
+    Segments = persistent_term:get({ParentName, segments}),
+    Size = tuple_size(Segments),
+    %% If Size was 1, Index would not change, and persistent_term:put would also be a no-op
+    NewIndex = case Index of
+                   1 -> Size;
+                   _ -> Index - 1
+               end,
+    TableToClear = element(NewIndex, Segments),
+    ets:delete_all_objects(TableToClear),
+    persistent_term:put({ParentName, index}, NewIndex).
+
+iterate_tables(ParentName, Action) when is_atom(ParentName), is_function(Action, 1) ->
+    Segments = persistent_term:get({ParentName, segments}),
+    Size = tuple_size(Segments),
+    [ begin
+          EtsSegment = element(N, Segments),
+          Action(EtsSegment)
+      end || N <- lists:seq(1, Size) ].
