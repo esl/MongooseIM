@@ -154,6 +154,11 @@ orbs:
               command: |
                   tools/circleci-prepare-log-dir.sh
                   if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+          - run:
+              name: Publish a comment to GitHub
+              when: always
+              command: |
+                  tools/circle-publish-github-comment.sh
 
       package:
         parallelism: 1
@@ -265,6 +270,11 @@ orbs:
               command: |
                   tools/circleci-prepare-log-dir.sh
                   if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+          - run:
+              name: Publish a comment to GitHub
+              when: always
+              command: |
+                  tools/circle-publish-github-comment.sh
 
       docker_image:
         parallelism: 1
