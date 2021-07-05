@@ -865,7 +865,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     AliceSpec0 = escalus_fresh:create_fresh_user(Config, alice),
     Resource = proplists:get_value(username, AliceSpec0),
     AliceSpec = [{resource, Resource} | AliceSpec0],
-    start_hook_listener(Resource),
+    HookHandlerExtra = start_hook_listener(Resource),
     {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps ++ [stream_resumption]),
     SMID = proplists:get_value(smid, Alice#client.props),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
@@ -912,7 +912,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     escalus:assert(is_chat_message, [<<"msg-3">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
     escalus:assert(is_chat_message, [<<"msg-4">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
     ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
-
+    stop_hook_listener(HookHandlerExtra),
     escalus_connection:stop(Bob).
 
 resume_session(Config) ->
@@ -1323,20 +1323,33 @@ start_hook_listener(Resource) ->
     TestCasePid = self(),
     rpc(mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, Resource, host_type()]).
 
+stop_hook_listener(HookExtra) ->
+    rpc(mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, host_type()]).
+
 rpc_start_hook_handler(TestCasePid, User, HostType) ->
     LUser=jid:nodeprep(User),
-    Handler = fun(Acc, Jid) ->
-                {U, _S, R} = jid:to_lower(Jid),
-                case U of
-                    LUser ->
-                        Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
-                        El = mongoose_acc:element(Acc),
-                        TestCasePid ! {sm_test, Counter, R, El},
-                        mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc);
-                    _ -> Acc
-                end
-              end,
-    ejabberd_hooks:add(unacknowledged_message, HostType, Handler, 50).
+    gen_hook:add_handler(unacknowledged_message, HostType,
+                         fun ?MODULE:hook_handler_fn/3,
+                         #{luser => LUser, pid => TestCasePid}, 50),
+    #{luser => LUser, pid => TestCasePid}.
+
+rpc_stop_hook_handler(HookExtra, HostType) ->
+    gen_hook:delete_handler(unacknowledged_message, HostType,
+                            fun ?MODULE:hook_handler_fn/3,
+                            HookExtra, 50).
+
+hook_handler_fn(Acc,
+                #{args := [Jid]} = _Params,
+                #{luser := LUser, pid := TestCasePid} = _Extra) ->
+    {U, _S, R} = jid:to_lower(Jid),
+    case U of
+        LUser ->
+            Counter = mongoose_acc:get(sm_test, counter, 0, Acc),
+            El = mongoose_acc:element(Acc),
+            TestCasePid ! {sm_test, Counter, R, El},
+            {ok, mongoose_acc:set_permanent(sm_test, counter, Counter + 1, Acc)};
+        _ -> {ok, Acc}
+    end.
 
 wait_for_unacked_msg_hook(Counter, Res, Timeout) ->
     receive

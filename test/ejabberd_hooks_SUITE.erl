@@ -4,9 +4,8 @@
 -define(HOST, <<"localhost">>).
 
 all() ->
-    [ a_fun_can_be_added,
+    [
       a_module_fun_can_be_added,
-      a_fun_can_be_removed,
       a_module_fun_can_be_removed,
 
       hooks_run_launches_nullary_fun,
@@ -33,19 +32,9 @@ end_per_suite(_C) ->
     application:stop(exometer_core).
 
 init_per_testcase(_, C) ->
-    ejabberd_hooks:start_link(),
+    gen_hook:start_link(),
     catch ets:new(local_config, [named_table]),
     C.
-
-a_fun_can_be_added(_) ->
-    given_hooks_started(),
-
-    % when
-    ejabberd_hooks:add(test_run_hook, ?HOST, fun(_) -> ok end, 1),
-
-    % then
-    [{{test_run_hook,<<"localhost">>}, [{1,undefined,_}]}] = get_hooks().
-
 
 a_module_fun_can_be_added(_) ->
     given_hooks_started(),
@@ -55,19 +44,9 @@ a_module_fun_can_be_added(_) ->
     ejabberd_hooks:add(test_run_hook, ?HOST, hook_mod, fun_a, 1),
 
     % then
-    [{{test_run_hook,<<"localhost">>}, [{1,hook_mod,fun_a}]}] = get_hooks().
-
-
-a_fun_can_be_removed(_) ->
-    given_hooks_started(),
-    GivenFun = fun(_) -> ok end,
-    ejabberd_hooks:add(test_run_hook, ?HOST, GivenFun, 1),
-
-    % when
-    ejabberd_hooks:delete(test_run_hook, ?HOST, GivenFun, 1),
-
-    % then
-    [{{test_run_hook,<<"localhost">>}, []}] = get_hooks().
+    [{{test_run_hook,<<"localhost">>},
+      [{hook_handler, {test_run_hook,<<"localhost">>},
+        1,_FN,#{function := fun_a, module := hook_mod}}]}] = get_hooks().
 
 a_module_fun_can_be_removed(_) ->
     given_hooks_started(),
@@ -265,7 +244,7 @@ given_hooks_started() ->
     error_logger:tty(false),
     Fun = fun(all_metrics_are_global) -> false end,
     given_module(ejabberd_config, get_local_option, Fun),
-    ejabberd_hooks:start_link().
+    gen_hook:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->
     ejabberd_hooks:add(HookName, ?HOST, ModName, FunName, Prio).
@@ -280,4 +259,4 @@ given_fun(ModName, FunName, Fun) ->
 
 
 get_hooks() ->
-    ets:tab2list(hooks).
+    ets:tab2list(gen_hook).

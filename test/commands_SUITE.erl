@@ -583,7 +583,7 @@ ec_holder() ->
 
 mc_holder() ->
     % we have to do it here to avoid race condition and random failures
-    {ok, Pid} = ejabberd_hooks:start_link(),
+    {ok, Pid} = gen_hook:start_link(),
     mongoose_commands:init(),
     mongoose_commands:register(commands_new()),
     receive

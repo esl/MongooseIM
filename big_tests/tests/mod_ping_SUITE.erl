@@ -107,24 +107,30 @@ start_mod_ping(Opts) ->
 setup_pong_hook(Config) ->
     Pid = self(),
     HostType = domain_helper:host_type(mim),
-    Handler = mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
-    [{pong_handler, Handler} | Config].
+    mongoose_helper:successful_rpc(?MODULE, setup_pong_hook, [HostType, Pid]),
+    [{pid, Pid} | Config].
 
 setup_pong_hook(HostType, Pid) ->
-    Handler = fun(_Acc, _HostType, JID, _Response, _TDelta) ->
-                      Pid ! {pong, jid:to_binary(jid:to_lower(JID))}
-              end,
-    ejabberd_hooks:add(user_ping_response, HostType, Handler, 50),
-    Handler.
+    gen_hook:add_handler(user_ping_response, HostType,
+                         fun ?MODULE:pong_hook_handler/3,
+                         #{pid => Pid}, 50).
+
+pong_hook_handler(Acc,
+                  #{args := [_HostType, JID, _Response, _TDelta]} = _Params,
+                  #{pid := Pid} = _Extra) ->
+    Pid ! {pong, jid:to_binary(jid:to_lower(JID))},
+    {ok, Acc}.
 
 clear_pong_hook(Config) ->
-    {value, {_, Handler}, NConfig} = lists:keytake(pong_handler, 1, Config),
+    {value, {_, Pid}, NConfig} = lists:keytake(pid, 1, Config),
     HostType = domain_helper:host_type(mim),
-    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Handler]),
+    mongoose_helper:successful_rpc(?MODULE, clear_pong_hook, [HostType, Pid]),
     NConfig.
 
-clear_pong_hook(HostType, Handler) ->
-    ejabberd_hooks:delete(user_ping_response, HostType, Handler, 50).
+clear_pong_hook(HostType, Pid) ->
+    gen_hook:delete_handler(user_ping_response, HostType,
+                            fun ?MODULE:pong_hook_handler/3,
+                            #{pid => Pid}, 50).
 
 %%--------------------------------------------------------------------
 %% Ping tests

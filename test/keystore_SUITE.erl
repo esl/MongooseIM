@@ -28,7 +28,7 @@ end_per_suite(C) ->
 
 init_per_testcase(_, Config) ->
     mock_mongoose_metrics(),
-    async_helper:start(Config, ejabberd_hooks, start_link, []).
+    async_helper:start(Config, gen_hook, start_link, []).
 
 end_per_testcase(module_startup_non_unique_key_ids, C) ->
     clean_after_testcase(C);

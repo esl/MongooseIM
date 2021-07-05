@@ -38,12 +38,12 @@ start_link() ->
 
 init([]) ->
     Hooks =
-        {ejabberd_hooks,
-         {ejabberd_hooks, start_link, []},
+        {gen_hook,
+         {gen_hook, start_link, []},
          permanent,
          brutal_kill,
          worker,
-         [ejabberd_hooks]},
+         [gen_hook]},
     Cleaner =
         {mongoose_cleaner,
          {mongoose_cleaner, start_link, []},

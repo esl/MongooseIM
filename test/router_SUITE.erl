@@ -48,7 +48,7 @@ init_per_group(routing, Config) ->
            (_) ->
             undefined
         end),
-    ejabberd_hooks:start_link(),
+    gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config;
 init_per_group(schema, Config) ->

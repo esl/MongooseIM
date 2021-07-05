@@ -41,7 +41,7 @@ init_per_suite(C) ->
 
 init_per_testcase(_, C) ->
     catch ets:new(local_config, [named_table]),
-    ejabberd_hooks:start_link(),
+    gen_hook:start_link(),
     mod_privacy:start(<<"localhost">>, []),
     C.
 
