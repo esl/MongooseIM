@@ -1443,9 +1443,9 @@ mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
-run_global_hook(HookName, Acc, Params) when is_map(Params) ->
-    {_, RetValue} = gen_hook:run_fold(HookName, global, Acc, Params),
-    RetValue;
+%% run_global_hook(HookName, Acc, Params) when is_map(Params) ->
+%%     {_, RetValue} = gen_hook:run_fold(HookName, global, Acc, Params),
+%%     RetValue;
 run_global_hook(HookName, Acc, Args) when is_list(Args) ->
     ejabberd_hooks:run_fold(HookName, global, Acc, Args).
 
@@ -1454,10 +1454,10 @@ run_hook_for_host_type(HookName, undefined, Acc, Args) ->
                  text => <<"Running hook for an undefined host type">>,
                  hook_name => HookName, hook_acc => Acc, hook_args => Args}),
     Acc;
-run_hook_for_host_type(HookName, HostType, Acc, Params) when is_binary(HostType),
-                                                             is_map(Params) ->
-    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
-    RetValue;
+%% run_hook_for_host_type(HookName, HostType, Acc, Params) when is_binary(HostType),
+%%                                                              is_map(Params) ->
+%%     {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
+%%     RetValue;
 run_hook_for_host_type(HookName, HostType, Acc, Args) when is_binary(HostType),
                                                            is_list(Args) ->
     ejabberd_hooks:run_fold(HookName, HostType, Acc, Args).
