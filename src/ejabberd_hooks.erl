@@ -26,12 +26,10 @@
 -module(ejabberd_hooks).
 -author('alexey@process-one.net').
 
-
 %% External exports
 -export([add/5,
          delete/5,
-         run_global/3,
-         run_for_host_type/4]).
+         run_fold/4]).
 
 -export([add/1,
          delete/1]).
@@ -65,9 +63,8 @@ add(Hooks) when is_list(Hooks) ->
     [add_hook(Hook) || Hook <- Hooks],
     ok.
 
-
 %% @doc Delete a module and function from this hook.
-%% It is important to indicate exactly the same information than when the call was added.
+%% It is important to indicate exactly the same information as when the call was added.
 -spec delete(HookName :: atom(),
              HostType :: mongooseim:host_type() | global,
              Module :: module(),
@@ -81,25 +78,14 @@ delete(Hooks) when is_list(Hooks) ->
     [delete_hook(Hook) || Hook <- Hooks],
     ok.
 
-%% @doc run global hook.
--spec run_global(HookName :: atom(), Acc :: term(), Args :: [term()]) ->
-    NewAcc :: term() | stopped.
-run_global(HookName, Acc, Args) ->
-    {_, RetValue} = gen_hook:run_fold(HookName, global, Acc, #{args => Args}),
-    RetValue.
 
-%% @doc run hook for the host type.
--spec run_for_host_type(HookName :: atom(),
-                        HostType :: binary() | undefined,
-                        Acc :: term(),
-                        Args :: [term()]) ->
+%% @doc run the hook.
+-spec run_fold(HookName :: atom(),
+               HostType :: mongooseim:host_type() | global,
+               Acc :: term(),
+               Args :: [term()]) ->
     NewAcc :: term() | stopped.
-run_for_host_type(HookName, undefined, Acc, Args) ->
-    ?LOG_ERROR(#{what => undefined_host_type,
-                 text => <<"Running hook for an undefined host type">>,
-                 hook_name => HookName, hook_acc => Acc, hook_args => Args}),
-    Acc;
-run_for_host_type(HookName, HostType, Acc, Args) when is_binary(HostType) ->
+run_fold(HookName, HostType, Acc, Args) when is_binary(HostType); HostType =:= global ->
     {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, #{args => Args}),
     RetValue.
 

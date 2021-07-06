@@ -367,7 +367,7 @@ unique_count_while_removing_entries(C) ->
 unload_meck() ->
     meck:unload(acl),
     meck:unload(ejabberd_config),
-    meck:unload(ejabberd_hooks),
+    meck:unload(gen_hook),
     meck:unload(ejabberd_commands),
     meck:unload(mongoose_domain_api).
 
@@ -376,8 +376,8 @@ set_test_case_meck(MaxUserSessions) ->
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
-    meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, run_for_host_type, fun(_, _, Acc, _) -> Acc end),
+    meck:new(gen_hook, []),
+    meck:expect(gen_hook, run_fold, fun(_, _, Acc, _) -> {ok, Acc} end),
     meck:new(mongoose_domain_api, []),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end).
 
@@ -606,8 +606,7 @@ set_meck(SMBackend) ->
                     (host_types, Default) -> Default
                 end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-    meck:expect(ejabberd_hooks, add, fun(_) -> ok end),
-    meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
+    meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
 
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),

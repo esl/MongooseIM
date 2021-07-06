@@ -35,9 +35,8 @@ setup() ->
                     undefined end),
     meck:expect(mongoose_credentials, get, fun mcred_get/2),
 
-    meck:new(ejabberd_hooks),
-    meck:expect(ejabberd_hooks, run_global, fun hookfold/3),
-    meck:expect(ejabberd_hooks, run_for_host_type, fun hookfold/4),
+    meck:new(gen_hook),
+    meck:expect(gen_hook, run_fold, fun hookfold/4),
 
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
@@ -71,15 +70,14 @@ default_global_option(language) ->  <<"en">>.
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
 mcred_get(dummy_creds, auth_module) -> auuuthmodule.
 
-hookfold(check_bl_c2s, _, _) -> false.
-
-hookfold(roster_get_versioning_feature, _, _, _) -> [];
-hookfold(roster_get_subscription_lists, _, A, _) -> A;
-hookfold(privacy_get_user_list, _, A, _) -> A;
-hookfold(session_opening_allowed_for_user, _, _, _) -> allow;
-hookfold(c2s_stream_features, _, _, _) -> [];
-hookfold(xmpp_send_element, _, A, _) -> A;
-hookfold(privacy_check_packet, _, _, _) -> allow.
+hookfold(check_bl_c2s, _, _, _) -> {ok, false};
+hookfold(roster_get_versioning_feature, _, _, _) -> {ok, []};
+hookfold(roster_get_subscription_lists, _, A, _) -> {ok, A};
+hookfold(privacy_get_user_list, _, A, _) -> {ok, A};
+hookfold(session_opening_allowed_for_user, _, _, _) -> {ok, allow};
+hookfold(c2s_stream_features, _, _, _) -> {ok, []};
+hookfold(xmpp_send_element, _, A, _) -> {ok, A};
+hookfold(privacy_check_packet, _, _, _) -> {ok, allow}.
 
 get_host_type(<<"localhost">>) -> {ok, <<"localhost">>};
 get_host_type(_) -> {error, not_found}.

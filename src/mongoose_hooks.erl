@@ -7,6 +7,7 @@
 
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
+-include("mongoose.hrl").
 
 -export([adhoc_local_commands/4,
          adhoc_sm_commands/4,
@@ -166,8 +167,8 @@
     C2SState :: ejabberd_c2s:state(),
     Result :: term(). % ok | empty_state | HandlerState
 c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
-    ejabberd_hooks:run_for_host_type(c2s_remote_hook, HostType, HandlerState,
-                                     [Tag, Args, C2SState]).
+    run_hook_for_host_type(c2s_remote_hook, HostType, HandlerState,
+                           [Tag, Args, C2SState]).
 
 -spec adhoc_local_commands(LServer, From, To, AdhocRequest) -> Result when
     LServer :: jid:lserver(),
@@ -176,8 +177,8 @@ c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
     AdhocRequest :: adhoc:request(),
     Result :: mod_adhoc:command_hook_acc().
 adhoc_local_commands(LServer, From, To, AdhocRequest) ->
-    ejabberd_hooks:run_for_host_type(adhoc_local_commands, LServer, empty,
-                                     [From, To, AdhocRequest]).
+    run_hook_for_host_type(adhoc_local_commands, LServer, empty,
+                           [From, To, AdhocRequest]).
 
 -spec adhoc_sm_commands(LServer, From, To, AdhocRequest) -> Result when
     LServer :: jid:lserver(),
@@ -186,8 +187,7 @@ adhoc_local_commands(LServer, From, To, AdhocRequest) ->
     AdhocRequest :: adhoc:request(),
     Result :: mod_adhoc:command_hook_acc().
 adhoc_sm_commands(LServer, From, To, AdhocRequest) ->
-    ejabberd_hooks:run_for_host_type(adhoc_sm_commands, LServer, empty,
-                                     [From, To, AdhocRequest]).
+    run_hook_for_host_type(adhoc_sm_commands, LServer, empty, [From, To, AdhocRequest]).
 
 %%% @doc The `anonymous_purge_hook' hook is called when anonymous user's data is removed.
 -spec anonymous_purge_hook(LServer, Acc, LUser) -> Result when
@@ -197,8 +197,7 @@ adhoc_sm_commands(LServer, From, To, AdhocRequest) ->
     Result :: mongose_acc:t().
 anonymous_purge_hook(LServer, Acc, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(anonymous_purge_hook, HostType, Acc,
-                                     [LUser, LServer]).
+    run_hook_for_host_type(anonymous_purge_hook, HostType, Acc, [LUser, LServer]).
 
 -spec auth_failed(HostType, Server, Username) -> Result when
     HostType :: binary(),
@@ -206,7 +205,7 @@ anonymous_purge_hook(LServer, Acc, LUser) ->
     Username :: jid:user() | unknown,
     Result :: ok.
 auth_failed(HostType, Server, Username) ->
-    ejabberd_hooks:run_for_host_type(auth_failed, HostType, ok, [Username, Server]).
+    run_hook_for_host_type(auth_failed, HostType, ok, [Username, Server]).
 
 -spec does_user_exist(HostType, Jid, RequestType) -> Result when
       HostType :: mongooseim:host_type(),
@@ -214,33 +213,33 @@ auth_failed(HostType, Server, Username) ->
       RequestType :: ejabberd_auth:exist_type(),
       Result :: boolean().
 does_user_exist(HostType, Jid, RequestType) ->
-    ejabberd_hooks:run_for_host_type(does_user_exist, HostType,
-                                     false, [HostType, Jid, RequestType]).
+    run_hook_for_host_type(does_user_exist, HostType, false,
+                           [HostType, Jid, RequestType]).
 
 -spec remove_domain(HostType, Domain) -> Result when
     HostType :: binary(),
     Domain :: jid:lserver(),
     Result :: ok.
 remove_domain(HostType, Domain) ->
-    ejabberd_hooks:run_for_host_type(remove_domain, HostType, #{}, [HostType, Domain]).
+    run_hook_for_host_type(remove_domain, HostType, #{}, [HostType, Domain]).
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
-    ejabberd_hooks:run_global(node_cleanup, #{}, [Node]).
+    run_global_hook(node_cleanup, #{}, [Node]).
 
 -spec ejabberd_ctl_process(Acc, Args) -> Result when
     Acc :: any(),
     Args :: [string()],
     Result :: any().
 ejabberd_ctl_process(Acc, Args) ->
-    ejabberd_hooks:run_global(ejabberd_ctl_process, Acc, [Args]).
+    run_global_hook(ejabberd_ctl_process, Acc, [Args]).
 
 -spec failed_to_store_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 failed_to_store_message(Acc) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(failed_to_store_message, HostType, Acc, []).
+    run_hook_for_host_type(failed_to_store_message, HostType, Acc, []).
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
@@ -253,7 +252,7 @@ failed_to_store_message(Acc) ->
     Result :: drop | filter_packet_acc().
 filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(filter_local_packet, HostType, FilterAcc, []).
+    run_hook_for_host_type(filter_local_packet, HostType, FilterAcc, []).
 
 %%% @doc The `filter_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_router_global'.
@@ -261,7 +260,7 @@ filter_local_packet(FilterAcc = {_From, _To, Acc, _Packet}) ->
     Acc :: filter_packet_acc(),
     Result ::  drop | filter_packet_acc().
 filter_packet(Acc) ->
-    ejabberd_hooks:run_global(filter_packet, Acc, []).
+    run_global_hook(filter_packet, Acc, []).
 
 %%% @doc The `inbox_unread_count' hook is called to get the number
 %%% of unread messages in the inbox for a user.
@@ -271,7 +270,7 @@ filter_packet(Acc) ->
     User :: jid:jid(),
     Result :: mongoose_acc:t().
 inbox_unread_count(LServer, Acc, User) ->
-    ejabberd_hooks:run_for_host_type(inbox_unread_count, LServer, Acc, [User]).
+    run_hook_for_host_type(inbox_unread_count, LServer, Acc, [User]).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(LServer, KeyName) -> Result when
@@ -279,8 +278,7 @@ inbox_unread_count(LServer, Acc, User) ->
     KeyName :: atom(),
     Result :: mod_keystore:key_list().
 get_key(LServer, KeyName) ->
-    ejabberd_hooks:run_for_host_type(get_key, LServer, [],
-                                     [{KeyName, LServer}]).
+    run_hook_for_host_type(get_key, LServer, [], [{KeyName, LServer}]).
 
 -spec packet_to_component(Acc, From, To) -> Result when
     Acc :: mongoose_acc:t(),
@@ -288,7 +286,7 @@ get_key(LServer, KeyName) ->
     To :: jid:jid(),
     Result :: mongoose_acc:t().
 packet_to_component(Acc, From, To) ->
-    ejabberd_hooks:run_global(packet_to_component, Acc, [From, To]).
+    run_global_hook(packet_to_component, Acc, [From, To]).
 
 -spec presence_probe_hook(HostType, Acc, From, To, Pid) -> Result when
     HostType :: binary(),
@@ -298,8 +296,7 @@ packet_to_component(Acc, From, To) ->
     Pid :: pid(),
     Result :: mongoose_acc:t().
 presence_probe_hook(HostType, Acc, From, To, Pid) ->
-    ejabberd_hooks:run_for_host_type(presence_probe_hook, HostType, Acc,
-                                     [From, To, Pid]).
+    run_hook_for_host_type(presence_probe_hook, HostType, Acc, [From, To, Pid]).
 
 %%% @doc The `push_notifications' hook is called to push notifications.
 -spec push_notifications(Server, Acc, NotificationForms, Options) -> Result when
@@ -309,8 +306,8 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
 push_notifications(Server, Acc, NotificationForms, Options) ->
-    ejabberd_hooks:run_for_host_type(push_notifications, Server, Acc,
-                                     [Server, NotificationForms, Options]).
+    run_hook_for_host_type(push_notifications, Server, Acc,
+                           [Server, NotificationForms, Options]).
 
 %%% @doc The `register_command' hook is called when a command
 %%% is registered in `mongoose_commands'.
@@ -318,7 +315,7 @@ push_notifications(Server, Acc, NotificationForms, Options) ->
     Command :: mongoose_commands:t(),
     Result :: drop.
 register_command(Command) ->
-    ejabberd_hooks:run_global(register_command, Command, []).
+    run_global_hook(register_command, Command, []).
 
 %%% @doc The `register_subhost' hook is called when a component
 %%% is registered for ejabberd_router.
@@ -327,7 +324,7 @@ register_command(Command) ->
     IsHidden :: boolean(),
     Result :: any().
 register_subhost(LDomain, IsHidden) ->
-    ejabberd_hooks:run_global(register_subhost, ok, [LDomain, IsHidden]).
+    run_global_hook(register_subhost, ok, [LDomain, IsHidden]).
 
 %%% @doc The `register_user' hook is called when a user is successfully
 %%% registered in an authentication backend.
@@ -337,7 +334,7 @@ register_subhost(LDomain, IsHidden) ->
     LUser :: jid:luser(),
     Result :: any().
 register_user(HostType, LServer, LUser) ->
-    ejabberd_hooks:run_for_host_type(register_user, HostType, ok, [LUser, LServer]).
+    run_hook_for_host_type(register_user, HostType, ok, [LUser, LServer]).
 
 %%% @doc The `remove_user' hook is called when a user is removed.
 -spec remove_user(Acc, LServer, LUser) -> Result when
@@ -347,7 +344,7 @@ register_user(HostType, LServer, LUser) ->
     Result :: mongoose_acc:t().
 remove_user(Acc, LServer, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
+    run_hook_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 
 -spec resend_offline_messages_hook(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -355,7 +352,7 @@ remove_user(Acc, LServer, LUser) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 resend_offline_messages_hook(HostType, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(resend_offline_messages_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, [JID]).
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends
 %%% a message using the REST API.
@@ -367,8 +364,7 @@ resend_offline_messages_hook(HostType, Acc, JID) ->
     Result :: mongoose_acc:t().
 rest_user_send_packet(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(rest_user_send_packet, HostType, Acc,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(rest_user_send_packet, HostType, Acc, [From, To, Packet]).
 
 %%% @doc The `session_cleanup' hook is called when sm backend cleans up a user's session.
 -spec session_cleanup(Server, Acc, User, Resource, SID) -> Result when
@@ -380,8 +376,8 @@ rest_user_send_packet(Acc, From, To, Packet) ->
     Result :: mongoose_acc:t().
 session_cleanup(Server, Acc, User, Resource, SID) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(session_cleanup, HostType, Acc,
-                                     [User, Server, Resource, SID]).
+    run_hook_for_host_type(session_cleanup, HostType, Acc,
+                           [User, Server, Resource, SID]).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
 -spec set_vcard(LServer, User, VCard) -> Result when
@@ -390,8 +386,8 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
     VCard :: exml:element(),
     Result :: ok | {error, any()}.
 set_vcard(LServer, User, VCard) ->
-    ejabberd_hooks:run_for_host_type(set_vcard, LServer, {error, no_handler_defined},
-                                     [User, VCard]).
+    run_hook_for_host_type(set_vcard, LServer, {error, no_handler_defined},
+                           [User, VCard]).
 
 -spec unacknowledged_message(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -399,7 +395,7 @@ set_vcard(LServer, User, VCard) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 unacknowledged_message(HostType, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(unacknowledged_message, HostType, Acc, [JID]).
+    run_hook_for_host_type(unacknowledged_message, HostType, Acc, [JID]).
 
 %%% @doc The `unregister_command' hook is called when a command
 %%% is unregistered from `mongoose_commands'.
@@ -407,7 +403,7 @@ unacknowledged_message(HostType, Acc, JID) ->
     Command :: mongoose_commands:t(),
     Result :: drop.
 unregister_command(Command) ->
-    ejabberd_hooks:run_global(unregister_command, Command, []).
+    run_global_hook(unregister_command, Command, []).
 
 %%% @doc The `unregister_subhost' hook is called when a component
 %%% is unregistered from ejabberd_router.
@@ -415,7 +411,7 @@ unregister_command(Command) ->
     LDomain :: binary(),
     Result :: any().
 unregister_subhost(LDomain) ->
-    ejabberd_hooks:run_global(unregister_subhost, ok, [LDomain]).
+    run_global_hook(unregister_subhost, ok, [LDomain]).
 
 -spec user_available_hook(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -423,7 +419,7 @@ unregister_subhost(LDomain) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 user_available_hook(HostType, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(user_available_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(user_available_hook, HostType, Acc, [JID]).
 
 %%% @doc The `user_ping_response' hook is called when a user responds to a ping.
 -spec user_ping_response(HostType, Acc, JID, Response, TDelta) -> Result when
@@ -434,8 +430,8 @@ user_available_hook(HostType, Acc, JID) ->
     TDelta :: non_neg_integer(),
     Result :: mongoose_acc:t().
 user_ping_response(HostType, Acc, JID, Response, TDelta) ->
-    ejabberd_hooks:run_for_host_type(user_ping_response, HostType, Acc,
-                                     [HostType, JID, Response, TDelta]).
+    run_hook_for_host_type(user_ping_response, HostType, Acc,
+                           [HostType, JID, Response, TDelta]).
 
 %%% @doc The `user_ping_timeout' hook is called when there is a timeout
 %%% when waiting for a ping response from a user.
@@ -444,7 +440,7 @@ user_ping_response(HostType, Acc, JID, Response, TDelta) ->
     JID :: jid:jid(),
     Result :: any().
 user_ping_timeout(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(user_ping_timeout, HostType, ok, [JID]).
+    run_hook_for_host_type(user_ping_timeout, HostType, ok, [JID]).
 
 -spec user_receive_packet(HostType, Acc, JID, From, To, El) -> Result when
     HostType :: binary(),
@@ -455,15 +451,14 @@ user_ping_timeout(HostType, JID) ->
     El :: exml:element(),
     Result :: mongoose_acc:t().
 user_receive_packet(HostType, Acc, JID, From, To, El) ->
-    ejabberd_hooks:run_for_host_type(user_receive_packet, HostType, Acc,
-                                     [JID, From, To, El]).
+    run_hook_for_host_type(user_receive_packet, HostType, Acc, [JID, From, To, El]).
 
 -spec user_sent_keep_alive(HostType, JID) -> Result when
     HostType :: binary(),
     JID :: jid:jid(),
     Result :: any().
 user_sent_keep_alive(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(user_sent_keep_alive, HostType, ok, [JID]).
+    run_hook_for_host_type(user_sent_keep_alive, HostType, ok, [JID]).
 
 %%% @doc A hook called when a user sends an XMPP stanza.
 %%% The hook's handler is expected to accept four parameters:
@@ -477,8 +472,7 @@ user_sent_keep_alive(HostType, JID) ->
     Result :: mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(user_send_packet, HostType, Acc,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(user_send_packet, HostType, Acc, [From, To, Packet]).
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
@@ -488,7 +482,7 @@ user_send_packet(Acc, From, To, Packet) ->
     VCard :: exml:element(),
     Result :: any().
 vcard_set(Server, LUser, VCard) ->
-    ejabberd_hooks:run_for_host_type(vcard_set, Server, ok, [LUser, Server, VCard]).
+    run_hook_for_host_type(vcard_set, Server, ok, [LUser, Server, VCard]).
 
 -spec xmpp_send_element(HostType, Acc, El) -> Result when
     HostType :: binary(),
@@ -496,7 +490,7 @@ vcard_set(Server, LUser, VCard) ->
     El :: exml:element(),
     Result :: mongoose_acc:t().
 xmpp_send_element(HostType, Acc, El) ->
-    ejabberd_hooks:run_for_host_type(xmpp_send_element, HostType, Acc, [El]).
+    run_hook_for_host_type(xmpp_send_element, HostType, Acc, [El]).
 
 %%% @doc The `xmpp_stanza_dropped' hook is called to inform that
 %%% an xmpp stanza has been dropped.
@@ -507,8 +501,7 @@ xmpp_send_element(HostType, Acc, El) ->
     Packet :: exml:element(),
     Result :: any().
 xmpp_stanza_dropped(HostType, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(xmpp_stanza_dropped, HostType, ok,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(xmpp_stanza_dropped, HostType, ok, [From, To, Packet]).
 
 %% C2S related hooks
 
@@ -520,8 +513,8 @@ xmpp_stanza_dropped(HostType, From, To, Packet) ->
     Result :: [jid:simple_jid()].
 c2s_broadcast_recipients(State, Type, From, Packet) ->
     HostType = ejabberd_c2s_state:host_type(State),
-    ejabberd_hooks:run_for_host_type(c2s_broadcast_recipients, HostType, [],
-                                     [State, Type, From, Packet]).
+    run_hook_for_host_type(c2s_broadcast_recipients, HostType, [],
+                           [State, Type, From, Packet]).
 
 -spec c2s_filter_packet(State, Feature, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
@@ -531,8 +524,8 @@ c2s_broadcast_recipients(State, Type, From, Packet) ->
     Result :: boolean().
 c2s_filter_packet(State, Feature, To, Packet) ->
     HostType = ejabberd_c2s_state:host_type(State),
-    ejabberd_hooks:run_for_host_type(c2s_filter_packet, HostType, true,
-                                     [State, Feature, To, Packet]).
+    run_hook_for_host_type(c2s_filter_packet, HostType, true,
+                           [State, Feature, To, Packet]).
 
 -spec c2s_preprocessing_hook(HostType, Acc, State) -> Result when
     HostType :: mongooseim:host_type(),
@@ -540,7 +533,7 @@ c2s_filter_packet(State, Feature, To, Packet) ->
     State :: ejabberd_c2s:state(),
     Result :: mongoose_acc:t().
 c2s_preprocessing_hook(HostType, Acc, State) ->
-    ejabberd_hooks:run_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
+    run_hook_for_host_type(c2s_preprocessing_hook, HostType, Acc, [State]).
 
 -spec c2s_presence_in(State, From, To, Packet) -> Result when
     State :: ejabberd_c2s:state(),
@@ -550,14 +543,14 @@ c2s_preprocessing_hook(HostType, Acc, State) ->
     Result :: ejabberd_c2s:state().
 c2s_presence_in(State, From, To, Packet) ->
     HostType = ejabberd_c2s_state:host_type(State),
-    ejabberd_hooks:run_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
+    run_hook_for_host_type(c2s_presence_in, HostType, State, [From, To, Packet]).
 
 -spec c2s_stream_features(HostType, LServer) -> Result when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     Result :: [exml:element()].
 c2s_stream_features(HostType, LServer) ->
-    ejabberd_hooks:run_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
+    run_hook_for_host_type(c2s_stream_features, HostType, [], [HostType, LServer]).
 
 -spec c2s_unauthenticated_iq(HostType, Server, IQ, IP) -> Result when
     HostType :: mongooseim:host_type(),
@@ -566,21 +559,20 @@ c2s_stream_features(HostType, LServer) ->
     IP :: {inet:ip_address(), inet:port_number()} | undefined,
     Result :: exml:element() | empty.
 c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
-    ejabberd_hooks:run_for_host_type(c2s_unauthenticated_iq, HostType, empty,
-                                     [Server, IQ, IP]).
+    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, [Server, IQ, IP]).
 
 -spec c2s_update_presence(HostType, Acc) -> Result when
     HostType :: mongooseim:host_type(),
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 c2s_update_presence(HostType, Acc) ->
-    ejabberd_hooks:run_for_host_type(c2s_update_presence, HostType, Acc, []).
+    run_hook_for_host_type(c2s_update_presence, HostType, Acc, []).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),
     Result :: boolean().
 check_bl_c2s(IP) ->
-    ejabberd_hooks:run_global(check_bl_c2s, false, [IP]).
+    run_global_hook(check_bl_c2s, false, [IP]).
 
 -spec forbidden_session_hook(HostType, Acc, JID) -> Result when
     HostType :: mongooseim:host_type(),
@@ -588,7 +580,7 @@ check_bl_c2s(IP) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 forbidden_session_hook(HostType, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(forbidden_session_hook, HostType, Acc, [JID]).
+    run_hook_for_host_type(forbidden_session_hook, HostType, Acc, [JID]).
 
 -spec session_opening_allowed_for_user(HostType, JID) -> Result when
     HostType :: mongooseim:host_type(),
@@ -596,8 +588,7 @@ forbidden_session_hook(HostType, Acc, JID) ->
     Result :: allow | any(). %% anything else than 'allow' is interpreted
                              %% as not allowed
 session_opening_allowed_for_user(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(session_opening_allowed_for_user,
-                                     HostType, allow, [JID]).
+    run_hook_for_host_type(session_opening_allowed_for_user, HostType, allow, [JID]).
 
 %% Privacy related hooks
 
@@ -611,8 +602,8 @@ session_opening_allowed_for_user(HostType, JID) ->
 privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
     HostType = mongoose_acc:host_type(Acc),
     AccWithRes = mongoose_acc:set(hook, result, allow, Acc),
-    ejabberd_hooks:run_for_host_type(privacy_check_packet, HostType, AccWithRes,
-                                     [JID, PrivacyList, FromToNameType, Dir]).
+    run_hook_for_host_type(privacy_check_packet, HostType, AccWithRes,
+                           [JID, PrivacyList, FromToNameType, Dir]).
 
 -spec privacy_get_user_list(HostType, JID) -> Result when
     HostType :: binary(),
@@ -620,7 +611,7 @@ privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
     Result :: mongoose_privacy:userlist().
 privacy_get_user_list(HostType, JID) ->
     %% TODO: ejabberd_c2s calls this hook with host type, fix other places.
-    ejabberd_hooks:run_for_host_type(privacy_get_user_list, HostType, #userlist{}, [JID]).
+    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [JID]).
 
 -spec privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) -> Result when
     HostType :: binary(),
@@ -631,8 +622,7 @@ privacy_get_user_list(HostType, JID) ->
     PrivList :: mongoose_privacy:userlist(),
     Result :: mongoose_acc:t().
 privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) ->
-    ejabberd_hooks:run_for_host_type(privacy_iq_get, HostType, Acc,
-                                     [From, To, IQ, PrivList]).
+    run_hook_for_host_type(privacy_iq_get, HostType, Acc, [From, To, IQ, PrivList]).
 
 -spec privacy_iq_set(HostType, Acc, From, To, IQ) -> Result when
     HostType :: binary(),
@@ -642,8 +632,7 @@ privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) ->
     IQ :: jlib:iq(),
     Result :: mongoose_acc:t().
 privacy_iq_set(HostType, Acc, From, To, IQ) ->
-    ejabberd_hooks:run_for_host_type(privacy_iq_set, HostType, Acc,
-                                     [From, To, IQ]).
+    run_hook_for_host_type(privacy_iq_set, HostType, Acc, [From, To, IQ]).
 
 -spec privacy_updated_list(HostType, OldList, NewList) -> Result when
     HostType :: binary(),
@@ -651,8 +640,7 @@ privacy_iq_set(HostType, Acc, From, To, IQ) ->
     NewList :: mongoose_privacy:userlist(),
     Result :: false | mongoose_privacy:userlist().
 privacy_updated_list(HostType, OldList, NewList) ->
-    ejabberd_hooks:run_for_host_type(privacy_updated_list, HostType, false,
-                                     [OldList, NewList]).
+    run_hook_for_host_type(privacy_updated_list, HostType, false, [OldList, NewList]).
 
 %% Session management related hooks
 
@@ -664,8 +652,8 @@ privacy_updated_list(HostType, OldList, NewList) ->
     Result :: mongoose_acc:t().
 offline_groupchat_message_hook(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(offline_groupchat_message_hook, HostType, Acc,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(offline_groupchat_message_hook, HostType, Acc,
+                           [From, To, Packet]).
 
 -spec offline_message_hook(Acc, From, To, Packet) -> Result when
     Acc :: mongoose_acc:t(),
@@ -675,18 +663,18 @@ offline_groupchat_message_hook(Acc, From, To, Packet) ->
     Result :: mongoose_acc:t().
 offline_message_hook(Acc, From, To, Packet) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(offline_message_hook, HostType, Acc,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(offline_message_hook, HostType, Acc, [From, To, Packet]).
 
 -spec set_presence_hook(Acc, JID, Presence) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Presence :: any(),
     Result :: mongoose_acc:t().
-set_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Presence) ->
+set_presence_hook(Acc, JID, Presence) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(set_presence_hook, HostType, Acc,
-                                     [LUser, LServer, LResource, Presence]).
+    run_hook_for_host_type(set_presence_hook, HostType, Acc,
+                           [LUser, LServer, LResource, Presence]).
 
 -spec sm_broadcast(Acc, From, To, Broadcast, SessionCount) -> Result when
     Acc :: mongoose_acc:t(),
@@ -697,8 +685,8 @@ set_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResou
     Result :: mongoose_acc:t().
 sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(sm_broadcast, HostType, Acc,
-                                     [From, To, Broadcast, SessionCount]).
+    run_hook_for_host_type(sm_broadcast, HostType, Acc,
+                           [From, To, Broadcast, SessionCount]).
 
 -spec sm_filter_offline_message(HostType, From, To, Packet) -> Result when
     HostType :: binary(),
@@ -707,8 +695,8 @@ sm_broadcast(Acc, From, To, Broadcast, SessionCount) ->
     Packet :: exml:element(),
     Result :: boolean().
 sm_filter_offline_message(HostType, From, To, Packet) ->
-    ejabberd_hooks:run_for_host_type(sm_filter_offline_message, HostType, false,
-                                     [From, To, Packet]).
+    run_hook_for_host_type(sm_filter_offline_message, HostType, false,
+                           [From, To, Packet]).
 
 -spec sm_register_connection_hook(HostType, SID, JID, Info) -> Result when
     HostType :: binary(),
@@ -717,8 +705,8 @@ sm_filter_offline_message(HostType, From, To, Packet) ->
     Info :: ejabberd_sm:info(),
     Result :: ok.
 sm_register_connection_hook(HostType, SID, JID, Info) ->
-    ejabberd_hooks:run_for_host_type(sm_register_connection_hook, HostType, ok,
-                                     [HostType, SID, JID, Info]).
+    run_hook_for_host_type(sm_register_connection_hook, HostType, ok,
+                           [HostType, SID, JID, Info]).
 
 -spec sm_remove_connection_hook(Acc, SID, JID, Info, Reason) -> Result when
     Acc :: mongoose_acc:t(),
@@ -729,25 +717,26 @@ sm_register_connection_hook(HostType, SID, JID, Info) ->
     Result :: mongoose_acc:t().
 sm_remove_connection_hook(Acc, SID, JID, Info, Reason) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(sm_remove_connection_hook, HostType, Acc,
-                                     [SID, JID, Info, Reason]).
+    run_hook_for_host_type(sm_remove_connection_hook, HostType, Acc,
+                           [SID, JID, Info, Reason]).
 
 -spec unset_presence_hook(Acc, JID, Status) -> Result when
     Acc :: mongoose_acc:t(),
     JID:: jid:jid(),
     Status :: binary(),
     Result :: mongoose_acc:t().
-unset_presence_hook(Acc, #jid{luser = LUser, lserver = LServer, lresource = LResource}, Status) ->
+unset_presence_hook(Acc, JID, Status) ->
+    #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(unset_presence_hook, HostType, Acc,
-                                     [LUser, LServer, LResource, Status]).
+    run_hook_for_host_type(unset_presence_hook, HostType, Acc,
+                           [LUser, LServer, LResource, Status]).
 
 -spec xmpp_bounce_message(Acc) -> Result when
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 xmpp_bounce_message(Acc) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(xmpp_bounce_message, HostType, Acc, []).
+    run_hook_for_host_type(xmpp_bounce_message, HostType, Acc, []).
 
 %% Roster related hooks
 
@@ -758,14 +747,14 @@ xmpp_bounce_message(Acc) ->
     Result :: mongoose_acc:t().
 roster_get(Acc, JID) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(roster_get, HostType, Acc, [JID]).
+    run_hook_for_host_type(roster_get, HostType, Acc, [JID]).
 
 %%% @doc The `roster_groups' hook is called to extract roster groups.
 -spec roster_groups(LServer) -> Result when
     LServer :: jid:lserver(),
     Result :: list().
 roster_groups(LServer) ->
-    ejabberd_hooks:run_for_host_type(roster_groups, LServer, [], [LServer]).
+    run_hook_for_host_type(roster_groups, LServer, [], [LServer]).
 
 %%% @doc The `roster_get_jid_info' hook is called to determine the
 %%% subscription state between a given pair of users.
@@ -781,8 +770,8 @@ roster_groups(LServer) ->
       RemoteJID :: jid:jid() | jid:simple_jid(),
       Result :: {mod_roster:subscription_state(), [binary()]}.
 roster_get_jid_info(HostType, ToJID, RemBareJID) ->
-    ejabberd_hooks:run_for_host_type(roster_get_jid_info, HostType, {none, []},
-                                     [HostType, ToJID, RemBareJID]).
+    run_hook_for_host_type(roster_get_jid_info, HostType, {none, []},
+                           [HostType, ToJID, RemBareJID]).
 
 %%% @doc The `roster_get_subscription_lists' hook is called to extract
 %%% user's subscription list.
@@ -792,8 +781,8 @@ roster_get_jid_info(HostType, ToJID, RemBareJID) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 roster_get_subscription_lists(HostType, Acc, JID) ->
-    ejabberd_hooks:run_for_host_type(roster_get_subscription_lists, HostType, Acc,
-                                     [jid:to_bare(JID)]).
+    run_hook_for_host_type(roster_get_subscription_lists, HostType, Acc,
+                           [jid:to_bare(JID)]).
 
 %%% @doc The `roster_get_versioning_feature' hook is
 %%% called to determine if roster versioning is enabled.
@@ -801,7 +790,7 @@ roster_get_subscription_lists(HostType, Acc, JID) ->
     HostType :: binary(),
     Result :: [exml:element()].
 roster_get_versioning_feature(HostType) ->
-    ejabberd_hooks:run_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
+    run_hook_for_host_type(roster_get_versioning_feature, HostType, [], [HostType]).
 
 %%% @doc The `roster_in_subscription' hook is called to determine
 %%% if a subscription presence is routed to a user.
@@ -814,8 +803,8 @@ roster_get_versioning_feature(HostType) ->
     Result :: mongoose_acc:t().
 roster_in_subscription(Acc, To, From, Type, Reason) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(roster_in_subscription, HostType, Acc,
-                                     [jid:to_bare(To), From, Type, Reason]).
+    run_hook_for_host_type(roster_in_subscription, HostType, Acc,
+                           [jid:to_bare(To), From, Type, Reason]).
 
 %%% @doc The `roster_out_subscription' hook is called
 %%% when a user sends out subscription.
@@ -827,8 +816,8 @@ roster_in_subscription(Acc, To, From, Type, Reason) ->
     Result :: mongoose_acc:t().
 roster_out_subscription(Acc, From, To, Type) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(roster_out_subscription, HostType, Acc,
-                                     [jid:to_bare(From), To, Type]).
+    run_hook_for_host_type(roster_out_subscription, HostType, Acc,
+                           [jid:to_bare(From), To, Type]).
 
 %%% @doc The `roster_process_item' hook is called when a user's roster is set.
 -spec roster_process_item(HostType, LServer, Item) -> Result when
@@ -837,7 +826,7 @@ roster_out_subscription(Acc, From, To, Type) ->
     Item :: mod_roster:roster(),
     Result :: mod_roster:roster().
 roster_process_item(HostType, LServer, Item) ->
-    ejabberd_hooks:run_for_host_type(roster_process_item, HostType, Item, [LServer]).
+    run_hook_for_host_type(roster_process_item, HostType, Item, [LServer]).
 
 %%% @doc The `roster_push' hook is called when a roster item is
 %%% being pushed and roster versioning is not enabled.
@@ -847,7 +836,7 @@ roster_process_item(HostType, LServer, Item) ->
     Item :: mod_roster:roster(),
     Result :: any().
 roster_push(LServer, From, Item) ->
-    ejabberd_hooks:run_for_host_type(roster_push, LServer, ok, [From, Item]).
+    run_hook_for_host_type(roster_push, LServer, ok, [From, Item]).
 
 %%% @doc The `roster_set' hook is called when a user's roster is set through an IQ.
 -spec roster_set(HostType, From, To, SubEl) -> Result when
@@ -857,7 +846,7 @@ roster_push(LServer, From, Item) ->
     SubEl :: exml:element(),
     Result :: any().
 roster_set(HostType, From, To, SubEl) ->
-    ejabberd_hooks:run_for_host_type(roster_set, HostType, ok, [From, To, SubEl]).
+    run_hook_for_host_type(roster_set, HostType, ok, [From, To, SubEl]).
 
 %% MUC related hooks
 
@@ -874,8 +863,7 @@ roster_set(HostType, From, To, SubEl) ->
       User :: jid:jid(),
       Result :: boolean().
 is_muc_room_owner(HostType, Room, User) ->
-    ejabberd_hooks:run_for_host_type(is_muc_room_owner, HostType, false,
-                                     [HostType, Room, User]).
+    run_hook_for_host_type(is_muc_room_owner, HostType, false, [HostType, Room, User]).
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.
@@ -885,8 +873,7 @@ is_muc_room_owner(HostType, Room, User) ->
       User :: jid:jid(),
       Result :: boolean().
 can_access_identity(HostType, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_identity, HostType, false,
-                                     [HostType, Room, User]).
+    run_hook_for_host_type(can_access_identity, HostType, false, [HostType, Room, User]).
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.
@@ -896,8 +883,7 @@ can_access_identity(HostType, Room, User) ->
       User :: jid:jid(),
       Result :: boolean().
 can_access_room(HostType, Room, User) ->
-    ejabberd_hooks:run_for_host_type(can_access_room, HostType, false,
-                                     [HostType, Room, User]).
+    run_hook_for_host_type(can_access_room, HostType, false, [HostType, Room, User]).
 
 %% MAM related hooks
 
@@ -911,8 +897,7 @@ can_access_room(HostType, Room, User) ->
       OwnerJID :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
 mam_archive_id(HostType, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_id, HostType, undefined,
-                                     [HostType, OwnerJID]).
+    run_hook_for_host_type(mam_archive_id, HostType, undefined, [HostType, OwnerJID]).
 
 %%% @doc The `mam_archive_size' hook is called to determine the size
 %%% of the archive for a given JID
@@ -922,8 +907,8 @@ mam_archive_id(HostType, OwnerJID) ->
       OwnerJID :: jid:jid(),
       Result :: integer().
 mam_archive_size(HostType, ArchiveID, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_size, HostType, 0,
-                                     [HostType, ArchiveID, OwnerJID]).
+    run_hook_for_host_type(mam_archive_size, HostType, 0,
+                           [HostType, ArchiveID, OwnerJID]).
 
 %%% @doc The `mam_get_behaviour' hooks is called to determine if a message
 %%% should be archived or not based on a given pair of JIDs.
@@ -935,8 +920,8 @@ mam_archive_size(HostType, ArchiveID, OwnerJID) ->
       RemoteJID :: jid:jid(),
       Result :: mod_mam:archive_behaviour().
 mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
-    ejabberd_hooks:run_for_host_type(mam_get_behaviour, HookServer, always,
-                                     [HookServer, ArchiveID, OwnerJID, RemoteJID]).
+    run_hook_for_host_type(mam_get_behaviour, HookServer, always,
+                           [HookServer, ArchiveID, OwnerJID, RemoteJID]).
 
 %%% @doc The `mam_set_prefs' hook is called to set a user's archive preferences.
 %%%
@@ -951,9 +936,9 @@ mam_get_behaviour(HookServer, ArchiveID, OwnerJID, RemoteJID) ->
     NeverJIDs :: [jid:literel_jid()],
     Result :: any().
 mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    ejabberd_hooks:run_for_host_type(mam_set_prefs, HookServer, {error, not_implemented},
-                                     [HookServer, ArchiveID, OwnerJID,
-                                      DefaultMode, AlwaysJIDs, NeverJIDs]).
+    run_hook_for_host_type(mam_set_prefs, HookServer, {error, not_implemented},
+                           [HookServer, ArchiveID, OwnerJID,
+                            DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 %%% @doc The `mam_get_prefs' hook is called to read
 %%% the archive settings for a given user.
@@ -965,8 +950,8 @@ mam_set_prefs(HookServer,  ArchiveID, OwnerJID, DefaultMode, AlwaysJIDs, NeverJI
       Result :: mod_mam:preference() | {error, Reason :: term()}.
 mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
     InitialAccValue = {DefaultMode, [], []}, %% mod_mam:preference() type
-    ejabberd_hooks:run_for_host_type(mam_get_prefs, HookServer, InitialAccValue,
-                                     [HookServer, ArchiveID, OwnerJID]).
+    run_hook_for_host_type(mam_get_prefs, HookServer, InitialAccValue,
+                           [HookServer, ArchiveID, OwnerJID]).
 
 %%% @doc The `mam_remove_archive' hook is called in order to
 %%% remove the entire archive for a particular user.
@@ -975,8 +960,8 @@ mam_get_prefs(HookServer, DefaultMode, ArchiveID, OwnerJID) ->
       ArchiveID :: undefined | mod_mam:archive_id(),
       OwnerJID :: jid:jid().
 mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_remove_archive, HookServer, ok,
-                                     [HookServer, ArchiveID, OwnerJID]).
+    run_hook_for_host_type(mam_remove_archive, HookServer, ok,
+                           [HookServer, ArchiveID, OwnerJID]).
 
 %%% @doc The `mam_lookup_messages' hook is to retrieve
 %%% archived messages for given search parameters.
@@ -986,9 +971,8 @@ mam_remove_archive(HookServer, ArchiveID, OwnerJID) ->
       Result :: {ok, mod_mam:lookup_result()}.
 mam_lookup_messages(HookServer, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
-    ejabberd_hooks:run_for_host_type(mam_lookup_messages, HookServer,
-                                     {ok, InitialLookupValue},
-                                     [HookServer, Params]).
+    run_hook_for_host_type(mam_lookup_messages, HookServer, {ok, InitialLookupValue},
+                           [HookServer, Params]).
 
 %%% @doc The `mam_archive_message' hook is called in order
 %%% to store the message in the archive.
@@ -998,8 +982,7 @@ mam_lookup_messages(HookServer, Params) ->
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_archive_message(HookServer, Params) ->
-    ejabberd_hooks:run_for_host_type(mam_archive_message, HookServer, ok,
-                                     [HookServer, Params]).
+    run_hook_for_host_type(mam_archive_message, HookServer, ok, [HookServer, Params]).
 
 
 %% MAM MUC related hooks
@@ -1020,8 +1003,8 @@ mam_archive_message(HookServer, Params) ->
       OwnerJID :: jid:jid(),
       Result :: undefined | mod_mam:archive_id().
 mam_muc_archive_id(HookServer, OwnerJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_id, HookServer, undefined,
-                                     [HookServer, OwnerJID]).
+    run_hook_for_host_type(mam_muc_archive_id, HookServer, undefined,
+                           [HookServer, OwnerJID]).
 
 %%% @doc The `mam_muc_archive_size' hook is called to determine
 %%% the archive size for a given room.
@@ -1031,8 +1014,8 @@ mam_muc_archive_id(HookServer, OwnerJID) ->
       RoomJID :: jid:jid(),
       Result :: integer().
 mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_size, HostType, 0,
-                                     [HostType, ArchiveID, RoomJID]).
+    run_hook_for_host_type(mam_muc_archive_size, HostType, 0,
+                           [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_get_behaviour' hooks is called to determine if a message should
 %%% be archived or not based on the given room and user JIDs.
@@ -1045,8 +1028,8 @@ mam_muc_archive_size(HostType, ArchiveID, RoomJID) ->
       Result :: mod_mam:archive_behaviour().
 mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
     DefaultBehaviour = always, %% mod_mam:archive_behaviour() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
-                                     [HostType, ArchiveID, RoomJID, RemoteJID]).
+    run_hook_for_host_type(mam_muc_get_behaviour, HostType, DefaultBehaviour,
+                           [HostType, ArchiveID, RoomJID, RemoteJID]).
 
 %%% @doc The `mam_muc_set_prefs' hook is called to set a room's archive preferences.
 %%%
@@ -1062,9 +1045,9 @@ mam_muc_get_behaviour(HostType, ArchiveID, RoomJID, RemoteJID) ->
       Result :: any().
 mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     InitialAcc = {error, not_implemented},
-    ejabberd_hooks:run_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
-                                     [HostType, ArchiveID, RoomJID, DefaultMode,
-                                      AlwaysJIDs, NeverJIDs]).
+    run_hook_for_host_type(mam_muc_set_prefs, HostType, InitialAcc,
+                           [HostType, ArchiveID, RoomJID, DefaultMode,
+                            AlwaysJIDs, NeverJIDs]).
 
 %%% @doc The `mam_muc_get_prefs' hook is called to read
 %%% the archive settings for a given room.
@@ -1076,8 +1059,8 @@ mam_muc_set_prefs(HostType, ArchiveID, RoomJID, DefaultMode, AlwaysJIDs, NeverJI
       Result :: mod_mam:preference() | {error, Reason :: term()}.
 mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
     InitialAcc = {DefaultMode, [], []}, %% mod_mam:preference() type
-    ejabberd_hooks:run_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
-                                     [HostType, ArchiveID, RoomJID]).
+    run_hook_for_host_type(mam_muc_get_prefs, HostType, InitialAcc,
+                           [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_remove_archive' hook is called in order to remove the entire
 %%% archive for a particular user.
@@ -1086,8 +1069,8 @@ mam_muc_get_prefs(HostType, DefaultMode, ArchiveID, RoomJID) ->
       ArchiveID :: undefined | mod_mam:archive_id(),
       RoomJID :: jid:jid().
 mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_remove_archive, HostType, ok,
-                                     [HostType, ArchiveID, RoomJID]).
+    run_hook_for_host_type(mam_muc_remove_archive, HostType, ok,
+                           [HostType, ArchiveID, RoomJID]).
 
 %%% @doc The `mam_muc_lookup_messages' hook is to retrieve archived
 %%% MUC messages for any given search parameters.
@@ -1097,9 +1080,8 @@ mam_muc_remove_archive(HostType, ArchiveID, RoomJID) ->
       Result :: {ok, mod_mam:lookup_result()}.
 mam_muc_lookup_messages(HostType, Params) ->
     InitialLookupValue = {0, 0, []}, %% mod_mam:lookup_result() type
-    ejabberd_hooks:run_for_host_type(mam_muc_lookup_messages, HostType,
-                                     {ok, InitialLookupValue},
-                                     [HostType, Params]).
+    run_hook_for_host_type(mam_muc_lookup_messages, HostType, {ok, InitialLookupValue},
+                           [HostType, Params]).
 
 %%% @doc The `mam_muc_archive_message' hook is called in order
 %%% to store the MUC message in the archive.
@@ -1108,16 +1090,15 @@ mam_muc_lookup_messages(HostType, Params) ->
     Params :: mod_mam:archive_message_params(),
     Result :: ok | {error, timeout}.
 mam_muc_archive_message(HostType, Params) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_archive_message, HostType, ok,
-                                     [HostType, Params]).
+    run_hook_for_host_type(mam_muc_archive_message, HostType, ok, [HostType, Params]).
 
 %%% @doc The `mam_muc_flush_messages' hook is run after the async bulk write
 %%% happens for MUC messages despite the result of the write.
 -spec mam_muc_flush_messages(HookServer :: jid:lserver(),
                              MessageCount :: integer()) -> ok.
 mam_muc_flush_messages(HookServer, MessageCount) ->
-    ejabberd_hooks:run_for_host_type(mam_muc_flush_messages, HookServer, ok,
-                                     [HookServer, MessageCount]).
+    run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok,
+                           [HookServer, MessageCount]).
 
 %% GDPR related hooks
 
@@ -1128,8 +1109,7 @@ mam_muc_flush_messages(HookServer, MessageCount) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_pm_gdpr_data, HostType, [],
-                                     [HostType, JID]).
+    run_hook_for_host_type(get_mam_pm_gdpr_data, HostType, [], [HostType, JID]).
 
 %%% @doc `get_mam_muc_gdpr_data' hook is called to provide
 %%% a user's archive for GDPR purposes.
@@ -1138,8 +1118,7 @@ get_mam_pm_gdpr_data(HostType, JID) ->
       JID :: jid:jid(),
       Result :: ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_mam_muc_gdpr_data, HostType, [],
-                                     [HostType, JID]).
+    run_hook_for_host_type(get_mam_muc_gdpr_data, HostType, [], [HostType, JID]).
 
 %%% @doc `get_personal_data' hook is called to retrieve
 %%% a user's personal data for GDPR purposes.
@@ -1148,7 +1127,7 @@ get_mam_muc_gdpr_data(HostType, JID) ->
     JID :: jid:jid(),
     Result :: gdpr:personal_data().
 get_personal_data(HostType, JID) ->
-    ejabberd_hooks:run_for_host_type(get_personal_data, HostType, [], [HostType, JID]).
+    run_hook_for_host_type(get_personal_data, HostType, [], [HostType, JID]).
 
 %% S2S related hooks
 
@@ -1159,7 +1138,7 @@ get_personal_data(HostType, JID) ->
     Server :: jid:server(),
     Result :: any().
 find_s2s_bridge(Name, Server) ->
-    ejabberd_hooks:run_global(find_s2s_bridge, undefined, [Name, Server]).
+    run_global_hook(find_s2s_bridge, undefined, [Name, Server]).
 
 %%% @doc `s2s_allow_host' hook is called to check whether a server
 %%% should be allowed to be connected to.
@@ -1171,7 +1150,7 @@ find_s2s_bridge(Name, Server) ->
     S2SHost :: jid:server(),
     Result :: allow | deny.
 s2s_allow_host(MyHost, S2SHost) ->
-    ejabberd_hooks:run_global(s2s_allow_host, allow, [MyHost, S2SHost]).
+    run_global_hook(s2s_allow_host, allow, [MyHost, S2SHost]).
 
 %%% @doc `s2s_connect_hook' hook is called when a s2s connection is established.
 -spec s2s_connect_hook(Name, Server) -> Result when
@@ -1179,7 +1158,7 @@ s2s_allow_host(MyHost, S2SHost) ->
     Server :: jid:server(),
     Result :: any().
 s2s_connect_hook(Name, Server) ->
-    ejabberd_hooks:run_global(s2s_connect_hook, ok, [Name, Server]).
+    run_global_hook(s2s_connect_hook, ok, [Name, Server]).
 
 %%% @doc `s2s_send_packet' hook is called when a message is routed.
 -spec s2s_send_packet(Acc, From, To, Packet) -> Result when
@@ -1189,7 +1168,7 @@ s2s_connect_hook(Name, Server) ->
     Packet :: exml:element(),
     Result :: mongoose_acc:t().
 s2s_send_packet(Acc, From, To, Packet) ->
-    ejabberd_hooks:run_global(s2s_send_packet, Acc, [From, To, Packet]).
+    run_global_hook(s2s_send_packet, Acc, [From, To, Packet]).
 
 %%% @doc `s2s_stream_features' hook is used to extract
 %%% the stream management features supported by the server.
@@ -1198,7 +1177,7 @@ s2s_send_packet(Acc, From, To, Packet) ->
     LServer :: jid:lserver(),
     Result :: [exml:element()].
 s2s_stream_features(HostType, LServer) ->
-    ejabberd_hooks:run_for_host_type(s2s_stream_features, HostType, [], [HostType, LServer]).
+    run_hook_for_host_type(s2s_stream_features, HostType, [], [HostType, LServer]).
 
 %%% @doc `s2s_receive_packet' hook is called when
 %%% an incoming stanza is routed by the server.
@@ -1206,54 +1185,55 @@ s2s_stream_features(HostType, LServer) ->
     Acc :: mongoose_acc:t(),
     Result :: mongoose_acc:t().
 s2s_receive_packet(Acc) ->
-    ejabberd_hooks:run_global(s2s_receive_packet, Acc, []).
+    run_global_hook(s2s_receive_packet, Acc, []).
 
 %% Discovery related hooks
 
 %%% @doc `disco_local_identity' hook is called to get the identity of the server.
--spec disco_local_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
+-spec disco_local_identity(mongoose_disco:identity_acc()) ->
+    mongoose_disco:identity_acc().
 disco_local_identity(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_local_identity, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_identity, HostType, Acc, []).
 
 %%% @doc `disco_sm_identity' hook is called to get the identity of the
 %%% client when a discovery IQ gets to session management.
 -spec disco_sm_identity(mongoose_disco:identity_acc()) -> mongoose_disco:identity_acc().
 disco_sm_identity(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_sm_identity, HostType, Acc, []).
+    run_hook_for_host_type(disco_sm_identity, HostType, Acc, []).
 
 %%% @doc `disco_local_items' hook is called to extract items associated with the server.
 -spec disco_local_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_local_items(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_local_items, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_items, HostType, Acc, []).
 
 %%% @doc `disco_sm_items' hook is called to get the items associated
 %%% with the client when a discovery IQ gets to session management.
 -spec disco_sm_items(mongoose_disco:item_acc()) -> mongoose_disco:item_acc().
 disco_sm_items(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_sm_items, HostType, Acc, []).
+    run_hook_for_host_type(disco_sm_items, HostType, Acc, []).
 
 %%% @doc `disco_local_features' hook is called to extract features
 %%% offered by the server.
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_local_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_local_features, HostType, Acc, []).
 
 %%% @doc `disco_sm_features' hook is called to get the features of the client
 %%% when a discovery IQ gets to session management.
 -spec disco_sm_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_sm_features(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_sm_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_sm_features, HostType, Acc, []).
 
 %%% @doc `disco_muc_features' hook is called to get the features
 %%% supported by the MUC (Light) service.
 -spec disco_muc_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_muc_features(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_muc_features, HostType, Acc, []).
+    run_hook_for_host_type(disco_muc_features, HostType, Acc, []).
 
 %%% @doc `disco_info' hook is called to extract information about the server.
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
 disco_info(Acc = #{host_type := HostType}) ->
-    ejabberd_hooks:run_for_host_type(disco_info, HostType, Acc, []).
+    run_hook_for_host_type(disco_info, HostType, Acc, []).
 
 %% AMP related hooks
 
@@ -1266,8 +1246,7 @@ disco_info(Acc = #{host_type := HostType}) ->
     Result :: mod_amp:amp_match_result().
 amp_check_condition(Server, Strategy, Rule) ->
     InitialAcc = no_match, %% mod_amp:amp_match_result() type
-    ejabberd_hooks:run_for_host_type(amp_check_condition, Server, InitialAcc,
-                                     [Strategy, Rule]).
+    run_hook_for_host_type(amp_check_condition, Server, InitialAcc, [Strategy, Rule]).
 
 %%% @doc The `amp_determine_strategy' hook is called when checking to determine
 %%% which strategy will be chosen when executing AMP rules.
@@ -1280,8 +1259,8 @@ amp_check_condition(Server, Strategy, Rule) ->
     Result :: mod_amp:amp_strategy().
 amp_determine_strategy(Server, From, To, Packet, Event) ->
     DefaultStrategy = amp_strategy:null_strategy(),
-    ejabberd_hooks:run_for_host_type(amp_determine_strategy, Server, DefaultStrategy,
-                                     [From, To, Packet, Event]).
+    run_hook_for_host_type(amp_determine_strategy, Server, DefaultStrategy,
+                           [From, To, Packet, Event]).
 
 %%% @doc The `amp_error_action_triggered' hook is called to inform
 %%% that the `error' action has been triggered.
@@ -1289,7 +1268,7 @@ amp_determine_strategy(Server, From, To, Packet, Event) ->
     Server :: jid:server(),
     Result :: any().
 amp_error_action_triggered(Server) ->
-    ejabberd_hooks:run_for_host_type(amp_error_action_triggered, Server, ok, [Server]).
+    run_hook_for_host_type(amp_error_action_triggered, Server, ok, [Server]).
 
 %%% @doc The `amp_notify_action_triggered' hook is called to inform
 %%% that the `notify' action has been triggered.
@@ -1297,8 +1276,7 @@ amp_error_action_triggered(Server) ->
     Server :: jid:server(),
     Result :: any().
 amp_notify_action_triggered(Server) ->
-    ejabberd_hooks:run_for_host_type(amp_notify_action_triggered, Server, ok,
-                                     [Server]).
+    run_hook_for_host_type(amp_notify_action_triggered, Server, ok, [Server]).
 
 %%% @doc The `amp_verify_support' hook is called when checking
 %%% whether the host supports given AMP rules.
@@ -1307,7 +1285,7 @@ amp_notify_action_triggered(Server) ->
     Rules :: mod_amp:amp_rules(),
     Result :: [mod_amp:amp_rule_support()].
 amp_verify_support(Server, Rules) ->
-    ejabberd_hooks:run_for_host_type(amp_verify_support, Server, [], [Rules]).
+    run_hook_for_host_type(amp_verify_support, Server, [], [Rules]).
 
 %% MUC and MUC Light related hooks
 
@@ -1317,7 +1295,7 @@ amp_verify_support(Server, Rules) ->
     EventData :: mod_muc:room_event_data(),
     Result :: exml:element().
 filter_room_packet(HostType, Packet, EventData) ->
-    ejabberd_hooks:run_for_host_type(filter_room_packet, HostType, Packet, [HostType, EventData]).
+    run_hook_for_host_type(filter_room_packet, HostType, Packet, [HostType, EventData]).
 
 %%% @doc The `forget_room' hook is called when a room is removed from the database.
 -spec forget_room(HostType, MucHost, Room) -> Result when
@@ -1326,7 +1304,7 @@ filter_room_packet(HostType, Packet, EventData) ->
     Room :: jid:luser(),
     Result :: any().
 forget_room(HostType, MucHost, Room) ->
-    ejabberd_hooks:run_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
+    run_hook_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),
@@ -1337,8 +1315,8 @@ forget_room(HostType, MucHost, Room) ->
     Reason :: binary(),
     Result :: any().
 invitation_sent(HookServer, Host, RoomJID, From, To, Reason) ->
-    ejabberd_hooks:run_for_host_type(invitation_sent, HookServer, ok,
-                                     [HookServer, Host, RoomJID, From, To, Reason]).
+    run_hook_for_host_type(invitation_sent, HookServer, ok,
+                           [HookServer, Host, RoomJID, From, To, Reason]).
 
 %%% @doc The `join_room' hook is called when a user joins a MUC room.
 -spec join_room(HookServer, Room, Host, JID, MucJID) -> Result when
@@ -1349,8 +1327,8 @@ invitation_sent(HookServer, Host, RoomJID, From, To, Reason) ->
     MucJID :: jid:jid(),
     Result :: any().
 join_room(HookServer, Room, Host, JID, MucJID) ->
-    ejabberd_hooks:run_for_host_type(join_room, HookServer, ok,
-                                     [HookServer, Room, Host, JID, MucJID]).
+    run_hook_for_host_type(join_room, HookServer, ok,
+                           [HookServer, Room, Host, JID, MucJID]).
 
 %%% @doc The `leave_room' hook is called when a user joins a MUC room.
 -spec leave_room(HookServer, Room, Host, JID, MucJID) -> Result when
@@ -1361,8 +1339,8 @@ join_room(HookServer, Room, Host, JID, MucJID) ->
     MucJID :: jid:jid(),
     Result :: any().
 leave_room(HookServer, Room, Host, JID, MucJID) ->
-    ejabberd_hooks:run_for_host_type(leave_room, HookServer, ok,
-                                     [HookServer, Room, Host, JID, MucJID]).
+    run_hook_for_host_type(leave_room, HookServer, ok,
+                           [HookServer, Room, Host, JID, MucJID]).
 
 %%% @doc The `room_packet' hook is called when a message is added to room's history.
 -spec room_packet(Server, FromNick, FromJID, JID, Packet) -> Result when
@@ -1373,15 +1351,14 @@ leave_room(HookServer, Room, Host, JID, MucJID) ->
     Packet :: exml:element(),
     Result :: any().
 room_packet(Server, FromNick, FromJID, JID, Packet) ->
-    ejabberd_hooks:run_for_host_type(room_packet, Server, ok,
-                                     [FromNick, FromJID, JID, Packet]).
+    run_hook_for_host_type(room_packet, Server, ok, [FromNick, FromJID, JID, Packet]).
 
 -spec update_inbox_for_muc(HostType, Info) -> Result when
     HostType :: mongooseim:host_type(),
     Info :: mod_muc_room:update_inbox_for_muc_payload(),
     Result :: mod_muc_room:update_inbox_for_muc_payload().
 update_inbox_for_muc(HostType, Info) ->
-    ejabberd_hooks:run_for_host_type(update_inbox_for_muc, HostType, Info, []).
+    run_hook_for_host_type(update_inbox_for_muc, HostType, Info, []).
 
 %% Caps related hooks
 
@@ -1393,8 +1370,7 @@ update_inbox_for_muc(HostType, Info) ->
     Result :: mongoose_acc:t().
 caps_recognised(Acc, From, Pid, Features) ->
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_hooks:run_for_host_type(caps_recognised, HostType, Acc,
-                                     [From, Pid, Features]).
+    run_hook_for_host_type(caps_recognised, HostType, Acc, [From, Pid, Features]).
 
 %% PubSub related hooks
 
@@ -1408,8 +1384,8 @@ caps_recognised(Acc, From, Pid, Features) ->
     NodeOptions :: list(),
     Result :: any().
 pubsub_create_node(Server, PubSubHost, NodeId, Nidx, NodeOptions) ->
-    ejabberd_hooks:run_for_host_type(pubsub_create_node, Server, ok,
-                                     [Server, PubSubHost, NodeId, Nidx, NodeOptions]).
+    run_hook_for_host_type(pubsub_create_node, Server, ok,
+                           [Server, PubSubHost, NodeId, Nidx, NodeOptions]).
 
 %%% @doc The `pubsub_delete_node' hook is called to inform
 %%% that a pubsub node is deleted.
@@ -1420,8 +1396,8 @@ pubsub_create_node(Server, PubSubHost, NodeId, Nidx, NodeOptions) ->
     Nidx :: mod_pubsub:nodeIdx(),
     Result :: any().
 pubsub_delete_node(Server, PubSubHost, NodeId, Nidx) ->
-    ejabberd_hooks:run_for_host_type(pubsub_delete_node, Server, ok,
-                                     [Server, PubSubHost, NodeId, Nidx]).
+    run_hook_for_host_type(pubsub_delete_node, Server, ok,
+                           [Server, PubSubHost, NodeId, Nidx]).
 
 %%% @doc The `pubsub_publish_item' hook is called to inform
 %%% that a pubsub item is published.
@@ -1435,9 +1411,9 @@ pubsub_delete_node(Server, PubSubHost, NodeId, Nidx) ->
     BrPayload :: mod_pubsub:payload(),
     Result :: any().
 pubsub_publish_item(Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
-    ejabberd_hooks:run_for_host_type(pubsub_publish_item, Server, ok,
-                                     [Server, NodeId, Publisher, ServiceJID,
-                                      ItemId, BrPayload]).
+    run_hook_for_host_type(pubsub_publish_item, Server, ok,
+                           [Server, NodeId, Publisher, ServiceJID,
+                            ItemId, BrPayload]).
 
 %% Global distribution related hooks
 
@@ -1450,8 +1426,8 @@ pubsub_publish_item(Server, NodeId, Publisher, ServiceJID, ItemId, BrPayload) ->
     LocalHost :: jid:server(),
     Result :: any().
 mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
-    ejabberd_hooks:run_for_host_type(mod_global_distrib_known_recipient,
-                                     GlobalHost, ok, [From, To, LocalHost]).
+    run_hook_for_host_type(mod_global_distrib_known_recipient, GlobalHost, ok,
+                           [From, To, LocalHost]).
 
 %%% @doc The `mod_global_distrib_unknown_recipient' hook is called when
 %%% the recipient is unknown to `global_distrib'.
@@ -1460,5 +1436,28 @@ mod_global_distrib_known_recipient(GlobalHost, From, To, LocalHost) ->
     Info :: filter_packet_acc(),
     Result :: any().
 mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
-    ejabberd_hooks:run_for_host_type(mod_global_distrib_unknown_recipient,
-                                     GlobalHost, Info, []).
+    run_hook_for_host_type(mod_global_distrib_unknown_recipient, GlobalHost, Info, []).
+
+
+%%%----------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------
+
+run_global_hook(HookName, Acc, Params) when is_map(Params) ->
+    {_, RetValue} = gen_hook:run_fold(HookName, global, Acc, Params),
+    RetValue;
+run_global_hook(HookName, Acc, Args) when is_list(Args) ->
+    ejabberd_hooks:run_fold(HookName, global, Acc, Args).
+
+run_hook_for_host_type(HookName, undefined, Acc, Args) ->
+    ?LOG_ERROR(#{what => undefined_host_type,
+                 text => <<"Running hook for an undefined host type">>,
+                 hook_name => HookName, hook_acc => Acc, hook_args => Args}),
+    Acc;
+run_hook_for_host_type(HookName, HostType, Acc, Params) when is_binary(HostType),
+                                                             is_map(Params) ->
+    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
+    RetValue;
+run_hook_for_host_type(HookName, HostType, Acc, Args) when is_binary(HostType),
+                                                           is_list(Args) ->
+    ejabberd_hooks:run_fold(HookName, HostType, Acc, Args).

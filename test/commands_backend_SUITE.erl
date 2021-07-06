@@ -97,11 +97,11 @@ groups() ->
 setup(Module) ->
     meck:unload(),
     meck:new(supervisor, [unstick, passthrough, no_link]),
-    meck:new(ejabberd_hooks, []),
+    meck:new(gen_hook, []),
     meck:new(ejabberd_auth, []),
     %% you have to meck some stuff to get it working....
-    meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
-    meck:expect(ejabberd_hooks, run_global, fun(_, _, _) -> ok end),
+    meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
+    meck:expect(gen_hook, run_fold, fun(_, _, _, _) -> {ok, ok} end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,
@@ -120,7 +120,7 @@ teardown() ->
     mongoose_commands:unregister(commands_new()),
     meck:unload(ejabberd_config),
     meck:unload(ejabberd_auth),
-    meck:unload(ejabberd_hooks),
+    meck:unload(gen_hook),
     meck:unload(supervisor),
     mc_holder_proc ! stop,
     ok.
