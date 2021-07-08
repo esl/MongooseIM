@@ -26,9 +26,13 @@
 -author('alexey@process-one.net').
 -author('konrad.zemek@erlang-solutions.com').
 
--export([create/2, backend_module/2, create/3, is_exported/3]).
+-export([create/2, create/3, backend_module/2, is_exported/3]).
 
 -ignore_xref([create/2, backend_module/2, behaviour_info/1]).
+
+-export([ensure_backend_metrics/2]).
+-export([call/4]).
+-export([call_tracked/4]).
 
 %% Callback implemented by proxy modules.
 -callback backend() -> module().
@@ -133,3 +137,16 @@ ensure_backend_metrics(Module, Ops) ->
                         mongoose_metrics:ensure_metric(global, time_metric(Module, Op), histogram)
                 end,
     lists:foreach(EnsureFun, Ops).
+
+call(HostType, Module, Op, Args) ->
+    Backend = gen_mod:get_backend_module(HostType, Module),
+    erlang:apply(Backend, Op, Args).
+
+call_tracked(HostType, Module, Op, Args) ->
+    Backend = gen_mod:get_backend_module(HostType, Module),
+    CallsMetric = calls_metric(Module, Op),
+    TimeMetric = time_metric(Module, Op),
+    mongoose_metrics:update(global, CallsMetric, 1),
+    {Time, Result} = timer:tc(Backend, Op, Args),
+    mongoose_metrics:update(global, TimeMetric, Time),
+    Result.

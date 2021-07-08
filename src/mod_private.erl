@@ -120,7 +120,6 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% gen_mod callbacks
 
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
     mod_private_backend:init(HostType, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(hooks(HostType)),
