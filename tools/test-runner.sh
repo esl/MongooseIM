@@ -646,10 +646,10 @@ echo ""
 
 ./tools/build-releases.sh
 
-./tools/travis-build-tests.sh
+./tools/build-tests.sh
 
 ./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
 
-./tools/travis-setup-db.sh
+./tools/setup-db.sh
 
-./tools/travis-test.sh
+./tools/test.sh
