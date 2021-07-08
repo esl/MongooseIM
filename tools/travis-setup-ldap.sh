@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 LDAP_ROOTPASS=mongooseim_secret
 
 NAME=$(db_name ldap)
