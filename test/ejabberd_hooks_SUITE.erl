@@ -45,8 +45,9 @@ a_module_fun_can_be_added(_) ->
 
     % then
     [{{test_run_hook,<<"localhost">>},
-      [{hook_handler, {test_run_hook,<<"localhost">>},
-        1,_FN,#{function := fun_a, module := hook_mod}}]}] = get_hooks().
+      [{hook_handler, {test_run_hook,<<"localhost">>}, 1,
+        ejabberd_hooks, gen_hook_fn_wrapper,
+        #{function := fun_a, module := hook_mod}}]}] = get_hooks().
 
 a_module_fun_can_be_removed(_) ->
     given_hooks_started(),

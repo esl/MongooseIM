@@ -34,6 +34,8 @@
 -export([add/1,
          delete/1]).
 
+-export([gen_hook_fn_wrapper/3]).
+
 -include("mongoose.hrl").
 
 -type hook() :: {HookName :: atom(),
@@ -96,14 +98,14 @@ run_fold(HookName, HostType, Acc, Args) when is_binary(HostType); HostType =:= g
 -spec add_hook(hook()) -> ok.
 add_hook({HookName, HostType, Module, Function, Priority}) when is_atom(Function) ->
     gen_hook:add_handler(HookName, HostType,
-                         fun gen_hook_fn_wrapper/3,
+                         fun ?MODULE:gen_hook_fn_wrapper/3,
                          #{module => Module, function =>Function},
                          Priority).
 
 -spec delete_hook(hook()) -> ok.
 delete_hook({HookName, HostType, Module, Function, Priority}) when is_atom(Function) ->
     gen_hook:delete_handler(HookName, HostType,
-                            fun gen_hook_fn_wrapper/3,
+                            fun ?MODULE:gen_hook_fn_wrapper/3,
                             #{module => Module, function => Function},
                             Priority).
 

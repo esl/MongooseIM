@@ -119,7 +119,7 @@ codec_calls(_Config) ->
     HandleFun = fun(_, _, _) -> count_call(handler) end,
     gen_hook:add_handler(filter_room_packet,
                          <<"localhost">>,
-                         fun(Acc, _Params, _Extra) -> count_call(hook), {ok, Acc} end,
+                         fun ?MODULE:filter_room_packet_handler/3,
                          #{},
                          50),
 
@@ -154,6 +154,9 @@ codec_calls(_Config) ->
     check_count(1, 2),
     ok.
 
+filter_room_packet_handler(Acc, _Params, _Extra) ->
+    count_call(hook),
+    {ok, Acc}.
 %% ----------------- Room config schema ----------------------
 
 simple_config_items_are_parsed(_Config) ->

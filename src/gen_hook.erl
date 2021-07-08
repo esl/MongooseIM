@@ -40,14 +40,23 @@
 -type key() :: {HookName :: atom(),
                 Tag :: any()}.
 
+-type hook_tuple() :: {HookName :: hook_name(),
+                       Tag :: hook_tag(),
+                       Function :: hook_fn(),
+                       Extra :: hook_extra(),
+                       Priority :: pos_integer()}.
+
+-type hook_list() :: [hook_tuple()].
+
+-export_type([hook_fn/0, hook_list/0]).
+
 -record(hook_handler, {key :: key(),
                        %% 'prio' field must go right after the 'key',
                        %% this is required for the proper sorting.
                        prio :: pos_integer(),
-                       fn :: hook_fn(),
+                       module :: module(),
+                       function :: atom(), %% function name
                        extra :: map()}).
-
--export_type([hook_fn/0]).
 
 -define(TABLE, ?MODULE).
 %%%----------------------------------------------------------------------
@@ -63,16 +72,17 @@ start_link() ->
                   Function :: hook_fn(),
                   Extra :: hook_extra(),
                   Priority :: pos_integer()) -> ok.
-add_handler(HookName, Tag, Function, Extra, Priority) when is_atom(HookName),
-                                                           is_function(Function, 3),
-                                                           is_map(Extra),
-                                                           is_integer(Priority),
-                                                           Priority > 0 ->
-    NewExtra = extend_extra(HookName, Tag, Extra),
-    Handler = #hook_handler{key = hook_key(HookName, Tag),
-                            prio = Priority,
-                            fn = Function,
-                            extra = NewExtra},
+add_handler(HookName, Tag, Function, Extra, Priority) ->
+    add_handler({HookName, Tag, Function, Extra, Priority}).
+
+-spec add_handlers(hook_list()) -> ok.
+add_handlers(List) ->
+    [add_handler(HookTuple) || HookTuple <- List],
+    ok.
+
+-spec add_handler(hook_tuple()) -> ok.
+add_handler(HookTuple) ->
+    Handler = make_hook_handler(HookTuple),
     gen_server:call(?MODULE, {add_handler, Handler}).
 
 %% @doc Delete a hook handler.
@@ -82,45 +92,18 @@ add_handler(HookName, Tag, Function, Extra, Priority) when is_atom(HookName),
                      Function :: hook_fn(),
                      Extra :: hook_extra(),
                      Priority :: pos_integer()) -> ok.
-delete_handler(HookName, Tag, Function, Extra, Priority) when is_atom(HookName),
-                                                              is_function(Function, 3),
-                                                              is_map(Extra),
-                                                              is_integer(Priority),
-                                                              Priority > 0 ->
-    NewExtra = extend_extra(HookName, Tag, Extra),
-    Handler = #hook_handler{key = hook_key(HookName, Tag),
-                            prio = Priority,
-                            fn = Function,
-                            extra = NewExtra},
-    gen_server:call(?MODULE, {delete_handler, Handler}).
+delete_handler(HookName, Tag, Function, Extra, Priority)  ->
+    delete_handler({HookName, Tag, Function, Extra, Priority}).
 
--spec add_handlers([{HookName :: hook_name(),
-                     Tag :: hook_tag(),
-                     Function :: hook_fn(),
-                     Extra :: hook_extra(),
-                     Priority :: pos_integer()}]) -> ok.
-add_handlers(List) ->
-    [add_handler(HookName, Tag, Function, Extra, Priority) ||
-        {HookName, Tag, Function, Extra, Priority} <- List, is_atom(HookName),
-                                                            is_function(Function, 3),
-                                                            is_map(Extra),
-                                                            is_integer(Priority),
-                                                            Priority > 0],
-    ok.
-
--spec delete_handlers([{HookName :: hook_name(),
-                        Tag :: hook_tag(),
-                        Function :: hook_fn(),
-                        Extra :: hook_extra(),
-                        Priority :: pos_integer()}]) -> ok.
+-spec delete_handlers(hook_list()) -> ok.
 delete_handlers(List) ->
-    [delete_handler(HookName, Tag, Function, Extra, Priority) ||
-        {HookName, Tag, Function, Extra, Priority} <- List, is_atom(HookName),
-                                                            is_function(Function, 3),
-                                                            is_map(Extra),
-                                                            is_integer(Priority),
-                                                            Priority > 0],
+    [delete_handler(HookTuple) || HookTuple <- List],
     ok.
+
+-spec delete_handler(hook_tuple()) -> ok.
+delete_handler(HookTuple) ->
+    Handler = make_hook_handler(HookTuple),
+    gen_server:call(?MODULE, {delete_handler, Handler}).
 
 %% @doc Run hook handlers in order of priority (lower number means higher priority).
 %%  * if hook handler returns {ok, NewAcc}, the NewAcc value is used
@@ -208,8 +191,8 @@ code_change(_OldVsn, State, _Extra) ->
 -spec run_hook([#hook_handler{}], hook_acc(), hook_params()) -> hook_fn_ret_value().
 run_hook([], Acc, _Params) ->
     {ok, Acc};
-run_hook([#hook_handler{fn = Function, extra = Extra} = Handler | Ls], Acc, Params) ->
-    case apply_hook_function(Function, Acc, Params, Extra) of
+run_hook([Handler | Ls], Acc, Params) ->
+    case apply_hook_function(Handler, Acc, Params) of
         {'EXIT', Reason} ->
             ?MODULE:error_running_hook(Reason, Handler, Acc, Params),
             run_hook(Ls, Acc, Params);
@@ -219,10 +202,11 @@ run_hook([#hook_handler{fn = Function, extra = Extra} = Handler | Ls], Acc, Para
             run_hook(Ls, NewAcc, Params)
     end.
 
--spec apply_hook_function(hook_fn(), hook_acc(), hook_params(), hook_extra()) ->
+-spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
     hook_fn_ret_value() | {'EXIT', Reason :: any()}.
-apply_hook_function(Function, Acc, Params, Extra) ->
-    safely:apply(Function, [Acc, Params, Extra]).
+apply_hook_function(#hook_handler{module = Module, function = Function, extra = Extra},
+                    Acc, Params) ->
+    safely:apply(Module, Function, [Acc, Params, Extra]).
 
 error_running_hook(Reason, Handler, Acc, Params) ->
     ?LOG_ERROR(#{what => hook_failed,
@@ -232,15 +216,58 @@ error_running_hook(Reason, Handler, Acc, Params) ->
                  params => Params,
                  reason => Reason}).
 
--spec hook_key(hook_name(), hook_tag()) -> key().
-hook_key(HookName, Tag) -> {HookName, Tag}.
+-spec make_hook_handler(hook_tuple()) -> #hook_handler{}.
+make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
+        when is_atom(HookName), is_function(Function, 3), is_map(Extra),
+             is_integer(Priority), Priority > 0 ->
+    NewExtra = extend_extra(HookTuple),
+    {Module, FunctionName} = check_hook_function(Function),
+    #hook_handler{key = hook_key(HookName, Tag),
+                  prio = Priority,
+                  module = Module,
+                  function = FunctionName,
+                  extra = NewExtra}.
 
-extend_extra(HookName, Tag, OriginalExtra) ->
-    ExtendedExtra = #{hook_name => HookName, hook_tag => Tag},
+-spec check_hook_function(hook_fn()) -> {module(), atom()}.
+check_hook_function(Function) when is_function(Function, 3) ->
+    case erlang:fun_info(Function, type) of
+        {type, external} ->
+            {module, Module} = erlang:fun_info(Function, module),
+            {name, FunctionName} = erlang:fun_info(Function, name),
+            case code:ensure_loaded(Module) of
+                {module, Module} -> ok;
+                Error ->
+                    throw_error(#{what => module_is_not_loaded,
+                                  module => Module, error => Error})
+            end,
+            case erlang:function_exported(Module, FunctionName, 3) of
+                true -> ok;
+                false ->
+                    throw_error(#{what => function_is_not_exported,
+                                  function => Function})
+            end,
+            {Module, FunctionName};
+        {type, local} ->
+            throw_error(#{what => only_external_function_references_allowed,
+                          function => Function})
+    end.
+
+-spec throw_error(map()) -> no_return().
+throw_error(ErrorMap) ->
+    ?LOG_ERROR(ErrorMap),
+    error(ErrorMap).
+
+-spec hook_key(HookName :: hook_name(), Tag :: hook_tag()) -> key().
+hook_key(HookName, Tag) ->
+    {HookName, Tag}.
+
+-spec extend_extra(hook_tuple()) -> hook_extra().
+extend_extra({HookName, Tag, _Function, OriginalExtra, _Priority}) ->
+    ExtraExtension = #{hook_name => HookName, hook_tag => Tag},
     %% KV pairs of the OriginalExtra map will remain unchanged,
-    %% only the new keys from the ExtendedExtra map will be added
+    %% only the new keys from the ExtraExtension map will be added
     %% to the NewExtra map
-    maps:merge(ExtendedExtra, OriginalExtra).
+    maps:merge(ExtraExtension, OriginalExtra).
 
 -spec create_hook_metric(Key :: key()) -> any().
 create_hook_metric({HookName, Tag}) ->
