@@ -40,12 +40,12 @@ while getopts ":p:s:e:c:" opt; do
   esac
 done
 
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 
 if [ ${CIRCLECI} ]; then
 source tools/circleci-helpers.sh
 else
-source tools/travis-helpers.sh
+source tools/helpers.sh
 fi
 
 if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
@@ -322,4 +322,3 @@ else
   [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
-
