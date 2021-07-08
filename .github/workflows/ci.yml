@@ -32,7 +32,7 @@ jobs:
       - name: create certificates
         run: make certs
       - name: run test
-        run: tools/travis-test.sh -p $PRESET -s true -e true
+        run: tools/test.sh -p $PRESET -s true -e true
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
@@ -71,11 +71,11 @@ jobs:
       - name: build releases
         run: tools/build-releases.sh
       - name: build big tests
-        run: tools/travis-build-tests.sh
+        run: tools/build-tests.sh
       - name: start backends
-        run: tools/travis-setup-db.sh
+        run: tools/setup-db.sh
       - name: run test
-        run: tools/travis-test.sh -p $PRESET -s false -e false
+        run: tools/test.sh -p $PRESET -s false -e false
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
       - name: report coverage
@@ -107,7 +107,7 @@ jobs:
       - uses: ErlGang/setup-erlang@v1.0.0
         with:
           otp-version: ${{matrix.otp}}
-      - run: tools/travis-test.sh -p dialyzer_only
+      - run: tools/test.sh -p dialyzer_only
 
   pkg:
     name: ${{matrix.pkg}} package
@@ -120,4 +120,4 @@ jobs:
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v2
-      - run: tools/travis-test.sh -p pkg
+      - run: tools/test.sh -p pkg
