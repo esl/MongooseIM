@@ -25,8 +25,8 @@ $ sudo yum install freetds
 $ brew install freetds
 ```
 
-In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation, 
-you may have to modify the `tools/travis-setup-db.sh` script to use the proper paths.
+In case you are using an operating system different from Ubuntu or MacOS or have a custom FreeTDS installation,
+you may have to modify the `tools/setup-db.sh` script to use the proper paths.
 Find a configuration block starting with `[mongoose-mssql]` and change the `Driver` and `Setup`.
 For example, for CentOS change them to `/usr/lib64/libtdsodbc.so.0` and `/usr/lib64/libtdsS.so` respectively.
 
@@ -370,11 +370,11 @@ There are many more options available.
 One of them is sequentially testing a number of preset configurations - we do it every day on CircleCI, testing MongooseIM with various OTP versions and database backends.
 Altogether, we have eight preset configuration.
 
-If you want to dig deeper, consult `.circleci/config.yml`, `.github/workflows/ci.yml` and `tools/travis-test.sh`, everything we do is there.
+If you want to dig deeper, consult `.circleci/config.yml`, `.github/workflows/ci.yml` and `tools/test.sh`, everything we do is there.
 
 #### Gathering test reports from tests
 
-If you test your MongooseIM fork on Travis or other CI provider, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
+If you test your MongooseIM fork on GitHub Actions or other CI provider, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
 
 ##### Uploading reports to S3
 

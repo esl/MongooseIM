@@ -1,8 +1,8 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% If you also want to start just mim1 node use:
-%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
 %% DEV_NODES variable contains release names from profiles in rebar.config.
@@ -12,7 +12,7 @@
 %% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
-%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% Environment variable PRESET_ENABLED is true by default.
 %% PRESET_ENABLED=false disables preset application and forces to run
@@ -254,7 +254,7 @@ enable_preset(Props, Name, PresetVars, N, Tests) ->
                           [N, Tests, Name]).
 
 %% Specify just some nodes to run the tests on:
-%% TEST_HOSTS="mim" ./tools/travis-test.sh -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/test.sh -p odbc_mssql_mnesia
 maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
     case is_test_host_enabled(HostName) of
         true ->
@@ -356,7 +356,7 @@ maybe_compile_cover(Nodes) ->
                             NotOk = Results -- Ok,
                             #{ok => length(Ok), failed => NotOk}
                         end),
-    travis_fold("cover compiled output", fun() ->
+    github_actions_fold("cover compiled output", fun() ->
             io:format("cover: compiled ~p~n", [Compiled])
         end),
     report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]),
@@ -380,7 +380,7 @@ analyze(_Props, CoverOpts, Nodes) ->
     report_time("Export merged cover data", fun() ->
 			cover:export("/tmp/mongoose_combined.coverdata")
 		end),
-    case os:getenv("TRAVIS_JOB_ID") of
+    case os:getenv("GITHUB_RUN_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
         _ ->
@@ -568,19 +568,19 @@ microseconds_to_string(Microseconds) ->
     SecondsFloat = Milliseconds / 1000,
     io_lib:format("~.3f seconds", [SecondsFloat]).
 
-%% Writes onto travis console directly
+%% Writes onto GitHub actions console directly
 report_progress(Format, Args) ->
     Message = io_lib:format(Format, Args),
     file:write_file("/tmp/progress", Message, [append]).
 
-travis_fold(Description, Fun) ->
-    case os:getenv("TRAVIS_JOB_ID") of
+github_actions_fold(Description, Fun) ->
+    case os:getenv("GITHUB_RUN_ID") of
         false ->
             Fun();
         _ ->
-            io:format("travis_fold:start:~ts~n", [Description]),
+            io:format("github_actions_fold:start:~ts~n", [Description]),
             Result = Fun(),
-            io:format("travis_fold:end:~ts~n", [Description]),
+            io:format("github_actions_fold:end:~ts~n", [Description]),
             Result
     end.
 

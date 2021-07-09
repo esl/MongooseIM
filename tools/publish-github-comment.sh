@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
-source tools/travis-helpers.sh
+source tools/helpers.sh
 
 set -e
 
-if [ -z "$TRAVIS_PULL_REQUEST" ]; then
-    echo "\$TRAVIS_PULL_REQUEST is empty. Do nothing"
+# @TODO CI:
+# CI_PULL_REQUEST: ${{ github.event.pull_request.number }}
+if [ -z "$CI_PULL_REQUEST" ]; then
+    echo "\$CI_PULL_REQUEST is empty. Do nothing"
     exit 0
 fi
 
-if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+if [ "$CI_PULL_REQUEST" = "false" ]; then
     echo "Not a pull request. Do nothing"
     exit 0
 fi
@@ -27,19 +29,20 @@ echo "Used vars (you can use them to debug locally):"
 echo "export COMMENTER_GITHUB_TOKEN=fillme"
 echo "export COMMENTER_GITHUB_USER=$COMMENTER_GITHUB_USER"
 echo "export PRESET=$PRESET"
-echo "export TRAVIS_COMMIT=$TRAVIS_COMMIT"
-echo "export TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
-echo "export TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER"
-echo "export TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER"
-echo "export TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG"
-echo "export TRAVIS_OTP_RELEASE=$TRAVIS_OTP_RELEASE"
-echo "export TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+echo "export GITHUB_SHA=$GITHUB_SHA"
+echo "export GITHUB_RUN_ID=$GITHUB_RUN_ID"
+echo "export GITHUB_JOB=$GITHUB_JOB"
+echo "export GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+# @TODO CI:
+# CI_OTP_RELEASE: ${{ matrix.otp }}
+echo "export CI_OTP_RELEASE=$CI_OTP_RELEASE"
+echo "export CI_PULL_REQUEST=$CI_PULL_REQUEST"
 
 # IF we only run small tests, the file is missing
 touch /tmp/ct_markdown
 
 PRESET="${PRESET:-default}"
-TRAVIS_OTP_RELEASE="${TRAVIS_OTP_RELEASE:-unknown}"
+CI_OTP_RELEASE="${CI_OTP_RELEASE:-unknown}"
 
 function remove_ct_log_links
 {
@@ -158,14 +161,14 @@ if [ -f "$TRUNCATED_FILE" ]; then
     TRUNCATED_BODY=$'\n'$'\n'"$TRUNCATED_COUNTER errors were truncated"
 fi
 
-# Link to a travis job
-JOB_URL="https://travis-ci.org/$TRAVIS_REPO_SLUG/jobs/$TRAVIS_JOB_ID"
-DESC_BODY="[$TRAVIS_JOB_NUMBER]($JOB_URL) / Erlang $TRAVIS_OTP_RELEASE / $PRESET / $TRAVIS_COMMIT"$'\n'
+# Link to a GitHub Actions job
+JOB_URL="https://github.com/esl/MongooseIM/actions/runs/$GITHUB_RUN_ID"
+DESC_BODY="[$GITHUB_JOB]($JOB_URL) / Erlang $CI_OTP_RELEASE / $PRESET / $GITHUB_SHA"$'\n'
 # This file is created by ct_markdown_errors_hook
 ERRORS_BODY="$(cat /tmp/ct_markdown || echo '/tmp/ct_markdown missing')"
 BODY="${DESC_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"
-# SLUG is the same for both GitHub and Travis CI
-TRAVIS_REPO_SLUG=${TRAVIS_REPO_SLUG:-esl/MongooseIM}
+# SLUG is the same for both GitHub and GitHub Actions CI
+GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-esl/MongooseIM}
 
 function post_new_comment
 {
@@ -177,7 +180,7 @@ curl -o /dev/null -i \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
     -X POST -d "$POST_BODY" \
-    https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments
+    https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$CI_PULL_REQUEST/comments
 }
 
 function append_comment
@@ -197,7 +200,7 @@ curl -o /dev/null -i \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
     -X PATCH -d "$PATCH_BODY" \
-    https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/comments/$COMMENT_ID
+    https://api.github.com/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID
 }
 
 # List comments
@@ -205,12 +208,12 @@ curl -o /dev/null -i \
 curl -s -S -o /tmp/gh_comments -L \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
-    https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments
+    https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$CI_PULL_REQUEST/comments
 
 # Filter out all comments for a particular user
 # Then filter out all comments that have a git commit rev in the body text
 # Then take first comment (we don't expect more comments anyway)
-cat /tmp/gh_comments | jq "map(select(.user.login == \"$COMMENTER_GITHUB_USER\")) | map(select(.body | contains(\"$TRAVIS_COMMIT\")))[0]" > /tmp/gh_comment
+cat /tmp/gh_comments | jq "map(select(.user.login == \"$COMMENTER_GITHUB_USER\")) | map(select(.body | contains(\"$GITHUB_SHA\")))[0]" > /tmp/gh_comment
 COMMENT_ID=$(cat /tmp/gh_comment | jq .id)
 
 if [ "$COMMENT_ID" = "null" ]; then

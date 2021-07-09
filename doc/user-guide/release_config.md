@@ -3,7 +3,7 @@
 It's now possible to install MongooseIM from source in two modes:
 
 * `system` - it's used internally to generate Linux packages (.deb, .rpm)
-* `user`  - which is the default mode and used for testing on travis and
+* `user`  - which is the default mode and used for testing on GitHub Actions and
     in development
 
 You can also build OS specific packages by using the tools in `[MongooseIM repo root]/tools/pkg` - refer to `README.md` therein.

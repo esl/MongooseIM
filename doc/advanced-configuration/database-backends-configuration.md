@@ -3,7 +3,7 @@
 MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones.
 Some of them require extra work before they can be used.
 For example the SQL databases require defining a schema.
-MongooseIM is tested with TravisCI, so the travis scripts can be used as a reference.
+MongooseIM is tested with CI, so the CI scripts can be used as a reference.
 
 ## A Brief Overview
 

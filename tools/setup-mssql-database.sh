@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 
 NAME=$(db_name mssql)
 DB_NAME=${DB_NAME:-ejabberd}

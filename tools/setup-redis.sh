@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 NAME=$(db_name redis)
 REDIS_PORT=${REDIS_PORT:-6379}
 

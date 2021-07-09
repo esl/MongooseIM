@@ -8,7 +8,7 @@
 set -e
 
 # We use BASE and DEV_NODES_ARRAY variables from here
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 
 # Stops node
 # First argument is node directory name
@@ -35,7 +35,7 @@ wait_for_pids() {
   done
 }
 
-# DEV_NODES_ARRAY is defined in travis-common-vars.sh
+# DEV_NODES_ARRAY is defined in common-vars.sh
 # and contains node names mim1, mim2, ...
 stop_nodes() {
   local pids=()

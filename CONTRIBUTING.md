@@ -67,7 +67,7 @@ Fix all issues Elvis reports, otherwise your build will fail.
 ### Push
 
 Then push the changes and create a pull request to master, following the PR description template.
-Make sure all Travis tests pass (if only some jobs fail it is advisable to restart them, since they sometimes
+Make sure all GitHub Actions tests pass (if only some jobs fail it is advisable to restart them, since they sometimes
 fail at random).
 
 If tests fail, see why here: http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/ and resolve any issues.

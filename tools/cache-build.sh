@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Travis packs all cache directories into one archive for caching.
+# CI packs all cache directories into one archive for caching.
 # So, we put files into tar, not tar.gz to improve compression
 # (because the files are shared between mongooseim and big_tests)
 

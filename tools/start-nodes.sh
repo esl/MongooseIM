@@ -8,7 +8,7 @@
 set -e
 
 # We use BASE and DEV_NODES_ARRAY variables from here
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 
 # This script adds a marker into logs, so we would know which lines are new
 START_NODES_DATE=$(date)
@@ -76,7 +76,7 @@ wait_for_node() {
   ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl status
 }
 
-# DEV_NODES_ARRAY is defined in travis-common-vars.sh
+# DEV_NODES_ARRAY is defined in common-vars.sh
 # and contains node names mim1, mim2, ...
 start_nodes() {
   local pids=()

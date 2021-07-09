@@ -14,7 +14,7 @@ set -euo pipefail
 }
 error_handling
 
-source tools/travis-helpers.sh
+source tools/helpers.sh
 
 # gdrive 2.1.0 would return "No valid arguments given" error.
 # we need to compile from source.
@@ -117,4 +117,3 @@ FILE_ID=$(gdrive_get_id "${PARENT_DIR}" "$(basename ${CT_REPORT_ARCHIVE})")
 echo "Uploaded with FILE_ID=$FILE_ID"
 gdrive share "$FILE_ID"
 gdrive info "$FILE_ID"
-
