@@ -57,23 +57,22 @@
 -define(PROCNAME, ejabberd_mod_vcard_ldap).
 
 -record(state,
-        {serverhost = <<"">>        :: binary(),
-         myhost = <<"">>            :: binary(),
-         eldap_id                   :: {jid:lserver(), binary()},
-         base = <<"">>              :: binary(),
-         password = <<"">>          :: binary(),
+        {serverhost = <<>>          :: binary(),
+         myhost = <<>>              :: binary(),
+         eldap_id                   :: eldap_utils:eldap_id(),
+         base = <<>>                :: binary(),
+         password = <<>>            :: binary(),
          uids = []                  :: [{binary()} | {binary(), binary()}],
          vcard_map = []             :: [{binary(), binary(), [binary()]}],
          vcard_map_attrs = []       :: [binary()],
-         user_filter = <<"">>       :: binary(),
+         user_filter = <<>>         :: binary(),
          search_filter              :: eldap:filter(),
          search_fields = []         :: [{binary(), binary()}],
          search_reported = []       :: [{binary(), binary()}],
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
          binary_search_fields       :: [binary()],
-         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching
-                                     | derefFindingBaseObj | derefAlways,
+         deref = neverDerefAliases  :: eldap_utils:deref(),
          matches = 0                :: non_neg_integer() | infinity}).
 
 -define(VCARD_MAP,
@@ -244,15 +243,15 @@ find_ldap_user(User, State) ->
     end.
 
 eldap_pool_search(EldapID, Base, EldapFilter, Deref, Attrs, NoResultRes) ->
-  case eldap_pool:search(EldapID,
+    SearchOpts = search_opts(Base, EldapFilter, Deref, Attrs),
+    case eldap_pool:search(EldapID, SearchOpts) of
+        #eldap_search_result{entries = E} -> E;
+        _ -> NoResultRes
+    end.
+
+search_opts(Base, EldapFilter, Deref, Attrs) ->
     [{base, Base}, {filter, EldapFilter},
-      {deref, Deref},
-      {attributes, Attrs}])
-  of
-    #eldap_search_result{entries = E} -> E;
-    _ ->
-      NoResultRes
-  end.
+     {deref, Deref}, {attributes, Attrs}].
 
 ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     Attrs = lists:map(fun ({VCardName, _, _}) ->

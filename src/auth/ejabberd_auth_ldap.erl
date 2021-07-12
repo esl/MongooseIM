@@ -57,18 +57,15 @@
 
 -record(state,
        {host_type              :: mongooseim:host_type(),
-        eldap_id               :: {jid:lserver(), binary()},
-        bind_eldap_id          :: {jid:lserver(), binary()},
-        base = <<"">>          :: binary(),
+        eldap_id               :: eldap_utils:eldap_id(),
+        bind_eldap_id          :: eldap_utils:eldap_id(),
+        base = <<>>            :: binary(),
         uids = []              :: [{binary()} | {binary(), binary()}],
-        ufilter = <<"">>       :: binary(),
-        sfilter = <<"">>       :: binary(),
+        ufilter = <<>>         :: binary(),
+        sfilter = <<>>         :: binary(),
         lfilter                :: {any(), any()} | undefined,
-        deref =                neverDerefAliases  :: neverDerefAliases |
-                                                     derefInSearching |
-                                                     derefFindingBaseObj |
-                                                     derefAlways,
-        dn_filter              :: binary() | undefined,
+        deref = neverDerefAliases  :: eldap_utils:deref(),
+        dn_filter              :: eldap_utils:dn() | undefined,
         dn_filter_attrs = []   :: [binary()]
        }).
 -type state() :: #state{}.
@@ -151,14 +148,13 @@ check_password(HostType, LUser, LServer, Password, _Digest,
                    LUser :: jid:luser(),
                    LServer :: jid:lserver(),
                    Password :: binary())
-      -> ok | {error, not_allowed | invalid_jid}.
+      -> ok | {error, not_allowed | invalid_jid | user_not_found}.
 set_password(HostType, LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(HostType, ?MODULE),
     case find_user_dn(LUser, LServer, State) of
       false -> {error, user_not_found};
       DN ->
-          eldap_pool:modify_passwd(State#state.eldap_id, DN,
-                                   Password)
+          eldap_pool:modify_passwd(State#state.eldap_id, DN, Password)
     end.
 
 %% TODO Support multiple domains
@@ -285,7 +281,7 @@ get_users_from_ldap_entries(LDAPEntries, UIDs, LServer, State) ->
                        object_name = DN}) ->
               case is_valid_dn(DN, LServer, Attrs, State) of
                   false -> [];
-                  _ ->
+                  true ->
                       get_user_from_ldap_attributes(UIDs, Attrs, LServer)
               end
       end,
@@ -322,21 +318,15 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-
 -spec find_user_dn(LUser :: jid:luser(),
                    LServer :: jid:lserver(),
-                   State :: state()) -> 'false' | binary().
+                   State :: state()) -> false | eldap_utils:dn().
 find_user_dn(LUser, LServer, State) ->
     ResAttrs = result_attrs(State),
-    case eldap_filter:parse(State#state.ufilter,
-                            [{<<"%u">>, LUser}])
-        of
+    case eldap_filter:parse(State#state.ufilter, [{<<"%u">>, LUser}]) of
       {ok, Filter} ->
-          case eldap_pool:search(State#state.eldap_id,
-                                 [{base, State#state.base}, {filter, Filter},
-                                  {deref, State#state.deref},
-                                  {attributes, ResAttrs}])
-              of
+          SearchOpts = find_user_opts(Filter, ResAttrs, State),
+          case eldap_pool:search(State#state.eldap_id, SearchOpts) of
             #eldap_search_result{entries =
                                      [#eldap_entry{attributes = Attrs,
                                                    object_name = DN}
@@ -347,45 +337,46 @@ find_user_dn(LUser, LServer, State) ->
       _ -> false
     end.
 
+find_user_opts(Filter, ResAttrs, State) ->
+    [{base, State#state.base}, {filter, Filter},
+     {deref, State#state.deref}, {attributes, ResAttrs}].
+
 
 %% @doc apply the dn filter and the local filter:
--spec dn_filter(DN :: binary(),
+-spec dn_filter(DN :: eldap_utils:dn(),
                 LServer :: jid:lserver(),
                 Attrs :: [{binary(), [any()]}],
-                State :: state()) -> 'false' | binary().
+                State :: state()) -> false | eldap_utils:dn().
 dn_filter(DN, LServer, Attrs, State) ->
     case check_local_filter(Attrs, State) of
       false -> false;
-      true -> is_valid_dn(DN, LServer, Attrs, State)
+      true ->
+            case is_valid_dn(DN, LServer, Attrs, State) of
+                true -> DN;
+                false -> false
+            end
     end.
 
-
 %% @doc Check that the DN is valid, based on the dn filter
--spec is_valid_dn(DN :: binary(),
+-spec is_valid_dn(DN :: eldap_utils:dn(),
                   LServer :: jid:lserver(),
                   Attrs :: [{binary(), [any()]}],
-                  State :: state()) -> 'false' | binary().
-is_valid_dn(DN, _LServer, _, #state{dn_filter = undefined}) -> DN;
+                  State :: state()) -> boolean().
+is_valid_dn(_DN, _LServer, _, #state{dn_filter = undefined}) -> true;
 is_valid_dn(DN, LServer, Attrs, State) ->
     DNAttrs = State#state.dn_filter_attrs,
     UIDs = State#state.uids,
-    Values = [{<<"%s">>,
-               eldap_utils:get_ldap_attr(Attr, Attrs), 1}
+    Values = [{<<"%s">>, eldap_utils:get_ldap_attr(Attr, Attrs), 1}
               || Attr <- DNAttrs],
-    SubstValues = case eldap_utils:find_ldap_attrs(UIDs,
-                                                   Attrs)
-                      of
-                    <<"">> -> Values;
+    SubstValues = case eldap_utils:find_ldap_attrs(UIDs, Attrs) of
+                    <<>> -> Values;
                     {S, UAF} ->
                         case eldap_utils:get_user_part(S, UAF) of
                           {ok, U} -> [{<<"%u">>, U} | Values];
                           _ -> Values
                         end
-                  end
-                    ++ [{<<"%d">>, LServer}, {<<"%D">>, DN}],
-    case eldap_filter:parse(State#state.dn_filter,
-                            SubstValues)
-        of
+                  end ++ [{<<"%d">>, LServer}, {<<"%D">>, DN}],
+    case eldap_filter:parse(State#state.dn_filter, SubstValues) of
       {ok, EldapFilter} ->
           case eldap_pool:search(State#state.eldap_id,
                                  [{base, State#state.base},
@@ -393,7 +384,7 @@ is_valid_dn(DN, LServer, Attrs, State) ->
                                   {deref, State#state.deref},
                                   {attributes, [<<"dn">>]}])
               of
-            #eldap_search_result{entries = [_ | _]} -> DN;
+            #eldap_search_result{entries = [_ | _]} -> true;
             _ -> false
           end;
       _ -> false

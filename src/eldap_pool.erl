@@ -78,6 +78,7 @@ delete(PoolName, DN) ->
     R -> R
   end.
 
+%% Applies eldap:add/3
 add(PoolName, DN, Attrs) ->
   do_request(PoolName, {add, [maybe_b2list(DN), parse_add_atrs(Attrs)]}).
 
@@ -92,5 +93,7 @@ parse_add_attr({N, List}) ->
 %% Internal functions
 %%====================================================================
 
-do_request({Host, PoolTag}, Request) ->
+%% Calls mongoose_ldap_worker
+%% Which calls eldap:F
+do_request({Host, PoolTag}, {_F, _Args} = Request) ->
     mongoose_wpool:call(ldap, Host, PoolTag, Request).
