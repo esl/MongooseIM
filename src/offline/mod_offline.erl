@@ -210,9 +210,9 @@ write_messages(HostType, LUser, LServer, Msgs) ->
             discard_warn_sender(Msgs)
     end.
 
--spec is_message_count_threshold_reached(host_type(), integer(), jid:luser(), jid:lserver(),
-                                         integer()) ->
-    boolean().
+-spec is_message_count_threshold_reached(host_type(), integer() | infinity,
+                                         jid:luser(), jid:lserver(), integer()) ->
+          boolean().
 is_message_count_threshold_reached(_HostType, infinity, _LUser, _LServer, _Len) ->
     false;
 is_message_count_threshold_reached(_HostType, MaxOfflineMsgs, _LUser, _LServer, Len)

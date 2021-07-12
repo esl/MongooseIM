@@ -442,7 +442,7 @@ get_loglevel() ->
 %%% Purge DB
 %%%
 
--spec delete_expired_messages(mongooseim:host_type()) -> {ok, iolist()} | {error, iolist()}.
+-spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
 delete_expired_messages(LServer) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
@@ -456,8 +456,7 @@ delete_expired_messages(LServer) ->
             {error, "Unknown domain"}
     end.
 
--spec delete_old_messages(mongooseim:host_type(), Days :: integer()) ->
-          {ok, iolist()} | {error, iolist()}.
+-spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
 delete_old_messages(LServer, Days) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
