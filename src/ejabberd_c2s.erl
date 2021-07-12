@@ -2314,10 +2314,7 @@ process_privacy_iq(Acc, set, To, StateData) ->
 resend_offline_messages(Acc, StateData) ->
     ?LOG_DEBUG(#{what => resend_offline_messages,
                  acc => Acc, c2s_state => StateData}),
-    Acc1 = mongoose_hooks:resend_offline_messages_hook(
-                                   StateData#state.host_type,
-                                   Acc,
-                                   StateData#state.jid),
+    Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, StateData#state.jid),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(
                        fun({route, From, To, MsgAcc}, A) ->

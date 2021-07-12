@@ -1201,10 +1201,11 @@ remove_old_messages_test(Config) ->
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
         OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:system_time(microsecond)),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, [OfflineOld, OfflineNew]]),
+        HostType = domain_helper:host_type(),
+        rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
         {_, 0} = ejabberdctl("delete_old_messages", [LServer, "1"], Config),
-        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [JidRecordBob]),
+        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [HostType, JidRecordBob]),
         %% then
         1 = length(SecondList)
     end).
@@ -1238,10 +1239,11 @@ remove_expired_messages_test(Config) ->
                                                           ExpirationTimeFuture),
         {jid, _, _, _, LUser, LServer, _} = JidRecordKate,
         Args = [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2],
-        rpc_call(mod_offline_backend, write_messages, [LUser, LServer, Args]),
+        HostType = domain_helper:host_type(),
+        rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, Args]),
         %% when
         {_, 0} = ejabberdctl("delete_expired_messages", [LServer], Config),
-        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [JidRecordKate]),
+        {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [HostType, JidRecordKate]),
         %% then
         2 = length(SecondList)
     end).

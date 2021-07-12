@@ -28,21 +28,20 @@
 -module(mod_offline_mnesia).
 -behaviour(mod_offline).
 -export([init/2,
-         pop_messages/1,
-         fetch_messages/1,
-         write_messages/3,
-         count_offline_messages/3,
-         remove_expired_messages/1,
-         remove_old_messages/2,
-         remove_user/2]).
+         pop_messages/2,
+         fetch_messages/2,
+         write_messages/4,
+         count_offline_messages/4,
+         remove_expired_messages/2,
+         remove_old_messages/3,
+         remove_user/3]).
 
--include("mongoose.hrl").
--include("jlib.hrl").
 -include("mod_offline.hrl").
 
 -define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
 
-init(_Host, _Opts) ->
+-spec init(mongoooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     mnesia:create_table(offline_msg,
                         [{disc_only_copies, [node()]},
                          {type, bag},
@@ -51,7 +50,9 @@ init(_Host, _Opts) ->
     upgrade_table(),
     ok.
 
-pop_messages(To) ->
+-spec pop_messages(mongooseim:host_type(), jid:jid()) ->
+          {ok, [mod_offline:msg()]} | {error, any()}.
+pop_messages(_HostType, To) ->
     US = jid:to_lus(To),
     F = fun() ->
                 Rs = mnesia:wread({offline_msg, US}),
@@ -65,7 +66,9 @@ pop_messages(To) ->
             {error, Reason}
     end.
 
-fetch_messages(To) ->
+-spec fetch_messages(mongooseim:host_type(), jid:jid()) ->
+          {ok, [mod_offline:msg()]} | {error, any()}.
+fetch_messages(_HostType, To) ->
     US = jid:to_lus(To),
     F = fun() -> mnesia:wread({offline_msg, US}) end,
     case mnesia:transaction(F) of
@@ -75,7 +78,9 @@ fetch_messages(To) ->
             {error, Reason}
     end.
 
-write_messages(_LUser, _LServer, Msgs) ->
+-spec write_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), [mod_offline:msg()]) ->
+          ok | {error, any()}.
+write_messages(_HostType, _LUser, _LServer, Msgs) ->
     F = fun() -> write_messages_t(Msgs) end,
     case mnesia:transaction(F) of
         {atomic, Result} ->
@@ -96,7 +101,10 @@ write_all_messages_t(Len, Msgs) ->
     [mnesia:write(M) || M <- Msgs],
     ok.
 
-count_offline_messages(LUser, LServer, _MaxNeeded) ->
+-spec count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                             mod_offline:msg_count()) ->
+          mod_offline:msg_count().
+count_offline_messages(_HostType, LUser, LServer, _MaxNeeded) ->
     US = {LUser, LServer},
     F = fun () ->
         Result = mnesia:read(offline_msg, US, read),
@@ -107,22 +115,15 @@ count_offline_messages(LUser, LServer, _MaxNeeded) ->
         _ -> 0
     end.
 
-remove_user(LUser, LServer) ->
-    US = {LUser, LServer},
-    F = fun() ->
-                mnesia:delete({offline_msg, US})
-        end,
-    mnesia:transaction(F).
-
--spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
-    HowManyRemoved :: integer().
-remove_expired_messages(_Host) ->
+-spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) ->
+          {ok, mod_offline:msg_count()} | {error, any()}.
+remove_expired_messages(_HostType, LServer) ->
     TimeStamp = erlang:system_time(microsecond),
     F = fun() ->
                 mnesia:write_lock_table(offline_msg),
                 mnesia:foldl(
                   fun(Rec, Acc) ->
-              Acc + remove_expired_message(TimeStamp, Rec)
+                          Acc + remove_expired_message(LServer, TimeStamp, Rec)
                   end, 0, offline_msg)
         end,
     case mnesia:transaction(F) of
@@ -132,15 +133,14 @@ remove_expired_messages(_Host) ->
             {ok, Result}
     end.
 
--spec remove_old_messages(jid:lserver(), integer()) ->
-    {error, term()} | {ok, HowManyRemoved} when
-    HowManyRemoved :: integer().
-remove_old_messages(_Host, TimeStamp) ->
+-spec remove_old_messages(mongooseim:host_type(), jid:lserver(), mod_offline:timestamp()) ->
+          {ok, mod_offline:msg_count()} | {error, any()}.
+remove_old_messages(_HostType, LServer, TimeStamp) ->
     F = fun() ->
                 mnesia:write_lock_table(offline_msg),
                 mnesia:foldl(
                   fun(Rec, Acc) ->
-                          Acc + remove_old_message(TimeStamp, Rec)
+                          Acc + remove_old_message(LServer, TimeStamp, Rec)
                   end, 0, offline_msg)
         end,
     case mnesia:transaction(F) of
@@ -150,26 +150,37 @@ remove_old_messages(_Host, TimeStamp) ->
             {ok, Result}
     end.
 
-remove_expired_message(TimeStamp, Rec) ->
+remove_expired_message(LServer, TimeStamp, Rec = #offline_msg{us = {_, LServer}}) ->
     case mod_offline:is_expired_message(TimeStamp, Rec) of
         true ->
             mnesia:delete_object(Rec),
             1;
         false ->
             0
-    end.
+    end;
+remove_expired_message(_, _, _) -> 0.
 
-remove_old_message(TimeStamp, Rec) ->
+remove_old_message(LServer, TimeStamp, Rec = #offline_msg{us = {_, LServer}}) ->
     case is_old_message(TimeStamp, Rec) of
         true ->
             mnesia:delete_object(Rec),
             1;
         false ->
             0
-    end.
+    end;
+remove_old_message(_, _, _) -> 0.
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
+
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(_HostType, LUser, LServer) ->
+    US = {LUser, LServer},
+    F = fun() ->
+                mnesia:delete({offline_msg, US})
+        end,
+    mnesia:transaction(F),
+    ok.
 
 upgrade_table() ->
     Fields = record_info(fields, offline_msg),
@@ -182,4 +193,3 @@ upgrade_table() ->
 
 transform_from_3_5_0_to_next(Record) ->
     erlang:append_element(Record, []).
-

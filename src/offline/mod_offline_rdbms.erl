@@ -26,23 +26,21 @@
 -module(mod_offline_rdbms).
 -behaviour(mod_offline).
 -export([init/2,
-         pop_messages/1,
-         fetch_messages/1,
-         write_messages/3,
-         count_offline_messages/3,
-         remove_expired_messages/1,
-         remove_old_messages/2,
-         remove_user/2]).
+         pop_messages/2,
+         fetch_messages/2,
+         write_messages/4,
+         count_offline_messages/4,
+         remove_expired_messages/2,
+         remove_old_messages/3,
+         remove_user/3]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
 
--define(OFFLINE_TABLE_LOCK_THRESHOLD, 1000).
-
-init(_Host, _Opts) ->
+-spec init(mongoooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     prepare_queries(),
     ok.
 
@@ -72,52 +70,69 @@ prepare_queries() ->
             <<"DELETE FROM offline_message "
               "WHERE server = ? AND username = ?">>),
     prepare(offline_delete_old, offline_message,
-            [timestamp],
-            <<"DELETE FROM offline_message WHERE timestamp < ?">>),
+            [server, timestamp],
+            <<"DELETE FROM offline_message WHERE server = ? AND timestamp < ?">>),
     prepare(offline_delete_expired, offline_message,
-            [expire],
+            [server, expire],
             <<"DELETE FROM offline_message "
-              "WHERE expire IS NOT null AND expire < ?">>).
+              "WHERE server = ? AND expire IS NOT null AND expire < ?">>).
 
-execute_count_offline_messages(LUser, LServer, Limit) ->
+-spec execute_count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                                     pos_integer()) ->
+          mongoose_rdbms:query_result().
+execute_count_offline_messages(HostType, LUser, LServer, Limit) ->
     Args = rdbms_queries:add_limit_arg(Limit, [LServer, LUser]),
-    execute_successfully(LServer, offline_count_limit, Args).
+    execute_successfully(HostType, offline_count_limit, Args).
 
-execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp) ->
-    execute_successfully(LServer, offline_select, [LServer, LUser, ExtTimeStamp]).
+-spec execute_fetch_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                                     integer()) ->
+          mongoose_rdbms:query_result().
+execute_fetch_offline_messages(HostType, LUser, LServer, ExtTimeStamp) ->
+    execute_successfully(HostType, offline_select, [LServer, LUser, ExtTimeStamp]).
 
-execute_remove_expired_offline_messages(LServer, ExtTimeStamp) ->
-    execute_successfully(LServer, offline_delete_expired, [ExtTimeStamp]).
+-spec execute_remove_expired_offline_messages(mongooseim:host_type(), jid:lserver(), integer()) ->
+          mongoose_rdbms:query_result().
+execute_remove_expired_offline_messages(HostType, LServer, ExtTimeStamp) ->
+    execute_successfully(HostType, offline_delete_expired, [LServer, ExtTimeStamp]).
 
-execute_remove_old_offline_messages(LServer, ExtTimeStamp) ->
-    execute_successfully(LServer, offline_delete_old, [ExtTimeStamp]).
+-spec execute_remove_old_offline_messages(mongooseim:host_type(), jid:lserver(), integer()) ->
+          mongoose_rdbms:query_result().
+execute_remove_old_offline_messages(HostType, LServer, ExtTimeStamp) ->
+    execute_successfully(HostType, offline_delete_old, [LServer, ExtTimeStamp]).
 
-execute_offline_delete(LServer, LUser) ->
-    execute_successfully(LServer, offline_delete, [LServer, LUser]).
+-spec execute_offline_delete(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          mongoose_rdbms:query_result().
+execute_offline_delete(HostType, LUser, LServer) ->
+    execute_successfully(HostType, offline_delete, [LServer, LUser]).
 
 %% Transactions
 
-pop_offline_messages(LServer, LUser, ExtTimeStamp) ->
+-spec pop_offline_messages(mongooseim:host_type(), jid:luser(), jid:server(), integer()) ->
+          mongoose_rdbms:transaction_result().
+pop_offline_messages(HostType, LUser, LServer, ExtTimeStamp) ->
     F = fun() ->
-            Res = execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp),
-            execute_offline_delete(LServer, LUser),
+            Res = execute_fetch_offline_messages(HostType, LUser, LServer, ExtTimeStamp),
+            execute_offline_delete(HostType, LUser, LServer),
             Res
         end,
     mongoose_rdbms:sql_transaction(LServer, F).
 
-push_offline_messages(LServer, Rows) ->
+-spec push_offline_messages(mongooseim:host_type(), [list()]) ->
+          mongoose_rdbms:transaction_result().
+push_offline_messages(HostType, Rows) ->
     F = fun() ->
-            [execute_successfully(LServer, offline_insert, Row)
+            [execute_successfully(HostType, offline_insert, Row)
              || Row <- Rows], ok
         end,
-    mongoose_rdbms:sql_transaction(LServer, F).
+    mongoose_rdbms:sql_transaction(HostType, F).
 
 %% API functions
 
-pop_messages(#jid{} = To) ->
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]} | {error, any()}.
+pop_messages(HostType, #jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
     ExtTimeStamp = os:system_time(microsecond),
-    case pop_offline_messages(LServer, LUser, ExtTimeStamp) of
+    case pop_offline_messages(HostType, LUser, LServer, ExtTimeStamp) of
         {atomic, {selected, Rows}} ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
@@ -127,43 +142,47 @@ pop_messages(#jid{} = To) ->
     end.
 
 %% Fetch messages for GDPR
-fetch_messages(#jid{} = To) ->
+-spec fetch_messages(mongooseim:host_type(), jid:jid()) -> {ok, [mod_offline:msg()]}.
+fetch_messages(HostType, #jid{} = To) ->
     US = {LUser, LServer} = jid:to_lus(To),
     ExtTimeStamp = os:system_time(microsecond),
-    {selected, Rows} = execute_fetch_offline_messages(LServer, LUser, ExtTimeStamp),
+    {selected, Rows} = execute_fetch_offline_messages(HostType, LUser, LServer, ExtTimeStamp),
     {ok, rows_to_records(US, To, Rows)}.
 
-write_messages(LUser, LServer, Msgs) ->
+-spec write_messages(mongooseim:host_type(), jid:luser(), jid:lserver(), [mod_offline:msg()]) ->
+          ok | {error, any()}.
+write_messages(HostType, LUser, LServer, Msgs) ->
     Rows = [record_to_row(LUser, LServer, Msg) || Msg <- Msgs],
-    case push_offline_messages(LServer, Rows) of
+    case push_offline_messages(HostType, Rows) of
         {atomic, ok} ->
             ok;
         Other ->
             {error, Other}
     end.
 
-count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    Result = execute_count_offline_messages(LUser, LServer, MaxArchivedMsgs + 1),
+-spec count_offline_messages(mongooseim:host_type(), jid:luser(), jid:lserver(),
+                             mod_offline:msg_count()) ->
+          mod_offline:msg_count().
+count_offline_messages(HostType, LUser, LServer, Limit) ->
+    Result = execute_count_offline_messages(HostType, LUser, LServer, Limit),
     mongoose_rdbms:selected_to_integer(Result).
 
-remove_user(LUser, LServer) ->
-    execute_offline_delete(LServer, LUser).
-
--spec remove_expired_messages(jid:lserver()) ->
-    {error, term()} | {ok, HowManyRemoved :: non_neg_integer()}.
-remove_expired_messages(LServer) ->
+-spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) -> {ok, mod_offline:msg_count()}.
+remove_expired_messages(HostType, LServer) ->
     TimeStamp = os:system_time(microsecond),
-    Result = execute_remove_expired_offline_messages(LServer, TimeStamp),
+    Result = execute_remove_expired_offline_messages(HostType, LServer, TimeStamp),
     updated_ok(Result).
 
--spec remove_old_messages(LServer, Timestamp) ->
-    {error, term()} | {ok, HowManyRemoved} when
-    LServer :: jid:lserver(),
-    Timestamp :: integer(),
-    HowManyRemoved :: integer().
-remove_old_messages(LServer, TimeStamp) ->
-    Result = execute_remove_old_offline_messages(LServer, TimeStamp),
+-spec remove_old_messages(mongooseim:host_type(), jid:lserver(), mod_offline:timestamp()) ->
+          {ok, mod_offline:msg_count()}.
+remove_old_messages(HostType, LServer, TimeStamp) ->
+    Result = execute_remove_old_offline_messages(HostType, LServer, TimeStamp),
     updated_ok(Result).
+
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, LUser, LServer) ->
+    execute_offline_delete(HostType, LUser, LServer),
+    ok.
 
 %% Pure helper functions
 record_to_row(LUser, LServer,

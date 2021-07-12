@@ -444,20 +444,30 @@ get_loglevel() ->
 
 -spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
 delete_expired_messages(LServer) ->
-    case mod_offline:remove_expired_messages(LServer) of
-        {ok, C} ->
-            {ok, io_lib:format("Removed ~p messages", [C])};
-        {error, Reason} ->
-            {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case mod_offline:remove_expired_messages(HostType, LServer) of
+                {ok, C} ->
+                    {ok, io_lib:format("Removed ~p messages", [C])};
+                {error, Reason} ->
+                    {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+            end;
+        {error, not_found} ->
+            {error, "Unknown domain"}
     end.
 
 -spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
 delete_old_messages(LServer, Days) ->
-    case mod_offline:remove_old_messages(LServer, Days) of
-        {ok, C} ->
-            {ok, io_lib:format("Removed ~p messages", [C])};
-        {error, Reason} ->
-            {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case mod_offline:remove_old_messages(HostType, LServer, Days) of
+                {ok, C} ->
+                    {ok, io_lib:format("Removed ~p messages", [C])};
+                {error, Reason} ->
+                    {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+            end;
+        {error, not_found} ->
+            {error, "Unknown domain"}
     end.
 
 
