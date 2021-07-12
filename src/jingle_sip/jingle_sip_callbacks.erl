@@ -44,6 +44,9 @@
 -export([sip_dialog_update/3]).
 -export([invite_resp_callback/1]).
 
+-ignore_xref([sip_bye/2, sip_cancel/3, sip_dialog_update/3, sip_info/2,
+              sip_invite/2, sip_reinvite/2]).
+
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)

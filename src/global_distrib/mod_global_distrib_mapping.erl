@@ -35,6 +35,25 @@
          session_opened/5, session_closed/5]).
 -export([endpoints/1, hosts/0]).
 
+-define(MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, mod_global_distrib_mapping_backend).
+-ignore_xref([
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domains, 0},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_domain, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_session, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_endpoints, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domain, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_session, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_hosts, 0},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_public_domains, 0},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_domain, 2},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_session, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, start, 1},
+    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, stop, 0},
+    behaviour_info/1, delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
+    insert_for_domain/2, insert_for_domain/3, insert_for_jid/1, packet_to_component/3,
+    register_subhost/3, session_closed/5, session_opened/5, unregister_subhost/2
+]).
+
 -type endpoint() :: mod_global_distrib_utils:endpoint().
 
 %%--------------------------------------------------------------------

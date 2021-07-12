@@ -53,6 +53,8 @@
          register_commands/3,
          unregister_commands/3]).
 
+-ignore_xref([process/1, process2/2, register_commands/3, start/0, unregister_commands/3]).
+
 -include("ejabberd_ctl.hrl").
 -include("ejabberd_commands.hrl").
 -include("mongoose.hrl").

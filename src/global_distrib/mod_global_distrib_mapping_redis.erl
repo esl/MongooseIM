@@ -37,6 +37,8 @@
 %% Only for debug & tests!
 -export([nodes_key/0, set_endpoints/1]).
 
+-ignore_xref([handle_info/2, init/1, nodes_key/0, refresh/0, refresh/1, set_endpoints/1]).
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------

@@ -14,6 +14,8 @@
 %% API
 -export([encode_error/6]).
 
+-ignore_xref([behaviour_info/1]).
+
 -type encoded_packet_handler() ::
     fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> any()).
 

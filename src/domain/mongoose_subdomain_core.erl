@@ -26,6 +26,8 @@
          code_change/3,
          terminate/2]).
 
+-ignore_xref([start_link/0, stop/0, sync/0]).
+
 -ifdef(TEST).
 
 -undef(LOG_ERROR).

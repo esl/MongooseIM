@@ -42,6 +42,15 @@
          remove_user/3,
          pop_offline_messages/2]).
 
+-define(MOD_OFFLINE_CHATMARKERS_BACKEND, mod_offline_chatmarkers_backend).
+-ignore_xref([
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, maybe_store, 4},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, get, 1},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, remove_user, 1},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, init, 2},
+    behaviour_info/1, inspect_packet/4, pop_offline_messages/2, remove_user/3
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

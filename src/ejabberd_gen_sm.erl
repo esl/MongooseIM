@@ -32,6 +32,8 @@
          get_sessions/4, create_session/5, update_session/5, delete_session/5, cleanup/2,
          total_count/1, unique_count/1]).
 
+-ignore_xref([behaviour_info/1, cleanup/2]).
+
 -spec start(module(), list()) -> any().
 start(Mod, Opts) ->
     Mod:start(Opts).

@@ -18,6 +18,8 @@
          get_min_event_id/0,
          erase_database/0]).
 
+-ignore_xref([erase_database/0, get_min_event_id/0, prepare_test_queries/0]).
+
 -include("mongoose_logger.hrl").
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).

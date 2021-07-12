@@ -52,6 +52,9 @@
 %% packet handler callback
 -export([process_packet/5]).
 
+-ignore_xref([print_state/1, send_element/2, send_text/2, socket_type/0, start_link/2,
+              stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("external_component.hrl").

@@ -26,6 +26,8 @@
          features_to_xml/1,
          info_list_to_xml/1]).
 
+-ignore_xref([items_to_xml/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

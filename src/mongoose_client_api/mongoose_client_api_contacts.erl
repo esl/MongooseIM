@@ -14,6 +14,8 @@
 -export([from_json/2]).
 -export([delete_resource/2]).
 
+-ignore_xref([from_json/2, to_json/2, trails/0, forbidden_request/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

@@ -83,6 +83,21 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_VCARD_BACKEND, mod_vcard_backend).
+-ignore_xref([
+    {?MOD_VCARD_BACKEND, backend, 0},
+    {?MOD_VCARD_BACKEND, search_fields, 1},
+    {?MOD_VCARD_BACKEND, get_vcard, 2},
+    {?MOD_VCARD_BACKEND, init, 2},
+    {?MOD_VCARD_BACKEND, remove_user, 2},
+    {?MOD_VCARD_BACKEND, search, 2},
+    {?MOD_VCARD_BACKEND, search_reported_fields, 2},
+    {?MOD_VCARD_BACKEND, tear_down, 1},
+    {?MOD_VCARD_BACKEND, set_vcard, 4},
+    behaviour_info/1, config_change/4, get_personal_data/3, process_local_iq/4,
+    process_packet/5, remove_user/3, set_vcard/3, set_vcard/3, start_link/2
+]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search :: boolean(),

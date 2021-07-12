@@ -21,6 +21,8 @@
          get_subdomain_info/1,
          get_all_subdomains_for_domain/1]).
 
+-ignore_xref([get_all_static/0]).
+
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type pair() :: {domain(), host_type()}.

@@ -198,6 +198,8 @@
          execute_command/4
         ]).
 
+-ignore_xref([execute_command/2]).
+
 -include("ejabberd_commands.hrl").
 -include("mongoose.hrl").
 

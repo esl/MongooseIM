@@ -34,6 +34,8 @@
     send_stanza_c2s/4
     ]).
 
+-ignore_xref([commands/0, send_message_chat/3, send_message_headline/4, send_stanza_c2s/4]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").

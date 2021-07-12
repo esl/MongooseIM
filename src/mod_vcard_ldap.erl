@@ -48,6 +48,7 @@
          search_fields/1,
          search_reported_fields/2]).
 
+-ignore_xref([start_link/2]).
 
 -include("mongoose.hrl").
 -include("eldap.hrl").

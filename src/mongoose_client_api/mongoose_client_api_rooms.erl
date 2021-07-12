@@ -14,6 +14,14 @@
 -export([to_json/2]).
 -export([from_json/2]).
 
+-define(MOD_MUC_LIGHT_DB_BACKEND, mod_muc_light_db_backend).
+-ignore_xref([
+    {?MOD_MUC_LIGHT_DB_BACKEND, get_info, 1},
+    {?MOD_MUC_LIGHT_DB_BACKEND, get_config, 1},
+    {mod_muc_light_db_backend, get_user_rooms, 2},
+    from_json/2, to_json/2, trails/0
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

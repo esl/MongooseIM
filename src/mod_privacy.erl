@@ -42,6 +42,10 @@
 
 -export([config_metrics/1]).
 
+-ignore_xref([behaviour_info/1, check_packet/5, get_user_list/2, process_iq_get/5,
+              process_iq_set/4, remove_user/3, updated_list/3, behaviour_info/1,
+              remove_user/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").

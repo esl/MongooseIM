@@ -39,6 +39,9 @@
 -export([ref/1, reload_dispatch/1]).
 -export([start_cowboy/2, stop_cowboy/1]).
 
+-ignore_xref([behaviour_info/1, process/1, ref/1, socket_type/0, start_cowboy/2,
+              start_link/1, start_listener/2, start_listener/1, stop_cowboy/1]).
+
 -include("mongoose.hrl").
 -type options()  :: [any()].
 -type path() :: iodata().

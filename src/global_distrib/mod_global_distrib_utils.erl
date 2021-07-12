@@ -30,6 +30,8 @@
 
 -export([getaddrs/2]).
 
+-ignore_xref([cast_or_call/3, cast_or_call/4]).
+
 -type domain_name() :: string().
 -type endpoint() :: {inet:ip_address() | domain_name(), inet:port_number()}.
 

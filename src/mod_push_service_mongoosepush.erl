@@ -35,6 +35,8 @@
 
 -export([config_metrics/1]).
 
+-ignore_xref([behaviour_info/1, http_notification/5, push_notifications/4]).
+
 %%--------------------------------------------------------------------
 %% Definitions
 %%--------------------------------------------------------------------

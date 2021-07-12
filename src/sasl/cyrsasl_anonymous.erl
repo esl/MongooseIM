@@ -28,6 +28,8 @@
 -xep([{xep, 175}, {version, "1.2"}]).
 -export([mechanism/0, mech_new/3, mech_step/2]).
 
+-ignore_xref([mech_new/3]).
+
 -behaviour(cyrsasl).
 
 -record(state, {creds}).

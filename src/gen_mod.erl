@@ -77,6 +77,9 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
+-ignore_xref([behaviour_info/1, loaded_modules_with_opts/0,
+              loaded_modules_with_opts/1, set_module_opts/3]).
+
 -include("mongoose.hrl").
 
 -record(ejabberd_module, {

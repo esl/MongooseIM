@@ -36,6 +36,8 @@
 -export([get_session_info/2]).
 -export([remove_session/1]).
 
+-ignore_xref([remove_session/1]).
+
 -record(jingle_sip_session, {sid,
                              dialog,
                              state,

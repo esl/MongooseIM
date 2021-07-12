@@ -33,6 +33,9 @@
 
 -export([check_deps/1]). % for testing
 
+-ignore_xref([behaviour_info/1, check_deps/1, ensure_loaded/1, purge_service/1,
+              get_service_opts/1, start_service/2, stop/0]).
+
 %%Question marks:
 %%do we need the 'keep config' facility?
 %%does anybody use the 'wait' option in stopping gen_mod?

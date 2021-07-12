@@ -32,6 +32,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
 
+-ignore_xref([start_link/0]).
+
 -type state() :: #{amqp_client_opts := mongoose_amqp:network_params(),
                    connection := pid(),
                    channel := pid(),

@@ -34,6 +34,8 @@
 %% Hook handlers
 -export([stop_hook_processing/4]).
 
+-ignore_xref([stop_hook_processing/4]).
+
 -spec start(any(), any()) -> 'ok'.
 start(HostType, _Opts) ->
     [ejabberd_hooks:add(Hook, HostType, M, F, Prio)

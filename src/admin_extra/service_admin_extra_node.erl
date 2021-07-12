@@ -34,6 +34,10 @@
          remove_node/1
         ]).
 
+-ignore_xref([
+    commands/0, load_config/1, get_cookie/0, remove_node/1
+]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 

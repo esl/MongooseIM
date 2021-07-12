@@ -49,6 +49,9 @@
          maybe_list2b/1,
          maybe_b2list/1]).
 
+-ignore_xref([decode_octet_string/3, generate_subfilter/1, get_mod_opt/3,
+              make_filter/2, uids_domain_subst/2]).
+
 -include("mongoose.hrl").
 -include("eldap.hrl").
 

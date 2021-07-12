@@ -19,6 +19,8 @@
          is_amp_request/1
         ]).
 
+-ignore_xref([binaries_to_rule/3, is_amp_request/1, rule_to_xmlel/1]).
+
 -export_type([amp_rule/0,
               amp_rules/0]).
 

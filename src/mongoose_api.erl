@@ -32,6 +32,8 @@
          to_json/2,
          from_json/2]).
 
+-ignore_xref([behaviour_info/1, cowboy_router_paths/2, from_json/2, to_json/2, to_xml/2]).
+
 -record(state, {handler, opts, bindings}).
 
 -type prefix()   :: string().

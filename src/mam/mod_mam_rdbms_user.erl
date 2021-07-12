@@ -20,6 +20,9 @@
 %% For debugging ONLY
 -export([create_user_archive/3]).
 
+-ignore_xref([archive_id/3, create_user_archive/3, remove_archive/4, start/2,
+              stop/1, supported_features/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

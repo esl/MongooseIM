@@ -43,6 +43,8 @@
          terminate/2,
          code_change/3]).
 
+-ignore_xref([start_link/0, stop/0, sync/0]).
+
 -define(IQ_TABLE, mongoose_lazy_routing_iqs).
 -define(ROUTING_TABLE, mongoose_lazy_routing).
 

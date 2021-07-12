@@ -31,6 +31,8 @@
          server_start/4,
          server_step/2]).
 
+-ignore_xref([behaviour_info/1]).
+
 -include("mongoose.hrl").
 
 -type sasl_module() :: module().

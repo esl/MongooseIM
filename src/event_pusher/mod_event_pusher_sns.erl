@@ -38,6 +38,8 @@
 %% API
 -export([try_publish/5, push_event/3]).
 
+-ignore_xref([behaviour_info/1, try_publish/5]).
+
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
 

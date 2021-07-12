@@ -4,6 +4,8 @@
          init_ram_key/1,
          get_key/1]).
 
+-ignore_xref([get_key/1, init/2, init_ram_key/1]).
+
 -include("mod_keystore.hrl").
 
 -spec init(Domain, Opts) -> ok when

@@ -65,6 +65,28 @@
 -export([set_module_opt_from_ct/3,
          force_clear_from_ct/0]).
 
+-define(MOD_MUC_LIGHT_DB_BACKEND_BACKEN, mod_muc_light_db_backend).
+-define(MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, mod_muc_light_codec_backend).
+-ignore_xref([
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, force_clear, 0},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_blocking, 2},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_blocking, 3},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, room_exists, 1},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_blocking, 2},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_blocking, 3},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, remove_domain, 3},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, remove_user, 2},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, start, 1},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, stop, 1},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, create_room, 4},
+    {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, decode, 4},
+    add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
+    default_config/1, default_schema_definition/0, disco_local_items/1,
+    force_clear_from_ct/0, is_muc_room_owner/4, prevent_service_unavailable/4,
+    process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
+    set_module_opt_from_ct/3
+]).
+
 -type muc_server() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 

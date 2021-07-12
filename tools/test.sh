@@ -308,6 +308,13 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
+elif [ "$PRESET" == "xref_only" ]; then
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  ./rebar3 xref
+  RESULT=$?
+  tools/print-dots.sh stop
+  exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then

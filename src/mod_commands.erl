@@ -29,6 +29,13 @@
 
 -export([parse_from_to/2]).
 
+-ignore_xref([add_contact/2, add_contact/3, add_contact/4, change_user_password/3,
+              delete_contact/2, delete_contacts/2, get_recent_messages/3,
+              get_recent_messages/4, kick_session/3, list_contacts/1,
+              list_sessions/1, register/3, registered_commands/0, registered_users/1,
+              send_message/3, send_stanza/1, set_subscription/3, start/0, stop/0,
+              subscription/3, unregister/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").

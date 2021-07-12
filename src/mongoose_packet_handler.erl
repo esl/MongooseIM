@@ -38,6 +38,8 @@
 %% Getters
 -export([module/1, extra/1]).
 
+-ignore_xref([behaviour_info/1]).
+
 -spec new(Module :: module()) -> t().
 new(Module) ->
     new(Module, #{}).

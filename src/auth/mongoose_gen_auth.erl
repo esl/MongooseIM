@@ -18,6 +18,8 @@
          remove_user/4,
          remove_domain/3]).
 
+-ignore_xref([behaviour_info/1]).
+
 %% Mandatory callbacks
 
 -callback start(HostType :: mongooseim:host_type()) -> ok.

@@ -21,6 +21,8 @@
 
 -export([scram_to_tuple/1, scram_record_to_map/1]).
 
+-ignore_xref([password_to_scram/2, scram_to_tuple/1]).
+
 -type scram_tuple() :: { StoredKey :: binary(), ServerKey :: binary(),
                          Salt :: binary(), Iterations :: non_neg_integer() }.
 

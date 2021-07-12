@@ -3,6 +3,8 @@
 -module(mam_send_message).
 -export([call_send_message/5]).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback send_message(
             Row :: mod_mam:message_row(),
             ArcJID :: jid:jid(),

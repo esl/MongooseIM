@@ -29,6 +29,9 @@
 -export([send_message_to_room/4]).
 -export([kick_user_from_room/3]).
 
+-ignore_xref([create_instant_room/4, invite_to_room/5, kick_user_from_room/3,
+              send_message_to_room/4]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").

@@ -110,6 +110,25 @@ orbs:
               command: |
                 SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
 
+      xref:
+        parallelism: 1
+        machine:
+          image: ubuntu-2004:202010-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp_package: <<parameters.otp_package>>
+          - run:
+              name: Run Xref
+              command: |
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p xref_only -s false
+
       small_tests:
         parallelism: 1
         machine:
@@ -412,6 +431,12 @@ workflows:
       # ============= DIALYZER =============
       - mim/dialyzer:
           name: dialyzer
+          otp_package: 23.0.3-1
+          context: mongooseim-org
+          filters: *all_tags
+      # ============= XREF =============
+      - mim/xref:
+          name: xref
           otp_package: 23.0.3-1
           context: mongooseim-org
           filters: *all_tags

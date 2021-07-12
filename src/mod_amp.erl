@@ -15,6 +15,8 @@
          c2s_stream_features/3
         ]).
 
+-ignore_xref([c2s_stream_features/3, disco_local_features/1, run_initial_check/2]).
+
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").

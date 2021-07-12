@@ -26,6 +26,9 @@
 
 -export([start_modules/2, replace_modules/3]).
 -export([add_deps/2]).
+
+-ignore_xref([replace_modules/3]).
+
 -export_type([hardness/0]).
 
 %%--------------------------------------------------------------------

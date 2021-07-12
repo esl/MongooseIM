@@ -47,6 +47,9 @@
          get_socket/1,
          format_socket/1]).
 
+-ignore_xref([change_shaper/2, compress/3, connect/3, get_peer_certificate/1,
+              get_sockmod/1, sockname/1]).
+
 -include("mongoose.hrl").
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),

@@ -8,6 +8,8 @@
 -module(mod_event_pusher_http).
 -author("baibossynov.valery@gmail.com").
 
+-ignore_xref([behaviour_info/1]).
+
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 -behaviour(mongoose_module_metrics).

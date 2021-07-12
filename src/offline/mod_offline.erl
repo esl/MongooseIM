@@ -61,6 +61,26 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_OFFLINE_BACKEND, mod_offline_backend).
+-ignore_xref([
+    {?MOD_OFFLINE_BACKEND, fetch_messages, 1},
+    {?MOD_OFFLINE_BACKEND, pop_messages, 1},
+    {?MOD_OFFLINE_BACKEND, count_offline_messages, 3},
+    {?MOD_OFFLINE_BACKEND, remove_expired_messages, 1},
+    {?MOD_OFFLINE_BACKEND, remove_old_messages, 2},
+    {?MOD_OFFLINE_BACKEND, remove_user, 2},
+    {?MOD_OFFLINE_BACKEND, init, 2},
+    {?MOD_OFFLINE_BACKEND, write_messages, 3},
+    {?MOD_OFFLINE_BACKEND, write_messages, 4},
+    {?MOD_OFFLINE_BACKEND, count_offline_messages, 4},
+    {?MOD_OFFLINE_BACKEND, remove_expired_messages, 2},
+    {?MOD_OFFLINE_BACKEND, remove_old_messages, 3},
+    amp_failed_event/1, behaviour_info/1, code_change/3, determine_amp_strategy/5,
+    disco_features/1, get_personal_data/3, handle_call/3, handle_cast/2,
+    handle_info/2, init/1, inspect_packet/4, pop_offline_messages/2, remove_user/2,
+    remove_user/3, start_link/3, terminate/2
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").

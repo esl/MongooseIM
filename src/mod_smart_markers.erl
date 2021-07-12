@@ -69,6 +69,14 @@
 %% Hook handlers
 -export([user_send_packet/4]).
 
+-define(MOD_SMART_MARKERS_BACKEND, mod_smart_markers_backend).
+-ignore_xref([
+    {?MOD_SMART_MARKERS_BACKEND, get_chat_markers, 4},
+    {?MOD_SMART_MARKERS_BACKEND, init, 2},
+    {?MOD_SMART_MARKERS_BACKEND, update_chat_marker, 2},
+    behaviour_info/1, user_send_packet/4
+]).
+
 %%--------------------------------------------------------------------
 %% Type declarations
 %%--------------------------------------------------------------------

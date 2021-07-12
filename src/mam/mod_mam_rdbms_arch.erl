@@ -31,6 +31,8 @@
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 
+-ignore_xref([behaviour_info/1, remove_archive/4, remove_domain/3]).
+
 -type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------

@@ -35,6 +35,9 @@
          get_nodes/3, get_parentnodes_tree/4,
          get_subnodes/4, create_node/7, delete_node/3]).
 
+-ignore_xref([behaviour_info/1, create_node/7, delete_node/3, get_node/3,
+              get_nodes/3, get_parentnodes_tree/4, get_subnodes/4, set_node/2]).
+
 -type(host() :: mod_pubsub:host()).
 -type(nodeId() :: mod_pubsub:nodeId()).
 -type(nodeIdx() :: mod_pubsub:nodeIdx()).

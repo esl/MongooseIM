@@ -28,6 +28,10 @@
          rest_terminate/2,
          delete_resource/2]).
 
+-ignore_xref([allowed_methods/2, content_types_accepted/2, content_types_provided/2,
+              cowboy_router_paths/2, delete_resource/2, from_json/2, init/2,
+              is_authorized/2, rest_terminate/2, to_json/2]).
+
 -import(mongoose_api_common, [action_to_method/1,
                               method_to_action/1,
                               process_request/4,

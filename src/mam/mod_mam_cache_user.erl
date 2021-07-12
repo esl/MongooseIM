@@ -34,6 +34,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-ignore_xref([cached_archive_id/3, clean_cache/1, code_change/3, handle_call/3,
+              handle_cast/2, handle_info/2, init/1, remove_archive/4, start_link/0,
+              store_archive_id/3, terminate/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

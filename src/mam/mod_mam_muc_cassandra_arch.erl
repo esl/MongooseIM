@@ -20,6 +20,13 @@
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0, get_mam_muc_gdpr_data/3]).
 
+-define(MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, mod_mam_muc_cassandra_arch_params).
+-ignore_xref([
+    {?MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, pool_name, 0},
+    {?MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, db_message_format, 0},
+    behaviour_info/1, remove_archive/4, start/2, stop/1
+]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 

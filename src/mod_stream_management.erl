@@ -39,6 +39,11 @@
          remove_stale_smid_h/2
         ]).
 
+-ignore_xref([c2s_stream_features/3, get_sid/1, get_stale_h/2, get_stale_h_geriatric/2,
+              get_stale_h_repeat_after/2, register_stale_smid_h/3, remove_smid/5,
+              remove_stale_smid_h/2, session_cleanup/5, set_buffer_max/2,
+              set_resume_timeout/2, set_stale_h_geriatric/2, set_ack_freq/2, set_stale_h_repeat_after/2]).
+
 -type smid() :: base64:ascii_binary().
 
 -include("mongoose.hrl").

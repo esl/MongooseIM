@@ -30,6 +30,9 @@
          user_not_present/5,
          unacknowledged_message/2]).
 
+-ignore_xref([filter_local_packet/1, unacknowledged_message/2, user_not_present/5,
+              user_present/2, user_send_packet/4]).
+
 %%--------------------------------------------------------------------
 %% gen_mod API
 %%--------------------------------------------------------------------

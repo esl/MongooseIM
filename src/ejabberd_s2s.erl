@@ -59,6 +59,9 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
+-ignore_xref([dirty_get_connections/0, get_info_s2s_connections/1, have_connection/1,
+              incoming_s2s_number/0, node_cleanup/2, outgoing_s2s_number/0, start_link/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").

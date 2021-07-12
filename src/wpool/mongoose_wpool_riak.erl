@@ -8,6 +8,8 @@
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
 
+-ignore_xref([get_riak_opt/3]).
+
 %% --------------------------------------------------------------
 %% mongoose_wpool callbacks
 init() ->

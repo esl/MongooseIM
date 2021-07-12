@@ -13,6 +13,8 @@
 %% hooks
 -export([filter_local_packet/1]).
 
+-ignore_xref([filter_local_packet/1]).
+
 -type fpacket() :: {From :: jid:jid(),
                     To :: jid:jid(),
                     Acc :: mongoose_acc:t(),

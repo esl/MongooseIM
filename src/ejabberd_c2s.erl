@@ -62,6 +62,12 @@
          terminate/4,
          print_state/1]).
 
+-ignore_xref([del_aux_field/2, get_info/1, print_state/1, resume_session/2,
+             resume_session/3, send_text/2, session_established/2, session_established/3,
+             socket_type/0, start_link/2, wait_for_feature_after_auth/2,
+             wait_for_feature_before_auth/2, wait_for_sasl_response/2,
+             wait_for_session_or_sm/2, wait_for_stream/2]).
+
 -include("mongoose.hrl").
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").

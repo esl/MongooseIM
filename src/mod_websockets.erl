@@ -29,6 +29,9 @@
          set_ping/2,
          disable_ping/1]).
 
+-ignore_xref([change_shaper/2, close/1, compress/1, compress/3, disable_ping/1,
+              get_peer_certificate/1, get_sockmod/1, send/2, set_ping/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").

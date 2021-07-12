@@ -42,6 +42,8 @@
          should_delete_when_owner_removed/0
          ]).
 
+-ignore_xref([get_entity_affiliations/3, get_entity_subscriptions/4]).
+
 based_on() ->  node_flat.
 
 init(Host, ServerHost, Opts) ->

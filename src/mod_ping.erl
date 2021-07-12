@@ -35,6 +35,9 @@
 %% Remote hook callback
 -export([handle_remote_hook/4]).
 
+-ignore_xref([handle_remote_hook/4, user_keep_alive/2, user_offline/5, user_online/5,
+              user_ping_response/5, user_ping_response/5, user_send/4]).
+
 %%====================================================================
 %% Info Handler
 %%====================================================================

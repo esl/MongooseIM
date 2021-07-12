@@ -27,6 +27,8 @@
          exchange_declare_ok/0, exchange_delete/1, basic_publish/2,
          confirm_select/0, confirm_select_ok/0, message/1]).
 
+-ignore_xref([exchange_delete/1, network_params/0]).
+
 -export_type([network_params/0, method/0, message/0]).
 
 

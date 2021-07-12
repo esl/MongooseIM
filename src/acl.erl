@@ -35,6 +35,8 @@
          match_rule_for_host_type/4,
          match_rule_for_host_type/5]).
 
+-ignore_xref([add/3, delete/3, match_rule/4]).
+
 -include("mongoose.hrl").
 
 -export_type([rule/0, host/0]).

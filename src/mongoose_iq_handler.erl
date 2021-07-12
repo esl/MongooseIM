@@ -38,6 +38,8 @@
 %% Getters
 -export([module/1, extra/1]).
 
+-ignore_xref([module/1]).
+
 -spec new(IQHandlerFn :: handler_fn(),
           Extra :: map(),
           ExecutionType :: execution_type()) -> t().
