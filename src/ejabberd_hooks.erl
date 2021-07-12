@@ -29,7 +29,7 @@
 %% External exports
 -export([add/5,
          delete/5,
-         run_fold/4]).
+         add_args/2]).
 
 -export([add/1,
          delete/1]).
@@ -80,16 +80,10 @@ delete(Hooks) when is_list(Hooks) ->
     [delete_hook(Hook) || Hook <- Hooks],
     ok.
 
-
-%% @doc run the hook.
--spec run_fold(HookName :: atom(),
-               HostType :: mongooseim:host_type() | global,
-               Acc :: term(),
-               Args :: [term()]) ->
-    NewAcc :: term() | stopped.
-run_fold(HookName, HostType, Acc, Args) when is_binary(HostType); HostType =:= global ->
-    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, #{args => Args}),
-    RetValue.
+-spec add_args(HookParams :: map(), LegacyArgsList :: [term()]) ->
+    HookParamsWithArgs :: map().
+add_args(HookParams, LegacyArgsList) ->
+    HookParams#{args => LegacyArgsList}.
 
 %%%----------------------------------------------------------------------
 %%% Internal functions

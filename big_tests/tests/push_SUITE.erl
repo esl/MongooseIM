@@ -763,7 +763,7 @@ rpc_start_hook_handler(TestCasePid, PubSubJID) ->
                          #{pid => TestCasePid, jid => PubSubJID}, 50).
 
 hook_handler_fn(Acc,
-                #{args := [_Host, [PayloadMap], OptionMap]} = _Params,
+                #{notification_forms := [PayloadMap], options := OptionMap} = _Params,
                 #{pid := TestCasePid, jid := PubSubJID} = _Extra) ->
     try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
         PubSubJIDBin when PubSubJIDBin =:= PubSubJID ->

@@ -116,7 +116,7 @@ setup_pong_hook(HostType, Pid) ->
                          #{pid => Pid}, 50).
 
 pong_hook_handler(Acc,
-                  #{args := [_HostType, JID, _Response, _TDelta]} = _Params,
+                  #{jid := JID} = _Params,
                   #{pid := Pid} = _Extra) ->
     Pid ! {pong, jid:to_binary(jid:to_lower(JID))},
     {ok, Acc}.

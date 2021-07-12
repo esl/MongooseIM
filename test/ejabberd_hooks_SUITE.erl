@@ -67,7 +67,7 @@ hooks_run_launches_nullary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_nullary, 1),
 
     %% when
-    ejabberd_hooks:run_fold(test_run_hook, ?HOST, ok, []),
+    run_fold(test_run_hook, ?HOST, ok, []),
 
     %% then
     H = meck:history(hook_mod),
@@ -79,7 +79,7 @@ hooks_run_launches_unary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_onearg, 1),
 
     %% when
-    ejabberd_hooks:run_fold(test_run_hook, ?HOST, ok, [oneval]),
+    run_fold(test_run_hook, ?HOST, ok, [oneval]),
 
     %% then
     [{_,{hook_mod,fun_onearg,[ok, oneval]}, oneval}] = meck:history(hook_mod).
@@ -93,7 +93,7 @@ hooks_run_ignores_different_arity_funs(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_twoarg, 1),
 
     %% when
-    ejabberd_hooks:run_fold(test_run_hook, ?HOST, ok, [one, two]),
+    run_fold(test_run_hook, ?HOST, ok, [one, two]),
 
     %% then
     [{_,{hook_mod, fun_twoarg, [ok, one, two]}, success2}] = meck:history(hook_mod).
@@ -107,7 +107,7 @@ hooks_run_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_run_hook, hook_mod, another_fun, 2),
 
     %% when
-    ejabberd_hooks:run_fold(test_run_hook, ?HOST, ok, []),
+    run_fold(test_run_hook, ?HOST, ok, []),
 
     %% then
     [{_,{hook_mod,a_fun,[ok]}, stop}] = meck:history(hook_mod).
@@ -119,7 +119,7 @@ hooks_run_fold_folds_with_unary_fun(_) ->
     given_hook_added(test_fold_hook, hook_mod, unary_folder, 1),
 
     %% when
-    ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+    run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     [{_,{hook_mod,unary_folder,[initial]}, done}] = meck:history(hook_mod).
@@ -130,7 +130,7 @@ hooks_run_fold_folds_with_binary_fun(_) ->
     given_hook_added(test_fold_hook, hook_mod, binary_folder, 1),
 
     %% when
-    ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, [arg1]),
+    run_fold(test_fold_hook, ?HOST, initial, [arg1]),
 
     %% then
     [{_,{hook_mod,binary_folder,[initial, arg1]}, done}] = meck:history(hook_mod).
@@ -144,7 +144,7 @@ hooks_run_fold_passes_acc_along(_) ->
     given_hook_added(test_fold_hook, hook_mod2, second_folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, 0, [10]),
+    R = run_fold(test_fold_hook, ?HOST, 0, [10]),
 
     %% then
     -10 = R.
@@ -158,7 +158,7 @@ hooks_run_fold_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_fold_hook, hook_mod2, folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, continue, []),
+    R = run_fold(test_fold_hook, ?HOST, continue, []),
 
     %% then
     [{_,{hook_mod1,stopper,[continue]}, stop}] = meck:history(hook_mod1),
@@ -175,7 +175,7 @@ hooks_run_fold_preserves_order(_) ->
     given_hook_added(test_fold_hook, hook_mod2, second_folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, 0, []),
+    R = run_fold(test_fold_hook, ?HOST, 0, []),
 
     %% then
     2 = R.
@@ -191,7 +191,7 @@ error_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     i_was_run = R,
@@ -209,7 +209,7 @@ throw_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     initial = R,
@@ -228,7 +228,7 @@ exit_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_fold(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     initial = R,
@@ -258,6 +258,10 @@ given_module(ModName, FunName, Fun) ->
 given_fun(ModName, FunName, Fun) ->
     meck:expect(ModName, FunName, Fun).
 
+run_fold(HookName, HostType, Acc, Args) ->
+    Params = ejabberd_hooks:add_args(#{}, Args),
+    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
+    RetValue.
 
 get_hooks() ->
     ets:tab2list(gen_hook).

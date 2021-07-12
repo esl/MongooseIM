@@ -80,7 +80,7 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     ?assertEqual(false, meck:called(gen_hook, error_running_hook,
                                     ['_', '_', '_', '_'])).
 
-notify_self_hook(Acc, #{args := [Node]}, #{self := Self}) ->
+notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     Self ! {got_nodedown, Node},
     {ok, Acc}.
 

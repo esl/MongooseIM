@@ -225,7 +225,10 @@ remove_domain(HostType, Domain) ->
 
 -spec node_cleanup(Node :: node()) -> Acc :: map().
 node_cleanup(Node) ->
-    run_global_hook(node_cleanup, #{}, [Node]).
+    Params = #{node => Node},
+    Args = [Node],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_global_hook(node_cleanup, #{}, ParamsWithLegacyArgs).
 
 -spec ejabberd_ctl_process(Acc, Args) -> Result when
     Acc :: any(),
@@ -306,8 +309,11 @@ presence_probe_hook(HostType, Acc, From, To, Pid) ->
     Options :: #{atom() => binary()},
     Result :: ok | {error, any()}.
 push_notifications(Server, Acc, NotificationForms, Options) ->
-    run_hook_for_host_type(push_notifications, Server, Acc,
-                           [Server, NotificationForms, Options]).
+    Params = #{server => Server, options => Options,
+               notification_forms => NotificationForms},
+    Args = [Server, NotificationForms, Options],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(push_notifications, Server, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `register_command' hook is called when a command
 %%% is registered in `mongoose_commands'.
@@ -395,7 +401,10 @@ set_vcard(LServer, User, VCard) ->
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
 unacknowledged_message(HostType, Acc, JID) ->
-    run_hook_for_host_type(unacknowledged_message, HostType, Acc, [JID]).
+    Params = #{jid => JID},
+    Args = [JID],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(unacknowledged_message, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `unregister_command' hook is called when a command
 %%% is unregistered from `mongoose_commands'.
@@ -430,8 +439,10 @@ user_available_hook(HostType, Acc, JID) ->
     TDelta :: non_neg_integer(),
     Result :: mongoose_acc:t().
 user_ping_response(HostType, Acc, JID, Response, TDelta) ->
-    run_hook_for_host_type(user_ping_response, HostType, Acc,
-                           [HostType, JID, Response, TDelta]).
+    Params = #{jid => JID, response => Response, time_delta => TDelta},
+    Args =  [HostType, JID, Response, TDelta],
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(Params, Args),
+    run_hook_for_host_type(user_ping_response, HostType, Acc, ParamsWithLegacyArgs).
 
 %%% @doc The `user_ping_timeout' hook is called when there is a timeout
 %%% when waiting for a ping response from a user.
@@ -1442,22 +1453,25 @@ mod_global_distrib_unknown_recipient(GlobalHost, Info) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
-
-%% run_global_hook(HookName, Acc, Params) when is_map(Params) ->
-%%     {_, RetValue} = gen_hook:run_fold(HookName, global, Acc, Params),
-%%     RetValue;
+run_global_hook(HookName, Acc, Params) when is_map(Params) ->
+    run_fold(HookName, global, Acc, Params);
 run_global_hook(HookName, Acc, Args) when is_list(Args) ->
-    ejabberd_hooks:run_fold(HookName, global, Acc, Args).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_fold(HookName, global, Acc, ParamsWithLegacyArgs).
 
 run_hook_for_host_type(HookName, undefined, Acc, Args) ->
     ?LOG_ERROR(#{what => undefined_host_type,
                  text => <<"Running hook for an undefined host type">>,
                  hook_name => HookName, hook_acc => Acc, hook_args => Args}),
     Acc;
-%% run_hook_for_host_type(HookName, HostType, Acc, Params) when is_binary(HostType),
-%%                                                              is_map(Params) ->
-%%     {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
-%%     RetValue;
+run_hook_for_host_type(HookName, HostType, Acc, Params) when is_binary(HostType),
+                                                             is_map(Params) ->
+    run_fold(HookName, HostType, Acc, Params);
 run_hook_for_host_type(HookName, HostType, Acc, Args) when is_binary(HostType),
                                                            is_list(Args) ->
-    ejabberd_hooks:run_fold(HookName, HostType, Acc, Args).
+    ParamsWithLegacyArgs = ejabberd_hooks:add_args(#{}, Args),
+    run_fold(HookName, HostType, Acc, ParamsWithLegacyArgs).
+
+run_fold(HookName, HostType, Acc, Params) when is_map(Params) ->
+    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
+    RetValue.
