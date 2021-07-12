@@ -59,7 +59,7 @@
 -record(state,
         {serverhost = <<>>          :: binary(),
          myhost = <<>>              :: binary(),
-         eldap_id                   :: mongoose_utils:eldap_id(),
+         eldap_id                   :: eldap_utils:eldap_id(),
          base = <<>>                :: binary(),
          password = <<>>            :: binary(),
          uids = []                  :: [{binary()} | {binary(), binary()}],
@@ -72,7 +72,7 @@
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
          binary_search_fields       :: [binary()],
-         deref = neverDerefAliases  :: mongoose_utils:deref(),
+         deref = neverDerefAliases  :: eldap_utils:deref(),
          matches = 0                :: non_neg_integer() | infinity}).
 
 -define(VCARD_MAP,
