@@ -1,5 +1,14 @@
 version: 2.1
 
+references:
+  - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
+
+executors:
+  otp_23:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+
 commands:
   install_erlang:
     parameters:
@@ -25,6 +34,58 @@ commands:
           sudo apt-get install unixodbc-dev -y && \
           sudo apt-get install unixodbc -y && \
           sudo apt-get install tdsodbc -y
+  fetch_build_packages:
+    steps:
+      - run:
+          name: Install packages necessary for building
+          command: |
+            sudo killall -9 apt-get || true && \
+            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+            sudo apt-get update && \
+            sudo apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
+  maybe_build_deps_and_cache:
+    steps:
+      - run:
+          name: Prepare for cache
+          command: echo $ERLANG_VERSION && echo $ERLANG_VERSION > otp_version
+      - restore_cache:
+          name: Maybe restore all rebar3 dependencies
+          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+      - run:
+          name: Get deps
+          command: |
+            tools/configure with-all
+            ./rebar3 get-deps
+      - save_cache:
+          name: Cache downloaded and built dependencies
+          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          paths:
+            - ~/.cache/rebar3
+  build_and_cache_prod_build:
+    steps:
+      - run:
+          name: Generate prod release
+          command: |
+            echo $ERLANG_VERSION > otp_version
+            make rel
+      - save_cache:
+          key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          paths: ~/app/_build/prod/rel/mongooseim
+  persist_workspace:
+    steps:
+      - run: git gc
+      - persist_to_workspace:
+          root: ~/app/
+          paths: ["*"]
+  restore_workspace:
+    steps:
+      - attach_workspace: {at: ~/app}
+      - run:
+          name: Prepare for cache
+          command: echo $ERLANG_VERSION > otp_version
+      - restore_cache:
+          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+
 jobs:
   build:
     parallelism: 1
@@ -85,25 +146,6 @@ jobs:
       - save_cache:
           key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           paths: ./
-
-  dialyzer:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    working_directory: ~/app
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    steps:
-      - checkout
-      - fetch_packages
-      - install_erlang:
-          otp_package: <<parameters.otp_package>>
-      - run:
-          name: Run Dialyzer
-          command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
 
   xref:
     parallelism: 1
@@ -361,6 +403,48 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
+  build_in_docker:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+      build_prod:
+        type: boolean
+        default: false
+    parallelism: 1
+    environment:
+      SKIP_RELEASE: 1
+      SKIP_COV: 0
+    steps:
+      - checkout
+      - fetch_build_packages
+      - maybe_build_deps_and_cache
+      - run: ./rebar3 compile
+      - run: make certs
+      - run:
+          name: Generate development releases
+          command: ./tools/build-releases.sh
+      - when:
+          condition: << parameters.build_prod >>
+          steps: [ build_and_cache_prod_build ]
+      - run:
+          name: Build Big Tests
+          command: tools/build-tests.sh
+      - persist_workspace
+
+  dialyzer:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Dialyzer
+          command: |
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
+
 filters: &all_tags
   tags:
     only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
@@ -369,6 +453,20 @@ workflows:
   version: 2
   build_and_test:
     jobs:
+      # ======== BASE DOCKER BUILDS ========
+      - build_in_docker:
+          name: otp_23_docker
+          executor: otp_23
+          context: mongooseim-org
+          build_prod: true
+      # ============= DIALYZER =============
+      - dialyzer:
+          name: dialyzer
+          executor: otp_23
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
+          filters: *all_tags
       # ============= PACKAGES =============
       - package:
           name: centos_7
@@ -421,12 +519,6 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_23
-          filters: *all_tags
-      # ============= DIALYZER =============
-      - dialyzer:
-          name: dialyzer
-          otp_package: 23.0.3-1
-          context: mongooseim-org
           filters: *all_tags
       # ============= XREF =============
       - xref:
