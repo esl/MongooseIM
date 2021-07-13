@@ -159,7 +159,9 @@ init_per_suite(Config) ->
     prepare_test_queries(mim2()),
     erase_database(mim()),
     Config1 = ejabberd_node_utils:init(mim(), Config),
-    escalus:init_per_suite([{mim_conf1, Conf1}, {mim_conf2, Conf2}|Config1]).
+    escalus:init_per_suite([{mim_conf1, Conf1},
+                            {mim_conf2, Conf2},
+                            {service_setup, per_testcase} | Config1]).
 
 store_conf(Node) ->
     Loaded = rpc(Node, mongoose_service, is_loaded, [service_domain_db]),
@@ -188,17 +190,23 @@ init_per_group(rest_with_auth, Config) ->
 init_per_group(rest_without_auth, Config) ->
     start_listener(#{skip_auth => true}),
     Config;
-init_per_group(_GroupName, Config) ->
-    Config.
+init_per_group(GroupName, Config) ->
+    Config1 = save_service_setup_option(GroupName, Config),
+    case ?config(service_setup, Config) of
+        per_group -> setup_service([], Config1);
+        per_testcase -> ok
+    end,
+    Config1.
 
-end_per_group(rest_with_auth, Config) ->
-    stop_listener(),
-    Config;
-end_per_group(rest_without_auth, Config) ->
-    stop_listener(),
-    Config;
+end_per_group(rest_with_auth, _Config) ->
+    stop_listener();
+end_per_group(rest_without_auth, _Config) ->
+    stop_listener();
 end_per_group(_GroupName, Config) ->
-    Config.
+    case ?config(service_setup, Config) of
+        per_group -> teardown_service();
+        per_testcase -> ok
+    end.
 
 init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
     maybe_setup_meck(db_crash_on_initial_load_restarts_service),
@@ -206,20 +214,9 @@ init_per_testcase(db_crash_on_initial_load_restarts_service, Config) ->
     Config;
 init_per_testcase(TestcaseName, Config) ->
     maybe_setup_meck(TestcaseName),
-    ServiceEnabled = proplists:get_value(service, Config, false),
-    Pairs1 = [{<<"example.cfg">>, <<"type1">>},
-             {<<"erlang-solutions.com">>, <<"type2">>},
-             {<<"erlang-solutions.local">>, <<"type2">>}],
-    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
-    Types2 = [<<"mim2only">>|CommonTypes],
-    init_with(mim(), Pairs1, CommonTypes),
-    init_with(mim2(), [], Types2),
-    case ServiceEnabled of
-        true ->
-            service_enabled(mim(), service_opts(TestcaseName)),
-            service_enabled(mim2(), []);
-        false ->
-            ok
+    case ?config(service_setup, Config) of
+        per_group -> ok;
+        per_testcase -> setup_service(service_opts(TestcaseName), Config)
     end,
     Config.
 
@@ -235,10 +232,45 @@ end_per_testcase(TestcaseName, Config) ->
         _ -> ok
     end,
     maybe_teardown_meck(TestcaseName),
+    case ?config(service_setup, Config) of
+        per_group -> ok;
+        per_testcase -> teardown_service()
+    end.
+
+setup_service(Opts, Config) ->
+    ServiceEnabled = proplists:get_value(service, Config, false),
+    Pairs1 = [{<<"example.cfg">>, <<"type1">>},
+             {<<"erlang-solutions.com">>, <<"type2">>},
+             {<<"erlang-solutions.local">>, <<"type2">>}],
+    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
+    Types2 = [<<"mim2only">>|CommonTypes],
+    init_with(mim(), Pairs1, CommonTypes),
+    init_with(mim2(), [], Types2),
+    case ServiceEnabled of
+        true ->
+            service_enabled(mim(), Opts),
+            service_enabled(mim2(), []);
+        false ->
+            ok
+    end.
+
+teardown_service() ->
     service_disabled(mim()),
     service_disabled(mim2()),
-    erase_database(mim()),
-    Config.
+    erase_database(mim()).
+
+save_service_setup_option(GroupName, Config) ->
+    Value = case is_parallel_group(GroupName) of
+                true -> per_group;
+                false -> per_testcase
+            end,
+    lists:keystore(service_setup, 1, Config, {service_setup, Value}).
+
+is_parallel_group(GroupName) ->
+    case lists:keyfind(GroupName, 1, groups()) of
+        {_, Opts, _Cases} -> lists:member(parallel, Opts);
+        _ -> false
+    end.
 
 %%--------------------------------------------------------------------
 %% Tests
