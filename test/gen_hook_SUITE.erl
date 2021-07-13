@@ -30,7 +30,7 @@ end_per_suite(Config) ->
     application:stop(exometer_core),
     Config.
 
-init_per_testcase(_,Config) ->
+init_per_testcase(_, Config) ->
     Fun = fun(all_metrics_are_global) -> false end,
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option, Fun),
@@ -50,7 +50,7 @@ single_handler_can_be_added_and_removed(_) ->
     PlusHandlerFn = get_hook_handler(mod1, plus, fun hook_handler_plus/3),
     MultiplyHandlerFn = get_hook_handler(mod2, multiply, fun hook_handler_multiply/3),
     %% check that there are no hook handlers added yet
-    ?assertEqual([],get_handlers_for_all_hooks()),
+    ?assertEqual([], get_handlers_for_all_hooks()),
     %% add various hook handlers
     ?assertEqual(ok, gen_hook:add_handler(calculate, ?HOOK_TAG1, MultiplyHandlerFn,
                                           #{id => 2}, 2)),

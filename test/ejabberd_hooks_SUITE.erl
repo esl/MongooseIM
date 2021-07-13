@@ -31,11 +31,6 @@ init_per_suite(C) ->
 end_per_suite(_C) ->
     application:stop(exometer_core).
 
-init_per_testcase(_, C) ->
-    gen_hook:start_link(),
-    catch ets:new(local_config, [named_table]),
-    C.
-
 a_module_fun_can_be_added(_) ->
     given_hooks_started(),
     given_module(hook_mod, fun_a, fun(_) -> ok end),
@@ -242,7 +237,6 @@ exit_in_run_fold_is_ignored(_) ->
 const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
-    error_logger:tty(false),
     Fun = fun(all_metrics_are_global) -> false end,
     given_module(ejabberd_config, get_local_option, Fun),
     gen_hook:start_link().
