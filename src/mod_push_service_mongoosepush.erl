@@ -49,19 +49,23 @@
 %% Module callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: jid:server(), Opts :: list()) -> any().
+-spec start(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
 start(Host, Opts) ->
     ?LOG_INFO(#{what => push_service_starting, server => Host}),
-
-    MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
-    {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service,
-                                   [{strategy, available_worker},
-                                    {workers, MaxHTTPConnections}]),
-
+    start_pool(Host, Opts),
     %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
-
     ok.
+
+-spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) -> term().
+start_pool(Host, Opts) ->
+    {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service, pool_opts(Opts)).
+
+-spec pool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
+pool_opts(Opts) ->
+    MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
+    [{strategy, available_worker},
+     {workers, MaxHTTPConnections}].
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->

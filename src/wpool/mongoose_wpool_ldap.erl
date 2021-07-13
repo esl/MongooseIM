@@ -4,13 +4,15 @@
 -export([init/0]).
 -export([start/4, stop/2]).
 
+%% --------------------------------------------------------------
+%% mongoose_wpool callbacks
 init() ->
     ok.
 
-start(Host, Tag, WpoolOpts, ConnOpts) ->
+start(HostType, Tag, WpoolOpts, ConnOpts) ->
     WorkerSpec = {mongoose_ldap_worker, ConnOpts},
-    Name = mongoose_wpool:make_pool_name(ldap, Host, Tag),
-    mongoose_wpool:start_sup_pool(ldap, Name, [{worker, WorkerSpec} | WpoolOpts]).
+    ProcName = mongoose_wpool:make_pool_name(ldap, HostType, Tag),
+    mongoose_wpool:start_sup_pool(ldap, ProcName, [{worker, WorkerSpec} | WpoolOpts]).
 
-stop(_Host, _Tag) ->
+stop(_HostType, _Tag) ->
     ok.

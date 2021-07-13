@@ -42,15 +42,15 @@
 -record(state, {type, pools, monitors}).
 
 -type start_request() :: {start_pool,
-                          mongoose_wpool:host(), mongoose_wpool:tag(),
+                          mongoose_wpool:scope(), mongoose_wpool:tag(),
                           [any()], [any()]}.
 
 -type stop_request() :: {stop_pool,
-                         mongoose_wpool:host(), mongoose_wpool:tag()}.
+                         mongoose_wpool:scope(), mongoose_wpool:tag()}.
 
 -type request() :: start_request() | stop_request().
 
--type monitored_pool() :: {mongoose_wpool:type(), mongoose_wpool:host(), mongoose_wpool:tag()}.
+-type monitored_pool() :: {mongoose_wpool:pool_type(), mongoose_wpool:scope(), mongoose_wpool:tag()}.
 
 -type known_pools() :: #{monitored_pool() := #{monitor := undefined | reference(),
                                                wpool_opts := [wpool:option()],
@@ -75,7 +75,7 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
 stop(Type, Host, Tag) ->
     gen_server:call(name(Type), {stop_pool, Host, Tag}).
 
--spec name(mongoose_wpool:type()) -> mongoose_wpool:name().
+-spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
 name(Type) ->
     list_to_atom("mongoose_wpool_" ++ atom_to_list(Type) ++ "_mgr").
 %%%===================================================================

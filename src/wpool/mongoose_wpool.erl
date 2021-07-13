@@ -10,10 +10,11 @@
 -include("mongoose.hrl").
 -include("mongoose_wpool.hrl").
 
+-type call_timeout() :: pos_integer() | undefined.
 -record(mongoose_wpool, {
-          name :: term(),
-          strategy :: atom(),
-          call_timeout :: pos_integer() | undefined
+          name :: pool_name(),
+          strategy :: wpool:strategy() | undefined,
+          call_timeout :: call_timeout()
          }).
 -dialyzer({no_match, start/4}).
 
@@ -37,24 +38,59 @@
 %% Mostly for tests
 -export([expand_pools/2]).
 
--type type() :: redis | riak | http | rdbms | cassandra | elastic | generic
-              | rabbit | ldap.
--type host() :: global | host | jid:lserver().
--type tag() :: atom().
--type name() :: atom().
+-type pool_type() :: redis | riak | http | rdbms | cassandra | elastic | generic
+                     | rabbit | ldap.
 
--export_type([type/0]).
+%% Config scope
+-type scope() :: global | host | mongooseim:host_type().
+-type host_type_or_global() :: mongooseim:host_type() | global.
+
+-type tag() :: atom().
+%% Name of a process
+-type proc_name() :: atom().
+
+%% ID of a pool. Used as a key for an ETS table
+-type pool_name() :: {PoolType :: pool_type(),
+                      HostType :: host_type_or_global(),
+                      Tag :: tag()}.
+
+-type pool_opts() :: [wpool:option()].
+-type conn_opts() :: [{atom(), any()}].
+
+-type pool_tuple_in() :: {PoolType :: pool_type(),
+                          HostType :: scope(),
+                          Tag :: tag(),
+                          WpoolOpts :: pool_opts(),
+                          ConnOpts :: conn_opts()}.
+%% Pool tuple with expanded HostType argument
+-type pool_tuple() :: {PoolType :: pool_type(),
+                       %% does not contain `host' atom
+                       HostType :: host_type_or_global(),
+                       Tag :: tag(),
+                       WpoolOpts :: pool_opts(),
+                       ConnOpts :: conn_opts()}.
+-type worker_result() :: {ok, pid()} | {error, pool_not_started}.
+-type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_not_started}.
+-type start_result() :: {ok, pid()} | {error, term()}.
+-type stop_result() :: ok | term().
+
+-export_type([pool_type/0]).
 -export_type([tag/0]).
--export_type([host/0]).
--export_type([name/0]).
+-export_type([scope/0]).
+-export_type([proc_name/0]).
+-export_type([pool_opts/0]).
+-export_type([conn_opts/0]).
+-export_type([host_type_or_global/0]).
+
+-type callback_fun() :: init | start | default_opts | is_supported_strategy | stop.
 
 -callback init() -> ok | {error, term()}.
--callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
+-callback start(scope(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
     {external, pid()} | {error, Reason :: term()}.
--callback default_opts() -> proplist:proplists().
+-callback default_opts() -> conn_opts().
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
--callback stop(host(), tag()) -> ok.
+-callback stop(scope(), tag()) -> ok.
 
 -optional_callbacks([default_opts/0, is_supported_strategy/1]).
 
@@ -83,50 +119,58 @@ start_configured_pools() ->
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
-    start_configured_pools(PoolsIn, ?MYHOSTS).
+    start_configured_pools(PoolsIn, ?ALL_HOST_TYPES).
 
-start_configured_pools(PoolsIn, Hosts) ->
-    [call_callback(init, Type, []) || Type <- get_unique_types(PoolsIn)],
-    Pools = expand_pools(PoolsIn, Hosts),
+start_configured_pools(PoolsIn, HostTypes) ->
+    [call_callback(init, PoolType, []) || PoolType <- get_unique_types(PoolsIn)],
+    Pools = expand_pools(PoolsIn, HostTypes),
     [start(Pool) || Pool <- Pools].
 
-start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
-    start(Type, Host, Tag, PoolOpts, ConnOpts).
+-spec start(pool_tuple()) -> start_result().
+start({PoolType, HostType, Tag, PoolOpts, ConnOpts}) ->
+    start(PoolType, HostType, Tag, PoolOpts, ConnOpts).
 
+-spec start(pool_type(), pool_opts()) -> start_result().
+start(PoolType, PoolOpts) ->
+    start(PoolType, global, PoolOpts).
 
-start(Type, PoolOpts) ->
-    start(Type, global, PoolOpts).
+-spec start(pool_type(), host_type_or_global(), pool_opts()) -> start_result().
+start(PoolType, HostType, PoolOpts) ->
+    start(PoolType, HostType, default, PoolOpts).
 
-start(Type, Host, PoolOpts) ->
-    start(Type, Host, default, PoolOpts).
+-spec start(pool_type(), host_type_or_global(), tag(),
+            pool_opts()) -> start_result().
+start(PoolType, HostType, Tag, PoolOpts) ->
+    start(PoolType, HostType, Tag, PoolOpts, []).
 
-start(Type, Host, Tag, PoolOpts) ->
-    start(Type, Host, Tag, PoolOpts, []).
-
-start(Type, Host, Tag, PoolOpts, ConnOpts) ->
+-spec start(pool_type(), host_type_or_global(), tag(),
+            pool_opts(), conn_opts()) -> start_result().
+start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts = lists:append(Opts0) ++ default_opts(Type),
+    Opts = lists:append(Opts0) ++ default_opts(PoolType),
     Strategy = proplists:get_value(strategy, Opts, best_worker),
     CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
-
     %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
-    CallbackModule = make_callback_module_name(Type),
+    CallbackModule = make_callback_module_name(PoolType),
     case catch CallbackModule:is_supported_strategy(Strategy) of
         false ->
-            error({strategy_not_supported, Type, Host, Tag, Strategy});
+            error({strategy_not_supported, PoolType, HostType, Tag, Strategy});
         _ ->
-            start(Type, Host, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout)
+            start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout)
     end.
 
-start(Type, Host, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
-    case mongoose_wpool_mgr:start(Type, Host, Tag, WpoolOptsIn, ConnOpts) of
+-spec start(pool_type(), host_type_or_global(), tag(),
+            pool_opts(), conn_opts(), wpool:strategy(), call_timeout()) ->
+    start_result().
+start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
+    case mongoose_wpool_mgr:start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts) of
         {ok, Pid} ->
-            ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag},
+            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag},
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),
             {ok, Pid};
         {external, Pid} ->
-            ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag}}),
+            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag}}),
             {ok, Pid};
         Error ->
             Error
@@ -138,52 +182,63 @@ start(Type, Host, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
 %% 1. We want to have a full control of all the pools and its restarts
 %% 2. When a pool is started via wpool:start_pool it's supposed be called by a supervisor,
 %%    if not, there is no way to stop the pool.
--spec start_sup_pool(type(), name(), [wpool:option()]) ->
+-spec start_sup_pool(pool_type(), proc_name(), [wpool:option()]) ->
     {ok, pid()} | {error, term()}.
-start_sup_pool(Type, Name, WpoolOpts) ->
-    SupName = mongoose_wpool_type_sup:name(Type),
-    ChildSpec = #{id => Name,
-                  start => {wpool, start_pool, [Name, WpoolOpts]},
+start_sup_pool(PoolType, ProcName, WpoolOpts) ->
+    SupName = mongoose_wpool_type_sup:name(PoolType),
+    ChildSpec = #{id => ProcName,
+                  start => {wpool, start_pool, [ProcName, WpoolOpts]},
                   restart => temporary,
                   type => supervisor,
                   modules => [wpool]},
     supervisor:start_child(SupName, ChildSpec).
 
+-spec stop() -> term().
 stop() ->
-    [ stop(Type, Host, Tag) || {Type, Host, Tag} <- get_pools() ].
+    [stop_pool(PoolName) || PoolName <- get_pools()].
 
-stop(Type) ->
-    stop(Type, global).
+-spec stop_pool(pool_name()) -> stop_result().
+stop_pool({PoolType, HostType, Tag}) ->
+    stop(PoolType, HostType, Tag).
 
-stop(Type, Host) ->
-    stop(Type, Host, default).
+-spec stop(pool_type()) -> stop_result().
+stop(PoolType) ->
+    stop(PoolType, global).
 
-stop(Type, Host, Tag) ->
+-spec stop(pool_type(), host_type_or_global()) -> stop_result().
+stop(PoolType, HostType) ->
+    stop(PoolType, HostType, default).
+
+-spec stop(pool_type(), host_type_or_global(), tag()) -> stop_result().
+stop(PoolType, HostType, Tag) ->
     try
-        ets:delete(?MODULE, {Type, Host, Tag}),
-        call_callback(stop, Type, [Host, Tag]),
-        mongoose_wpool_mgr:stop(Type, Host, Tag)
+        ets:delete(?MODULE, {PoolType, HostType, Tag}),
+        call_callback(stop, PoolType, [HostType, Tag]),
+        mongoose_wpool_mgr:stop(PoolType, HostType, Tag)
     catch
         C:R:S ->
             ?LOG_ERROR(#{what => pool_stop_failed,
-                         pool_type => Type, server => Host, pool_tag => Tag,
-                         pool_key => {Type, Host, Tag},
+                         pool_type => PoolType, server => HostType, pool_tag => Tag,
+                         pool_key => {PoolType, HostType, Tag},
                          class => C, reason => R, stacktrace => S})
     end.
 
--spec is_configured(type()) -> boolean().
-is_configured(Type) ->
+-spec is_configured(pool_type()) -> boolean().
+is_configured(PoolType) ->
     Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
-    lists:keymember(Type, 1, Pools).
+    lists:keymember(PoolType, 1, Pools).
 
-get_worker(Type) ->
-    get_worker(Type, global).
+-spec get_worker(pool_type()) -> worker_result().
+get_worker(PoolType) ->
+    get_worker(PoolType, global).
 
-get_worker(Type, Host) ->
-    get_worker(Type, Host, default).
+-spec get_worker(pool_type(), host_type_or_global()) -> worker_result().
+get_worker(PoolType, HostType) ->
+    get_worker(PoolType, HostType, default).
 
-get_worker(Type, Host, Tag) ->
-    case get_pool(Type, Host, Tag) of
+-spec get_worker(pool_type(), host_type_or_global(), tag()) -> worker_result().
+get_worker(PoolType, HostType, Tag) ->
+    case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
             Worker = wpool_pool:Strategy(make_pool_name(Pool)),
             {ok, whereis(Worker)};
@@ -191,117 +246,128 @@ get_worker(Type, Host, Tag) ->
             Err
     end.
 
-call(Type, Request) ->
-    call(Type, global, Request).
+call(PoolType, Request) ->
+    call(PoolType, global, Request).
 
-call(Type, Host, Request) ->
-    call(Type, Host, default, Request).
+call(PoolType, HostType, Request) ->
+    call(PoolType, HostType, default, Request).
 
-call(Type, Host, Tag, Request) ->
-    case get_pool(Type, Host, Tag) of
+call(PoolType, HostType, Tag, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{strategy = Strategy, call_timeout = CallTimeout} = Pool} ->
             wpool:call(make_pool_name(Pool), Request, Strategy, CallTimeout);
         Err ->
             Err
     end.
 
-call(Type, Host, Tag, HashKey, Request) ->
-    case get_pool(Type, Host, Tag) of
+call(PoolType, HostType, Tag, HashKey, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{call_timeout = CallTimeout} = Pool} ->
             wpool:call(make_pool_name(Pool), Request, {hash_worker, HashKey}, CallTimeout);
         Err ->
             Err
     end.
 
-cast(Type, Request) ->
-    cast(Type, global, Request).
+cast(PoolType, Request) ->
+    cast(PoolType, global, Request).
 
-cast(Type, Host, Request) ->
-    cast(Type, Host, default, Request).
+cast(PoolType, HostType, Request) ->
+    cast(PoolType, HostType, default, Request).
 
-cast(Type, Host, Tag, Request) ->
-    case get_pool(Type, Host, Tag) of
+cast(PoolType, HostType, Tag, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
             wpool:cast(make_pool_name(Pool), Request, Strategy);
         Err ->
             Err
     end.
 
-cast(Type, Host, Tag, HashKey, Request) ->
-    case get_pool(Type, Host, Tag) of
+cast(PoolType, HostType, Tag, HashKey, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
         {ok, #mongoose_wpool{} = Pool} ->
             wpool:cast(make_pool_name(Pool), Request, {hash_worker, HashKey});
         Err ->
             Err
     end.
 
-get_pool_settings(Type, Host, Tag) ->
-    case get_pool(Type, Host, Tag) of
-        {ok, PoolOpts} -> PoolOpts;
+-spec get_pool_settings(pool_type(), host_type_or_global(), tag()) ->
+    #mongoose_wpool{} | undefined.
+get_pool_settings(PoolType, HostType, Tag) ->
+    case get_pool(PoolType, HostType, Tag) of
+        {ok, PoolRec} -> PoolRec;
         {error, pool_not_started} -> undefined
     end.
 
+-spec get_pools() -> [pool_name()].
 get_pools() ->
     lists:map(fun(#mongoose_wpool{name = Name}) -> Name end, ets:tab2list(?MODULE)).
 
-stats(Type, Host, Tag) ->
-    wpool:stats(make_pool_name(Type, Host, Tag)).
+stats(PoolType, HostType, Tag) ->
+    wpool:stats(make_pool_name(PoolType, HostType, Tag)).
 
--spec make_pool_name(type(), host(), tag()) -> atom().
-make_pool_name(Type, Host, Tag) when is_atom(Host) ->
-    make_pool_name(Type, atom_to_binary(Host, utf8), Tag);
-make_pool_name(Type, Host, Tag) when is_binary(Host) ->
-    binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(Type, utf8))/binary, $$,
-                     Host/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
+-spec make_pool_name(pool_type(), scope(), tag()) -> proc_name().
+make_pool_name(PoolType, HostType, Tag) when is_atom(HostType) ->
+    make_pool_name(PoolType, atom_to_binary(HostType, utf8), Tag);
+make_pool_name(PoolType, HostType, Tag) when is_binary(HostType) ->
+    binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(PoolType, utf8))/binary, $$,
+                     HostType/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
-make_pool_name(#mongoose_wpool{name = {Type, Host, Tag}}) ->
-    make_pool_name(Type, Host, Tag).
+make_pool_name(#mongoose_wpool{name = {PoolType, HostType, Tag}}) ->
+    make_pool_name(PoolType, HostType, Tag).
 
-call_start_callback(Type, Args) ->
-    call_callback(start, Type, Args).
+-spec call_start_callback(pool_type(), list()) -> term().
+call_start_callback(PoolType, Args) ->
+    call_callback(start, PoolType, Args).
 
-call_callback(Name, Type, Args) ->
+-spec call_callback(callback_fun(), pool_type(), list()) -> term().
+call_callback(CallbackFun, PoolType, Args) ->
     try
-        CallbackModule = make_callback_module_name(Type),
-        erlang:apply(CallbackModule, Name, Args)
+        CallbackModule = make_callback_module_name(PoolType),
+        erlang:apply(CallbackModule, CallbackFun, Args)
     catch E:R:ST ->
           ?LOG_ERROR(#{what => pool_callback_failed,
-                       pool_type => Type, callback_function => Name,
+                       pool_type => PoolType, callback_function => CallbackFun,
                        error => E, reason => R, stacktrace => ST}),
-          {error, {callback_crashed, Name, E, R, ST}}
+          {error, {callback_crashed, CallbackFun, E, R, ST}}
     end.
 
--spec make_callback_module_name(type()) -> module().
-make_callback_module_name(Type) ->
-    Name = "mongoose_wpool_" ++ atom_to_list(Type),
+-spec make_callback_module_name(pool_type()) -> module().
+make_callback_module_name(PoolType) ->
+    Name = "mongoose_wpool_" ++ atom_to_list(PoolType),
     list_to_atom(Name).
 
-default_opts(Type) ->
-    Mod = make_callback_module_name(Type),
+-spec default_opts(pool_type()) -> conn_opts().
+default_opts(PoolType) ->
+    Mod = make_callback_module_name(PoolType),
     case erlang:function_exported(Mod, default_opts, 0) of
         true -> Mod:default_opts();
         false -> []
     end.
 
-expand_pools(Pools, AllHosts) ->
+-spec expand_pools([pool_tuple_in()], [mongooseim:host_type()]) -> [pool_tuple()].
+expand_pools(Pools, HostTypes) ->
     %% First we select only pools for a specific vhost
-    HostSpecific = [{Type, Host, Tag} ||
-                     {Type, Host, Tag, _, _} <- Pools, is_binary(Host)],
-    %% Then we expand all pools with `host` as Host parameter but using host specific configs
+    HostSpecific = [{PoolType, HostType, Tag} ||
+                     {PoolType, HostType, Tag, _, _} <- Pools,
+                     is_binary(HostType)],
+    %% Then we expand all pools with `host` as HostType parameter but using host specific configs
     %% if they were provided
-    F = fun({Type, host, Tag, WpoolOpts, ConnOpts}) ->
-                [{Type, Host, Tag, WpoolOpts, ConnOpts} || Host <- AllHosts,
-                                                           not lists:member({Type, Host, Tag}, HostSpecific)];
+    F = fun({PoolType, host, Tag, WpoolOpts, ConnOpts}) ->
+                [{PoolType, HostType, Tag, WpoolOpts, ConnOpts} ||
+                 HostType <- HostTypes,
+                 not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]
         end,
     lists:flatmap(F, Pools).
 
+-spec get_unique_types([pool_tuple_in()]) -> [pool_type()].
 get_unique_types(Pools) ->
-    ordsets:to_list(ordsets:from_list([Type || {Type, _, _, _, _} <- Pools])).
+    lists:usort([PoolType || {PoolType, _, _, _, _} <- Pools]).
 
-get_pool(Type, Host, Tag) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [] when is_binary(Host) -> get_pool(Type, global, Tag);
+-spec get_pool(pool_type(), host_type_or_global(), tag()) -> pool_record_result().
+get_pool(PoolType, HostType, Tag) ->
+    case ets:lookup(?MODULE, {PoolType, HostType, Tag}) of
+        [] when is_binary(HostType) -> get_pool(PoolType, global, Tag);
         [] -> {error, pool_not_started};
         [Pool] -> {ok, Pool}
     end.

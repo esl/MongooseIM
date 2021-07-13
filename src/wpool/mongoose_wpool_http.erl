@@ -13,10 +13,11 @@
 -export([start/4, stop/2]).
 -export([get_params/2]).
 
-%% --------------------------------------------------------------
-%% API
-%% --------------------------------------------------------------
+-type path_prefix() :: binary().
+-type request_timeout() :: non_neg_integer().
 
+%% --------------------------------------------------------------
+%% mongoose_wpool callbacks
 init() ->
     case ets:info(?MODULE) of
         undefined ->
@@ -31,28 +32,31 @@ init() ->
             ok
     end.
 
-start(Host, Tag, WpoolOptsIn, ConnOpts) ->
-    Name = mongoose_wpool:make_pool_name(http, Host, Tag),
-    WpoolOpts = wpool_spec(Host, WpoolOptsIn, ConnOpts),
+start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
+    Name = mongoose_wpool:make_pool_name(http, HostType, Tag),
+    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
     case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
         {ok, Pid} ->
-            ets:insert(?MODULE, {{Host, Tag}, PathPrefix, RequestTimeout}),
+            ets:insert(?MODULE, {{HostType, Tag}, PathPrefix, RequestTimeout}),
             {ok, Pid};
         Other ->
             Other
     end.
 
-stop(Host, Tag) ->
-    true = ets:delete(?MODULE, {Host, Tag}),
+stop(HostType, Tag) ->
+    true = ets:delete(?MODULE, {HostType, Tag}),
     ok.
 
--spec get_params(Host :: jid:lserver() | global, Tag :: atom()) ->
-    {ok, PathPrefix :: binary(), RequestTimeout :: non_neg_integer()}
+%% --------------------------------------------------------------
+%% Other API functions
+-spec get_params(HostType :: mongoose_wpool:host_type_or_global(),
+                 Tag :: mongoose_wpool:tag()) ->
+    {ok, PathPrefix :: path_prefix(), RequestTimeout :: request_timeout()}
     | {error, pool_not_started}.
-get_params(Host, Tag) ->
-    case {ets:lookup(?MODULE, {Host, Tag}), Host} of
+get_params(HostType, Tag) ->
+    case {ets:lookup(?MODULE, {HostType, Tag}), HostType} of
         {[], global} -> {error, pool_not_started};
         {[], _} -> get_params(global, Tag);
         {[{_, PathPrefix, RequestTimeout}], _} -> {ok, PathPrefix, RequestTimeout}
@@ -60,9 +64,8 @@ get_params(Host, Tag) ->
 
 %% --------------------------------------------------------------
 %% Internal functions
-%% --------------------------------------------------------------
 
-wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
+wpool_spec(WpoolOptsIn, ConnOpts) ->
     TargetServer = gen_mod:get_opt(server, ConnOpts),
     HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
     Worker = {fusco, {TargetServer, HttpOpts}},

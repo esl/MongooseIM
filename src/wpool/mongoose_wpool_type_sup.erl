@@ -36,14 +36,14 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(mongoose_wpool:type()) ->
+-spec start_link(mongoose_wpool:pool_type()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
-start_link(Type) ->
-    supervisor:start_link({local, name(Type)}, ?MODULE, [Type]).
+start_link(PoolType) ->
+    supervisor:start_link({local, name(PoolType)}, ?MODULE, [PoolType]).
 
--spec name(mongoose_wpool:type()) -> mongoose_wpool:name().
-name(Type) ->
-    list_to_atom("mongoose_wpool_" ++ atom_to_list(Type) ++ "_sup").
+-spec name(mongoose_wpool:pool_type()) -> mongoose_wpool:proc_name().
+name(PoolType) ->
+    list_to_atom("mongoose_wpool_" ++ atom_to_list(PoolType) ++ "_sup").
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -60,19 +60,19 @@ name(Type) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) -> {ok, {#{strategy => one_for_one, intensity => 100, period => 5},
-                                    [#{id := mongoose_wpool:name(),
-                                       start := {mongoose_wpool_mgr, start_link, [mongoose_wpool:type()]},
+                                    [#{id := mongoose_wpool:proc_name(),
+                                       start := {mongoose_wpool_mgr, start_link, [mongoose_wpool:pool_type()]},
                                        restart => transient,
                                        shutdown => brutal_kill,
                                        type => worker,
                                        modules => [module()]}]}}.
-init([Type]) ->
+init([PoolType]) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 100,
                  period => 5},
 
-    ChildSpec = #{id => mongoose_wpool_mgr:name(Type),
-                  start => {mongoose_wpool_mgr, start_link, [Type]},
+    ChildSpec = #{id => mongoose_wpool_mgr:name(PoolType),
+                  start => {mongoose_wpool_mgr, start_link, [PoolType]},
                   restart => transient,
                   shutdown => brutal_kill,
                   type => worker,
