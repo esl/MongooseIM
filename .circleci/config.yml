@@ -76,6 +76,13 @@ commands:
       - save_cache:
           key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           paths: ~/app/_build/prod/rel/mongooseim
+  restore_prod_build:
+    steps:
+      - run:
+          name: Prepare for cache
+          command: echo $ERLANG_VERSION > otp_version
+      - restore_cache:
+          key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
   persist_workspace:
     steps:
       - run: git gc
@@ -332,28 +339,18 @@ jobs:
       - upload_results_to_aws
       - publish_github_comment
 
+  # #########################
+  # jobs in docker containers
   docker_image:
     parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    working_directory: ~/app
+    executor: << parameters.executor >>
     parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package installed
-    environment:
+      executor:
+        type: executor
     steps:
       - checkout
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_cache:
-          keys:
-            - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          keys:
-            - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+      - setup_remote_docker
+      - restore_prod_build
       - run:
           name: Execute Docker image build and upload
           command: tools/circle-build-and-push-docker.sh
@@ -403,7 +400,6 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
-  # jobs in docker containers
   build_in_docker:
     executor: << parameters.executor >>
     parameters:
@@ -678,8 +674,8 @@ workflows:
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
           name: docker_build_and_ship
+          executor: otp_23
           context: mongooseim-org
-          otp_package: 23.0.3-1
           requires:
             - ldap_mnesia_23
             - pgsql_mnesia
