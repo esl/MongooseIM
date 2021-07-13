@@ -61,9 +61,6 @@ commands:
             sudo apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
   maybe_build_deps_and_cache:
     steps:
-      - run:
-          name: Prepare for cache
-          command: echo $ERLANG_VERSION && echo $ERLANG_VERSION > otp_version
       - restore_cache:
           name: Maybe restore all rebar3 dependencies
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
@@ -102,9 +99,6 @@ commands:
           paths: ~/app/_build/prod/rel/mongooseim
   restore_prod_build:
     steps:
-      - run:
-          name: Prepare for cache
-          command: echo $ERLANG_VERSION > otp_version
       - restore_cache:
           key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
   persist_workspace:
@@ -116,9 +110,7 @@ commands:
   restore_workspace:
     steps:
       - attach_workspace: {at: ~/app}
-      - run:
-          name: Prepare for cache
-          command: echo $ERLANG_VERSION > otp_version
+      - prepare_for_cache
       - restore_cache:
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
   install_dockerize:
@@ -198,20 +190,21 @@ commands:
             echo '127.0.0.1 localhost.bis' | sudo tee -a /etc/hosts
             echo '127.0.0.1 localhost' | sudo tee -a /etc/hosts
   restore_all_caches:
-    parameters: {otp_package: {type: string}}
+    steps:
+      - restore_cache:
+          name: Restore build artifacts
+          key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+      - restore_cache:
+          name: Restore deps artifacts
+          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+      - restore_cache:
+          name: Restore certificates
+          key: certs-cache
+  prepare_for_cache:
     steps:
       - run:
           name: Prepare for cache
-          command: echo <<parameters.otp_package>> > otp_version
-      - restore_cache:
-          name: Restore build artifacts
-          keys: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          name: Restore deps artifacts
-          keys: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          name: Restore cache
-          key: certs-cache
+          command: echo $ERLANG_VERSION > otp_version
 
 jobs:
   build:
@@ -286,7 +279,11 @@ jobs:
       - fetch_packages
       - install_erlang:
           otp_package: <<parameters.otp_package>>
-      - restore_all_caches: {otp_package: <<parameters.otp_package>> }
+      - run:
+          name: Prepare for cache
+          command: |
+            echo <<parameters.otp_package>> > otp_version
+      - restore_all_caches
       - run:
           name: Run Small Tests
           command: |
@@ -336,7 +333,11 @@ jobs:
       - fetch_packages
       - install_erlang:
           otp_package: <<parameters.otp_package>>
-      - restore_all_caches: {otp_package: <<parameters.otp_package>> }
+      - run:
+          name: Prepare for cache
+          command: |
+            echo <<parameters.otp_package>> > otp_version
+      - restore_all_caches
       - run:
           name: Setup database
           command: |
@@ -372,6 +373,7 @@ jobs:
         type: executor
     steps:
       - checkout
+      - prepare_for_cache
       - setup_remote_docker
       - restore_prod_build
       - run:
@@ -438,6 +440,7 @@ jobs:
       SKIP_COV: 0
     steps:
       - checkout
+      - prepare_for_cache
       - fetch_build_packages
       - maybe_build_deps_and_cache
       - maybe_build_certs
