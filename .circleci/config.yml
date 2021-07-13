@@ -216,30 +216,6 @@ jobs:
           command: |
               tools/circle-publish-github-comment.sh
 
-  package:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    working_directory: ~/app
-    parameters:
-      platform:
-        type: enum
-        enum: [centos_7, debian_stretch]
-        description: Platform type
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    environment:
-      pkg_PLATFORM: <<parameters.platform>>
-      ESL_ERLANG_PKG_VER: <<parameters.otp_package>>
-      PRESET: pkg
-    steps:
-      - checkout
-      - run:
-          name: Build package
-          command: |
-            KEEP_COVER_RUNNING=1 ./tools/test.sh -p pkg -s false
-
   big_tests:
     parallelism: 1
     machine:
@@ -445,6 +421,31 @@ jobs:
           command: |
             SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
 
+  package:
+    parallelism: 1
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+      platform:
+        type: enum
+        enum: [centos_7, debian_stretch]
+        description: Platform type
+      otp_package:
+        type: string
+        description: Version of the Erlang package to install
+    environment:
+      pkg_PLATFORM: <<parameters.platform>>
+      ESL_ERLANG_PKG_VER: <<parameters.otp_package>>
+      PRESET: pkg
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build package
+          command: |
+            KEEP_COVER_RUNNING=1 ./tools/test.sh -p pkg -s false
+
 filters: &all_tags
   tags:
     only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
@@ -470,15 +471,17 @@ workflows:
       # ============= PACKAGES =============
       - package:
           name: centos_7
+          executor: otp_23
           platform: centos_7
-          otp_package: 22.3.4.9-1
           context: mongooseim-org
+          otp_package: 23.1-1
           filters: *all_tags
       - package:
           name: debian_stretch
+          executor: otp_23
           platform: debian_stretch
-          otp_package: 22.3.4.9-1
           context: mongooseim-org
+          otp_package: 23.1-1
           filters: *all_tags
       # ============= BASE BUILDS =============
       - build:
