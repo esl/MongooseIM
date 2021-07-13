@@ -197,6 +197,21 @@ commands:
             echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
             echo '127.0.0.1 localhost.bis' | sudo tee -a /etc/hosts
             echo '127.0.0.1 localhost' | sudo tee -a /etc/hosts
+  restore_all_caches:
+    parameters: {otp_package: {type: string}}
+    steps:
+      - run:
+          name: Prepare for cache
+          command: echo <<parameters.otp_package>> > otp_version
+      - restore_cache:
+          name: Restore build artifacts
+          keys: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+      - restore_cache:
+          name: Restore deps artifacts
+          keys: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+      - restore_cache:
+          name: Restore cache
+          key: certs-cache
 
 jobs:
   build:
@@ -271,16 +286,7 @@ jobs:
       - fetch_packages
       - install_erlang:
           otp_package: <<parameters.otp_package>>
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_cache:
-          keys: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          keys: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          key: certs-cache
+      - restore_all_caches: {otp_package: <<parameters.otp_package>> }
       - run:
           name: Run Small Tests
           command: |
@@ -330,16 +336,7 @@ jobs:
       - fetch_packages
       - install_erlang:
           otp_package: <<parameters.otp_package>>
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_cache:
-          keys: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          keys: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          key: certs-cache
+      - restore_all_caches: {otp_package: <<parameters.otp_package>> }
       - run:
           name: Setup database
           command: |
