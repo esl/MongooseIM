@@ -78,8 +78,8 @@ run_initial_check(Acc) ->
     To = mongoose_acc:to_jid(Acc),
     Result = case amp:extract_requested_rules(Packet) of
                  none -> nothing_to_do;
-                 {rules, Rules} -> validate_and_process_rules(Packet, From, Rules);
-                 {errors, Errors} -> send_errors_and_drop(Packet, From, Errors)
+                 {rules, Rules} -> validate_and_process_rules(Packet, From, Rules, Acc);
+                 {errors, Errors} -> send_errors_and_drop(Packet, From, Errors, Acc)
              end,
     case Result of
         nothing_to_do ->
@@ -93,23 +93,23 @@ run_initial_check(Acc) ->
                                          to_jid => To}, Acc1)
     end.
 
--spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules()) -> amp_rules() | drop.
-validate_and_process_rules(Packet, From, Rules) ->
+-spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) -> amp_rules() | drop.
+validate_and_process_rules(Packet, From, Rules, Acc) ->
     VerifiedRules = verify_support(host(From), Rules),
     {Good, Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
     ValidRules = [ Rule || {supported, Rule} <- Good ],
     case Bad of
         [{error, ValidationError, InvalidRule} | _] ->
-            send_error_and_drop(Packet, From, ValidationError, InvalidRule);
+            send_error_and_drop(Packet, From, ValidationError, InvalidRule, Acc);
         [] ->
-            process_rules(Packet, From, initial_check, ValidRules)
+            process_rules(Packet, From, initial_check, ValidRules, Acc)
     end.
 
 -spec process_event(mongoose_acc:t(), amp_rules(), amp_event()) -> mongoose_acc:t().
 process_event(Acc, Rules, Event) when Event =/= initial_check ->
     Packet = mongoose_acc:element(Acc),
     From = mongoose_acc:from_jid(Acc),
-    NewRules = process_rules(Packet, From, Event, Rules),
+    NewRules = process_rules(Packet, From, Event, Rules, Acc),
     mongoose_acc:set_permanent(amp, rules, NewRules, Acc).
 
 -spec amp_features(binary()) -> [mongoose_disco:feature()].
@@ -129,13 +129,13 @@ amp_feature_suffixes() ->
      <<"?condition=deliver">>,
      <<"?condition=match-resource">>].
 
--spec process_rules(exml:element(), jid:jid(), amp_event(), amp_rules()) -> amp_rules() | drop.
-process_rules(Packet, From, Event, Rules) ->
+-spec process_rules(exml:element(), jid:jid(), amp_event(), amp_rules(), mongoose_acc:t()) -> amp_rules() | drop.
+process_rules(Packet, From, Event, Rules, Acc) ->
     Strategy = determine_strategy(Packet, From, Event),
     RulesWithResults = apply_rules(fun(Rule) ->
                                            resolve_condition(From, Strategy, Event, Rule)
                                    end, Rules),
-    PacketResult = take_action(Packet, From, RulesWithResults),
+    PacketResult = take_action(Packet, From, RulesWithResults, Acc),
     return_result(PacketResult, Event, RulesWithResults).
 
 %% @doc hooks helpers
@@ -161,11 +161,11 @@ match_undecided_for_final_event(#amp_rule{condition = deliver}, Event, undecided
        Event =:= delivery_failed -> match;
 match_undecided_for_final_event(_, _, Result) -> Result.
 
--spec take_action(exml:element(), jid:jid(), amp_rules()) -> pass | drop.
-take_action(Packet, From, Rules) ->
+-spec take_action(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) -> pass | drop.
+take_action(Packet, From, Rules, Acc) ->
     case find(fun(#amp_rule{result = Result}) -> Result =:= match end, Rules) of
         not_found -> pass;
-        {found, Rule} -> take_action_for_matched_rule(Packet, From, Rule)
+        {found, Rule} -> take_action_for_matched_rule(Packet, From, Rule, Acc)
     end.
 
 return_result(drop, initial_check, _Rules) -> drop;
@@ -174,43 +174,43 @@ return_result(pass, _Event, Rules) ->
                          Result =:= undecided
                  end, Rules).
 
--spec take_action_for_matched_rule(exml:element(), jid:jid(), amp_rule()) -> pass | drop.
-take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule) ->
+-spec take_action_for_matched_rule(exml:element(), jid:jid(), amp_rule(), mongoose_acc:t()) -> pass | drop.
+take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, _) ->
     Host = host(From),
     reply_to_sender(Rule, server_jid(From), From, Packet),
     mongoose_hooks:amp_notify_action_triggered(Host),
     pass;
-take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule) ->
-    send_error_and_drop(Packet, From, 'undefined-condition', Rule);
-take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}) ->
-    update_metric_and_drop(Packet, From).
+take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule, Acc) ->
+    send_error_and_drop(Packet, From, 'undefined-condition', Rule, Acc);
+take_action_for_matched_rule(Packet, From, #amp_rule{action = drop}, Acc) ->
+    update_metric_and_drop(Packet, From, Acc).
 
 -spec reply_to_sender(amp_rule(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 reply_to_sender(MatchedRule, ServerJid, OriginalSender, OriginalPacket) ->
     Response = amp:make_response(MatchedRule, OriginalSender, OriginalPacket),
     ejabberd_router:route(ServerJid, OriginalSender, Response).
 
--spec send_error_and_drop(exml:element(), jid:jid(), amp_error(), amp_rule()) -> drop.
-send_error_and_drop(Packet, From, AmpError, MatchedRule) ->
-    send_errors_and_drop(Packet, From, [{AmpError, MatchedRule}]).
+-spec send_error_and_drop(exml:element(), jid:jid(), amp_error(), amp_rule(), mongoose_acc:t()) -> drop.
+send_error_and_drop(Packet, From, AmpError, MatchedRule, Acc) ->
+    send_errors_and_drop(Packet, From, [{AmpError, MatchedRule}], Acc).
 
--spec send_errors_and_drop(exml:element(), jid:jid(), [{amp_error(), amp_rule()}]) -> drop.
-send_errors_and_drop(Packet, From, []) ->
+-spec send_errors_and_drop(exml:element(), jid:jid(), [{amp_error(), amp_rule()}], mongoose_acc:t()) -> drop.
+send_errors_and_drop(Packet, From, [], Acc) ->
     ?LOG_ERROR(#{what => empty_list_of_errors_generated,
                  text => <<"This shouldn't happen!">>,
                  exml_packet => Packet, from => From}),
-    update_metric_and_drop(Packet, From);
-send_errors_and_drop(Packet, From, ErrorRules) ->
+    update_metric_and_drop(Packet, From, Acc);
+send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
     Host = host(From),
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
     ejabberd_router:route(server_jid(From), From, ErrorResponse),
     mongoose_hooks:amp_error_action_triggered(Host),
-    update_metric_and_drop(Packet, From).
+    update_metric_and_drop(Packet, From, Acc).
 
--spec update_metric_and_drop(exml:element(), jid:jid()) -> drop.
-update_metric_and_drop(Packet, From) ->
-    mongoose_hooks:xmpp_stanza_dropped(host(From), From,
+-spec update_metric_and_drop(exml:element(), jid:jid(), mongoose_acc:t()) -> drop.
+update_metric_and_drop(Packet, From, Acc) ->
+    mongoose_hooks:xmpp_stanza_dropped(Acc, From,
                                        message_target(Packet),
                                        Packet),
     drop.
