@@ -497,19 +497,10 @@ workflows:
     jobs:
       # ============================================
       # ============= IN DOCKER EXECUTORS =============
-      # ======== BASE DOCKER BUILDS ========
-      - build_in_docker:
-          name: otp_23_docker
-          executor: otp_23
+      # ============= DOCUMENTATION =============
+      - docs_build_deploy:
+          name: build_and_deploy_docs
           context: mongooseim-org
-          build_prod: true
-      # ============= DIALYZER =============
-      - dialyzer:
-          name: dialyzer
-          executor: otp_23
-          context: mongooseim-org
-          requires:
-            - otp_23_docker
           filters: *all_tags
       # ============= PACKAGES =============
       - package:
@@ -525,6 +516,20 @@ workflows:
           platform: debian_stretch
           context: mongooseim-org
           otp_package: 23.1-1
+          filters: *all_tags
+      # ======== BASE DOCKER BUILDS ========
+      - build_in_docker:
+          name: otp_23_docker
+          executor: otp_23
+          context: mongooseim-org
+          build_prod: true
+      # ============= DIALYZER =============
+      - dialyzer:
+          name: dialyzer
+          executor: otp_23
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
           filters: *all_tags
       # ============= SMALL TESTS =============
       - small_tests_in_docker:
@@ -688,9 +693,4 @@ workflows:
             - small_tests_22
             - small_tests_21_3
             - small_tests_23
-          filters: *all_tags
-      # ============= DOCUMENTATION =============
-      - docs_build_deploy:
-          name: build_and_deploy_docs
-          context: mongooseim-org
           filters: *all_tags
