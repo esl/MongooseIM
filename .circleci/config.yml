@@ -13,6 +13,17 @@ executors:
     docker:
       - image: *OTP23
       - image: circleci/redis:6.0.5
+  otp_23_redis_minio_rmq:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
+      - image: minio/minio:latest
+        environment:
+          - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+          - MINIO_SECRET_KEY: "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"
+        command: ["server", "/data"]
+      - image: rabbitmq:3.7-alpine
 
 commands:
   install_erlang:
@@ -161,6 +172,31 @@ commands:
           when: always
           command: |
               tools/circle-publish-github-comment.sh
+  maybe_prepare_minio:
+    steps:
+      - run:
+          name: Install minio client, prepare minio
+          environment:
+            - MINIO_HOSTNAME: "mongooseim-minio"
+            - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+            - MINIO_SECRET_KEY: "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"
+            - MINIO_BUCKET: "mybucket"
+          command: |
+            if [[ "$DB" == *minio* ]]; then
+                curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/mc -o ./mc
+                chmod +x ./mc
+                ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+                ./mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET}
+                ./mc policy set download "${MINIO_HOSTNAME}/${MINIO_BUCKET}"
+            fi
+  prepare_etc_hosts:
+    steps:
+      - run:
+          name: Prepare /etc/hosts
+          command: |
+            echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+            echo '127.0.0.1 localhost.bis' | sudo tee -a /etc/hosts
+            echo '127.0.0.1 localhost' | sudo tee -a /etc/hosts
 
 jobs:
   build:
@@ -440,6 +476,56 @@ jobs:
       - upload_results_to_aws
       - publish_github_comment
 
+  big_tests_in_docker:
+    executor: << parameters.executor >>
+    parallelism: 1
+    parameters:
+      executor:
+        type: executor
+      preset:
+        type: enum
+        enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
+        description: Preset to run
+        default: internal_mnesia
+      db:
+        type: string
+        description: Database to use
+        default: mnesia
+      tls_dist:
+        type: boolean
+        description: Erlang distribution with TLS enabled
+        default: false
+    environment:
+      PRESET: <<parameters.preset>>
+      DB: <<parameters.db>>
+      TLS_DIST: <<parameters.tls_dist>>
+      ELASTICSEARCH_VERSION: 5.6.9
+      CASSANDRA_VERSION: 3.9
+      REDIS_VERSION: 3.2.10
+    steps:
+      - restore_workspace
+      - install_dockerize
+      - dockerize_wait: {port: 6379} # Wait for redis
+      - dockerize_wait: {port: 5672} # Wait for rmq
+      - maybe_prepare_minio
+      - prepare_etc_hosts
+      - run:
+          name: Run Big Tests
+          command: |
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p $PRESET -s false
+          no_output_timeout: 40m
+      - run_coverage_analysis
+      - run:
+          name: Build Failed - Logs
+          when: on_fail
+          command: |
+            echo "Failure!"
+            if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+            tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
+      - upload_results_to_aws
+      - publish_github_comment
+
   dialyzer:
     executor: << parameters.executor >>
     parameters:
@@ -530,6 +616,17 @@ workflows:
           requires:
             - otp_23_docker
           filters: *all_tags
+      # ============= BIG TESTS =============
+      - big_tests_in_docker:
+          name: internal_mnesia
+          executor: otp_23_redis_minio_rmq
+          context: mongooseim-org
+          preset: internal_mnesia
+          db: "mnesia minio"
+          tls_dist: true
+          requires:
+            - otp_23_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= BASE BUILDS =============
@@ -584,16 +681,6 @@ workflows:
           otp_package: 23.0.3-1
           preset: odbc_mssql_mnesia
           db: mssql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: internal_mnesia
-          otp_package: 23.0.3-1
-          preset: internal_mnesia
-          db: "mnesia minio"
-          tls_dist: true
           context: mongooseim-org
           requires:
             - otp_23
