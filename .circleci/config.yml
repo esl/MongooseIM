@@ -8,6 +8,11 @@ executors:
     working_directory: ~/app
     docker:
       - image: *OTP23
+  otp_23_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - image: circleci/redis:6.0.5
 
 commands:
   install_erlang:
@@ -85,6 +90,57 @@ commands:
           command: echo $ERLANG_VERSION > otp_version
       - restore_cache:
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+  install_dockerize:
+    steps:
+      - run:
+          name: Install dockerize
+          command: |
+            wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+            sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+            rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.6.1
+  dockerize_wait:
+    parameters: {port: {type: integer}}
+    steps:
+      - run:
+          name: Wait for port << parameters.port >>
+          command: dockerize -wait tcp://localhost:<< parameters.port >> -timeout 60s
+  fetch_coverage_packages:
+    steps:
+      - run:
+          name: Install pip3 and codecov packages
+          command: |
+            sudo killall -9 apt-get || true && \
+            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+            sudo apt-get update && \
+            sudo apt-get install python3-pip -y && \
+            pip3 install codecov && codecov
+  run_coverage_analysis:
+    steps:
+      - fetch_coverage_packages
+      - run:
+          name: Coverage
+          when: on_success
+          command: |
+            echo "Success!"
+            ./rebar3 codecov analyze
+            codecov --disable=gcov --env PRESET
+  upload_results_to_aws:
+    steps:
+      - run:
+          name: Upload results
+          when: always
+          command: |
+              tools/circleci-prepare-log-dir.sh
+              if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+  publish_github_comment:
+    steps:
+      - run:
+          name: Publish a comment to GitHub
+          when: always
+          command: |
+              tools/circle-publish-github-comment.sh
 
 jobs:
   build:
@@ -196,25 +252,9 @@ jobs:
           name: Run Small Tests
           command: |
             SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
-      - run:
-          name: Coverage
-          when: on_success
-          command: |
-            echo "Success!"
-            pip3 install codecov && codecov
-            ./rebar3 codecov analyze
-            codecov --disable=gcov --env PRESET
-      - run:
-          name: Upload results
-          when: always
-          command: |
-              tools/circleci-prepare-log-dir.sh
-              if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
-      - run:
-          name: Publish a comment to GitHub
-          when: always
-          command: |
-              tools/circle-publish-github-comment.sh
+      - run_coverage_analysis
+      - upload_results_to_aws
+      - publish_github_comment
 
   big_tests:
     parallelism: 1
@@ -279,14 +319,7 @@ jobs:
           command: |
             SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p $PRESET -s false
           no_output_timeout: 40m
-      - run:
-          name: Coverage
-          when: on_success
-          command: |
-            echo "Success!"
-            pip3 install codecov && codecov
-            ./rebar3 codecov analyze
-            codecov --disable=gcov --env PRESET
+      - run_coverage_analysis
       - run:
           name: Build Failed - Logs
           when: on_fail
@@ -296,17 +329,8 @@ jobs:
             if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
             tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
             tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
-      - run:
-          name: Upload results
-          when: always
-          command: |
-              tools/circleci-prepare-log-dir.sh
-              if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
-      - run:
-          name: Publish a comment to GitHub
-          when: always
-          command: |
-              tools/circle-publish-github-comment.sh
+      - upload_results_to_aws
+      - publish_github_comment
 
   docker_image:
     parallelism: 1
@@ -379,6 +403,7 @@ jobs:
                   pip3 install mike
                   mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
 
+  # jobs in docker containers
   build_in_docker:
     executor: << parameters.executor >>
     parameters:
@@ -407,6 +432,26 @@ jobs:
           name: Build Big Tests
           command: tools/build-tests.sh
       - persist_workspace
+
+  small_tests_in_docker:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    environment:
+      PRESET: small_tests
+    steps:
+      - restore_workspace
+      - install_dockerize
+      - dockerize_wait: {port: 6379}
+      - run:
+          name: Run Small Tests
+          command: |
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
+      - run_coverage_analysis
+      - upload_results_to_aws
+      - publish_github_comment
 
   dialyzer:
     executor: << parameters.executor >>
@@ -454,6 +499,8 @@ workflows:
   version: 2
   build_and_test:
     jobs:
+      # ============================================
+      # ============= IN DOCKER EXECUTORS =============
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
           name: otp_23_docker
@@ -483,6 +530,16 @@ workflows:
           context: mongooseim-org
           otp_package: 23.1-1
           filters: *all_tags
+      # ============= SMALL TESTS =============
+      - small_tests_in_docker:
+          name: small_tests_23
+          executor: otp_23_redis
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      # ============================================
+      # ============= IN VM EXECUTORS ==============
       # ============= BASE BUILDS =============
       - build:
           name: otp_21_3
@@ -515,13 +572,6 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_22
-          filters: *all_tags
-      - small_tests:
-          name: small_tests_23
-          otp_package: 23.0.3-1
-          context: mongooseim-org
-          requires:
-            - otp_23
           filters: *all_tags
       # ============= XREF =============
       - xref:
