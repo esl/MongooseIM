@@ -158,10 +158,6 @@ jobs:
       otp_package:
         type: string
         description: Version of the Erlang package to install
-      build_prod:
-        type: boolean
-        description: When enabled, prod release will be generated besides the dev ones
-        default: false
     environment:
       SKIP_RELEASE: 1
       SKIP_COV: 0
@@ -196,12 +192,6 @@ jobs:
       - run:
           name: Generate development releases
           command: ./tools/build-releases.sh
-      - run:
-          name: Generate prod release
-          command: |
-            # We cannot reuse releases generated in the previous step, because they are
-            # built with dev_mode enabled (so they use symlinks for deps)
-            if [ <<parameters.build_prod>> ]; then make rel; fi
       - run:
           name: Build Big Tests
           command: |
@@ -407,6 +397,7 @@ jobs:
         type: executor
       build_prod:
         type: boolean
+        description: When enabled, prod release will be generated besides the dev ones
         default: false
     parallelism: 1
     environment:
@@ -550,13 +541,11 @@ workflows:
       - build:
           name: otp_22
           otp_package: 22.3.4.9-1
-          build_prod: true
           context: mongooseim-org
           filters: *all_tags
       - build:
           name: otp_23
           otp_package: 23.0.3-1
-          build_prod: true
           context: mongooseim-org
           filters: *all_tags
       # ============= SMALL TESTS =============
