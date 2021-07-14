@@ -24,7 +24,7 @@
 -include("mongoose.hrl").
 
 -type hook_name() :: atom().
--type hook_tag() :: any().
+-type hook_tag() :: mongoose:host_type() | global.
 
 %% while Accumulator is not limited to any type, it's recommended to use maps.
 -type hook_acc() :: any().
@@ -218,7 +218,8 @@ error_running_hook(Reason, Handler, Acc, Params) ->
 
 -spec make_hook_handler(hook_tuple()) -> #hook_handler{}.
 make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
-        when is_atom(HookName), is_function(Function, 3), is_map(Extra),
+        when is_atom(HookName), is_binary(Tag) or (Tag =:= global),
+             is_function(Function, 3), is_map(Extra),
              is_integer(Priority), Priority > 0 ->
     NewExtra = extend_extra(HookTuple),
     {Module, FunctionName} = check_hook_function(Function),
@@ -263,7 +264,12 @@ hook_key(HookName, Tag) ->
 
 -spec extend_extra(hook_tuple()) -> hook_extra().
 extend_extra({HookName, Tag, _Function, OriginalExtra, _Priority}) ->
-    ExtraExtension = #{hook_name => HookName, hook_tag => Tag},
+    ExtraExtension = case Tag of
+                         global -> #{hook_name => HookName, hook_tag => Tag};
+                         HostType when is_binary(HostType) ->
+                             #{hook_name => HookName, hook_tag => Tag,
+                               host_type => HostType}
+                     end,
     %% KV pairs of the OriginalExtra map will remain unchanged,
     %% only the new keys from the ExtraExtension map will be added
     %% to the NewExtra map

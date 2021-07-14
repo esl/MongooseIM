@@ -3,8 +3,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(HOOK_TAG1, some_tag).
--define(HOOK_TAG2, another_tag).
+-define(HOOK_TAG1, global).
+-define(HOOK_TAG2, <<"some tag">>).
 
 -define(assertEqualLists(L1, L2), ?assertEqual(lists:sort(L1), lists:sort(L2))).
 
@@ -67,7 +67,8 @@ single_handler_can_be_added_and_removed(_) ->
     AllHandlers = [{{calculate, ?HOOK_TAG1}, Tag1Handlers},
                    {{calculate, ?HOOK_TAG2},
                     [{hook_handler, {calculate, ?HOOK_TAG2}, 1, mod1, plus,
-                      #{hook_name => calculate, hook_tag => ?HOOK_TAG2, id => 1}}]}],
+                      #{hook_name => calculate, hook_tag => ?HOOK_TAG2,
+                        host_type =>?HOOK_TAG2, id => 1}}]}],
     ?assertEqualLists(AllHandlers, get_handlers_for_all_hooks()),
     %% try to add some hook handler second time and check that nothing has changed
     ?assertEqual(ok, gen_hook:add_handler(calculate, ?HOOK_TAG1, MultiplyHandlerFn,
@@ -114,7 +115,8 @@ multiple_handlers_can_be_added_and_removed(_) ->
     AllHandlers = [{{calculate, ?HOOK_TAG1}, Tag1Handlers},
                    {{calculate, ?HOOK_TAG2},
                     [{hook_handler, {calculate, ?HOOK_TAG2}, 1, mod1, plus,
-                      #{hook_name => calculate, hook_tag => ?HOOK_TAG2, id => 1}}]}],
+                      #{hook_name => calculate, hook_tag => ?HOOK_TAG2,
+                        host_type =>?HOOK_TAG2, id => 1}}]}],
     ?assertEqualLists(AllHandlers, get_handlers_for_all_hooks()),
     %% try to add hook handlers second time and check that nothing has changed
     ?assertEqual(ok, gen_hook:add_handlers(HookHandlers)),
@@ -191,7 +193,8 @@ invalid_hook_handler_parameters_causes_error(_) ->
     HandlerFn = fun ?MODULE:hook_handler_stop/3,
     InvalidHookHandlers = [{calculate, ?HOOK_TAG1, HandlerFn, invalid_extra_param, 2},
                            {<<"invalid hook name">>, ?HOOK_TAG1, HandlerFn, #{}, 2},
-                           {calculate, ?HOOK_TAG1, HandlerFn, #{}, invalid_priority}],
+                           {calculate, ?HOOK_TAG1, HandlerFn, #{}, invalid_priority},
+                           {calculate, invalid_hook_tag, HandlerFn, #{}, 2}],
     [?assertError(function_clause, gen_hook:add_handlers([HookHandler]))
      || HookHandler <- InvalidHookHandlers],
     ?assertEqual([], get_handlers_for_all_hooks()).
@@ -286,7 +289,7 @@ errors_in_handlers_are_reported_but_ignored(_) ->
     ?assertEqual(true, meck:called(gen_hook, error_running_hook,
                                    [{some_error, '_'},
                                     {hook_handler, {calculate, ?HOOK_TAG1}, 3, mod1, error,
-                                     #{hook_name => calculate, hook_tag => some_tag}},
+                                     #{hook_name => calculate, hook_tag => ?HOOK_TAG1}},
                                     6, #{n => 2}])),
     %% check hook handlers execution sequence
     Self = self(),
