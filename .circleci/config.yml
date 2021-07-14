@@ -244,25 +244,6 @@ jobs:
           key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           paths: ./
 
-  xref:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    working_directory: ~/app
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    steps:
-      - checkout
-      - fetch_packages
-      - install_erlang:
-          otp_package: <<parameters.otp_package>>
-      - run:
-          name: Run Xref
-          command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p xref_only -s false
-
   small_tests:
     parallelism: 1
     machine:
@@ -539,6 +520,19 @@ jobs:
           command: |
             SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
 
+  xref:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Xref
+          command: |
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p xref_only -s false
+
   package:
     parallelism: 1
     executor: << parameters.executor >>
@@ -608,6 +602,14 @@ workflows:
           requires:
             - otp_23_docker
           filters: *all_tags
+      # ============= XREF =============
+      - xref:
+          name: xref
+          executor: otp_23
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
+          filters: *all_tags
       # ============= SMALL TESTS =============
       - small_tests_in_docker:
           name: small_tests_23
@@ -659,12 +661,6 @@ workflows:
           context: mongooseim-org
           requires:
             - otp_22
-          filters: *all_tags
-      # ============= XREF =============
-      - xref:
-          name: xref
-          otp_package: 23.0.3-1
-          context: mongooseim-org
           filters: *all_tags
       # ============= MOST RECENT VERSION TESTS =============
       - big_tests:
@@ -766,6 +762,7 @@ workflows:
             - mysql_redis
             - mssql_mnesia
             - dialyzer
+            - xref
             - small_tests_22
             - small_tests_21_3
             - small_tests_23
