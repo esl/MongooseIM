@@ -26,7 +26,10 @@
 -module(cyrsasl_plain).
 -author('alexey@process-one.net').
 
--export([mechanism/0, mech_new/3, mech_step/2, parse/1]).
+-export([mechanism/0, mech_new/3, mech_step/2]).
+
+-ignore_xref([mech_new/3]).
+
 -behaviour(cyrsasl).
 
 -include("mongoose.hrl").

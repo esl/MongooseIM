@@ -42,6 +42,13 @@
     user_sessions_info/2
     ]).
 
+-ignore_xref([
+    commands/0, num_resources/2, resource_num/3, kick_session/2, kick_session/4,
+    prepare_reason/1, status_num/2, status_num/1, status_list/2, status_list/1,
+    connected_users_info/0, connected_users_info/1, set_presence/7,
+    user_sessions_info/2
+]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").

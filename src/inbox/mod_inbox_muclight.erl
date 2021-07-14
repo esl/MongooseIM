@@ -16,6 +16,8 @@
 
 -export([handle_outgoing_message/5, handle_incoming_message/5]).
 
+-ignore_xref([{mod_inbox_backend, remove_inbox_row, 2}]).
+
 -type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().

@@ -13,6 +13,9 @@
          unset_nick/3
         ]).
 
+-ignore_xref([can_use_nick/4, forget_room/3, get_nick/3, get_rooms/2, init/2,
+              restore_room/3, set_nick/4, store_room/4, unset_nick/3]).
+
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
 %% Defines which RDBMS pool to use

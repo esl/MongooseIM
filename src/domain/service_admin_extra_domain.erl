@@ -6,6 +6,10 @@
          enable_domain/1,
          disable_domain/1]).
 
+-ignore_xref([
+    commands/0, insert_domain/2, delete_domain/2, enable_domain/1, disable_domain/1
+]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").

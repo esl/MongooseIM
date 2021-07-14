@@ -7,6 +7,8 @@
          stop_iq_handler/1,
          handle/5]).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback register_iq_handler(Domain :: jid:server(), Namespace :: binary(),
                               IQHandler :: mongoose_iq_handler:t()) -> ok.
 

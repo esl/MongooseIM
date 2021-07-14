@@ -36,6 +36,13 @@
          privacy_list_push/5
         ]).
 
+-ignore_xref([auth_failed/3, privacy_check_packet/5, privacy_iq_get/5, privacy_iq_set/4,
+             privacy_list_push/5, register_user/3, remove_user/3, roster_get/2,
+             roster_in_subscription/5, roster_push/3, roster_set/4,
+             sm_register_connection_hook/5, sm_remove_connection_hook/5,
+             user_receive_packet/5, user_send_packet/4, xmpp_bounce_message/1,
+             xmpp_send_element/2, xmpp_stanza_dropped/4]).
+
 %%-------------------
 %% Implementation
 %%-------------------

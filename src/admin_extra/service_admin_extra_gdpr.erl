@@ -9,6 +9,8 @@
 % Exported for RPC call
 -export([retrieve_logs/2, get_data_from_modules/2]).
 
+-ignore_xref([commands/0, retrieve_all/3, retrieve_logs/2, get_data_from_modules/2]).
+
 -define(CMD_TIMEOUT, 300000).
 
 -spec commands() -> [ejabberd_commands:cmd()].
@@ -45,7 +47,7 @@ retrieve_all(Username, Domain, ResultFilePath) ->
                 DataToWrite),
 
             LogFiles = get_all_logs(Username, Domain, TmpDir),
-            
+
             ZipFile = binary_to_list(ResultFilePath),
             {ok, ZipFile} = zip:create(ZipFile, CsvFiles ++ LogFiles, [{cwd, TmpDir}]),
             remove_tmp_dir(TmpDir),

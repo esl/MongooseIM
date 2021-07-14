@@ -1,4 +1,7 @@
 -module(mod_muc_db).
+
+-ignore_xref([behaviour_info/1]).
+
 -include("mod_muc.hrl").
 
 %% Defines which RDBMS pool to use

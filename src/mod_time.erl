@@ -12,6 +12,8 @@
 
 -export([start/2, stop/1, config_spec/0, process_local_iq/4]).
 
+-ignore_xref([process_local_iq/4]).
+
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").

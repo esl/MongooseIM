@@ -34,6 +34,8 @@
 
 -export([get_mam_pm_gdpr_data/3]).
 
+-ignore_xref([remove_archive/4]).
+
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
 -include("mod_mam.hrl").

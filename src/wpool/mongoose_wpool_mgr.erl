@@ -36,6 +36,8 @@
          terminate/2,
          code_change/3]).
 
+-ignore_xref([start_link/1]).
+
 -include("mongoose.hrl").
 -include("mongoose_logger.hrl").
 

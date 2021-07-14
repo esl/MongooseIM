@@ -29,6 +29,10 @@
 -export([dedup_state_opts/1,
          add_dep_modules/1]).
 
+-ignore_xref([allow_override_all/1, allow_override_local_only/1, behaviour_info/1,
+              get_opts/1, override_acls/1, override_global/1, override_local/1,
+              state_to_global_opt/3, state_to_host_types/1, state_to_hosts/1]).
+
 -callback parse_file(FileName :: string()) -> state().
 
 -include("mongoose.hrl").

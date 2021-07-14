@@ -36,6 +36,8 @@
 -export_type([id/0]).
 -export_type([query/0]).
 
+-ignore_xref([health/0]).
+
 -include("mongoose.hrl").
 
 -define(POOL_NAME, mongoose_wpool:make_pool_name(elastic, global, default)).

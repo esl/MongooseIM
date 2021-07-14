@@ -15,6 +15,8 @@
 -export([from_json/2]).
 -export([encode/2]).
 
+-ignore_xref([from_json/2, to_json/2, trails/0]).
+
 -import(mongoose_client_api_messages, [maybe_integer/1, maybe_before_to_us/2]).
 
 -include("mongoose.hrl").

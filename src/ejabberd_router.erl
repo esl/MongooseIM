@@ -65,6 +65,14 @@
 %% debug exports for tests
 -export([update_tables/0]).
 
+-ignore_xref([{mod_routing_machine, get_routing_module_list, 0},
+              dirty_get_all_domains/1, dirty_get_all_routes/0, dirty_get_all_routes/1,
+              register_component/2, register_component/3, register_component/4,
+              register_components/2, register_components/3, register_routes/2,
+              route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
+              unregister_component/1, unregister_component/2, unregister_components/2,
+              unregister_routes/1, update_tables/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("route.hrl").

@@ -6,6 +6,8 @@
 
 -export([commands/0, get_urls/5]).
 
+-ignore_xref([commands/0, get_urls/5]).
+
 -define(CMD_TIMEOUT, 300000).
 
 -spec commands() -> [ejabberd_commands:cmd()].

@@ -28,6 +28,9 @@
 %% Debug
 -export([get_enabled_endpoints/1, get_disabled_endpoints/1]).
 
+-ignore_xref([close_disabled/1, force_refresh/1, get_disabled_endpoints/1,
+              get_enabled_endpoints/1, get_state_info/1, start_link/2]).
+
 -type endpoint() :: mod_global_distrib_utils:endpoint().
 -type endpoint_pid_tuple() :: {endpoint(), pid()}.
 

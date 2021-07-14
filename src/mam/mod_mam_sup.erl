@@ -24,6 +24,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-ignore_xref([start_link/0]).
+
 -define(SERVER, ?MODULE).
 
 %%%===================================================================

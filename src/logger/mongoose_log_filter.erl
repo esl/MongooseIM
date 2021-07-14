@@ -9,6 +9,10 @@
 -export([remove_fields_filter/2]).
 -export([filter_module/2]).
 
+-ignore_xref([filter_module/2, format_acc_filter/2, format_c2s_state_filter/2,
+              format_packet_filter/2, format_stacktrace_filter/2, format_term_filter/2,
+              preserve_acc_filter/2, remove_fields_filter/2]).
+
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
 -include("ejabberd_c2s.hrl").

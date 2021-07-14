@@ -33,6 +33,8 @@
     stats/1, stats/2
     ]).
 
+-ignore_xref([commands/0, stats/1, stats/2]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 

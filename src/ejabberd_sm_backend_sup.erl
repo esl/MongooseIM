@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
-%%% @author Konrad Kaplita 
+%%% @author Konrad Kaplita
 %%% @copyright (C) 2011, Konrad Kaplita
 %%% @doc
 %%%
 %%% @end
-%%% Created : 18 Nov 2011 by Konrad Kaplita 
+%%% Created : 18 Nov 2011 by Konrad Kaplita
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_backend_sup).
 
@@ -15,6 +15,8 @@
 
 %% Supervisor callbacks
 -export([init/1]).
+
+-ignore_xref([start_link/0]).
 
 -define(SERVER, ?MODULE).
 

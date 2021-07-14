@@ -33,6 +33,10 @@
          global_metrics/1
 ]).
 
+-ignore_xref([available_metrics/1, global_metric/1, global_metrics/1, handle_get/2,
+              handle_options/2, host_type_metric/1, host_type_metrics/1, prefix/0,
+              routes/0, sum_metric/1, sum_metrics/1]).
+
 %%--------------------------------------------------------------------
 %% mongoose_api callbacks
 %%--------------------------------------------------------------------

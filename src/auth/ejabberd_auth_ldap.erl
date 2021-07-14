@@ -52,6 +52,8 @@
 -export([check_password/4,
          check_password/6]).
 
+-ignore_xref([start_link/1]).
+
 -include("mongoose.hrl").
 -include("eldap.hrl").
 

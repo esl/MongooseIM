@@ -26,8 +26,9 @@
 -author('alexey@process-one.net').
 -author('konrad.zemek@erlang-solutions.com').
 
--export([create/2, create/3]).
--export([backend_module/2]).
+-export([create/2, backend_module/2, create/3]).
+
+-ignore_xref([create/2, backend_module/2, behaviour_info/1]).
 
 %% Callback implemented by proxy modules.
 -callback backend() -> module().

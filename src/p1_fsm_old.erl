@@ -134,6 +134,14 @@
          system_code_change/4,
          format_status/2]).
 
+-ignore_xref([
+    start/3, start/4, start_link/3, start_link/4, send_event/2, sync_send_event/2, sync_send_event/3,
+    send_all_state_event/2, sync_send_all_state_event/2, sync_send_all_state_event/3,
+    reply/2, start_timer/2, send_event_after/2, cancel_timer/1,
+    enter_loop/4, enter_loop/5, enter_loop/6, wake_hib/7, init_it/6, print_event/3,
+    system_continue/3, system_terminate/4, system_code_change/4, format_status/2, behaviour_info/1
+]).
+
 -import(error_logger, [format/2]).
 
 %%% Internal gen_fsm state

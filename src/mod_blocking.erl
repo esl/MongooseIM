@@ -19,6 +19,8 @@
          disco_local_features/1
         ]).
 
+-ignore_xref([disco_local_features/1, process_iq_get/5, process_iq_set/4]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").

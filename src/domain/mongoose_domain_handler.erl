@@ -17,6 +17,8 @@
 -export([handle_domain/2,
          to_json/2]).
 
+-ignore_xref([cowboy_router_paths/2, handle_domain/2, to_json/2]).
+
 -include("mongoose_logger.hrl").
 -type state() :: map().
 

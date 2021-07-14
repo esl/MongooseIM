@@ -152,6 +152,8 @@
 -export([remove_domain/2,
          node_cleanup/1]).
 
+-ignore_xref([node_cleanup/1, remove_domain/2]).
+
 %% Just a map, used by some hooks as a first argument.
 %% Not mongoose_acc:t().
 -type simple_acc() :: #{}.

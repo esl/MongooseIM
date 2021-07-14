@@ -37,6 +37,12 @@
 -export([server_host_to_muc_host/2]).
 -export([run_forget_room_hook/1]).
 
+-define(MOD_MUC_LIGHT_DB_BACKEND_BACKEN, mod_muc_light_db_backend).
+-ignore_xref([
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_user_rooms_count, 2},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_blocking, 3}
+]).
+
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_muc_light.hrl").

@@ -78,6 +78,7 @@
          error_response/4,
          make_unauthorized_response/2]).
 
+-ignore_xref([reload_dispatches/1]).
 
 %% @doc Reload all ejabberd_cowboy listeners.
 %% When a command is registered or unregistered, the routing paths that

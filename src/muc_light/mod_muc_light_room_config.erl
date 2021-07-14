@@ -31,6 +31,8 @@
 %% Test helpers
 -export([schema_fields/1, schema_reverse_index/1]).
 
+-ignore_xref([schema_fields/1, schema_reverse_find/2, schema_reverse_index/1]).
+
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_muc_light.hrl").
@@ -131,13 +133,13 @@ add_config_schema_field({FieldName, DefaultValue, Key, ValueType} = Definition, 
     case validate_schema_definition(Definition) of
         true ->
             #schema{ fields = Fields0, reverse_index = RevIndex0 } = SchemaAcc,
-            
+
             FieldNameBin = unicode:characters_to_binary(FieldName),
             NormalizedValue = normalize_value(DefaultValue, ValueType),
-            
+
             NFields = Fields0#{ FieldNameBin => { NormalizedValue, Key, ValueType } },
             NRevIndex = RevIndex0#{ Key => FieldNameBin },
-            
+
             SchemaAcc#schema{ fields = NFields, reverse_index = NRevIndex };
         false ->
             error({invalid_schema_definition, Definition})

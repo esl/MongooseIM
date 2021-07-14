@@ -12,6 +12,9 @@
 -export([forbidden_request/3]).
 -export([json_to_map/1]).
 
+-ignore_xref([allowed_methods/2, content_types_provided/2, forbidden_request/3,
+              options/2, to_json/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

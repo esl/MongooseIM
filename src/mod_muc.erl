@@ -71,6 +71,22 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_MUC_DB_BACKEND, mod_muc_db_backend).
+-ignore_xref([
+    {?MOD_MUC_DB_BACKEND, can_use_nick, 4},
+    {?MOD_MUC_DB_BACKEND, forget_room, 3},
+    {?MOD_MUC_DB_BACKEND, get_nick, 3},
+    {?MOD_MUC_DB_BACKEND, get_rooms, 2},
+    {?MOD_MUC_DB_BACKEND, init, 2},
+    {?MOD_MUC_DB_BACKEND, restore_room, 3},
+    {?MOD_MUC_DB_BACKEND, set_nick, 4},
+    {?MOD_MUC_DB_BACKEND, store_room, 4},
+    {?MOD_MUC_DB_BACKEND, unset_nick, 3},
+    can_access_identity/4, can_access_room/4, create_instant_room/6,
+    disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4,
+    online_rooms_number/0, register_room/4, restore_room/3, start_link/2
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").

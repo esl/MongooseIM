@@ -55,6 +55,12 @@
          test_get_addr_port/1,
          get_addr_port/1]).
 
+-ignore_xref([get_addr_port/1, open_socket/2, print_state/1, relay_to_bridge/2,
+              reopen_socket/2, start_link/3, stream_established/2,
+              test_get_addr_port/1, wait_before_retry/2, wait_for_auth_result/2,
+              wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
+              wait_for_stream/2, wait_for_validation/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

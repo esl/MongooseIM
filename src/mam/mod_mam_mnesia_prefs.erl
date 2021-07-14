@@ -22,6 +22,8 @@
          set_prefs/7,
          remove_archive/4]).
 
+-ignore_xref([remove_archive/4, start/2, stop/1, supported_features/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

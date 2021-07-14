@@ -42,6 +42,16 @@
 -export([is_virtual_pubsub_host/3]).
 -export([disable_node/3]).
 
+-define(MOD_EVENT_PUSHER_PUSH_BACKEND, mod_event_pusher_push_backend).
+-ignore_xref([
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 3},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, get_publish_services, 1},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, enable, 4},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 1},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, init, 2},
+    behaviour_info/1, iq_handler/4, remove_user/3
+]).
+
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node() :: binary().

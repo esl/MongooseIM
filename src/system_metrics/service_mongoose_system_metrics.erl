@@ -30,6 +30,8 @@
 
 -export([verify_if_configured/0]).
 
+-ignore_xref([start_link/1]).
+
 -record(system_metrics_state, {report_after, reporter_monitor = none,
                                reporter_pid = none, prev_report = []}).
 

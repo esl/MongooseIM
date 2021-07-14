@@ -51,6 +51,9 @@
 -export([prepared_queries/0, total_count_query_cql/1, test_query_sql/0]).
 -export([test_query/1, test_query/2, total_count_query/2]).
 
+-ignore_xref([behaviour_info/1, prepared_queries/0, test_query/1, test_query/2,
+              test_query_sql/0, total_count_query/2, total_count_query_cql/1]).
+
 %% Types
 -export_type([pool_name/0, query_name/0]).
 -export_type([row/0, rows/0, parameters/0, fold_fun/0, fold_accumulator/0]).

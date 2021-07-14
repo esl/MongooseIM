@@ -36,6 +36,8 @@
 %% Test & debug API
 -export([pause/0, unpause/0]).
 
+-ignore_xref([pause/0, start_link/1, unpause/0]).
+
 -record(state, {
           refresh_interval :: pos_integer(),
           tref :: reference() | undefined

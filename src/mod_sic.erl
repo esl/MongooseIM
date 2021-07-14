@@ -36,6 +36,8 @@
          process_sm_iq/4
         ]).
 
+-ignore_xref([process_local_iq/4, process_sm_iq/4]).
+
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").

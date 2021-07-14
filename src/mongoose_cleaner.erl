@@ -13,6 +13,8 @@
          terminate/2,
          code_change/3]).
 
+-ignore_xref([start_link/0]).
+
 -include("mongoose.hrl").
 
 -define(NODE_CLEANUP_LOCK(Node), {node_cleanup_lock, Node}).

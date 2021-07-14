@@ -38,6 +38,11 @@
 %% Mostly for tests
 -export([expand_pools/2]).
 
+-ignore_xref([behaviour_info/1, call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
+              is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
+              start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
+              stop/1, stop/2]).
+
 -type pool_type() :: redis | riak | http | rdbms | cassandra | elastic | generic
                      | rabbit | ldap.
 

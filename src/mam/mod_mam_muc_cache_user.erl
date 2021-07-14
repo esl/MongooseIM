@@ -14,6 +14,11 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-ignore_xref([cached_archive_id/3, code_change/3, handle_call/3, handle_cast/2,
+              handle_info/2, init/1, remove_archive/4, remove_domain/3, start/2,
+              start_link/1, stop/1, store_archive_id/3, supported_features/0,
+              terminate/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

@@ -34,6 +34,8 @@
          get_subnodes/3, create_node/6,
          delete_node/2]).
 
+-ignore_xref([{mod_pubsub_db_backend, get_parentnodes_tree, 2}]).
+
 -define(DEFAULT_NODETYPE, leaf).
 -define(DEFAULT_PARENTS, []).
 -define(DEFAULT_CHILDREN, []).

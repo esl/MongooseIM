@@ -63,6 +63,11 @@
 
 -export([config_metrics/1]).
 
+-ignore_xref([archive_message_from_ct/1, archive_size/2, delete_archive/2,
+              determine_amp_strategy/5, disco_local_features/1, filter_packet/1,
+              get_personal_data/3, remove_user/3, sm_filter_offline_message/4,
+              user_send_packet/4]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 

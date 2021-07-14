@@ -1,8 +1,8 @@
 %% Copyright (c) 2007
 %%          Mats Cronqvist <mats.cronqvist@ericsson.com>
-%%          Chris Newcombe <chris.newcombe@gmail.com> 
+%%          Chris Newcombe <chris.newcombe@gmail.com>
 %%          Jacob Vorreuter <jacob.vorreuter@gmail.com>
-%% 
+%%
 %% Permission is hereby granted, free of charge, to any person
 %% obtaining a copy of this software and associated documentation
 %% files (the "Software"), to deal in the Software without
@@ -11,10 +11,10 @@
 %% copies of the Software, and to permit persons to whom the
 %% Software is furnished to do so, subject to the following
 %% conditions:
-%% 
+%%
 %% The above copyright notice and this permission notice shall be
 %% included in all copies or substantial portions of the Software.
-%% 
+%%
 %% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 %% EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
 %% OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -28,7 +28,7 @@
 %%% File : dynamic_compile.erl
 %%% Description :
 %%% Authors : Mats Cronqvist <mats.cronqvist@ericsson.com>
-%%%           Chris Newcombe <chris.newcombe@gmail.com> 
+%%%           Chris Newcombe <chris.newcombe@gmail.com>
 %%%           Jacob Vorreuter <jacob.vorreuter@gmail.com>
 %%% TODO :
 %%% - add support for limit include-file depth (and prevent circular references)
@@ -42,6 +42,8 @@
 
 %% API
 -export([from_string/1, from_string/2]).
+
+-ignore_xref([from_string/2]).
 
 -import(lists, [reverse/1, keyreplace/4]).
 

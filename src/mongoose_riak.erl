@@ -35,6 +35,8 @@
 -export([get_index_range/5]).
 -export([get_worker/0]).
 
+-ignore_xref([fetch_type/3, get/3, list_buckets/1, put/2, search/2, update_type/4]).
+
 -compile({no_auto_import, [put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).

@@ -37,6 +37,16 @@
          disco_local_features/1
         ]).
 
+-define(MOD_INBOX_BACKEND, mod_inbox_backend).
+-ignore_xref([
+    {?MOD_INBOX_BACKEND, get_inbox_unread, 2},
+    {?MOD_INBOX_BACKEND, get_inbox, 4},
+    {?MOD_INBOX_BACKEND, remove_domain, 2},
+    {?MOD_INBOX_BACKEND, init, 2},
+    behaviour_info/1, disco_local_features/1, filter_packet/1, get_personal_data/3,
+    inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
+]).
+
 -export([config_metrics/1]).
 
 -type entry_key() :: {LUser :: jid:luser(),

@@ -62,7 +62,7 @@
 %% A command's definition includes specification of it arguments; when
 %% it is called, arguments are check for compatibility. Examples of specs
 %% and compliant arguments:
-%% 
+%%
 %% ```
 %% a single type spec
 %% integer                          2
@@ -205,6 +205,9 @@
          action/1,
          result/1
     ]).
+
+-ignore_xref([check_type/3, func_arity/1, get_command/2, list/3, new/1,
+              register_commands/1, unregister_commands/1, result/1]).
 
 %% @doc creates new command object based on provided proplist
 -spec new(command_properties()) -> t().

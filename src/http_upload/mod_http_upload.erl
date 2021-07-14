@@ -36,6 +36,9 @@
 
 -export([config_metrics/1]).
 
+-ignore_xref([{mod_http_upload_backend, create_slot, 6},
+              behaviour_info/1, disco_local_items/1, process_disco_iq/4, process_iq/4]).
+
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------

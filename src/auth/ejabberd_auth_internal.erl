@@ -53,6 +53,8 @@
 %% Utilities
 -export([dirty_get_registered_users/0]).
 
+-ignore_xref([dirty_get_registered_users/0, scram_passwords/0]).
+
 -include("mongoose.hrl").
 -include("scram.hrl").
 

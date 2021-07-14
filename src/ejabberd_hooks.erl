@@ -50,6 +50,8 @@
 
 -export([error_running_hook/3]).
 
+-ignore_xref([add/4, delete/4, error_running_hook/3, start_link/0]).
+
 -include("mongoose.hrl").
 
 -type hook() :: {HookName :: atom(),

@@ -8,6 +8,8 @@
 -module(mod_muc_light_db).
 -author('piotr.nosek@erlang-solutions.com').
 
+-ignore_xref([behaviour_info/1]).
+
 -include("mod_muc_light.hrl").
 
 -type modify_aff_users_return() :: {ok, OldAffUsers :: aff_users(), NewAffUsers :: aff_users(),

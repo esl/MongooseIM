@@ -5,6 +5,8 @@
 %%% - mam_jid_rfc
 -module(mam_jid).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback encode(jid:jid(), jid:jid()) -> binary().
 -callback decode(jid:jid(), binary()) -> jid:jid().
 

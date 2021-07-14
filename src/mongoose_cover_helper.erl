@@ -19,6 +19,8 @@
 %% API
 -export([start/1, analyze/0, stop/0]).
 
+-ignore_xref([analyze/0, start/1, stop/0]).
+
 -spec start([atom()]) -> list().
 start(Apps) ->
     cover:start(),

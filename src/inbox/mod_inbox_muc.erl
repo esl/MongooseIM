@@ -13,6 +13,8 @@
 
 -export([update_inbox_for_muc/1, start/1, stop/1]).
 
+-ignore_xref([update_inbox_for_muc/1]).
+
 %% User jid example is "alice@localhost"
 -type user_jid() :: jid:jid().
 -type receiver_bare_user_jid() :: user_jid().

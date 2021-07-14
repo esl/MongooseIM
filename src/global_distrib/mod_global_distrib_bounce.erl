@@ -33,6 +33,8 @@
 -export([maybe_store_message/1, reroute_messages/4]).
 -export([bounce_queue_size/0]).
 
+-ignore_xref([bounce_queue_size/0, maybe_store_message/1, reroute_messages/4, start_link/0]).
+
 %%--------------------------------------------------------------------
 %% gen_mod API
 %%--------------------------------------------------------------------

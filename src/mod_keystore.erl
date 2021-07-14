@@ -24,6 +24,14 @@
               key_name/0,
               raw_key/0]).
 
+-define(MOD_KEYSTORE_BACKEND, mod_keystore_backend).
+-ignore_xref([
+    {?MOD_KEYSTORE_BACKEND, get_key, 1},
+    {?MOD_KEYSTORE_BACKEND, init_ram_key, 1},
+    {?MOD_KEYSTORE_BACKEND, init, 2},
+    behaviour_info/1, get_key/2, validate_opts/1
+]).
+
 -include("mod_keystore.hrl").
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").

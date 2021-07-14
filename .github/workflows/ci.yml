@@ -109,6 +109,19 @@ jobs:
           otp-version: ${{matrix.otp}}
       - run: tools/test.sh -p dialyzer_only
 
+  xref:
+    name: xref on OTP ${{matrix.otp}}
+    strategy:
+      matrix:
+        otp: ['23.0.3']
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ErlGang/setup-erlang@v1.0.0
+        with:
+          otp-version: ${{matrix.otp}}
+      - run: tools/test.sh -p xref_only
+
   pkg:
     name: ${{matrix.pkg}} package
     strategy:

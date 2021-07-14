@@ -32,6 +32,8 @@
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 -export([extend_params_with_sender_id/2]).
 
+-ignore_xref([behaviour_info/1, remove_archive/4, remove_domain/3]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 

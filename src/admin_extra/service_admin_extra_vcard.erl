@@ -35,6 +35,8 @@
     set_vcard/5
 ]).
 
+-ignore_xref([commands/0, get_vcard/3, get_vcard/4, set_vcard/5, set_vcard/4, set_vcard/5]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").

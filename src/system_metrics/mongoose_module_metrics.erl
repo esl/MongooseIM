@@ -2,6 +2,8 @@
 
 -export([opts_for_module/3]).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback config_metrics(string()) -> any().
 
 -optional_callbacks([config_metrics/1]).

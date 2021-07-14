@@ -30,6 +30,9 @@
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
 -export([maybe_reroute/1]).
 -export([process_endpoints/1, process_bounce/1]).
+
+-ignore_xref([maybe_reroute/1, remove_metadata/2]).
+
 %%--------------------------------------------------------------------
 %% gen_mod API
 %% See "gen_mod logic" block below in this file

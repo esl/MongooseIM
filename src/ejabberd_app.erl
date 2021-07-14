@@ -30,6 +30,8 @@
 
 -export([start_modules/0, start/2, prep_stop/1, stop/1]).
 
+-ignore_xref([start_modules/0, prep_stop/1]).
+
 -include("mongoose.hrl").
 
 

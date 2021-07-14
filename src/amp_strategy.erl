@@ -9,6 +9,8 @@
 -export([determine_strategy/5,
          null_strategy/0]).
 
+-ignore_xref([determine_strategy/5]).
+
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").

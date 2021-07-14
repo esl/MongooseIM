@@ -64,6 +64,11 @@
 -export([remove_domain/3]).
 -export([does_user_exist/4]).
 
+-ignore_xref([
+    auth_methods/1, auth_modules/1, check_password/4, does_user_exist/4,
+    get_vh_registered_users/2, get_vh_registered_users_number/2,
+    remove_domain/3, start/1, stop/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

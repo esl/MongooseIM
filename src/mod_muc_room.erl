@@ -52,6 +52,8 @@
          terminate/3,
          code_change/4]).
 
+-ignore_xref([initial_state/2, locked_state/2, normal_state/2, start_link/1]).
+
 -import(mongoose_lib, [maps_append/3,
                        maps_foreach/2,
                        pairs_foreach/2,

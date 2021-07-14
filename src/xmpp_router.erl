@@ -13,6 +13,7 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
+-ignore_xref([behaviour_info/1]).
 
 -callback route(From :: jid:jid(), To :: jid:jid(),
                    Acc :: mongoose_acc:t(), Packet :: exml:element()) ->

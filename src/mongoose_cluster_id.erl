@@ -11,6 +11,8 @@
 % For testing purposes only
 -export([clean_table/0]).
 
+-ignore_xref([clean_table/0, get_backend_cluster_id/0]).
+
 -record(mongoose_cluster_id, {key :: atom(), value :: cluster_id()}).
 -type cluster_id() :: binary().
 -type maybe_cluster_id() :: {ok, cluster_id()} | {error, any()}.

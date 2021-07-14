@@ -28,6 +28,13 @@
 %gdpr
 -export([get_mam_pm_gdpr_data/3]).
 
+-define(MOD_MAM_CASSANDRA_ARCH_PARAMS, mod_mam_cassandra_arch_params).
+-ignore_xref([
+    {?MOD_MAM_CASSANDRA_ARCH_PARAMS, pool_name, 0},
+    {?MOD_MAM_CASSANDRA_ARCH_PARAMS, db_message_format, 0},
+    behaviour_info/1, remove_archive/4
+]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 

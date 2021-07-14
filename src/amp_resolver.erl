@@ -6,6 +6,8 @@
          verify_support/2
         ]).
 
+-ignore_xref([check_condition/3, verify_support/2]).
+
 -include("amp.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").

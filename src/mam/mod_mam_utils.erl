@@ -92,6 +92,10 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2]).
 
+-ignore_xref([append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
+              get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
+              maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
+
 %-define(MAM_INLINE_UTILS, true).
 
 -ifdef(MAM_INLINE_UTILS).

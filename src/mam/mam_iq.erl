@@ -17,6 +17,11 @@
 
 -export([lookup_params_with_archive_details/4]).
 
+-ignore_xref([behaviour_info/1, elem_to_end_microseconds/1, elem_to_limit/1,
+              elem_to_start_microseconds/1, elem_to_with_jid/1, fix_rsm/1,
+              form_to_end_microseconds/1, form_to_start_microseconds/1,
+              form_to_with_jid/1, query_to_lookup_params/4]).
+
 -import(mod_mam_utils,
         [maybe_microseconds/1,
          get_one_of_path/2,

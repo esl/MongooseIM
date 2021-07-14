@@ -49,6 +49,16 @@
          get_subnodes/3, create_node/6,
          delete_node/2]).
 
+-define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
+-ignore_xref([
+    {?MOD_PUBSUB_DB_BACKEND, set_node, 1},
+    {?MOD_PUBSUB_DB_BACKEND, get_subnodes, 2},
+    {?MOD_PUBSUB_DB_BACKEND, find_node_by_name, 2},
+    {?MOD_PUBSUB_DB_BACKEND, find_nodes_by_key, 1},
+    {?MOD_PUBSUB_DB_BACKEND, get_subnodes_tree, 2},
+    {?MOD_PUBSUB_DB_BACKEND, find_node_by_id, 1}
+]).
+
 init(_Host, _ServerHost, _Options) ->
     ok.
 
