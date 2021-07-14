@@ -161,7 +161,7 @@ choose_key_by_token_type(_) ->
     ?ae(<<"provision">>, ?TESTED:get_key_for_user(provision, JID)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
-    MAC = base16:encode(crypto:hmac(sha384, <<"unused_key">>, RawToken)),
+    MAC = base16:encode(crypto:mac(hmac, sha384, <<"unused_key">>, RawToken)),
     Token = <<RawToken/bytes, 0, MAC/bytes>>,
     BodyPartsLen = length(binary:split(RawToken, <<0>>, [global])),
     Parts = binary:split(Token, <<0>>, [global]),

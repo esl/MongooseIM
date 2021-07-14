@@ -1,6 +1,12 @@
 #!/usr/bin/env escript
 -mode(compile).
 
+-ifdef(OTP_RELEASE).
+-define(STACKTRACE(C, R, S), C:R:S ->).
+-else.
+-define(STACKTRACE(C, R, S), C:R -> S = erlang:get_stacktrace(),).
+-endif.
+
 main(_) ->
     %% Set current directory to script directory
     file:set_cwd(filename:dirname(escript:script_name())),
@@ -16,9 +22,9 @@ main(_) ->
         pong ->
             io:format("Riak node ~p~n", [RiakNode]),
             try setup_riak_node(RiakNode)
-            catch Class:Reason ->
+            catch ?STACKTRACE(Class, Reason, Stacktrace)
                 %% This script runs inside michalwski/docker-riak, which still uses OTP 20.3
-                Stacktrace = erlang:get_stacktrace(),
+                %Stacktrace = erlang:get_stacktrace(),
                 io:format("Failed ~p:~p~n~p~n", [Class, Reason, Stacktrace]),
                 init:stop(1)
             end,

@@ -67,20 +67,20 @@ enabled() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case pg2:get_members(?GROUP) of
-        Pids when is_list(Pids) ->
+    case pg:get_members(?GROUP) of
+        [] -> ok;
+        Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
-            ok;
-        {error, _Reason} -> ok
+            ok
     end.
 
 %% Does nothing but blocks until every member processes its queue.
 sync() ->
-    case pg2:get_members(?GROUP) of
-        Pids when is_list(Pids) ->
+    case pg:get_members(?GROUP) of
+        [] -> ok;
+        Pids ->
             [gen_server:call(Pid, ping) || Pid <- Pids],
-            ok;
-        {error, _Reason} -> ok
+            ok
     end.
 
 sync_local() ->
@@ -90,8 +90,7 @@ sync_local() ->
 %% Server callbacks
 
 init([]) ->
-    pg2:create(?GROUP),
-    pg2:join(?GROUP, self()),
+    pg:join(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.

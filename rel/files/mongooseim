@@ -177,12 +177,12 @@ case "$1" in
         # however, for debugging, sometimes start_clean.boot is useful:
         FOREGROUNDOPTIONS=""
         case "$1" in
-            console|live)   BOOTFILE="$SCRIPT" ;;
+            console|live)   BOOTFILE="start" ;;
             console_clean)  BOOTFILE=start_clean ;;
             foreground)
                 # start up the release in the foreground for use
                 # by supervision services (e.g. systemd, upstart)
-                BOOTFILE="$SCRIPT"
+                BOOTFILE="start"
                 FOREGROUNDOPTIONS="-noshell -noinput +Bd"
                 ;;
         esac

@@ -179,7 +179,7 @@ node_cleanup(Acc, Node) ->
 key({From, To}, StreamID) ->
     Secret = get_or_generate_secret(),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
-    HMac = crypto:hmac(sha256, SecretHashed, [From, " ", To, " ", StreamID]),
+    HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
 
 %%====================================================================

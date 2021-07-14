@@ -633,8 +633,8 @@ workflows:
       # ============= IN VM EXECUTORS ==============
       # ============= BASE BUILDS =============
       - build:
-          name: otp_21_3
-          otp_package: 21.3.8.17-1
+          name: otp_24
+          otp_package: 24.0.2-1
           context: mongooseim-org
           filters: *all_tags
       - build:
@@ -649,11 +649,11 @@ workflows:
           filters: *all_tags
       # ============= SMALL TESTS =============
       - small_tests:
-          name: small_tests_21_3
-          otp_package: 21.3.8.17-1
+          name: small_tests_24
+          otp_package: 24.0.2-1
           context: mongooseim-org
           requires:
-            - otp_21_3
+            - otp_24
           filters: *all_tags
       - small_tests:
           name: small_tests_22
@@ -740,13 +740,13 @@ workflows:
           filters: *all_tags
       # ============= 2 VERSIONS OLDER TESTS =============
       - big_tests:
-          name: ldap_mnesia_21
-          otp_package: 21.3.8.17-1
+          name: ldap_mnesia_24
+          otp_package: 24.0.2-1
           preset: ldap_mnesia
           db: mnesia
           context: mongooseim-org
           requires:
-            - otp_21_3
+            - otp_24
           filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
@@ -764,6 +764,6 @@ workflows:
             - dialyzer
             - xref
             - small_tests_22
-            - small_tests_21_3
+            - small_tests_24
             - small_tests_23
           filters: *all_tags
