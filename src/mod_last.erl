@@ -36,8 +36,8 @@
          start/2,
          stop/1,
          config_spec/0,
-         process_local_iq/4,
-         process_sm_iq/4,
+         process_local_iq/5,
+         process_sm_iq/5,
          on_presence_update/5,
          store_last_info/4,
          get_last_info/2,
@@ -96,30 +96,33 @@
     LUser   :: jid:luser(),
     LServer :: jid:lserver().
 
--spec start(jid:server(), list()) -> 'ok'.
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), list()) -> 'ok'.
+start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
     gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
-    mod_last_backend:init(Host, Opts),
+    mod_last_backend:init(HostType, Opts),
 
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-        ?NS_LAST, ?MODULE, process_local_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host,
-        ?NS_LAST, ?MODULE, process_sm_iq, IQDisc),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
-    ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50).
+    [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
+        {Component, Fn} <- iq_handlers()],
+    ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
-    ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_LAST),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_LAST).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
+        {Component, _Fn} <- iq_handlers()],
+    ok.
+
+iq_handlers() ->
+    [{ejabberd_local, fun ?MODULE:process_local_iq/5},
+     {ejabberd_sm, fun ?MODULE:process_sm_iq/5}].
+
+hooks(HostType) ->
+    [{remove_user, HostType, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
+     {unset_presence_hook, HostType, ?MODULE, on_presence_update, 50},
+     {session_cleanup, HostType, ?MODULE, session_cleanup, 50}].
 
 %%%
 %%% config_spec
@@ -145,10 +148,9 @@ riak_config_spec() ->
 %%%
 %%% Uptime of ejabberd node
 %%%
--spec process_local_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq())
+-spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map())
         -> {mongoose_acc:t(), jlib:iq()}.
-process_local_iq(_From, _To, Acc,
-    #iq{type = Type, sub_el = SubEl} = IQ) ->
+process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra) ->
     case Type of
         set ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -176,11 +178,11 @@ get_node_uptime() ->
 %%%
 %%% Serve queries about user last online
 %%%
--spec process_sm_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_sm_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_sm_iq(Acc, From, To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     Server = To#jid.lserver,
     {Subscription, _Groups} =
         mongoose_hooks:roster_get_jid_info(Server, To, From),
