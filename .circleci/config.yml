@@ -154,6 +154,17 @@ commands:
             rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
           environment:
             DOCKERIZE_VERSION: v0.6.1
+  maybe_wait_for_container:
+    parameters:
+      db: {type: string}
+      port: {type: integer}
+    steps:
+      - run:
+          name: Maybe wait for container
+          command: |
+            if [[ "$DB" == *<< parameters.db >>* ]]; then
+              dockerize -wait tcp://localhost:<< parameters.port >> -timeout 60s
+            fi
   dockerize_wait:
     parameters: {port: {type: integer}}
     steps:
@@ -584,10 +595,10 @@ jobs:
     steps:
       - restore_workspace
       - install_dockerize
-      - dockerize_wait: {port: 6379} # Wait for redis
-      - dockerize_wait: {port: 5672} # Wait for rmq
-      - maybe_prepare_minio
+      - maybe_wait_for_container: {db: redis, port: 6379} # wait for redis
+      - maybe_wait_for_container: {db: rmq, port: 5672} # wait for rmq
       - prepare_etc_hosts
+      - maybe_prepare_minio
       - maybe_prepare_pgsql
       - maybe_prepare_mysql
       - maybe_prepare_mssql
@@ -724,7 +735,7 @@ workflows:
           executor: otp_24_redis_minio_rmq
           context: mongooseim-org
           preset: internal_mnesia
-          db: "mnesia minio"
+          db: "mnesia redis minio rmq"
           tls_dist: true
           requires:
             - otp_24_docker
