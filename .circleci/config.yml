@@ -25,6 +25,16 @@ executors:
           - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
         command: ["server", "/data"]
       - image: rabbitmq:3.7-alpine
+  otp_24_pgsql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: circleci/postgres:12.5-ram
+        environment:
+          - POSTGRES_PASSWORD: "mongooseim_secret"
+          - POSTGRES_USER: "ejabberd"
+          - POSTGRES_DB: "ejabberd"
 
 commands:
   install_erlang:
@@ -206,6 +216,16 @@ commands:
       - run:
           name: Prepare for cache
           command: echo $ERLANG_VERSION > otp_version
+  maybe_prepare_pgsql:
+    steps:
+      - run:
+         name: maybe configure pgsql
+         command: |
+           if [[ "$DB" == *pgsql* ]]; then
+             sudo apt-get update
+             sudo apt-get install -y postgresql-client-12
+             psql -h 127.0.0.1 -p 5432 -U ejabberd -q -d ejabberd -f priv/pg.sql
+           fi
 
 jobs:
   build:
@@ -492,6 +512,7 @@ jobs:
       - dockerize_wait: {port: 5672} # Wait for rmq
       - maybe_prepare_minio
       - prepare_etc_hosts
+      - maybe_prepare_pgsql
       - run:
           name: Run Big Tests
           command: |
@@ -630,6 +651,15 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: pgsql_mnesia_24
+          executor: otp_24_pgsql
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          db: "pgsql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 22 =============
@@ -751,15 +781,6 @@ workflows:
           otp_package: 24.0-1
           preset: riak_mnesia
           db: riak
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: pgsql_mnesia_24
-          otp_package: 24.0-1
-          preset: pgsql_mnesia
-          db: pgsql
           context: mongooseim-org
           requires:
             - otp_24
