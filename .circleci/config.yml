@@ -35,6 +35,17 @@ executors:
           - POSTGRES_PASSWORD: "mongooseim_secret"
           - POSTGRES_USER: "ejabberd"
           - POSTGRES_DB: "ejabberd"
+  otp_24_mysql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: circleci/mysql:8.0.4-ram
+        environment:
+          - MYSQL_ROOT_PASSWORD: "secret"
+          - MYSQL_PASSWORD: "mongooseim_secret"
+          - MYSQL_USER: "ejabberd"
+          - MYSQL_DATABASE: "ejabberd"
 
 commands:
   install_erlang:
@@ -225,6 +236,23 @@ commands:
              sudo apt-get update
              sudo apt-get install -y postgresql-client-12
              psql -h 127.0.0.1 -p 5432 -U ejabberd -q -d ejabberd -f priv/pg.sql
+           fi
+  maybe_prepare_mysql:
+    steps:
+      - run:
+         name: maybe configure mysql
+         command: |
+           if [[ "$DB" == *mysql* ]]; then
+             sudo apt-get update
+             sudo apt-get install -y default-mysql-client
+             echo "mysql installed, now configuring user"
+             mysql -h 127.0.0.1 --user=root --password=secret \
+               -e "GRANT USAGE ON *.* TO 'ejabberd'@'%'; \
+                   ALTER USER 'ejabberd'@'%';"
+             echo "user configured, now adding his schema"
+             mysql -h 127.0.0.1 --user=ejabberd \
+                                --password=mongooseim_secret \
+                                --database=ejabberd < priv/mysql.sql
            fi
 
 jobs:
@@ -513,6 +541,7 @@ jobs:
       - maybe_prepare_minio
       - prepare_etc_hosts
       - maybe_prepare_pgsql
+      - maybe_prepare_mysql
       - run:
           name: Run Big Tests
           command: |
@@ -660,6 +689,15 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: mysql_redis_24
+          executor: otp_24_mysql
+          context: mongooseim-org
+          preset: mysql_redis
+          db: "mysql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 22 =============
@@ -745,15 +783,6 @@ workflows:
           otp_package: 24.0-1
           preset: ldap_mnesia
           db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: mysql_redis_24
-          otp_package: 24.0-1
-          preset: mysql_redis
-          db: mysql
           context: mongooseim-org
           requires:
             - otp_24
