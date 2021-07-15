@@ -46,6 +46,15 @@ executors:
           - MYSQL_PASSWORD: "mongooseim_secret"
           - MYSQL_USER: "ejabberd"
           - MYSQL_DATABASE: "ejabberd"
+  otp_24_mssql:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: mcr.microsoft.com/mssql/server
+        environment:
+          - ACCEPT_EULA: "y"
+          - SA_PASSWORD: "mongooseim_secret+ESL123"
 
 commands:
   install_erlang:
@@ -254,6 +263,45 @@ commands:
                                 --password=mongooseim_secret \
                                 --database=ejabberd < priv/mysql.sql
            fi
+  maybe_prepare_mssql:
+    steps:
+      - run:
+          name: maybe configure mssql
+          command: |
+            function install_odbc_ini
+            {
+                cat > ~/.odbc.ini \<< EOL
+            [mongoose-mssql]
+            Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+            Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+            Server      = 127.0.0.1
+            Port        = 1433
+            Database    = ejabberd
+            Username    = sa
+            Password    = mongooseim_secret+ESL123
+            Charset     = UTF-8
+            TDS_Version = 7.2
+            client charset = UTF-8
+            server charset = UTF-8
+            EOL
+            }
+            if [[ "$DB" == *mssql* ]]; then
+              install_odbc_ini
+              curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+              curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list \
+                  | sudo tee /etc/apt/sources.list.d/msprod.list
+              sudo apt-get update
+              sudo ACCEPT_EULA=Y apt-get install mssql-tools
+              sudo apt-get install unixodbc-dev unixodbc tdsodbc
+              export PATH="$PATH:/opt/mssql-tools/bin"
+              /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+                  -Q "CREATE DATABASE ejabberd"
+              /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+                  -Q "ALTER DATABASE ejabberd SET READ_COMMITTED_SNAPSHOT ON"
+              /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+                  -d ejabberd \
+                  -i priv/mssql2012.sql
+            fi
 
 jobs:
   build:
@@ -542,6 +590,7 @@ jobs:
       - prepare_etc_hosts
       - maybe_prepare_pgsql
       - maybe_prepare_mysql
+      - maybe_prepare_mssql
       - run:
           name: Run Big Tests
           command: |
@@ -698,6 +747,15 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: mssql_mnesia_24
+          executor: otp_24_mssql
+          context: mongooseim-org
+          preset: odbc_mssql_mnesia
+          db: "mssql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 22 =============
@@ -783,15 +841,6 @@ workflows:
           otp_package: 24.0-1
           preset: ldap_mnesia
           db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: mssql_mnesia_24
-          otp_package: 24.0-1
-          preset: odbc_mssql_mnesia
-          db: mssql
           context: mongooseim-org
           requires:
             - otp_24
