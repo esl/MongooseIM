@@ -4,6 +4,7 @@
 
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
+-include("backward_compatible.hrl").
 
 -define(GROUP, service_domain_db_group).
 -define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
@@ -67,19 +68,21 @@ enabled() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case pg:get_members(?GROUP) of
-        [] -> ok;
-        Pids ->
+    case ?PG_GET_MEMBERS(?GROUP) of
+        [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
+            ok;
+        _ ->
             ok
     end.
 
 %% Does nothing but blocks until every member processes its queue.
 sync() ->
-    case pg:get_members(?GROUP) of
-        [] -> ok;
-        Pids ->
+    case ?PG_GET_MEMBERS(?GROUP) of
+        [_|_] = Pids ->
             [gen_server:call(Pid, ping) || Pid <- Pids],
+            ok;
+        _ ->
             ok
     end.
 
@@ -90,7 +93,7 @@ sync_local() ->
 %% Server callbacks
 
 init([]) ->
-    pg:join(?GROUP, self()),
+    ?PG_JOIN(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.

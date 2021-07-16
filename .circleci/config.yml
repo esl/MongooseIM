@@ -738,6 +738,15 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
+      - big_tests:
+          name: pgsql_mnesia_22
+          otp_package: 22.3.4.9-1
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_22
+          filters: *all_tags
       # ============= MOST RECENT VERSION TESTS OTP 24 =============
       - big_tests:
           name: ldap_mnesia_24
