@@ -633,11 +633,6 @@ workflows:
       # ============= IN VM EXECUTORS ==============
       # ============= BASE BUILDS =============
       - build:
-          name: otp_24
-          otp_package: 24.0.2-1
-          context: mongooseim-org
-          filters: *all_tags
-      - build:
           name: otp_22
           otp_package: 22.3.4.9-1
           context: mongooseim-org
@@ -645,6 +640,11 @@ workflows:
       - build:
           name: otp_23
           otp_package: 23.0.3-1
+          context: mongooseim-org
+          filters: *all_tags
+      - build:
+          name: otp_24
+          otp_package: 24.0.2-1
           context: mongooseim-org
           filters: *all_tags
       # ============= SMALL TESTS =============
@@ -738,12 +738,57 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
-      # ============= 2 VERSIONS OLDER TESTS =============
+      # ============= MOST RECENT VERSION TESTS OTP 24 =============
       - big_tests:
           name: ldap_mnesia_24
           otp_package: 24.0.2-1
           preset: ldap_mnesia
           db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: mysql_redis_24
+          otp_package: 24.0.2-1
+          preset: mysql_redis
+          db: mysql
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: mssql_mnesia_24
+          otp_package: 24.0.2-1
+          preset: odbc_mssql_mnesia
+          db: mssql
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: elasticsearch_and_cassandra_24
+          otp_package: 24.0.2-1
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: riak_mnesia_24
+          otp_package: 24.0.2-1
+          preset: riak_mnesia
+          db: riak
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: pgsql_mnesia_24
+          otp_package: 24.0.2-1
+          preset: pgsql_mnesia
+          db: pgsql
           context: mongooseim-org
           requires:
             - otp_24
@@ -764,6 +809,6 @@ workflows:
             - dialyzer
             - xref
             - small_tests_22
-            - small_tests_24
             - small_tests_23
+            - small_tests_24
           filters: *all_tags
