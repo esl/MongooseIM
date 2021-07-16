@@ -21,6 +21,8 @@
 %% exported for unit tests only
 -export([error_running_hook/4]).
 
+-ignore_xref([start_link/0, add_handlers/1, delete_handlers/1]).
+
 -include("mongoose.hrl").
 
 -type hook_name() :: atom().
