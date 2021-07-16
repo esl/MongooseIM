@@ -37,6 +37,16 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_BOSH_BACKEND, mod_bosh_backend).
+-ignore_xref([
+    {?MOD_BOSH_BACKEND, get_session, 1},
+    {?MOD_BOSH_BACKEND, node_cleanup, 1},
+    {?MOD_BOSH_BACKEND, start, 1},
+    {?MOD_BOSH_BACKEND, create_session, 1},
+    behaviour_info/1, get_session_socket/1, node_cleanup/2, set_inactivity/2,
+    set_max_wait/2, set_server_acks/2, store_session/2
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").

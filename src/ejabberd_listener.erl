@@ -40,6 +40,9 @@
 %% Internal
 -export([format_error/1, socket_error/6, opts_to_listener_args/2]).
 
+-ignore_xref([add_listener/3, delete_listener/2, delete_listener/3, init/1,
+              opts_to_listener_args/2, start_link/0, start_listener/3, stop_listener/2]).
+
 -export_type([port_ip_proto/0]).
 
 -include("mongoose.hrl").

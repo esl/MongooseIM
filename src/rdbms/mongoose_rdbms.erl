@@ -131,6 +131,25 @@
          terminate/2,
          code_change/3]).
 
+-ignore_xref([behaviour_info/1, escape_binary/2, escape_boolean/1, escape_like/1,
+              escape_like_prefix/1, escape_null/0, print_state/1, sql_query_t/1,
+              use_escaped/1, use_escaped_binary/1, use_escaped_boolean/1,
+              use_escaped_like/1, use_escaped_null/1]).
+
+-define(MONGOOSE_RDBMS_BACKEND, mongoose_rdbms_backend).
+-ignore_xref([
+    {?MONGOOSE_RDBMS_BACKEND, unescape_binary, 1},
+    {?MONGOOSE_RDBMS_BACKEND, disconnect, 1},
+    {?MONGOOSE_RDBMS_BACKEND, query, 3},
+    {?MONGOOSE_RDBMS_BACKEND, execute, 4},
+    {?MONGOOSE_RDBMS_BACKEND, prepare, 5},
+    {?MONGOOSE_RDBMS_BACKEND, escape_string, 1},
+    {?MONGOOSE_RDBMS_BACKEND, backend, 0},
+    {?MONGOOSE_RDBMS_BACKEND, escape_binary, 1},
+    {?MONGOOSE_RDBMS_BACKEND, backend_name, 0},
+    {?MONGOOSE_RDBMS_BACKEND, connect, 2}
+]).
+
 %% internal usage
 -export([get_db_info/1]).
 

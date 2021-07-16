@@ -25,6 +25,9 @@
          upstream_uri/1,
          split/4]).
 
+-ignore_xref([{mod_revproxy_dynamic, rules, 0},
+              compile/1, compile_routes/1, match/4, split/4, upstream_uri/1]).
+
 -include("mod_revproxy.hrl").
 
 -record(state, {timeout, length, custom_headers}).

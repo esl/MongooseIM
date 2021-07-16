@@ -8,19 +8,26 @@
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
 
+-ignore_xref([get_riak_opt/3]).
+
+%% --------------------------------------------------------------
+%% mongoose_wpool callbacks
 init() ->
     ok.
 
-start(Host, Tag, WpoolOptsIn, ConnOpts) ->
-    Name = mongoose_wpool:make_pool_name(riak, Host, Tag),
+start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
+    ProcName = mongoose_wpool:make_pool_name(riak, HostType, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
-    mongoose_wpool:start_sup_pool(riak, Name, WpoolOpts).
+    mongoose_wpool:start_sup_pool(riak, ProcName, WpoolOpts).
 
 stop(_, _) ->
     ok.
 
 is_supported_strategy(available_worker) -> false;
 is_supported_strategy(_) -> true.
+
+%% --------------------------------------------------------------
+%% Other functions
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     {_, RiakAddr} = mongoose_wpool_riak:get_riak_opt(address, ConnOpts),

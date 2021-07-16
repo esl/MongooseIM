@@ -1,5 +1,7 @@
 -module(ejabberd_gen_mam_prefs).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback get_behaviour(Default :: mod_mam:archive_behaviour(),
         Host :: jid:server(), ArcID :: mod_mam:archive_id(),
         LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().

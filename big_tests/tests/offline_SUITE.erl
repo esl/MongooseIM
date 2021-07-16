@@ -17,6 +17,8 @@
 -define(AFFILIATION_NS, <<"urn:xmpp:muclight:0#affiliations">>).
 -define(NS_FEATURE_MSGOFFLINE,  <<"msgoffline">>).
 
+-import(domain_helper, [host_type/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -57,16 +59,16 @@ init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
 
 init_per_group(with_groupchat, C) ->
-    Config = dynamic_modules:save_modules(domain(), C),
-    dynamic_modules:ensure_modules(domain(), with_groupchat_modules()),
+    Config = dynamic_modules:save_modules(host_type(), C),
+    dynamic_modules:ensure_modules(host_type(), with_groupchat_modules()),
     Config;
 init_per_group(chatmarkers, C) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         false ->
             {skip, require_rdbms};
         true ->
-            Config = dynamic_modules:save_modules(domain(), C),
-            dynamic_modules:ensure_modules(domain(), chatmarkers_modules()),
+            Config = dynamic_modules:save_modules(host_type(), C),
+            dynamic_modules:ensure_modules(host_type(), chatmarkers_modules()),
             Config
     end;
 init_per_group(_, C) -> C.
@@ -89,12 +91,9 @@ chatmarkers_modules() ->
 
 end_per_group(Group, C) when Group =:= chatmarkers;
                              Group =:= with_groupchat ->
-    dynamic_modules:restore_modules(domain(), C),
+    dynamic_modules:restore_modules(host_type(), C),
     C;
 end_per_group(_, C) -> C.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
 end_per_testcase(Name, C) -> escalus:end_per_testcase(Name, C).
@@ -402,5 +401,5 @@ make_message_with_expiry(Target, Expiry, Text) ->
                                  {<<"seconds">>, ExpiryBin}]},
     Stanza#xmlel{children = [ExpiryElem | Children]}.
 
-repeat(L,0) -> [];
-repeat(L,N) -> L ++ repeat(L, N-1).
+repeat(_L, 0) -> [];
+repeat(L, N) -> L ++ repeat(L, N-1).

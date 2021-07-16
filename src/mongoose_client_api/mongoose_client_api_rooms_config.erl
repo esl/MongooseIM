@@ -12,6 +12,8 @@
 
 -export([from_json/2]).
 
+-ignore_xref([from_json/2, trails/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").

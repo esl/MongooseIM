@@ -23,6 +23,9 @@
          handle_put/3,
          handle_delete/2]).
 
+-ignore_xref([handle_delete/2, handle_get/2, handle_options/2, handle_put/3,
+              prefix/0, routes/0]).
+
 -define(ERROR, {error, unprocessable}).
 
 %%--------------------------------------------------------------------

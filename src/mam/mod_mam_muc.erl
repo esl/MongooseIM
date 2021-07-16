@@ -55,6 +55,11 @@
 -export([archive_message_for_ct/1]).
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
+
+-ignore_xref([archive_id/2, archive_message_for_ct/1, archive_size/2, behaviour_info/1,
+              delete_archive/2, disco_muc_features/1, filter_room_packet/3,
+              forget_room/4, get_personal_data/3, start/2, stop/1, supported_features/0]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -360,7 +365,7 @@ handle_get_prefs(HostType, ArcJID=#jid{}, IQ=#iq{}) ->
     handle_get_prefs_result(ArcJID, Res, IQ).
 
 handle_get_prefs_result(ArcJID, {DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
-    ?LOG_DEBUG(#{what => mam_muc_get_prefs_result, archive_jid => ArcJID, 
+    ?LOG_DEBUG(#{what => mam_muc_get_prefs_result, archive_jid => ArcJID,
                  default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, iq => IQ}),
     ResultPrefsEl = result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, IQ#iq.xmlns),

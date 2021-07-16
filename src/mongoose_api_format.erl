@@ -15,5 +15,7 @@
 %%==============================================================================
 -module(mongoose_api_format).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback serialize(term()) -> iodata().
 -callback deserialize(iodata()) -> term().

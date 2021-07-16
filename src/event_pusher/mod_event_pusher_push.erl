@@ -42,6 +42,16 @@
 -export([is_virtual_pubsub_host/3]).
 -export([disable_node/3]).
 
+-define(MOD_EVENT_PUSHER_PUSH_BACKEND, mod_event_pusher_push_backend).
+-ignore_xref([
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 3},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, get_publish_services, 1},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, enable, 4},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 1},
+    {?MOD_EVENT_PUSHER_PUSH_BACKEND, init, 2},
+    behaviour_info/1, iq_handler/4, remove_user/3
+]).
+
 %% Types
 -type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node() :: binary().
@@ -74,26 +84,31 @@
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec start(Host :: jid:server(), Opts :: list()) -> any().
+-spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
 start(Host, Opts) ->
     ?LOG_INFO(#{what => event_pusher_starting, server => Host}),
-
-    WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
-    {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
-
+    start_pool(Host, Opts),
     gen_mod:start_backend_module(?MODULE, Opts, [enable, disable, get_publish_services]),
     mod_event_pusher_push_backend:init(Host, Opts),
-
     mod_event_pusher_push_plugin:init(Host),
+    init_iq_handlers(Host, Opts),
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 90),
+    ok.
 
+start_pool(Host, Opts) ->
+    WpoolOpts = wpool_opts(Opts),
+    {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts).
+
+-spec wpool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
+wpool_opts(Opts) ->
+    [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])].
+
+init_iq_handlers(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PUSH, ?MODULE,
-                                  iq_handler, IQDisc),
-
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 90),
-    ok.
+                                  iq_handler, IQDisc).
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->

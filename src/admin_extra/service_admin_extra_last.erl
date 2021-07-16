@@ -31,6 +31,8 @@
          set_last/4
         ]).
 
+-ignore_xref([commands/0, set_last/4]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").

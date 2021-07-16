@@ -77,6 +77,9 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
+-ignore_xref([behaviour_info/1, loaded_modules_with_opts/0,
+              loaded_modules_with_opts/1, set_module_opts/3]).
+
 -include("mongoose.hrl").
 
 -record(ejabberd_module, {
@@ -148,11 +151,11 @@ start_module_for_host_type(HostType, Module, Opts0) ->
             false ->
                 %% TODO: grepping for "fail_ci_build=true" is bad option
                 %% for ci testing, rework this.
-                TravisInfo = "fail_ci_build=true ",
+                CIInfo = "fail_ci_build=true ",
                 %% Note for programmers:
                 %% Never call start_link directly from your_module:start/2 function!
                 %% The process will be killed if we start modules remotely or in shell
-                ?LOG_ERROR(#{what => unexpected_links, travis_info => TravisInfo,
+                ?LOG_ERROR(#{what => unexpected_links, ci_info => CIInfo,
                              links_before => LinksBefore, links_after => LinksAfter})
         end,
         ?LOG_DEBUG(#{what => module_started, module => Module, host_type => HostType}),

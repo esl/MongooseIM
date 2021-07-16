@@ -62,6 +62,12 @@
          terminate/4,
          print_state/1]).
 
+-ignore_xref([del_aux_field/2, get_info/1, print_state/1, resume_session/2,
+             resume_session/3, send_text/2, session_established/2, session_established/3,
+             socket_type/0, start_link/2, wait_for_feature_after_auth/2,
+             wait_for_feature_before_auth/2, wait_for_sasl_response/2,
+             wait_for_session_or_sm/2, wait_for_stream/2]).
+
 -include("mongoose.hrl").
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").
@@ -2314,10 +2320,7 @@ process_privacy_iq(Acc, set, To, StateData) ->
 resend_offline_messages(Acc, StateData) ->
     ?LOG_DEBUG(#{what => resend_offline_messages,
                  acc => Acc, c2s_state => StateData}),
-    Acc1 = mongoose_hooks:resend_offline_messages_hook(
-                                   StateData#state.host_type,
-                                   Acc,
-                                   StateData#state.jid),
+    Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, StateData#state.jid),
     Rs = mongoose_acc:get(offline, messages, [], Acc1),
     Acc2 = lists:foldl(
                        fun({route, From, To, MsgAcc}, A) ->

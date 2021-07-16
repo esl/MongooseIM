@@ -63,6 +63,8 @@
          node_to_path/2
         ]).
 
+-ignore_xref([behaviour_info/1, node_to_path/2]).
+
 -export_type([get_item_options/0]).
 
 %% --------------------------------------------------------

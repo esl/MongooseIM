@@ -40,12 +40,12 @@ while getopts ":p:s:e:c:" opt; do
   esac
 done
 
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 
 if [ ${CIRCLECI} ]; then
 source tools/circleci-helpers.sh
 else
-source tools/travis-helpers.sh
+source tools/helpers.sh
 fi
 
 if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
@@ -308,6 +308,13 @@ if [ "$PRESET" == "dialyzer_only" ]; then
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
+elif [ "$PRESET" == "xref_only" ]; then
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  ./rebar3 xref
+  RESULT=$?
+  tools/print-dots.sh stop
+  exit ${RESULT}
 elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM $ESL_ERLANG_PKG_VER
 elif [ "$PRESET" == "small_tests" ]; then
@@ -322,4 +329,3 @@ else
   [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
-

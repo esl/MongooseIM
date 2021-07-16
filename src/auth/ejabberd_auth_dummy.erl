@@ -21,6 +21,8 @@
          supports_sasl_module/2,
          scram_passwords/0]).
 
+-ignore_xref([scram_passwords/0]).
+
 -include("mongoose.hrl").
 
 %%%----------------------------------------------------------------------

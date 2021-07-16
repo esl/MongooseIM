@@ -19,6 +19,8 @@
 
 -export([new/0, put/4, remove/2, find/2, get/2, get/3, handle_info/2]).
 
+-ignore_xref([remove/2, find/2, get/2, get/3]).
+
 -record(monitored_map, {
           map = #{} :: #{term() => {term(), pid(), reference()}},
           monitors = #{} :: #{reference() => term()}

@@ -37,6 +37,8 @@
 
 -export([content_to_nksip_media/1]).
 
+-ignore_xref([content_to_nksip_media/1, intercept_jingle_stanza/2]).
+
 %% this is because nksip has wrong type specs
 -dialyzer({nowarn_function, [translate_to_sip/3,
                              get_proxy_uri/1,

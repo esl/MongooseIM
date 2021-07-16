@@ -38,6 +38,9 @@
 -export([init/1, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-ignore_xref([code_change/3, handle_cast/2, handle_info/2, init/1, queue_length/1,
+              queue_lengths/1, terminate/2]).
+
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
 -define(FLUSH_TIME, [?MODULE, flush_time]).
 -define(DEFAULT_POOL_SIZE, 32).

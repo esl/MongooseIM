@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source tools/travis-helpers.sh
+source tools/helpers.sh
 
 set -euo pipefail
 

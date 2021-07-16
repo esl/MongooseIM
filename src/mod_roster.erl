@@ -71,6 +71,25 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_ROSTER_BACKEND, mod_roster_backend).
+-ignore_xref([
+    {?MOD_ROSTER_BACKEND, del_roster_t, 4},
+    {?MOD_ROSTER_BACKEND, get_roster, 3},
+    {?MOD_ROSTER_BACKEND, get_roster_entry, 6},
+    {?MOD_ROSTER_BACKEND, get_subscription_lists, 3},
+    {?MOD_ROSTER_BACKEND, read_roster_version, 3},
+    {?MOD_ROSTER_BACKEND, remove_user_t, 3},
+    {?MOD_ROSTER_BACKEND, roster_subscribe_t, 2},
+    {?MOD_ROSTER_BACKEND, init, 2},
+    {?MOD_ROSTER_BACKEND, transaction, 2},
+    {?MOD_ROSTER_BACKEND, update_roster_t, 2},
+    {?MOD_ROSTER_BACKEND, write_roster_version, 5},
+    behaviour_info/1, get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
+    get_user_roster/2, get_user_rosters_length/2, get_versioning_feature/2,
+    in_subscription/5, item_to_xml/1, out_subscription/4, process_subscription_t/6,
+    remove_user/3, transaction/2
+]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").

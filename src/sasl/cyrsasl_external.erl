@@ -27,6 +27,8 @@
 
 -export([mechanism/0, mech_new/3, mech_step/2]).
 
+-ignore_xref([mech_new/3, behaviour_info/1]).
+
 -behaviour(cyrsasl).
 
 -callback verify_creds(Creds :: mongoose_credentials:t()) ->

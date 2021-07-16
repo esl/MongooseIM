@@ -155,7 +155,8 @@ get_backend_name(Module) ->
     end.
 
 generic_count(mod_offline_backend, {LUser, LServer}) ->
-    rpc(mim(), mod_offline_backend, count_offline_messages, [LUser, LServer, 100]).
+    HostType = domain_helper:host_type(),
+    rpc(mim(), mod_offline_backend, count_offline_messages, [HostType, LUser, LServer, 100]).
 
 generic_count(Module) ->
     case get_backend(Module) of

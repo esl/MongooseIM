@@ -10,6 +10,8 @@
 %% API
 -export([format/2]).
 
+-ignore_xref([format/2]).
+
 -spec format(logger:log_event(), logger:formatter_config()) -> unicode:chardata().
 format(Event, FConfig) ->
     try do_format(Event, FConfig)

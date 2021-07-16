@@ -45,6 +45,9 @@
 
 -export([config_change/4]).
 
+-ignore_xref([config_change/4, get_jid_info/4, get_subscription_lists/2, get_user_roster/2,
+              in_subscription/5, out_subscription/4, process_item/2, start_link/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
@@ -61,24 +64,21 @@
 -define(LDAP_SEARCH_TIMEOUT, 5).
 
 -record(state,
-        {host = <<"">>                                :: binary(),
-         eldap_id                                     :: {jid:lserver(), binary()},
-         base = <<"">>                                :: binary(),
-         uid = <<"">>                                 :: binary(),
-         deref =                                         neverDerefAliases  :: neverDerefAliases |
-                                                         derefInSearching |
-                                                         derefFindingBaseObj |
-                                                         derefAlways,
-         group_attr = <<"">>                          :: binary(),
-         group_desc = <<"">>                          :: binary(),
-         user_desc = <<"">>                           :: binary(),
-         user_uid = <<"">>                            :: binary(),
-         uid_format = <<"">>                          :: binary(),
-         uid_format_re = <<"">>                       :: binary(),
-         filter = <<"">>                              :: binary(),
-         ufilter = <<"">>                             :: binary(),
-         rfilter = <<"">>                             :: binary(),
-         gfilter = <<"">>                             :: binary(),
+        {host = <<>>                                  :: binary(),
+         eldap_id                                     :: eldap_utils:eldap_id(),
+         base = <<>>                                  :: binary(),
+         uid = <<>>                                   :: binary(),
+         deref = neverDerefAliases                    :: eldap_utils:deref(),
+         group_attr = <<>>                            :: binary(),
+         group_desc = <<>>                            :: binary(),
+         user_desc = <<>>                             :: binary(),
+         user_uid = <<>>                              :: binary(),
+         uid_format = <<>>                            :: binary(),
+         uid_format_re = <<>>                         :: binary(),
+         filter = <<>>                                :: binary(),
+         ufilter = <<>>                               :: binary(),
+         rfilter = <<>>                               :: binary(),
+         gfilter = <<>>                               :: binary(),
          auth_check = true                            :: boolean(),
          user_cache_size = ?CACHE_SIZE                :: non_neg_integer(),
          group_cache_size = ?CACHE_SIZE               :: non_neg_integer(),
@@ -189,7 +189,7 @@ get_subscription_lists(Acc, #jid{lserver = LServer} = JID) ->
                                                 get_group_users(LServer, Group)
                                         end,
                                         DisplayedGroups)),
-    SRJIDs = [{U1, S1, <<"">>} || {U1, S1} <- SRUsers],
+    SRJIDs = [{U1, S1, <<>>} || {U1, S1} <- SRUsers],
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
     mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
 
@@ -351,13 +351,8 @@ get_user_to_groups_map({_, Server} = US, SkipUS) ->
 eldap_search(State, FilterParseArgs, AttributesList) ->
     case apply(eldap_filter, parse, FilterParseArgs) of
         {ok, EldapFilter} ->
-            case eldap_pool:search(State#state.eldap_id,
-                                   [{base, State#state.base},
-                                    {filter, EldapFilter},
-                                    {timeout, ?LDAP_SEARCH_TIMEOUT},
-                                    {deref, State#state.deref},
-                                    {attributes, AttributesList}])
-            of
+            SearchOpts = search_opts(EldapFilter, AttributesList, State),
+            case eldap_pool:search(State#state.eldap_id, SearchOpts) of
                 #eldap_search_result{entries = Es} ->
                     %% A result with entries. Return their list.
                     Es;
@@ -369,6 +364,13 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
             %% Filter parsing failed. Pretend we got no results.
             []
     end.
+
+search_opts(EldapFilter, AttributesList, State) ->
+    [{base, State#state.base},
+     {filter, EldapFilter},
+     {timeout, ?LDAP_SEARCH_TIMEOUT},
+     {deref, State#state.deref},
+     {attributes, AttributesList}].
 
 get_user_displayed_groups({User, Host}) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),

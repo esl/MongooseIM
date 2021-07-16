@@ -78,6 +78,11 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
+-ignore_xref([{ejabberd_sm_backend, backend, 0},
+              bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
+              do_filter/3, do_route/4, force_update_presence/1, get_unique_sessions_number/0,
+              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").

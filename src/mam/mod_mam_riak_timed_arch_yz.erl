@@ -47,6 +47,10 @@
 
 -export([get_mam_muc_gdpr_data/3, get_mam_pm_gdpr_data/3]).
 
+-ignore_xref([archive_message_muc/3, behaviour_info/1, bucket/2, create_obj/6,
+              key/3, list_mam_buckets/1, lookup_messages/2, lookup_messages_muc/3,
+              read_archive/8, remove_archive/4, remove_bucket/1]).
+
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
 -define(DUMMY_LOOKUP_PARAMETERS, #{with_jid => undefined,

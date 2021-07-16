@@ -58,6 +58,12 @@
          select_config_by_room_id/2
         ]).
 
+-ignore_xref([create_room/4, destroy_room/1, force_clear/0, get_aff_users/1,
+              get_blocking/2, get_blocking/3, get_config/1, get_info/1,
+              get_user_rooms/2, get_user_rooms_count/2, modify_aff_users/4,
+              remove_domain/3, remove_user/2, room_exists/1, select_affs_by_room_id/2,
+              select_config_by_room_id/2, select_room_id/3, set_blocking/3,
+              set_config/3, set_config/4, start/1, stop/1]).
 
 -type room_id() :: non_neg_integer().
 

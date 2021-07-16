@@ -46,6 +46,10 @@
          subscribe_metric/3
         ]).
 
+-ignore_xref([create_global_metrics/0, get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
+              get_rdbms_data_stats/0, get_rdbms_data_stats/1, get_up_time/0,
+              init_subscriptions/0, make_host_type_name/1, remove_host_type_metrics/1]).
+
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
 -type use_or_skip() :: use | skip.

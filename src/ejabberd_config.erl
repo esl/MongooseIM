@@ -50,6 +50,9 @@
 
 -export([other_cluster_nodes/0]).
 
+-ignore_xref([config_state/0, config_states/0, get_categorized_options/0,
+              get_host_local_config/0, get_local_config/0]).
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 

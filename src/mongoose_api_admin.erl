@@ -26,6 +26,9 @@
          is_authorized/2]).
 %% local callbacks
 -export([to_json/2, from_json/2]).
+
+-ignore_xref([cowboy_router_paths/2, from_json/2, to_json/2]).
+
 -include("mongoose_api.hrl").
 -include("mongoose.hrl").
 

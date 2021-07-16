@@ -44,6 +44,9 @@
          handle_info/3,
          terminate/3]).
 
+-ignore_xref([match_domain/2, socket_type/0, start/2, start_link/2,
+              stream_established/2, wait_for_feature_request/2, wait_for_stream/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 

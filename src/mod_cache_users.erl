@@ -24,6 +24,9 @@
 -export([remove_user/3]).
 -export([remove_domain/3]).
 
+-ignore_xref([does_cached_user_exist/4, maybe_put_user_into_cache/4,
+              remove_domain/3, remove_user/3, start_link/2]).
+
 -include("mongoose_config_spec.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").

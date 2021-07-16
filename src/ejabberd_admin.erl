@@ -52,6 +52,15 @@
 
 -export([registrator_proc/1]).
 
+-ignore_xref([
+    backup_mnesia/1, delete_expired_messages/1, delete_old_messages/2,
+    dump_mnesia/1, dump_table/2, dump_to_textfile/1, dump_to_textfile/2,
+    get_loglevel/0, import_users/1, install_fallback_mnesia/1,
+    join_cluster/1, leave_cluster/0, load_mnesia/1, mnesia_change_nodename/4,
+    register/2, register/3, registered_users/1, remove_from_cluster/1,
+    restore_mnesia/1, send_service_message_all_mucs/2, set_master/1, status/0,
+    stop/0, unregister/2]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
@@ -444,20 +453,30 @@ get_loglevel() ->
 
 -spec delete_expired_messages(jid:lserver()) -> {ok, iolist()} | {error, iolist()}.
 delete_expired_messages(LServer) ->
-    case mod_offline:remove_expired_messages(LServer) of
-        {ok, C} ->
-            {ok, io_lib:format("Removed ~p messages", [C])};
-        {error, Reason} ->
-            {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case mod_offline:remove_expired_messages(HostType, LServer) of
+                {ok, C} ->
+                    {ok, io_lib:format("Removed ~p messages", [C])};
+                {error, Reason} ->
+                    {error, io_lib:format("Can't delete expired messages: ~n~p", [Reason])}
+            end;
+        {error, not_found} ->
+            {error, "Unknown domain"}
     end.
 
 -spec delete_old_messages(jid:lserver(), Days :: integer()) -> {ok, iolist()} | {error, iolist()}.
 delete_old_messages(LServer, Days) ->
-    case mod_offline:remove_old_messages(LServer, Days) of
-        {ok, C} ->
-            {ok, io_lib:format("Removed ~p messages", [C])};
-        {error, Reason} ->
-            {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            case mod_offline:remove_old_messages(HostType, LServer, Days) of
+                {ok, C} ->
+                    {ok, io_lib:format("Removed ~p messages", [C])};
+                {error, Reason} ->
+                    {error, io_lib:format("Can't remove old messages: ~n~p", [Reason])}
+            end;
+        {error, not_found} ->
+            {error, "Unknown domain"}
     end.
 
 

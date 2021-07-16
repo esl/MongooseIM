@@ -49,8 +49,21 @@
          maybe_list2b/1,
          maybe_b2list/1]).
 
+-ignore_xref([decode_octet_string/3, generate_subfilter/1, get_mod_opt/3,
+              make_filter/2, uids_domain_subst/2]).
+
 -include("mongoose.hrl").
 -include("eldap.hrl").
+
+-type dn() :: binary().
+-type deref() :: neverDerefAliases | derefInSearching
+                 | derefFindingBaseObj | derefAlways.
+%% Used to access mongoose_wpool
+-type eldap_id() :: {HostType :: mongooseim:host_type(), Tag :: mongoose_wpool:tag()}.
+
+-export_type([dn/0,
+              deref/0,
+              eldap_id/0]).
 
 %% @doc Generate an 'or' LDAP query on one or several attributes
 %% If there is only one attribute

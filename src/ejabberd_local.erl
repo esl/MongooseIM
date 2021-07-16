@@ -66,6 +66,9 @@
 %% For testing only
 -export([get_iq_callback/1]).
 
+-ignore_xref([disco_local_features/1, do_route/4, get_iq_callback/1,
+              node_cleanup/2, process_iq_reply/4, register_iq_response_handler/4,
+              register_iq_response_handler/5, start_link/0, unregister_iq_response_handler/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

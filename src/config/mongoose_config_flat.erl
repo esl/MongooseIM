@@ -26,6 +26,9 @@
 -export([split_node_specific_options_tree/2]).
 -export([flatten_global_config_opts/1]).
 
+-ignore_xref([does_pattern_match/2, expand_all_opts/1, expand_opts/1, flatten_all_opts/1,
+              flatten_global_config_opts/1, flatten_opts/2, split_node_specific_options_tree/2]).
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 

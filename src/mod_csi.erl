@@ -12,6 +12,8 @@
 -export([config_spec/0]).
 -export([c2s_stream_features/3]).
 
+-ignore_xref([c2s_stream_features/3]).
+
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 

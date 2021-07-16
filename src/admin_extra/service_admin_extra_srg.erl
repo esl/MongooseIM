@@ -38,6 +38,19 @@
     srg_user_del/4
     ]).
 
+-define(MOD_SHARED_ROSTER, mod_shared_roster).
+-ignore_xref([
+    {?MOD_SHARED_ROSTER, create_group, 3},
+    {?MOD_SHARED_ROSTER, delete_group, 2},
+    {?MOD_SHARED_ROSTER, get_group_opts, 2},
+    {?MOD_SHARED_ROSTER, get_group_explicit_users, 2},
+    {?MOD_SHARED_ROSTER, list_groups, 1},
+    {?MOD_SHARED_ROSTER, add_user_to_group, 3},
+    {?MOD_SHARED_ROSTER, remove_user_from_group, 3},
+    commands/0, srg_create/5, srg_delete/2, srg_list/1, srg_get_info/2,
+    srg_get_members/2, srg_user_add/4, srg_user_del/4
+]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").

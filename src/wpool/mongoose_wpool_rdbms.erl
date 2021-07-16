@@ -6,6 +6,8 @@
 -export([default_opts/0]).
 -export([stop/2]).
 
+%% --------------------------------------------------------------
+%% mongoose_wpool callbacks
 init() ->
     case ets:info(prepared_statements) of
         undefined ->
@@ -20,8 +22,8 @@ init() ->
             ok
     end.
 
-start(Host, Tag, WpoolOpts, RdbmsOpts) ->
-    try do_start(Host, Tag, WpoolOpts, RdbmsOpts)
+start(HostType, Tag, WpoolOpts, RdbmsOpts) ->
+    try do_start(HostType, Tag, WpoolOpts, RdbmsOpts)
     catch
         Err -> {error, Err}
     end.
@@ -32,7 +34,9 @@ default_opts() ->
 stop(_, _) ->
     ok.
 
-do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(RdbmsOpts) ->
+%% --------------------------------------------------------------
+%% Helper functions
+do_start(HostType, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(RdbmsOpts) ->
     BackendName = backend_name(RdbmsOpts),
     try mongoose_rdbms_backend:backend_name() of
         BackendName -> ok;
@@ -43,15 +47,14 @@ do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(
         error:undef ->
             backend_module:create(mongoose_rdbms, BackendName, [query, execute])
     end,
+    mongoose_metrics:ensure_db_pool_metric({rdbms, HostType, Tag}),
+    WpoolOpts = make_wpool_opts(WpoolOpts0, RdbmsOpts),
+    ProcName = mongoose_wpool:make_pool_name(rdbms, HostType, Tag),
+    mongoose_wpool:start_sup_pool(rdbms, ProcName, WpoolOpts).
 
-    mongoose_metrics:ensure_db_pool_metric({rdbms, Host, Tag}),
-
+make_wpool_opts(WpoolOpts0, RdbmsOpts) ->
     Worker = {mongoose_rdbms, RdbmsOpts},
-    %% Without lists:map dialyzer doesn't understand that WpoolOpts is a list (?) and the
-    %% do_start function has no return.
-    WpoolOpts = lists:map(fun(X) -> X end, [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0]),
-    Name = mongoose_wpool:make_pool_name(rdbms, Host, Tag),
-    mongoose_wpool:start_sup_pool(rdbms, Name, WpoolOpts).
+    [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0].
 
 -spec backend_name(proplist:proplists()) -> odbc | pgsql | mysql.
 backend_name(RdbmsOpts) ->

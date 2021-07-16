@@ -110,6 +110,31 @@
 
 -export([config_metrics/1]).
 
+-define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
+-define(MOD_PUBSUB_CACHE_BACKEND, mod_pubsub_cache_backend).
+-ignore_xref([
+    {?MOD_PUBSUB_DB_BACKEND, transaction, 2},
+    {?MOD_PUBSUB_DB_BACKEND, get_user_nodes, 2},
+    {?MOD_PUBSUB_DB_BACKEND, get_user_payloads, 2},
+    {?MOD_PUBSUB_DB_BACKEND, get_user_subscriptions, 2},
+    {?MOD_PUBSUB_DB_BACKEND, start, 0},
+    {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
+    {?MOD_PUBSUB_DB_BACKEND, stop, 0},
+    {?MOD_PUBSUB_CACHE_BACKEND, get_last_item, 2},
+    {?MOD_PUBSUB_CACHE_BACKEND, upsert_last_item, 5},
+    {?MOD_PUBSUB_CACHE_BACKEND, start, 1},
+    {?MOD_PUBSUB_CACHE_BACKEND, delete_last_item, 2},
+    affiliation_to_string/1, caps_recognised/4, config/3, create_node/7, default_host/0,
+    delete_item/4, delete_node/3, disco_local_features/1, disco_sm_features/1,
+    disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
+    get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
+    handle_remote_hook/4, host/1, in_subscription/5, iq_sm/4, node_action/4, node_call/4,
+    on_user_offline/5, out_subscription/4, plugin/2, plugin/1, presence_probe/4,
+    publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
+    string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
+    subscription_to_string/1, tree/2, tree_action/3, unsubscribe_node/5, plugins/1
+]).
+
 -define(PROCNAME, ejabberd_mod_pubsub).
 -define(LOOPNAME, ejabberd_mod_pubsub_loop).
 

@@ -34,6 +34,8 @@
          probe_code_change/3
         ]).
 
+-ignore_xref([behaviour_info/1]).
+
 -type datapoint() :: atom().
 -callback datapoints() -> [datapoint()].
 -callback sample() -> #{datapoint() => integer()}.

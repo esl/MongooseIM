@@ -32,6 +32,8 @@
          handle_info/2
         ]).
 
+-ignore_xref([clear_table/1, start_link/1]).
+
 -spec read_stale_h(SMID :: mod_stream_management:smid()) ->
     {stale_h, non_neg_integer()} | {error, smid_not_found}.
 read_stale_h(SMID) ->

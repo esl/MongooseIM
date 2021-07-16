@@ -8,8 +8,8 @@
 
 set -e
 
-source tools/travis-common-vars.sh
-source tools/travis-db-versions.sh
+source tools/common-vars.sh
+source tools/db-versions.sh
 
 MIM_PRIV_DIR=${BASE}/priv
 
@@ -19,14 +19,14 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${TOOLS}/ssl
 
-# Don't need it for travis for speed up
+# Don't need it for CI for speed up
 RM_FLAG=" --rm "
-if [ "$TRAVIS" = 'true' ]; then
-    echo "Disable --rm flag on Travis"
+if [ "$CI" = 'true' ]; then
+    echo "Disable --rm flag on CI"
     RM_FLAG=""
 fi
 
-# DATA_ON_VOLUME variable and data_on_volume function come from travis-common-vars.sh
+# DATA_ON_VOLUME variable and data_on_volume function come from common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 
 
@@ -192,7 +192,7 @@ elif [ "$db" = 'riak' ]; then
     docker cp "$NAME:/etc/riak/riak.conf" "$TEMP_RIAK_CONF"
     # Enable search
     $SED -i "s/^search = \(.*\)/search = on/" "$TEMP_RIAK_CONF"
-    # Solr is sloow on travis
+    # Solr is sloow on CI
     $SED -i "s/^search.solr.start_timeout = \(.*\)/search.solr.start_timeout = 2m/" "$TEMP_RIAK_CONF"
     # Enable ssl by appending settings from riak.conf.ssl
     cat "${DB_CONF_DIR}/riak.conf.ssl" >> "$TEMP_RIAK_CONF"
@@ -392,13 +392,13 @@ elif [ "$db" = 'redis' ]; then
     tools/setup-redis.sh
 
 elif [ "$db" = 'ldap' ]; then
-    tools/travis-setup-ldap.sh
+    tools/setup-ldap.sh
 
 elif [ "$db" = "minio" ]; then
     tools/setup_minio.sh
 
 elif [ "$db" = "rmq" ]; then
-    tools/travis-setup-rmq.sh
+    tools/setup-rmq.sh
 
 else
     echo "Skip setting up database"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source tools/travis-common-vars.sh
+source tools/common-vars.sh
 NAME=$(db_name rmq)
 RMQ_PORT=5672
 

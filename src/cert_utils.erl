@@ -12,8 +12,7 @@
 
 -export([get_cert_domains/1,
          get_common_name/1,
-         get_xmpp_addresses/1,
-         get_dns_addresses/1
+         get_xmpp_addresses/1
 ]).
 
 -include_lib("public_key/include/public_key.hrl").

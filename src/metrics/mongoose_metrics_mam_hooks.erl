@@ -28,6 +28,11 @@
          mam_muc_archive_message/3,
          mam_muc_flush_messages/3]).
 
+-ignore_xref([mam_archive_message/3, mam_get_prefs/4, mam_lookup_messages/3,
+              mam_muc_archive_message/3, mam_muc_flush_messages/3, mam_muc_get_prefs/4,
+              mam_muc_lookup_messages/3, mam_muc_remove_archive/4, mam_muc_set_prefs/7,
+              mam_remove_archive/4, mam_set_prefs/7]).
+
 -type metrics_notify_return() :: mongoose_metrics_hooks:metrics_notify_return().
 
 %%-------------------

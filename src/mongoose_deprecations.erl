@@ -20,6 +20,8 @@
 %% Test API
 -export([log_with_lvl/2]).
 
+-ignore_xref([log/2]).
+
 -include("mongoose.hrl").
 
 -define(DEPRECATION_TAB, deprecations).         % ETS table name
@@ -123,6 +125,6 @@ log_with_lvl(Msg, error) ->
 log_with_lvl(Msg, warning) ->
     ?LOG_WARNING(Msg).
 
--spec milliseconds_to_microseconds(Milliseconds :: integer()) 
+-spec milliseconds_to_microseconds(Milliseconds :: integer())
         -> unix_timestamp().
 milliseconds_to_microseconds(N) -> N * 1000.

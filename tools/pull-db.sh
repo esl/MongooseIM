@@ -9,8 +9,8 @@
 set -e
 TOOLS=`dirname $0`
 
-source tools/travis-common-vars.sh
-source tools/travis-db-versions.sh
+source tools/common-vars.sh
+source tools/db-versions.sh
 
 function setup_db(){
 db=${1:-none}

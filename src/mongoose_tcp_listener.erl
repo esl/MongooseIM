@@ -29,6 +29,8 @@
 %% Internal
 -export([start_accept_loop/3, accept_loop/4]).
 
+-ignore_xref([start_link/6, start_accept_loop/3]).
+
 -type connection_details() :: #{
         proxy        := boolean(),
         version      => 1 | 2,

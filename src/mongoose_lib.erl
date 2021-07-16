@@ -14,6 +14,8 @@
 -export([deprecated_logging/1]).
 -deprecated({deprecated_logging, 1, eventually}).
 
+-ignore_xref([pairs_foreach/2, wait_until/3]).
+
 -export_type([microseconds/0]).
 
 -include("mongoose.hrl").

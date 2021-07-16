@@ -6,6 +6,8 @@
 -export([status/0]).
 -export([supports_sasl_module/1]).
 
+-ignore_xref([status/0]).
+
 -ifndef(fips_mode).
 
 notify() -> ok.

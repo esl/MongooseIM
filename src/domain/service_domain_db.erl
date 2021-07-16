@@ -17,6 +17,9 @@
 %% exported for integration tests only!
 -export([reset_last_event_id/0]).
 
+-ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2,
+              init/1, start_link/0, sync/0, sync_local/0, terminate/2, reset_last_event_id/0]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).

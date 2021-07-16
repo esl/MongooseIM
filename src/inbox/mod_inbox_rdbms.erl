@@ -31,6 +31,8 @@
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
 
+-ignore_xref([esc_int/1, esc_string/1]).
+
 -type archived() :: binary().
 -type muted_until() :: binary().
 -type msg_content() :: binary().

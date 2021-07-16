@@ -39,7 +39,7 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, Handler) ->
                                                         element => Packet}, Acc),
                     mongoose_packet_handler:process(Handler, Acc1, From, To, Packet);
                 drop ->
-                    mongoose_hooks:xmpp_stanza_dropped(mongoose_acc:host_type(Acc0), OrigFrom,
+                    mongoose_hooks:xmpp_stanza_dropped(Acc0, OrigFrom,
                                                        OrigTo, OrigPacket),
                     ok
             end

@@ -1,5 +1,7 @@
 -module(ejabberd_gen_mam_archive).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback archive_size(Size :: integer(), Host :: jid:server(),
                        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
                       -> integer().

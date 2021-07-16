@@ -50,6 +50,9 @@
 -export([check_password/4,
          check_password/6]).
 
+-ignore_xref([register_connection/5, session_cleanup/5, unregister_connection/5,
+              login/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("session.hrl").

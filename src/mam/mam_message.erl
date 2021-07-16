@@ -6,6 +6,8 @@
 %%% - mam_message_compressed_eterm
 -module(mam_message).
 
+-ignore_xref([behaviour_info/1]).
+
 -callback encode(exml:element()) -> binary().
 -callback decode(binary()) -> exml:element().
 

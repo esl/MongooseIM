@@ -39,6 +39,8 @@
          process_ip_access/1,
          process_welcome_message/1]).
 
+-ignore_xref([c2s_stream_features/3, process_iq/4, try_register/5, unauthenticated_iq_register/4]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").

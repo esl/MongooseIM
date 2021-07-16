@@ -39,6 +39,12 @@
     check_account/2,
     check_password/3]).
 
+-ignore_xref([
+    commands/0, set_password/3, check_password_hash/4,
+    delete_old_users/1, delete_old_users_for_domain/2,
+    ban_account/3, num_active_users/2, check_account/2, check_password/3
+]).
+
 -include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").

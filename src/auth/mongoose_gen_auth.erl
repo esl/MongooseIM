@@ -18,6 +18,8 @@
          remove_user/4,
          remove_domain/3]).
 
+-ignore_xref([behaviour_info/1]).
+
 %% Mandatory callbacks
 
 -callback start(HostType :: mongooseim:host_type()) -> ok.
@@ -69,7 +71,7 @@
                        User :: jid:luser(),
                        Server :: jid:lserver(),
                        Password :: binary()) ->
-    ok | {error, not_allowed | invalid_jid}.
+    ok | {error, not_allowed | invalid_jid | user_not_found}.
 
 -callback remove_user(HostType :: mongooseim:host_type(),
                       User :: jid:luser(),

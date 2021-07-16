@@ -30,6 +30,8 @@
          mech_new/3,
          mech_step/2]).
 
+-ignore_xref([mech_new/3]).
+
 -deprecated({'_', '_', next_major_release}).
 
 -include("mongoose.hrl").

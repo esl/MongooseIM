@@ -22,6 +22,9 @@
 
 -export([prepared_queries/0]).
 
+-ignore_xref([{mod_mam_cassandra_prefs_params, pool_name, 0},
+              remove_archive/4, start/2, stop/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").

@@ -44,6 +44,11 @@
          prepare_upsert/6,
          execute_upsert/5]).
 
+-ignore_xref([
+    {mongoose_rdbms_type, get, 0},
+    count_records_where/3, get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
+]).
+
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
 %%-define(mssql, true).

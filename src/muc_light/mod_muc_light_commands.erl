@@ -32,6 +32,7 @@
 -export([delete_room/3]).
 -export([change_room_config/5]).
 
+-ignore_xref([delete_room/3, invite_to_room/4, send_message/4]).
 
 -include("mod_muc_light.hrl").
 -include("mongoose.hrl").

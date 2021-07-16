@@ -27,7 +27,7 @@
          register_subhost/2,
          register_user/3,
          remove_user/3,
-         resend_offline_messages_hook/3,
+         resend_offline_messages_hook/2,
          rest_user_send_packet/4,
          session_cleanup/5,
          set_vcard/3,
@@ -152,6 +152,8 @@
 
 -export([remove_domain/2,
          node_cleanup/1]).
+
+-ignore_xref([node_cleanup/1, remove_domain/2]).
 
 %% Just a map, used by some hooks as a first argument.
 %% Not mongoose_acc:t().
@@ -352,12 +354,12 @@ remove_user(Acc, LServer, LUser) ->
     HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(remove_user, HostType, Acc, [LUser, LServer]).
 
--spec resend_offline_messages_hook(HostType, Acc, JID) -> Result when
-    HostType :: binary(),
+-spec resend_offline_messages_hook(Acc, JID) -> Result when
     Acc :: mongoose_acc:t(),
     JID :: jid:jid(),
     Result :: mongoose_acc:t().
-resend_offline_messages_hook(HostType, Acc, JID) ->
+resend_offline_messages_hook(Acc, JID) ->
+    HostType = mongoose_acc:host_type(Acc),
     run_hook_for_host_type(resend_offline_messages_hook, HostType, Acc, [JID]).
 
 %%% @doc The `rest_user_send_packet' hook is called when a user sends
@@ -505,14 +507,15 @@ xmpp_send_element(HostType, Acc, El) ->
 
 %%% @doc The `xmpp_stanza_dropped' hook is called to inform that
 %%% an xmpp stanza has been dropped.
--spec xmpp_stanza_dropped(HostType, From, To, Packet) -> Result when
-    HostType :: binary(),
+-spec xmpp_stanza_dropped(Acc, From, To, Packet) -> Result when
+    Acc :: mongoose_acc:t(),
     From :: jid:jid(),
     To :: jid:jid(),
     Packet :: exml:element(),
     Result :: any().
-xmpp_stanza_dropped(HostType, From, To, Packet) ->
-    run_hook_for_host_type(xmpp_stanza_dropped, HostType, ok, [From, To, Packet]).
+xmpp_stanza_dropped(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(xmpp_stanza_dropped, HostType, Acc, [From, To, Packet]).
 
 %% C2S related hooks
 

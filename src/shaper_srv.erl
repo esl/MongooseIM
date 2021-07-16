@@ -19,6 +19,9 @@
          reset_shapers/1,
          reset_all_shapers/1]).
 
+
+-ignore_xref([reset_all_shapers/1, reset_shapers/1, start_link/1]).
+
 %% ------------------------------------------------------------------
 %% Record definitions
 %% ------------------------------------------------------------------
