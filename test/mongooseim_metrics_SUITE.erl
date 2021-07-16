@@ -37,12 +37,12 @@ init_per_suite(C) ->
     Sup = spawn(fun() ->
                         mim_ct_sup:start_link(ejabberd_sup),
                         Hooks =
-                        {ejabberd_hooks,
-                         {ejabberd_hooks, start_link, []},
+                        {gen_hook,
+                         {gen_hook, start_link, []},
                          permanent,
                          brutal_kill,
                          worker,
-                         [ejabberd_hooks]},
+                         [gen_hook]},
                         C2SSupervisor =
                         {ejabberd_c2s_sup,
                          {ejabberd_tmp_sup, start_link, [ejabberd_c2s_sup, ejabberd_c2s]},

@@ -52,7 +52,7 @@ init_per_testcase(Test, Config)
              Test =:= validation_property;
              Test =:= choose_key_by_token_type ->
     mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, [{ejabberd_hooks, start_link, []},
+    Config1 = async_helper:start(Config, [{gen_hook, start_link, []},
                                           {gen_mod, start, []}]),
     mock_keystore(),
     mock_rdbms_backend(),
@@ -64,13 +64,13 @@ init_per_testcase(validity_period_test, Config) ->
     mock_gen_iq_handler(),
     mock_ejabberd_commands(),
     async_helper:start(Config, [{gen_mod, start, []},
-                                {ejabberd_hooks, start_link, []}]);
+                                {gen_hook, start_link, []}]);
 
 init_per_testcase(revoked_token_is_not_valid, Config) ->
     mock_mongoose_metrics(),
     mock_tested_backend(),
     Config1 = async_helper:start(Config, [{gen_mod, start, []},
-                                          {ejabberd_hooks, start_link, []}]),
+                                          {gen_hook, start_link, []}]),
     mock_keystore(),
     Config1;
 

@@ -58,7 +58,7 @@ end_per_suite(C) ->
 
 init_per_testcase(_TC, C) ->
     init_ets(),
-    ejabberd_hooks:start_link(),
+    gen_hook:start_link(),
     gen_mod:start(),
     gen_mod:start_module(host_type(), mod_roster, []),
     C.

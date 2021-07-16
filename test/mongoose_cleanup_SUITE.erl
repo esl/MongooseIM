@@ -6,7 +6,7 @@
 -export([all/0,
          init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
--export([cleaner_runs_hook_on_nodedown/1]).
+-export([cleaner_runs_hook_on_nodedown/1, notify_self_hook/3]).
 -export([auth_anonymous/1,
          last/1,
          stream_management/1,
@@ -45,7 +45,7 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(T, Config) ->
-    {ok, _HooksServer} = ejabberd_hooks:start_link(),
+    {ok, _HooksServer} = gen_hook:start_link(),
     setup_meck(meck_mods(T)),
     Config.
 
@@ -63,11 +63,11 @@ meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 %% -----------------------------------------------------
 
 cleaner_runs_hook_on_nodedown(_Config) ->
-    meck:expect(ejabberd_hooks, error_running_hook, fun(_, _, _) -> ok end),
+    meck:expect(gen_hook, error_running_hook, fun(_, _, _, _) -> ok end),
     {ok, Cleaner} = mongoose_cleaner:start_link(),
-    Self = self(),
-    NotifySelf = fun(Acc, Node) -> Self ! {got_nodedown, Node}, Acc end,
-    ejabberd_hooks:add(node_cleanup, global, undefined, NotifySelf, 50),
+    gen_hook:add_handler(node_cleanup, global,
+                         fun ?MODULE:notify_self_hook/3,
+                         #{self => self()}, 50),
 
     FakeNode = fakename@fakehost,
     Cleaner ! {nodedown, FakeNode},
@@ -77,8 +77,12 @@ cleaner_runs_hook_on_nodedown(_Config) ->
     after timer:seconds(1) ->
         ct:fail({timeout, got_nodedown})
     end,
-    ?assertEqual(false, meck:called(ejabberd_hooks, error_running_hook,
-                                    ['_', {node_cleanup, global}, '_'])).
+    ?assertEqual(false, meck:called(gen_hook, error_running_hook,
+                                    ['_', '_', '_', '_'])).
+
+notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
+    Self ! {got_nodedown, Node},
+    {ok, Acc}.
 
 auth_anonymous(_Config) ->
     {U, S, R, JID, SID} = get_fake_session(),

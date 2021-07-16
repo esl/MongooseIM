@@ -65,7 +65,7 @@ init_per_testcase(codec_calls, Config) ->
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
     ets:new(local_config, [named_table]),
-    ejabberd_hooks:start_link(),
+    gen_hook:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
     gen_mod:start(),
@@ -117,10 +117,11 @@ codec_calls(_Config) ->
     Sender = jid:from_binary(<<"bob@localhost/bbb">>),
     RoomUS = {<<"pokoik">>, <<"localhost">>},
     HandleFun = fun(_, _, _) -> count_call(handler) end,
-    ejabberd_hooks:add(filter_room_packet,
-                       <<"localhost">>,
-                       fun(Acc, _HostType, _EvData) -> count_call(hook), Acc end,
-                       50),
+    gen_hook:add_handler(filter_room_packet,
+                         <<"localhost">>,
+                         fun ?MODULE:filter_room_packet_handler/3,
+                         #{},
+                         50),
 
     % count_call/1 should've been called twice - by handler fun (for each affiliated user,
     % we have one) and by a filter_room_packet hook handler.
@@ -153,6 +154,9 @@ codec_calls(_Config) ->
     check_count(1, 2),
     ok.
 
+filter_room_packet_handler(Acc, _Params, _Extra) ->
+    count_call(hook),
+    {ok, Acc}.
 %% ----------------- Room config schema ----------------------
 
 simple_config_items_are_parsed(_Config) ->

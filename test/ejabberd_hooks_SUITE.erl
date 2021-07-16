@@ -4,9 +4,8 @@
 -define(HOST, <<"localhost">>).
 
 all() ->
-    [ a_fun_can_be_added,
+    [
       a_module_fun_can_be_added,
-      a_fun_can_be_removed,
       a_module_fun_can_be_removed,
 
       hooks_run_launches_nullary_fun,
@@ -32,21 +31,6 @@ init_per_suite(C) ->
 end_per_suite(_C) ->
     application:stop(exometer_core).
 
-init_per_testcase(_, C) ->
-    ejabberd_hooks:start_link(),
-    catch ets:new(local_config, [named_table]),
-    C.
-
-a_fun_can_be_added(_) ->
-    given_hooks_started(),
-
-    % when
-    ejabberd_hooks:add(test_run_hook, ?HOST, fun(_) -> ok end, 1),
-
-    % then
-    [{{test_run_hook,<<"localhost">>}, [{1,undefined,_}]}] = get_hooks().
-
-
 a_module_fun_can_be_added(_) ->
     given_hooks_started(),
     given_module(hook_mod, fun_a, fun(_) -> ok end),
@@ -55,19 +39,10 @@ a_module_fun_can_be_added(_) ->
     ejabberd_hooks:add(test_run_hook, ?HOST, hook_mod, fun_a, 1),
 
     % then
-    [{{test_run_hook,<<"localhost">>}, [{1,hook_mod,fun_a}]}] = get_hooks().
-
-
-a_fun_can_be_removed(_) ->
-    given_hooks_started(),
-    GivenFun = fun(_) -> ok end,
-    ejabberd_hooks:add(test_run_hook, ?HOST, GivenFun, 1),
-
-    % when
-    ejabberd_hooks:delete(test_run_hook, ?HOST, GivenFun, 1),
-
-    % then
-    [{{test_run_hook,<<"localhost">>}, []}] = get_hooks().
+    [{{test_run_hook,<<"localhost">>},
+      [{hook_handler, {test_run_hook,<<"localhost">>}, 1,
+        ejabberd_hooks, gen_hook_fn_wrapper,
+        #{function := fun_a, module := hook_mod}}]}] = get_hooks().
 
 a_module_fun_can_be_removed(_) ->
     given_hooks_started(),
@@ -87,7 +62,7 @@ hooks_run_launches_nullary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_nullary, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, []),
+    run_fold(test_run_hook, ?HOST, ok, []),
 
     %% then
     H = meck:history(hook_mod),
@@ -99,7 +74,7 @@ hooks_run_launches_unary_fun(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_onearg, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, [oneval]),
+    run_fold(test_run_hook, ?HOST, ok, [oneval]),
 
     %% then
     [{_,{hook_mod,fun_onearg,[ok, oneval]}, oneval}] = meck:history(hook_mod).
@@ -113,7 +88,7 @@ hooks_run_ignores_different_arity_funs(_) ->
     given_hook_added(test_run_hook, hook_mod, fun_twoarg, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, [one, two]),
+    run_fold(test_run_hook, ?HOST, ok, [one, two]),
 
     %% then
     [{_,{hook_mod, fun_twoarg, [ok, one, two]}, success2}] = meck:history(hook_mod).
@@ -127,7 +102,7 @@ hooks_run_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_run_hook, hook_mod, another_fun, 2),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_run_hook, ?HOST, ok, []),
+    run_fold(test_run_hook, ?HOST, ok, []),
 
     %% then
     [{_,{hook_mod,a_fun,[ok]}, stop}] = meck:history(hook_mod).
@@ -139,7 +114,7 @@ hooks_run_fold_folds_with_unary_fun(_) ->
     given_hook_added(test_fold_hook, hook_mod, unary_folder, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, initial, []),
+    run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     [{_,{hook_mod,unary_folder,[initial]}, done}] = meck:history(hook_mod).
@@ -150,7 +125,7 @@ hooks_run_fold_folds_with_binary_fun(_) ->
     given_hook_added(test_fold_hook, hook_mod, binary_folder, 1),
 
     %% when
-    ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, initial, [arg1]),
+    run_fold(test_fold_hook, ?HOST, initial, [arg1]),
 
     %% then
     [{_,{hook_mod,binary_folder,[initial, arg1]}, done}] = meck:history(hook_mod).
@@ -164,7 +139,7 @@ hooks_run_fold_passes_acc_along(_) ->
     given_hook_added(test_fold_hook, hook_mod2, second_folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, 0, [10]),
+    R = run_fold(test_fold_hook, ?HOST, 0, [10]),
 
     %% then
     -10 = R.
@@ -178,7 +153,7 @@ hooks_run_fold_stops_when_fun_returns_stop(_) ->
     given_hook_added(test_fold_hook, hook_mod2, folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, continue, []),
+    R = run_fold(test_fold_hook, ?HOST, continue, []),
 
     %% then
     [{_,{hook_mod1,stopper,[continue]}, stop}] = meck:history(hook_mod1),
@@ -195,7 +170,7 @@ hooks_run_fold_preserves_order(_) ->
     given_hook_added(test_fold_hook, hook_mod2, second_folder, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, 0, []),
+    R = run_fold(test_fold_hook, ?HOST, 0, []),
 
     %% then
     2 = R.
@@ -211,7 +186,7 @@ error_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     i_was_run = R,
@@ -229,7 +204,7 @@ throw_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     initial = R,
@@ -248,7 +223,7 @@ exit_in_run_fold_is_ignored(_) ->
     given_hook_added(test_fold_hook, working_mod, good, 2),
 
     %% when
-    R = ejabberd_hooks:run_for_host_type(test_fold_hook, ?HOST, initial, []),
+    R = run_fold(test_fold_hook, ?HOST, initial, []),
 
     %% then
     initial = R,
@@ -262,10 +237,9 @@ exit_in_run_fold_is_ignored(_) ->
 const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
-    error_logger:tty(false),
     Fun = fun(all_metrics_are_global) -> false end,
     given_module(ejabberd_config, get_local_option, Fun),
-    ejabberd_hooks:start_link().
+    gen_hook:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->
     ejabberd_hooks:add(HookName, ?HOST, ModName, FunName, Prio).
@@ -278,6 +252,10 @@ given_module(ModName, FunName, Fun) ->
 given_fun(ModName, FunName, Fun) ->
     meck:expect(ModName, FunName, Fun).
 
+run_fold(HookName, HostType, Acc, Args) ->
+    Params = ejabberd_hooks:add_args(#{}, Args),
+    {_, RetValue} = gen_hook:run_fold(HookName, HostType, Acc, Params),
+    RetValue.
 
 get_hooks() ->
-    ets:tab2list(hooks).
+    ets:tab2list(gen_hook).

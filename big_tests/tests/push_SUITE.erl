@@ -134,14 +134,14 @@ init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_availa
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
-    Config = add_pubsub_jid([{case_name, CaseName} | Config1]),
+    Config2 = add_pubsub_jid([{case_name, CaseName} | Config1]),
 
-    case ?config(pubsub_host, Config0) of
-        virtual ->
-            start_hook_listener(Config);
-        _ ->
-            start_route_listener(Config)
-    end,
+    Config = case ?config(pubsub_host, Config0) of
+                 virtual ->
+                     start_hook_listener(Config2);
+                 _ ->
+                     start_route_listener(Config2)
+             end,
 
     escalus:init_per_testcase(CaseName, Config).
 
@@ -151,7 +151,12 @@ end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Conf
 end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
-    rpc(ejabberd_router, unregister_route, [atom_to_binary(CaseName, utf8)]),
+    case ?config(pubsub_host, Config) of
+        virtual ->
+            stop_hook_listener(Config);
+        _ ->
+            stop_route_listener(Config)
+    end,
     escalus:end_per_testcase(CaseName, Config).
 
 %% --------------------- Helpers ------------------------
@@ -692,7 +697,12 @@ start_route_listener(Config) ->
                push_form_ns => push_helper:push_form_type() },
     Handler = rpc(mongoose_packet_handler, new, [?MODULE, #{state => State}]),
     Domain = pubsub_domain(Config),
-    rpc(ejabberd_router, register_route, [Domain, Handler]).
+    rpc(ejabberd_router, register_route, [Domain, Handler]),
+    Config.
+
+stop_route_listener(Config) ->
+    Domain = pubsub_domain(Config),
+    rpc(ejabberd_router, unregister_route, [Domain]).
 
 process_packet(_Acc, _From, To, El, #{state := State}) ->
     #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
@@ -739,26 +749,41 @@ valid_ns_if_defined(NS, FormProplist) ->
 start_hook_listener(Config) ->
     TestCasePid = self(),
     PubSubJID = pubsub_jid(Config),
-    rpc(?MODULE, rpc_start_hook_handler, [TestCasePid, PubSubJID]).
+    rpc(?MODULE, rpc_start_hook_handler, [TestCasePid, PubSubJID]),
+    [{pid, TestCasePid}, {jid, PubSubJID} | Config].
+
+stop_hook_listener(Config) ->
+    TestCasePid = proplists:get_value(pid, Config),
+    PubSubJID = proplists:get_value(jid, Config),
+    rpc(?MODULE, rpc_stop_hook_handler, [TestCasePid, PubSubJID]).
 
 rpc_start_hook_handler(TestCasePid, PubSubJID) ->
-    Handler = fun(Acc, _Host, [PayloadMap], OptionMap) ->
-                  try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
-                      PubSubJIDBin when PubSubJIDBin =:= PubSubJID->
-                          TestCasePid ! push_notification(PubSubJIDBin,
-                                                          maps:to_list(PayloadMap),
-                                                          maps:to_list(OptionMap));
-                      _ -> ok
-                  catch
-                      C:R:S ->
-                          TestCasePid ! #{ event => handler_error,
-                                           class => C,
-                                           reason => R,
-                                           stacktrace => S }
-                  end,
-                  Acc
-              end,
-    ejabberd_hooks:add(push_notifications, <<"localhost">>, Handler, 50).
+    gen_hook:add_handler(push_notifications,  <<"localhost">>,
+                         fun ?MODULE:hook_handler_fn/3,
+                         #{pid => TestCasePid, jid => PubSubJID}, 50).
+
+hook_handler_fn(Acc,
+                #{notification_forms := [PayloadMap], options := OptionMap} = _Params,
+                #{pid := TestCasePid, jid := PubSubJID} = _Extra) ->
+    try jid:to_binary(mongoose_acc:get(push_notifications, pubsub_jid, Acc)) of
+        PubSubJIDBin when PubSubJIDBin =:= PubSubJID ->
+            TestCasePid ! push_notification(PubSubJIDBin,
+                                            maps:to_list(PayloadMap),
+                                            maps:to_list(OptionMap));
+        _ -> ok
+    catch
+        C:R:S ->
+            TestCasePid ! #{event => handler_error,
+                            class => C,
+                            reason => R,
+                            stacktrace => S}
+    end,
+    {ok, Acc}.
+
+rpc_stop_hook_handler(TestCasePid, PubSubJID) ->
+    gen_hook:delete_handler(push_notifications, <<"localhost">>,
+                            fun ?MODULE:hook_handler_fn/3,
+                            #{pid => TestCasePid, jid => PubSubJID}, 50).
 
 %%--------------------------------------------------------------------
 %% Test helpers
