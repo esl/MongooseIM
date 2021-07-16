@@ -166,7 +166,7 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
      atom_to_binary(Ask, utf8),
      string:join([ unicode:characters_to_list(G) || G <- Groups ], ", "),
      AskMessage,
-     << <<(exml:to_binary(X))>> || X <- XS >>
+     << (exml:to_binary(X)) || X <- XS >>
     ].
 
 %%--------------------------------------------------------------------

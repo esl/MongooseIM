@@ -179,4 +179,4 @@ sha256_hash(Data) ->
 
 -spec hmac_sha256(Key :: binary(), Data :: binary()) -> Hash :: binary().
 hmac_sha256(Key, Data) ->
-    crypto:hmac(sha256, Key, Data).
+    crypto:mac(hmac, sha256, Key, Data).

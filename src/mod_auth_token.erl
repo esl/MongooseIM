@@ -207,7 +207,7 @@ join_fields(T) ->
 keyed_hash(Data, Opts) ->
     Type = proplists:get_value(hmac_type, Opts, sha384),
     {key, Key} = lists:keyfind(key, 1, Opts),
-    crypto:hmac(Type, Key, Data).
+    crypto:mac(hmac, Type, Key, Data).
 
 hmac_opts() ->
     [].

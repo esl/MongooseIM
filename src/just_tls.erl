@@ -39,7 +39,7 @@ tcp_to_tls(TCPSocket, Options) ->
     Opts = format_opts(Options),
     {Ref, NewOpts} = set_verify_fun(Opts),
     Ret = case lists:member(connect, Opts) of
-              false -> ssl:ssl_accept(TCPSocket, NewOpts);
+              false -> ssl:handshake(TCPSocket, NewOpts);
               true -> ssl:connect(TCPSocket, NewOpts)
           end,
     VerifyResults = receive_verify_results(Ref),

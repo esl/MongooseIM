@@ -40,6 +40,7 @@
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
+-include("backward_compatible.hrl").
 
 -record(state, {}).
 
@@ -164,12 +165,13 @@ lookup_archive_id(ArcJID) ->
 -spec clean_cache(jid:jid()) -> ok.
 clean_cache(ArcJID) ->
     %% Send a broadcast message.
-    case pg2:get_members(group_name()) of
-        Pids when is_list(Pids) ->
+    case ?PG_GET_MEMBERS(group_name()) of
+        [_|_] = Pids ->
             [gen_server:cast(Pid, {remove_user, ArcJID})
             || Pid <- Pids],
             ok;
-        {error, _Reason} -> ok
+        _ ->
+            ok
     end.
 
 %%====================================================================
@@ -177,8 +179,7 @@ clean_cache(ArcJID) ->
 %%====================================================================
 
 init([]) ->
-    pg2:create(group_name()),
-    pg2:join(group_name(), self()),
+    ?PG_JOIN(group_name(), self()),
     TOpts = [named_table, protected,
              {write_concurrency, false},
              {read_concurrency, true}],
