@@ -70,31 +70,25 @@
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
--callback init(Host, Opts) -> ok when
-    Host    :: jid:server(),
-    Opts    :: list().
+-type host_type() :: mongooseim:host_type().
+-type timestamp() :: non_neg_integer().
+-type status() :: binary().
 
--callback get_last(LUser, LServer) -> Result when
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    Reason  :: term(),
-    Result  :: {ok, non_neg_integer(), binary()} | {error, Reason} | not_found.
+-export_type([host_type/0, timestamp/0, status/0]).
 
--callback count_active_users(LServer, Timestamp) -> Result when
-    LServer :: jid:lserver(),
-    Timestamp :: non_neg_integer(),
-    Result :: non_neg_integer().
+-callback init(host_type(), gen_mod:module_opts()) -> ok.
 
--callback set_last_info(LUser, LServer, Timestamp, Status) -> Result when
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    Timestamp :: non_neg_integer(),
-    Status  :: binary(),
-    Result  :: ok | {error, term()}.
+-callback get_last(host_type(), jid:luser(), jid:lserver()) ->
+    {ok, timestamp(), status()} | {error, term()} | not_found.
 
--callback remove_user(LUser, LServer) -> ok | {error, term()} when
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver().
+-callback count_active_users(host_type(), jid:lserver(), timestamp()) ->
+    non_neg_integer().
+
+-callback set_last_info(host_type(), jid:luser(), jid:lserver(), timestamp(), status()) ->
+    ok | {error, term()}.
+
+-callback remove_user(host_type(), jid:luser(), jid:lserver()) ->
+    ok | {error, term()}.
 
 -spec start(mongooseim:host_type(), list()) -> 'ok'.
 start(HostType, Opts) ->
