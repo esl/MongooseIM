@@ -106,13 +106,13 @@ delete_handler(HookTuple) ->
     gen_server:call(?MODULE, {delete_handler, Handler}).
 
 %% @doc Run hook handlers in order of priority (lower number means higher priority).
-%%  * if hook handler returns {ok, NewAcc}, the NewAcc value is used
+%%  * if a hook handler returns {ok, NewAcc}, the NewAcc value is used
 %%    as an accumulator parameter for the following hook handler.
 %%  * if a hook handler returns {stop, NewAcc}, execution stops immediately
 %%    without invoking lower priority hook handlers.
-%%  * if hook handler crashes, the error is logged and the next hook handler
+%%  * if a hook handler crashes, the error is logged and the next hook handler
 %%    is executed.
-%% Note that every hook handler MUST return a valid Acc. If hook handler is not
+%% Note that every hook handler MUST return a valid Acc. If a hook handler is not
 %% interested in changing Acc parameter (or even if Acc is not used for a hook
 %% at all), it must return (pass through) an unchanged input accumulator value.
 -spec run_fold(HookName :: hook_name(),
@@ -255,7 +255,6 @@ check_hook_function(Function) when is_function(Function, 3) ->
 
 -spec throw_error(map()) -> no_return().
 throw_error(ErrorMap) ->
-    ?LOG_ERROR(ErrorMap),
     error(ErrorMap).
 
 -spec hook_key(HookName :: hook_name(), Tag :: hook_tag()) -> key().

@@ -1327,11 +1327,12 @@ stop_hook_listener(HookExtra) ->
     rpc(mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, host_type()]).
 
 rpc_start_hook_handler(TestCasePid, User, HostType) ->
-    LUser=jid:nodeprep(User),
+    LUser = jid:nodeprep(User),
+    Extra = #{luser => LUser, pid => TestCasePid},
     gen_hook:add_handler(unacknowledged_message, HostType,
                          fun ?MODULE:hook_handler_fn/3,
-                         #{luser => LUser, pid => TestCasePid}, 50),
-    #{luser => LUser, pid => TestCasePid}.
+                         Extra, 50),
+    Extra.
 
 rpc_stop_hook_handler(HookExtra, HostType) ->
     gen_hook:delete_handler(unacknowledged_message, HostType,

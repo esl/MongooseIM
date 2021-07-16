@@ -95,7 +95,7 @@ add_args(HookParams, LegacyArgsList) ->
 add_hook({HookName, HostType, Module, Function, Priority}) when is_atom(Function) ->
     gen_hook:add_handler(HookName, HostType,
                          fun ?MODULE:gen_hook_fn_wrapper/3,
-                         #{module => Module, function =>Function},
+                         #{module => Module, function => Function},
                          Priority).
 
 -spec delete_hook(hook()) -> ok.
