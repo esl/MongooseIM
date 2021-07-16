@@ -46,10 +46,12 @@ end_per_suite(Config) ->
 
 init_per_testcase(T, Config) ->
     {ok, _HooksServer} = gen_hook:start_link(),
+    ok = mongoose_lazy_routing:start(),
     setup_meck(meck_mods(T)),
     Config.
 
 end_per_testcase(T, Config) ->
+    mongoose_lazy_routing:stop(),
     unload_meck(meck_mods(T)),
     Config.
 
