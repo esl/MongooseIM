@@ -240,8 +240,8 @@
 {{{mod_offline}}}
 {{/mod_offline}}
 {{#mod_privacy}}
+[modules.mod_privacy]
 {{{mod_privacy}}}
-
 {{/mod_privacy}}
 {{#mod_blocking}}
 {{{mod_blocking}}}
