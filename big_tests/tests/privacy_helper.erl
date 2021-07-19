@@ -5,8 +5,6 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--import(escalus_compat, [bin/1]).
-
 -export([set_and_activate/2,
          set_list/2,
          set_list/3,
