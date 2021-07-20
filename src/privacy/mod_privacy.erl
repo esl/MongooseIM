@@ -30,34 +30,40 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2,
-         stop/1,
-         config_spec/0,
-         process_iq_set/4,
+%% gen_mod
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
+-export([config_spec/0]).
+
+-export([process_iq_set/4,
          process_iq_get/5,
-         get_user_list/2,
+         get_user_list/3,
          check_packet/5,
          remove_user/3,
+         remove_domain/3,
          updated_list/3]).
 
 -export([config_metrics/1]).
 
--ignore_xref([behaviour_info/1, check_packet/5, get_user_list/2, process_iq_get/5,
+-ignore_xref([behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
               process_iq_set/4, remove_user/3, updated_list/3, behaviour_info/1,
-              remove_user/3]).
+              remove_user/3, remove_domain/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 -include("mongoose_config_spec.hrl").
 
+-export_type([list_name/0]).
 -export_type([list_item/0]).
 
--type list_name() :: binary().
+-type list_name() :: binary() | none.
 -type list_item() :: #listitem{}.
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
+%% ------------------------------------------------------------------
 
 -callback init(Host, Opts) -> ok when
     Host    :: binary(),
@@ -116,45 +122,20 @@
     Items   :: list(list_item()),
     Reason  :: not_found | term().
 
+%% ------------------------------------------------------------------
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
-start(Host, Opts) ->
+start(HostType, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list, get_list_names,
                                                  set_default_list, forget_default_list,
                                                  remove_privacy_list, replace_privacy_list,
                                                  get_default_list]),
-    mod_privacy_backend:init(Host, Opts),
-    ejabberd_hooks:add(privacy_iq_get, Host,
-               ?MODULE, process_iq_get, 50),
-    ejabberd_hooks:add(privacy_iq_set, Host,
-               ?MODULE, process_iq_set, 50),
-    ejabberd_hooks:add(privacy_get_user_list, Host,
-               ?MODULE, get_user_list, 50),
-    ejabberd_hooks:add(privacy_check_packet, Host,
-               ?MODULE, check_packet, 50),
-    ejabberd_hooks:add(privacy_updated_list, Host,
-               ?MODULE, updated_list, 50),
-    ejabberd_hooks:add(remove_user, Host,
-               ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50).
+    mod_privacy_backend:init(HostType, Opts),
+    ejabberd_hooks:add(hooks(HostType)).
 
-stop(Host) ->
-    ejabberd_hooks:delete(privacy_iq_get, Host,
-              ?MODULE, process_iq_get, 50),
-    ejabberd_hooks:delete(privacy_iq_set, Host,
-              ?MODULE, process_iq_set, 50),
-    ejabberd_hooks:delete(privacy_get_user_list, Host,
-              ?MODULE, get_user_list, 50),
-    ejabberd_hooks:delete(privacy_check_packet, Host,
-              ?MODULE, check_packet, 50),
-    ejabberd_hooks:delete(privacy_updated_list, Host,
-              ?MODULE, updated_list, 50),
-    ejabberd_hooks:delete(remove_user, Host,
-              ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host,
-        ?MODULE, remove_user, 50).
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
 config_spec() ->
     #section{
@@ -175,6 +156,23 @@ riak_config_spec() ->
        format = none
       }.
 
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
+hooks(HostType) ->
+    [
+     {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
+     {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50},
+     {privacy_get_user_list, HostType, ?MODULE, get_user_list, 50},
+     {privacy_check_packet, HostType, ?MODULE, check_packet, 50},
+     {privacy_updated_list, HostType, ?MODULE, updated_list, 50},
+     {remove_user, HostType, ?MODULE, remove_user, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
+     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50}
+    ].
+
+%% ------------------------------------------------------------------
 %% Handlers
 %% ------------------------------------------------------------------
 
@@ -320,7 +318,7 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, #jid{luser = LUser, lserver = LServer}) ->
+get_user_list(_, _HostType, #jid{luser = LUser, lserver = LServer}) ->
     case mod_privacy_backend:get_default_list(LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
@@ -429,17 +427,24 @@ is_type_match(group, Value, _JID, _Subscription, Groups) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    R = mod_privacy_backend:remove_user(LUser, LServer),
+    HostType = mongoose_acc:host_type(Acc),
+    R = mod_privacy_backend:remove_user(HostType, LUser, LServer),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_privacy_backend:remove_domain(HostType, Domain),
     Acc.
 
 updated_list(_, #userlist{name = SameName}, #userlist{name = SameName} = New) -> New;
 updated_list(_, Old, _) -> Old.
 
-
+%% ------------------------------------------------------------------
 %% Deserialization
 %% ------------------------------------------------------------------
-
 
 packet_directed_type(out, message) -> message_out;
 packet_directed_type(in, message) -> message;
@@ -562,7 +567,7 @@ add_item(false, Items) ->
 add_item(Item, Items) ->
     [Item | Items].
 
-
+%% ------------------------------------------------------------------
 %% Serialization
 %% ------------------------------------------------------------------
 
@@ -676,7 +681,7 @@ binary_to_order_s(Order) ->
         false
     end.
 
-
+%% ------------------------------------------------------------------
 %% Ejabberd
 %% ------------------------------------------------------------------
 
@@ -688,9 +693,9 @@ broadcast_privacy_list(UserJID, Name, UserList) ->
 broadcast_privacy_list_packet(Name, UserList) ->
     {broadcast, {privacy_list, UserList, Name}}.
 
-roster_get_jid_info(Host, ToJID, LJID) ->
-    mongoose_hooks:roster_get_jid_info(Host, ToJID, LJID).
+roster_get_jid_info(HostType, ToJID, LJID) ->
+    mongoose_hooks:roster_get_jid_info(HostType, ToJID, LJID).
 
-config_metrics(Host) ->
+config_metrics(HostType) ->
     OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).

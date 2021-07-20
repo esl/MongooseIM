@@ -625,7 +625,7 @@ privacy_check_packet(Acc, JID, PrivacyList, FromToNameType, Dir) ->
     Result :: mongoose_privacy:userlist().
 privacy_get_user_list(HostType, JID) ->
     %% TODO: ejabberd_c2s calls this hook with host type, fix other places.
-    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [JID]).
+    run_hook_for_host_type(privacy_get_user_list, HostType, #userlist{}, [HostType, JID]).
 
 -spec privacy_iq_get(HostType, Acc, From, To, IQ, PrivList) -> Result when
     HostType :: binary(),
