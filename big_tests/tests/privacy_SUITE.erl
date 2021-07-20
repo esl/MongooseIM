@@ -42,7 +42,8 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 management_test_cases() ->
-    [get_all_lists,
+    [discovering_support,
+     get_all_lists,
      get_existing_list,
      get_many_lists,
      get_nonexistent_list,
@@ -157,6 +158,16 @@ end_per_testcase(CaseName, Config) ->
 %%     presence-out, iqs} by specifying these as children to the list item
 %%     or block all of them, when the item has no children
 %% - blocking: messages, presence (in/out), iqs, all
+
+discovering_support(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        IqGet = escalus_stanza:disco_info(Server),
+        escalus_client:send(Alice, IqGet),
+        Result = escalus_client:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, [IqGet], Result),
+        escalus:assert(has_feature, [?NS_PRIVACY], Result)
+    end).
 
 get_all_lists(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->

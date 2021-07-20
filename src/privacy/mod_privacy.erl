@@ -42,13 +42,15 @@
          check_packet/5,
          remove_user/3,
          remove_domain/3,
-         updated_list/3]).
+         updated_list/3,
+         disco_local_features/1
+        ]).
 
 -export([config_metrics/1]).
 
 -ignore_xref([behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
               process_iq_set/4, remove_user/3, updated_list/3, behaviour_info/1,
-              remove_user/3, remove_domain/3]).
+              remove_user/3, remove_domain/3, disco_local_features/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -179,6 +181,7 @@ supported_features() ->
 
 hooks(HostType) ->
     [
+     {disco_local_features, HostType, ?MODULE, disco_local_features, 98},
      {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
      {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50},
      {privacy_get_user_list, HostType, ?MODULE, get_user_list, 50},
@@ -192,6 +195,12 @@ hooks(HostType) ->
 %% ------------------------------------------------------------------
 %% Handlers
 %% ------------------------------------------------------------------
+
+-spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
+disco_local_features(Acc = #{node := <<>>}) ->
+    mongoose_disco:add_features([?NS_PRIVACY], Acc);
+disco_local_features(Acc) ->
+    Acc.
 
 process_iq_get(Acc,
                _From = #jid{luser = LUser, lserver = LServer},
