@@ -31,26 +31,27 @@
 -behaviour(mod_privacy).
 
 -export([init/2,
-         get_default_list/2,
-         get_list_names/2,
-         get_privacy_list/3,
-         forget_default_list/2,
-         set_default_list/3,
-         remove_privacy_list/3,
-         replace_privacy_list/4,
-         remove_user/2]).
+         get_default_list/3,
+         get_list_names/3,
+         get_privacy_list/4,
+         set_default_list/4,
+         forget_default_list/3,
+         remove_privacy_list/4,
+         replace_privacy_list/5,
+         remove_user/3,
+         remove_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
-init(_Host, _Opts) ->
+init(_HostType, _Opts) ->
     mnesia:create_table(privacy, [{disc_copies, [node()]},
-                  {attributes, record_info(fields, privacy)}]),
+                                  {attributes, record_info(fields, privacy)}]),
     mnesia:add_table_copy(privacy, node(), disc_copies),
     ok.
 
-get_default_list(LUser, LServer) ->
+get_default_list(_HostType, LUser, LServer) ->
     case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
         [] ->
             {error, not_found};
@@ -65,7 +66,7 @@ get_default_list(LUser, LServer) ->
             {error, Reason}
     end.
 
-get_list_names(LUser, LServer) ->
+get_list_names(_HostType, LUser, LServer) ->
     case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
         {'EXIT', Reason} ->
             {error, Reason};
@@ -76,7 +77,7 @@ get_list_names(LUser, LServer) ->
             {ok, {Default, Names}}
     end.
 
-get_privacy_list(LUser, LServer, Name) ->
+get_privacy_list(_HostType, LUser, LServer, Name) ->
     case catch mnesia:dirty_read(privacy, {LUser, LServer}) of
         {'EXIT', Reason} ->
             {error, Reason};
@@ -92,7 +93,7 @@ get_privacy_list(LUser, LServer, Name) ->
     end.
 
 %% @doc Set no default list for user.
-forget_default_list(LUser, LServer) ->
+forget_default_list(_HostType, LUser, LServer) ->
     F = fun() ->
             case mnesia:read({privacy, {LUser, LServer}}) of
                 [] ->
@@ -109,7 +110,7 @@ forget_default_list(LUser, LServer) ->
             {error, {aborted, Reason}}
     end.
 
-set_default_list(LUser, LServer, Name) ->
+set_default_list(_HostType, LUser, LServer, Name) ->
     case mnesia:transaction(fun() -> set_default_list_t(LUser, LServer, Name) end) of
         {atomic, ok} ->
             ok;
@@ -135,7 +136,7 @@ set_default_list_t(LUser, LServer, Name) ->
             end
     end.
 
-remove_privacy_list(LUser, LServer, Name) ->
+remove_privacy_list(_HostType, LUser, LServer, Name) ->
     F = fun() ->
                 case mnesia:read({privacy, {LUser, LServer}}) of
                     [] ->
@@ -157,7 +158,7 @@ remove_privacy_list(LUser, LServer, Name) ->
             {error, {aborted, Reason}}
     end.
 
-replace_privacy_list(LUser, LServer, Name, List) ->
+replace_privacy_list(_HostType, LUser, LServer, Name, List) ->
     US = {LUser, LServer},
     F = fun() ->
             case mnesia:wread({privacy, US}) of
@@ -179,7 +180,15 @@ replace_privacy_list(LUser, LServer, Name, List) ->
             {error, {aborted, Reason}}
     end.
 
-remove_user(LUser, LServer) ->
+remove_user(_HostType, LUser, LServer) ->
     F = fun() -> mnesia:delete({privacy, {LUser, LServer}}) end,
     mnesia:transaction(F).
 
+remove_domain(_HostType, LServer) ->
+    F = fun(#privacy{us = {_, LS}} = Rec, _) when LS =:= LServer ->
+                mnesia:delete_object(Rec),
+                ok;
+           (_, _) ->
+                ok
+        end,
+    mnesia:transaction(fun mnesia:foldl/3, [F, ok, privacy]).

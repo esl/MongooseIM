@@ -57,70 +57,87 @@
 
 -export_type([list_name/0]).
 -export_type([list_item/0]).
+-export_type([privacy_item_type/0]).
 
 -type list_name() :: binary() | none.
 -type list_item() :: #listitem{}.
+-type privacy_item_type() :: none | jid | group | subscription.
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
 %% ------------------------------------------------------------------
 
--callback init(Host, Opts) -> ok when
-    Host    :: binary(),
-    Opts    :: list().
+-callback init(HostType, Opts) -> ok when
+      HostType :: mongooseim:host_type(),
+      Opts     :: gen_mod:module_opts().
 
--callback remove_user(LUser, LServer) -> any() when
-    LUser   :: binary(),
-    LServer :: binary().
+-callback remove_user(HostType, LUser, LServer) -> any() when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary().
 
--callback get_list_names(LUser, LServer) ->
-        {ok, {Default, Names}} | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Default :: list_name(),
-    Names   :: list(list_name()),
-    Reason  :: not_found | term().
+-callback remove_domain(HostType, LServer) -> any() when
+      HostType :: mongooseim:host_type(),
+      LServer :: binary().
 
--callback get_privacy_list(LUser, LServer, Name) ->
-        {ok, Items} | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Name    :: list_name(),
-    Items   :: list(list_item()),
-    Reason  :: not_found | term().
+-callback get_list_names(HostType, LUser, LServer) ->
+    {ok, {Default, Names}} | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Default :: list_name(),
+      Names   :: list(list_name()),
+      Reason  :: not_found | term().
 
--callback set_default_list(LUser, LServer, Name) -> ok | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Name    :: list_name(),
-    Reason  :: not_found | term().
+-callback get_privacy_list(HostType, LUser, LServer, Name) ->
+    {ok, Items} | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Name    :: list_name(),
+      Items   :: list(list_item()),
+      Reason  :: not_found | term().
 
--callback forget_default_list(LUser, LServer) -> ok | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Reason  :: not_found | term().
+-callback set_default_list(HostType, LUser, LServer, Name) ->
+    ok | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Name    :: list_name(),
+      Reason  :: not_found | term().
 
--callback remove_privacy_list(LUser, LServer, Name) -> ok | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Name    :: list_name(),
-    Reason  :: conflict | term().
+-callback forget_default_list(HostType, LUser, LServer) ->
+    ok | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Reason  :: not_found | term().
 
--callback replace_privacy_list(LUser, LServer, Name, Items) ->
-        ok | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Name    :: list_name(),
-    Items   :: list(list_item()),
-    Reason  :: conflict | term().
+-callback remove_privacy_list(HostType, LUser, LServer, Name) ->
+    ok | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Name    :: list_name(),
+      Reason  :: conflict | term().
 
--callback get_default_list(LUser, LServer) ->
-        {ok, {Default, Items}} | {error, Reason} when
-    LUser   :: binary(),
-    LServer :: binary(),
-    Default :: list_name(),
-    Items   :: list(list_item()),
-    Reason  :: not_found | term().
+-callback replace_privacy_list(HostType, LUser, LServer, Name, Items) ->
+    ok | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Name    :: list_name(),
+      Items   :: list(list_item()),
+      Reason  :: conflict | term().
+
+-callback get_default_list(HostType, LUser, LServer) ->
+    {ok, {Default, Items}} | {error, Reason} when
+      HostType :: mongooseim:host_type(),
+      LUser   :: binary(),
+      LServer :: binary(),
+      Default :: list_name(),
+      Items   :: list(list_item()),
+      Reason  :: not_found | term().
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
@@ -181,14 +198,15 @@ process_iq_get(Acc,
                _To,
                #iq{xmlns = ?NS_PRIVACY, sub_el = #xmlel{children = Els}},
                #userlist{name = Active}) ->
+    HostType = mongoose_acc:host_type(Acc),
     Res = case xml:remove_cdata(Els) of
               [] ->
-                  process_lists_get(LUser, LServer, Active);
+                  process_lists_get(HostType, LUser, LServer, Active);
               [#xmlel{name = Name, attrs = Attrs}] ->
                   case Name of
                       <<"list">> ->
                           ListName = xml:get_attr(<<"name">>, Attrs),
-                          process_list_get(LUser, LServer, ListName);
+                          process_list_get(HostType, LUser, LServer, ListName);
                       _ ->
                           {error, mongoose_xmpp_errors:bad_request()}
                   end;
@@ -199,8 +217,8 @@ process_iq_get(Acc,
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
-process_lists_get(LUser, LServer, Active) ->
-    case mod_privacy_backend:get_list_names(LUser, LServer) of
+process_lists_get(HostType, LUser, LServer, Active) ->
+    case mod_privacy_backend:get_list_names(HostType, LUser, LServer) of
         {ok, {Default, ListNames}} ->
             {result, [list_names_query(Active, Default, ListNames)]};
         {error, not_found} ->
@@ -209,8 +227,8 @@ process_lists_get(LUser, LServer, Active) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-process_list_get(LUser, LServer, {value, Name}) ->
-    case mod_privacy_backend:get_privacy_list(LUser, LServer, Name) of
+process_list_get(HostType, LUser, LServer, {value, Name}) ->
+    case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, Name) of
         {ok, List} ->
             LItems = lists:map(fun item_to_xml/1, List),
             {result, [list_query_result(Name, LItems)]};
@@ -219,22 +237,23 @@ process_list_get(LUser, LServer, {value, Name}) ->
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_list_get(_LUser, _LServer, false) ->
+process_list_get(_HostType, _LUser, _LServer, false) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
 process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
+    HostType = mongoose_acc:host_type(Acc),
     Res = case xml:remove_cdata(Els) of
               [#xmlel{name = Name, attrs = Attrs, children = SubEls}] ->
                   ListName = xml:get_attr(<<"name">>, Attrs),
                   case Name of
                       <<"list">> ->
-                          process_list_set(From, ListName,
+                          process_list_set(HostType, From, ListName,
                                    xml:remove_cdata(SubEls));
                       <<"active">> ->
-                          process_active_set(From, ListName);
+                          process_active_set(HostType, From, ListName);
                       <<"default">> ->
-                          process_default_set(From, ListName);
+                          process_default_set(HostType, From, ListName);
                       _ ->
                           {error, mongoose_xmpp_errors:bad_request()}
                   end;
@@ -245,8 +264,8 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
 process_iq_set(Val, _, _, _) ->
     Val.
 
-process_default_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
-    case mod_privacy_backend:set_default_list(LUser, LServer, Name) of
+process_default_set(HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
+    case mod_privacy_backend:set_default_list(HostType, LUser, LServer, Name) of
         ok ->
             {result, []};
         {error, not_found} ->
@@ -254,16 +273,16 @@ process_default_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_default_set(#jid{luser = LUser, lserver = LServer}, false) ->
-    case mod_privacy_backend:forget_default_list(LUser, LServer) of
+process_default_set(HostType, #jid{luser = LUser, lserver = LServer}, false) ->
+    case mod_privacy_backend:forget_default_list(HostType, LUser, LServer) of
         ok ->
             {result, []};
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-process_active_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
-    case mod_privacy_backend:get_privacy_list(LUser, LServer, Name) of
+process_active_set(HostType, #jid{luser = LUser, lserver = LServer}, {value, Name}) ->
+    case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, Name) of
         {ok, List} ->
             NeedDb = is_list_needdb(List),
             {result, [], #userlist{name = Name, list = List, needdb = NeedDb}};
@@ -272,23 +291,23 @@ process_active_set(#jid{luser = LUser, lserver = LServer}, {value, Name}) ->
         {error, _Reason} ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end;
-process_active_set(_UserJID, false) ->
+process_active_set(_HostType, _UserJID, false) ->
     {result, [], #userlist{}}.
 
-process_list_set(UserJID, {value, Name}, Els) ->
+process_list_set(HostType, UserJID, {value, Name}, Els) ->
     case parse_items(Els) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
         remove ->
-            remove_privacy_list(UserJID, Name);
+            remove_privacy_list(HostType, UserJID, Name);
         List ->
-            replace_privacy_list(UserJID, Name, List)
+            replace_privacy_list(HostType, UserJID, Name, List)
     end;
-process_list_set(_UserJID, false, _Els) ->
+process_list_set(_HostType, _UserJID, false, _Els) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
-remove_privacy_list(#jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
-    case mod_privacy_backend:remove_privacy_list(LUser, LServer, Name) of
+remove_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
+    case mod_privacy_backend:remove_privacy_list(HostType, LUser, LServer, Name) of
         ok ->
             UserList = #userlist{name = Name, list = []},
             broadcast_privacy_list(UserJID, Name, UserList),
@@ -300,8 +319,8 @@ remove_privacy_list(#jid{luser = LUser, lserver = LServer} = UserJID, Name) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-replace_privacy_list(#jid{luser = LUser, lserver = LServer} = UserJID, Name, List) ->
-    case mod_privacy_backend:replace_privacy_list(LUser, LServer, Name, List) of
+replace_privacy_list(HostType, #jid{luser = LUser, lserver = LServer} = UserJID, Name, List) ->
+    case mod_privacy_backend:replace_privacy_list(HostType, LUser, LServer, Name, List) of
         ok ->
             NeedDb = is_list_needdb(List),
             UserList = #userlist{name = Name, list = List, needdb = NeedDb},
@@ -318,8 +337,8 @@ is_item_needdb(#listitem{type = subscription}) -> true;
 is_item_needdb(#listitem{type = group})        -> true;
 is_item_needdb(_)                              -> false.
 
-get_user_list(_, _HostType, #jid{luser = LUser, lserver = LServer}) ->
-    case mod_privacy_backend:get_default_list(LUser, LServer) of
+get_user_list(_, HostType, #jid{luser = LUser, lserver = LServer}) ->
+    case mod_privacy_backend:get_default_list(HostType, LUser, LServer) of
         {ok, {Default, List}} ->
             NeedDb = is_list_needdb(List),
             #userlist{name = Default, list = List, needdb = NeedDb};
@@ -332,9 +351,10 @@ get_user_list(_, _HostType, #jid{luser = LUser, lserver = LServer}) ->
 %% If Dir = in, User@Server is the destination account (To).
 check_packet(Acc, _JID, #userlist{list = []}, _, _Dir) ->
     mongoose_acc:set(hook, result, allow, Acc);
-check_packet(Acc, #jid{lserver = LServer} = JID,
+check_packet(Acc, JID,
              #userlist{list = List, needdb = NeedDb},
              {From, To, Name, Type}, Dir) ->
+    HostType = mongoose_acc:host_type(Acc),
     PType = packet_directed_type(Dir, packet_type(Name, Type)),
     LJID = case Dir of
                in -> jid:to_lower(From);
@@ -343,7 +363,7 @@ check_packet(Acc, #jid{lserver = LServer} = JID,
     {Subscription, Groups} =
         case NeedDb of
             true ->
-                roster_get_jid_info(LServer, JID, LJID);
+                roster_get_jid_info(HostType, JID, LJID);
             false ->
                 {[], []}
         end,
