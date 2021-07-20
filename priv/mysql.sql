@@ -139,17 +139,20 @@ CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 
 CREATE TABLE privacy_default_list (
-    username varchar(250) PRIMARY KEY,
-    name varchar(250) NOT NULL
+    server varchar(250),
+    username varchar(250),
+    name varchar(250) NOT NULL,
+    PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE privacy_list (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     name varchar(250) NOT NULL,
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (username(75), name(75))
+    PRIMARY KEY (server, username(75), name(75))
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 

@@ -181,11 +181,12 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[privacy_default_list](
+	[server] [nvarchar](250) NOT NULL,
 	[username] [nvarchar](250) NOT NULL,
 	[name] [nvarchar](250) NOT NULL,
  CONSTRAINT [PK_privacy_default_list_username] PRIMARY KEY CLUSTERED
 (
-	[username] ASC
+	[server] ASC, [username] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 
@@ -200,6 +201,7 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[privacy_list](
+	[server] [nvarchar](250) NOT NULL,
 	[username] [nvarchar](250) NOT NULL,
 	[name] [nvarchar](250) NOT NULL,
 	[id] [bigint] IDENTITY(1,1) NOT NULL,
