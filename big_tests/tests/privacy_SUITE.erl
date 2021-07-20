@@ -60,7 +60,8 @@ management_test_cases() ->
     ].
 
 blocking_test_cases() ->
-    [block_jid_message,
+    [
+     block_jid_message,
      block_group_message,
      block_subscription_message,
      block_all_message,
@@ -622,9 +623,10 @@ iq_reply_doesnt_crash_user_process(Config) ->
 block_jid_iq(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
-        privacy_helper:set_list(Alice, <<"deny_localhost_iq">>),
+        LServer = escalus_utils:get_server(Bob),
+        privacy_helper:set_list(Alice, {<<"deny_server_iq">>, LServer}),
         %% activate it
-        Stanza = escalus_stanza:privacy_activate(<<"deny_localhost_iq">>),
+        Stanza = escalus_stanza:privacy_activate(<<"deny_server_iq">>),
         escalus_client:send(Alice, Stanza),
         timer:sleep(500), %% we must let it sink in
 
@@ -647,8 +649,6 @@ block_jid_iq(Config) ->
         end).
 
 block_jid_all(Config) ->
-    %% unexprected presence unavalable
-    mongoose_helper:kick_everyone(),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         privacy_helper:set_list(Alice, {<<"deny_jid_all">>, Bob}),
