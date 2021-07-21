@@ -95,7 +95,7 @@
 -callback extra_fin_element(exml:element()) -> exml:element().
 -optional_callbacks([extra_fin_element/1]).
 
--ignore_xref([append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
+-ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
               maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
 
