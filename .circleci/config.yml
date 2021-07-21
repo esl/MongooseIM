@@ -1,22 +1,23 @@
 version: 2.1
 
 references:
-  - &OTP23 cimg/elixir:1.11  # Contains Erlang 23.1
+  - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
 
 executors:
-  otp_23:
+  # OTP24
+  otp_24:
     working_directory: ~/app
     docker:
-      - image: *OTP23
-  otp_23_redis:
+      - image: *OTP24
+  otp_24_redis:
     working_directory: ~/app
     docker:
-      - image: *OTP23
+      - image: *OTP24
       - image: circleci/redis:6.0.5
-  otp_23_redis_minio_rmq:
+  otp_24_redis_minio_rmq:
     working_directory: ~/app
     docker:
-      - image: *OTP23
+      - image: *OTP24
       - image: circleci/redis:6.0.5
       - image: minio/minio:latest
         environment:
@@ -576,84 +577,66 @@ workflows:
       # ============= PACKAGES =============
       - package:
           name: centos_7
-          executor: otp_23
+          executor: otp_24
           platform: centos_7
           context: mongooseim-org
-          otp_package: 23.1-1
+          otp_package: 24.0-1
           filters: *all_tags
       - package:
           name: debian_stretch
-          executor: otp_23
+          executor: otp_24
           platform: debian_stretch
           context: mongooseim-org
-          otp_package: 23.1-1
+          otp_package: 24.0-1
           filters: *all_tags
       # ======== BASE DOCKER BUILDS ========
       - build_in_docker:
-          name: otp_23_docker
-          executor: otp_23
+          name: otp_24_docker
+          executor: otp_24
           context: mongooseim-org
           build_prod: true
       # ============= DIALYZER =============
       - dialyzer:
           name: dialyzer
-          executor: otp_23
+          executor: otp_24
           context: mongooseim-org
           requires:
-            - otp_23_docker
+            - otp_24_docker
           filters: *all_tags
       # ============= XREF =============
       - xref:
           name: xref
-          executor: otp_23
+          executor: otp_24
           context: mongooseim-org
           requires:
-            - otp_23_docker
+            - otp_24_docker
           filters: *all_tags
       # ============= SMALL TESTS =============
       - small_tests_in_docker:
-          name: small_tests_23
-          executor: otp_23_redis
+          name: small_tests_24
+          executor: otp_24_redis
           context: mongooseim-org
           requires:
-            - otp_23_docker
+            - otp_24_docker
           filters: *all_tags
       # ============= BIG TESTS =============
       - big_tests_in_docker:
-          name: internal_mnesia
-          executor: otp_23_redis_minio_rmq
+          name: internal_mnesia_24
+          executor: otp_24_redis_minio_rmq
           context: mongooseim-org
           preset: internal_mnesia
           db: "mnesia minio"
           tls_dist: true
           requires:
-            - otp_23_docker
+            - otp_24_docker
           filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
-      # ============= BASE BUILDS =============
+      # ============= TESTS OTP 22 =============
       - build:
           name: otp_22
           otp_package: 22.3.4.9-1
           context: mongooseim-org
-          filters: *all_tags
-      - build:
-          name: otp_23
-          otp_package: 23.0.3-1
-          context: mongooseim-org
-          filters: *all_tags
-      - build:
-          name: otp_24
-          otp_package: 24.0.2-1
-          context: mongooseim-org
-          filters: *all_tags
-      # ============= SMALL TESTS =============
-      - small_tests:
-          name: small_tests_24
-          otp_package: 24.0.2-1
-          context: mongooseim-org
-          requires:
-            - otp_24
           filters: *all_tags
       - small_tests:
           name: small_tests_22
@@ -662,73 +645,6 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
-      # ============= MOST RECENT VERSION TESTS =============
-      - big_tests:
-          name: mysql_redis
-          otp_package: 23.0.3-1
-          preset: mysql_redis
-          db: mysql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: mssql_mnesia
-          otp_package: 23.0.3-1
-          preset: odbc_mssql_mnesia
-          db: mssql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: elasticsearch_and_cassandra
-          otp_package: 23.0.3-1
-          preset: elasticsearch_and_cassandra_mnesia
-          db: "elasticsearch cassandra"
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: riak_mnesia
-          otp_package: 23.0.3-1
-          preset: riak_mnesia
-          db: riak
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: pgsql_mnesia
-          otp_package: 23.0.3-1
-          preset: pgsql_mnesia
-          db: pgsql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: ldap_mnesia_23
-          otp_package: 23.0.3-1
-          preset: ldap_mnesia
-          db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      # ============= DYNAMIC DOMAINS =============
-      - big_tests:
-          name: dynamic_domains
-          otp_package: 23.0.3-1
-          spec: dynamic_domains.spec
-          preset: pgsql_mnesia
-          db: pgsql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      # ============= 1 VERSION OLDER TESTS =============
       - big_tests:
           name: ldap_mnesia_22
           otp_package: 22.3.4.9-1
@@ -747,7 +663,53 @@ workflows:
           requires:
             - otp_22
           filters: *all_tags
-      # ============= MOST RECENT VERSION TESTS OTP 24 =============
+      # ============= TESTS OTP 23 =============
+      - build:
+          name: otp_23
+          otp_package: 23.0.3-1
+          context: mongooseim-org
+          filters: *all_tags
+      - small_tests:
+          name: small_tests_23
+          otp_package: 23.0.3-1
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
+      - big_tests:
+          name: ldap_mnesia_23
+          otp_package: 23.0.3-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
+      - big_tests:
+          name: pgsql_mnesia_23
+          otp_package: 23.0.3-1
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
+      - big_tests:
+          name: dynamic_domains_23
+          otp_package: 23.0.3-1
+          spec: dynamic_domains.spec
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_23
+          filters: *all_tags
+      # ============= TESTS OTP 24 =============
+      - build:
+          name: otp_24
+          otp_package: 24.0.2-1
+          context: mongooseim-org
+          filters: *all_tags
       - big_tests:
           name: ldap_mnesia_24
           otp_package: 24.0.2-1
@@ -802,22 +764,41 @@ workflows:
           requires:
             - otp_24
           filters: *all_tags
+      - big_tests:
+          name: dynamic_domains_24
+          otp_package: 24.0.2-1
+          spec: dynamic_domains.spec
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:
           name: docker_build_and_ship
-          executor: otp_23
+          executor: otp_24
           context: mongooseim-org
           requires:
+            - small_tests_22
+            - ldap_mnesia_22
+            - pgsql_mnesia_22
+
+            - small_tests_23
             - ldap_mnesia_23
-            - pgsql_mnesia
-            - riak_mnesia
-            - elasticsearch_and_cassandra
-            - internal_mnesia
-            - mysql_redis
-            - mssql_mnesia
+            - pgsql_mnesia_23
+            - dynamic_domains_23
+
+            - small_tests_24
+            - internal_mnesia_24
+            - pgsql_mnesia_24
+            - mysql_redis_24
+            - mssql_mnesia_24
+            - ldap_mnesia_24
+            - riak_mnesia_24
+            - elasticsearch_and_cassandra_24
+            - dynamic_domains_24
+
             - dialyzer
             - xref
-            - small_tests_22
-            - small_tests_23
-            - small_tests_24
           filters: *all_tags
