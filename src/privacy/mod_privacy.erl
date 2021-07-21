@@ -48,9 +48,20 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
-              process_iq_set/4, remove_user/3, updated_list/3, behaviour_info/1,
-              remove_user/3, remove_domain/3, disco_local_features/1]).
+-ignore_xref([
+    {mod_privacy_backend, init, 2},
+    {mod_privacy_backend, get_default_list, 3},
+    {mod_privacy_backend, get_list_names, 3},
+    {mod_privacy_backend, get_privacy_list, 4},
+    {mod_privacy_backend, set_default_list, 4},
+    {mod_privacy_backend, forget_default_list, 3},
+    {mod_privacy_backend, remove_privacy_list, 4},
+    {mod_privacy_backend, replace_privacy_list, 5},
+    {mod_privacy_backend, remove_user, 3},
+    {mod_privacy_backend, remove_domain, 2},
+    behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
+    process_iq_set/4, remove_user/3, updated_list/3,
+    remove_user/3, remove_domain/3, disco_local_features/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
