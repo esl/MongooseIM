@@ -20,7 +20,7 @@
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
          has_full_text_search/2, is_archivable_message_fun/2, send_message_mod/2,
-         archive_chat_markers/2, add_stanzaid_element/2]).
+         archive_chat_markers/2, add_stanzaid_element/2, extra_fin_element_module/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -69,6 +69,10 @@ archive_chat_markers(Module, HostType) ->
 -spec add_stanzaid_element(mam_module(), mongooseim:host_type()) -> boolean().
 add_stanzaid_element(Module, HostType) ->
     not param(Module, HostType, no_stanzaid_element, false).
+
+-spec extra_fin_element_module(mam_module(), mongooseim:host_type()) -> module() | undefined.
+extra_fin_element_module(Module, HostType) ->
+    param(Module, HostType, extra_fin_element, undefined).
 
 %%--------------------------------------------------------------------
 %% Internal functions

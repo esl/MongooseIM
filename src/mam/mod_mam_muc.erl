@@ -79,7 +79,7 @@
          result_query/2,
          result_prefs/4,
          make_fin_message/5,
-         make_fin_element/4,
+         make_fin_element/5,
          parse_prefs/1,
          borders_decode/1,
          features/2]).
@@ -411,7 +411,8 @@ send_messages_and_iq_result({TotalCount, Offset, MessageRows}, HostType, From,
     IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
     IsStable = true,
     ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-    FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl),
+    ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
+    FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, ExtFinMod),
     IQ#iq{type = result, sub_el = [FinElem]}.
 
 forward_messages(HostType, From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->

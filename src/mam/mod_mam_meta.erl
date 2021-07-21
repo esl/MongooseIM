@@ -94,6 +94,8 @@ config_items() ->
       <<"db_message_format">> => #option{type = atom,
                                          validate = module},
       <<"simple">> => #option{type = boolean},
+      <<"extra_fin_element">> => #option{type = atom,
+                                         validate = module},
       <<"extra_lookup_params">> => #option{type = atom,
                                            validate = module}
      }.
@@ -213,6 +215,7 @@ common_opts() ->
     [is_archivable_message,
      send_message,
      archive_chat_markers,
+     extra_fin_element,
      extra_lookup_params,
      full_text_search,
      message_retraction,
