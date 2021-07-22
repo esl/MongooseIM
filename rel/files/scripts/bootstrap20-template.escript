@@ -26,7 +26,7 @@ init_and_template(MIM_DIR, TemplateConfigPath, TemplateConfigBin) ->
     %% Options defined in the ini config file
     FileOpts = maps:from_list(proplists:get_value(options, TemplateConfig, [])),
 
-    LowerEnvVars = [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()],
+    LowerEnvVars = get_env_vars(),
 
     %% Add all env variables with prefix MIM_
     EnvVars = maps:from_list([{list_to_atom(K), list_to_binary(V)}
@@ -109,3 +109,16 @@ parse_template_config(TemplateConfigPath, TemplateConfigBin) ->
             io:format("Failed to parse ~p~n Reason ~p~n", [TemplateConfigPath, Other]),
             halt_with_error("parse_template_config_failed")
     end.
+
+-ifdef(OTP_RELEASE).
+-if(?OTP_RELEASE >= 24).
+get_env_vars() ->
+    LowerEnvVars = [{string:to_lower(K), V} || {K, V} <- os:env()].
+-else.
+get_env_vars() ->
+    LowerEnvVars = [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()].
+-endif.
+-else.
+get_env_vars() ->
+    LowerEnvVars = [{string:to_lower(K), V} || {K, V} <- os:list_env_vars()].
+-endif.
