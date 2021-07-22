@@ -20,36 +20,36 @@
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
          has_full_text_search/2, is_archivable_message_fun/2, send_message_mod/2,
-         archive_chat_markers/2, add_stanzaid_element/2]).
+         archive_chat_markers/2, add_stanzaid_element/2, extra_fin_element_module/2]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec extra_params_module(mam_module(), Host :: jid:lserver()) -> module() | undefined.
-extra_params_module(Module, Host) ->
-    param(Module, Host, extra_lookup_params, undefined).
+-spec extra_params_module(mam_module(), mongooseim:host_type()) -> module() | undefined.
+extra_params_module(Module, HostType) ->
+    param(Module, HostType, extra_lookup_params, undefined).
 
--spec max_result_limit(mam_module(), Host :: jid:lserver()) -> pos_integer().
-max_result_limit(Module, Host) ->
-    param(Module, Host, max_result_limit, 50).
+-spec max_result_limit(mam_module(), mongooseim:host_type()) -> pos_integer().
+max_result_limit(Module, HostType) ->
+    param(Module, HostType, max_result_limit, 50).
 
--spec default_result_limit(mam_module(), Host :: jid:lserver()) -> pos_integer().
-default_result_limit(Module, Host) ->
-    param(Module, Host, default_result_limit, 50).
+-spec default_result_limit(mam_module(), mongooseim:host_type()) -> pos_integer().
+default_result_limit(Module, HostType) ->
+    param(Module, HostType, default_result_limit, 50).
 
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
-has_full_text_search(Module, Host) ->
-    param(Module, Host, full_text_search, true).
+-spec has_full_text_search(Module :: mod_mam | mod_mam_muc, mongooseim:host_type()) -> boolean().
+has_full_text_search(Module, HostType) ->
+    param(Module, HostType, full_text_search, true).
 
--spec is_archivable_message_fun(mam_module(), Host :: jid:lserver()) ->
+-spec is_archivable_message_fun(mam_module(), mongooseim:host_type()) ->
                                        MF :: {module(), atom()}.
-is_archivable_message_fun(Module, Host) ->
+is_archivable_message_fun(Module, HostType) ->
     {IsArchivableModule, IsArchivableFunction} =
-        case param(Module, Host, is_archivable_message, undefined) of
+        case param(Module, HostType, is_archivable_message, undefined) of
             undefined ->
-                case param(Module, Host, is_complete_message, undefined) of
+                case param(Module, HostType, is_complete_message, undefined) of
                     undefined -> {mod_mam_utils, is_archivable_message};
                     OldStyleMod -> {OldStyleMod, is_complete_message}
                 end;
@@ -58,22 +58,26 @@ is_archivable_message_fun(Module, Host) ->
         end,
     {IsArchivableModule, IsArchivableFunction}.
 
--spec send_message_mod(mam_module(), Host :: jid:lserver()) -> module().
-send_message_mod(Module, Host) ->
-    param(Module, Host, send_message, mod_mam_utils).
+-spec send_message_mod(mam_module(), mongooseim:host_type()) -> module().
+send_message_mod(Module, HostType) ->
+    param(Module, HostType, send_message, mod_mam_utils).
 
--spec archive_chat_markers(mam_module(), Host :: jid:lserver()) -> boolean().
-archive_chat_markers(Module, Host) ->
-    param(Module, Host, archive_chat_markers, false).
+-spec archive_chat_markers(mam_module(), mongooseim:host_type()) -> boolean().
+archive_chat_markers(Module, HostType) ->
+    param(Module, HostType, archive_chat_markers, false).
 
--spec add_stanzaid_element(mam_module(), Host :: jid:lserver()) -> boolean().
-add_stanzaid_element(Module, Host) ->
-    not param(Module, Host, no_stanzaid_element, false).
+-spec add_stanzaid_element(mam_module(), mongooseim:host_type()) -> boolean().
+add_stanzaid_element(Module, HostType) ->
+    not param(Module, HostType, no_stanzaid_element, false).
+
+-spec extra_fin_element_module(mam_module(), mongooseim:host_type()) -> module() | undefined.
+extra_fin_element_module(Module, HostType) ->
+    param(Module, HostType, extra_fin_element, undefined).
 
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
 
--spec param(mam_module(), Host :: jid:lserver(), Opt :: term(), Default :: term()) -> term().
-param(Module, Host, Opt, Default) ->
-    gen_mod:get_module_opt(Host, Module, Opt, Default).
+-spec param(mam_module(), mongooseim:host_type(), Opt :: term(), Default :: term()) -> term().
+param(Module, HostType, Opt, Default) ->
+    gen_mod:get_module_opt(HostType, Module, Opt, Default).

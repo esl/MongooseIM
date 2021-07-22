@@ -38,7 +38,7 @@
          result_set/4,
          result_query/2,
          result_prefs/4,
-         make_fin_element/4,
+         make_fin_element/5,
          parse_prefs/1,
          borders_decode/1,
          decode_optimizations/1,
@@ -92,7 +92,10 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2]).
 
--ignore_xref([append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
+-callback extra_fin_element(exml:element()) -> exml:element().
+-optional_callbacks([extra_fin_element/1]).
+
+-ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
               maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
 
@@ -514,15 +517,20 @@ encode_jids(JIDs) ->
 
 
 %% MAM v0.4.1 and above
--spec make_fin_element(binary(), boolean(), boolean(), exml:element()) -> exml:element().
-make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
-    #xmlel{
-       name = <<"fin">>,
-       attrs = [{<<"xmlns">>, MamNs}]
-        ++ [{<<"complete">>, <<"true">>} || IsComplete]
-        ++ [{<<"stable">>, <<"false">>} || not IsStable],
-       children = [ResultSetEl]}.
+-spec make_fin_element(binary(), boolean(), boolean(), exml:element(), module()) -> exml:element().
+make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl, ExtFinMod) ->
+    FinEl = #xmlel{
+               name = <<"fin">>,
+               attrs = [{<<"xmlns">>, MamNs}]
+               ++ [{<<"complete">>, <<"true">>} || IsComplete]
+               ++ [{<<"stable">>, <<"false">>} || not IsStable],
+               children = [ResultSetEl]},
+    maybe_transform_fin_elem(ExtFinMod, FinEl).
 
+maybe_transform_fin_elem(undefined, FinEl) ->
+    FinEl;
+maybe_transform_fin_elem(Module, FinEl) ->
+    Module:extra_fin_element(FinEl).
 
 -spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().
 parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->

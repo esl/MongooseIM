@@ -2125,6 +2125,8 @@ test_mod_mam_meta(T, M) ->
          T(#{<<"db_message_format">> => <<"mam_message_xml">>})),
     ?eqf(M([{simple, false}]),
          T(#{<<"simple">> => false})),
+    ?eqf(M([{extra_fin_element, mod_mam_utils}]),
+         T(#{<<"extra_fin_element">> => <<"mod_mam_utils">>})),
     ?eqf(M([{extra_lookup_params, mod_mam_utils}]),
          T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
     ?errf(T(#{<<"backend">> => <<"notepad">>})),
@@ -2145,6 +2147,7 @@ test_mod_mam_meta(T, M) ->
     ?errf(T(#{<<"db_jid_format">> => <<"not_a_module">>})),
     ?errf(T(#{<<"db_message_format">> => <<"not_a_module">>})),
     ?errf(T(#{<<"simple">> => <<"yes">>})),
+    ?errf(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
 mod_muc(_Config) ->
