@@ -98,7 +98,7 @@ console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS) -s run_common_test init
 
 compile: get-deps deps
-	$(REBAR) compile
+	$(RUN) $(REBAR) compile
 
 get-deps:
 	$(RUN) $(REBAR) deps

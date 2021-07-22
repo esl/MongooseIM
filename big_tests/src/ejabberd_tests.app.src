@@ -8,8 +8,7 @@
                   stdlib,
                   cowboy,
                   gen_fsm_compat,
-                  jid,
-                  escalus
+                  jid
                  ]},
   {env, []}
  ]}.
