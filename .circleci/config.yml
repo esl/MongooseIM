@@ -585,8 +585,13 @@ jobs:
         type: boolean
         description: Erlang distribution with TLS enabled
         default: false
+      spec:
+        type: string
+        description: Test spec file to use
+        default: default.spec
     environment:
       PRESET: <<parameters.preset>>
+      TESTSPEC: <<parameters.spec>>
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
       ELASTICSEARCH_VERSION: 5.6.9
@@ -767,6 +772,16 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_24
+          executor: otp_24_pgsql
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          spec: dynamic_domains.spec
+          db: "pgsql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 22 =============
@@ -870,16 +885,6 @@ workflows:
           otp_package: 24.0-1
           preset: riak_mnesia
           db: riak
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: dynamic_domains_24
-          otp_package: 24.0-1
-          spec: dynamic_domains.spec
-          preset: pgsql_mnesia
-          db: pgsql
           context: mongooseim-org
           requires:
             - otp_24
