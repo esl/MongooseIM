@@ -82,7 +82,7 @@
          wrap_message/6,
          result_set/4,
          result_prefs/4,
-         make_fin_element/5,
+         make_fin_element/7,
          parse_prefs/1,
          is_mam_result_message/1,
          features/2]).
@@ -441,7 +441,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
             ExtFinMod = mod_mam_params:extra_fin_element_module(?MODULE, HostType),
-            FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, ExtFinMod),
+            FinElem = make_fin_element(HostType, Params, IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, ExtFinMod),
             IQ#iq{type = result, sub_el = [FinElem]}
     end.
 
