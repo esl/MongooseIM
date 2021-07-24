@@ -38,7 +38,7 @@
          result_set/4,
          result_query/2,
          result_prefs/4,
-         make_fin_element/5,
+         make_fin_element/7,
          parse_prefs/1,
          borders_decode/1,
          decode_optimizations/1,
@@ -92,8 +92,9 @@
 %% Shared logic
 -export([check_result_for_policy_violation/2]).
 
--callback extra_fin_element(exml:element()) -> exml:element().
--optional_callbacks([extra_fin_element/1]).
+-callback extra_fin_element(mongooseim:host_type(),
+                            mam_iq:lookup_params(),
+                            exml:element()) -> exml:element().
 
 -ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
@@ -517,20 +518,27 @@ encode_jids(JIDs) ->
 
 
 %% MAM v0.4.1 and above
--spec make_fin_element(binary(), boolean(), boolean(), exml:element(), module()) -> exml:element().
-make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl, ExtFinMod) ->
+-spec make_fin_element(mongooseim:host_type(),
+                       mam_iq:lookup_params(),
+                       binary(),
+                       boolean(),
+                       boolean(),
+                       exml:element(),
+                       module()) ->
+    exml:element().
+make_fin_element(HostType, Params, MamNs, IsComplete, IsStable, ResultSetEl, ExtFinMod) ->
     FinEl = #xmlel{
                name = <<"fin">>,
                attrs = [{<<"xmlns">>, MamNs}]
                ++ [{<<"complete">>, <<"true">>} || IsComplete]
                ++ [{<<"stable">>, <<"false">>} || not IsStable],
                children = [ResultSetEl]},
-    maybe_transform_fin_elem(ExtFinMod, FinEl).
+    maybe_transform_fin_elem(ExtFinMod, HostType, Params, FinEl).
 
-maybe_transform_fin_elem(undefined, FinEl) ->
+maybe_transform_fin_elem(undefined, _HostType, _Params, FinEl) ->
     FinEl;
-maybe_transform_fin_elem(Module, FinEl) ->
-    Module:extra_fin_element(FinEl).
+maybe_transform_fin_elem(Module, HostType, Params, FinEl) ->
+    Module:extra_fin_element(HostType, Params, FinEl).
 
 -spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().
 parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->
