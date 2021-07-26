@@ -193,7 +193,7 @@ init_per_group_generic(Config0) ->
 
                   %% To reduce load when sending many messages
                   VirtHosts = virtual_hosts(),
-                  ModulesToStop = [mod_offline, mod_privacy, mod_roster, mod_last],
+                  ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last],
 
                   OldMods = save_modules(NodeName, VirtHosts),
 

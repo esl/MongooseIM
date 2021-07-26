@@ -1,42 +1,49 @@
-%%%-------------------------------------------------------------------
-%%% @author bartek
-%%% @copyright (C) 2016, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 16. May 2016 18:17
-%%%-------------------------------------------------------------------
 -module(mod_blocking).
 
--xep([{xep, 191}, {version, "1.2"}]).
+-xep([{xep, 191}, {version, "1.3"}]).
+
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2,
+-export([start/2]).
+-export([stop/1]).
+-export([deps/2]).
+-export([supported_features/0]).
+-export([config_spec/0]).
+
+-export([
          process_iq_get/5,
          process_iq_set/4,
-         stop/1,
          disco_local_features/1
         ]).
 
 -ignore_xref([disco_local_features/1, process_iq_get/5, process_iq_set/4]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
 -type listitem() :: #listitem{}.
 
-start(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)).
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
-hooks(Host) ->
-    [{disco_local_features, Host, ?MODULE, disco_local_features, 99},
-     {privacy_iq_get, Host, ?MODULE, process_iq_get, 50},
-     {privacy_iq_set, Host, ?MODULE, process_iq_set, 50}].
+deps(_HostType, Opts) ->
+    [{mod_privacy, Opts, hard}].
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
+config_spec() ->
+    mod_privacy:config_spec().
+
+hooks(HostType) ->
+    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
+     {privacy_iq_get, HostType, ?MODULE, process_iq_get, 50},
+     {privacy_iq_set, HostType, ?MODULE, process_iq_set, 50}].
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->
@@ -211,13 +218,9 @@ make_blocking_list_entry(J) ->
 broadcast_blocking_command(Acc, LUser, LServer, UserList, _Changed, unblock_all) ->
     broadcast_blocking_command(Acc, LUser, LServer, UserList, [], unblock);
 broadcast_blocking_command(Acc, LUser, LServer, UserList, Changed, Type) ->
-    case jid:make(LUser, LServer, <<>>) of
-        error ->
-            Acc;
-        UserJID ->
-            Bcast = {blocking, UserList, Type, Changed},
-            ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast})
-    end.
+    UserJID = jid:make_noprep(LUser, LServer, <<>>),
+    Bcast = {blocking, UserList, Type, Changed},
+    ejabberd_sm:route(UserJID, UserJID, Acc, {broadcast, Bcast}).
 
 blocking_query_response(Lst) ->
     #xmlel{

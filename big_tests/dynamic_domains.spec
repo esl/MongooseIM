@@ -25,6 +25,8 @@
 
 {suites, "tests", mam_SUITE}.
 
+{suites, "tests", mod_blocking_SUITE}.
+
 {suites, "tests", mod_ping_SUITE}.
 
 {suites, "tests", muc_SUITE}.
