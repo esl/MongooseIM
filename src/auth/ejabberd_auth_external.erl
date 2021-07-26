@@ -234,7 +234,7 @@ check_password_extauth(HostType, LUser, LServer, Password) ->
                            Password :: binary(),
                            CacheTime :: integer()) -> boolean().
 check_password_cache(HostType, LUser, LServer, Password, CacheTime) ->
-    case get_last_access(LUser, LServer) of
+    case get_last_access(HostType, LUser, LServer) of
         online ->
             check_password_internal(HostType, LUser, LServer, Password);
         never ->
@@ -272,7 +272,7 @@ get_password_internal(HostType, LUser, LServer) ->
                          LServer :: jid:lserver(),
                          CacheTime :: integer()) -> false | binary().
 get_password_cache(HostType, LUser, LServer, CacheTime) ->
-    case get_last_access(LUser, LServer) of
+    case get_last_access(HostType, LUser, LServer) of
         online ->
             get_password_internal(HostType, LUser, LServer);
         never ->
@@ -348,14 +348,13 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 
 %% @doc Code copied from mod_configure.erl
 %% Code copied from web/ejabberd_web_admin.erl
--spec get_last_access(User :: jid:user(),
-                      Server :: jid:server()
-                      ) -> online | never | mod_last_required | integer().
-get_last_access(User, Server) ->
-    JID = jid:make(User, Server, <<>>),
+-spec get_last_access(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          online | never | mod_last_required | integer().
+get_last_access(HostType, LUser, LServer) ->
+    JID = jid:make(LUser, LServer, <<>>),
     case ejabberd_sm:get_user_resources(JID) of
         [] ->
-            case get_last_info(User, Server) of
+            case get_last_info(HostType, LUser, LServer) of
                 mod_last_required ->
                     mod_last_required;
                 not_found ->
@@ -368,13 +367,11 @@ get_last_access(User, Server) ->
     end.
 
 
--spec get_last_info(User :: jid:user(),
-                    Server :: jid:server()
-                    ) -> {ok, Timestamp :: integer(), Status :: binary()}
-                         | not_found | mod_last_required.
-get_last_info(User, Server) ->
-    case gen_mod:is_loaded(Server, mod_last) of
-        true -> mod_last:get_last_info(User, Server);
+-spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
+          {ok, Timestamp :: integer(), Status :: binary()} | not_found | mod_last_required.
+get_last_info(HostType, LUser, LServer) ->
+    case gen_mod:is_loaded(HostType, mod_last) of
+        true -> mod_last:get_last_info(HostType, LUser, LServer);
         _ -> mod_last_required
     end.
 
