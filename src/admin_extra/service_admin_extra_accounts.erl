@@ -178,14 +178,14 @@ get_sha(AccountPass) ->
 
 
 -spec num_active_users(jid:server(), integer()) -> non_neg_integer().
-num_active_users(Host, Days) ->
+num_active_users(Domain, Days) ->
     TimeStamp = erlang:system_time(second),
     TS = TimeStamp - Days * 86400,
-    case catch mod_last:count_active_users(Host, TS) of
-        {'EXIT', _Reason} ->
-            0;
-        Val ->
-            Val
+    try
+        {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
+        mod_last:count_active_users(HostType, Domain, TS)
+    catch _:_ ->
+        0
     end.
 
 
@@ -237,7 +237,8 @@ delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
                                                SecOlder :: non_neg_integer()) -> boolean().
 delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
     {LUser, LServer} = jid:to_lus(JID),
-    case mod_last:get_last_info(LUser, LServer) of
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    case mod_last:get_last_info(HostType, LUser, LServer) of
         {ok, TimeStamp, _Status} ->
             %% get his age
             Sec = TimeStampNow - TimeStamp,
