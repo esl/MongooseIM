@@ -19,9 +19,9 @@
 %%%----------------------------------------------------------------------
 
 -record(privacy, {
-          us             :: jid:simple_bare_jid(),
+          us :: jid:simple_bare_jid(),
           default = none :: mod_privacy:list_name(),
-          lists   = []   :: [{mod_privacy:list_name(), mod_privacy:list_item()}]
+          lists = [] :: [{mod_privacy:list_name(), mod_privacy:list_item()}]
          }).
 
 -record(listitem, {
@@ -37,7 +37,7 @@
          }).
 
 -record(userlist, {
-          name   = none  :: mod_privacy:list_name(),
-          list   = []    :: [mod_privacy:list_item()],
+          name = none :: mod_privacy:list_name(),
+          list = [] :: [mod_privacy:list_item()],
           needdb = false :: boolean()
          }).

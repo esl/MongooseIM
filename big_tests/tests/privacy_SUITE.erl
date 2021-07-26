@@ -42,7 +42,8 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 management_test_cases() ->
-    [discovering_support,
+    [
+     discover_support,
      get_all_lists,
      get_existing_list,
      get_many_lists,
@@ -159,13 +160,11 @@ end_per_testcase(CaseName, Config) ->
 %%     or block all of them, when the item has no children
 %% - blocking: messages, presence (in/out), iqs, all
 
-discovering_support(Config) ->
+discover_support(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Server = escalus_client:server(Alice),
         IqGet = escalus_stanza:disco_info(Server),
-        escalus_client:send(Alice, IqGet),
-        Result = escalus_client:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, [IqGet], Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, IqGet),
         escalus:assert(has_feature, [?NS_PRIVACY], Result)
     end).
 
@@ -867,16 +866,19 @@ subscribe_from_to(From, To, IsSecondSubscription) ->
     ToBareJid = escalus_utils:get_short_jid(To),
     SubStanza = escalus_stanza:presence_direct(ToBareJid, <<"subscribe">>),
     escalus_client:send(From, SubStanza),
-    escalus_client:wait_for_stanza(From),
-    escalus_client:wait_for_stanza(To),
+    PushReq = escalus_client:wait_for_stanza(From),
+    escalus:assert(is_roster_set, PushReq),
+    Received = escalus_client:wait_for_stanza(To),
     %% To accepts From
     FromBareJid = escalus_utils:get_short_jid(From),
     SubConfirmStanza = escalus_stanza:presence_direct(FromBareJid, <<"subscribed">>),
     escalus_client:send(To, SubConfirmStanza),
     case IsSecondSubscription of
         true ->
+            escalus:assert(is_roster_set, Received),
             escalus_client:wait_for_stanzas(To, 2);
         false ->
+            escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
             escalus_client:wait_for_stanza(To)
     end,
     escalus_client:wait_for_stanzas(From, 3).

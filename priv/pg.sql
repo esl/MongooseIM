@@ -130,7 +130,7 @@ CREATE TABLE privacy_default_list (
     server varchar(250),
     username varchar(250),
     name text NOT NULL,
-    PRIMARY KEY (server,username)
+    PRIMARY KEY (server, username)
 );
 
 CREATE TABLE privacy_list (
@@ -139,7 +139,7 @@ CREATE TABLE privacy_list (
     name text NOT NULL,
     id SERIAL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    PRIMARY KEY (server,username,name)
+    PRIMARY KEY (server, username, name)
 );
 
 CREATE TABLE privacy_list_data (

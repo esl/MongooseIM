@@ -86,18 +86,18 @@
 
 -callback remove_user(HostType, LUser, LServer) -> any() when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary().
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver().
 
 -callback remove_domain(HostType, LServer) -> any() when
       HostType :: mongooseim:host_type(),
-      LServer :: binary().
+      LServer :: jid:lserver().
 
 -callback get_list_names(HostType, LUser, LServer) ->
     {ok, {Default, Names}} | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Default :: list_name(),
       Names   :: list(list_name()),
       Reason  :: not_found | term().
@@ -105,8 +105,8 @@
 -callback get_privacy_list(HostType, LUser, LServer, Name) ->
     {ok, Items} | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Name    :: list_name(),
       Items   :: list(list_item()),
       Reason  :: not_found | term().
@@ -114,31 +114,31 @@
 -callback set_default_list(HostType, LUser, LServer, Name) ->
     ok | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Name    :: list_name(),
       Reason  :: not_found | term().
 
 -callback forget_default_list(HostType, LUser, LServer) ->
     ok | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Reason  :: not_found | term().
 
 -callback remove_privacy_list(HostType, LUser, LServer, Name) ->
     ok | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Name    :: list_name(),
       Reason  :: conflict | term().
 
 -callback replace_privacy_list(HostType, LUser, LServer, Name, Items) ->
     ok | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Name    :: list_name(),
       Items   :: list(list_item()),
       Reason  :: conflict | term().
@@ -146,8 +146,8 @@
 -callback get_default_list(HostType, LUser, LServer) ->
     {ok, {Default, Items}} | {error, Reason} when
       HostType :: mongooseim:host_type(),
-      LUser   :: binary(),
-      LServer :: binary(),
+      LUser   :: jid:luser(),
+      LServer :: jid:lserver(),
       Default :: list_name(),
       Items   :: list(list_item()),
       Reason  :: not_found | term().

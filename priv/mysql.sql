@@ -139,8 +139,8 @@ CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 
 CREATE TABLE privacy_default_list (
-    server varchar(250),
-    username varchar(250),
+    server varchar(250) NOT NULL,
+    username varchar(250) NOT NULL,
     name varchar(250) NOT NULL,
     PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
