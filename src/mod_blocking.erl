@@ -44,10 +44,10 @@ disco_local_features(Acc = #{node := <<>>}) ->
 disco_local_features(Acc) ->
     Acc.
 
-
 process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                _, #iq{xmlns = ?NS_BLOCKING}, _) ->
-    Res = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
+    HostType = mongoose_acc:host_type(Acc),
+    Res = case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, <<"blocking">>) of
               {error, not_found} ->
                   {ok, []};
               {ok, L} ->
@@ -67,11 +67,12 @@ process_iq_get(Val, _, _, _, _) ->
 
 process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
+    HostType = mongoose_acc:host_type(Acc),
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{name = BType} = SubEl,
     Type = parse_command_type(BType),
     Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
-    CurrList = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
+    CurrList = case mod_privacy_backend:get_privacy_list(HostType, LUser, LServer, <<"blocking">>) of
                   {ok, List} ->
                       List;
                   {error, not_found} ->
@@ -111,12 +112,13 @@ process_blocking_iq_set(block, Acc, _, _, _, []) ->
     {Acc, {error, mongoose_xmpp_errors:bad_request()}};
 process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
+    HostType = mongoose_acc:host_type(Acc),
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
-    case mod_privacy_backend:replace_privacy_list(LUser, LServer, <<"blocking">>, NewList) of
+    case mod_privacy_backend:replace_privacy_list(HostType, LUser, LServer, <<"blocking">>, NewList) of
         {error, E} ->
             {error, E};
         ok ->
-            case mod_privacy_backend:set_default_list(LUser, LServer, <<"blocking">>) of
+            case mod_privacy_backend:set_default_list(HostType, LUser, LServer, <<"blocking">>) of
                 ok ->
                     {Acc, {ok, Changed, NewList, NType}};
                 {error, not_found} ->
