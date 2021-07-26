@@ -19,6 +19,7 @@
   shaper_rule = \"fast\"
   ip_address = \"127.0.0.1\"
   password = \"secret\""}.
+{mod_cache_users, ""}. % enabled, no options
 {mod_last, "[modules.mod_last]"}.
 {mod_offline, ""}. % enabled, no options
 {mod_blocking, "[modules.mod_blocking]"}.
