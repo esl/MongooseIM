@@ -18,21 +18,26 @@
 %%%
 %%%----------------------------------------------------------------------
 
--record(privacy, {us,
-		  default = none,
-		  lists = []}).
+-record(privacy, {
+          us :: jid:simple_bare_jid(),
+          default = none :: mod_privacy:list_name(),
+          lists = [] :: [{mod_privacy:list_name(), mod_privacy:list_item()}]
+         }).
 
--record(listitem, {type = none,
-		   value = none,
-		   action,
-		   order,
-		   match_all = false,
-		   match_iq = false,
-		   match_message = false,
-		   match_presence_in = false,
-		   match_presence_out = false
-		  }).
+-record(listitem, {
+          type = none :: mod_privacy:privacy_item_type(),
+          value = none,
+          action :: allow | deny | block,
+          order :: undefined | non_neg_integer(),
+          match_all = false :: boolean(),
+          match_iq = false :: boolean(),
+          match_message = false :: boolean(),
+          match_presence_in = false :: boolean(),
+          match_presence_out = false :: boolean()
+         }).
 
--record(userlist, {name = none, list = [], needdb = false }).
-
-
+-record(userlist, {
+          name = none :: mod_privacy:list_name(),
+          list = [] :: [mod_privacy:list_item()],
+          needdb = false :: boolean()
+         }).

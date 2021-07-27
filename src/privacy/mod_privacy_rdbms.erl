@@ -31,41 +31,42 @@
 -behaviour(mod_privacy).
 
 -export([init/2,
-         get_default_list/2,
-         get_list_names/2,
-         get_privacy_list/3,
-         forget_default_list/2,
-         set_default_list/3,
-         remove_privacy_list/3,
-         replace_privacy_list/4,
-         remove_user/2]).
+         get_default_list/3,
+         get_list_names/3,
+         get_privacy_list/4,
+         set_default_list/4,
+         forget_default_list/3,
+         remove_privacy_list/4,
+         replace_privacy_list/5,
+         remove_user/3,
+         remove_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
-init(Host, _Opts) ->
-    prepare_queries(Host),
+init(HostType, _Opts) ->
+    prepare_queries(HostType),
     ok.
 
-prepare_queries(Host) ->
+prepare_queries(HostType) ->
     %% Queries to privacy_list table
-    mongoose_rdbms:prepare(privacy_list_get_id, privacy_list, [username, name],
-                           <<"SELECT id FROM privacy_list where username=? AND name=?">>),
-    mongoose_rdbms:prepare(privacy_list_get_names, privacy_list, [username],
-                           <<"SELECT name FROM privacy_list WHERE username=?">>),
-    mongoose_rdbms:prepare(privacy_list_delete_by_name, privacy_list, [username, name],
-                           <<"DELETE FROM privacy_list WHERE username=? AND name=?">>),
-    mongoose_rdbms:prepare(privacy_list_delete_multiple, privacy_list, [username],
-                           <<"DELETE FROM privacy_list WHERE username=?">>),
-    mongoose_rdbms:prepare(privacy_list_insert, privacy_list, [username, name],
-                           <<"INSERT INTO privacy_list(username, name) VALUES (?, ?)">>),
+    mongoose_rdbms:prepare(privacy_list_get_id, privacy_list, [server, username, name],
+                           <<"SELECT id FROM privacy_list WHERE server=? AND username=? AND name=?">>),
+    mongoose_rdbms:prepare(privacy_list_get_names, privacy_list, [server, username],
+                           <<"SELECT name FROM privacy_list WHERE server=? AND username=?">>),
+    mongoose_rdbms:prepare(privacy_list_delete_by_name, privacy_list, [server, username, name],
+                           <<"DELETE FROM privacy_list WHERE server=? AND username=? AND name=?">>),
+    mongoose_rdbms:prepare(privacy_list_delete_multiple, privacy_list, [server, username],
+                           <<"DELETE FROM privacy_list WHERE server=? AND username=?">>),
+    mongoose_rdbms:prepare(privacy_list_insert, privacy_list, [server, username, name],
+                           <<"INSERT INTO privacy_list(server, username, name) VALUES (?, ?, ?)">>),
     %% Queries to privacy_default_list table
-    mongoose_rdbms:prepare(privacy_default_get_name, privacy_default_list, [username],
-                           <<"SELECT name FROM privacy_default_list WHERE username=?">>),
-    mongoose_rdbms:prepare(privacy_default_delete, privacy_default_list, [username],
-                           <<"DELETE from privacy_default_list WHERE username=?">>),
-    prepare_default_list_upsert(Host),
+    mongoose_rdbms:prepare(privacy_default_get_name, privacy_default_list, [server, username],
+                           <<"SELECT name FROM privacy_default_list WHERE server=? AND username=?">>),
+    mongoose_rdbms:prepare(privacy_default_delete, privacy_default_list, [server, username],
+                           <<"DELETE from privacy_default_list WHERE server=? AND username=?">>),
+    prepare_default_list_upsert(HostType),
     %% Queries to privacy_list_data table
     mongoose_rdbms:prepare(privacy_data_get_by_id, privacy_list_data, [id],
                            <<"SELECT ord, t, value, action, match_all, match_iq, "
@@ -91,30 +92,38 @@ prepare_queries(Host) ->
                               "match_message, match_presence_in, match_presence_out) "
                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)">>),
     %% This query uses multiple tables
-    mongoose_rdbms:prepare(privacy_data_delete_user, privacy_list, [username],
+    mongoose_rdbms:prepare(privacy_data_delete_user, privacy_list, [server, username],
                            <<"DELETE FROM privacy_list_data WHERE id IN "
-                             "(SELECT id FROM privacy_list WHERE username=?)">>),
+                             "(SELECT id FROM privacy_list WHERE server=? AND username=?)">>),
+    %% delete domain queries
+    mongoose_rdbms:prepare(privacy_default_delete_domain, privacy_default_list, [server],
+                           <<"DELETE from privacy_default_list WHERE server=?">>),
+    mongoose_rdbms:prepare(privacy_list_delete_domain, privacy_list, [server],
+                           <<"DELETE FROM privacy_list WHERE server=?">>),
+    mongoose_rdbms:prepare(privacy_data_delete_domain, privacy_list, [server],
+                           <<"DELETE FROM privacy_list_data WHERE id IN "
+                             "(SELECT id FROM privacy_list WHERE server=?)">>),
     ok.
 
-prepare_default_list_upsert(Host) ->
+prepare_default_list_upsert(HostType) ->
     Fields = [<<"name">>],
-    Filter = [<<"username">>],
-    rdbms_queries:prepare_upsert(Host, privacy_default_upsert, privacy_default_list,
+    Filter = [<<"server">>, <<"username">>],
+    rdbms_queries:prepare_upsert(HostType, privacy_default_upsert, privacy_default_list,
                                  Filter ++ Fields, Fields, Filter).
 
-default_list_upsert(Host, LUser, Name) ->
-    InsertParams = [LUser, Name],
+default_list_upsert(HostType, LServer, LUser, Name) ->
+    InsertParams = [LServer, LUser, Name],
     UpdateParams = [Name],
-    UniqueKeyValues = [LUser],
-    rdbms_queries:execute_upsert(Host, privacy_default_upsert,
+    UniqueKeyValues = [LServer, LUser],
+    rdbms_queries:execute_upsert(HostType, privacy_default_upsert,
                                  InsertParams, UpdateParams, UniqueKeyValues).
 
-get_default_list(LUser, LServer) ->
-    case get_default_list_name(LUser, LServer) of
+get_default_list(HostType, LUser, LServer) ->
+    case get_default_list_name(HostType, LUser, LServer) of
         none ->
             {error, not_found};
         Default ->
-            case get_privacy_list(LUser, LServer, Default) of
+            case get_privacy_list(HostType, LUser, LServer, Default) of
                 {ok, List} ->
                     {ok, {Default, List}};
                 {error, Reason} ->
@@ -122,13 +131,13 @@ get_default_list(LUser, LServer) ->
             end
     end.
 
-get_list_names(LUser, LServer) ->
-    Default = get_default_list_name(LUser, LServer),
-    Names = get_list_names_only(LUser, LServer),
+get_list_names(HostType, LUser, LServer) ->
+    Default = get_default_list_name(HostType, LUser, LServer),
+    Names = get_list_names_only(HostType, LUser, LServer),
     {ok, {Default, Names}}.
 
-get_default_list_name(LUser, LServer) ->
-    try execute_privacy_default_get_name(LServer, LUser) of
+get_default_list_name(HostType, LUser, LServer) ->
+    try execute_privacy_default_get_name(HostType, LServer, LUser) of
         {selected, []} ->
             none;
         {selected, [{DefName}]} ->
@@ -145,8 +154,8 @@ get_default_list_name(LUser, LServer) ->
             none
     end.
 
-get_list_names_only(LUser, LServer) ->
-    try execute_privacy_list_get_names(LServer, LUser) of
+get_list_names_only(HostType, LUser, LServer) ->
+    try execute_privacy_list_get_names(HostType, LServer, LUser) of
         {selected, Names} ->
             [Name || {Name} <- Names];
         Other ->
@@ -161,13 +170,13 @@ get_list_names_only(LUser, LServer) ->
             []
     end.
 
-get_privacy_list(LUser, LServer, Name) ->
-    try execute_privacy_list_get_id(LServer, LUser, Name) of
+get_privacy_list(HostType, LUser, LServer, Name) ->
+    try execute_privacy_list_get_id(HostType, LServer, LUser, Name) of
         {selected, []} ->
             {error, not_found};
         {selected, [{ID}]} ->
             IntID = mongoose_rdbms:result_to_integer(ID),
-            get_privacy_list_by_id(LUser, LServer, Name, IntID, LServer);
+            get_privacy_list_by_id(HostType, LUser, LServer, Name, IntID, LServer);
         Other ->
             ?LOG_ERROR(#{what => privacy_get_privacy_list_failed,
                          user => LUser, server => LServer, list_name => Name,
@@ -181,8 +190,8 @@ get_privacy_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
-get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
-    try execute_privacy_data_get_by_id(LServer, ID) of
+get_privacy_list_by_id(HostType, LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
+    try execute_privacy_data_get_by_id(HostType, ID) of
         {selected, Rows} ->
             {ok, raw_to_items(Rows)};
         Other ->
@@ -199,8 +208,8 @@ get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
     end.
 
 %% @doc Set no default list for user.
-forget_default_list(LUser, LServer) ->
-    try execute_privacy_default_delete(LServer, LUser) of
+forget_default_list(HostType, LUser, LServer) ->
+    try execute_privacy_default_delete(HostType, LServer, LUser) of
         {updated, _} ->
             ok;
         Other ->
@@ -215,9 +224,9 @@ forget_default_list(LUser, LServer) ->
             {error, Reason}
     end.
 
-set_default_list(LUser, LServer, Name) ->
-    F = fun() -> set_default_list_t(LServer, LUser, Name) end,
-    case rdbms_queries:sql_transaction(LServer, F) of
+set_default_list(HostType, LUser, LServer, Name) ->
+    F = fun() -> set_default_list_t(HostType, LServer, LUser, Name) end,
+    case rdbms_queries:sql_transaction(HostType, F) of
         {atomic, ok} ->
             ok;
         {atomic, {error, Reason}} ->
@@ -228,31 +237,31 @@ set_default_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
-set_default_list_t(LServer, LUser, Name) ->
-    case execute_privacy_list_get_names(LServer, LUser) of
+set_default_list_t(HostType, LServer, LUser, Name) ->
+    case execute_privacy_list_get_names(HostType, LServer, LUser) of
         {selected, []} ->
             {error, not_found};
         {selected, Names} ->
             case lists:member({Name}, Names) of
                 true ->
-                    default_list_upsert(LServer, LUser, Name),
+                    default_list_upsert(HostType, LServer, LUser, Name),
                     ok;
                 false ->
                     {error, not_found}
             end
     end.
 
-remove_privacy_list(LUser, LServer, Name) ->
+remove_privacy_list(HostType, LUser, LServer, Name) ->
      F = fun() ->
-            case execute_privacy_default_get_name(LServer, LUser) of
+            case execute_privacy_default_get_name(HostType, LServer, LUser) of
                 {selected, [{Name}]} -> %% Matches Name variable
                     {error, conflict};
                 {selected, _} ->
-                    execute_privacy_list_delete_by_name(LServer, LUser, Name),
+                    execute_privacy_list_delete_by_name(HostType, LServer, LUser, Name),
                     ok
             end
         end,
-    case rdbms_queries:sql_transaction(LServer, F) of
+    case rdbms_queries:sql_transaction(HostType, F) of
         {atomic, {error, _} = Error} ->
             Error;
         {atomic, ok} ->
@@ -263,66 +272,75 @@ remove_privacy_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
-replace_privacy_list(LUser, LServer, Name, List) ->
+replace_privacy_list(HostType, LUser, LServer, Name, List) ->
     Rows = lists:map(fun item_to_raw/1, List),
     F = fun() ->
-        ResultID = case execute_privacy_list_get_id(LServer, LUser, Name) of
+        ResultID = case execute_privacy_list_get_id(HostType, LServer, LUser, Name) of
             {selected, []} ->
-                execute_privacy_list_insert(LServer, LUser, Name),
-                {selected, [{I}]} = execute_privacy_list_get_id(LServer, LUser, Name),
+                execute_privacy_list_insert(HostType, LServer, LUser, Name),
+                {selected, [{I}]} = execute_privacy_list_get_id(HostType, LServer, LUser, Name),
                 I;
             {selected, [{I}]} ->
                 I
             end,
         ID = mongoose_rdbms:result_to_integer(ResultID),
-        replace_data_rows(LServer, ID, Rows),
+        replace_data_rows(HostType, ID, Rows),
         ok
     end,
-    {atomic, ok} = mongoose_rdbms:transaction_with_delayed_retry(LServer, F, #{retries => 5, delay => 100}),
+    {atomic, ok} = mongoose_rdbms:transaction_with_delayed_retry(HostType, F, #{retries => 5, delay => 100}),
     ok.
 
-remove_user(LUser, LServer) ->
-    F = fun() -> remove_user_t(LUser, LServer) end,
-    rdbms_queries:sql_transaction(LServer, F).
+remove_domain(HostType, LServer) ->
+    F = fun() -> remove_domain_t(HostType, LServer) end,
+    rdbms_queries:sql_transaction(HostType, F).
 
-remove_user_t(LUser, LServer) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_data_delete_user, [LUser]),
-    mongoose_rdbms:execute_successfully(LServer, privacy_list_delete_multiple, [LUser]),
-    mongoose_rdbms:execute_successfully(LServer, privacy_default_delete, [LUser]).
+remove_domain_t(HostType, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_data_delete_domain, [LServer]),
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_delete_domain, [LServer]),
+    mongoose_rdbms:execute_successfully(HostType, privacy_default_delete_domain, [LServer]).
 
-execute_privacy_list_get_id(LServer, LUser, Name) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_list_get_id, [LUser, Name]).
+remove_user(HostType, LUser, LServer) ->
+    F = fun() -> remove_user_t(HostType, LUser, LServer) end,
+    rdbms_queries:sql_transaction(HostType, F).
 
-execute_privacy_default_get_name(LServer, LUser) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_default_get_name, [LUser]).
+remove_user_t(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_data_delete_user, [LServer, LUser]),
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_delete_multiple, [LServer, LUser]),
+    execute_privacy_default_delete(HostType, LServer, LUser).
 
-execute_privacy_list_get_names(LServer, LUser) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_list_get_names, [LUser]).
+execute_privacy_list_get_id(HostType, LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_get_id, [LServer, LUser, Name]).
 
-execute_privacy_data_get_by_id(LServer, ID) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_data_get_by_id, [ID]).
+execute_privacy_default_get_name(HostType, LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_default_get_name, [LServer, LUser]).
 
-execute_privacy_default_delete(LServer, LUser) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_default_delete, [LUser]).
+execute_privacy_list_get_names(HostType, LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_get_names, [LServer, LUser]).
 
-execute_privacy_list_delete_by_name(LServer, LUser, Name) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_list_delete_by_name, [LUser, Name]).
+execute_privacy_data_get_by_id(HostType, ID) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_data_get_by_id, [ID]).
 
-execute_privacy_list_insert(LServer, LUser, Name) ->
-    mongoose_rdbms:execute_successfully(LServer, privacy_list_insert, [LUser, Name]).
+execute_privacy_default_delete(HostType, LServer, LUser) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_default_delete, [LServer, LUser]).
 
-execute_delete_data_by_id(LServer, ID) ->
-    mongoose_rdbms:execute_successfully(LServer, delete_data_by_id, [ID]).
+execute_privacy_list_delete_by_name(HostType, LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_delete_by_name, [LServer, LUser, Name]).
 
-replace_data_rows(LServer, ID, []) when is_integer(ID) ->
+execute_privacy_list_insert(HostType, LServer, LUser, Name) ->
+    mongoose_rdbms:execute_successfully(HostType, privacy_list_insert, [LServer, LUser, Name]).
+
+execute_delete_data_by_id(HostType, ID) ->
+    mongoose_rdbms:execute_successfully(HostType, delete_data_by_id, [ID]).
+
+replace_data_rows(HostType, ID, []) when is_integer(ID) ->
     %% Just remove the data, nothing should be inserted
-    execute_delete_data_by_id(LServer, ID);
-replace_data_rows(LServer, ID, Rows) when is_integer(ID) ->
-    {selected, OldRows} = execute_privacy_data_get_by_id(LServer, ID),
+    execute_delete_data_by_id(HostType, ID);
+replace_data_rows(HostType, ID, Rows) when is_integer(ID) ->
+    {selected, OldRows} = execute_privacy_data_get_by_id(HostType, ID),
     New = lists:sort(Rows),
     Old = lists:sort([tuple_to_list(Row) || Row <- OldRows]),
     Diff = diff_rows(ID, New, Old, []),
-    F = fun({Q, Args}) -> mongoose_rdbms:execute_successfully(LServer, Q, Args) end,
+    F = fun({Q, Args}) -> mongoose_rdbms:execute_successfully(HostType, Q, Args) end,
     lists:foreach(F, Diff),
     ok.
 

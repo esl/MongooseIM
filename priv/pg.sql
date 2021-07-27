@@ -127,16 +127,19 @@ CREATE INDEX i_vcard_search_lorgname  ON vcard_search(lorgname);
 CREATE INDEX i_vcard_search_lorgunit  ON vcard_search(lorgunit);
 
 CREATE TABLE privacy_default_list (
-    username varchar(250) PRIMARY KEY,
-    name text NOT NULL
+    server varchar(250),
+    username varchar(250),
+    name text NOT NULL,
+    PRIMARY KEY (server, username)
 );
 
 CREATE TABLE privacy_list (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     name text NOT NULL,
     id SERIAL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    PRIMARY KEY (username,name)
+    PRIMARY KEY (server, username, name)
 );
 
 CREATE TABLE privacy_list_data (

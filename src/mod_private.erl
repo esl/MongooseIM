@@ -39,18 +39,8 @@
 
 -export([config_metrics/1]).
 
--define(MOD_PRIVACY_BACKEND, mod_privacy_backend).
 -define(MOD_PRIVATE_BACKEND, mod_private_backend).
 -ignore_xref([
-    {?MOD_PRIVACY_BACKEND, get_default_list, 2},
-    {?MOD_PRIVACY_BACKEND, get_privacy_list, 3},
-    {?MOD_PRIVACY_BACKEND, forget_default_list, 2},
-    {?MOD_PRIVACY_BACKEND, set_default_list, 3},
-    {?MOD_PRIVACY_BACKEND, get_list_names, 2},
-    {?MOD_PRIVACY_BACKEND, remove_privacy_list, 3},
-    {?MOD_PRIVACY_BACKEND, remove_user, 2},
-    {?MOD_PRIVACY_BACKEND, replace_privacy_list, 4},
-    {?MOD_PRIVACY_BACKEND, init, 2},
     {?MOD_PRIVATE_BACKEND, get_all_nss, 2},
     {?MOD_PRIVATE_BACKEND, multi_get_data, 3},
     {?MOD_PRIVATE_BACKEND, multi_set_data, 3},

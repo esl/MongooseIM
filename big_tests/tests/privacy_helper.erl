@@ -5,8 +5,6 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--import(escalus_compat, [bin/1]).
-
 -export([set_and_activate/2,
          set_list/2,
          set_list/3,
@@ -126,6 +124,8 @@ is_presence_error(Stanza) ->
 privacy_list({Name, #client{} = Target}) ->
     JID = escalus_utils:get_short_jid(Target),
     escalus_stanza:privacy_list(Name, list_content(Name, JID));
+privacy_list({Name, Target}) ->
+    escalus_stanza:privacy_list(Name, list_content(Name, Target));
 privacy_list(Name) ->
     escalus_stanza:privacy_list(Name, list_content(Name)).
 
@@ -188,10 +188,6 @@ list_content(<<"deny_unsubscribed_presence_out">>) -> [
 list_content(<<"deny_all_presence_out">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"presence-out">>])
     ];
-list_content(<<"deny_localhost_iq">>) -> [
-        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>,
-                                             <<"localhost">>, [<<"iq">>])
-    ];
 list_content(<<"deny_group_iq">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, <<"group">>,
                                          <<"ignored">>, [<<"iq">>])
@@ -219,6 +215,9 @@ list_content(<<"deny_all_iq">>) -> [
         escalus_stanza:privacy_list_item(<<"1">>, <<"deny">>, [<<"iq">>])
     ].
 
+list_content(<<"deny_server_iq">>, LServer) -> [
+        escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, LServer, [<<"iq">>])
+    ];
 list_content(<<"deny_client">>, JID) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, [])
     ];
@@ -237,10 +236,11 @@ list_content(<<"deny_client_presence_out">>, JID) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>,
                                              JID, [<<"presence-out">>])
     ];
-list_content(<<"deny_jid_all">>, JID) -> [
+list_content(<<"deny_jid_all">>, JID) ->
+    LServer = escalus_utils:get_server(JID),
+    [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, []),
-        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>,
-                                             <<"localhost">>, [])
+        escalus_stanza:privacy_list_jid_item(<<"2">>, <<"deny">>, LServer, [])
     ];
 list_content(<<"deny_3_items">>, JID) -> [
         escalus_stanza:privacy_list_jid_item(<<"1">>, <<"deny">>, JID, []),
