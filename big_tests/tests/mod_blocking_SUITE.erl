@@ -231,6 +231,7 @@ messages_from_blocked_user_dont_arrive(Config) ->
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
             message(User2, User1, <<"Hi!">>),
+            ct:sleep(100),
             escalus_assert:has_no_stanzas(User1),
             privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
         end).
@@ -259,7 +260,9 @@ messages_from_any_blocked_resource_dont_arrive(Config) ->
             message_is_not_delivered(User1b, [User2], <<"woof!">>),
             privacy_helper:gets_error(User1b, <<"cancel">>, <<"service-unavailable">>),
             message_is_not_delivered(User1c, [User2], <<"grrr!">>),
-            privacy_helper:gets_error(User1c, <<"cancel">>, <<"service-unavailable">>)
+            privacy_helper:gets_error(User1c, <<"cancel">>, <<"service-unavailable">>),
+            ct:sleep(100),
+            escalus_assert:has_no_stanzas(User2)
         end).
 
 blocking_doesnt_interfere(Config) ->
