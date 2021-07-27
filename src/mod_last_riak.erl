@@ -66,7 +66,7 @@ init(_VHost, _Opts) ->
     ok.
 
 -spec get_last(host_type(), jid:luser(), jid:lserver()) ->
-    {ok, mod_last:timestamp(), mod_last:status()} | not_found.
+    {ok, mod_last:timestamp(), mod_last:status()} | {error, term()} | not_found.
 get_last(HostType, LUser, LServer) ->
     case mongoose_riak:get(bucket_type(HostType, LServer), LUser) of
         {ok, Obj} ->

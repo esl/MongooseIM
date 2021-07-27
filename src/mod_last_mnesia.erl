@@ -35,7 +35,7 @@ init(_HostType, _Opts) ->
     ok.
 
 -spec get_last(host_type(), jid:luser(), jid:lserver()) ->
-    {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
+    {ok, mod_last:timestamp(), mod_last:status()} | {error, term()} | not_found.
 get_last(_HostType, LUser, LServer) ->
     case catch mnesia:dirty_read(last_activity, {LUser, LServer}) of
         {'EXIT', Reason} -> {error, Reason};
@@ -45,7 +45,7 @@ get_last(_HostType, LUser, LServer) ->
             {ok, TimeStamp, Status}
     end.
 
--spec count_active_users(host_type(), jid:lserver(), non_neg_integer()) -> non_neg_integer().
+-spec count_active_users(host_type(), jid:lserver(), mod_last:timestamp()) -> non_neg_integer().
 count_active_users(_HostType, LServer, TimeStamp) ->
     MS = [{{last_activity, {'_', LServer}, '$1', '_'},
         [{'>', '$1', TimeStamp}],
@@ -53,7 +53,7 @@ count_active_users(_HostType, LServer, TimeStamp) ->
     ets:select_count(last_activity, MS).
 
 -spec set_last_info(host_type(), jid:luser(), jid:lserver(),
-                    non_neg_integer(), binary()) -> ok | {error, term()}.
+                    mod_last:timestamp(), mod_last:status()) -> ok | {error, term()}.
 set_last_info(_HostType, LUser, LServer, TimeStamp, Status) ->
     US = {LUser, LServer},
     F = fun() ->

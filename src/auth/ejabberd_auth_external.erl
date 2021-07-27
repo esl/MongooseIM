@@ -368,7 +368,7 @@ get_last_access(HostType, LUser, LServer) ->
 
 
 -spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
-          {ok, Timestamp :: integer(), Status :: binary()} | not_found | mod_last_required.
+          {ok, mod_last:timestamp(), mod_last:status()} | not_found | mod_last_required.
 get_last_info(HostType, LUser, LServer) ->
     case gen_mod:is_loaded(HostType, mod_last) of
         true -> mod_last:get_last_info(HostType, LUser, LServer);
