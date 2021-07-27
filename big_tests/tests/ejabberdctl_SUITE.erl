@@ -1289,8 +1289,9 @@ get_sha(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
+    HostType = domain_helper:host_type(),
     rpc(mim(), mod_last, store_last_info,
-        [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
+        [HostType, escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),

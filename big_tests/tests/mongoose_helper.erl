@@ -127,14 +127,12 @@ do_clear_last_activity(_Config, User) when is_binary(User) ->
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
-new_mongoose_acc(Location, Server) ->
-    successful_rpc(mongoose_acc, new, [#{ location => Location,
-                                          lserver => Server,
-                                          element => undefined }]).
-
 new_mongoose_acc(Server) ->
+    new_mongoose_acc(?LOCATION, Server).
+
+new_mongoose_acc(Location, Server) ->
     {ok, HostType} = rpc(mim(), mongoose_domain_core, get_host_type, [Server]),
-    successful_rpc(mongoose_acc, new, [#{ location => ?LOCATION,
+    successful_rpc(mongoose_acc, new, [#{ location => Location,
                                           lserver => Server,
                                           host_type => HostType,
                                           element => undefined }]).
