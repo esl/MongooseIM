@@ -949,24 +949,6 @@ getenv(VarName, Default) ->
             Value
     end.
 
-h2_req(Conn, Method, Path) ->
-    h2_req(Conn, Method, Path, <<>>).
-h2_req(Conn, Method, Path, Body) ->
-    BinMethod = list_to_binary(string:to_upper(atom_to_list(Method))),
-    Headers = [
-        {<<":method">>, BinMethod},
-        {<<":path">>, Path},
-        {<<":authority">>, <<"localhost">>},
-        {<<":scheme">>, <<"https">>}
-    ],
-    case h2_client:sync_request(Conn, Headers, Body) of
-        {ok, {RespHeaders, RespBody}} ->
-            Status = proplists:get_value(<<":status">>, RespHeaders),
-            {ok, binary_to_integer(Status), iolist_to_binary(RespBody)};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 init_modules(G, Config) ->
     MongoosePushAPI = mongoose_push_api_for_group(G),
     PubSubHost = ?config(pubsub_host, Config),
