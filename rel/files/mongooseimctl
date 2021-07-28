@@ -30,7 +30,6 @@ ERTS_VSN="${START_ERL% *}"
 ERTS_PATH="$MIM_DIR/erts-$ERTS_VSN/bin"
 ERL="$ERTS_PATH"/erl
 EPMD="$ERTS_PATH"/epmd
-EJABBERD_EBIN_PATH="$MIM_DIR"/lib/mongooseim-*/ebin/
 SCRIPTS_DIR="$MIM_DIR"/scripts
 
 EJABBERD_STATUS_PATH="{{mongooseim_status_dir}}/status"
@@ -273,7 +272,7 @@ ctlexec ()
       -hidden \
       $COOKIE_ARG \
       -args_file "$RUNNER_ETC_DIR"/vm.dist.args \
-      -pa "$EJABBERD_EBIN_PATH" \
+      -pa "$MIM_DIR"/lib/mongooseim-*/ebin/ \
       -s ejabberd_ctl -extra $NODENAME $COMMAND
 }
 
