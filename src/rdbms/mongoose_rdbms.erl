@@ -734,12 +734,18 @@ sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
 prepare_statement(Name, State = #state{db_ref = DBRef, prepared = Prepared}) ->
     case maps:get(Name, Prepared, undefined) of
         undefined ->
-            [{_, Table, Fields, Statement}] = ets:lookup(prepared_statements, Name),
+            {_, Table, Fields, Statement} = lookup_statement(Name),
             {ok, Ref} = mongoose_rdbms_backend:prepare(DBRef, Name, Table, Fields, Statement),
             {Ref, State#state{prepared = maps:put(Name, Ref, Prepared)}};
 
         Ref ->
             {Ref, State}
+    end.
+
+lookup_statement(Name) ->
+    case ets:lookup(prepared_statements, Name) of
+        [Rec] -> Rec;
+        [] -> error({lookup_statement_failed, Name})
     end.
 
 %% @doc Generate the OTP callback return tuple depending on the driver result.
