@@ -31,8 +31,9 @@
 
 -export([start/2,
          stop/1,
+         supported_features/0,
          config_spec/0,
-         process_sm_iq/4,
+         process_iq/5,
          remove_user/3]).
 
 -export([get_personal_data/3]).
@@ -57,11 +58,12 @@
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
--callback init(Host, Opts) -> ok when
-    Host    :: binary(),
-    Opts    :: list().
+-callback init(HostType, Opts) -> ok when
+    HostType :: mongooseim:host_type(),
+    Opts     :: list().
 
--callback multi_set_data(LUser, LServer, NS2XML) -> Result when
+-callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
+    HostType :: mongooseim:host_type(),
     LUser   :: binary(),
     LServer :: binary(),
     NS2XML  :: [{NS, XML}],
@@ -70,7 +72,8 @@
     Reason  :: term(),
     Result  :: ok | {aborted, Reason} | {error, Reason}.
 
--callback multi_get_data(LUser, LServer, NS2Def) -> [XML | Default] when
+-callback multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
+    HostType :: mongooseim:host_type(),
     LUser   :: binary(),
     LServer :: binary(),
     NS2Def  :: [{NS, Default}],
@@ -78,11 +81,13 @@
     Default :: term(),
     XML     :: #xmlel{}.
 
--callback remove_user(LUser, LServer) -> any() when
+-callback remove_user(HostType, LUser, LServer) -> any() when
+    HostType :: mongooseim:host_type(),
     LUser   :: binary(),
     LServer :: binary().
 
--callback get_all_nss(LUser, LServer) -> NSs when
+-callback get_all_nss(HostType, LUser, LServer) -> NSs when
+    HostType :: mongooseim:host_type(),
     LUser   :: binary(),
     LServer :: binary(),
     NSs     :: [binary()].
@@ -92,12 +97,13 @@
 %%--------------------------------------------------------------------
 
 -spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
+get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["ns", "xml"],
-    NSs = mod_private_backend:get_all_nss(LUser, LServer),
+    NSs = mod_private_backend:get_all_nss(HostType, LUser, LServer),
     Entries = lists:map(
                 fun(NS) ->
-                        Data = mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}]),
+                        Data = mod_private_backend:multi_get_data(
+                                 HostType, LUser, LServer, [{NS, default}]),
                         { NS, exml:to_binary(Data) }
                 end, NSs),
     [{private, Schema, Entries} | Acc].
@@ -105,21 +111,24 @@ get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
 
-start(Host, Opts) ->
+start(HostType, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
-    mod_private_backend:init(Host, Opts),
+    mod_private_backend:init(HostType, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
-                                  ?MODULE, process_sm_iq, IQDisc).
+    ejabberd_hooks:add(hooks(HostType)),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
+                                             fun ?MODULE:process_iq/5, #{}, IQDisc).
 
-stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
-    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm).
+
+supported_features() -> [dynamic_domains].
+
+hooks(HostType) ->
+    [{remove_user, HostType, ?MODULE, remove_user, 50},
+     {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
+     {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
 
 config_spec() ->
     #section{
@@ -141,28 +150,29 @@ riak_config_spec() ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
+    HostType = mongoose_acc:host_type(Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    R = mod_private_backend:remove_user(LUser, LServer),
+    R = mod_private_backend:remove_user(HostType, LUser, LServer),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
     Acc.
 
-process_sm_iq(
-        From = #jid{luser = LUser, lserver = LServer},
-        To   = #jid{},
-        Acc,
-        IQ   = #iq{type = Type, sub_el = SubElem = #xmlel{children = Elems}}) ->
-    IsKnown = lists:member(LServer, ?MYHOSTS),
+process_iq(Acc,
+           From = #jid{lserver = LServer, luser = LUser},
+           To = #jid{lserver = LServer, luser = LUser},
+           IQ = #iq{type = Type, sub_el = SubElem = #xmlel{children = Elems}},
+           _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
     IsEqual = compare_bare_jids(From, To),
-    Strategy = choose_strategy(IsKnown, IsEqual, Type),
+    Strategy = choose_strategy(IsEqual, Type),
     Res = case Strategy of
         get ->
             NS2XML = to_map(Elems),
-            XMLs = mod_private_backend:multi_get_data(LUser, LServer, NS2XML),
+            XMLs = mod_private_backend:multi_get_data(HostType, LUser, LServer, NS2XML),
             IQ#iq{type = result, sub_el = [SubElem#xmlel{children = XMLs}]};
         set ->
             NS2XML = to_map(Elems),
-            Result = mod_private_backend:multi_set_data(LUser, LServer, NS2XML),
+            Result = mod_private_backend:multi_set_data(HostType, LUser, LServer, NS2XML),
             case Result of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubElem]};
@@ -185,10 +195,9 @@ process_sm_iq(
 %% ------------------------------------------------------------------
 %% Helpers
 
-choose_strategy(true,  true, get) -> get;
-choose_strategy(true,  true, set) -> set;
-choose_strategy(false, _,    _  ) -> not_allowed;
-choose_strategy(_,     _,    _  ) -> forbidden.
+choose_strategy(true, get) -> get;
+choose_strategy(true, set) -> set;
+choose_strategy(_,    _  ) -> forbidden.
 
 compare_bare_jids(#jid{luser = LUser, lserver = LServer},
                   #jid{luser = LUser, lserver = LServer}) -> true;

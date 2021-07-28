@@ -19,22 +19,22 @@
 
 %% API
 -export([init/2,
-         multi_set_data/3,
-         multi_get_data/3,
-         remove_user/2]).
-
--export([get_all_nss/2]).
+         multi_set_data/4,
+         multi_get_data/4,
+         get_all_nss/3,
+         remove_user/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--spec init(jid:lserver(), list()) -> ok.
-init(_Host, _Opts) ->
+-spec init(mongooseim:host_type(), list()) -> ok.
+init(_HostType, _Opts) ->
     ok.
 
--spec multi_set_data(jid:luser(), jid:lserver(), [{binary(), exml:element()}]) ->
+-spec multi_set_data(mongooseim:host_type(),
+                     jid:luser(), jid:lserver(), [{binary(), exml:element()}]) ->
     ok | {error, term()}.
-multi_set_data(LUser, LServer, NS2XML) ->
+multi_set_data(_HostType, LUser, LServer, NS2XML) ->
     R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     %% check if something returned with error msg
     case lists:keyfind(error, 1, R) of
@@ -42,21 +42,22 @@ multi_set_data(LUser, LServer, NS2XML) ->
         false -> ok
     end.
 
--spec multi_get_data(jid:luser(), jid:lserver(), [{binary(), term()}]) -> [any()].
-multi_get_data(LUser, LServer, NS2Def) ->
+-spec multi_get_data(mongooseim:host_type(),
+                     jid:luser(), jid:lserver(), [{binary(), term()}]) -> [any()].
+multi_get_data(_HostType, LUser, LServer, NS2Def) ->
     [get_private_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
--spec remove_user(jid:luser(), jid:lserver()) -> ok.
-remove_user(LUser, LServer) ->
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(HostType, LUser, LServer) ->
     Bucket = bucket_type(LServer),
-    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(LUser, LServer)],
+    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(HostType, LUser, LServer)],
     ok.
 
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),
     mongoose_riak:put(Obj).
 
-get_all_nss(LUser, LServer) ->
+get_all_nss(_HostType, LUser, LServer) ->
     {ok, KeysWithUsername} = mongoose_riak:list_keys(bucket_type(LServer)),
     lists:foldl(
         fun(Key, Acc) ->
