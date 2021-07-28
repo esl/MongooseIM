@@ -351,7 +351,7 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 -spec get_last_access(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           online | never | mod_last_required | integer().
 get_last_access(HostType, LUser, LServer) ->
-    JID = jid:make(LUser, LServer, <<>>),
+    JID = jid:make_noprep(LUser, LServer, <<>>),
     case ejabberd_sm:get_user_resources(JID) of
         [] ->
             case get_last_info(HostType, LUser, LServer) of
@@ -365,7 +365,6 @@ get_last_access(HostType, LUser, LServer) ->
         _ ->
             online
     end.
-
 
 -spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
           {ok, mod_last:timestamp(), mod_last:status()} | not_found | mod_last_required.
