@@ -107,10 +107,10 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice, bob, carol, mike, geralt])).
+    escalus_fresh:create_users(Config, escalus:get_users([alice, bob, kate, mike, john])).
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob, carol, mike, geralt])).
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -176,7 +176,7 @@ add_another_user_to_blocklist(Config) ->
 
 add_many_users_to_blocklist(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}],
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
         fun(User1, User2, User3, User4) ->
             user_blocks(User1, [User2, User3, User4]),
             BlockList = get_blocklist(User1),
@@ -197,7 +197,7 @@ remove_user_from_blocklist(Config) ->
 
 remove_many_user_from_blocklist(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(User1, User2, User3) ->
             user_blocks(User1, [User2, User3]),
             user_unblocks(User1, [User2, User3]),
@@ -208,7 +208,7 @@ remove_many_user_from_blocklist(Config) ->
 
 clear_blocklist(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(User1, User2, User3) ->
             user_blocks(User1, [User2, User3]),
             user_unblocks_all(User1),
@@ -231,7 +231,8 @@ messages_from_blocked_user_dont_arrive(Config) ->
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
             message(User2, User1, <<"Hi!">>),
-            client_gets_nothing(User1),
+            ct:sleep(100),
+            escalus_assert:has_no_stanzas(User1),
             privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
         end).
 
@@ -255,18 +256,24 @@ messages_from_any_blocked_resource_dont_arrive(Config) ->
             user_blocks(User2, [User1a]),
             %% then
             message_is_not_delivered(User1a, [User2], <<"roar!">>),
+            privacy_helper:gets_error(User1a, <<"cancel">>, <<"service-unavailable">>),
             message_is_not_delivered(User1b, [User2], <<"woof!">>),
-            message_is_not_delivered(User1c, [User2], <<"grrr!">>)
+            privacy_helper:gets_error(User1b, <<"cancel">>, <<"service-unavailable">>),
+            message_is_not_delivered(User1c, [User2], <<"grrr!">>),
+            privacy_helper:gets_error(User1c, <<"cancel">>, <<"service-unavailable">>),
+            ct:sleep(100),
+            escalus_assert:has_no_stanzas(User2)
         end).
 
 blocking_doesnt_interfere(Config) ->
     escalus:fresh_story(
-        Config, [{alice, 1}, {bob, 1}, {geralt, 1}],
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(User1, User2, User3) ->
             %% given
             user_blocks(User1, [User2]),
             %% then
             message_is_not_delivered(User2, [User1], <<"!@#@$@#$%">>),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
             message_is_delivered(User3, [User1], <<"Ni hao.">>)
         end).
 
@@ -285,11 +292,13 @@ blocking_propagates_to_resources(Config) ->
             client_gets_blocking_error(User1b),
             % Bob can't send to any of Alice's resources
             message_is_not_delivered(User2, [User1a], <<"hau!">>),
-            message_is_not_delivered(User2, [User1b], <<"miau!">>)
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
+            message_is_not_delivered(User2, [User1b], <<"miau!">>),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
         end).
 
 iq_reply_doesnt_crash_user_process(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         QueryWithBlockingNS = escalus_stanza:query_el(?NS_BLOCKING, []),
         %% Send IQ reply with blocking ns
@@ -367,7 +376,7 @@ blocking_and_relogin_many(Config) ->
 
 simple_story(Config, Fun) ->
     escalus:story(
-        Config, [{alice, 1}, {bob, 1}, {carol, 1}, {mike, 1}, {geralt, 1}],
+        Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}, {john, 1}],
         Fun
     ).
 
@@ -630,10 +639,6 @@ user_unblocks_all(User) ->
 message(From, To, MsgTxt) ->
     escalus_client:send(From, escalus_stanza:chat_to(To, MsgTxt)).
 
-client_gets_nothing(Client) ->
-    ct:sleep(500),
-    escalus_assert:has_no_stanzas(Client).
-
 message_is_delivered(From, [To|_] = Tos, MessageText) ->
     BareTo = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
@@ -647,7 +652,6 @@ message_is_delivered(From, To, MessageText) ->
 message_is_not_delivered(From, [To|_] = Tos, MessageText) ->
     BareTo = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),
     escalus:send(From, escalus_stanza:chat_to(BareTo, MessageText)),
-    timer:sleep(300),
     clients_have_no_messages(Tos).
 
 clients_have_no_messages(Cs) when is_list (Cs) -> [ client_has_no_messages(C) || C <- Cs ].

@@ -244,8 +244,8 @@
 {{{mod_privacy}}}
 {{/mod_privacy}}
 {{#mod_blocking}}
+[modules.mod_blocking]
 {{{mod_blocking}}}
-
 {{/mod_blocking}}
 {{#mod_private}}
 {{{mod_private}}}
