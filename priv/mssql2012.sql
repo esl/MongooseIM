@@ -244,7 +244,6 @@ CREATE TABLE [dbo].[privacy_list_data](
 GO
 SET ANSI_PADDING OFF
 GO
-/****** Object:  Table [dbo].[private_storage]    Script Date: 9/17/2014 6:20:03 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -258,7 +257,7 @@ CREATE TABLE [dbo].[private_storage](
 	[namespace] [nvarchar](150) NOT NULL,
 	[data] [nvarchar](max) NOT NULL,
 	[created_at] [datetime] NOT NULL,
- CONSTRAINT [private_storage$i_private_storage_username_namespace] UNIQUE CLUSTERED
+ CONSTRAINT [PK_private_storage] PRIMARY KEY CLUSTERED
 (
 	[server] ASC,
 	[username] ASC,

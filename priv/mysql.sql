@@ -175,11 +175,10 @@ CREATE TABLE private_storage (
     username varchar(250) NOT NULL,
     namespace varchar(250) NOT NULL,
     data text NOT NULL,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(server, username, namespace)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
-CREATE UNIQUE INDEX i_private_storage_username_namespace USING BTREE ON private_storage(server, username, namespace);
 
 CREATE TABLE roster_version (
     server varchar(250),
