@@ -159,14 +159,14 @@ CREATE TABLE privacy_list_data (
 );
 
 CREATE TABLE private_storage (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     namespace text NOT NULL,
     data text NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE INDEX i_private_storage_username ON private_storage USING btree (username);
-CREATE UNIQUE INDEX i_private_storage_username_namespace ON private_storage USING btree (username, namespace);
+CREATE UNIQUE INDEX i_private_storage_username_namespace ON private_storage USING btree (server, username, namespace);
 
 
 CREATE TABLE roster_version (

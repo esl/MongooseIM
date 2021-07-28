@@ -41,18 +41,18 @@
 
 init(HostType, _Opts) ->
     mongoose_rdbms:prepare(private_select_data, private_storage,
-                           [username, namespace],
-                           <<"SELECT data FROM private_storage WHERE username=? AND namespace=?">>),
+                           [server, username, namespace],
+                           <<"SELECT data FROM private_storage WHERE server=? AND username=? AND namespace=?">>),
     mongoose_rdbms:prepare(private_select_namespaces, private_storage,
-                           [username],
-                           <<"SELECT namespace FROM private_storage WHERE username=?">>),
+                           [server, username],
+                           <<"SELECT namespace FROM private_storage WHERE server=? AND username=?">>),
     mongoose_rdbms:prepare(private_remove_user, private_storage,
-                           [username],
-                           <<"DELETE FROM private_storage WHERE username=?">>),
+                           [server, username],
+                           <<"DELETE FROM private_storage WHERE server=? AND username=?">>),
     rdbms_queries:prepare_upsert(HostType, private_upsert, private_storage,
-                                 [<<"username">>, <<"namespace">>, <<"data">>],
+                                 [<<"server">>, <<"username">>, <<"namespace">>, <<"data">>],
                                  [<<"data">>],
-                                 [<<"username">>, <<"namespace">>]),
+                                 [<<"server">>, <<"username">>, <<"namespace">>]),
     ok.
 
 multi_set_data(HostType, LUser, LServer, NS2XML) ->
@@ -68,10 +68,10 @@ multi_set_data_t(HostType, LUser, LServer, NS2XML) ->
     [upsert_data_t(HostType, LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     ok.
 
-upsert_data_t(HostType, LUser, Host, NS, XML) ->
-    InsertParams = [LUser, NS, XML],
+upsert_data_t(HostType, LUser, LServer, NS, XML) ->
+    InsertParams = [LServer, LUser, NS, XML],
     UpdateParams = [XML],
-    UniqueKeyValues = [LUser, NS],
+    UniqueKeyValues = [LServer, LUser, NS],
     rdbms_queries:execute_upsert(HostType, private_upsert,
                                  InsertParams, UpdateParams, UniqueKeyValues).
 
@@ -83,7 +83,7 @@ multi_get_data(HostType, LUser, LServer, NS2Def) ->
 
 %% @doc Return stored value or default.
 get_data(HostType, LUser, LServer, NS, Default) ->
-    Res = mongoose_rdbms:execute(HostType, private_select_data, [LUser, NS]),
+    Res = mongoose_rdbms:execute(HostType, private_select_data, [LServer, LUser, NS]),
     case Res of
         {selected, [{BinData}]} ->
             {ok, Elem} = exml:parse(BinData),
@@ -93,8 +93,8 @@ get_data(HostType, LUser, LServer, NS, Default) ->
     end.
 
 get_all_nss(HostType, LUser, LServer) ->
-    {selected, Res} = mongoose_rdbms:execute(HostType, private_select_namespaces, [LUser]),
+    {selected, Res} = mongoose_rdbms:execute(HostType, private_select_namespaces, [LServer, LUser]),
     lists:map(fun({R}) -> R end, Res).
 
 remove_user(HostType, LUser, LServer) ->
-    mongoose_rdbms:execute(HostType, private_remove_user, [LUser]).
+    mongoose_rdbms:execute(HostType, private_remove_user, [LServer, LUser]).

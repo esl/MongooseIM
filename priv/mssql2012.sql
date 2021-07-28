@@ -253,12 +253,14 @@ SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[private_storage](
     /* be aware of 900 bytes index length limit. nvarchar uses two bytes per char */
-	[username] [nvarchar](200) NOT NULL, -- 250 in mysql
-	[namespace] [nvarchar](250) NOT NULL,
+	[server] [nvarchar](150) NOT NULL,
+	[username] [nvarchar](150) NOT NULL, -- 250 in mysql
+	[namespace] [nvarchar](150) NOT NULL,
 	[data] [nvarchar](max) NOT NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [private_storage$i_private_storage_username_namespace] UNIQUE CLUSTERED
 (
+	[server] ASC,
 	[username] ASC,
 	[namespace] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]

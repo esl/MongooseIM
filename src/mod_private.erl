@@ -190,6 +190,11 @@ process_iq(Acc,
         forbidden ->
             error_iq(IQ, mongoose_xmpp_errors:forbidden())
     end,
+    {Acc, Res};
+process_iq(Acc, _From, _To, IQ, _Extra) ->
+    Txt = <<"Only requests from/to your JID are allowed">>,
+    Err = mongoose_xmpp_errors:forbidden(<<"en">>, Txt),
+    Res = error_iq(IQ, Err),
     {Acc, Res}.
 
 %% ------------------------------------------------------------------
