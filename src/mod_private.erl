@@ -34,7 +34,8 @@
          supported_features/0,
          config_spec/0,
          process_iq/5,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/3]).
 
 -export([get_personal_data/3]).
 
@@ -55,6 +56,8 @@
 -include("mongoose_config_spec.hrl").
 -xep([{xep, 49}, {version, "1.2"}]).
 
+-type ns() :: binary().
+
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
@@ -64,33 +67,37 @@
 
 -callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
     HostType :: mongooseim:host_type(),
-    LUser   :: binary(),
-    LServer :: binary(),
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver(),
     NS2XML  :: [{NS, XML}],
-    NS      :: binary(),
+    NS      :: ns(),
     XML     :: #xmlel{},
     Reason  :: term(),
     Result  :: ok | {aborted, Reason} | {error, Reason}.
 
 -callback multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
     HostType :: mongooseim:host_type(),
-    LUser   :: binary(),
-    LServer :: binary(),
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver(),
     NS2Def  :: [{NS, Default}],
-    NS      :: binary(),
+    NS      :: ns(),
     Default :: term(),
     XML     :: #xmlel{}.
 
 -callback remove_user(HostType, LUser, LServer) -> any() when
     HostType :: mongooseim:host_type(),
-    LUser   :: binary(),
-    LServer :: binary().
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver().
+
+-callback remove_domain(HostType, LServer) -> any() when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver().
 
 -callback get_all_nss(HostType, LUser, LServer) -> NSs when
     HostType :: mongooseim:host_type(),
-    LUser   :: binary(),
-    LServer :: binary(),
-    NSs     :: [binary()].
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver(),
+    NSs     :: [ns()].
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -127,6 +134,7 @@ supported_features() -> [dynamic_domains].
 
 hooks(HostType) ->
     [{remove_user, HostType, ?MODULE, remove_user, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
 
@@ -155,6 +163,13 @@ remove_user(Acc, User, Server) ->
     LServer = jid:nameprep(Server),
     R = mod_private_backend:remove_user(HostType, LUser, LServer),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_private_backend:remove_domain(HostType, Domain),
     Acc.
 
 process_iq(Acc,

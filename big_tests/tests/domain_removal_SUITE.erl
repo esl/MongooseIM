@@ -14,7 +14,8 @@
          mam_muc_removal/1,
          inbox_removal/1,
          muc_light_removal/1,
-         muc_light_blocking_removal/1]).
+         muc_light_blocking_removal/1,
+         private_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 
@@ -27,7 +28,8 @@
 all() ->
     [{group, mam_removal},
      {group, inbox_removal},
-     {group, muc_light_removal}].
+     {group, muc_light_removal},
+     {group, private_removal}].
 
 groups() ->
     [
@@ -35,7 +37,8 @@ groups() ->
                         mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
      {muc_light_removal, [], [muc_light_removal,
-                              muc_light_blocking_removal]}
+                              muc_light_blocking_removal]},
+     {private_removal, [], [private_removal]}
     ].
 
 domain() ->
@@ -79,7 +82,9 @@ group_to_modules(mam_removal) ->
 group_to_modules(muc_light_removal) ->
     [{mod_muc_light, [{backend, rdbms}]}];
 group_to_modules(inbox_removal) ->
-    [{mod_inbox, []}].
+    [{mod_inbox, []}];
+group_to_modules(private_removal) ->
+    [{mod_private, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -172,6 +177,26 @@ muc_light_blocking_removal(Config0) ->
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
 
+private_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        NS = <<"alice:private:ns">>,
+        Tag = <<"my_element">>,
+        %% Alice stores some data in her private storage
+        IqSet = escalus_stanza:private_set(my_banana(NS)),
+        IqGet = escalus_stanza:private_get(NS, Tag),
+        escalus:send_iq_and_wait_for_result(Alice, IqSet),
+        %% Compare results before and after removal
+        Res1 = escalus_client:send_iq_and_wait_for_result(Alice, IqGet),
+        run_remove_domain(),
+        Res2 = escalus_client:send_iq_and_wait_for_result(Alice, IqGet),
+        escalus:assert(is_private_result, Res1),
+        escalus:assert(is_private_result, Res2),
+        Val1 = get_private_data(Res1, Tag, NS),
+        Val2 = get_private_data(Res2, Tag, NS),
+        ?assert_equal_extra(<<"banana">>, Val1, #{stanza => Res1}),
+        ?assert_equal_extra(<<>>, Val2, #{stanza => Res2})
+      end).
+
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).
 
@@ -200,3 +225,13 @@ block_muclight_user(Bob, Alice) ->
     BlocklistChange = [{user, deny, AliceJIDBin}],
     escalus:send(Bob, muc_light_helper:stanza_blocking_set(BlocklistChange)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)).
+
+my_banana(NS) ->
+    #xmlel{
+        name = <<"my_element">>,
+        attrs = [{<<"xmlns">>, NS}],
+        children = [#xmlcdata{content = <<"banana">>}]}.
+
+get_private_data(Elem, Tag, NS) ->
+    Path = [{element, <<"query">>}, {element_with_ns, Tag, NS}, cdata],
+    exml_query:path(Elem, Path).

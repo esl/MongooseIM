@@ -34,7 +34,8 @@
          multi_set_data/4,
          multi_get_data/4,
          get_all_nss/3,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -85,6 +86,12 @@ remove_user(_HostType, LUser, LServer) ->
         [delete_record_t(LUser, LServer, NS) || NS <- NSs]
         end,
     mnesia:transaction(F).
+
+%% There is no optimized way to remove a domain.
+%% We expect, that domain removal process would call remove_user instead
+%% for each user.
+remove_domain(_HostType, _LServer) ->
+    ok.
 
 select_namespaces_t(LUser, LServer) ->
     Result = mnesia:select(

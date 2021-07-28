@@ -34,7 +34,8 @@
          multi_set_data/4,
          multi_get_data/4,
          get_all_nss/3,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -49,6 +50,9 @@ init(HostType, _Opts) ->
     mongoose_rdbms:prepare(private_remove_user, private_storage,
                            [server, username],
                            <<"DELETE FROM private_storage WHERE server=? AND username=?">>),
+    mongoose_rdbms:prepare(private_remove_domain, private_storage,
+                           [server],
+                           <<"DELETE FROM private_storage WHERE server=?">>),
     rdbms_queries:prepare_upsert(HostType, private_upsert, private_storage,
                                  [<<"server">>, <<"username">>, <<"namespace">>, <<"data">>],
                                  [<<"data">>],
@@ -98,3 +102,6 @@ get_all_nss(HostType, LUser, LServer) ->
 
 remove_user(HostType, LUser, LServer) ->
     mongoose_rdbms:execute(HostType, private_remove_user, [LServer, LUser]).
+
+remove_domain(HostType, LServer) ->
+    mongoose_rdbms:execute(HostType, private_remove_domain, [LServer]).

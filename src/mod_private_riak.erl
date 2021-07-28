@@ -22,7 +22,8 @@
          multi_set_data/4,
          multi_get_data/4,
          get_all_nss/3,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -51,6 +52,12 @@ multi_get_data(_HostType, LUser, LServer, NS2Def) ->
 remove_user(HostType, LUser, LServer) ->
     Bucket = bucket_type(LServer),
     [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(HostType, LUser, LServer)],
+    ok.
+
+%% There is no optimized way to remove a domain.
+%% We expect, that domain removal process would call remove_user instead
+%% for each user.
+remove_domain(_HostType, _LServer) ->
     ok.
 
 set_private_data(LUser, LServer, NS, XML) ->
