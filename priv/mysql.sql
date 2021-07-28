@@ -46,17 +46,16 @@ CREATE TABLE users (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-
 CREATE TABLE last (
-    username varchar(250) PRIMARY KEY,
+    server varchar(250),
+    username varchar(250),
     seconds int NOT NULL,
-
-    state text NOT NULl
+    state text NOT NULL,
+    PRIMARY KEY (server, username)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX i_last_seconds ON last(seconds);
-
+CREATE INDEX i_last_server_seconds ON last (server, seconds);
 
 CREATE TABLE rosterusers (
     server varchar(250) NOT NULL,

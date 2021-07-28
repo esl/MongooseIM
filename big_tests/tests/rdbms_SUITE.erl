@@ -314,10 +314,12 @@ arguments_from_two_tables(Config) ->
                 <<"SELECT users.username from users "
                   " LEFT JOIN last ON (last.username = users.username) "
                   " WHERE users.password = ? AND last.seconds > ?">>),
-    sql_query(Config, "INSERT INTO users (username, server, password) VALUES ('alice', 'domain', 'secret')"),
-    sql_query(Config, "INSERT INTO users (username, server, password) VALUES ('bob', 'domain', 'billy')"),
-    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('alice', 1615368268, 'ok')"),
-    sql_query(Config, "INSERT INTO last (username, seconds, state) VALUES ('bob', 1610000000, 'cool')"),
+    UserInsert = "INSERT INTO users (username, server, password) VALUES ",
+    sql_query(Config, UserInsert ++ "('alice', 'domain', 'secret')"),
+    sql_query(Config, UserInsert ++ "('bob', 'domain', 'billy')"),
+    LastInsert = "INSERT INTO last (username, server, seconds, state) VALUES ",
+    sql_query(Config, LastInsert ++ "('alice', 'domain', 1615368268, 'ok')"),
+    sql_query(Config, LastInsert ++ "('bob', 'domain', 1610000000, 'cool')"),
     SelectResult = sql_execute(Config, select_multi_args, [<<"secret">>, 1611000000]),
     ?assert_equal({selected, [{<<"alice">>}]}, SelectResult),
     erase_users(Config),

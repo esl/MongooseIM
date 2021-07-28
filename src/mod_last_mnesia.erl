@@ -19,22 +19,24 @@
 
 %% API
 -export([init/2,
-         get_last/2,
-         count_active_users/2,
-         set_last_info/4,
-         remove_user/2]).
+         get_last/3,
+         count_active_users/3,
+         set_last_info/5,
+         remove_user/3]).
 
--spec init(jid:server(), list()) -> ok.
-init(_Host, _Opts) ->
+-type host_type() :: mongooseim:host_type().
+
+-spec init(host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     mnesia:create_table(last_activity,
                         [{disc_copies, [node()]},
                          {attributes,
                           record_info(fields, last_activity)}]),
     ok.
 
--spec get_last(jid:luser(), jid:lserver()) ->
-    {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
-get_last(LUser, LServer) ->
+-spec get_last(host_type(), jid:luser(), jid:lserver()) ->
+    {ok, mod_last:timestamp(), mod_last:status()} | {error, term()} | not_found.
+get_last(_HostType, LUser, LServer) ->
     case catch mnesia:dirty_read(last_activity, {LUser, LServer}) of
         {'EXIT', Reason} -> {error, Reason};
         [] -> not_found;
@@ -43,16 +45,16 @@ get_last(LUser, LServer) ->
             {ok, TimeStamp, Status}
     end.
 
--spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
-count_active_users(LServer, TimeStamp) ->
+-spec count_active_users(host_type(), jid:lserver(), mod_last:timestamp()) -> non_neg_integer().
+count_active_users(_HostType, LServer, TimeStamp) ->
     MS = [{{last_activity, {'_', LServer}, '$1', '_'},
         [{'>', '$1', TimeStamp}],
         [true]}],
     ets:select_count(last_activity, MS).
 
--spec set_last_info(jid:luser(), jid:lserver(),
-                    non_neg_integer(), binary()) -> ok | {error, term()}.
-set_last_info(LUser, LServer, TimeStamp, Status) ->
+-spec set_last_info(host_type(), jid:luser(), jid:lserver(),
+                    mod_last:timestamp(), mod_last:status()) -> ok | {error, term()}.
+set_last_info(_HostType, LUser, LServer, TimeStamp, Status) ->
     US = {LUser, LServer},
     F = fun() ->
         mnesia:write(#last_activity{us = US,
@@ -61,8 +63,8 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
     end,
     wrap_transaction_result(mnesia:transaction(F)).
 
--spec remove_user(jid:luser(), jid:lserver()) -> ok.
-remove_user(LUser, LServer) ->
+-spec remove_user(host_type(), jid:luser(), jid:lserver()) -> ok.
+remove_user(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() -> mnesia:delete({last_activity, US}) end,
     wrap_transaction_result(mnesia:transaction(F)).

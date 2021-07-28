@@ -23,14 +23,20 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[last](
+	[server] [nvarchar](250) NOT NULL,
 	[username] [nvarchar](250) NOT NULL,
 	[seconds] [int] NOT NULL,
 	[state] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_last_username] PRIMARY KEY CLUSTERED
 (
+	[server] ASC,
 	[username] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+CREATE INDEX i_last_server_seconds ON last (server, seconds);
+GO
 
 GO
 SET ANSI_PADDING OFF

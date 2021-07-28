@@ -21,6 +21,8 @@
 
 {suites, "tests", inbox_extensions_SUITE}.
 
+{suites, "tests", last_SUITE}.
+
 {suites, "tests", mam_SUITE}.
 
 {suites, "tests", mod_ping_SUITE}.

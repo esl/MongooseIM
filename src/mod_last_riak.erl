@@ -47,27 +47,28 @@
 
 -behaviour(mod_last).
 
--include("mod_last.hrl").
 -include("mongoose.hrl").
 
 -define(TIMESTAMP_IDX, {integer_index, "timestamp"}).
 
 %% API
 -export([init/2,
-         get_last/2,
-         count_active_users/2,
-         set_last_info/4,
-         remove_user/2]).
+         get_last/3,
+         count_active_users/3,
+         set_last_info/5,
+         remove_user/3]).
 
--spec init(jid:server(), list()) ->ok.
+-type host_type() :: mongooseim:host_type().
+
+-spec init(host_type(), gen_mod:module_opts()) -> ok.
 init(_VHost, _Opts) ->
     %% we are using common riak pool
     ok.
 
--spec get_last(jid:luser(), jid:lserver()) ->
-    {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
-get_last(LUser, LServer) ->
-    case mongoose_riak:get(bucket_type(LServer), LUser) of
+-spec get_last(host_type(), jid:luser(), jid:lserver()) ->
+    {ok, mod_last:timestamp(), mod_last:status()} | {error, term()} | not_found.
+get_last(HostType, LUser, LServer) ->
+    case mongoose_riak:get(bucket_type(HostType, LServer), LUser) of
         {ok, Obj} ->
             Status = riakc_obj:get_value(Obj),
             MD = riakc_obj:get_update_metadata(Obj),
@@ -79,30 +80,32 @@ get_last(LUser, LServer) ->
             {error, Reason}
     end.
 
--spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
-count_active_users(LServer, TimeStamp) ->
-    Idx = {index, bucket_type(LServer), ?TIMESTAMP_IDX, TimeStamp+1, infinity()},
+-spec count_active_users(host_type(), jid:lserver(), mod_last:timestamp()) -> non_neg_integer().
+count_active_users(HostType, LServer, TimeStamp) ->
+    Idx = {index, bucket_type(HostType, LServer), ?TIMESTAMP_IDX, TimeStamp+1, infinity()},
     RedMF = {modfun, riak_kv_mapreduce, reduce_count_inputs},
     Red = [{reduce, RedMF, [{reduce_phase_batch_size, 1000}], true}],
     {ok, [{0, [Count]}]}  = mongoose_riak:mapred(Idx, Red),
     Count.
 
--spec set_last_info(jid:luser(), jid:lserver(), non_neg_integer(),
-                    binary()) -> ok | {error, term()}.
-set_last_info(LUser, LServer, Timestamp, Status) ->
-    Obj = riakc_obj:new(bucket_type(LServer), LUser, Status),
+-spec set_last_info(host_type(), jid:luser(), jid:lserver(),
+                    mod_last:timestamp(), mod_last:status()) ->
+          ok | {error, term()}.
+set_last_info(HostType, LUser, LServer, Timestamp, Status) ->
+    Obj = riakc_obj:new(bucket_type(HostType, LServer), LUser, Status),
     MD = riakc_obj:get_update_metadata(Obj),
     MDWithIndex = riakc_obj:set_secondary_index(MD, [{?TIMESTAMP_IDX, [Timestamp]}]),
     FinalObj = riakc_obj:update_metadata(Obj, MDWithIndex),
 
     mongoose_riak:put(FinalObj).
 
--spec remove_user(jid:luser(), jid:lserver())  -> ok.
-remove_user(LUser, LServer) ->
-    mongoose_riak:delete(bucket_type(LServer), LUser).
+-spec remove_user(host_type(), jid:luser(), jid:lserver()) -> ok | {error, term()}.
+remove_user(HostType, LUser, LServer) ->
+    mongoose_riak:delete(bucket_type(HostType, LServer), LUser).
 
-bucket_type(LServer) ->
-    {gen_mod:get_module_opt(LServer, mod_last, bucket_type, <<"last">>), LServer}.
+-spec bucket_type(host_type(), jid:lserver()) -> riakc_obj:bucket().
+bucket_type(HostType, LServer) ->
+    {gen_mod:get_module_opt(HostType, mod_last, bucket_type, <<"last">>), LServer}.
 
 -spec infinity() -> non_neg_integer().
 infinity() ->

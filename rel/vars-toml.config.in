@@ -19,13 +19,15 @@
   shaper_rule = \"fast\"
   ip_address = \"127.0.0.1\"
   password = \"secret\""}.
-{mod_cache_users, ""}. % enabled, no options
-{mod_last, "[modules.mod_last]"}.
-{mod_offline, ""}. % enabled, no options
+
+%% "" means that the module is enabled without any options
+{mod_cache_users, ""}.
+{mod_last, ""}.
+{mod_offline, ""}.
 {mod_privacy, ""}.
 {mod_blocking, "[modules.mod_blocking]"}.
 {mod_private, "[modules.mod_private]"}.
-{mod_roster, ""}. % enabled, no options
+{mod_roster, ""}.
 {mod_vcard, "[modules.mod_vcard]
   host = \"vjud.@HOST@\""}.
 {sm_backend, "\"mnesia\""}.

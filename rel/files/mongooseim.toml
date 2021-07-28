@@ -230,8 +230,8 @@
 [modules.mod_muc_light_commands]
 
 {{#mod_last}}
+[modules.mod_last]
 {{{mod_last}}}
-
 {{/mod_last}}
 [modules.mod_stream_management]
 

@@ -46,10 +46,12 @@ end_per_suite(Config) ->
 
 init_per_testcase(T, Config) ->
     {ok, _HooksServer} = gen_hook:start_link(),
+    ok = mongoose_lazy_routing:start(),
     setup_meck(meck_mods(T)),
     Config.
 
 end_per_testcase(T, Config) ->
+    mongoose_lazy_routing:stop(),
     unload_meck(meck_mods(T)),
     Config.
 
@@ -85,32 +87,35 @@ notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     {ok, Acc}.
 
 auth_anonymous(_Config) ->
+    HostType = host_type(),
     {U, S, R, JID, SID} = get_fake_session(),
-    ejabberd_auth_anonymous:start(S),
+    ejabberd_auth_anonymous:start(HostType),
     Info = [{auth_module, ejabberd_auth_anonymous}],
-    ejabberd_auth_anonymous:register_connection(#{}, S, SID, JID, Info),
-    true = ejabberd_auth_anonymous:does_user_exist(host_type(), U, S),
+    ejabberd_auth_anonymous:register_connection(#{}, HostType, SID, JID, Info),
+    true = ejabberd_auth_anonymous:does_user_exist(HostType, U, S),
     mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
-    false = ejabberd_auth_anonymous:does_user_exist(host_type(), U, S).
+    false = ejabberd_auth_anonymous:does_user_exist(HostType, U, S).
 
 last(_Config) ->
+    HostType = host_type(),
     {U, S, R, _JID, SID} = get_fake_session(),
-    mod_last:start(S, [{backend, mnesia}, {iqdisc, no_queue}]),
-    not_found = mod_last:get_last_info(U, S),
+    mod_last:start(HostType, [{backend, mnesia}, {iqdisc, no_queue}]),
+    not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
-    #{} = mod_last:on_presence_update(#{}, U, S, R, Status1),
-    {ok, TS1, Status1} = mod_last:get_last_info(U, S),
+    #{} = mod_last:on_presence_update(new_acc(S), U, S, R, Status1),
+    {ok, TS1, Status1} = mod_last:get_last_info(HostType, U, S),
     async_helper:wait_until(
       fun() ->
               mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
-              {ok, TS2, <<>>} = mod_last:get_last_info(U, S),
+              {ok, TS2, <<>>} = mod_last:get_last_info(HostType, U, S),
               TS2 - TS1 > 0
       end,
       true).
 
 stream_management(_Config) ->
+    HostType = host_type(),
     {U, S, R, _JID, SID} = get_fake_session(),
-    mod_stream_management:start(S, []),
+    mod_stream_management:start(HostType, []),
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(SMID),
@@ -219,7 +224,7 @@ get_fake_session() ->
 new_acc(Server) ->
     mongoose_acc:new(#{location => ?LOCATION,
                        lserver => Server,
-                       host_type => Server,
+                       host_type => host_type(),
                        element => undefined}).
 
 host_type() ->
