@@ -98,11 +98,9 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ibrowse:start(),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    ibrowse:stop(),
     escalus:end_per_suite(Config).
 
 init_per_group(unset_size, Config) ->
@@ -278,11 +276,48 @@ test_minio_upload(Config, ContentType) ->
             GetUrl = binary_to_list(extract_url(Result, <<"get">>)),
             PutUrl = binary_to_list(extract_url(Result, <<"put">>)),
             Header = generate_header(Config, ContentType),
-            PutRetValue = ibrowse:send_req(PutUrl, Header, put, ?MINIO_TEST_DATA),
-            ?assertMatch({ok, "200", _, []}, PutRetValue),
-            GetRetValue = ibrowse:send_req(GetUrl, [], get),
-            ?assertMatch({ok, "200", _, ?MINIO_TEST_DATA}, GetRetValue)
+            PutRetValue = request(put, PutUrl, Header, ?MINIO_TEST_DATA),
+            ?assertMatch({200, _}, PutRetValue),
+            GetRetValue = request(get, GetUrl, [], []),
+            ?assertMatch({200, ?MINIO_TEST_DATA}, GetRetValue)
         end).
+
+request(Method, PutUrl, Header, Data) ->
+    PURL = #{host := Host, port := Port, path := Path} = uri_string:parse(PutUrl),
+    {ok, ConnPid} = gun:open(Host, Port),
+    {ok, _} = gun:await_up(ConnPid),
+    FullPath =
+        case PURL of
+            #{query := Query} ->
+                Path ++ "?" ++ Query;
+            _ ->
+                Path
+        end,
+    StreamRef =
+        case Method of
+            put ->
+                gun:put(ConnPid, FullPath, Header, Data);
+            get ->
+                gun:get(ConnPid, FullPath)
+        end,
+    RespOpts = #{pid => ConnPid, stream_ref => StreamRef, acc => <<>>},
+    #{status := Status, acc := Acc} = get_reponse(RespOpts),
+    ok = gun:close(ConnPid),
+    {Status, binary_to_list(Acc)}.
+
+get_reponse(#{pid := Pid, stream_ref := StreamRef, acc := Acc} = Opts) ->
+    case gun:await(Pid, StreamRef) of
+        {response, fin, Status, _} ->
+            Opts#{status => Status, acc => Acc};
+        {response, nofin, Status, _} ->
+            get_reponse(Opts#{status => Status});
+        {data, nofin, Data} ->
+            get_reponse(Opts#{acc => <<Acc/binary, Data/binary>>});
+        {data, fin, Data} ->
+            Opts#{acc => <<Acc/binary, Data/binary>>};
+        Error ->
+            Error
+    end.
 
 generate_header(Config, undefined) ->
     case proplists:get_value(with_acl, Config, false) of
@@ -292,7 +327,7 @@ generate_header(Config, undefined) ->
             []
     end;
 generate_header(Config, ContentType) ->
-    [{<<"Content-Type">>, ContentType} | generate_header(Config, undefined)].
+    [{<<"content-type">>, ContentType} | generate_header(Config, undefined)].
 
 rejects_empty_filename(Config) ->
     escalus:story(
