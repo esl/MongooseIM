@@ -4,6 +4,7 @@
 -ifdef(OTP_RELEASE).
 -define(STACKTRACE(C, R, S), C:R:S ->).
 -else.
+%% This script runs inside michalwski/docker-riak, which still uses OTP 20.3
 -define(STACKTRACE(C, R, S), C:R -> S = erlang:get_stacktrace(),).
 -endif.
 
@@ -23,8 +24,6 @@ main(_) ->
             io:format("Riak node ~p~n", [RiakNode]),
             try setup_riak_node(RiakNode)
             catch ?STACKTRACE(Class, Reason, Stacktrace)
-                %% This script runs inside michalwski/docker-riak, which still uses OTP 20.3
-                %Stacktrace = erlang:get_stacktrace(),
                 io:format("Failed ~p:~p~n~p~n", [Class, Reason, Stacktrace]),
                 init:stop(1)
             end,
