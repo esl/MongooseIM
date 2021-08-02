@@ -9,7 +9,8 @@
                   cowboy,
                   gen_fsm_compat,
                   jid,
-                  gun
+                  gun,
+                  escalus
                  ]},
   {env, []}
  ]}.
