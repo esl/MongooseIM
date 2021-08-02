@@ -260,7 +260,10 @@ row_to_map({HostType, Enabled}) ->
     #{host_type => HostType, enabled => mongoose_rdbms:to_bool(Enabled)}.
 
 get_db_pool() ->
-    hd(ejabberd_config:get_global_option(hosts)).
+    proplists:get_value(pool_name, get_service_opts(), global).
+
+get_service_opts() ->
+    mongoose_service:get_service_opts(service_domain_db).
 
 transaction(F) ->
     Pool = get_db_pool(),

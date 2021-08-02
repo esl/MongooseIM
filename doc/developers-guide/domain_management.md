@@ -101,6 +101,21 @@ Configure host-type first to delete such domains.
 
 ## Service options
 
+```toml
+[services.service_domain_db]
+  pool_name = "global"
+  event_cleaning_interval = 1800
+  event_max_age = 7200
+```
+
+### `pool_name`
+
+Pool name to use for a database connection.
+
+* **Syntax:** atom
+* **Default:** `global`
+* **Example:** `pool_name = "global"`
+
 ### `event_cleaning_interval`
 The number of seconds between cleaning attempts of the `domain_events` table.
 * **Syntax:** positive integer
