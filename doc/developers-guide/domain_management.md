@@ -103,18 +103,18 @@ Configure host-type first to delete such domains.
 
 ```toml
 [services.service_domain_db]
-  pool_name = "global"
+  db_pool = "global"
   event_cleaning_interval = 1800
   event_max_age = 7200
 ```
 
-### `pool_name`
+### `db_pool`
+By default, this service uses the RDBMS connection pool configured with the scope `"global"`.
+You can put a specific host type there to use the pool with the `"host"` or `"single_host"` scope for that particular host type. See [outgoing connections docs](../advanced-configuration/outgoing-connections.md) for more information about pool scopes.
 
-Pool name to use for a database connection.
-
-* **Syntax:** atom
+* **Syntax:** string
 * **Default:** `global`
-* **Example:** `pool_name = "global"`
+* **Example:** `db_pool = "my_host_type"`
 
 ### `event_cleaning_interval`
 The number of seconds between cleaning attempts of the `domain_events` table.

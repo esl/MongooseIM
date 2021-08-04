@@ -58,8 +58,8 @@ config_spec() ->
                                                         validate = positive},
                <<"event_max_age">> => #option{type = integer,
                                               validate = positive},
-               <<"pool_name">> => #option{type = atom,
-                                          validate = pool_name}
+               <<"db_pool">> => #option{type = atom,
+                                        validate = pool_name}
               }}.
 
 start_link() ->
