@@ -33,7 +33,7 @@ elif [ "$db" = 'elasticsearch' ]; then
     docker image pull docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
 
 elif [ "$db" = 'mssql' ]; then
-    docker image pull microsoft/mssql-server-linux
+    docker image pull mcr.microsoft.com/mssql/server
 
 elif [ "$db" = 'redis' ]; then
     docker image pull redis
