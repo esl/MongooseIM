@@ -171,15 +171,14 @@ CREATE TABLE privacy_list_data (
   ROW_FORMAT=DYNAMIC;
 
 CREATE TABLE private_storage (
+    server varchar(250) NOT NULL,
     username varchar(250) NOT NULL,
     namespace varchar(250) NOT NULL,
     data text NOT NULL,
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(server, username, namespace)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
-CREATE INDEX i_private_storage_username USING BTREE ON private_storage(username);
-CREATE UNIQUE INDEX i_private_storage_username_namespace USING BTREE ON private_storage(username(75), namespace(75));
 
 CREATE TABLE roster_version (
     server varchar(250),

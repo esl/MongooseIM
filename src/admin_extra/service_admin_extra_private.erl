@@ -82,6 +82,7 @@ private_get(Username, Host, Element, Ns) ->
 
 do_private_get(JID, Element, Ns) ->
     From = To = JID,
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(From#jid.lserver),
     IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
           #xmlel{ name = <<"query">>,
                   attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
@@ -90,8 +91,9 @@ do_private_get(JID, Element, Ns) ->
                               from_jid => From,
                               to_jid => To,
                               lserver => From#jid.lserver,
+                              host_type => HostType,
                               element => jlib:iq_to_xml(IQ) }),
-    {_, ResIq} = mod_private:process_sm_iq(From, To, Acc, IQ),
+    {_, ResIq} = mod_private:process_iq(Acc, From, To, IQ, #{}),
     [#xmlel{ name = <<"query">>,
              attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
              children = [SubEl] }] = ResIq#iq.sub_el,
@@ -124,6 +126,7 @@ do_private_set2(#jid{lserver = Host} = JID, Xml) ->
     case is_private_module_loaded(Host) of
         true ->
             From = To = JID,
+            {ok, HostType} = mongoose_domain_api:get_domain_host_type(From#jid.lserver),
             IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
                   #xmlel{ name = <<"query">>,
                           attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
@@ -132,8 +135,9 @@ do_private_set2(#jid{lserver = Host} = JID, Xml) ->
                                       from_jid => From,
                                       to_jid => To,
                                       lserver => From#jid.lserver,
+                                      host_type => HostType,
                                       element => jlib:iq_to_xml(IQ) }),
-            mod_private:process_sm_iq(From, To, Acc, IQ),
+            mod_private:process_iq(Acc, From, To, IQ, #{}),
             {ok, ""};
         false ->
             {not_loaded, io_lib:format("Module mod_private is not loaded on host ~s", [Host])}

@@ -49,6 +49,8 @@
 
 {suites, "tests", privacy_SUITE}.
 
+{suites, "tests", private_SUITE}.
+
 {suites, "tests", race_conditions_SUITE}.
 
 {suites, "tests", rest_client_SUITE}.
