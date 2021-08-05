@@ -57,7 +57,9 @@ config_spec() ->
                <<"event_cleaning_interval">> => #option{type = integer,
                                                         validate = positive},
                <<"event_max_age">> => #option{type = integer,
-                                              validate = positive}
+                                              validate = positive},
+               <<"db_pool">> => #option{type = atom,
+                                        validate = pool_name}
               }}.
 
 start_link() ->
