@@ -29,12 +29,12 @@
 
 %% mod_vcards callbacks
 -export([init/2,
-         remove_user/2,
-         get_vcard/2,
-         set_vcard/4,
-         search/2,
-         search_fields/1,
-         search_reported_fields/2]).
+         remove_user/3,
+         get_vcard/3,
+         set_vcard/5,
+         search/3,
+         search_fields/2,
+         search_reported_fields/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -66,16 +66,17 @@ init(VHost, _Options) ->
     ok.
 
 %% Remove user callback
-remove_user(LUser, LServer) ->
-    mongoose_rdbms:sql_transaction(LServer, fun() -> remove_user_t(LUser, LServer) end).
+remove_user(HostType, LUser, LServer) ->
+    F = fun() -> remove_user_t(HostType, LUser, LServer) end,
+    mongoose_rdbms:sql_transaction(HostType, F).
 
-remove_user_t(LUser, LServer) ->
-    mongoose_rdbms:execute(LServer, vcard_remove, [LUser, LServer]),
-    mongoose_rdbms:execute(LServer, vcard_search_remove, [LUser, LServer]).
+remove_user_t(HostType, LUser, LServer) ->
+    mongoose_rdbms:execute(HostType, vcard_remove, [LUser, LServer]),
+    mongoose_rdbms:execute(HostType, vcard_search_remove, [LUser, LServer]).
 
 %% Get a single vCard callback
-get_vcard(LUser, LServer) ->
-    Res = mongoose_rdbms:execute(LServer, vcard_select, [LUser, LServer]),
+get_vcard(HostType, LUser, LServer) ->
+    Res = mongoose_rdbms:execute(HostType, vcard_select, [LUser, LServer]),
     case Res of
         {selected, [{SVCARD}]} ->
             case exml:parse(SVCARD) of
@@ -93,17 +94,17 @@ get_vcard(LUser, LServer) ->
     end.
 
 %% Set a vCard callback
-set_vcard(User, LServer, VCard, Search) ->
+set_vcard(HostType, User, LServer, VCard, Search) ->
     LUser = jid:nodeprep(User),
     SearchArgs = assert_binaries(search_args(User, Search)),
     XML = exml:to_binary(VCard),
     F = fun() ->
-            update_vcard_t(LUser, LServer, XML),
-            update_vcard_search_t(LUser, LServer, SearchArgs),
+            update_vcard_t(HostType, LUser, LServer, XML),
+            update_vcard_search_t(HostType, LUser, LServer, SearchArgs),
             ok
         end,
-    Result = handle_result(rdbms_queries:sql_transaction(LServer, F)),
-    log_upsert_result(LServer, LUser, VCard, XML, Result),
+    Result = handle_result(rdbms_queries:sql_transaction(HostType, F)),
+    log_upsert_result(HostType, LServer, LUser, VCard, XML, Result),
     Result.
 
 %% Do not pass unicode strings as a list of bytes into MySQL driver.
@@ -118,44 +119,45 @@ assert_binaries(Bins) ->
             error(#{what => assert_binaries_failed, binaries => Bins})
     end.
 
-log_upsert_result(LServer, LUser, VCard, _XML, ok) ->
-    mongoose_hooks:vcard_set(LServer, LUser, VCard);
-log_upsert_result(LServer, LUser, _VCard, XML, {error, Reason}) ->
+log_upsert_result(HostType, LServer, LUser, VCard, _XML, ok) ->
+    mongoose_hooks:vcard_set(HostType, LServer, LUser, VCard);
+log_upsert_result(HostType, LServer, LUser, _VCard, XML, {error, Reason}) ->
     ?LOG_WARNING(#{what => vcard_update_failed, reason => Reason,
-                   user => LUser, host => LServer, vcard_xml => XML}).
+                   host_type => HostType,
+                   user => LUser, server => LServer, vcard_xml => XML}).
 
 handle_result({atomic, ok})      -> ok;
 handle_result({aborted, Reason}) -> {error, {aborted, Reason}};
 handle_result({error, Reason})   -> {error, Reason}.
 
-update_vcard_t(LUser, LServer, XML) ->
+update_vcard_t(HostType, LUser, LServer, XML) ->
     InsertParams = [LUser, LServer, XML],
     UpdateParams = [XML],
     UniqueKeyValues = [LUser, LServer],
-    rdbms_queries:execute_upsert(LServer, vcard_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, vcard_upsert, InsertParams, UpdateParams, UniqueKeyValues).
 
-update_vcard_search_t(LUser, LServer, SearchArgs) ->
+update_vcard_search_t(HostType, LUser, LServer, SearchArgs) ->
     InsertParams = [LUser, LServer|SearchArgs],
     UpdateParams = SearchArgs,
     UniqueKeyValues = [LUser, LServer],
-    rdbms_queries:execute_upsert(LServer, vcard_search_upsert, InsertParams, UpdateParams, UniqueKeyValues).
+    rdbms_queries:execute_upsert(HostType, vcard_search_upsert, InsertParams, UpdateParams, UniqueKeyValues).
 
 %% Search vCards fields callback
-search_fields(_VHost) ->
+search_fields(_HostType, _VHost) ->
     mod_vcard:default_search_fields().
 
 %% Search vCards reported fields callback
-search_reported_fields(_VHost, Lang) ->
+search_reported_fields(_HostType, _VHost, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
 %% Search vCards callback
-search(LServer, Data) ->
+search(HostType, LServer, Data) ->
     Filters = make_filters(LServer, Data),
     case Filters of
         [] ->
             [];
         _ ->
-            Limit = mod_vcard:get_results_limit(LServer),
+            Limit = mod_vcard:get_results_limit(HostType),
             LimitType = limit_type(Limit),
             StmtName = filters_to_statement_name(Filters, LimitType),
             case mongoose_rdbms:prepared(StmtName) of
@@ -168,7 +170,7 @@ search(LServer, Data) ->
                     ok
             end,
             Args = filters_to_args(Filters, LimitType, Limit),
-            try mongoose_rdbms:execute(LServer, StmtName, Args) of
+            try mongoose_rdbms:execute(HostType, StmtName, Args) of
                 {selected, Rs} when is_list(Rs) ->
                     record_to_items(Rs);
                 Error ->

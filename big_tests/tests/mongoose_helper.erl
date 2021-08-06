@@ -45,6 +45,7 @@
 -export([restart_listener_with_opts/3]).
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
+-export([print_debug_info_for_module/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -509,3 +510,9 @@ should_minio_be_running(Config) ->
             lists:member(minio, DBs)
     end.
 
+%% It is useful to debug dynamic IQ handler registration
+print_debug_info_for_module(Module) ->
+    ModConfig = rpc(mim(), gen_mod, hosts_and_opts_with_module, [mod_vcard]),
+    IqConfig = rpc(mim(), ets, tab2list, [sm_iqtable]),
+    ct:pal("hosts_and_opts=~p~n iq_handlers=~p~n",
+           [ModConfig, IqConfig]).

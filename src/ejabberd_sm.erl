@@ -139,6 +139,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
+%% You MUST NOT call this function from the big tests.
+%% In 99% you should call ejabberd_router:route/3 instead.
+%% This function would fail for the first routed IQ.
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
@@ -986,7 +989,7 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
         [{_, IQHandler}] ->
             gen_iq_component:handle(IQHandler, Acc, From, To, IQ);
         [] ->
-            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns">>),
+            E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Unknown xmlns=", XMLNS/binary, " for host=", Host/binary>>),
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, E),
             ejabberd_router:route(To, From, Acc1, Err)
     end;

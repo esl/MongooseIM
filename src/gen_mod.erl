@@ -63,6 +63,7 @@
          set_module_opt/4,
          set_module_opts/3,
          get_module_opts/2,
+         get_loaded_module_opts/2,
          get_opt_subhost/3,
          get_module_opt_subhost/3,
 
@@ -71,6 +72,7 @@
          loaded_modules_with_opts/0,
          loaded_modules_with_opts/1,
          hosts_with_module/1,
+         hosts_and_opts_with_module/1,
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
@@ -366,6 +368,13 @@ get_module_opts(HostType, Module) ->
         [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
 
+get_loaded_module_opts(HostType, Module) ->
+    OptsList = ets:lookup(ejabberd_modules, {Module, HostType}),
+    case OptsList of
+        [] -> error({module_not_loaded, HostType, Module});
+        [#ejabberd_module{opts = Opts} | _] -> Opts
+    end.
+
 %% @doc use this function only on init stage
 %% Non-atomic! You have been warned.
 -spec set_module_opt(host_type(), module(), _Opt, _Value) -> boolean().
@@ -449,6 +458,13 @@ hosts_with_module(Module) ->
     ets:select(ejabberd_modules,
                [{#ejabberd_module{_ = '_', module_host_type = {Module, '$1'}},
                  [], ['$1']}]).
+
+-spec hosts_and_opts_with_module(module()) -> [{host_type(), module_opts()}].
+hosts_and_opts_with_module(Module) ->
+    ets:select(ejabberd_modules,
+               [{#ejabberd_module{_ = '_', module_host_type = {Module, '$1'},
+                                  opts = '$2'},
+                 [], [{{'$1', '$2'}}]}]).
 
 -spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
     {'aborted', _} | {'atomic', _}.

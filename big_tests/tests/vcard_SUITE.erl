@@ -124,16 +124,18 @@ suite() ->
 init_per_suite(Config) ->
     NewConfig = escalus:init_per_suite(Config),
     NewConfig1 = vcard_config(NewConfig),
-    NewConfig2 = stop_running_vcard_mod(NewConfig1),
+    NewConfig2 = prepare_vcard_module(NewConfig1),
     AliceAndBob = escalus_users:get_users([alice, bob]),
-    Domain = domain(),
+    Spec = escalus_users:get_userspec(Config, alice),
+    Addr = proplists:get_value(host, Spec, <<"localhost">>),
+    SecDomain = secondary_domain(),
     BisUsers = [{aliceb, [{username, <<"aliceb">>},
-                          {server, <<Domain/binary, ".bis">>},
-                          {host, Domain},
+                          {server, SecDomain},
+                          {host, Addr},
                           {password, <<"makota">>}]},
                 {bobb, [{username, <<"bobb">>},
-                        {server, <<Domain/binary, ".bis">>},
-                        {host, Domain},
+                        {server, SecDomain},
+                        {host, Addr},
                         {password, <<"makrolika">>}]}],
     NewUsers = AliceAndBob ++ BisUsers,
     escalus:create_users([{escalus_users, NewUsers} | NewConfig2], NewUsers).
@@ -146,7 +148,7 @@ vcard_config(Config) ->
     ] ++ Config.
 
 end_per_suite(Config) ->
-    start_running_vcard_mod(Config),
+    restore_vcard_module(Config),
     Who = ?config(escalus_users, Config),
     NewConfig = escalus:delete_users(Config, Who),
     escalus:end_per_suite(NewConfig).
@@ -528,10 +530,11 @@ search_rsm_pages(Config) ->
                         <<"2">> = RSMCount2
                 end,
                 ItemTups2 = search_result_item_tuples(Res2),
+                SecDomain = secondary_domain(),
                 ExpectedItemTups = get_search_results(
                                      Config,
-                                     [<<"bobb@localhost.bis">>,
-                                      <<"aliceb@localhost.bis">>]),
+                                     [<<"bobb@", SecDomain/binary>>,
+                                      <<"aliceb@", SecDomain/binary>>]),
                 case vcard_update:is_vcard_ldap() of
                     true ->
                         ignore;
@@ -606,10 +609,11 @@ search_rsm_forward(Config) ->
                 end,
                 RSMLast2 = get_rsm_last(Res2),
                 ItemTups2 = search_result_item_tuples(Res2),
+                SecDomain = secondary_domain(),
                 ExpectedItemTups = get_search_results(
                                      Config,
-                                     [<<"bobb@localhost.bis">>,
-                                      <<"aliceb@localhost.bis">>]),
+                                     [<<"bobb@", SecDomain/binary>>,
+                                      <<"aliceb@", SecDomain/binary>>]),
                 case vcard_update:is_vcard_ldap() of
                     true ->
                         ignore;
@@ -714,10 +718,11 @@ search_rsm_backward(Config) ->
                 end,
                 RSMFirst2 = get_rsm_first(Res2),
                 ItemTups2 = search_result_item_tuples(Res2),
+                SecDomain = secondary_domain(),
                 ExpectedItemTups = get_search_results(
                                      Config,
-                                     [<<"bobb@localhost.bis">>,
-                                      <<"aliceb@localhost.bis">>]),
+                                     [<<"bobb@", SecDomain/binary>>,
+                                      <<"aliceb@", SecDomain/binary>>]),
                 case vcard_update:is_vcard_ldap() of
                     true ->
                         ignore;
@@ -907,7 +912,6 @@ search_some_limited(Config) ->
       fun(Client) ->
               Domain = ct:get_config({hosts, mim, secondary_domain}),
               DirJID = <<"directory.", Domain/binary>>,
-              Server = escalus_client:server(Client),
               Fields = [{get_last_name_search_field(), <<"Doe">>}],
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:search_iq(DirJID,
@@ -916,7 +920,8 @@ search_some_limited(Config) ->
               ItemTups = search_result_item_tuples(Res),
               %% exactly one result returned and its JID domain is correct
               [{SomeJID, _JIDsFields}] = ItemTups,
-              {_Start, _Length} = binary:match(SomeJID, <<"@", Server/binary>>)
+              true = lists:member(SomeJID, [<<"aliceb@", Domain/binary>>,
+                                            <<"bobb@", Domain/binary>>])
       end).
 
 
@@ -960,8 +965,12 @@ search_not_allowed(Config) ->
               Res = escalus:send_and_wait(Client,
                            escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
-              escalus:assert(is_error, [<<"cancel">>,
-                                        <<"service-unavailable">>], Res)
+              escalus:assert(fun(Packet) ->
+                                     escalus_pred:is_error(<<"cancel">>, <<"service-unavailable">>, Packet)
+                                     orelse
+                                     %% A case for dynamic domains
+                                     escalus_pred:is_error(<<"cancel">>, <<"remote-server-not-found">>, Packet)
+                             end, [], Res)
       end).
 
 %% disco#items to no.search.domain doesn't say vjud.no.search.domain exists
@@ -1000,7 +1009,7 @@ prepare_vcards(Config) ->
                         prepare_vcard(ModVcardBackend, JID, Fields)
                 end
         end, AllVCards),
-    timer:sleep(timer:seconds(3)), %give some time to Yokozuna to index vcards
+    wait_for_riak(),
     Config.
 
 get_backend(Config) ->
@@ -1110,7 +1119,17 @@ get_jid_record(JID) ->
     {jid, User, Server, <<"">>, User, Server, <<"">>}.
 
 vcard_rpc(JID, Stanza) ->
-    rpc(mim(), ejabberd_sm, route, [JID, JID, Stanza]).
+    Res = rpc(mim(), ejabberd_router, route, [JID, JID, Stanza]),
+    case Res of
+        #{stanza := #{type := <<"set">>}} ->
+            ok;
+        _ ->
+            %% Something is wrong with the IQ handler
+            %% Let's print enough info
+            ct:pal("jid=~p~n stanza=~p~n result=~p~n", [JID, Stanza, Res]),
+            mongoose_helper:print_debug_info_for_module(mod_vcard),
+            ct:fail(vcard_rpc_failed)
+    end.
 
 restart_vcard_mod(Config, ro_limited) ->
     restart_mod(params_limited(Config));
@@ -1123,20 +1142,37 @@ restart_vcard_mod(Config, ldap_only) ->
 restart_vcard_mod(Config, _GN) ->
     restart_mod(params_all(Config)).
 
-start_running_vcard_mod(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    OriginalVcardConfig = ?config(mod_vcard, Config),
-    dynamic_modules:start(Domain, mod_vcard, OriginalVcardConfig).
-stop_running_vcard_mod(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
-    {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
-    dynamic_modules:stop(Domain, mod_vcard),
-    [{mod_vcard, CurrentVcardConfig} | Config].
+restart_mod(Params) ->
+    [restart_mod(HostType, Params) || HostType <- host_types()],
+    ok.
+
+restart_mod(HostType, Params) ->
+    dynamic_modules:stop(HostType, mod_vcard),
+    {ok, _Pid} = dynamic_modules:start(HostType, mod_vcard, Params).
+
+prepare_vcard_module(Config) ->
+    %% Keep the old config, so we can undo our changes, once finished testing
+    Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
+    %% Get a list of options, we can use as a prototype to start new modules
+    [{mod_vcard, get_vcard_config(Config)} | Config1].
+
+restore_vcard_module(Config) ->
+    dynamic_modules:restore_modules(Config).
+
+host_types() ->
+    HostType = ct:get_config({hosts, mim, host_type}),
+    SecHostType = ct:get_config({hosts, mim, secondary_host_type}),
+    lists:usort([HostType, SecHostType]).
+
+get_vcard_config(Config) ->
+    CfgHost = ct:get_config({hosts, mim, configured_host}),
+    rpc(mim(), gen_mod, get_loaded_module_opts, [CfgHost, mod_vcard]).
 
 stop_vcard_mod(_Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Domain, mod_vcard).
+    HostType = ct:get_config({hosts, mim, host_type}),
+    SecHostType = ct:get_config({hosts, mim, secondary_host_type}),
+    dynamic_modules:stop(HostType, mod_vcard),
+    dynamic_modules:stop(SecHostType, mod_vcard).
 
 params_all(Config) ->
     add_backend_param([], ?config(mod_vcard, Config)).
@@ -1152,7 +1188,9 @@ params_limited_infinity(Config) ->
                       ?config(mod_vcard, Config)).
 
 params_no(Config) ->
-    add_backend_param([{search, false}], ?config(mod_vcard, Config)).
+    add_backend_param([{search, false},
+                       {host, subhost_pattern("vjud.@HOST@")}],
+                      ?config(mod_vcard, Config)).
 
 params_ldap_only(Config) ->
     Reported = [{<<"Full Name">>, <<"FN">>},
@@ -1177,15 +1215,6 @@ add_backend_param(Opts, CurrentVCardConfig) ->
         lists:keystore(Key, 1, Cfg, Item)
     end,
     lists:foldl(F, CurrentVCardConfig, Opts).
-
-
-restart_mod(Params) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    SecDomain = ct:get_config({hosts, mim, secondary_domain}),
-    dynamic_modules:stop(Domain, mod_vcard),
-    dynamic_modules:stop(SecDomain, mod_vcard),
-    {ok, _Pid} = dynamic_modules:start(Domain, mod_vcard, Params),
-    {ok, _Pid2} = dynamic_modules:start(SecDomain, mod_vcard, Params).
 
 %%----------------------
 %% xmlel shortcuts
@@ -1330,6 +1359,7 @@ search_result_item_tuples(Stanza) ->
 
 get_all_vcards() ->
     Domain = domain(),
+    SecDomain = secondary_domain(),
     [{<<"alice@", Domain/binary>>,
       [{<<"NICKNAME">>, <<"alice">>},
        {<<"FN">>, <<"Wonderland, Alice">>},
@@ -1368,20 +1398,20 @@ get_all_vcards() ->
            208, 178, 208, 187, 209, 143, 208, 181, 209, 130, 209, 129, 209,
            143, 32, 208, 178, 209, 139>>}]}
       ] ++ maybe_add_jabberd_id(<<"bob@", Domain/binary>>)},
-     {<<"bobb@", Domain/binary, ".bis">>,
+     {<<"bobb@", SecDomain/binary>>,
       [{<<"NICKNAME">>, <<"bobb">>},
        {<<"FN">>, <<"Doe, Bob">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
          {<<"GIVEN">>, <<"Bob">>}]}
-      ] ++ maybe_add_jabberd_id(<<"bobb@", Domain/binary, ".bis">>)},
-     {<<"aliceb@", Domain/binary, ".bis">>,
+      ] ++ maybe_add_jabberd_id(<<"bobb@", SecDomain/binary>>)},
+     {<<"aliceb@", SecDomain/binary>>,
       [{<<"NICKNAME">>, <<"aliceb">>},
        {<<"FN">>, <<"Doe, Alice">>},
        {<<"N">>,
         [{<<"FAMILY">>, <<"Doe">>},
          {<<"GIVEN">>, <<"Alice">>}]}
-      ] ++ maybe_add_jabberd_id(<<"aliceb@", Domain/binary, ".bis">>)}
+      ] ++ maybe_add_jabberd_id(<<"aliceb@", SecDomain/binary>>)}
     ].
 
 maybe_add_ctry() ->
@@ -1405,18 +1435,26 @@ get_server_vcards() ->
     [{domain(),
       [{<<"FN">>, <<"MongooseIM">>},
        {<<"DESC">>, <<"MongooseIM XMPP Server\nCopyright (c) Erlang Solutions Ltd.">>}]},
-     {<<"vjud.localhost">>,
+     {<<"vjud.", (domain())/binary>>,
       [{<<"FN">>, <<"MongooseIM/mod_vcard">>},
        {<<"DESC">>, <<"MongooseIM vCard module\nCopyright (c) Erlang Solutions Ltd.">>}]}].
 
 
 get_user_vcard(JID, Config) ->
-    {JID, ClientVCardTups} = lists:keyfind(JID, 1, ?config(all_vcards, Config)),
-    ClientVCardTups.
+    case lists:keyfind(JID, 1, ?config(all_vcards, Config)) of
+        {JID, ClientVCardTups} ->
+            ClientVCardTups;
+        _ ->
+            ct:fail({get_user_vcard_failed, JID})
+    end.
 
 get_server_vcard(ServerJid, Config) ->
-    {ServerJid, VCard} = lists:keyfind(ServerJid, 1, ?config(server_vcards, Config)),
-    VCard.
+    case lists:keyfind(ServerJid, 1, ?config(server_vcards, Config)) of
+        {ServerJid, VCard} ->
+            VCard;
+        _ ->
+            ct:fail({get_server_vcard_failed, ServerJid})
+    end.
 
 get_search_results(Config, Users) ->
     [{User, get_search_result(get_user_vcard(User, Config))} || User <- Users].
@@ -1517,3 +1555,15 @@ get_utf8_city() ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+secondary_domain() ->
+    ct:get_config({hosts, mim, secondary_domain}).
+
+wait_for_riak() ->
+    HostType = ct:get_config({hosts, mim, host_type}),
+    case mam_helper:is_riak_enabled(HostType) of
+        true ->
+            timer:sleep(timer:seconds(3)); %give some time to Yokozuna to index vcards
+        false ->
+            ok
+    end.

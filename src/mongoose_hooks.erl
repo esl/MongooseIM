@@ -40,7 +40,7 @@
          user_receive_packet/6,
          user_sent_keep_alive/2,
          user_send_packet/4,
-         vcard_set/3,
+         vcard_set/4,
          xmpp_send_element/3,
          xmpp_stanza_dropped/4]).
 
@@ -388,14 +388,14 @@ session_cleanup(Server, Acc, User, Resource, SID) ->
                            [User, Server, Resource, SID]).
 
 %%% @doc The `set_vcard' hook is called when the caller wants to set the VCard.
--spec set_vcard(LServer, User, VCard) -> Result when
-    LServer :: jid:lserver(),
-    User :: jid:jid(),
+-spec set_vcard(HostType, UserJID, VCard) -> Result when
+    HostType :: mongooseim:host_type(),
+    UserJID :: jid:jid(),
     VCard :: exml:element(),
     Result :: ok | {error, any()}.
-set_vcard(LServer, User, VCard) ->
-    run_hook_for_host_type(set_vcard, LServer, {error, no_handler_defined},
-                           [User, VCard]).
+set_vcard(HostType, UserJID, VCard) ->
+    run_hook_for_host_type(set_vcard, HostType, {error, no_handler_defined},
+                           [HostType, UserJID, VCard]).
 
 -spec unacknowledged_message(HostType, Acc, JID) -> Result when
     HostType :: binary(),
@@ -489,13 +489,14 @@ user_send_packet(Acc, From, To, Packet) ->
 
 %%% @doc The `vcard_set' hook is called to inform that the vcard
 %%% has been set in mod_vcard backend.
--spec vcard_set(Server, LUser, VCard) -> Result when
+-spec vcard_set(HostType, Server, LUser, VCard) -> Result when
+    HostType :: mongooseim:host_type(),
     Server :: jid:server(),
     LUser :: jid:luser(),
     VCard :: exml:element(),
     Result :: any().
-vcard_set(Server, LUser, VCard) ->
-    run_hook_for_host_type(vcard_set, Server, ok, [LUser, Server, VCard]).
+vcard_set(HostType, Server, LUser, VCard) ->
+    run_hook_for_host_type(vcard_set, HostType, ok, [HostType, LUser, Server, VCard]).
 
 -spec xmpp_send_element(HostType, Acc, El) -> Result when
     HostType :: binary(),
