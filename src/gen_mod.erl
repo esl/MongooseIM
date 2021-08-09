@@ -231,6 +231,8 @@ is_app_running(AppName) ->
 
 
 %% @doc Stop the module for host type, and forget its configuration.
+%% NOTE: this is not supposed to be done in a production environment.
+%% It will probably "work", but unexpected side-effects haven't been carefully ruled-out.
 -spec stop_module(host_type(), module()) ->
     {ok, list()} | {error, not_loaded} | {error, term()}.
 stop_module(HostType, Module) ->
