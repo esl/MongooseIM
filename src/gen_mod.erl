@@ -50,7 +50,9 @@
          start_backend_module/2,
          start_backend_module/3,
          stop_module/2,
+         stop_module/3,
          stop_module_keep_config/2,
+         stop_module_keep_config/3,
          reload_module/3,
          does_module_support/2,
          config_spec/1,
@@ -232,16 +234,21 @@ is_app_running(AppName) ->
 -spec stop_module(host_type(), module()) ->
     {ok, list()} | {error, not_loaded} | {error, term()}.
 stop_module(HostType, Module) ->
+    stop_module(HostType, Module, []).
+
+-spec stop_module(host_type(), module(), list()) ->
+    {ok, list()} | {error, term()}.
+stop_module(HostType, Module, Opts) ->
     case is_loaded(HostType, Module) of
         false -> {error, not_loaded};
-        true -> stop_module_for_host_type(HostType, Module)
+        true -> stop_module_for_host_type(HostType, Module, Opts)
     end.
 
-stop_module_for_host_type(HostType, Module) ->
-    case stop_module_keep_config(HostType, Module) of
-        {ok, Opts} ->
+stop_module_for_host_type(HostType, Module, Opts) ->
+    case stop_module_keep_config(HostType, Module, Opts) of
+        {ok, ModOpts} ->
             case del_module_mnesia(HostType, Module) of
-                {atomic, _} -> {ok, Opts};
+                {atomic, _} -> {ok, ModOpts};
                 E -> {error, E}
             end;
         {error, E} ->
@@ -254,25 +261,50 @@ stop_module_for_host_type(HostType, Module) ->
 %% ejabberd is being stopped and it stops all modules.
 -spec stop_module_keep_config(host_type(), module()) -> {error, term()} | {ok, list()}.
 stop_module_keep_config(HostType, Module) ->
-    Opts = get_module_opts(HostType, Module),
-    try Module:stop(HostType) of
-        {wait, ProcList} when is_list(ProcList) ->
-            lists:foreach(fun wait_for_process/1, ProcList),
-            ets:delete(ejabberd_modules, {Module, HostType}),
-            {ok, Opts};
-        {wait, Process} ->
-            wait_for_process(Process),
-            ets:delete(ejabberd_modules, {Module, HostType}),
-            {ok, Opts};
-        _ ->
-            ets:delete(ejabberd_modules, {Module, HostType}),
-            {ok, Opts}
-    catch Class:Reason:Stacktrace ->
-            ?LOG_ERROR(#{what => module_stopping_failed,
-                         host_type => HostType, stop_module => Module,
-                         class => Class, reason => Reason, stacktrace => Stacktrace}),
-            {error, Reason}
+    stop_module_keep_config(HostType, Module, [{stop_dependents, true}]).
+
+-spec stop_module_keep_config(host_type(), module(), list()) -> {error, term()} | {ok, list()}.
+stop_module_keep_config(HostType, Module, Opts) ->
+    ModOpts = get_module_opts(HostType, Module),
+    case {get_opt(stop_dependents, Opts, false),
+          get_dependents(HostType, Module)} of
+        {false, Dependents} ->
+            [] =:= Dependents andalso ?LOG_WARNING(#{what => module_dependency_broken,
+                                                     module => Module, depends_on => Dependents}),
+            try Module:stop(HostType) of
+                {wait, ProcList} when is_list(ProcList) ->
+                    lists:foreach(fun wait_for_process/1, ProcList),
+                    ets:delete(ejabberd_modules, {Module, HostType}),
+                    {ok, ModOpts};
+                {wait, Process} ->
+                    wait_for_process(Process),
+                    ets:delete(ejabberd_modules, {Module, HostType}),
+                    {ok, ModOpts};
+                _ ->
+                    ets:delete(ejabberd_modules, {Module, HostType}),
+                    {ok, ModOpts}
+            catch Class:Reason:Stacktrace ->
+                      ?LOG_ERROR(#{what => module_stopping_failed,
+                                   host_type => HostType, stop_module => Module,
+                                   class => Class, reason => Reason, stacktrace => Stacktrace}),
+                      {error, Reason}
+            end;
+        {true, Dependents} -> {error, {dependents, Dependents}}
     end.
+
+-spec get_dependents(host_type(), module()) -> [module()].
+get_dependents(HostType, Module) ->
+    LoadedModules = loaded_modules(HostType),
+    Dependencies = lists:map(fun(Mod) ->
+                                     {Mod, get_deps(HostType, Mod, [])}
+                                 end,
+                                 LoadedModules),
+    lists:filtermap(fun({Mod, Deps}) ->
+                            lists:any(fun(Elem) when element(1, Elem) =:= Module -> true;
+                                         (_) -> false
+                                      end, Deps) andalso {true, Mod}
+                    end, Dependencies).
+
 
 -spec reload_module(host_type(), module(), [any()]) ->
     {ok, term()} | {error, already_started}.
