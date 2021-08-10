@@ -10,6 +10,7 @@
                   gen_fsm_compat,
                   jid,
                   gun,
+                  fusco,
                   escalus
                  ]},
   {env, []}
