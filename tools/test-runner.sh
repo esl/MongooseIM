@@ -104,8 +104,8 @@ Script examples:
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
     CI build job with riak_mnesia
 
-./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
-    Runs mam_SUITE with MySQL
+./tools/test-runner.sh --skip-small-tests --db pgsql --preset pgsql_mnesia --skip-stop-nodes -- mam
+    Runs mam_SUITE with PostgreSQL without stopping MongooseIM nodes after the test
 
 ./tools/test-runner.sh --skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset -- mam
     Sets dev-nodes and test-hosts to empty lists
