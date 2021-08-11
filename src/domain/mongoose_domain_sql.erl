@@ -58,8 +58,6 @@ start(_Opts) ->
             <<"INSERT INTO domain_events (domain) VALUES (?)">>),
     prepare(domain_events_max, domain_events, [],
             <<"SELECT MAX(id) FROM domain_events">>),
-    prepare(domain_event_exist, domain_events, [id],
-            <<"SELECT 1 FROM domain_events WHERE id=?">>),
     prepare(domain_events_delete_older_than, domain_events, [id],
             <<"DELETE FROM domain_events WHERE id < ?">>),
     prepare(domain_select_events_from, domain_events,
@@ -147,7 +145,7 @@ select_from(FromId, Limit) ->
     Rows.
 
 select_updates_from(FromId, Limit) ->
-    select_updates_from(FromId, Limit, 10).
+    select_updates_from(FromId, Limit, 2).
 
 select_updates_from(_FromId, _Limit, 0) ->
     %% this should never happen, but just in case returning
@@ -174,93 +172,8 @@ select_updates_from(FromId, Limit, NoOfRetries) ->
                     []
             end;
         {selected, Rows} ->
-            check_for_gaps_and_retry(FromId, Limit, NoOfRetries, Rows)
-    end.
-
-check_for_gaps_and_retry(FromId, Limit, NoOfRetries, Rows) ->
-    Ids = [element(1, Row) || Row <- Rows],
-    case find_gaps(Ids) of
-        [] ->
-            Rows;
-        Gaps ->
-            %% Entries do not appear in any particular order in the events table.
-            %% So, if some record is missing, we should wait for it.
-            %% The autoincrement key is incremented before the transaction is committed.
-            ?LOG_WARNING(#{what => select_updates_from_retry,
-                           text => <<"Gaps found">>,
-                           limit => Limit, retries => NoOfRetries,
-                           from_id => FromId, rows => Rows, gaps => Gaps}),
-            Started = erlang:monotonic_time(seconds),
-            case wait_for_gaps(Gaps, Started) of
-                true ->
-                    select_updates_from(FromId, Limit, NoOfRetries - 1);
-                false ->
-                    ?LOG_ERROR(#{what => select_updates_from_failed,
-                                 text => <<"Missing events">>,
-                                 limit => Limit, retries => NoOfRetries,
-                                 gaps => Gaps, rows => Rows,
-                                 from_id => FromId}),
-                    service_domain_db:restart(),
-                    []
-            end;
-        false ->
             Rows
     end.
-
-%% Returns false if still have some gaps.
-%% Waits maximum 60 seconds.
-wait_for_gaps([Id|Ids], Started) ->
-    case wait_for_gap(Id, 10) of
-        true ->
-            Now = erlang:monotonic_time(seconds),
-            case (Now - Started) > 60 of
-                true ->
-                    ?LOG_ERROR(#{what => wait_for_gaps_timeout}),
-                    false;
-                false ->
-                    wait_for_gaps(Ids, Started)
-            end;
-        false ->
-            false
-    end;
-wait_for_gaps([], _Started) ->
-    true.
-
-wait_for_gap(Id, Retries) ->
-    Pool = get_db_pool(),
-    case execute_successfully(Pool, domain_event_exist, [Id]) of
-        {selected, [{_}]} ->
-            true;
-        {selected, []} ->
-            timer:sleep(1000),
-            wait_for_gap(Id, Retries - 1)
-    end.
-
-find_gaps(Ids) ->
-    find_gaps(Ids, []).
-
-find_gaps([H|T], Missing) ->
-    Expected = H + 1,
-    case T of
-        [Expected|_] ->
-            find_gaps(T, Missing);
-        [_|_] ->
-            find_gaps([Expected|T], [Expected|Missing]);
-        [] ->
-            Missing
-    end;
-find_gaps([], Missing) ->
-    Missing.
-
-
-has_gaps([A| [B|_] = T]) when A =:= (B - 1) ->
-    has_gaps(T);
-has_gaps([_]) ->
-    false;
-has_gaps([]) ->
-    false;
-has_gaps(_) ->
-    true.
 
 get_max_event_id_or_set_dummy() ->
     get_max_event_id_or_set_dummy(2).

@@ -36,23 +36,72 @@ remove_outdated_domains_from_core() ->
 check_for_updates(FromId, PageSize) ->
     %% Ordered by the earliest events first
     try mongoose_domain_sql:select_updates_from(FromId, PageSize) of
+        [] -> %% Skipping this time
+            ?LOG_WARNING(#{what => domain_check_for_updates_skipped,
+                           from_id => FromId}),
+            FromId;
         Rows ->
-            case check_if_id_is_still_relevant(FromId, Rows) of
-                [] -> FromId;
-                RowsToApply ->
-                    PageMaxId = row_to_id(lists:last(RowsToApply)),
-                    apply_changes(RowsToApply),
-                    check_for_updates(PageMaxId, PageSize)
+            case check_for_gaps(FromId, Rows) of
+                ok ->
+                    case check_if_id_is_still_relevant(FromId, Rows) of
+                        [] -> FromId;
+                        RowsToApply ->
+                            PageMaxId = row_to_id(lists:last(RowsToApply)),
+                            apply_changes(RowsToApply),
+                            check_for_updates(PageMaxId, PageSize)
+                    end;
+                Other ->
+                    Other
             end
     catch Class:Reason:StackTrace ->
         %% Don't allow to crash in the critical code,
         %% once we've started.
         ?LOG_ERROR(#{what => domain_check_for_updates_failed,
+                     from_id => FromId,
                      class => Class, reason => Reason,
                      stacktrace => StackTrace}),
         FromId
     end.
 
+check_for_gaps(FromId, Rows) ->
+    Ids = rows_to_ids(Rows),
+    case find_gaps(Ids, 10000) of
+        too_many_gaps ->
+            ?LOG_ERROR(#{what => domain_check_for_gaps_failed,
+                         reason => too_many_gaps,
+                         from_id => FromId, rows => Rows}),
+            %% Just reread all domains ignoring the event table
+            service_domain_db:restart(),
+            FromId;
+        [] -> %% No gaps, good
+            ok;
+        Gaps ->
+            case mongoose_domain_gaps:handle_gaps(Gaps) of
+                wait -> FromId;
+                skip -> ok
+            end
+    end.
+
+rows_to_ids(Rows) ->
+    [element(1, Row) || Row <- Rows].
+
+find_gaps(Ids, MaxGaps) ->
+    find_gaps(Ids, [], MaxGaps).
+
+find_gaps(_, _Missing, _MaxGaps = 0) ->
+    too_many_gaps;
+find_gaps([H|T], Missing, MaxGaps) ->
+    Expected = H + 1,
+    case T of
+        [Expected|_] ->
+            find_gaps(T, Missing, MaxGaps);
+         [_|_] ->
+            find_gaps([Expected|T], [Expected|Missing], MaxGaps - 1);
+         [] ->
+             Missing
+     end;
+find_gaps([], Missing, _MaxGaps) ->
+     Missing.
 
 check_if_id_is_still_relevant(FromId, Rows) ->
     MinId = row_to_id(hd(Rows)),
