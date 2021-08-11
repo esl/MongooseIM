@@ -127,62 +127,42 @@ start_workers(HostType, MaxSize) ->
     [start_worker(WriterProc, N, HostType, MaxSize)
      || {N, WriterProc} <- worker_names(HostType)].
 
-
--spec stop_workers(mongooseim:host_type()) -> ['ok'
-    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
+-spec stop_workers(mongooseim:host_type()) -> ok.
 stop_workers(HostType) ->
-    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(HostType)].
-
+    [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(HostType)],
+    ok.
 
 -spec start_worker(atom(), integer(), mongooseim:host_type(), MaxSize :: pos_integer())
       -> {'error', _}
          | {'ok', 'undefined' | pid()}
          | {'ok', 'undefined' | pid(), _}.
 start_worker(WriterProc, _N, HostType, MaxSize) ->
-    WriterChildSpec =
+    WriterChildSpec = worker_spec(WriterProc, HostType, MaxSize),
+    supervisor:start_child(mod_mam_sup, WriterChildSpec).
+
+worker_spec(WriterProc, HostType, MaxSize) ->
+    %% Store incoming messages of the heap
+    Opts = [{message_queue_data, off_heap}],
+    Args = [{local, WriterProc}, ?MODULE, [HostType, MaxSize], Opts],
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [HostType, MaxSize], []]},
+     {gen_server, start_link, Args},
      permanent,
      5000,
      worker,
-     [mod_mam_muc_rdbms_async_pool_writer]},
-    supervisor:start_child(mod_mam_sup, WriterChildSpec).
+     [mod_mam_muc_rdbms_async_pool_writer]}.
 
-
--spec stop_worker(atom()) -> 'ok'
-        | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
+-spec stop_worker(atom()) -> ok.
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
-    supervisor:delete_child(mod_mam_sup, Proc).
+    supervisor:delete_child(mod_mam_sup, Proc),
+    ok.
 
 -spec archive_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
           ok | {error, timeout}.
 archive_message(_Result, HostType, Params0 = #{archive_id := RoomID}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
     Worker = select_worker(HostType, RoomID),
-    WorkerPid = whereis(Worker),
-    %% Send synchronously if queue length is too long.
-    case is_overloaded(WorkerPid) of
-        false ->
-            gen_server:cast(Worker, {archive_message, Params});
-        true ->
-            {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:cast(Worker, {archive_message, Params})
-                                          end),
-            receive
-                {'DOWN', MonRef, process, Pid, normal} -> ok;
-                {'DOWN', MonRef, process, Pid, _} ->
-                    mongoose_metrics:update(HostType, modMamDropped, 1),
-                    {error, timeout}
-            end
-    end.
-
-
--spec is_overloaded(pid()) -> boolean().
-is_overloaded(Pid) ->
-    {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
-    Len > 500.
-
+    gen_server:cast(Worker, {archive_message, Params}).
 
 %% @doc For metrics.
 -spec queue_length(mongooseim:host_type()) -> {'ok', number()}.
@@ -190,11 +170,9 @@ queue_length(HostType) ->
     Len = lists:sum(queue_lengths(HostType)),
     {ok, Len}.
 
-
 -spec queue_lengths(mongooseim:host_type()) -> [non_neg_integer()].
 queue_lengths(HostType) ->
     [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(HostType)].
-
 
 -spec worker_queue_length(atom()) -> non_neg_integer().
 worker_queue_length(SrvName) ->
@@ -210,6 +188,20 @@ worker_queue_length(SrvName) ->
 %% Internal functions
 %%====================================================================
 
+handle_archive_message(Params, State=#state{acc=Acc,
+                                            flush_interval_tref=TRef,
+                                            flush_interval=Int,
+                                            max_batch_size=Max}) ->
+    TRef2 = case {Acc, TRef} of
+                {[], undefined} -> erlang:send_after(Int, self(), flush);
+                {_, _} -> TRef
+            end,
+    State2 = State#state{acc=[Params|Acc], flush_interval_tref=TRef2},
+    case length(Acc) + 1 >= Max of
+        true -> run_flush(State2);
+        false -> State2
+    end.
+
 -spec run_flush(state()) -> state().
 run_flush(State = #state{acc=[]}) ->
     State;
@@ -224,9 +216,7 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                                           flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?LOG_DEBUG(#{what => mam_flush, message_count => MessageCount}),
-
     Rows = [mod_mam_muc_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
-
     InsertResult =
         case MessageCount of
             MaxSize ->
@@ -238,25 +228,19 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                     Error -> Error
                 end
         end,
-
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            mongoose_metrics:update(HostType, modMamDropped2, MessageCount),
+            mongoose_metrics:update(HostType, modMamDropped, MessageCount),
             ?LOG_ERROR(#{what => archive_message_query_failed,
-                         text => <<"archive_message query failed, modMamDropped2 metric updated">>,
+                         text => <<"archive_message query failed, modMamDropped metric updated">>,
                          message_count => MessageCount, reason => Reason}),
             ok
     end,
-
     [mod_mam_muc_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
-
-    spawn_link(fun() ->
-                       mongoose_hooks:mam_muc_flush_messages(HostType, MessageCount)
-               end),
+    mongoose_hooks:mam_muc_flush_messages(HostType, MessageCount),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
-
 
 -spec cancel_and_flush_timer('undefined' | reference()) -> 'ok'.
 cancel_and_flush_timer(undefined) ->
@@ -275,48 +259,16 @@ cancel_and_flush_timer(TRef) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([HostType, MaxSize]) ->
     %% Use a private RDBMS-connection.
     Int = gen_mod:get_module_opt(HostType, ?MODULE, flush_interval, 2000),
     {ok, #state{host_type = HostType, flush_interval = Int, max_batch_size = MaxSize}}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-
-handle_cast({archive_message, Params},
-            State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
-                         max_batch_size=Max}) ->
-    TRef2 = case {Acc, TRef} of
-                {[], undefined} -> erlang:send_after(Int, self(), flush);
-                {_, _} -> TRef
-            end,
-    State2 = State#state{acc=[Params|Acc], flush_interval_tref=TRef2},
-    case length(Acc) + 1 >= Max of
-        true -> {noreply, run_flush(State2)};
-        false -> {noreply, State2}
-    end;
+handle_cast({archive_message, Params}, State) ->
+    {noreply, handle_archive_message(Params, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
-
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 
 -spec handle_info('flush', state()) -> {'noreply', state()}.
 handle_info(flush, State) ->
@@ -325,19 +277,8 @@ handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
