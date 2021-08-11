@@ -114,7 +114,6 @@ security_test_cases() ->
     ].
 
 init_per_suite(Config) ->
-    application:ensure_all_started(shotgun),
     Config1 = init_modules(Config),
     [{muc_light_host, muc_light_helper:muc_host()}
      | escalus:init_per_suite(Config1)].
@@ -122,7 +121,6 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     HostType = host_type(),
-    application:stop(shotgun),
     dynamic_modules:restore_modules(HostType, Config),
     escalus:end_per_suite(Config).
 
@@ -595,11 +593,11 @@ msg_with_props_can_be_parsed(Config) ->
         M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
 
         escalus:send(Alice, M1),
-        
+
         escalus:wait_for_stanza(Bob),
         mam_helper:wait_for_archive_size(Bob, 1),
         mam_helper:wait_for_archive_size(Alice, 1),
-        
+
         AliceCreds = {AliceJID, user_password(alice)},
 
         % recent msgs with a limit
@@ -641,11 +639,11 @@ msg_with_malformed_props_can_be_parsed(Config) ->
 
         M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID,MsgID),
         escalus:send(Alice, M1),
-        
+
         escalus:wait_for_stanza(Bob),
         mam_helper:wait_for_archive_size(Bob, 1),
         mam_helper:wait_for_archive_size(Alice, 1),
-        
+
         % recent msgs with a limit
         M2 = get_messages_with_props(AliceCreds, BobJID, 1),
         Recv = [_Msg] = rest_helper:decode_maplist(M2),
@@ -712,7 +710,7 @@ given_new_room(Owner, RoomID) ->
 
 given_new_room(Owner, RoomID, RoomName) ->
     Creds = credentials(Owner),
-    create_room_with_id(Creds, RoomName, <<"This room subject">>, RoomID). 
+    create_room_with_id(Creds, RoomName, <<"This room subject">>, RoomID).
 
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = user_jid(Invitee),
@@ -896,45 +894,33 @@ is_participant(User, Role, RoomInfo) ->
     lists:any(Fun, Participants).
 
 connect_to_sse(User) ->
-    %% By default, gun prefers http2 protocol.
-    %%
-    %% The error occures with HTTP/2 enabled both on the client and the server:
-    %% "{error,{stream_error,protocol_error, 'Stream reset by server.'}}"
-    %%
-    %% Disable HTTP/2 on the client side:
-    GunOpts = #{protocols => [http]},
-    ShotGunOpts = #{gun_opts => GunOpts},
     Port = ct:get_config({hosts, mim, http_api_client_endpoint_port}),
-    {ok, Conn} = shotgun:open("localhost", Port, https, ShotGunOpts),
-    Me = self(),
-    EventFun = fun(State, Ref, Bin) ->
-        Me ! {sse, State, Ref, Bin}
-    end,
+    {Username, Password} = credentials(User),
+    Base64 = base64:encode(binary_to_list(Username) ++ [$: | binary_to_list(Password)]),
+    Headers = [{<<"authorization">>, <<"basic ", Base64/binary>>},
+               {<<"host">>, <<"localhost">>},
+               {<<"accept">>, <<"text/event-stream">>}],
+    {ok, ConnPid} = gun:open("localhost", Port, #{
+        transport => tls,
+        protocols => [http],
+        http_opts => #{content_handlers => [gun_sse_h, gun_data_h]}
+    }),
+    {ok, _} = gun:await_up(ConnPid),
+    StreamRef = gun:get(ConnPid, "/api/sse", Headers),
+    #{pid => ConnPid, stream_ref => StreamRef}.
 
-    {U, P} = credentials(User),
-    Options = #{async => true, async_mode => sse, handle_event => EventFun},
-    Headers = #{basic_auth => {binary_to_list(U), binary_to_list(P)}},
-    case shotgun:get(Conn, "/api/sse", Headers, Options) of
-        {ok, Ref} ->
-            {Conn, Ref};
-        Other ->
-            ct:fail(#{issue => connect_to_sse_failed,
-                      headers => Headers,
-                      reason => Other,
-                      url => "https://localhost:8089/api/sse"})
+wait_for_event(#{pid := Pid, stream_ref := StreamRef} = Opts) ->
+    case gun:await(Pid, StreamRef) of
+        {response, nofin, Status, _} ->
+            wait_for_event(Opts);
+        {sse, #{data := [Response]}} ->
+          Opts#{data => Response};
+        Error ->
+            Error
     end.
 
-wait_for_event({_Conn, Ref}) ->
-    receive
-        {sse, _State, Ref, Bin} ->
-            shotgun:parse_event(Bin)
-    after
-        5000 ->
-            ct:fail("timeout waiting for SSE event")
-    end.
-
-stop_sse({Conn, _Ref}) ->
-    shotgun:close(Conn).
+stop_sse(#{pid := Pid}) ->
+    gun:close(Pid).
 
 assert_json_message(Sent, Received) ->
     #{<<"body">> := Body,
@@ -1251,7 +1237,7 @@ verify_server_name_in_header(Server, ExpectedName) ->
       body => <<>>,
       return_headers => true,
       server => Server
-     },           
+     },
     {?UNAUTHORIZED, Headers2, _} = rest_helper:make_request(ReqParams),
     % THEN expected server name is returned
     ExpectedName = proplists:get_value(<<"server">>, Headers2).
