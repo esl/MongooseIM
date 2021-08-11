@@ -391,26 +391,24 @@ generate_cert(C, #{cn := User} = CertSpec) ->
 
 generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
     UserCsr = filename:join(?config(priv_dir, C), User ++ ".csr"),
-
-    Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
-	   "-out", UserCsr, "-keyout", UserKey, "-outform", "PEM"],
-    {done, 0, _Output} = erlsh:run(Cmd),
-
+    Cmd = ["openssl req -config ", UserConfig, " -newkey rsa:2048 -sha256 -nodes -out ",
+           UserCsr, " -keyout ", UserKey, " -outform PEM"],
+    Out = os:cmd(Cmd),
     UserCert = filename:join(?config(priv_dir, C), User ++ "_cert.pem"),
     SignCmd = filename:join(?config(mim_data_dir, C), "sign_cert.sh"),
-    Cmd2 = [SignCmd, "--req", UserCsr, "--out", UserCert],
+    Cmd2 = [SignCmd, " --req ", UserCsr, " --out ", UserCert],
     LogFile = filename:join(?config(priv_dir, C), User ++ "signing.log"),
     SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
-    {done, 0, _} = erlsh:run(Cmd2, LogFile, SSLDir),
+    OutLog = os:cmd("cd " ++ SSLDir ++ " && " ++ Cmd2),
+    [] = os:cmd("echo \"" ++ OutLog ++ "\" > " ++ LogFile),
     #{key => UserKey,
       cert => UserCert}.
 
 generate_self_signed_cert(C, User, UserConfig, UserKey) ->
     UserCert = filename:join(?config(priv_dir, C), User ++ "_self_signed_cert.pem"),
-
-    Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
-	   "-out", UserCert, "-keyout", UserKey, "-x509", "-outform", "PEM", "-extensions", "client_req_extensions"],
-    {done, 0, _Output} = erlsh:run(Cmd),
+    Cmd = ["openssl req -config ", UserConfig, " -newkey rsa:2048 -sha256 -nodes -out ",
+           UserCert, " -keyout ", UserKey, " -x509 -outform PEM -extensions client_req_extensions"],
+    _ = os:cmd(Cmd),
     #{key => UserKey,
       cert => UserCert}.
 
