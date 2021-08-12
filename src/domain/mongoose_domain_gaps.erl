@@ -69,9 +69,13 @@ handle_gaps(Gaps, Now) ->
         [] ->
             ok; %% Skip any gaps checking
         [_|_] = WaitingGaps ->
-            ?LOG_WARNING(#{what => wait_for_gaps, gaps => WaitingGaps}),
+            ?LOG_WARNING(#{what => wait_for_gaps,
+                           gaps => format_gaps(WaitingGaps)}),
             wait
     end.
+
+format_gaps(Gaps) ->
+    iolist_to_binary(io_lib:format("~w", [Gaps])).
 
 remember_gaps(Gaps, Now) ->
     [ets:insert_new(?TABLE, {Gap, Now}) || Gap <- Gaps],
