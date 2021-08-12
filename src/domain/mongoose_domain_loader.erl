@@ -41,7 +41,8 @@ check_for_updates(FromId, PageSize) ->
                            from_id => FromId}),
             FromId;
         Rows ->
-            case mongoose_domain_gaps:check_for_gaps(Rows) of
+            Now = mongoose_domain_gaps:new_timestamp(),
+            case mongoose_domain_gaps:check_for_gaps(Rows, Now) of
                 ok ->
                     case check_if_id_is_still_relevant(FromId, Rows) of
                         [] -> FromId;
