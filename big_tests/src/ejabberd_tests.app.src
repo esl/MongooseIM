@@ -7,7 +7,6 @@
                   kernel,
                   stdlib,
                   cowboy,
-                  gen_fsm_compat,
                   jid,
                   gun,
                   fusco,

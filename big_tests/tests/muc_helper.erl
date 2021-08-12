@@ -170,8 +170,13 @@ destroy_room(Config) ->
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
     case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
-        [{_,_,Pid}|_] -> gen_fsm_compat:send_all_state_event(Pid, destroy);
-        _ -> ok
+        [{_,_,Pid}|_] ->
+            %% @TODO related to gen_fsm_compat: after migration to gen_statem
+            %%       should be replaced to - gen_statem:call(Pid, destroy).
+            Pid ! {'$gen_all_state_event', destroy},
+            ok;
+        _ ->
+            ok
     end.
 
 stanza_muc_enter_room(Room, Nick) ->
