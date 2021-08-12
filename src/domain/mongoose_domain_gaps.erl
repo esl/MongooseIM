@@ -5,6 +5,9 @@
 -export([gaps_limit_before_restart/0]).
 -export([check_for_gaps/2]).
 
+%% These are used in the small tests
+-ignore_xref([gaps_limit_before_restart/0, max_time_to_wait/0]).
+
 -include("mongoose_logger.hrl").
 
 -define(TABLE, ?MODULE).
