@@ -755,9 +755,9 @@ ciphers_working_with_ssl_clients(Config) ->
 openssl_client_can_use_cipher(Cipher, Port) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
-          " -cipher " "\"" ++ Cipher ++ "\" -tls1_2 2>&1",
-    {done, ReturnCode, _Result} = erlsh:oneliner(Cmd),
-    0 == ReturnCode.
+          " -cipher \"" ++ Cipher ++ "\" -tls1_2 2>&1",
+    Output = os:cmd(Cmd),
+    0 == string:str(Output, ":error:") andalso 0 == string:str(Output, "errno=0").
 
 restore_c2s_listener(Config) ->
     {_, _, Opts} = C2SListener = ?config(c2s_listener, Config),
