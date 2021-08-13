@@ -24,6 +24,12 @@
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
+-type event_id() :: non_neg_integer().
+-type limit() :: non_neg_integer().
+-type domain() :: binary().
+-type row() :: {event_id(), domain(), mongooseim:host_type() | null}.
+-export_type([row/0]).
+
 start(_Opts) ->
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
     Pool = get_db_pool(),
@@ -144,6 +150,7 @@ select_from(FromId, Limit) ->
     {selected, Rows} = execute_successfully(Pool, domain_select_from, Args),
     Rows.
 
+-spec select_updates_from(event_id(), limit()) -> [row()].
 select_updates_from(FromId, Limit) ->
     select_updates_from(FromId, Limit, 2).
 
@@ -171,7 +178,8 @@ select_updates_from(FromId, Limit, NoOfRetries) ->
                     service_domain_db:restart(),
                     []
             end;
-        {selected, Rows} -> Rows
+        {selected, Rows} ->
+            Rows
     end.
 
 get_max_event_id_or_set_dummy() ->

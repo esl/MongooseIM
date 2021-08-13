@@ -36,23 +36,36 @@ remove_outdated_domains_from_core() ->
 check_for_updates(FromId, PageSize) ->
     %% Ordered by the earliest events first
     try mongoose_domain_sql:select_updates_from(FromId, PageSize) of
+        [] -> %% Skipping this time
+            ?LOG_WARNING(#{what => domain_check_for_updates_skipped,
+                           from_id => FromId}),
+            FromId;
         Rows ->
-            case check_if_id_is_still_relevant(FromId, Rows) of
-                [] -> FromId;
-                RowsToApply ->
-                    PageMaxId = row_to_id(lists:last(RowsToApply)),
-                    apply_changes(RowsToApply),
-                    check_for_updates(PageMaxId, PageSize)
+            Now = mongoose_domain_gaps:new_timestamp(),
+            case mongoose_domain_gaps:check_for_gaps(Rows, Now) of
+                ok ->
+                    case check_if_id_is_still_relevant(FromId, Rows) of
+                        [] -> FromId;
+                        RowsToApply ->
+                            PageMaxId = row_to_id(lists:last(RowsToApply)),
+                            apply_changes(RowsToApply),
+                            check_for_updates(PageMaxId, PageSize)
+                    end;
+                restart ->
+                    service_domain_db:restart(),
+                    FromId;
+                wait ->
+                    FromId
             end
     catch Class:Reason:StackTrace ->
         %% Don't allow to crash in the critical code,
         %% once we've started.
         ?LOG_ERROR(#{what => domain_check_for_updates_failed,
+                     from_id => FromId,
                      class => Class, reason => Reason,
                      stacktrace => StackTrace}),
         FromId
     end.
-
 
 check_if_id_is_still_relevant(FromId, Rows) ->
     MinId = row_to_id(hd(Rows)),

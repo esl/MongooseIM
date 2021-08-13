@@ -95,6 +95,7 @@ sync_local() ->
 %% Server callbacks
 
 init([]) ->
+    mongoose_domain_gaps:init(),
     ?PG_JOIN(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
