@@ -317,8 +317,7 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | ---- | ---- | -------------------------------------- |
 | `[Host, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
 | `[Host, modMamArchived]` | spiral | A message is stored in user's archive. |
-| `[Host, modMamDropped]` | spiral | A message couldn't be enqueued due to an overloaded async worker. |
-| `[Host, modMamDropped2]` | spiral | A message couldn't be stored in the DB (and got dropped). |
+| `[Host, modMamDropped]` | spiral | A message couldn't be stored in the DB (and got dropped). |
 | `[Host, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
 | `[Host, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
 | `[Host, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |

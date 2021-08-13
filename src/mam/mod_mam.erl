@@ -750,5 +750,4 @@ spirals() ->
      modMamArchived,
      modMamFlushed,
      modMamDropped,
-     modMamDropped2,
      modMamDroppedIQ].

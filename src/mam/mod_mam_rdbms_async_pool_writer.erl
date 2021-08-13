@@ -162,14 +162,19 @@ stop_workers(HostType) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(HostType)].
 
 start_worker(WriterProc, N, HostType, MaxSize) ->
-    WriterChildSpec =
+    WriterChildSpec = worker_spec(WriterProc, N, HostType, MaxSize),
+    supervisor:start_child(mod_mam_sup, WriterChildSpec).
+
+worker_spec(WriterProc, N, HostType, MaxSize) ->
+    %% Store incoming messages of the heap
+    Opts = [{message_queue_data, off_heap}],
+    Args = [{local, WriterProc}, ?MODULE, [HostType, N, MaxSize], Opts],
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [HostType, N, MaxSize], []]},
+     {gen_server, start_link, Args},
      permanent,
      5000,
      worker,
-     [mod_mam_rdbms_async_writer]},
-    supervisor:start_child(mod_mam_sup, WriterChildSpec).
+     [mod_mam_rdbms_async_writer]}.
 
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
@@ -180,26 +185,7 @@ stop_worker(Proc) ->
           ok | {error, timeout}.
 archive_message(_Result, HostType, Params = #{archive_id := ArcID}) ->
     Worker = select_worker(HostType, ArcID),
-    WorkerPid = whereis(Worker),
-    %% Send synchronously if queue length is too long.
-    case is_overloaded(WorkerPid) of
-        false ->
-            gen_server:cast(Worker, {archive_message, Params});
-        true ->
-            {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:cast(Worker, {archive_message, Params})
-                                          end),
-            receive
-                {'DOWN', MonRef, process, Pid, normal} -> ok;
-                {'DOWN', MonRef, process, Pid, _} ->
-                    mongoose_metrics:update(HostType, modMamDropped, 1),
-                    {error, timeout}
-            end
-    end.
-
-is_overloaded(Pid) ->
-    {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
-    Len > 500.
+    gen_server:cast(Worker, {archive_message, Params}).
 
 %% For metrics.
 queue_length(HostType) ->
@@ -222,6 +208,19 @@ worker_queue_length(SrvName) ->
 %% Internal functions
 %%====================================================================
 
+handle_archive_message(Params, State=#state{acc=Acc,
+                         flush_interval_tref=TRef, flush_interval=Int,
+                         max_batch_size=Max}) ->
+    TRef2 = case {Acc, TRef} of
+                {[], undefined} -> erlang:send_after(Int, self(), flush);
+                {_, _} -> TRef
+            end,
+    State2 = State#state{acc=[Params|Acc], flush_interval_tref=TRef2},
+    case length(Acc) + 1 >= Max of
+        true -> run_flush(State2);
+        false -> State2
+    end.
+
 run_flush(State = #state{acc = []}) ->
     State;
 run_flush(State = #state{host_type = HostType, acc = Acc}) ->
@@ -235,9 +234,7 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                                           flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?LOG_DEBUG(#{what => mam_flush, message_count => MessageCount}),
-
     Rows = [mod_mam_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
-
     InsertResult =
         case MessageCount of
             MaxSize ->
@@ -249,22 +246,17 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                     Error -> Error
                 end
         end,
-
+    [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
-            mongoose_metrics:update(HostType, modMamDropped2, MessageCount),
+            mongoose_metrics:update(HostType, modMamDropped, MessageCount),
             ?LOG_ERROR(#{what => archive_message_failed,
                          text => <<"archive_message query failed">>,
                          message_count => MessageCount, reason => Reason}),
             ok
     end,
-
-    [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
-
-    spawn_link(fun() ->
-                       mongoose_metrics:update(HostType, modMamFlushed, MessageCount)
-               end),
+    mongoose_metrics:update(HostType, modMamFlushed, MessageCount),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
 
@@ -284,58 +276,17 @@ cancel_and_flush_timer(TRef) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([HostType, N, MaxSize]) ->
     %% Use a private RDBMS-connection.
     Int = gen_mod:get_module_opt(HostType, ?MODULE, flush_interval, 2000),
     {ok, #state{host_type = HostType, number = N,
                 flush_interval = Int, max_batch_size = MaxSize}}.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-
-handle_cast({archive_message, Params},
-            State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
-                         max_batch_size=Max}) ->
-    TRef2 = case {Acc, TRef} of
-                {[], undefined} -> erlang:send_after(Int, self(), flush);
-                {_, _} -> TRef
-            end,
-    State2 = State#state{acc=[Params|Acc], flush_interval_tref=TRef2},
-    case length(Acc) + 1 >= Max of
-        true -> {noreply, run_flush(State2)};
-        false -> {noreply, State2}
-    end;
+handle_cast({archive_message, Params}, State) ->
+    {noreply, handle_archive_message(Params, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
-
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 
 handle_info(flush, State) ->
     {noreply, run_flush(State#state{flush_interval_tref=undefined})};
@@ -343,19 +294,8 @@ handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
