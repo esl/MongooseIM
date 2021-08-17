@@ -74,7 +74,8 @@
                        Tag :: tag(),
                        WpoolOpts :: pool_opts(),
                        ConnOpts :: conn_opts()}.
--type worker_result() :: {ok, pid()} | {error, pool_not_started}.
+-type pool_error() :: {pool_not_started, term()}.
+-type worker_result() :: {ok, pid()} | {error, pool_error()}.
 -type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_not_started}.
 -type start_result() :: {ok, pid()} | {error, term()}.
 -type stop_result() :: ok | term().
@@ -300,7 +301,7 @@ cast(PoolType, HostType, Tag, HashKey, Request) ->
 get_pool_settings(PoolType, HostType, Tag) ->
     case get_pool(PoolType, HostType, Tag) of
         {ok, PoolRec} -> PoolRec;
-        {error, pool_not_started} -> undefined
+        {error, {pool_not_started, _}} -> undefined
     end.
 
 -spec get_pools() -> [pool_name()].
@@ -373,6 +374,6 @@ get_unique_types(Pools) ->
 get_pool(PoolType, HostType, Tag) ->
     case ets:lookup(?MODULE, {PoolType, HostType, Tag}) of
         [] when is_binary(HostType) -> get_pool(PoolType, global, Tag);
-        [] -> {error, pool_not_started};
+        [] -> {error, {pool_not_started, {PoolType, HostType, Tag}}};
         [Pool] -> {ok, Pool}
     end.
