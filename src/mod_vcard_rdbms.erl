@@ -46,7 +46,7 @@
 -type sql_value() :: binary().
 -type sql_filter() :: {filter_type(), sql_column(), sql_value()}.
 
-init(VHost, _Options) ->
+init(HostType, _Options) ->
     mongoose_rdbms:prepare(vcard_remove, vcard, [username, server],
                            <<"DELETE FROM vcard WHERE username=? AND server=?">>),
     mongoose_rdbms:prepare(vcard_search_remove, vcard_search, [lusername, server],
@@ -54,12 +54,12 @@ init(VHost, _Options) ->
     mongoose_rdbms:prepare(vcard_select, vcard,
                            [username, server],
                            <<"SELECT vcard FROM vcard WHERE username=? AND server=?">>),
-    rdbms_queries:prepare_upsert(VHost, vcard_upsert, vcard,
+    rdbms_queries:prepare_upsert(HostType, vcard_upsert, vcard,
                                  [<<"username">>, <<"server">>, <<"vcard">>],
                                  [<<"vcard">>],
                                  [<<"username">>, <<"server">>]),
     SearchColumns = search_columns(),
-    rdbms_queries:prepare_upsert(VHost, vcard_search_upsert, vcard_search,
+    rdbms_queries:prepare_upsert(HostType, vcard_search_upsert, vcard_search,
                                  [<<"lusername">>, <<"server">>|SearchColumns],
                                  SearchColumns,
                                  [<<"lusername">>, <<"server">>]),

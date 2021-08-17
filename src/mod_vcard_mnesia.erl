@@ -4,22 +4,22 @@
 
 %% mod_vcards callbacks
 -export([init/2,
-         remove_user/2,
-         get_vcard/2,
-         set_vcard/4,
-         search/2,
-         search_fields/1,
-         search_reported_fields/2]).
+         remove_user/3,
+         get_vcard/3,
+         set_vcard/5,
+         search/3,
+         search_fields/2,
+         search_reported_fields/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
-init(_VHost, _Options) ->
+init(_HostType, _Options) ->
     prepare_db(),
     ok.
 
-remove_user(LUser, LServer) ->
+remove_user(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
             mnesia:delete({vcard, US}),
@@ -27,7 +27,7 @@ remove_user(LUser, LServer) ->
     end,
     mnesia:transaction(F).
 
-get_vcard(LUser, LServer) ->
+get_vcard(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     F  = fun() ->
                  mnesia:read({vcard, US})
@@ -46,34 +46,34 @@ get_vcard(LUser, LServer) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
-set_vcard(User, VHost, VCard, VCardSearch) ->
+set_vcard(HostType, User, LServer, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
     VCardSearch2 = stringify_search_fields(VCardSearch),
     F = fun() ->
-                mnesia:write(#vcard{us ={LUser, VHost}, vcard = VCard}),
+                mnesia:write(#vcard{us ={LUser, LServer}, vcard = VCard}),
                 mnesia:write(VCardSearch2)
         end,
     {atomic, _} = mnesia:transaction(F),
-    mongoose_hooks:vcard_set(VHost, LUser, VCard),
+    mongoose_hooks:vcard_set(HostType, LServer, LUser, VCard),
     ok.
 
-search(VHost, Data) ->
-    MatchHead = make_matchhead(VHost, Data),
-    R = do_search(VHost, MatchHead),
+search(_HostType, LServer, Data) ->
+    MatchHead = make_matchhead(LServer, Data),
+    R = do_search(LServer, MatchHead),
     lists:map(fun record_to_item/1, R).
 
 do_search(_, #vcard_search{_ = '_'}) ->
     [];
-do_search(VHost, MatchHeadIn) ->
-    MatchHead = MatchHeadIn#vcard_search{us = {'_', VHost}},
+do_search(LServer, MatchHeadIn) ->
+    MatchHead = MatchHeadIn#vcard_search{us = {'_', LServer}},
     case catch mnesia:dirty_select(vcard_search,
         [{MatchHead, [], ['$_']}]) of
         {'EXIT', Reason} ->
-            ?LOG_ERROR(#{what => vcard_search_failed, server => VHost,
+            ?LOG_ERROR(#{what => vcard_search_failed, server => LServer,
                          reason => Reason}),
             [];
         Rs ->
-            case mod_vcard:get_results_limit(VHost) of
+            case mod_vcard:get_results_limit(LServer) of
                 infinity ->
                     Rs;
                 Val ->
@@ -81,10 +81,10 @@ do_search(VHost, MatchHeadIn) ->
             end
     end.
 
-search_fields(_VHost) ->
+search_fields(_HostType, _LServer) ->
     mod_vcard:default_search_fields().
 
-search_reported_fields(_VHost, Lang) ->
+search_reported_fields(_HostType, _LServer, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
 %%--------------------------------------------------------------------
@@ -121,19 +121,19 @@ set_indexes() ->
     mnesia:add_table_index(vcard_search, lorgname),
     mnesia:add_table_index(vcard_search, lorgunit).
 
-make_matchhead(VHost, Data) ->
+make_matchhead(LServer, Data) ->
     GlobMatch = #vcard_search{_ = '_'},
-    Match = filter_fields(Data, GlobMatch, VHost),
+    Match = filter_fields(Data, GlobMatch, LServer),
     Match.
 
-filter_fields([], Match, _VHost) ->
+filter_fields([], Match, _LServer) ->
     Match;
-filter_fields([{SVar, [Val]} | Ds], Match, VHost)
+filter_fields([{SVar, [Val]} | Ds], Match, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
     LVal = jid:str_tolower(Val),
     NewMatch =
         case SVar of
-            <<"user">> -> Match#vcard_search{luser = make_val(LVal)};
+            <<"user">>     -> Match#vcard_search{luser     = make_val(LVal)};
             <<"fn">>       -> Match#vcard_search{lfn       = make_val(LVal)};
             <<"last">>     -> Match#vcard_search{lfamily   = make_val(LVal)};
             <<"first">>    -> Match#vcard_search{lgiven    = make_val(LVal)};
@@ -147,9 +147,9 @@ filter_fields([{SVar, [Val]} | Ds], Match, VHost)
             <<"orgunit">>  -> Match#vcard_search{lorgunit  = make_val(LVal)};
             _              -> Match
         end,
-    filter_fields(Ds, NewMatch, VHost);
-filter_fields([_ | Ds], Match, VHost) ->
-    filter_fields(Ds, Match, VHost).
+    filter_fields(Ds, NewMatch, LServer);
+filter_fields([_ | Ds], Match, LServer) ->
+    filter_fields(Ds, Match, LServer).
 
 %% Fulltext search is mnesia is something that is really-really wrong
 stringify_search_fields(#vcard_search{} = S) ->

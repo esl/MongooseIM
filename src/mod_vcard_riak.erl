@@ -18,39 +18,33 @@
 
 %% API
 -export([init/2,
-         remove_user/2,
-         set_vcard/4,
-         get_vcard/2,
-         search/2,
-         search_fields/1,
-         search_reported_fields/2]).
+         remove_user/3,
+         set_vcard/5,
+         get_vcard/3,
+         search/3,
+         search_fields/2,
+         search_reported_fields/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
--spec init(jid:lserver(), list()) -> ok.
-init(_Host, _Opts) ->
+init(_HostType, _Opts) ->
     ok.
 
--spec remove_user(jid:luser(), jid:lserver()) -> ok.
-remove_user(LUser, LServer) ->
-    mongoose_riak:delete(bucket_type(LServer), LUser, [{dw, 2}]).
+remove_user(HostType, LUser, LServer) ->
+    mongoose_riak:delete(bucket_type(HostType, LServer), LUser, [{dw, 2}]).
 
--spec set_vcard(jid:user(), jid:lserver(), exml:item(), term()) ->
-    ok | {error, term()}.
-set_vcard(User, VHost, VCard, _VCardSearch) ->
-    BucketType = bucket_type(VHost),
+set_vcard(HostType, User, LServer, VCard, _VCardSearch) ->
+    BucketType = bucket_type(HostType, LServer),
     VCardEncoded = exml:to_binary(VCard),
     LUser = jid:nodeprep(User),
     Obj = riakc_obj:new(BucketType, LUser, VCardEncoded, "application/xml"),
     mongoose_riak:put(Obj).
 
--spec get_vcard(jid:luser(), jid:lserver()) ->
-    {ok, term()} | {error, term()}.
-get_vcard(LUser, LServer) ->
-    BucketType = bucket_type(LServer),
+get_vcard(HostType, LUser, LServer) ->
+    BucketType = bucket_type(HostType, LServer),
     case mongoose_riak:get(BucketType, LUser) of
         {ok, Obj} ->
             XMLBin = riakc_obj:get_value(Obj),
@@ -68,32 +62,30 @@ get_vcard(LUser, LServer) ->
             Other
     end.
 
--spec search(jid:lserver(), list()) -> list().
-search(VHost, Data) ->
+search(HostType, LServer, Data) ->
     YZQuery = make_yz_query(Data, []),
-    do_search(YZQuery, VHost).
+    do_search(YZQuery, HostType, LServer).
 
-do_search([], _) ->
+do_search([], _HostType, _) ->
     [];
-do_search(YZQueryIn, VHost) ->
-    {_BucketType, BucketName} = bucket_type(VHost),
+do_search(YZQueryIn, HostType, LServer) ->
+    {_BucketType, BucketName} = bucket_type(HostType, LServer),
     YZQuery = [<<"_yz_rb:", BucketName/binary>> |  YZQueryIn],
-    Limit = mod_vcard:get_results_limit(VHost),
+    Limit = mod_vcard:get_results_limit(HostType),
     YZQueryBin = mongoose_bin:join(YZQuery, <<" AND ">>),
-    case mongoose_riak:search(yz_vcard_index(VHost), YZQueryBin, [{rows, Limit}]) of
+    case mongoose_riak:search(yz_vcard_index(HostType), YZQueryBin, [{rows, Limit}]) of
         {ok, #search_results{docs=R, num_found = _N}} ->
-            lists:map(fun({_Index, Props}) -> doc2item(VHost, Props) end, R);
+            lists:map(fun({_Index, Props}) -> doc2item(HostType, LServer, Props) end, R);
         Err ->
-            ?LOG_ERROR(#{what => vcard_search_failed, index => yz_vcard_index(VHost),
+            ?LOG_ERROR(#{what => vcard_search_failed, index => yz_vcard_index(HostType),
                          riak_query => YZQueryBin, reason => Err}),
             []
     end.
 
--spec search_fields(jid:lserver()) -> list().
-search_fields(_VHost) ->
+search_fields(_HostType, _LServer) ->
     mod_vcard:default_search_fields().
 
-search_reported_fields(_VHost, Lang) ->
+search_reported_fields(_HostType, _LServer, Lang) ->
     mod_vcard:get_default_reported_fields(Lang).
 
 make_yz_query([], Acc) -> Acc;
@@ -123,8 +115,8 @@ make_val(Val) ->
             [$", LVal, $"]
     end.
 
-doc2item(VHost, Props) ->
-    Vals = lists:map(pa:bind(fun extract_field/2, Props), search_fields(VHost)),
+doc2item(HostType, LServer, Props) ->
+    Vals = lists:map(pa:bind(fun extract_field/2, Props), search_fields(HostType, LServer)),
     #xmlel{name = <<"item">>,
            children = Vals}.
 
@@ -143,8 +135,8 @@ extract_field(Props, {_, Field}) ->
     ?FIELD(Field, V).
 
 
-bucket_type(Host) ->
-    {gen_mod:get_module_opt(Host, mod_vcard, bucket_type, <<"vcard">>), <<"vcard_", Host/binary>>}.
+bucket_type(HostType, LServer) ->
+    {gen_mod:get_module_opt(HostType, mod_vcard, bucket_type, <<"vcard">>), <<"vcard_", LServer/binary>>}.
 
-yz_vcard_index(Host) ->
-    gen_mod:get_module_opt(Host, mod_vcard, search_index, <<"vcard">>).
+yz_vcard_index(HostType) ->
+    gen_mod:get_module_opt(HostType, mod_vcard, search_index, <<"vcard">>).
