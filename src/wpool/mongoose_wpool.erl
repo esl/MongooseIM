@@ -76,7 +76,7 @@
                        ConnOpts :: conn_opts()}.
 -type pool_error() :: {pool_not_started, term()}.
 -type worker_result() :: {ok, pid()} | {error, pool_error()}.
--type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_not_started}.
+-type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_error()}.
 -type start_result() :: {ok, pid()} | {error, term()}.
 -type stop_result() :: ok | term().
 

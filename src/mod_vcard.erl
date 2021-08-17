@@ -213,13 +213,15 @@ start(HostType, Opts) ->
                  transient, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     stop_hooks(HostType),
     stop_iq_handlers(HostType),
     stop_backend(HostType),
     gen_server:call(Proc, stop),
-    ejabberd_sup:stop_child(Proc).
+    ejabberd_sup:stop_child(Proc),
+    ok.
 
 supported_features() -> [dynamic_domains].
 
@@ -245,8 +247,8 @@ start_iq_handlers(HostType, Opts) ->
                                              fun ?MODULE:process_local_iq/5, #{}, IQDisc).
 
 stop_iq_handlers(HostType) ->
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ejabberd_local, ?NS_VCARD),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ejabberd_sm, ?NS_VCARD).
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_local),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm).
 
 stop_backend(HostType) ->
     try
@@ -485,7 +487,7 @@ process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD) ->
     end,
     {Acc, Res}.
 
-process_sm_iq_get(HostType, From, To, Acc, IQ, SubEl) ->
+process_sm_iq_get(HostType, _From, To, Acc, IQ, SubEl) ->
     #jid{luser = LUser, lserver = LServer} = To,
     Res = try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
         {ok, VCARD} ->
