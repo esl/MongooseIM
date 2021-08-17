@@ -17,6 +17,8 @@
 
 {suites, "tests", domain_isolation_SUITE}.
 
+{suites, "tests", dynamic_domains_SUITE}.
+
 {suites, "tests", inbox_SUITE}.
 
 {suites, "tests", inbox_extensions_SUITE}.
