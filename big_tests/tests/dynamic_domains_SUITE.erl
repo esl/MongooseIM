@@ -18,7 +18,7 @@ suite() ->
 
 all() ->
     [
-     load_domains_after_cluster,
+     % load_domains_after_cluster,
      {group, with_domains_loaded}
     ].
 
