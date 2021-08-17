@@ -46,6 +46,7 @@ void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size);
 ErlDrvBinary *ejabberd_zlib_drv_alloc_binary(ErlDrvSizeT size);
 ErlDrvBinary *ejabberd_zlib_drv_realloc_binary(ErlDrvBinary *bin,
     ErlDrvSizeT size);
+void erts_exit(int n, char*, ...);
 
 void *ejabberd_zlib_drv_alloc(ErlDrvSizeT size) {
     void *p = driver_alloc(size);
