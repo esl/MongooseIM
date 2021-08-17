@@ -429,7 +429,7 @@ format_arg2(Arg, Parse)->
 
 format_error(Error) ->
     try
-        io_lib:format("~ts", [Error])
+        io_lib:format("\"~ts\"", [Error])
     catch _ ->
         io_lib:format("~p", [Error])
     end.
