@@ -17,27 +17,43 @@ suite() ->
     require_rpc_nodes([mim, mim2]).
 
 all() ->
-    [can_authenticate,
-     pm_messages,
-     disconnected_on_domain_disabling,
-     auth_domain_removal_is_triggered_on_hook,
-     {group, with_mod_dynamic_domains_test}].
+    [
+     load_domains_after_cluster,
+     {group, with_domains_loaded}
+    ].
+
+load_domains_after_cluster(Config) ->
+    insert_domains([mim()], ?DOMAINS),
+    Config1 = cluster_nodes(?CLUSTER_NODES, Config),
+    R1 = rpc(mim(), ets, tab2list, [mongoose_domain_core]),
+    ct:pal("Value ~p~n", [R1]),
+    R2 = rpc(mim2(), ets, tab2list, [mongoose_domain_core]),
+    ct:pal("Value ~p~n", [R2]),
+    ok.
 
 groups() ->
-    [{with_mod_dynamic_domains_test, [], [packet_handling_for_subdomain,
+    [
+     {with_domains_loaded, [], [
+                                can_authenticate,
+                                pm_messages,
+                                disconnected_on_domain_disabling,
+                                auth_domain_removal_is_triggered_on_hook,
+                                {group, with_mod_dynamic_domains_test}
+                               ]},
+     {with_mod_dynamic_domains_test, [], [packet_handling_for_subdomain,
                                           iq_handling_for_subdomain,
                                           iq_handling_for_domain]}].
 
-init_per_suite(Config0) ->
-    Config = cluster_nodes(?CLUSTER_NODES, Config0),
-    insert_domains(?TEST_NODES, ?DOMAINS),
+init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
-end_per_suite(Config0) ->
-    Config = escalus:end_per_suite(Config0),
-    remove_domains(?TEST_NODES, ?DOMAINS),
-    uncluster_nodes(?CLUSTER_NODES, Config).
+end_per_suite(Config) ->
+    escalus:end_per_suite(Config).
 
+init_per_group(with_domains_loaded, Config) ->
+    Config1 = cluster_nodes(?CLUSTER_NODES, Config),
+    insert_domains(?TEST_NODES, ?DOMAINS),
+    Config1;
 init_per_group(with_mod_dynamic_domains_test, Config) ->
     MockedModules = [mod_dynamic_domains_test, ejabberd_router],
     [ok = rpc(mim(), meck, new, [Module, [passthrough, no_link]])
@@ -50,6 +66,9 @@ init_per_group(with_mod_dynamic_domains_test, Config) ->
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(with_domains_loaded, Config) ->
+    remove_domains(?TEST_NODES, ?DOMAINS),
+    uncluster_nodes(?CLUSTER_NODES, Config);
 end_per_group(with_mod_dynamic_domains_test, Config) ->
     dynamic_modules:stop(?HOST_TYPE, mod_dynamic_domains_test),
     rpc(mim(), meck, unload, []),
