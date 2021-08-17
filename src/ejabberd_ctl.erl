@@ -426,11 +426,19 @@ format_arg2(Arg, Parse)->
 %%-----------------------------
 %% Format result
 %%-----------------------------
+
+format_error(Error) ->
+    try
+        io_lib:format("~ts", [Error])
+    catch _ ->
+        io_lib:format("~p", [Error])
+    end.
+
 -spec format_result(In :: tuple() | atom() | integer() | string() | binary(),
                     {_, 'atom'|'integer'|'string'|'binary'}
                     ) -> string() | {string(), _}.
-format_result({error, ErrorAtom}, _) ->
-    {io_lib:format("Error: ~p", [ErrorAtom]), make_status(error)};
+format_result({error, Error}, _) ->
+    {io_lib:format("Error: ~ts", [format_error(Error)]), make_status(error)};
 format_result(Atom, {_Name, atom}) ->
     io_lib:format("~p", [Atom]);
 format_result(Int, {_Name, integer}) ->
