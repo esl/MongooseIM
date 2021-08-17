@@ -183,12 +183,15 @@ get_module_resource(Server) ->
 get_vcard_content(#jid{lserver = LServer} = NoResJID, Data) ->
     JID = jid:replace_resource(NoResJID, list_to_binary(get_module_resource(LServer))),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => JID,
                               to_jid => JID,
                               lserver => JID#jid.lserver,
+                              host_type => HostType,
                               element => jlib:iq_to_xml(IQ) }),
-    {_, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
+    Extra = #{},
+    {_, IQr} = mod_vcard:process_sm_iq(Acc, JID, JID, IQ, Extra),
     case IQr#iq.sub_el of
         [#xmlel{} = A1] ->
             case get_vcard(Data, A1) of
@@ -215,12 +218,16 @@ set_vcard_content(JID, D, SomeContent) when is_binary(SomeContent) ->
     set_vcard_content(JID, D, [SomeContent]);
 set_vcard_content(JID, Data, ContentList) ->
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(JID#jid.lserver),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => JID,
                               to_jid => JID,
                               lserver => JID#jid.lserver,
+                              host_type => HostType,
                               element => jlib:iq_to_xml(IQ) }),
-    {Acc1, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
+
+    Extra = #{},
+    {Acc1, IQr} = mod_vcard:process_sm_iq(Acc, JID, JID, IQ, Extra),
 
     %% Get old vcard
     A4 = case IQr#iq.sub_el of
@@ -234,7 +241,8 @@ set_vcard_content(JID, Data, ContentList) ->
     %% Build new vcard
     SubEl = #xmlel{name = <<"vCard">>, attrs = [{<<"xmlns">>, <<"vcard-temp">>}], children = A4},
     IQ2 = #iq{type = set, sub_el = SubEl},
-    mod_vcard:process_sm_iq(JID, JID, Acc1, IQ2),
+    Extra = #{},
+    mod_vcard:process_sm_iq(Acc1, JID, JID, IQ2, Extra),
     {ok, ""}.
 
 -spec update_vcard_els(Data :: [binary(), ...],
