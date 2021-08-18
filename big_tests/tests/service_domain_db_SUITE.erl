@@ -63,6 +63,7 @@ db_cases() -> [
      db_out_of_sync_restarts_service,
      db_crash_on_initial_load_restarts_service,
      db_restarts_properly,
+     db_loads_domains_after_node_joins_cluster,
      cli_can_insert_domain,
      cli_can_disable_domain,
      cli_can_enable_domain,
@@ -542,6 +543,40 @@ db_restarts_properly(_) ->
             PID2 =/= PID
         end,
     mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
+
+db_loads_domains_after_node_joins_cluster(Config) ->
+    ok = insert_domain(mim(), <<"example1.com">>, <<"type1">>),
+    ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
+    sync(),
+    ServicePid1 = whereis_service(),
+    CorePid1 = whereis_core(),
+    %% Check that DB is ok
+    Rows = rpc(mim(), mongoose_domain_sql, select_from, [0, 9999]),
+    [{_, <<"example1.com">>, <<"type1">>},
+     {_, <<"example2.com">>, <<"type1">>}] = Rows,
+    ServiceMon = monitor(process, ServicePid1),
+    %% WHEN Adding node into a cluster (and mim node restarting)
+    add_mim_to_cluster(Config),
+    %% Ensure service is running
+    init_with(mim(), [], [<<"type1">>]),
+    wait_for_down(ServiceMon),
+    %% Brr, service is still running...
+    %% Our current solution is for it to detect that core is down and it would
+    %% restart itself.
+%   service_enabled(mim()),
+    %% Core and service gets restarted
+    ServicePid2 = whereis_service(),
+    CorePid2 = whereis_core(),
+    ct:log("CorePid1 ~p~nCorePid2 ~p~n", [CorePid1, CorePid2]),
+    ct:log("ServicePid1 ~p~nServicePid2 ~p~n", [ServicePid1, ServicePid2]),
+    true = CorePid1 =/= CorePid2,
+    true = ServicePid1 =/= ServicePid2,
+    %% THEN Sync is successful
+    Rows = rpc(mim(), mongoose_domain_sql, select_from, [0, 9999]),
+    ok = insert_domain(mim(), <<"example3.com">>, <<"type1">>),
+    ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
+    sync(),
+    assert_domains_are_equal(<<"type1">>).
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
@@ -1101,3 +1136,30 @@ handler_opts(#{skip_auth := true}) ->
     [];
 handler_opts(_Params) ->
     [{password, <<"secret">>}, {username, <<"admin">>}].
+
+assert_domains_are_equal(HostType) ->
+    Domains1 = lists:sort(get_domains_by_host_type(mim(), HostType)),
+    Domains2 = lists:sort(get_domains_by_host_type(mim2(), HostType)),
+    case Domains1 == Domains2 of
+        true -> ok;
+        false -> ct:fail({Domains1, Domains2})
+    end.
+
+wait_for_down(MonRef) ->
+    receive
+        {'DOWN', MonRef, process, _, _} -> ok
+    after 5000 -> ct:fail(wait_for_down_timeout)
+    end.
+
+whereis_service() ->
+    rpc(mim(), erlang, whereis, [service_domain_db]).
+
+whereis_core() ->
+    rpc(mim(), erlang, whereis, [mongoose_domain_core]).
+
+add_mim_to_cluster(Config) ->
+    Cmd = "join_cluster",
+    #{node := Node} = distributed_helper:mim(),
+    #{node := Node2} = distributed_helper:mim2(),
+    Args = ["--force", atom_to_list(Node2)],
+    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).

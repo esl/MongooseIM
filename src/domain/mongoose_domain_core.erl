@@ -130,6 +130,7 @@ get_start_args() ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 init([Pairs, AllowedHostTypes]) ->
+    service_domain_db:reset_last_event_id(),
     ets:new(?TABLE, [set, named_table, protected, {read_concurrency, true}]),
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),

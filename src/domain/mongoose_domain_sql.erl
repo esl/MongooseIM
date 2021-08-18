@@ -148,6 +148,7 @@ select_from(FromId, Limit) ->
     Pool = get_db_pool(),
     Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
     {selected, Rows} = execute_successfully(Pool, domain_select_from, Args),
+    ?LOG_ERROR(#{what => select_from, rows => Rows, from_id => FromId, limit => Limit}),
     Rows.
 
 -spec select_updates_from(event_id(), limit()) -> [row()].

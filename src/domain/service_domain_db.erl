@@ -14,8 +14,6 @@
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
 -export([sync/0, sync_local/0]).
-
-%% exported for integration tests only!
 -export([reset_last_event_id/0]).
 
 -ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2,
@@ -99,7 +97,9 @@ init([]) ->
     ?PG_JOIN(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
-    {ok, #{}}.
+    CorePid = whereis(mongoose_domain_core),
+    CoreMon = erlang:monitor(process, CorePid),
+    {ok, #{core_pid => CorePid, core_mon => CoreMon}}.
 
 handle_call(ping, _From, State) ->
     {reply, pong, State};
@@ -124,6 +124,11 @@ handle_cast(Msg, State) ->
 
 handle_info(check_for_updates, State) ->
     {noreply, handle_check_for_updates(State)};
+handle_info({'DOWN', CoreMon, process, CorePid, Reason},
+            State = #{core_mon := CoreMon, core_pid := CorePid}) ->
+    ?LOG_CRITICAL(#{what => kill_service_once_core_is_down,
+                    core_pid => CorePid, reason => Reason}),
+    error(core_is_down);
 handle_info(Info, State) ->
     ?UNEXPECTED_INFO(Info),
     {noreply, State}.
@@ -140,11 +145,14 @@ code_change(_OldVsn, State, _Extra) ->
 initial_load(undefined) ->
     LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
     PageSize = 10000,
-    mongoose_domain_loader:load_data_from_base(0, PageSize),
-    mongoose_domain_loader:remove_outdated_domains_from_core(),
+    {ok, #{count := Count}} = mongoose_domain_loader:load_data_from_base(0, PageSize),
+    {ok, #{count := Outdated}} = mongoose_domain_loader:remove_outdated_domains_from_core(),
     set_last_event_id(LastEventId),
+    ?LOG_WARNING(#{what => initial_load, last_event_id => LastEventId,
+                   domains_count => Count, outdated_count => Outdated}),
     LastEventId;
 initial_load(LastEventId) when is_integer(LastEventId) ->
+    ?LOG_WARNING(#{what => skip_initial_load, last_event_id => LastEventId}),
     LastEventId. %% Skip initial init
 
 handle_check_for_updates(State = #{last_event_id := LastEventId,

@@ -7,7 +7,7 @@
 
 load_data_from_base(FromId, PageSize) ->
     try
-        load_data_from_base_loop(FromId, PageSize)
+        load_data_from_base_loop(FromId, PageSize, 0)
     catch Class:Reason:Stacktrace ->
               Text = <<"Loading initial domains from RDBMS failed">>,
               ?LOG_CRITICAL(#{what => load_domains_from_base_failed,
@@ -15,23 +15,25 @@ load_data_from_base(FromId, PageSize) ->
                               from_id => FromId,
                               class => Class, reason => Reason,
                               stacktrace => Stacktrace}),
-              service_domain_db:restart()
+              service_domain_db:restart(),
+              {ok, #{count => 0}}
     end.
 
-load_data_from_base_loop(FromId, PageSize) ->
+load_data_from_base_loop(FromId, PageSize, Count) ->
     %% Crash on init if select fails.
     case mongoose_domain_sql:select_from(FromId, PageSize) of
-        [] -> ok;
+        [] -> {ok, #{count => Count}};
         Rows ->
             PageMaxId = row_to_id(lists:last(Rows)),
             insert_rows_to_core(Rows),
-            load_data_from_base_loop(PageMaxId, PageSize)
+            load_data_from_base_loop(PageMaxId, PageSize, Count + length(Rows))
     end.
 
 remove_outdated_domains_from_core() ->
     CurrentSource = self(),
     OutdatedDomains = mongoose_domain_core:get_all_outdated(CurrentSource),
-    remove_domains(OutdatedDomains).
+    remove_domains(OutdatedDomains),
+    {ok, #{count => length(OutdatedDomains)}}.
 
 check_for_updates(FromId, PageSize) ->
     %% Ordered by the earliest events first
