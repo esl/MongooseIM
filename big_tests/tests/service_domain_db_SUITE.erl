@@ -545,8 +545,9 @@ db_restarts_properly(_) ->
     mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
 db_loads_domains_after_node_joins_cluster(Config) ->
-    ok = insert_domain(mim(), <<"example1.com">>, <<"type1">>),
-    ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
+    HostType = <<"test type">>,
+    ok = insert_domain(mim(), <<"example1.com">>, HostType),
+    ok = insert_domain(mim2(), <<"example2.com">>, HostType),
     sync(),
     SupPid1 = whereis_sup(),
     CorePid1 = whereis_core(),
@@ -554,16 +555,12 @@ db_loads_domains_after_node_joins_cluster(Config) ->
     ct:log("Pids sup=~p core=~p service=~p", [SupPid1, CorePid1, ServicePid1]),
     %% Check that DB is ok
     Rows = rpc(mim(), mongoose_domain_sql, select_from, [0, 9999]),
-    [{_, <<"example1.com">>, <<"type1">>},
-     {_, <<"example2.com">>, <<"type1">>}] = Rows,
-%   ServiceMon = monitor(process, ServicePid1),
+    [{_, <<"example1.com">>, HostType},
+     {_, <<"example2.com">>, HostType}] = Rows,
     %% WHEN Adding node into a cluster (and mim node restarting)
     add_mim_to_cluster(Config),
-    %% Ensure service is running
-    init_with(mim(), [], [<<"type1">>]),
-%   wait_for_down(ServiceMon),
     service_enabled(mim()),
-    %% Core and service gets restarted
+    %% Core and service get restarted
     SupPid2 = whereis_sup(),
     CorePid2 = whereis_core(),
     ServicePid2 = whereis_service(),
@@ -573,10 +570,10 @@ db_loads_domains_after_node_joins_cluster(Config) ->
     true = ServicePid1 =/= ServicePid2,
     %% THEN Sync is successful
     Rows = rpc(mim(), mongoose_domain_sql, select_from, [0, 9999]),
-    ok = insert_domain(mim(), <<"example3.com">>, <<"type1">>),
-    ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
+    ok = insert_domain(mim(), <<"example3.com">>, HostType),
+    ok = insert_domain(mim2(), <<"example4.com">>, HostType),
     sync(),
-    assert_domains_are_equal(<<"type1">>).
+    assert_domains_are_equal(HostType).
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
@@ -1145,12 +1142,6 @@ assert_domains_are_equal(HostType) ->
     case Domains1 == Domains2 of
         true -> ok;
         false -> ct:fail({Domains1, Domains2})
-    end.
-
-wait_for_down(MonRef) ->
-    receive
-        {'DOWN', MonRef, process, _, _} -> ok
-    after 5000 -> ct:fail(wait_for_down_timeout)
     end.
 
 whereis_service() ->
