@@ -243,7 +243,9 @@ setup_service(Opts, Config) ->
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
              {<<"erlang-solutions.local">>, <<"type2">>}],
-    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
+    %% <<"test type">> is the default type
+    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>,
+                   <<"test type">>],
     Types2 = [<<"mim2only">>|CommonTypes],
     init_with(mim(), Pairs1, CommonTypes),
     init_with(mim2(), [], Types2),
