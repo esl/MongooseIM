@@ -112,7 +112,7 @@ handle_cast(initial_loading, State) ->
     ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
     NewState = State#{last_event_id => LastEventId,
                       check_for_updates_interval => 30000},
-    {noreply, handle_check_for_updates(NewState)};
+    {noreply, handle_check_for_updates(NewState, true)};
 handle_cast(reset_and_shutdown, State) ->
     %% to ensure that domains table is re-read from
     %% scratch, we must reset the last event id.
@@ -123,7 +123,7 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 handle_info(check_for_updates, State) ->
-    {noreply, handle_check_for_updates(State)};
+    {noreply, handle_check_for_updates(State, false)};
 handle_info(Info, State) ->
     ?UNEXPECTED_INFO(Info),
     {noreply, State}.
@@ -148,19 +148,22 @@ initial_load(LastEventId) when is_integer(LastEventId) ->
     LastEventId. %% Skip initial init
 
 handle_check_for_updates(State = #{last_event_id := LastEventId,
-                                   check_for_updates_interval := Interval}) ->
-    maybe_cancel_timer(State),
+                                   check_for_updates_interval := Interval},
+                         IsInitial) ->
+    maybe_cancel_timer(IsInitial, State),
     receive_all_check_for_updates(),
     PageSize = 1000,
     LastEventId2 = mongoose_domain_loader:check_for_updates(LastEventId, PageSize),
     maybe_set_last_event_id(LastEventId, LastEventId2),
     TRef = erlang:send_after(Interval, self(), check_for_updates),
-    State#{last_event_id => LastEventId2, check_for_updates => TRef}.
+    State#{last_event_id => LastEventId2, check_for_updates_tref => TRef}.
 
-maybe_cancel_timer(#{check_for_updates_tref := TRef}) ->
-    erlang:cancel_timer(TRef);
-maybe_cancel_timer(_) ->
-    ok.
+maybe_cancel_timer(IsInitial, State) ->
+    TRef = maps:get(check_for_updates_tref, State, undefined),
+    case {IsInitial, TRef} of
+        {true, undefined} -> ok; %% TRef is not set the first time
+        {false, _} -> erlang:cancel_timer(TRef)
+    end.
 
 receive_all_check_for_updates() ->
     receive check_for_updates -> receive_all_check_for_updates() after 0 -> ok end.
