@@ -548,27 +548,27 @@ db_loads_domains_after_node_joins_cluster(Config) ->
     ok = insert_domain(mim(), <<"example1.com">>, <<"type1">>),
     ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
-    ServicePid1 = whereis_service(),
+    SupPid1 = whereis_sup(),
     CorePid1 = whereis_core(),
+    ServicePid1 = whereis_service(),
+    ct:log("Pids sup=~p core=~p service=~p", [SupPid1, CorePid1, ServicePid1]),
     %% Check that DB is ok
     Rows = rpc(mim(), mongoose_domain_sql, select_from, [0, 9999]),
     [{_, <<"example1.com">>, <<"type1">>},
      {_, <<"example2.com">>, <<"type1">>}] = Rows,
-    ServiceMon = monitor(process, ServicePid1),
+%   ServiceMon = monitor(process, ServicePid1),
     %% WHEN Adding node into a cluster (and mim node restarting)
     add_mim_to_cluster(Config),
     %% Ensure service is running
     init_with(mim(), [], [<<"type1">>]),
-    wait_for_down(ServiceMon),
-    %% Brr, service is still running...
-    %% Our current solution is for it to detect that core is down and it would
-    %% restart itself.
-%   service_enabled(mim()),
+%   wait_for_down(ServiceMon),
+    service_enabled(mim()),
     %% Core and service gets restarted
-    ServicePid2 = whereis_service(),
+    SupPid2 = whereis_sup(),
     CorePid2 = whereis_core(),
-    ct:log("CorePid1 ~p~nCorePid2 ~p~n", [CorePid1, CorePid2]),
-    ct:log("ServicePid1 ~p~nServicePid2 ~p~n", [ServicePid1, ServicePid2]),
+    ServicePid2 = whereis_service(),
+    ct:log("Pids sup=~p core=~p service=~p", [SupPid2, CorePid2, ServicePid2]),
+    true = SupPid1 =/= SupPid2,
     true = CorePid1 =/= CorePid2,
     true = ServicePid1 =/= ServicePid2,
     %% THEN Sync is successful
@@ -946,7 +946,9 @@ select_domain(Node, Domain) ->
 
 erase_database(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, erase_database, []);
+        true ->
+            prepare_test_queries(Node),
+            rpc(Node, mongoose_domain_sql, erase_database, []);
         false -> ok
     end.
 
@@ -1157,7 +1159,20 @@ whereis_service() ->
 whereis_core() ->
     rpc(mim(), erlang, whereis, [mongoose_domain_core]).
 
+whereis_sup() ->
+    rpc(mim(), erlang, whereis, [mongoose_domain_sup]).
+
 add_mim_to_cluster(Config) ->
+    leave_cluster(Config),
+    join_cluster(Config).
+
+leave_cluster(Config) ->
+    Cmd = "leave_cluster",
+    #{node := Node} = distributed_helper:mim(),
+    Args = ["--force"],
+    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).
+
+join_cluster(Config) ->
     Cmd = "join_cluster",
     #{node := Node} = distributed_helper:mim(),
     #{node := Node2} = distributed_helper:mim2(),
