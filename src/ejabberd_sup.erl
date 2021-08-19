@@ -153,6 +153,10 @@ init([]) ->
         {ejabberd_shaper_sup,
           {ejabberd_shaper_sup, start_link, []},
           permanent, infinity, supervisor, [ejabberd_shaper_sup]},
+    DomainSup =
+        {mongoose_domain_sup,
+         {mongoose_domain_sup, start_link, []},
+         permanent, infinity, supervisor, [mongoose_domain_sup]},
     {ok, {{one_for_one, 10, 1},
           [Hooks,
            Cleaner,
@@ -170,7 +174,8 @@ init([]) ->
            Listener,
            MucIQ,
            MAM,
-           ShaperSup]}}.
+           ShaperSup,
+           DomainSup]}}.
 
 start_child(ChildSpec) ->
     case supervisor:start_child(ejabberd_sup, ChildSpec) of

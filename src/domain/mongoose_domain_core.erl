@@ -56,12 +56,12 @@ start(Pairs, AllowedHostTypes) ->
         {?MODULE,
          {?MODULE, start_link, [Pairs, AllowedHostTypes]},
          permanent, infinity, worker, [?MODULE]},
-    just_ok(supervisor:start_child(ejabberd_sup, ChildSpec)).
+    just_ok(supervisor:start_child(mongoose_domain_sup, ChildSpec)).
 
 %% required for integration tests
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(mongoose_domain_sup, ?MODULE),
+    supervisor:delete_child(mongoose_domain_sup, ?MODULE),
     ok.
 
 -endif.

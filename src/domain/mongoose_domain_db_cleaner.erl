@@ -30,12 +30,12 @@ start(Opts) ->
         {?MODULE,
          {?MODULE, start_link, [Opts]},
          permanent, infinity, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec),
+    supervisor:start_child(mongoose_domain_sup, ChildSpec),
     ok.
 
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(mongoose_domain_sup, ?MODULE),
+    supervisor:delete_child(mongoose_domain_sup, ?MODULE),
     ok.
 
 start_link(Opts) ->

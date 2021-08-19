@@ -10,14 +10,14 @@
 -define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
 -export([start/1, stop/0, restart/0, config_spec/0]).
--export([start_link/0]).
+-export([start_link/1]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
 -export([sync/0, sync_local/0]).
 -export([reset_last_event_id/0]).
 
 -ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2,
-              init/1, start_link/0, sync/0, sync_local/0, terminate/2, reset_last_event_id/0]).
+              init/1, start_link/1, sync/0, sync_local/0, terminate/2, reset_last_event_id/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -27,19 +27,18 @@
 %% Client code
 
 start(Opts) ->
-    mongoose_domain_sql:start(Opts),
     ChildSpec =
         {?MODULE,
-         {?MODULE, start_link, []},
+         {?MODULE, start_link, [Opts]},
          permanent, infinity, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec),
+    supervisor:start_child(mongoose_domain_sup, ChildSpec),
     mongoose_domain_db_cleaner:start(Opts),
     ok.
 
 stop() ->
     mongoose_domain_db_cleaner:stop(),
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(mongoose_domain_sup, ?MODULE),
+    supervisor:delete_child(mongoose_domain_sup, ?MODULE),
     ok.
 
 restart() ->
@@ -60,8 +59,8 @@ config_spec() ->
                                         validate = pool_name}
               }}.
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Opts], []).
 
 enabled() ->
     mongoose_service:is_loaded(?MODULE).
@@ -92,14 +91,12 @@ sync_local() ->
 %% ---------------------------------------------------------------------------
 %% Server callbacks
 
-init([]) ->
+init([Opts]) ->
+    mongoose_domain_sql:start(Opts),
     mongoose_domain_gaps:init(),
     ?PG_JOIN(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
-    %% initial state will be set on initial_loading processing
-    CorePid = whereis(mongoose_domain_core),
-    CoreMon = erlang:monitor(process, CorePid),
-    {ok, #{core_pid => CorePid, core_mon => CoreMon}}.
+    {ok, #{}}.
 
 handle_call(ping, _From, State) ->
     {reply, pong, State};
@@ -124,11 +121,6 @@ handle_cast(Msg, State) ->
 
 handle_info(check_for_updates, State) ->
     {noreply, handle_check_for_updates(State)};
-handle_info({'DOWN', CoreMon, process, CorePid, Reason},
-            State = #{core_mon := CoreMon, core_pid := CorePid}) ->
-    ?LOG_CRITICAL(#{what => kill_service_once_core_is_down,
-                    core_pid => CorePid, reason => Reason}),
-    error(core_is_down);
 handle_info(Info, State) ->
     ?UNEXPECTED_INFO(Info),
     {noreply, State}.
