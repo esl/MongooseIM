@@ -2,7 +2,7 @@
 -export([start_link/0]).
 -export([init/1]).
 
--ignore_xref([start_link/0]).
+-ignore_xref([start_link/0, init/1]).
 
 -spec(start_link() ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
