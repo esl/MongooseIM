@@ -60,6 +60,9 @@
 
 {suites, "tests", sm_SUITE}.
 
+{suites, "tests", vcard_SUITE}.
+{suites, "tests", vcard_simple_SUITE}.
+
 {config, ["dynamic_domains.config", "test.config"]}.
 
 {logdir, "ct_report"}.
