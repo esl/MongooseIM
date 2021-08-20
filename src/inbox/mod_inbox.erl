@@ -30,7 +30,7 @@
 
 -export([process_iq/5,
          user_send_packet/4,
-         filter_packet/1,
+         filter_local_packet/1,
          inbox_unread_count/2,
          remove_user/3,
          remove_domain/3,
@@ -43,7 +43,7 @@
     {?MOD_INBOX_BACKEND, get_inbox, 4},
     {?MOD_INBOX_BACKEND, remove_domain, 2},
     {?MOD_INBOX_BACKEND, init, 2},
-    behaviour_info/1, disco_local_features/1, filter_packet/1, get_personal_data/3,
+    behaviour_info/1, disco_local_features/1, filter_local_packet/1, get_personal_data/3,
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 
@@ -266,10 +266,10 @@ inbox_unread_count(Acc, To) ->
                     To :: jid:jid(),
                     Acc :: mongoose_acc:t(),
                     Packet :: exml:element()}.
--spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_packet(drop) ->
+-spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
+filter_local_packet(drop) ->
     drop;
-filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
+filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
@@ -282,7 +282,7 @@ filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
            end,
     {From, To, Acc0, Msg};
 
-filter_packet({From, To, Acc, Packet}) ->
+filter_local_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
 remove_user(Acc, User, Server) ->
@@ -587,7 +587,7 @@ hooks(HostType) ->
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 70},
-     {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
+     {filter_local_packet, HostType, ?MODULE, filter_local_packet, 90},
      {inbox_unread_count, HostType, ?MODULE, inbox_unread_count, 80},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50},
      {disco_local_features, HostType, ?MODULE, disco_local_features, 99}
