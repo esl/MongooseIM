@@ -63,6 +63,7 @@ db_cases() -> [
      db_out_of_sync_restarts_service,
      db_crash_on_initial_load_restarts_service,
      db_restarts_properly,
+     db_keeps_syncing_after_cluster_join,
      cli_can_insert_domain,
      cli_can_disable_domain,
      cli_can_enable_domain,
@@ -242,7 +243,8 @@ setup_service(Opts, Config) ->
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
              {<<"erlang-solutions.local">>, <<"type2">>}],
-    CommonTypes = [<<"type1">>, <<"type2">>, <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
+    CommonTypes = [<<"type1">>, <<"type2">>, <<"test type">>,
+                   <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
     Types2 = [<<"mim2only">>|CommonTypes],
     init_with(mim(), Pairs1, CommonTypes),
     init_with(mim2(), [], Types2),
@@ -542,6 +544,28 @@ db_restarts_properly(_) ->
             PID2 =/= PID
         end,
     mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
+
+db_keeps_syncing_after_cluster_join(Config) ->
+    HostType = <<"test type">>,
+    %% GIVING mim1 and mim2 are not clustered.
+    %% Ask mim1 to join mim2's cluster
+    %% (and mongooseim application gets restarted on mim1)
+    leave_cluster(Config),
+    service_enabled(mim()),
+    ok = insert_domain(mim(), <<"example1.com">>, HostType),
+    ok = insert_domain(mim2(), <<"example2.com">>, HostType),
+    sync(),
+    %% Nodes don't have to be clustered to sync the domains.
+    assert_domains_are_equal(HostType),
+    %% WHEN Adding mim1 joins into a cluster
+    %% (and mongooseim application gets restarted on mim1)
+    join_cluster(Config),
+    service_enabled(mim()),
+    %% THEN Sync is successful
+    ok = insert_domain(mim(), <<"example3.com">>, HostType),
+    ok = insert_domain(mim2(), <<"example4.com">>, HostType),
+    sync(),
+    assert_domains_are_equal(HostType).
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
@@ -911,7 +935,9 @@ select_domain(Node, Domain) ->
 
 erase_database(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
-        true -> rpc(Node, mongoose_domain_sql, erase_database, []);
+        true ->
+            prepare_test_queries(Node),
+            rpc(Node, mongoose_domain_sql, erase_database, []);
         false -> ok
     end.
 
@@ -1101,3 +1127,24 @@ handler_opts(#{skip_auth := true}) ->
     [];
 handler_opts(_Params) ->
     [{password, <<"secret">>}, {username, <<"admin">>}].
+
+leave_cluster(Config) ->
+    Cmd = "leave_cluster",
+    #{node := Node} = distributed_helper:mim(),
+    Args = ["--force"],
+    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).
+
+join_cluster(Config) ->
+    Cmd = "join_cluster",
+    #{node := Node} = distributed_helper:mim(),
+    #{node := Node2} = distributed_helper:mim2(),
+    Args = ["--force", atom_to_list(Node2)],
+    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).
+
+assert_domains_are_equal(HostType) ->
+    Domains1 = lists:sort(get_domains_by_host_type(mim(), HostType)),
+    Domains2 = lists:sort(get_domains_by_host_type(mim2(), HostType)),
+    case Domains1 == Domains2 of
+        true -> ok;
+        false -> ct:fail({Domains1, Domains2})
+    end.
