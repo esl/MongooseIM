@@ -1165,7 +1165,7 @@ host_types() ->
     lists:usort([HostType, SecHostType]).
 
 get_vcard_config(Config) ->
-    CfgHost = ct:get_config({hosts, mim, configured_host}),
+    CfgHost = ct:get_config({hosts, mim, configured_host_type}),
     rpc(mim(), gen_mod, get_loaded_module_opts, [CfgHost, mod_vcard]).
 
 stop_vcard_mod(_Config) ->
