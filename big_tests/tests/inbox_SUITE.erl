@@ -90,13 +90,8 @@
                        extract_user_specs/1
                       ]).
 
--define(ROOM, <<"testroom1">>).
--define(ROOM2, <<"testroom2">>).
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
--define(ROOM_MARKERS, <<"room_markers">>).
--define(ROOM_MARKERS2, <<"room_markers2">>).
--define(ROOM_MARKERS_RESET, <<"room_markers_reset">>).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -110,6 +105,7 @@ tests() ->
      {group, generic},
      {group, one_to_one},
      {group, muclight},
+     {group, muclight_config},
      {group, muc},
      {group, timestamps}
     ].
@@ -151,7 +147,7 @@ groups() ->
            check_total_unread_count_when_there_are_no_active_conversations,
            total_unread_count_and_active_convs_are_zero_at_no_activity
           ]},
-         {muclight, [sequence],
+         {muclight, [parallel],
           [
            simple_groupchat_stored_in_all_inbox,
            advanced_groupchat_stored_in_all_inbox,
@@ -159,13 +155,16 @@ groups() ->
            non_reset_marker_should_not_affect_muclight_inbox,
            groupchat_reset_stanza_resets_inbox,
            create_groupchat,
-           create_groupchat_no_affiliation_stored,
            leave_and_remove_conversation,
-           leave_and_store_conversation,
-           no_aff_stored_and_remove_on_kicked,
-           no_stored_and_remain_after_kicked,
            groupchat_markers_one_reset_room_created,
            groupchat_markers_all_reset_room_created
+          ]},
+         {muclight_config, [sequence],
+          [
+           create_groupchat_no_affiliation_stored,
+           leave_and_store_conversation,
+           no_aff_stored_and_remove_on_kicked,
+           no_stored_and_remain_after_kicked
           ]},
          {muc, [parallel],
           [
@@ -199,29 +198,30 @@ init_per_suite(Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
     InboxOptions = inbox_opts(),
     Config1 = escalus:init_per_suite(Config),
-    Config2 = [{inbox_opts, InboxOptions} | Config1],
-    escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
+    [{inbox_opts, InboxOptions} | Config1].
 
 end_per_suite(Config) ->
-    Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_inbox),
-    escalus:end_per_suite(Config1).
+    escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->
     inbox_helper:reload_inbox_option(Config, groupchat, []);
 init_per_group(muclight, Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
     inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    muc_light_helper:create_room(?ROOM, muc_light_helper:muc_host(), alice,
-                                 [bob, kate], Config, muc_light_helper:ver(1));
+    [{group, muclight} | Config];
+init_per_group(muclight_config, Config) ->
+    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
+    Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike]));
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(muc, Config) ->
+end_per_group(muc, _Config) ->
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc);
 end_per_group(muclight, Config) ->
@@ -229,6 +229,11 @@ end_per_group(muclight, Config) ->
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc_light),
     Config;
+end_per_group(muclight_config, Config) ->
+    muc_light_helper:clear_db(),
+    HostType = domain_helper:host_type(mim),
+    dynamic_modules:stop(HostType, mod_muc_light),
+    escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike]));
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -237,26 +242,6 @@ init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, aff_changes, false),
     escalus:init_per_testcase(create_groupchat_no_affiliation_stored, Config);
-init_per_testcase(groupchat_markers_one_reset, Config) ->
-    clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS, muc_light_helper:muc_host(), alice, [bob, kate],
-                                 Config, muc_light_helper:ver(1)),
-    escalus:init_per_testcase(groupchat_markers_one_reset, Config);
-init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
-    clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS2, muc_light_helper:muc_host(), alice, [bob, kate],
-                                 Config, muc_light_helper:ver(1)),
-    escalus:init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
-init_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
-    clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM_MARKERS_RESET, muc_light_helper:muc_host(), alice, [bob, kate],
-                                 Config, muc_light_helper:ver(1)),
-    escalus:init_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
-init_per_testcase(leave_and_remove_conversation, Config) ->
-    clear_inbox_all(),
-    muc_light_helper:create_room(?ROOM2, muc_light_helper:muc_host(), alice, [bob, kate],
-                                 Config, muc_light_helper:ver(1)),
-    escalus:init_per_testcase(leave_and_remove_conversation, Config);
 init_per_testcase(leave_and_store_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, remove_on_kicked, false),
@@ -273,30 +258,9 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
                                  Config, muc_light_helper:ver(1)),
     inbox_helper:reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
     escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
-init_per_testcase(TC, Config)
-  when TC =:= groupchat_markers_all_reset_room_created;
-       TC =:= advanced_groupchat_stored_in_all_inbox ->
-    clear_inbox_all(),
-    escalus:init_per_testcase(TC, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(groupchat_markers_one_reset, Config) ->
-    clear_inbox_all(),
-    inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(groupchat_markers_one_reset, Config);
-end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
-    clear_inbox_all(),
-    inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
-end_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
-    clear_inbox_all(),
-    inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
-end_per_testcase(leave_and_remove_conversation, Config) ->
-    clear_inbox_all(),
-    inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(leave_and_remove_conversation, Config);
 end_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -326,7 +290,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 disco_service(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
             Server = escalus_client:server(Alice),
             escalus:send(
               Alice, escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), Server)),
@@ -676,13 +640,14 @@ non_reset_marker_should_not_affect_inbox(Config) ->
 %%--------------------------------------------------------------------
 
 simple_groupchat_stored_in_all_inbox(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg = <<"Hi Room!">>,
         Id = <<"MyID">>,
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
         BobJid = inbox_helper:to_bare_lower(Bob),
-        RoomJid = room_bin_jid(?ROOM),
+        RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), Id),
@@ -702,14 +667,15 @@ simple_groupchat_stored_in_all_inbox(Config) ->
       end).
 
 advanced_groupchat_stored_in_all_inbox(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg1 = <<"Hi Room!">>,
         Msg2 = <<"How are you?">>,
         Id = <<"MyID">>,
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         BobJid = inbox_helper:to_bare_lower(Bob),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(?ROOM),
+        RoomJid = room_bin_jid(Room),
         BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
         Stanza1 = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
@@ -740,11 +706,12 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
       end).
 
 groupchat_markers_one_reset(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(?ROOM_MARKERS),
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         Id = <<"markerId">>,
         Stanza1 = escalus_stanza:set_id(
@@ -775,12 +742,13 @@ groupchat_markers_one_reset(Config) ->
       end).
 
 non_reset_marker_should_not_affect_muclight_inbox(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         % %% GIVEN
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(?ROOM_MARKERS2),
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         Msg = <<"marker time!">>,
         % %% WHEN DONE
@@ -809,12 +777,13 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
       end).
 
 groupchat_reset_stanza_resets_inbox(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         % %% WITH
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(?ROOM_MARKERS_RESET),
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         % %% WHEN A MESSAGE IS SENT
         MsgStanza = escalus_stanza:set_id(
@@ -845,7 +814,7 @@ groupchat_reset_stanza_resets_inbox(Config) ->
 %%{aff_changes, true},
 %%{remove_on_kicked, true},
 create_groupchat(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         RoomNode = <<"bobroom">>,
         inbox_helper:create_room_and_check_inbox(Bob, [Alice, Kate], RoomNode)
       end).
@@ -898,12 +867,13 @@ create_groupchat_no_affiliation_stored(Config) ->
 %%{aff_changes, true},
 %%{remove_on_kicked, true},
 leave_and_remove_conversation(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg = <<"Hi Room!">>,
         Id = <<"MyID">>,
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(?ROOM2),
+        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), Id),
@@ -916,7 +886,7 @@ leave_and_remove_conversation(Config) ->
         escalus:assert(is_groupchat_message, R1),
         escalus:assert(is_groupchat_message, R2),
         %% Bob leaves the room
-        muc_light_helper:user_leave(?ROOM2, Bob, [{Alice, owner}, {Kate, member}]),
+        muc_light_helper:user_leave(Room, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have one message
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
@@ -1016,7 +986,7 @@ no_stored_and_remain_after_kicked(Config) ->
 
 
 groupchat_markers_one_reset_room_created(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg = <<"Welcome guys">>,
         RoomName = <<"markers_room">>,
         RoomJid = room_bin_jid(RoomName),
@@ -1034,7 +1004,7 @@ groupchat_markers_one_reset_room_created(Config) ->
       end).
 
 groupchat_markers_all_reset_room_created(Config) ->
-    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         RoomName = <<"markers_room2">>,
         AliceJid = inbox_helper:to_bare_lower(Alice),
         RoomJid = room_bin_jid(RoomName),

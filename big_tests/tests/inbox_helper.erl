@@ -48,6 +48,8 @@
         ]).
 % MUC + MUC Light helpers
 -export([
+         create_room/2,
+         create_room/3,
          create_room_and_check_inbox/3,
          create_room_send_msg_check_inbox/5,
          enter_room/2, enter_room/4,
@@ -492,6 +494,18 @@ stanza_muc_enter_room(Room, Nick) ->
 
 stanza_to_room(Stanza, Room, Nick) ->
     escalus_stanza:to(Stanza, muc_helper:room_address(Room, Nick)).
+
+create_room(Owner, MemberList) ->
+    RoomName = pubsub_tools:pubsub_node_name(),
+    create_room(Owner, MemberList, RoomName).
+
+create_room(Owner, MemberList, RoomName) ->
+    InitOccupants = [{M, member} || M <- MemberList],
+    MembersAndOwner = [Owner | MemberList],
+    muc_light_helper:given_muc_light_room(RoomName, Owner, InitOccupants),
+    [begin mark_last_muclight_system_message(U, 1),
+           foreach_recipient(MembersAndOwner, fun(_Stanza) -> ok end) end || U <- MembersAndOwner],
+    RoomName.
 
 create_room_and_check_inbox(Owner, MemberList, RoomName) ->
     InitOccupants = [{M, member} || M <- MemberList],
