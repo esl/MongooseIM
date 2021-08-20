@@ -162,7 +162,7 @@ init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity
             Config
     end;
 init_per_group(ldap_only, Config) ->
-    VCardConfig = ?config(mod_vcard, Config),
+    VCardConfig = ?config(mod_vcard_opts, Config),
     case proplists:get_value(backend, VCardConfig) of
         ldap ->
             Config1 = restart_and_prepare_vcard(ldap_only, Config),
@@ -1013,7 +1013,7 @@ prepare_vcards(Config) ->
     Config.
 
 get_backend(Config) ->
-    case lists:keyfind(backend, 1, ?config(mod_vcard, Config)) of
+    case lists:keyfind(backend, 1, ?config(mod_vcard_opts, Config)) of
         {backend, Backend} ->
             Backend;
         _ ->
@@ -1154,7 +1154,7 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    [{mod_vcard, get_vcard_config(Config)} | Config1].
+    [{mod_vcard_opts, get_vcard_config(Config)} | Config1].
 
 restore_vcard_module(Config) ->
     dynamic_modules:restore_modules(Config).
@@ -1175,22 +1175,22 @@ stop_vcard_mod(_Config) ->
     dynamic_modules:stop(SecHostType, mod_vcard).
 
 params_all(Config) ->
-    add_backend_param([], ?config(mod_vcard, Config)).
+    add_backend_param([], ?config(mod_vcard_opts, Config)).
 
 params_limited(Config) ->
     add_backend_param([{matches, 1},
                        {host, subhost_pattern("directory.@HOST@")}],
-                      ?config(mod_vcard, Config)).
+                      ?config(mod_vcard_opts, Config)).
 
 params_limited_infinity(Config) ->
     add_backend_param([{matches, infinity},
                        {host, subhost_pattern("directory.@HOST@")}],
-                      ?config(mod_vcard, Config)).
+                      ?config(mod_vcard_opts, Config)).
 
 params_no(Config) ->
     add_backend_param([{search, false},
                        {host, subhost_pattern("vjud.@HOST@")}],
-                      ?config(mod_vcard, Config)).
+                      ?config(mod_vcard_opts, Config)).
 
 params_ldap_only(Config) ->
     Reported = [{<<"Full Name">>, <<"FN">>},
@@ -1208,7 +1208,7 @@ params_ldap_only(Config) ->
     add_backend_param([{ldap_search_operator, 'or'},
                        {ldap_binary_search_fields, [<<"PHOTO">>]},
                        {ldap_search_reported, Reported}],
-                      ?config(mod_vcard, Config)).
+                      ?config(mod_vcard_opts, Config)).
 
 add_backend_param(Opts, CurrentVCardConfig) ->
     F = fun({Key, _} = Item, Cfg) ->
