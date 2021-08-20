@@ -59,6 +59,7 @@
          leave_and_store_conversation/1,
          groupchat_markers_one_reset_room_created/1,
          groupchat_markers_all_reset_room_created/1,
+         system_message_is_correctly_avoided/1,
          no_aff_stored_and_remove_on_kicked/1,
          no_stored_and_remain_after_kicked/1,
          simple_groupchat_stored_in_all_inbox_muc/1,
@@ -164,7 +165,8 @@ groups() ->
            create_groupchat_no_affiliation_stored,
            leave_and_store_conversation,
            no_aff_stored_and_remove_on_kicked,
-           no_stored_and_remain_after_kicked
+           no_stored_and_remain_after_kicked,
+           system_message_is_correctly_avoided
           ]},
          {muc, [parallel],
           [
@@ -195,14 +197,24 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
+    ok = dynamic_modules:ensure_modules(
+           domain_helper:host_type(mim), inbox_modules()),
+    ok = dynamic_modules:ensure_modules(
+           ct:get_config({hosts, mim, secondary_domain}),
+           [{mod_inbox,
+             [{aff_changes, false},
+              {remove_on_kicked, true},
+              {groupchat, [muclight]},
+              {markers, [displayed]}]}]),
     InboxOptions = inbox_opts(),
     Config1 = escalus:init_per_suite(Config),
     [{inbox_opts, InboxOptions} | Config1].
 
 end_per_suite(Config) ->
-    HostType = domain_helper:host_type(mim),
-    dynamic_modules:stop(HostType, mod_inbox),
+    dynamic_modules:stop(
+      domain_helper:host_type(mim), mod_inbox),
+    dynamic_modules:stop(
+      ct:get_config({hosts, mim, secondary_domain}), mod_inbox),
     escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->
@@ -214,7 +226,7 @@ init_per_group(muclight, Config) ->
 init_per_group(muclight_config, Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
     Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike]));
+    escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
@@ -233,15 +245,17 @@ end_per_group(muclight_config, Config) ->
     muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc_light),
-    escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike]));
+    escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 end_per_group(_GroupName, Config) ->
     Config.
 
 
-init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
+init_per_testcase(TS, Config)
+  when TS =:= create_groupchat_no_affiliation_stored;
+       TS =:= system_message_is_correctly_avoided ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, aff_changes, false),
-    escalus:init_per_testcase(create_groupchat_no_affiliation_stored, Config);
+    escalus:init_per_testcase(TS, Config);
 init_per_testcase(leave_and_store_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, remove_on_kicked, false),
@@ -261,10 +275,12 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
+end_per_testcase(TS, Config)
+  when TS =:= create_groupchat_no_affiliation_stored;
+       TS =:= system_message_is_correctly_avoided ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(create_groupchat_no_affiliation_stored, Config);
+    escalus:end_per_testcase(TS, Config);
 end_per_testcase(leave_and_store_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -1013,6 +1029,38 @@ groupchat_markers_all_reset_room_created(Config) ->
         inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"2-id">>),
         [inbox_helper:mark_last_muclight_message(U, [Alice, Bob, Kate]) || U <- [Bob, Kate]],
         inbox_helper:foreach_check_inbox([Bob, Kate, Alice], 0, AliceRoomJid, Msg)
+      end).
+
+system_message_is_correctly_avoided(Config) ->
+    escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(Alice, AliceBis, Bob) ->
+        %% Variables
+        Id = <<"MyID">>,
+        Msg1 = <<"Hi Room!">>,
+        Msg2 = <<"How are you?">>,
+        Users = [Alice, AliceBis, Bob],
+        InitOccupants = [{M, member} || M <- [AliceBis, Bob]],
+        Room = atom_to_binary(?FUNCTION_NAME, utf8),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        AliceBisJid = inbox_helper:to_bare_lower(AliceBis),
+        RoomJid = room_bin_jid(Room),
+        %% Given a room
+        muc_light_helper:given_muc_light_room(Room, Alice, InitOccupants),
+        BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
+        Stanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
+        %% Alice sends msg to room
+        escalus:send(Alice, Stanza1),
+        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        %% Bob sends second message
+        Stanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg2), Id),
+        escalus:send(Bob, Stanza2),
+        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        %% Alice has one unread message (from Bob)
+        check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg2}]),
+        %% Bob has 0 unread messages because he sent the last message
+        check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg2}]),
+        %% AliceBis has 2 unread messages (from Alice and Bob) and does not have the affiliation
+        check_inbox(AliceBis, [#conv{unread = 2, from = BobRoomJid, to = AliceBisJid, content = Msg2}])
       end).
 
 %%--------------------------------------------------------------------
