@@ -112,82 +112,81 @@ tests() ->
     ].
 
 groups() ->
-    G = [
-         {generic, [parallel],
-          [
-           disco_service,
-           returns_valid_form,
-           returns_error_when_first_bad_form_field_encountered,
-           returns_error_when_bad_form_field_start_sent,
-           returns_error_when_bad_form_field_end_sent,
-           returns_error_when_bad_form_field_order_sent,
-           returns_error_when_bad_form_field_hidden_read_sent,
-           returns_error_when_bad_reset_field_jid,
-           returns_error_when_no_reset_field_jid,
-           returns_error_when_unknown_field_sent
-          ]},
-         {one_to_one, [parallel],
-          [
-           user_has_empty_inbox,
-           msg_sent_stored_in_inbox,
-           msg_with_no_store_is_not_stored_in_inbox,
-           msg_with_store_hint_is_always_stored,
-           carbons_are_not_stored,
-           user_has_two_conversations,
-           msg_sent_to_offline_user,
-           msg_sent_to_not_existing_user,
-           user_has_two_unread_messages,
-           other_resources_do_not_interfere,
-           reset_unread_counter_with_reset_chat_marker,
-           reset_unread_counter_with_reset_stanza,
-           try_to_reset_unread_counter_with_bad_marker,
-           non_reset_marker_should_not_affect_inbox,
-           user_has_only_unread_messages_or_only_read,
-           reset_unread_counter_and_show_only_unread,
-           check_total_unread_count_and_active_conv_count,
-           check_total_unread_count_when_there_are_no_active_conversations,
-           total_unread_count_and_active_convs_are_zero_at_no_activity
-          ]},
-         {muclight, [parallel],
-          [
-           simple_groupchat_stored_in_all_inbox,
-           advanced_groupchat_stored_in_all_inbox,
-           groupchat_markers_one_reset,
-           non_reset_marker_should_not_affect_muclight_inbox,
-           groupchat_reset_stanza_resets_inbox,
-           create_groupchat,
-           leave_and_remove_conversation,
-           groupchat_markers_one_reset_room_created,
-           groupchat_markers_all_reset_room_created
-          ]},
-         {muclight_config, [sequence],
-          [
-           create_groupchat_no_affiliation_stored,
-           leave_and_store_conversation,
-           no_aff_stored_and_remove_on_kicked,
-           no_stored_and_remain_after_kicked,
-           system_message_is_correctly_avoided
-          ]},
-         {muc, [parallel],
-          [
-           simple_groupchat_stored_in_all_inbox_muc,
-           simple_groupchat_stored_in_offline_users_inbox_muc,
-           unread_count_is_the_same_after_going_online_again,
-           unread_count_is_reset_after_sending_chatmarker,
-           non_reset_marker_should_not_affect_muc_inbox,
-           unread_count_is_reset_after_sending_reset_stanza,
-           private_messages_are_handled_as_one2one
-          ]},
-         {timestamps, [parallel],
-          [
-           timestamp_is_updated_on_new_message,
-           order_by_timestamp_ascending,
-           get_by_timestamp_range,
-           get_with_start_timestamp,
-           get_with_end_timestamp
-          ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {generic, [parallel],
+      [
+       disco_service,
+       returns_valid_form,
+       returns_error_when_first_bad_form_field_encountered,
+       returns_error_when_bad_form_field_start_sent,
+       returns_error_when_bad_form_field_end_sent,
+       returns_error_when_bad_form_field_order_sent,
+       returns_error_when_bad_form_field_hidden_read_sent,
+       returns_error_when_bad_reset_field_jid,
+       returns_error_when_no_reset_field_jid,
+       returns_error_when_unknown_field_sent
+      ]},
+     {one_to_one, [parallel],
+      [
+       user_has_empty_inbox,
+       msg_sent_stored_in_inbox,
+       msg_with_no_store_is_not_stored_in_inbox,
+       msg_with_store_hint_is_always_stored,
+       carbons_are_not_stored,
+       user_has_two_conversations,
+       msg_sent_to_offline_user,
+       msg_sent_to_not_existing_user,
+       user_has_two_unread_messages,
+       other_resources_do_not_interfere,
+       reset_unread_counter_with_reset_chat_marker,
+       reset_unread_counter_with_reset_stanza,
+       try_to_reset_unread_counter_with_bad_marker,
+       non_reset_marker_should_not_affect_inbox,
+       user_has_only_unread_messages_or_only_read,
+       reset_unread_counter_and_show_only_unread,
+       check_total_unread_count_and_active_conv_count,
+       check_total_unread_count_when_there_are_no_active_conversations,
+       total_unread_count_and_active_convs_are_zero_at_no_activity
+      ]},
+     {muclight, [parallel],
+      [
+       simple_groupchat_stored_in_all_inbox,
+       advanced_groupchat_stored_in_all_inbox,
+       groupchat_markers_one_reset,
+       non_reset_marker_should_not_affect_muclight_inbox,
+       groupchat_reset_stanza_resets_inbox,
+       create_groupchat,
+       leave_and_remove_conversation,
+       groupchat_markers_one_reset_room_created,
+       groupchat_markers_all_reset_room_created
+      ]},
+     {muclight_config, [sequence],
+      [
+       create_groupchat_no_affiliation_stored,
+       leave_and_store_conversation,
+       no_aff_stored_and_remove_on_kicked,
+       no_stored_and_remain_after_kicked,
+       system_message_is_correctly_avoided
+      ]},
+     {muc, [parallel],
+      [
+       simple_groupchat_stored_in_all_inbox_muc,
+       simple_groupchat_stored_in_offline_users_inbox_muc,
+       unread_count_is_the_same_after_going_online_again,
+       unread_count_is_reset_after_sending_chatmarker,
+       non_reset_marker_should_not_affect_muc_inbox,
+       unread_count_is_reset_after_sending_reset_stanza,
+       private_messages_are_handled_as_one2one
+      ]},
+     {timestamps, [parallel],
+      [
+       timestamp_is_updated_on_new_message,
+       order_by_timestamp_ascending,
+       get_by_timestamp_range,
+       get_with_start_timestamp,
+       get_with_end_timestamp
+      ]}
+    ].
 
 suite() ->
     escalus:suite().
