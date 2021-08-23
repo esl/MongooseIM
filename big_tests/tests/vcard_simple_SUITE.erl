@@ -462,15 +462,11 @@ ensure_started(HostType, Opts) ->
     dynamic_modules:stop(HostType, mod_vcard),
     dynamic_modules:start(HostType, mod_vcard, Opts).
 
-get_vcard_config(Config) ->
-    CfgHost = ct:get_config({hosts, mim, configured_host_type}),
-    rpc(mim(), gen_mod, get_loaded_module_opts, [CfgHost, mod_vcard]).
-
 prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    [{mod_vcard_opts, get_vcard_config(Config)} | Config1].
+    [{mod_vcard_opts, mongoose_helper:get_vcard_config(Config)} | Config1].
 
 host_types() ->
     HostType = ct:get_config({hosts, mim, host_type}),
