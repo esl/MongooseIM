@@ -19,7 +19,8 @@
 
 -export([get_all_static/0,
          get_all_outdated/1,
-         get_domains_by_host_type/1]).
+         get_domains_by_host_type/1,
+         domains_count/0]).
 
 -export([for_each_domain/2]).
 
@@ -93,6 +94,9 @@ get_all_static() ->
 
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
+
+domains_count() ->
+    ets:info(?TABLE, size).
 
 -spec for_each_domain(host_type(), fun((host_type(), domain())-> any())) -> ok.
 for_each_domain(HostType, Func) ->

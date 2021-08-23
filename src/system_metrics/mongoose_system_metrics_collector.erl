@@ -1,5 +1,7 @@
 -module(mongoose_system_metrics_collector).
 
+-include("mongoose.hrl").
+
 -type report_struct() ::
     #{
         report_name := term(),
@@ -24,6 +26,7 @@ get_reports(Fun) ->
 report_getters() ->
     [
         fun get_hosts_count/0,
+        fun get_domains_count/0,
         fun get_modules/0,
         fun get_number_of_custom_modules/0,
         fun get_uptime/0,
@@ -38,16 +41,20 @@ report_getters() ->
     ].
 
 get_hosts_count() ->
-    Hosts = ejabberd_config:get_global_option(hosts),
-    NumberOfHosts = length(Hosts),
+    HostTypes = ?ALL_HOST_TYPES,
+    NumberOfHosts = length(HostTypes),
     [#{report_name => hosts, key => count, value => NumberOfHosts}].
 
+get_domains_count() ->
+    DomainsCount = mongoose_domain_core:domains_count(),
+    [#{report_name => domains, key => count, value => DomainsCount}].
+
 get_modules() ->
-    Hosts = ejabberd_config:get_global_option(hosts),
-    AllModules = lists:flatten([gen_mod:loaded_modules(H) || H <- Hosts]),
+    HostTypes = ?ALL_HOST_TYPES,
+    AllModules = lists:flatten([gen_mod:loaded_modules(H) || H <- HostTypes]),
     ModulesToReport = filter_behaviour_implementations(lists:usort(AllModules),
                                                        mongoose_module_metrics),
-    ModsWithOpts = [get_modules_metrics(Host, ModulesToReport) || Host <- Hosts],
+    ModsWithOpts = [get_modules_metrics(Host, ModulesToReport) || Host <- HostTypes],
     [report_module_with_opts(Mod, Opt) || {Mod, Opt} <- lists:flatten(ModsWithOpts)].
 
 filter_behaviour_implementations(Modules, Behaviour) ->
@@ -78,9 +85,9 @@ report_module_with_opts(Module, Opts) ->
         end,Opts).
 
 get_number_of_custom_modules() ->
-    Hosts = ejabberd_config:get_global_option(hosts),
+    HostTypes = ?ALL_HOST_TYPES,
     AllModules = lists:flatten(
-                    lists:map(fun gen_mod:loaded_modules/1, Hosts)),
+                    lists:map(fun gen_mod:loaded_modules/1, HostTypes)),
     GenMods = filter_behaviour_implementations(AllModules, gen_mod),
     GenModsSet = sets:from_list(GenMods),
     MetricsModule = filter_behaviour_implementations(AllModules,
