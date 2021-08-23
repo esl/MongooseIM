@@ -84,7 +84,7 @@
     default_config/1, default_schema_definition/0, disco_local_items/1,
     force_clear_from_ct/0, is_muc_room_owner/4, prevent_service_unavailable/4,
     process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
-    set_module_opt_from_ct/3
+    set_module_opt_from_ct/3, server_host_to_muc_host/2
 ]).
 
 -type muc_server() :: jid:lserver().
