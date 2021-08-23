@@ -702,7 +702,7 @@ pubsub_node_with_num_and_domain(Num, Dom) ->
 
 -spec rand_name(binary()) -> binary().
 rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(6)),
+    Suffix = base64:encode(crypto:strong_rand_bytes(8)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
 %% Generates nodetree_tree-safe names

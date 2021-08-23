@@ -230,9 +230,12 @@ kv_el(K, V) ->
     #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
 -spec to_lus(Config :: list(), UserAtom :: atom()) -> {binary(), binary()}.
-to_lus(UserAtom, Config) ->
+to_lus(UserAtom, Config) when is_atom(UserAtom) ->
     {lbin(escalus_users:get_username(Config, UserAtom)),
-     lbin(escalus_users:get_server(Config, UserAtom))}.
+     lbin(escalus_users:get_server(Config, UserAtom))};
+to_lus(Client, _Config) ->
+    {lbin(escalus_client:username(Client)),
+     lbin(escalus_client:server(Client))}.
 
 -spec gc_message_verify_fun(Room :: binary(), MsgText :: binary(), Id :: binary()) -> muc_helper:verify_fun().
 gc_message_verify_fun(Room, MsgText, Id) ->
