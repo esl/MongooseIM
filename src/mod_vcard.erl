@@ -232,12 +232,15 @@ stop_hooks(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
 hooks(HostType) ->
-    %% Hook, HostType, Module, Function, Priority
-    [{remove_user,          HostType, ?MODULE, remove_user,        50},
-     {anonymous_purge_hook, HostType, ?MODULE, remove_user,        50},
-     {host_config_update,   HostType, ?MODULE, config_change,      50},
-     {set_vcard,            HostType, ?MODULE, set_vcard,          50},
-     {get_personal_data,    HostType, ?MODULE, get_personal_data,  50}].
+    [{Hook, HostType, ?MODULE, Function, Priority}
+     || {Hook, Function, Priority} <- hooks2()].
+
+hooks2() ->
+    [{remove_user, remove_user, 50},
+     {anonymous_purge_hook, remove_user, 50},
+     {host_config_update, config_change, 50},
+     {set_vcard, set_vcard, 50},
+     {get_personal_data, get_personal_data, 50}].
 
 start_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
