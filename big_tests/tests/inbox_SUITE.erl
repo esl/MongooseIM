@@ -199,7 +199,7 @@ init_per_suite(Config) ->
     ok = dynamic_modules:ensure_modules(
            domain_helper:host_type(mim), inbox_modules()),
     ok = dynamic_modules:ensure_modules(
-           ct:get_config({hosts, mim, secondary_domain}),
+           ct:get_config({hosts, mim, secondary_host_type}),
            [{mod_inbox,
              [{aff_changes, false},
               {remove_on_kicked, true},
@@ -213,7 +213,7 @@ end_per_suite(Config) ->
     dynamic_modules:stop(
       domain_helper:host_type(mim), mod_inbox),
     dynamic_modules:stop(
-      ct:get_config({hosts, mim, secondary_domain}), mod_inbox),
+      ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
     escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->

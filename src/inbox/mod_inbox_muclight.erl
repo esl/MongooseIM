@@ -145,10 +145,6 @@ write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
 is_system_message(_HostType, #jid{lresource = <<>>}, _Receiver, _Packet) ->
     true;
 is_system_message(_HostType, #jid{lresource = _RoomUser}, _Receiver, _Packet) ->
-    false;
-is_system_message(_HostType, Sender, Receiver, Packet) ->
-    ?LOG_WARNING(#{what => inbox_muclight_unknown_message, packet => Packet,
-                   sender => jid:to_binary(Sender), receiver => jid:to_binary(Receiver)}),
     false.
 
 -spec is_change_aff_message(jid:jid(), exml:element(), role()) -> boolean().
