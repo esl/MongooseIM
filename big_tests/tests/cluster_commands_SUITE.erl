@@ -459,7 +459,7 @@ run_interactive(Cmd, Response, Timeout) ->
     Port = erlang:open_port({spawn, Cmd}, [exit_status]),
     %% respond to interactive question (yes/no)
     Port ! {self(), {command, Response}},
-    ejabberdctl_helper:loop(Cmd, Port, [], Timeout).
+    ejabberdctl_helper:loop(Cmd, [], Port, [], Timeout).
 
 nodes_clustered(#{node := Node1Name} = Node1, #{node := Node2Name} = Node2, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),

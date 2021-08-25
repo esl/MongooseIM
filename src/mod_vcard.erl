@@ -45,7 +45,8 @@
 -include("mongoose_config_spec.hrl").
 
 %% gen_mod handlers
--export([start/2, stop/1]).
+-export([start/2, stop/1,
+         supported_features/0]).
 
 %% config_spec
 -export([config_spec/0,
@@ -65,10 +66,10 @@
 -export([process_packet/5]).
 
 %% Hook handlers
--export([process_local_iq/4,
-         process_sm_iq/4,
+-export([process_local_iq/5,
+         process_sm_iq/5,
          remove_user/3,
-         set_vcard/3]).
+         set_vcard/4]).
 
 -export([start_link/2]).
 -export([default_search_fields/0]).
@@ -86,60 +87,67 @@
 -define(MOD_VCARD_BACKEND, mod_vcard_backend).
 -ignore_xref([
     {?MOD_VCARD_BACKEND, backend, 0},
-    {?MOD_VCARD_BACKEND, search_fields, 1},
-    {?MOD_VCARD_BACKEND, get_vcard, 2},
+    {?MOD_VCARD_BACKEND, search_fields, 2},
+    {?MOD_VCARD_BACKEND, get_vcard, 3},
     {?MOD_VCARD_BACKEND, init, 2},
-    {?MOD_VCARD_BACKEND, remove_user, 2},
-    {?MOD_VCARD_BACKEND, search, 2},
-    {?MOD_VCARD_BACKEND, search_reported_fields, 2},
+    {?MOD_VCARD_BACKEND, remove_user, 3},
+    {?MOD_VCARD_BACKEND, search, 3},
+    {?MOD_VCARD_BACKEND, search_reported_fields, 3},
     {?MOD_VCARD_BACKEND, tear_down, 1},
-    {?MOD_VCARD_BACKEND, set_vcard, 4},
+    {?MOD_VCARD_BACKEND, set_vcard, 5},
     behaviour_info/1, config_change/4, get_personal_data/3, process_local_iq/4,
-    process_packet/5, remove_user/3, set_vcard/3, set_vcard/3, start_link/2
+    process_packet/5, remove_user/3, set_vcard/4, start_link/2
 ]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search :: boolean(),
-                host :: binary()}).
+                host_type :: mongooseim:host_type()}).
 
 -type error() :: error | {error, any()}.
 
--callback init(Host, Opts) -> ok when
-    Host :: binary(),
-    Opts :: list().
+-callback init(HostType, Opts) -> ok when
+    HostType :: mongooseim:host_type(),
+    Opts :: gen_mod:module_opts().
 
--callback remove_user(LUser, LServer) -> any() when
-    LUser :: binary(),
-    LServer :: binary().
+-callback remove_user(HostType, LUser, LServer) -> any() when
+    HostType :: mongooseim:host_type(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver().
 
--callback set_vcard(User, VHost, VCard, VCardSearch) ->
+-callback set_vcard(HostType, LUser, LServer, VCard, VCardSearch) ->
     ok | {error, Reason :: term()} when
-    User :: binary(),
-    VHost :: binary(),
+    HostType :: mongooseim:host_type(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     VCard :: term(),
     VCardSearch :: term().
 
--callback get_vcard(LUser, LServer) ->
+-callback get_vcard(HostType, LUser, LServer) ->
     {ok, Vcard :: term()} | {error, Reason :: term()} when
-    LUser :: binary(),
-    LServer :: binary().
+    HostType :: mongooseim:host_type(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver().
 
--callback search(VHost, Data) ->
+-callback search(HostType, LServer, Data) ->
     Res :: term() when
-    VHost :: binary(),
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     Data :: term().
 
--callback search_fields(VHost) ->
+-callback search_fields(HostType, LServer) ->
     Res :: list() when
-    VHost :: binary().
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver().
 
--callback search_reported_fields(VHost, Lang) ->
+-callback search_reported_fields(HostType, LServer, Lang) ->
     Res :: term() when
-    VHost :: jid:lserver(),
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
     Lang :: binary().
 
--callback tear_down(jid:lserver()) -> ok.
+-callback tear_down(HostType) -> ok when
+    HostType :: mongooseim:host_type().
 
 -optional_callbacks([tear_down/1]).
 
@@ -148,10 +156,10 @@
 %%--------------------------------------------------------------------
 
 -spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
-get_personal_data(Acc, _HostType, #jid{luser = LUser, lserver = LServer}) ->
+get_personal_data(Acc, HostType, #jid{luser = LUser, lserver = LServer}) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
-    Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
+    Entries = case mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
                   {ok, Record} ->
                       SerializedRecords = exml:to_binary(Record),
                       [{Jid, SerializedRecords}];
@@ -174,9 +182,9 @@ default_search_fields() ->
      {<<"Organization Name">>, <<"orgname">>},
      {<<"Organization Unit">>, <<"orgunit">>}].
 
--spec get_results_limit(jid:lserver()) -> non_neg_integer() | infinity.
-get_results_limit(LServer) ->
-    case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
+-spec get_results_limit(mongooseim:host_type()) -> non_neg_integer() | infinity.
+get_results_limit(HostType) ->
+    case gen_mod:get_module_opt(HostType, mod_vcard, matches, ?JUD_MATCHES) of
         infinity ->
             infinity;
         Val when is_integer(Val) and (Val > 0) ->
@@ -195,25 +203,80 @@ default_host() ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
-start(VHost, Opts) ->
+start(HostType, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
-    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
+    mod_vcard_backend:init(HostType, Opts),
+    start_hooks(HostType),
+    start_iq_handlers(HostType, Opts),
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},
                  transient, 1000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
-stop(VHost) ->
-    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    stop_hooks(HostType),
+    stop_iq_handlers(HostType),
+    stop_backend(HostType),
+    gen_server:call(Proc, stop),
+    ejabberd_sup:stop_child(Proc),
+    ok.
+
+supported_features() -> [dynamic_domains].
+
+start_hooks(HostType) ->
+    ejabberd_hooks:add(hooks(HostType)).
+
+stop_hooks(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
+
+hooks(HostType) ->
+    [{Hook, HostType, ?MODULE, Function, Priority}
+     || {Hook, Function, Priority} <- hooks2()].
+
+hooks2() ->
+    [{remove_user, remove_user, 50},
+     {anonymous_purge_hook, remove_user, 50},
+     {host_config_update, config_change, 50},
+     {set_vcard, set_vcard, 50},
+     {get_personal_data, get_personal_data, 50}].
+
+start_iq_handlers(HostType, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm,
+                                             fun ?MODULE:process_sm_iq/5, #{}, IQDisc),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_local,
+                                             fun ?MODULE:process_local_iq/5, #{}, IQDisc).
+
+stop_iq_handlers(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_local),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm).
+
+stop_backend(HostType) ->
     try
-      mod_vcard_backend:tear_down(VHost)
+      mod_vcard_backend:tear_down(HostType)
     catch
       error:undef ->
         %% This is expected for other backends than ldap
         ok
-    end,
+    end.
 
-    gen_server:call(Proc, stop),
-    ejabberd_sup:stop_child(Proc).
+%% Domain registration
+maybe_register_search(false, _HostType, _Opts) ->
+    ok;
+maybe_register_search(true, HostType, Opts) ->
+    SubdomainPattern = gen_mod:get_opt(host, Opts, default_host()),
+    PacketHandler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
+    %% Always register, even if search functionality is disabled.
+    %% So, we can send 503 error, instead of 404 error.
+    mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler).
+
+maybe_unregister_search(false, _HostType) ->
+    ok;
+maybe_unregister_search(true, HostType) ->
+    SubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()),
+    mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern).
 
 %%--------------------------------------------------------------------
 %% config_spec
@@ -310,7 +373,7 @@ process_search_reported_spec(KVs) ->
     {SF, VF}.
 
 %%--------------------------------------------------------------------
-%% mongoose_packet_handler callbacks
+%% mongoose_packet_handler callbacks for search
 %%--------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
@@ -318,58 +381,28 @@ process_search_reported_spec(KVs) ->
 process_packet(Acc, From, To, Packet, #{pid := Pid}) ->
     Pid ! {route, From, To, Acc, Packet}.
 
-%%--------------------------------------------------------------------
-%% gen_server callbacks
-%%--------------------------------------------------------------------
-start_link(VHost, Opts) ->
-    Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [VHost, Opts], []).
+handle_route(From, To, Acc, HostType) ->
+    {IQ, Acc1} = mongoose_iq:info(Acc),
+    LServer = directory_jid_to_server_host(To),
+    try do_route(HostType, LServer, From, To, Acc1, IQ)
+    catch
+        Class:Reason:Stacktrace ->
+            ?LOG_ERROR(#{what => vcard_route_failed, acc => Acc,
+                         class => Class, reason => Reason, stacktrace => Stacktrace})
+    end.
 
-init([VHost, Opts]) ->
+%%--------------------------------------------------------------------
+%% gen_server callbacks for search
+%%--------------------------------------------------------------------
+start_link(HostType, Opts) ->
+    Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
+    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], []).
+
+init([HostType, Opts]) ->
     process_flag(trap_exit, true),
-    mod_vcard_backend:init(VHost, Opts),
-    [ ejabberd_hooks:add(Hook, VHost, M, F, Prio)
-      || {Hook, M, F, Prio} <- hook_handlers() ],
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, VHost, ?NS_VCARD,
-                                  ?MODULE, process_sm_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_local, VHost, ?NS_VCARD,
-                                  ?MODULE, process_local_iq, IQDisc),
-    DirectoryHost = gen_mod:get_opt(host, Opts, default_host()),
-
     Search = gen_mod:get_opt(search, Opts, true),
-    case Search of
-        true ->
-            %% TODO: Conversion of this module is not done, it doesn't support dynamic
-            %%       domains yet. Only subdomain registration is done properly.
-            PacketHandler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
-            mongoose_domain_api:register_subdomain(VHost, DirectoryHost, PacketHandler);
-        _ ->
-            ok
-    end,
-    {ok, #state{host = VHost, search = Search}}.
-
-terminate(_Reason, State) ->
-    VHost = State#state.host,
-    case State#state.search of
-        true ->
-            DirectoryHost = gen_mod:get_module_opt(VHost, ?MODULE, host, default_host()),
-            mongoose_domain_api:unregister_subdomain(VHost, DirectoryHost);
-        _ ->
-            ok
-    end,
-    [ ejabberd_hooks:delete(Hook, VHost, M, F, Prio)
-      || {Hook, M, F, Prio} <- hook_handlers() ],
-    gen_iq_handler:remove_iq_handler(ejabberd_local, VHost, ?NS_VCARD),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, VHost, ?NS_VCARD).
-
-hook_handlers() ->
-    %% Hook, Module, Function, Priority
-    [{remove_user,          ?MODULE, remove_user,        50},
-     {anonymous_purge_hook, ?MODULE, remove_user,        50},
-     {host_config_update,   ?MODULE, config_change,      50},
-     {set_vcard,            ?MODULE, set_vcard,          50},
-     {get_personal_data,    ?MODULE, get_personal_data,  50}].
+    maybe_register_search(Search, HostType, Opts),
+    {ok, #state{host_type = HostType, search = Search}}.
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
@@ -378,14 +411,8 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Acc, _El}, State) ->
-    {IQ, Acc1} = mongoose_iq:info(Acc),
-    try do_route(State#state.host, From, To, Acc1, IQ)
-    catch
-        Class:Reason:Stacktrace ->
-            ?LOG_ERROR(#{what => vcard_route_failed, acc => Acc,
-                         class => Class, reason => Reason, stacktrace => Stacktrace})
-    end,
+handle_info({route, From, To, Acc, _El}, State = #state{host_type = HostType}) ->
+    handle_route(From, To, Acc, HostType),
     {noreply, State};
 handle_info(_, State) ->
     {noreply, State}.
@@ -396,12 +423,15 @@ handle_cast(_Request, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+terminate(_Reason, #state{host_type = HostType, search = Search}) ->
+    maybe_unregister_search(Search, HostType).
+
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
-process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq(Acc, _From, _To, IQ = #iq{type = set, sub_el = SubEl}, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
+process_local_iq(Acc, _From, _To, IQ = #iq{type = get}, _Extra) ->
     DescCData = #xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                      <<"\nCopyright (c) Erlang Solutions Ltd.">>]},
     {Acc, IQ#iq{type = result,
@@ -414,17 +444,31 @@ process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
                                               children = [DescCData]}
                                       ]}]}}.
 
-process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
+-spec process_sm_iq(Acc :: mongoose_acc:t(),
+                    From :: jid:jid(),
+                    To :: jid:jid(),
+                    IQ :: jlib:iq(),
+                    Extra :: map()) ->
+     {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+process_sm_iq(Acc, From, To, IQ = #iq{type = set, sub_el = VCARD}, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
+    process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD);
+process_sm_iq(Acc, From, To, IQ = #iq{type = get, sub_el = VCARD}, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
+    process_sm_iq_get(HostType, From, To, Acc, IQ, VCARD).
+
+process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     #jid{user = ToUser, lserver = ToVHost, resource = ToResource} = To,
-    Res = case lists:member(FromVHost, ?MYHOSTS) of
-        true when FromUser == ToUser, FromVHost == ToVHost, ToResource == <<>>;
-                  ToUser == <<>>, ToVHost == <<>> ->
-            try unsafe_set_vcard(From, VCARD) of
+    Local = ((FromUser == ToUser) andalso (FromVHost == ToVHost) andalso (ToResource == <<>>))
+            orelse ((ToUser == <<>>) andalso (ToVHost == <<>>)),
+    Res = case Local of
+        true ->
+            try unsafe_set_vcard(HostType, From, VCARD) of
                 ok ->
                     IQ#iq{type = result, sub_el = []};
-                {error, {invalid_input, Field}} ->
-                    ?LOG_WARNING(#{what => vcard_sm_iq_set_failed,
+                {error, {invalid_input, {Field, Value}}} ->
+                    ?LOG_WARNING(#{what => vcard_sm_iq_set_failed, value => Value,
                                    reason => invalid_input, field => Field, acc => Acc}),
                     Text = io_lib:format("Invalid input for vcard field ~s", [Field]),
                     ReasonEl = mongoose_xmpp_errors:bad_request(<<"en">>, erlang:iolist_to_binary(Text)),
@@ -440,12 +484,15 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                     vcard_error(IQ, mongoose_xmpp_errors:internal_server_error())
             end;
         _ ->
+            ?LOG_WARNING(#{what => vcard_sm_iq_get_failed,
+                           reason => not_allowed, acc => Acc}),
             vcard_error(IQ, mongoose_xmpp_errors:not_allowed())
     end,
-    {Acc, Res};
-process_sm_iq(_, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+    {Acc, Res}.
+
+process_sm_iq_get(HostType, _From, To, Acc, IQ, SubEl) ->
     #jid{luser = LUser, lserver = LServer} = To,
-    Res = try mod_vcard_backend:get_vcard(LUser, LServer) of
+    Res = try mod_vcard_backend:get_vcard(HostType, LUser, LServer) of
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
@@ -457,26 +504,27 @@ process_sm_iq(_, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     end,
     {Acc, Res}.
 
-unsafe_set_vcard(From, VCARD) ->
+unsafe_set_vcard(HostType, From, VCARD) ->
     #jid{user = FromUser, lserver = FromVHost} = From,
     case parse_vcard(FromUser, FromVHost, VCARD) of
         {ok, VcardSearch} ->
-            mod_vcard_backend:set_vcard(FromUser, FromVHost, VCARD, VcardSearch);
+            mod_vcard_backend:set_vcard(HostType, FromUser, FromVHost, VCARD, VcardSearch);
         {error, Reason} ->
             {error, Reason}
     end.
 
 
--spec set_vcard(HandlerAcc, From, VCARD) -> Result when
+-spec set_vcard(HandlerAcc, HostType, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
+      HostType :: mongooseim:host_type(),
       From ::jid:jid(),
       VCARD :: exml:element(),
       Result :: ok | error().
-set_vcard(ok, _From, _VCARD) ->
+set_vcard(ok, _HostType, _From, _VCARD) ->
     ?LOG_DEBUG(#{what => hook_call_already_handled}),
     ok;
-set_vcard({error, no_handler_defined}, From, VCARD) ->
-    try unsafe_set_vcard(From, VCARD) of
+set_vcard({error, no_handler_defined}, HostType, From, VCARD) ->
+    try unsafe_set_vcard(HostType, From, VCARD) of
         ok -> ok;
         {error, Reason} ->
             ?LOG_ERROR(#{what => unsafe_set_vcard_failed, reason => Reason}),
@@ -486,13 +534,14 @@ set_vcard({error, no_handler_defined}, From, VCARD) ->
                               reason => R, stacktrace => S}),
                {error, {E, R}}
     end;
-set_vcard({error, _} = E, _From, _VCARD) -> E.
+set_vcard({error, _} = E, _HostType, _From, _VCARD) -> E.
 
 %% #rh
 remove_user(Acc, User, Server) ->
+    HostType = mongoose_acc:host_type(Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    mod_vcard_backend:remove_user(LUser, LServer),
+    mod_vcard_backend:remove_user(HostType, LUser, LServer),
     Acc.
 
 %% react to "global" config change
@@ -514,16 +563,64 @@ config_change(Acc, _, _, _) ->
 %% ------------------------------------------------------------------
 %% Internal
 %% ------------------------------------------------------------------
-do_route(_VHost, From, #jid{user = User,
-                            resource =Resource} = To, Acc, _IQ)
+do_route(_HostType, _LServer, From,
+         #jid{user = User, resource = Resource} = To, Acc, _IQ)
   when (User /= <<"">>) or (Resource /= <<"">>) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err);
-do_route(VHost, From, To, Acc, #iq{type = set,
-                                      xmlns = ?NS_SEARCH,
-                                      lang = Lang,
-                                      sub_el = SubEl} = IQ) ->
+do_route(HostType, LServer, From, To, Acc,
+         #iq{type = set, xmlns = ?NS_SEARCH, lang = Lang, sub_el = SubEl} = IQ) ->
+    route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
+do_route(HostType, LServer, From, To, _Acc,
+         #iq{type = get, xmlns = ?NS_SEARCH, lang = Lang} = IQ) ->
+    Form = ?FORM(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
+    ResIQ = make_search_form_result_iq(IQ, Form),
+    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+do_route(_HostType, _LServer, From, To, Acc,
+         #iq{type = set, xmlns = ?NS_DISCO_INFO}) ->
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
+    ejabberd_router:route(To, From, Acc1, Err);
+do_route(HostType, _LServer, From, To, _Acc,
+         #iq{type = get, xmlns = ?NS_DISCO_INFO, lang = Lang} = IQ) ->
+    IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
+    FeatureXML = mongoose_disco:features_to_xml(features()),
+    InfoXML = mongoose_disco:get_info(HostType, ?MODULE, <<>>, <<>>),
+    ResIQ = IQ#iq{type = result,
+                  sub_el = [#xmlel{name = <<"query">>,
+                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
+                                   children = IdentityXML ++ FeatureXML ++ InfoXML}]},
+    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+do_route(_HostType, _LServer, From, To, Acc,
+         #iq{type = set, xmlns = ?NS_DISCO_ITEMS}) ->
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
+    ejabberd_router:route(To, From, Acc1, Err);
+do_route(_HostType, _LServer, From, To, _Acc,
+         #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ) ->
+    ResIQ =
+        IQ#iq{type = result,
+              sub_el = [#xmlel{name = <<"query">>,
+                               attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}]}]},
+    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+do_route(_HostType, _LServer, From, To, _Acc,
+         #iq{type = get, xmlns = ?NS_VCARD} = IQ) ->
+    ResIQ =
+        IQ#iq{type = result,
+              sub_el = [#xmlel{name = <<"vCard">>,
+                               attrs = [{<<"xmlns">>, ?NS_VCARD}],
+                               children = iq_get_vcard()}]},
+    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
+    ejabberd_router:route(To, From, Acc1, Err).
 
+make_search_form_result_iq(IQ, Form) ->
+    IQ#iq{type = result,
+          sub_el = [#xmlel{name = <<"query">>,
+                           attrs = [{<<"xmlns">>, ?NS_SEARCH}],
+                           children = Form
+                          }]}.
+
+route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
     XDataEl = find_xdata_el(SubEl),
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
@@ -537,70 +634,25 @@ do_route(VHost, From, To, Acc, #iq{type = set,
                     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
                     ejabberd_router:route(To, From, Acc1, Err);
                 _ ->
-                    {SearchResult, RSMOutEls} = search_result(Lang, To, VHost, XData, RSMIn),
-                    ResIQ = IQ#iq{
-                              type = result,
-                              sub_el = [#xmlel{name = <<"query">>,
-                                               attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                                               children = [#xmlel{name = <<"x">>,
-                                                               attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                                                        {<<"type">>, <<"result">>}],
-                                                               children = SearchResult}
-                                                          ] ++ RSMOutEls}
-                                       ]},
+                    {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, XData, RSMIn),
+                    ResIQ = make_search_result_iq(IQ, SearchResult, RSMOutEls),
                     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
             end
-    end;
-do_route(VHost, From, To, _Acc, #iq{type = get,
-                                        xmlns = ?NS_SEARCH,
-                                        lang = Lang} = IQ) ->
-    ResIQ =
-    IQ#iq{type = result,
-          sub_el = [#xmlel{name = <<"query">>,
-                           attrs = [{<<"xmlns">>, ?NS_SEARCH}],
-                           children = ?FORM(To, mod_vcard_backend:search_fields(VHost), Lang)
-                          }]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Acc, #iq{type = set,
-                                       xmlns = ?NS_DISCO_INFO}) ->
-    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Acc1, Err);
-do_route(VHost, From, To, _Acc, #iq{type = get,
-                                       xmlns = ?NS_DISCO_INFO,
-                                       lang = Lang} = IQ) ->
-    IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
-    FeatureXML = mongoose_disco:features_to_xml(features()),
-    InfoXML = mongoose_disco:get_info(VHost, ?MODULE, <<>>, <<>>),
-    ResIQ = IQ#iq{type = result,
-                  sub_el = [#xmlel{name = <<"query">>,
-                                   attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
-                                   children = IdentityXML ++ FeatureXML ++ InfoXML}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Acc, #iq{type=set,
-                                       xmlns = ?NS_DISCO_ITEMS}) ->
-    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Acc1, Err);
-do_route(_VHost, From, To, _Acc, #iq{ type = get,
-                                         xmlns = ?NS_DISCO_ITEMS} = IQ) ->
-    ResIQ =
-        IQ#iq{type = result,
-              sub_el = [#xmlel{name = <<"query">>,
-                               attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}]}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, _Acc, #iq{ type = get,
-                                         xmlns = ?NS_VCARD,
-                                         lang = Lang} = IQ) ->
-    ResIQ =
-        IQ#iq{type = result,
-              sub_el = [#xmlel{name = <<"vCard">>,
-                               attrs = [{<<"xmlns">>, ?NS_VCARD}],
-                               children = iq_get_vcard(Lang)}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_VHost, From, To, Acc, _IQ) ->
-    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Acc1, Err).
+    end.
 
-iq_get_vcard(_Lang) ->
+make_search_result_iq(IQ, SearchResult, RSMOutEls) ->
+    IQ#iq{
+        type = result,
+        sub_el = [#xmlel{name = <<"query">>,
+                         attrs = [{<<"xmlns">>, ?NS_SEARCH}],
+                         children = [#xmlel{name = <<"x">>,
+                                         attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                                  {<<"type">>, <<"result">>}],
+                                         children = SearchResult}
+                                    ] ++ RSMOutEls}
+                 ]}.
+
+iq_get_vcard() ->
     [#xmlel{name = <<"FN">>,
             children = [#xmlcdata{content = <<"MongooseIM/mod_vcard">>}]},
      #xmlel{name = <<"URL">>, children = [#xmlcdata{content = ?MONGOOSE_URI}]},
@@ -630,12 +682,12 @@ identity(Lang) ->
       type => <<"user">>,
       name => translate:translate(Lang, <<"vCard User Search">>)}.
 
-search_result(Lang, JID, VHost, Data, RSMIn) ->
+search_result(HostType, LServer, Lang, JID, Data, RSMIn) ->
     Text = translate:translate(Lang, <<"Search Results for ">>),
     TitleEl = #xmlel{name = <<"title">>,
                      children = [#xmlcdata{content = [Text, jid:to_binary(JID)]}]},
-    ReportedFields = mod_vcard_backend:search_reported_fields(VHost, Lang),
-    Results1 = mod_vcard_backend:search(VHost, Data),
+    ReportedFields = mod_vcard_backend:search_reported_fields(HostType, LServer, Lang),
+    Results1 = mod_vcard_backend:search(HostType, LServer, Data),
     Results2 = lists:filtermap(
                  fun(Result) ->
                          case search_result_get_jid(Result) of
@@ -650,12 +702,8 @@ search_result(Lang, JID, VHost, Data, RSMIn) ->
     Results3 = lists:sort(Results2),
     {Results4, RSMOutEls} =
         apply_rsm_to_search_results(Results3, RSMIn, none),
-    Results5 = [Result
-                || {_, Result} <- Results4],
-
-    {[TitleEl, ReportedFields
-      | Results5],
-     RSMOutEls}.
+    Results5 = [Result || {_, Result} <- Results4],
+    {[TitleEl, ReportedFields | Results5], RSMOutEls}.
 
 %% No RSM input, create empty
 apply_rsm_to_search_results(Results, none, RSMOut) ->
@@ -811,14 +859,14 @@ parse_vcard(User, VHost, VCARD) ->
                            orgunit   = OrgUnit,  lorgunit   = LOrgUnit
                           }}
     catch
-        throw:{invalid_input, FieldName} ->
-            {error, {invalid_input, FieldName}}
+        throw:{invalid_input, Info} ->
+            {error, {invalid_input, Info}}
     end.
 
 prepare_index(FieldName, Value) ->
     case jid:str_tolower(Value) of
         error ->
-            throw({invalid_input, FieldName});
+            throw({invalid_input, {FieldName, Value}});
         LValue ->
             LValue
     end.
@@ -853,3 +901,11 @@ config_metrics(Host) ->
 
 vcard_error(IQ = #iq{sub_el = VCARD}, ReasonEl) ->
     IQ#iq{type = error, sub_el = [VCARD, ReasonEl]}.
+
+directory_jid_to_server_host(#jid{lserver = DirHost}) ->
+    case mongoose_domain_api:get_subdomain_info(DirHost) of
+        {ok, #{parent_domain := ServerHost}} when is_binary(ServerHost) ->
+            ServerHost;
+        Other ->
+            error({dir_jid_to_server_host_failed, DirHost, Other})
+    end.

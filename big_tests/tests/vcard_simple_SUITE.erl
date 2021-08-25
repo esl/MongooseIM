@@ -70,23 +70,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    NewConfig0 = escalus:init_per_suite(Config),
-    NewConfig = case is_vcard_ldap() of
-        true ->
-            configure_ldap_vcards(NewConfig0);
-        _ ->
-            NewConfig0
-    end,
-    escalus:create_users(NewConfig, escalus:get_users([alice, bob])).
+    Config1 = prepare_vcard_module(escalus:init_per_suite(Config)),
+    configure_mod_vcard(Config1),
+    escalus:create_users(Config1, escalus:get_users([alice, bob])).
 
 end_per_suite(Config) ->
     NewConfig = escalus:delete_users(Config, escalus:get_users([alice, bob])),
-    case is_vcard_ldap() of
-        true ->
-            restore_ldap_vcards_config(Config);
-        _ ->
-            ok
-    end,
+    restore_vcard_module(NewConfig),
     escalus:end_per_suite(NewConfig).
 
 init_per_group(_GN, Config) ->
@@ -451,22 +441,37 @@ get_FN(Config) ->
             <<"Old Name">>
     end.
 
-configure_ldap_vcards(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
-    {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
-    dynamic_modules:stop(Domain, mod_vcard),
-    Cfg = [{backend,ldap}, {host, subhost_pattern("vjud.@HOST@")},
-           {ldap_uids, [{<<"uid">>}]}, %% equivalent to {<<"uid">>, <<"%u">>}
-           {ldap_filter,"(objectClass=inetOrgPerson)"},
-           {ldap_base,"ou=Users,dc=esl,dc=com"},
-           {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
-           {ldap_vcard_map,[{"FN","%s",["cn"]}]}],
-    dynamic_modules:start(Domain, mod_vcard, Cfg),
-    [{mod_vcard, CurrentVcardConfig} | Config].
+configure_mod_vcard(Config) ->
+    HostType = ct:get_config({hosts, mim, host_type}),
+    case is_vcard_ldap() of
+        true ->
+            ensure_started(HostType, ldap_opts());
+        _ ->
+            ensure_started(HostType, ?config(mod_vcard_opts, Config))
+    end.
 
-restore_ldap_vcards_config(Config) ->
-    OriginalConfig = ?config(mod_vcard, Config),
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Domain, mod_vcard),
-    dynamic_modules:start(Domain, mod_vcard, OriginalConfig).
+ldap_opts() ->
+    [{backend,ldap}, {host, subhost_pattern("vjud.@HOST@")},
+     {ldap_uids, [{<<"uid">>}]}, %% equivalent to {<<"uid">>, <<"%u">>}
+     {ldap_filter,"(objectClass=inetOrgPerson)"},
+     {ldap_base,"ou=Users,dc=esl,dc=com"},
+     {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
+     {ldap_vcard_map,[{"FN","%s",["cn"]}]}].
+
+ensure_started(HostType, Opts) ->
+    dynamic_modules:stop(HostType, mod_vcard),
+    dynamic_modules:start(HostType, mod_vcard, Opts).
+
+prepare_vcard_module(Config) ->
+    %% Keep the old config, so we can undo our changes, once finished testing
+    Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
+    %% Get a list of options, we can use as a prototype to start new modules
+    [{mod_vcard_opts, mongoose_helper:get_vcard_config(Config)} | Config1].
+
+host_types() ->
+    HostType = ct:get_config({hosts, mim, host_type}),
+    SecHostType = ct:get_config({hosts, mim, secondary_host_type}),
+    lists:usort([HostType, SecHostType]).
+
+restore_vcard_module(Config) ->
+    dynamic_modules:restore_modules(Config).

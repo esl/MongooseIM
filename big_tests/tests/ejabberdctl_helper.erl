@@ -44,12 +44,19 @@ run(Cmd, Args, Opts) ->
 run(Cmd, Args, Opts, Timeout) ->
     Port = erlang:open_port({spawn_executable, Cmd},
                             [exit_status, {args, Args} | Opts]),
-    loop(Cmd, Port, [], Timeout).
+    loop(Cmd, Args, Port, [], Timeout).
 
-loop(Cmd, Port, Data, Timeout) ->
+loop(Cmd, Args, Port, Data, Timeout) ->
     receive
-        {Port, {data, NewData}} -> loop(Cmd, Port, Data++NewData, Timeout);
-        {Port, {exit_status, ExitStatus}} -> {Data, ExitStatus}
+        {Port, {data, NewData}} -> loop(Cmd, Args, Port, Data++NewData, Timeout);
+        {Port, {exit_status, ExitStatus}} ->
+            log_command(Cmd, Args, Data, ExitStatus),
+            {Data, ExitStatus}
     after Timeout ->
         erlang:error(#{reason => timeout, command => Cmd})
     end.
+
+log_command(Cmd, Args, Data, ExitStatus) ->
+    Pattern = lists:flatten(lists:duplicate(length(Args), " ~s")),
+    ct:log("Execute ~s " ++ Pattern ++ "~nResult ~p~nExitStatus ~p",
+           [Cmd] ++ Args  ++ [Data, ExitStatus]).

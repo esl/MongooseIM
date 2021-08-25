@@ -29,26 +29,17 @@
 -module(mod_vcard_ldap).
 -author('alexey@process-one.net').
 
--behaviour(gen_server).
 -behaviour(mod_vcard).
-
-%% gen_server callbacks.
--export([init/1, handle_info/2, handle_call/3,
-         handle_cast/2,  code_change/3, terminate/2]).
-
--export([start_link/2]).
 
 %% mod_vcards callbacks
 -export([init/2,
          tear_down/1,
-         remove_user/2,
-         get_vcard/2,
-         set_vcard/4,
-         search/2,
-         search_fields/1,
-         search_reported_fields/2]).
-
--ignore_xref([start_link/2]).
+         remove_user/3,
+         get_vcard/3,
+         set_vcard/5,
+         search/3,
+         search_fields/2,
+         search_reported_fields/3]).
 
 -include("mongoose.hrl").
 -include("eldap.hrl").
@@ -130,23 +121,19 @@
 %% mod_vcards callbacks
 %%--------------------------------------------------------------------
 
-init(VHost, Options) ->
-    start_link(VHost, Options),
+init(_HostType, _Opts) ->
     ok.
 
-tear_down(LServer) ->
-    Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
-    gen_server:call(Proc, stop),
+tear_down(_HostType) ->
     ok.
 
-remove_user(_LUser, _LServer) ->
+remove_user(_HostType, _LUser, _LServer) ->
     %% no need to handle this - in ldap
     %% removing user = delete all user info
     ok.
 
-get_vcard(LUser, LServer) ->
-    Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
-    {ok, State} = gen_server:call(Proc, get_state),
+get_vcard(HostType, LUser, LServer) ->
+    State = get_state(HostType, LServer),
     LServer = State#state.serverhost,
     JID = jid:make(LUser, LServer, <<>>),
     case ejabberd_auth:does_user_exist(JID) of
@@ -163,22 +150,19 @@ get_vcard(LUser, LServer) ->
             {ok, []}
     end.
 
-set_vcard(_User, _VHost, _VCard, _VCardSearch) ->
+set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
-search(LServer, Data) ->
-    Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
-    {ok, State} = gen_server:call(Proc, get_state),
+search(HostType, LServer, Data) ->
+    State = get_state(HostType, LServer),
     search_internal(State, Data).
 
-search_fields(Host) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    {ok, State} = gen_server:call(Proc, get_state),
+search_fields(HostType, LServer) ->
+    State = get_state(HostType, LServer),
     State#state.search_fields.
 
-search_reported_fields(Host, Lang) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    {ok, State} = gen_server:call(Proc, get_state),
+search_reported_fields(HostType, LServer, Lang) ->
+    State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
     #xmlel{name = <<"reported">>, attrs = [],
            children =
@@ -190,38 +174,6 @@ search_reported_fields(Host, Lang) ->
                                       Value)
                      end,
                      SearchReported)}.
-
-
-%%--------------------------------------------------------------------
-%% gen server callbacks
-%%--------------------------------------------------------------------
-
-start_link(Host, Opts) ->
-    Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE,
-                          [Host, Opts], []).
-
-init([Host, Opts]) ->
-    process_flag(trap_exit, true),
-    State = parse_options(Host, Opts),
-    {ok, State}.
-
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-handle_call(get_state, _From, State) ->
-    {reply, {ok, State}, State};
-handle_call(stop, _From, State) ->
-    {stop, normal, ok, State};
-handle_call(_Request, _From, State) ->
-    {reply, bad_request, State}.
-
-handle_cast(_Request, State) -> {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-terminate(_Reason, _State) ->
-    ok.
 
 %%--------------------------------------------------------------------
 %% Internal
@@ -451,8 +403,9 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
                         [{<<"%u">>, User}, {<<"%d">>, Domain}] ++
                         [{<<"%s">>, V, 1} || V <- AttrValues]).
 
-parse_options(Host, Opts) ->
-    MyHost = gen_mod:get_opt_subhost(Host, Opts, mod_vcard:default_host()),
+get_state(HostType, LServer) ->
+    Opts = gen_mod:get_loaded_module_opts(HostType, mod_vcard),
+    MyHost = gen_mod:get_opt_subhost(LServer, Opts, mod_vcard:default_host()),
     Matches = eldap_utils:get_mod_opt(matches, Opts,
                              fun(infinity) -> infinity;
                                 (I) when is_integer(I), I>=0 -> I
@@ -461,7 +414,7 @@ parse_options(Host, Opts) ->
                                       fun(A) when is_atom(A) -> A end, default),
     Base = eldap_utils:get_base(Opts),
     DerefAliases = eldap_utils:get_deref_aliases(Opts),
-    UIDs = eldap_utils:get_uids(Host, Opts),
+    UIDs = eldap_utils:get_uids(LServer, Opts),
     UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
     {ok, SearchFilter} =
         eldap_filter:parse(eldap_utils:get_search_filter(UserFilter)),
@@ -509,9 +462,9 @@ parse_options(Host, Opts) ->
                                              SearchOperatorFun, 'and'),
     BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
                                            fun(X) -> X end, []),
-    #state{serverhost = Host,
+    #state{serverhost = LServer,
            myhost = MyHost,
-           eldap_id = {Host, EldapID},
+           eldap_id = {HostType, EldapID},
            base = Base,
            deref = DerefAliases,
            uids = UIDs, vcard_map = VCardMap,
