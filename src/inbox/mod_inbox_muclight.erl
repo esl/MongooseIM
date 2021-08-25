@@ -142,19 +142,10 @@ write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
                          Sender :: jid:jid(),
                          Receiver :: jid:jid(),
                          Packet :: exml:element()) -> boolean().
-is_system_message(HostType, Sender, Receiver, Packet) ->
-    ReceiverDomain = Receiver#jid.lserver,
-    MUCLightDomain = mod_muc_light:server_host_to_muc_host(HostType, ReceiverDomain),
-    case {Sender#jid.lserver, Sender#jid.lresource} of
-        {MUCLightDomain, <<>>} ->
-            true;
-        {MUCLightDomain, _RoomUser} ->
-            false;
-        _Other ->
-            ?LOG_WARNING(#{what => inbox_muclight_unknown_message, packet => Packet,
-                           sender => jid:to_binary(Sender), receiver => jid:to_binary(Receiver)})
-    end.
-
+is_system_message(_HostType, #jid{lresource = <<>>}, _Receiver, _Packet) ->
+    true;
+is_system_message(_HostType, #jid{lresource = _RoomUser}, _Receiver, _Packet) ->
+    false.
 
 -spec is_change_aff_message(jid:jid(), exml:element(), role()) -> boolean().
 is_change_aff_message(User, Packet, Role) ->
@@ -176,7 +167,7 @@ system_message_type(User, Packet) ->
             kick;
        true ->
             other
-            end.
+    end.
 
 -spec is_invitation_message(jid:jid(), exml:element()) -> boolean().
 is_invitation_message(User, Packet) ->

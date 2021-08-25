@@ -59,6 +59,7 @@
          leave_and_store_conversation/1,
          groupchat_markers_one_reset_room_created/1,
          groupchat_markers_all_reset_room_created/1,
+         system_message_is_correctly_avoided/1,
          no_aff_stored_and_remove_on_kicked/1,
          no_stored_and_remain_after_kicked/1,
          simple_groupchat_stored_in_all_inbox_muc/1,
@@ -111,81 +112,81 @@ tests() ->
     ].
 
 groups() ->
-    G = [
-         {generic, [parallel],
-          [
-           disco_service,
-           returns_valid_form,
-           returns_error_when_first_bad_form_field_encountered,
-           returns_error_when_bad_form_field_start_sent,
-           returns_error_when_bad_form_field_end_sent,
-           returns_error_when_bad_form_field_order_sent,
-           returns_error_when_bad_form_field_hidden_read_sent,
-           returns_error_when_bad_reset_field_jid,
-           returns_error_when_no_reset_field_jid,
-           returns_error_when_unknown_field_sent
-          ]},
-         {one_to_one, [parallel],
-          [
-           user_has_empty_inbox,
-           msg_sent_stored_in_inbox,
-           msg_with_no_store_is_not_stored_in_inbox,
-           msg_with_store_hint_is_always_stored,
-           carbons_are_not_stored,
-           user_has_two_conversations,
-           msg_sent_to_offline_user,
-           msg_sent_to_not_existing_user,
-           user_has_two_unread_messages,
-           other_resources_do_not_interfere,
-           reset_unread_counter_with_reset_chat_marker,
-           reset_unread_counter_with_reset_stanza,
-           try_to_reset_unread_counter_with_bad_marker,
-           non_reset_marker_should_not_affect_inbox,
-           user_has_only_unread_messages_or_only_read,
-           reset_unread_counter_and_show_only_unread,
-           check_total_unread_count_and_active_conv_count,
-           check_total_unread_count_when_there_are_no_active_conversations,
-           total_unread_count_and_active_convs_are_zero_at_no_activity
-          ]},
-         {muclight, [parallel],
-          [
-           simple_groupchat_stored_in_all_inbox,
-           advanced_groupchat_stored_in_all_inbox,
-           groupchat_markers_one_reset,
-           non_reset_marker_should_not_affect_muclight_inbox,
-           groupchat_reset_stanza_resets_inbox,
-           create_groupchat,
-           leave_and_remove_conversation,
-           groupchat_markers_one_reset_room_created,
-           groupchat_markers_all_reset_room_created
-          ]},
-         {muclight_config, [sequence],
-          [
-           create_groupchat_no_affiliation_stored,
-           leave_and_store_conversation,
-           no_aff_stored_and_remove_on_kicked,
-           no_stored_and_remain_after_kicked
-          ]},
-         {muc, [parallel],
-          [
-           simple_groupchat_stored_in_all_inbox_muc,
-           simple_groupchat_stored_in_offline_users_inbox_muc,
-           unread_count_is_the_same_after_going_online_again,
-           unread_count_is_reset_after_sending_chatmarker,
-           non_reset_marker_should_not_affect_muc_inbox,
-           unread_count_is_reset_after_sending_reset_stanza,
-           private_messages_are_handled_as_one2one
-          ]},
-         {timestamps, [parallel],
-          [
-           timestamp_is_updated_on_new_message,
-           order_by_timestamp_ascending,
-           get_by_timestamp_range,
-           get_with_start_timestamp,
-           get_with_end_timestamp
-          ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {generic, [parallel],
+      [
+       disco_service,
+       returns_valid_form,
+       returns_error_when_first_bad_form_field_encountered,
+       returns_error_when_bad_form_field_start_sent,
+       returns_error_when_bad_form_field_end_sent,
+       returns_error_when_bad_form_field_order_sent,
+       returns_error_when_bad_form_field_hidden_read_sent,
+       returns_error_when_bad_reset_field_jid,
+       returns_error_when_no_reset_field_jid,
+       returns_error_when_unknown_field_sent
+      ]},
+     {one_to_one, [parallel],
+      [
+       user_has_empty_inbox,
+       msg_sent_stored_in_inbox,
+       msg_with_no_store_is_not_stored_in_inbox,
+       msg_with_store_hint_is_always_stored,
+       carbons_are_not_stored,
+       user_has_two_conversations,
+       msg_sent_to_offline_user,
+       msg_sent_to_not_existing_user,
+       user_has_two_unread_messages,
+       other_resources_do_not_interfere,
+       reset_unread_counter_with_reset_chat_marker,
+       reset_unread_counter_with_reset_stanza,
+       try_to_reset_unread_counter_with_bad_marker,
+       non_reset_marker_should_not_affect_inbox,
+       user_has_only_unread_messages_or_only_read,
+       reset_unread_counter_and_show_only_unread,
+       check_total_unread_count_and_active_conv_count,
+       check_total_unread_count_when_there_are_no_active_conversations,
+       total_unread_count_and_active_convs_are_zero_at_no_activity
+      ]},
+     {muclight, [parallel],
+      [
+       simple_groupchat_stored_in_all_inbox,
+       advanced_groupchat_stored_in_all_inbox,
+       groupchat_markers_one_reset,
+       non_reset_marker_should_not_affect_muclight_inbox,
+       groupchat_reset_stanza_resets_inbox,
+       create_groupchat,
+       leave_and_remove_conversation,
+       groupchat_markers_one_reset_room_created,
+       groupchat_markers_all_reset_room_created
+      ]},
+     {muclight_config, [sequence],
+      [
+       create_groupchat_no_affiliation_stored,
+       leave_and_store_conversation,
+       no_aff_stored_and_remove_on_kicked,
+       no_stored_and_remain_after_kicked,
+       system_message_is_correctly_avoided
+      ]},
+     {muc, [parallel],
+      [
+       simple_groupchat_stored_in_all_inbox_muc,
+       simple_groupchat_stored_in_offline_users_inbox_muc,
+       unread_count_is_the_same_after_going_online_again,
+       unread_count_is_reset_after_sending_chatmarker,
+       non_reset_marker_should_not_affect_muc_inbox,
+       unread_count_is_reset_after_sending_reset_stanza,
+       private_messages_are_handled_as_one2one
+      ]},
+     {timestamps, [parallel],
+      [
+       timestamp_is_updated_on_new_message,
+       order_by_timestamp_ascending,
+       get_by_timestamp_range,
+       get_with_start_timestamp,
+       get_with_end_timestamp
+      ]}
+    ].
 
 suite() ->
     escalus:suite().
@@ -195,14 +196,24 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
+    ok = dynamic_modules:ensure_modules(
+           domain_helper:host_type(mim), inbox_modules()),
+    ok = dynamic_modules:ensure_modules(
+           ct:get_config({hosts, mim, secondary_host_type}),
+           [{mod_inbox,
+             [{aff_changes, false},
+              {remove_on_kicked, true},
+              {groupchat, [muclight]},
+              {markers, [displayed]}]}]),
     InboxOptions = inbox_opts(),
     Config1 = escalus:init_per_suite(Config),
     [{inbox_opts, InboxOptions} | Config1].
 
 end_per_suite(Config) ->
-    HostType = domain_helper:host_type(mim),
-    dynamic_modules:stop(HostType, mod_inbox),
+    dynamic_modules:stop(
+      domain_helper:host_type(mim), mod_inbox),
+    dynamic_modules:stop(
+      ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
     escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->
@@ -214,7 +225,7 @@ init_per_group(muclight, Config) ->
 init_per_group(muclight_config, Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
     Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike]));
+    escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 init_per_group(muc, Config) ->
     muc_helper:load_muc(),
     inbox_helper:reload_inbox_option(Config, groupchat, [muc]);
@@ -233,15 +244,17 @@ end_per_group(muclight_config, Config) ->
     muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc_light),
-    escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike]));
+    escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 end_per_group(_GroupName, Config) ->
     Config.
 
 
-init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
+init_per_testcase(TS, Config)
+  when TS =:= create_groupchat_no_affiliation_stored;
+       TS =:= system_message_is_correctly_avoided ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, aff_changes, false),
-    escalus:init_per_testcase(create_groupchat_no_affiliation_stored, Config);
+    escalus:init_per_testcase(TS, Config);
 init_per_testcase(leave_and_store_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:reload_inbox_option(Config, remove_on_kicked, false),
@@ -261,10 +274,12 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
+end_per_testcase(TS, Config)
+  when TS =:= create_groupchat_no_affiliation_stored;
+       TS =:= system_message_is_correctly_avoided ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(create_groupchat_no_affiliation_stored, Config);
+    escalus:end_per_testcase(TS, Config);
 end_per_testcase(leave_and_store_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -1013,6 +1028,38 @@ groupchat_markers_all_reset_room_created(Config) ->
         inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"2-id">>),
         [inbox_helper:mark_last_muclight_message(U, [Alice, Bob, Kate]) || U <- [Bob, Kate]],
         inbox_helper:foreach_check_inbox([Bob, Kate, Alice], 0, AliceRoomJid, Msg)
+      end).
+
+system_message_is_correctly_avoided(Config) ->
+    escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(Alice, AliceBis, Bob) ->
+        %% Variables
+        Id = <<"MyID">>,
+        Msg1 = <<"Hi Room!">>,
+        Msg2 = <<"How are you?">>,
+        Users = [Alice, AliceBis, Bob],
+        InitOccupants = [{M, member} || M <- [AliceBis, Bob]],
+        Room = atom_to_binary(?FUNCTION_NAME, utf8),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        AliceBisJid = inbox_helper:to_bare_lower(AliceBis),
+        RoomJid = room_bin_jid(Room),
+        %% Given a room
+        muc_light_helper:given_muc_light_room(Room, Alice, InitOccupants),
+        BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
+        Stanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
+        %% Alice sends msg to room
+        escalus:send(Alice, Stanza1),
+        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        %% Bob sends second message
+        Stanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg2), Id),
+        escalus:send(Bob, Stanza2),
+        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        %% Alice has one unread message (from Bob)
+        check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg2}]),
+        %% Bob has 0 unread messages because he sent the last message
+        check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg2}]),
+        %% AliceBis has 2 unread messages (from Alice and Bob) and does not have the affiliation
+        check_inbox(AliceBis, [#conv{unread = 2, from = BobRoomJid, to = AliceBisJid, content = Msg2}])
       end).
 
 %%--------------------------------------------------------------------
