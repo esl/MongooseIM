@@ -44,6 +44,9 @@ groups() ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
+host_type() ->
+    ct:get_config({hosts, mim, host_type}).
+
 %%%===================================================================
 %%% Overall setup/teardown
 %%%===================================================================
@@ -57,30 +60,31 @@ end_per_suite(Config) ->
 %%% Group specific setup/teardown
 %%%===================================================================
 init_per_group(Group, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            Config2 = dynamic_modules:save_modules(domain(), Config),
-            rpc(mim(), gen_mod_deps, start_modules, [domain(), group_to_modules(Group)]),
+            Config2 = dynamic_modules:save_modules(host_type(), Config),
+            rpc(mim(), gen_mod_deps, start_modules, [host_type(), group_to_modules(Group)]),
             Config2;
         false ->
             {skip, require_rdbms}
     end.
 
 end_per_group(_Groupname, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(domain(), Config);
+            dynamic_modules:restore_modules(host_type(), Config);
         false ->
             ok
     end,
     ok.
 
 group_to_modules(mam_removal) ->
-    HostPattern = subhost_pattern(muc_light_helper:muc_host()),
-    [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, HostPattern}]}]},
-     {mod_muc_light, []}];
+    MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MucHost}]}]},
+     {mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(muc_light_removal) ->
-    [{mod_muc_light, [{backend, rdbms}]}];
+    MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, []}];
 group_to_modules(private_removal) ->
@@ -143,22 +147,22 @@ muc_light_removal(Config0) ->
         %% GIVEN a room
         Room = muc_helper:fresh_room_name(),
         MucHost = muc_light_helper:muc_host(),
+        RoomAddr = <<Room/binary, "@", MucHost/binary>>,
         muc_light_helper:create_room(Room, MucHost, alice,
                                      [], Config, muc_light_helper:ver(1)),
-        RoomAddr = <<Room/binary, "@", MucHost/binary>>,
         escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, <<"text">>)),
         escalus:wait_for_stanza(Alice),
-        RoomID = select_room_id(domain(), Room, MucHost),
-        {selected, [_]} = select_affs_by_room_id(domain(), RoomID),
-        {selected, [_|_]} = select_config_by_room_id(domain(), RoomID),
+        RoomID = select_room_id(host_type(), Room, MucHost),
+        {selected, [_]} = select_affs_by_room_id(host_type(), RoomID),
+        {selected, [_|_]} = select_config_by_room_id(host_type(), RoomID),
         {ok, _RoomConfig, _AffUsers, _Version} = get_room_info(Room, MucHost),
         %% WHEN domain hook called
         run_remove_domain(),
         %% THEN Room info not available
         {error, not_exists} = get_room_info(Room, MucHost),
         %% THEN Tables are empty
-        {selected, []} = select_affs_by_room_id(domain(), RoomID),
-        {selected, []} = select_config_by_room_id(domain(), RoomID)
+        {selected, []} = select_affs_by_room_id(host_type(), RoomID),
+        {selected, []} = select_config_by_room_id(host_type(), RoomID)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}], F).
 
@@ -198,7 +202,7 @@ private_removal(Config) ->
       end).
 
 run_remove_domain() ->
-    rpc(mim(), mongoose_hooks, remove_domain, [domain(), domain()]).
+    rpc(mim(), mongoose_hooks, remove_domain, [host_type(), domain()]).
 
 get_room_info(RoomU, RoomS) ->
     rpc(mim(), mod_muc_light_db_backend, get_info, [{RoomU, RoomS}]).
