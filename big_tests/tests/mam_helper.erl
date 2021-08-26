@@ -703,8 +703,8 @@ clean_room_archive(Config) ->
     Config.
 
 serv_users(Config) ->
-    [serv_user(Config, UserSpec)
-     || {_, UserSpec} <- escalus_users:get_users(all)].
+    Users = ?config(escalus_users, Config),
+    [serv_user(Config, UserSpec) || {_Tag, UserSpec} <- Users].
 
 serv_user(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
