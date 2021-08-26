@@ -303,7 +303,7 @@ remove_archive(Acc, HostType, ArcID, _ArcJID) ->
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    SubHosts = get_subhosts(Domain),
+    SubHosts = get_subhosts(HostType, Domain),
     {atomic, _} = mongoose_rdbms:sql_transaction(HostType, fun() ->
             [remove_domain_trans(HostType, SubHost) || SubHost <- SubHosts]
         end),
@@ -313,11 +313,13 @@ remove_domain_trans(HostType, MucHost) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain, [MucHost]),
     mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain_users, [MucHost]).
 
-get_subhosts(Domain) ->
-    MucHost = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
-                                        mod_muc_light:default_host()),
-    LightHost = gen_mod:get_module_opt_subhost(Domain, mod_muc,
-                                        mod_muc:default_host()),
+get_subhosts(HostType, Domain) ->
+    MucHostPattern = gen_mod:get_module_opt(HostType, mod_muc_light, host,
+                                            mod_muc_light:default_host()),
+    LightHostPattern = gen_mod:get_module_opt(HostType, mod_muc, host,
+                                              mod_muc:default_host()),
+    MucHost = mongoose_subdomain_utils:get_fqdn(MucHostPattern, Domain),
+    LightHost = mongoose_subdomain_utils:get_fqdn(LightHostPattern, Domain),
     lists:usort([MucHost, LightHost]).
 
 %% GDPR logic
