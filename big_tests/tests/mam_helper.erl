@@ -106,6 +106,7 @@
          host/0,
          host_type/0,
          wait_for_archive_size/2,
+         wait_for_archive_size_with_host_type/3,
          verify_archived_muc_light_aff_msg/3,
          wait_for_room_archive_size/3,
          generate_msg_for_date_user/3,
@@ -724,6 +725,21 @@ wait_for_archive_size(Server, Username, ExpectedSize) ->
                                  name => archive_size
                                 }).
 
+wait_for_archive_size_with_host_type(HostType, User, ExpectedSize) ->
+    wait_for_archive_size_with_host_type(
+      HostType,
+      escalus_utils:get_server(User),
+      escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
+      ExpectedSize).
+
+wait_for_archive_size_with_host_type(HostType, Server, Username, ExpectedSize) ->
+    F = fun() -> archive_size_with_host_type(HostType, Server, Username) end,
+    mongoose_helper:wait_until(F, ExpectedSize,
+                               #{
+                                 time_left => timer:seconds(20),
+                                 name => archive_size_with_host_type
+                                }).
+
 wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
     try mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
                                    ExpectedSize,
@@ -750,6 +766,9 @@ wait_for_room_archive_size(Server, Username, ExpectedSize) ->
 
 archive_size(Server, Username) ->
     rpc_apply(mod_mam, archive_size, [Server, Username]).
+
+archive_size_with_host_type(HostType, Server, Username) ->
+    rpc_apply(mod_mam, archive_size_with_host_type, [HostType, Server, Username]).
 
 room_archive_size(Server, Username) ->
     rpc_apply(mod_mam_muc, archive_size, [Server, Username]).

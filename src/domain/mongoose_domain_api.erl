@@ -57,7 +57,14 @@ insert_domain(Domain, HostType) ->
 delete_domain(Domain, HostType) ->
     case check_domain(Domain, HostType) of
         ok ->
-            check_db(mongoose_domain_sql:delete_domain(Domain, HostType));
+            Res = check_db(mongoose_domain_sql:delete_domain(Domain, HostType)),
+            case Res of
+                ok ->
+                    mongoose_hooks:remove_domain(HostType, Domain);
+                _ ->
+                    ok
+            end,
+            Res;
         Other ->
             Other
     end.
