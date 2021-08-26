@@ -159,7 +159,8 @@ rest_cases() ->
      rest_delete_domain_fails_if_db_fails,
      rest_delete_domain_fails_if_service_disabled,
      rest_enable_domain_fails_if_db_fails,
-     rest_enable_domain_fails_if_service_disabled].
+     rest_enable_domain_fails_if_service_disabled,
+     rest_delete_domain_cleans_data_from_mam].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
 
@@ -178,9 +179,10 @@ init_per_suite(Config) ->
     prepare_test_queries(mim2()),
     erase_database(mim()),
     Config1 = ejabberd_node_utils:init(mim(), Config),
+    Config2 = dynamic_modules:save_modules(<<"test type">>, Config1),
     escalus:init_per_suite([{mim_conf1, Conf1},
                             {mim_conf2, Conf2},
-                            {service_setup, per_testcase} | Config1]).
+                            {service_setup, per_testcase} | Config2]).
 
 store_conf(Node) ->
     Loaded = rpc(Node, mongoose_service, is_loaded, [service_domain_db]),
@@ -193,6 +195,7 @@ end_per_suite(Config) ->
     Conf2 = proplists:get_value(mim_conf2, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
+    dynamic_modules:restore_modules(<<"test type">>, Config),
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
@@ -237,7 +240,7 @@ init_per_testcase(TestcaseName, Config) ->
         per_group -> ok;
         per_testcase -> setup_service(service_opts(TestcaseName), Config)
     end,
-    Config.
+    init_per_testcase2(TestcaseName, Config).
 
 service_opts(db_events_table_gets_truncated) ->
     [{event_cleaning_interval, 1}, {event_max_age, 3}];
@@ -245,6 +248,7 @@ service_opts(_) ->
     [].
 
 end_per_testcase(TestcaseName, Config) ->
+    end_per_testcase2(TestcaseName, Config),
     case TestcaseName of
         db_out_of_sync_restarts_service ->
             rpc(mim(), sys, resume, [service_domain_db]);
@@ -255,6 +259,21 @@ end_per_testcase(TestcaseName, Config) ->
         per_group -> ok;
         per_testcase -> teardown_service()
     end.
+
+init_per_testcase2(TestcaseName, Config)
+    when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
+    HostType = <<"test type">>,
+    Mods = [{mod_mam_meta, [{backend, rdbms}, {pm, []}]}],
+    rpc(mim(), gen_mod_deps, start_modules, [HostType, Mods]),
+    escalus:init_per_testcase(TestcaseName, Config);
+init_per_testcase2(_, Config) ->
+    Config.
+
+end_per_testcase2(TestcaseName, Config)
+    when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
+    escalus:end_per_testcase(TestcaseName, Config);
+end_per_testcase2(_, Config) ->
+    Config.
 
 setup_service(Opts, Config) ->
     ServiceEnabled = proplists:get_value(service, Config, false),
@@ -919,6 +938,32 @@ rest_cannot_enable_domain_when_it_is_static(Config) ->
     {{<<"403">>, <<"Forbidden">>},
      {[{<<"what">>, <<"domain is static">>}]}} =
         rest_patch_enabled(Config, <<"example.cfg">>, true).
+
+rest_delete_domain_cleans_data_from_mam(Config) ->
+    HostType = <<"test type">>,
+    rest_put_domain(Config, <<"example.com">>, HostType), %% alice3
+    rest_put_domain(Config, <<"example.org">>, HostType), %% bob3
+    sync(),
+    %% Alice and Bob use example.com
+    F = fun(FreshConfig, Alice, Bob) ->
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
+        escalus:wait_for_stanza(Bob),
+        mam_helper:wait_for_archive_size_with_host_type(HostType, Alice, 1),
+        mam_helper:wait_for_archive_size_with_host_type(HostType, Bob, 1),
+        {{<<"204">>, _}, _} =
+            rest_delete_domain(Config, <<"example.com">>, HostType),
+        {{<<"204">>, _}, _} =
+            rest_delete_domain(Config, <<"example.org">>, HostType),
+            sync(),
+        %% At this point MIM cannot resolve a domain to a host type,
+        %% so we have to pass it
+        mam_helper:wait_for_archive_size_with_host_type(HostType, Alice, 0),
+        mam_helper:wait_for_archive_size_with_host_type(HostType, Bob, 0),
+        %% Already cleaned at this point
+        escalus_cleaner:remove_client(FreshConfig, Alice),
+        escalus_cleaner:remove_client(FreshConfig, Bob)
+        end,
+    escalus:fresh_story_with_config(Config, [{alice3, 1}, {bob3, 1}], F).
 
 %%--------------------------------------------------------------------
 %% Helpers
