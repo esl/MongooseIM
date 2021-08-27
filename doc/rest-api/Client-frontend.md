@@ -52,6 +52,9 @@ For example if we have properties in the stanza like:
 ```xml
     <message xml:lang='en' to='alice@localhost' id='123' type='chat'>
       <body xml:lang='en_US'>Hi!</body>
+      <thread parent='7edac73ab41e45c4aafa7b2d7b749080'>
+        e0ffe42b28561960c6b12b944a092794b9683a38
+      </thread>
       <properties xmlns="http://www.jivesoftware.com/xmlns/xmpp/properties"
           <property>
               <name>some_number</name>
