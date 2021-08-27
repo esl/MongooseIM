@@ -71,6 +71,8 @@ then in the final json message these properties will be converted to json map wi
         "id": "123",
         "from": "bob@localhost",
         "body": "Hi!",
+        "thread": "e0ffe42b28561960c6b12b944a092794b9683a38",
+        "parent": "7edac73ab41e45c4aafa7b2d7b749080",
         "properties":{
             "some_number":"123",
             "some_string":"abc"
