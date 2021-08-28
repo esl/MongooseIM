@@ -129,7 +129,7 @@ encode(Msg, Timestamp) ->
 
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
     Thread = exml_query:path(Msg, [{element, <<"thread">>}, cdata]), 
-    ThreadParent =  exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}], none), 
+    ThreadParent =  exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}], <<>>), 
   
     ExtensionList =
       case RawMsgProps of
