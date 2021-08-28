@@ -28,7 +28,9 @@
     make_timestamp/2,
     change_admin_creds/1,
     make_msg_stanza_with_props/2,
-    make_malformed_msg_stanza_with_props/2
+    make_malformed_msg_stanza_with_props/2,
+    make_msg_stanza_with_thread/4,
+    make_msg_stanza_without_thread/2
 ]).
 
 -import(distributed_helper, [mim/0,
@@ -499,6 +501,21 @@ make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
                     <value type='long'>1234567890</value>
                 </property2>
             </properties>
+        </message>">>).
+
+%%Make sample message with property for Smack lib.
+make_msg_stanza_with_thread(ToJID, MsgID, ThreadID, ThreadParentID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with thread</body>
+            <thread parent='",ThreadParentID/binary,"'>",ThreadID/binary,"</thread>
+        </message>">>).
+
+%%Make sample message with general property, malformed i.e. not for Smack lib.
+make_msg_stanza_without_thread(ToJID, MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message without thread</body>
         </message>">>).
 
 simple_request(Method, Path) when is_binary(Method)->
