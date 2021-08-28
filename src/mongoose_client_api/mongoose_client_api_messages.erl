@@ -128,8 +128,8 @@ encode(Msg, Timestamp) ->
                                         <<"http://www.jivesoftware.com/xmlns/xmpp/properties">>),
 
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-    Thread = exml_query:path(Msg, [{element, <<"thread">>}, cdata]), 
-    ThreadParent =  exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}]), 
+    Thread = exml_query:path(Msg, [{element, <<"thread">>}, cdata], undefined), 
+    ThreadParent =  exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}], undefined), 
   
     ExtensionList =
       case RawMsgProps of
