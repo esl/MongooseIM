@@ -134,18 +134,18 @@ encode(Msg, Timestamp) ->
     ThreadParent =
       case exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}], undefined) of
                              undefined -> 
-                                        undefined;
+                                        [];
                        HasThreadParent ->
-                                        {<<"thread">>, HasThreadParent}
+                                        [{<<"thread">>, HasThreadParent}]
       end,
 
     ExtensionList =
       case RawMsgProps of
            #xmlel{children = Children} ->
                                         Props = [convert_prop_child(Child) || Child <- Children],
-                                        {<<"properties">>, maps:from_list(Props)};
+                                        [{<<"properties">>, maps:from_list(Props)}];
                                      _ ->
-                                        undefined
+                                        []
       end,
 
     L = [{<<"from">>, exml_query:attr(Msg, <<"from">>)},
@@ -153,13 +153,11 @@ encode(Msg, Timestamp) ->
          {<<"id">>, exml_query:attr(Msg, <<"id">>)},
          {<<"body">>, exml_query:cdata(BodyTag)},
          {<<"thread">>, Thread},
-%          {<<"parent">>, ThreadParent},
-%          ThreadParent,
-%          {<<"timestamp">>, Timestamp} | ExtensionList],
-         {<<"timestamp">>, Timestamp} | [ExtensionList | [ThreadParent]]],
+         {<<"timestamp">>, Timestamp}],
+    
+    T = lists:append(L, ExtensionList, ThreadParent),
 
-
-    maps:from_list(L).
+    maps:from_list(T).
 
 convert_prop_child(Child)->
     Name = exml_query:path(Child, [{element, <<"name">>}, cdata]),
