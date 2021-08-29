@@ -142,7 +142,7 @@ encode(Msg, Timestamp) ->
       case RawMsgProps of
            #xmlel{children = Children} ->
                                         Props = [convert_prop_child(Child) || Child <- Children],
-                                        [{<<"properties">>, maps:from_list(Props)}];
+                                        [{<<"parent">>, maps:from_list(Props)}];
                                      _ ->
                                         []
       end,
