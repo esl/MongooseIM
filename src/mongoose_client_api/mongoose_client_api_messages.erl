@@ -154,10 +154,10 @@ encode(Msg, Timestamp) ->
          {<<"body">>, exml_query:cdata(BodyTag)},
          {<<"thread">>, Thread},
          {<<"timestamp">>, Timestamp}],
-    
-    T = lists:append(L, ExtensionList, ThreadParent),
+    J = lists:append(L, ExtensionList),
+    K = lists:append(J, ThreadParent),
 
-    maps:from_list(T).
+    maps:from_list(K).
 
 convert_prop_child(Child)->
     Name = exml_query:path(Child, [{element, <<"name">>}, cdata]),
