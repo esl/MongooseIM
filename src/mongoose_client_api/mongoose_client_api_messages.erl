@@ -136,7 +136,7 @@ encode(Msg, Timestamp) ->
                              undefined -> 
                                         [];
                        HasThreadParent ->
-                                        [{<<"thread">>, HasThreadParent}];
+                                        [{<<"thread">>, HasThreadParent}]
       end,
 
     ExtensionList =
@@ -153,13 +153,11 @@ encode(Msg, Timestamp) ->
          {<<"id">>, exml_query:attr(Msg, <<"id">>)},
          {<<"body">>, exml_query:cdata(BodyTag)},
          {<<"thread">>, Thread},
-%          {<<"parent">>, ThreadParent},
-         ThreadParent,
-%          {<<"timestamp">>, Timestamp} | ExtensionList],
-         {<<"timestamp">>, Timestamp} | ThreadParent],
+         {<<"timestamp">>, Timestamp}],
+    J = lists:append(L, ExtensionList),
+    K = lists:append(J, ThreadParent),
 
-
-    maps:from_list(L).
+    maps:from_list(K).
 
 convert_prop_child(Child)->
     Name = exml_query:path(Child, [{element, <<"name">>}, cdata]),
