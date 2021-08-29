@@ -154,7 +154,7 @@ encode(Msg, Timestamp) ->
          {<<"body">>, exml_query:cdata(BodyTag)},
          {<<"thread">>, Thread},
 %          {<<"parent">>, ThreadParent},
-         ThreadParent,
+%          ThreadParent,
 %          {<<"timestamp">>, Timestamp} | ExtensionList],
          {<<"timestamp">>, Timestamp} | ThreadParent],
 
