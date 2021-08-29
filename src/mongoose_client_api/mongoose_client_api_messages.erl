@@ -128,7 +128,6 @@ encode(Msg, Timestamp) ->
                                         <<"http://www.jivesoftware.com/xmlns/xmpp/properties">>),
 
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-
     ExtensionList =
       case RawMsgProps of
            #xmlel{children = Children} ->
@@ -137,14 +136,21 @@ encode(Msg, Timestamp) ->
                                      _ ->
                                         []
       end,
-
+    Thread = exml_query:path(Msg, [{element, <<"thread">>}, cdata]), 
+    ThreadParent = exml_query:path(Msg, [{element, <<"thread">>}, {attr, <<"parent">>}]),
+    ThreadAndThreadParentList = case {Thread, ThreadParent} of
+                {undefined, undefined} -> 
+                                        [];
+                {Thread, undefined}    ->
+                                        [{<<"thread">>, Thread}];
+                {Thread, ThreadParent} ->
+                                        [{<<"thread">>, Thread}, {<<"parent">>, ThreadParent}]
+    end,
     L = [{<<"from">>, exml_query:attr(Msg, <<"from">>)},
-         {<<"to">>, exml_query:attr(Msg, <<"to">>)},
-         {<<"id">>, exml_query:attr(Msg, <<"id">>)},
-         {<<"body">>, exml_query:cdata(BodyTag)},
-         {<<"timestamp">>, Timestamp} | ExtensionList],
-
-
+          {<<"to">>, exml_query:attr(Msg, <<"to">>)},
+          {<<"id">>, exml_query:attr(Msg, <<"id">>)},
+          {<<"body">>, exml_query:cdata(BodyTag)},
+          {<<"timestamp">>, Timestamp} | ExtensionList] ++ ThreadAndThreadParentList,
     maps:from_list(L).
 
 convert_prop_child(Child)->
