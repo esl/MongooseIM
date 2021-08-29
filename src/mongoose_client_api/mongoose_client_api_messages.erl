@@ -136,7 +136,7 @@ encode(Msg, Timestamp) ->
                              undefined -> 
                                         [];
                        HasThreadParent ->
-                                        [{<<"thread">>, HasThreadParent}];
+                                        [{<<"thread">>, HasThreadParent}]
       end,
 
     ExtensionList =
