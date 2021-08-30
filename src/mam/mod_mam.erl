@@ -39,6 +39,7 @@
 %% Client API
 -export([delete_archive/2,
          archive_size/2,
+         archive_size_with_host_type/3,
          archive_id/2]).
 
 %% gen_mod handlers
@@ -63,7 +64,8 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([archive_message_from_ct/1, archive_size/2, delete_archive/2,
+-ignore_xref([archive_message_from_ct/1,
+              archive_size/2, archive_size_with_host_type/3, delete_archive/2,
               determine_amp_strategy/5, disco_local_features/1, filter_packet/1,
               get_personal_data/3, remove_user/3, sm_filter_offline_message/4,
               user_send_packet/4]).
@@ -188,6 +190,12 @@ archive_size(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
     HostType = jid_to_host_type(ArcJID),
+    ArcID = archive_id_int(HostType, ArcJID),
+    archive_size(HostType, ArcID, ArcJID).
+
+-spec archive_size_with_host_type(host_type(), jid:server(), jid:user()) -> integer().
+archive_size_with_host_type(HostType, Server, User) ->
+    ArcJID = jid:make(User, Server, <<>>),
     ArcID = archive_id_int(HostType, ArcJID),
     archive_size(HostType, ArcID, ArcJID).
 
@@ -330,18 +338,21 @@ sm_filter_offline_message(Other, _From, _To, _Packet) ->
 
 -spec jid_to_host_type(jid:jid()) -> host_type().
 jid_to_host_type(#jid{lserver=LServer}) ->
+    lserver_to_host_type(LServer).
+
+lserver_to_host_type(LServer) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
             HostType;
         {error, not_found} ->
-            LServer
+            error({get_domain_host_type_failed, LServer})
     end.
 
 -spec acc_to_host_type(mongoose_acc:t()) -> host_type().
 acc_to_host_type(Acc) ->
     case mongoose_acc:host_type(Acc) of
         undefined ->
-            mongoose_acc:lserver(Acc);
+            lserver_to_host_type(mongoose_acc:lserver(Acc));
         HostType ->
             HostType
     end.
