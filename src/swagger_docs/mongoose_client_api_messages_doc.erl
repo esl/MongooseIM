@@ -76,6 +76,16 @@ trails() ->
       type => <<"string">>,
       description => <<"Message content">>,
       default => <<"Hello Alice!">>
+    },
+    <<"thread">> => #{
+      type => <<"string">>,
+      description => <<"ID of thread">>,
+      default => <<"e0ffe42b28561960c6b12b944a092794b9683a38">>
+    },
+    <<"parent">> => #{
+      type => <<"string">>,
+      description => <<"ID of thread parent">>,
+      default => <<"7edac73ab41e45c4aafa7b2d7b749080">>
     }
   },
 

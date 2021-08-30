@@ -28,7 +28,10 @@
     make_timestamp/2,
     change_admin_creds/1,
     make_msg_stanza_with_props/2,
-    make_malformed_msg_stanza_with_props/2
+    make_malformed_msg_stanza_with_props/2,
+    make_msg_stanza_with_thread_and_parent/4,
+    make_msg_stanza_with_thread/3,
+    make_msg_stanza_without_thread/2
 ]).
 
 -import(distributed_helper, [mim/0,
@@ -500,6 +503,27 @@ make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
                 </property2>
             </properties>
         </message>">>).
+
+make_msg_stanza_without_thread(ToJID, MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message without thread</body>
+        </message>">>).
+
+make_msg_stanza_with_thread(ToJID, MsgID, ThreadID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with thread</body>
+            <thread>",ThreadID/binary,"</thread>
+        </message>">>).
+
+make_msg_stanza_with_thread_and_parent(ToJID, MsgID, ThreadID, ThreadParentID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with thread</body>
+            <thread parent='",ThreadParentID/binary,"'>",ThreadID/binary,"</thread>
+        </message>">>).
+
 
 simple_request(Method, Path) when is_binary(Method)->
     simple_request(Method, Path, <<>>).
