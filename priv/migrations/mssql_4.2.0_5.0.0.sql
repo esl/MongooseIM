@@ -1,8 +1,6 @@
 -- MOD_LAST
 
-ALTER TABLE last ADD server [nvarchar](250);
-UPDATE last SET server = 'localhost';
-ALTER TABLE last ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE last ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE last DROP CONSTRAINT PK_last_username;
@@ -14,31 +12,24 @@ CREATE INDEX i_last_server_seconds ON last (server, seconds);
 -- MOD_PRIVACY
 
 --Table privacy_default_list
-ALTER TABLE privacy_default_list ADD server [nvarchar](250);
-UPDATE privacy_default_list SET server = 'localhost';
-ALTER TABLE privacy_default_list ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE privacy_default_list ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE privacy_default_list DROP CONSTRAINT PK_privacy_default_list_username;
-ALTER TABLE privacy_default_list ADD CONSTRAINT PK_privacy_default_list_username PRIMARY KEY CLUSTERED(
-        server ASC, username ASC);
+ALTER TABLE privacy_default_list ADD CONSTRAINT PK_privacy_default_list_username PRIMARY KEY CLUSTERED (server ASC, username ASC);
 COMMIT;
 
 --Table privacy_list
-ALTER TABLE privacy_list ADD server [nvarchar](250);
-UPDATE privacy_list SET server = 'localhost';
-ALTER TABLE privacy_list ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE privacy_list ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE privacy_list DROP CONSTRAINT privacy_list$id;
-ALTER TABLE privacy_list ADD CONSTRAINT PK_privacy_list PRIMARY KEY CLUSTERED(server ASC, username ASC, name ASC);
+ALTER TABLE privacy_list ADD CONSTRAINT PK_privacy_list PRIMARY KEY CLUSTERED (server ASC, username ASC, name ASC);
 COMMIT;
 
 -- MOD_PRIVATE
 
-ALTER TABLE private_storage ADD server [nvarchar](250);
-UPDATE private_storage SET server = 'localhost';
-ALTER TABLE private_storage ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE private_storage ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE private_storage DROP CONSTRAINT private_storage$i_private_storage_username_namespace;
@@ -52,9 +43,7 @@ ALTER TABLE rosterusers DROP COLUMN type;
 ALTER TABLE rosterusers DROP COLUMN subscribe;
 ALTER TABLE rosterusers DROP COLUMN server;
 
-ALTER TABLE rosterusers ADD server [nvarchar](250);
-UPDATE rosterusers SET server = 'localhost';
-ALTER TABLE rosterusers ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE rosterusers ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE rosterusers DROP CONSTRAINT rosterusers$i_rosteru_user_jid;
@@ -65,23 +54,19 @@ CREATE INDEX i_rosteru_server_user ON rosterusers (server, username)
 CREATE INDEX i_rosteru_jid ON rosterusers (jid)
 
 --Table rostergroups
-ALTER TABLE rostergroups ADD server [nvarchar](250);
-UPDATE rostergroups SET server = 'localhost';
-ALTER TABLE rostergroups ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE rostergroups ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 CREATE INDEX i_rosterg_server_user_jid ON rostergroups (server, username, jid);
 
 --Table roster_version
-ALTER TABLE roster_version ADD server [nvarchar](250);
-UPDATE roster_version SET server = 'localhost';
-ALTER TABLE roster_version ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE roster_version ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE roster_version DROP CONSTRAINT PK_roster_version_username;
 ALTER TABLE roster_version ADD CONSTRAINT PK_roster_version_server_user PRIMARY KEY CLUSTERED (server ASC, username ASC);
 COMMIT;
 
--- MOD_MUC 
+-- MOD_MUC_LIGHT 
 
 CREATE INDEX i_muc_light_blocking_su ON muc_light_blocking (lserver, luser);
 DROP INDEX i_muc_light_blocking ON muc_light_blocking;
@@ -93,16 +78,13 @@ DROP INDEX i_inbox_ts ON inbox;
 
 BEGIN TRANSACTION;
 ALTER TABLE inbox DROP CONSTRAINT PK_inbox;
-ALTER TABLE inbox ADD CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
-        lserver ASC, luser ASC, remote_bare_jid ASC);
+ALTER TABLE inbox ADD CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED (lserver ASC, luser ASC, remote_bare_jid ASC);
 COMMIT;
 
 -- OTHER CHANGES  
 
 --Table users
-ALTER TABLE users ADD server [nvarchar](250);
-UPDATE users SET server = 'localhost';
-ALTER TABLE users ALTER COLUMN server [nvarchar](250) NOT NULL;
+ALTER TABLE users ADD server [nvarchar](250) NOT NULL DEFAULT '';
 
 BEGIN TRANSACTION;
 ALTER TABLE users DROP CONSTRAINT PK_users_username;

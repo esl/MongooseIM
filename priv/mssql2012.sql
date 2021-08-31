@@ -214,7 +214,9 @@ CREATE TABLE [dbo].[privacy_list](
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [PK_privacy_list] PRIMARY KEY CLUSTERED
 (
-	[server], [username]
+	[server] ASC, 
+	[username] ASC, 
+	[name] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 
