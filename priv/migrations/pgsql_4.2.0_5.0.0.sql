@@ -25,7 +25,7 @@ ALTER TABLE private_storage ADD PRIMARY KEY (server, username, namespace);
 DROP INDEX i_private_storage_username;
 DROP INDEX i_private_storage_username_namespace;
 
--- MOD_ROASTER
+-- MOD_ROSTER
 
 --Table rosterusers
 ALTER TABLE rosterusers DROP COLUMN "type", DROP COLUMN subscribe, DROP COLUMN server;
