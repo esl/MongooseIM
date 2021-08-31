@@ -266,8 +266,8 @@
 [modules.mod_sic]
 
 {{#mod_vcard}}
+[modules.mod_vcard]
 {{{mod_vcard}}}
-
 {{/mod_vcard}}
 [modules.mod_bosh]
 
