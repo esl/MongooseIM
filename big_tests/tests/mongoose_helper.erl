@@ -519,19 +519,7 @@ print_debug_info_for_module(Module) ->
            [ModConfig, IqConfig]).
 
 get_vcard_config(Config) ->
-    Preset = proplists:get_value(preset, Config, undefined),
-    Backend = preset_to_vcard_backend(Preset),
-    [{backend, Backend}, {host, {prefix, <<"vjud.">>}}]
-    ++ vcard_backend_specific_options(Backend).
-
-vcard_backend_specific_options(ldap) ->
-    [{ldap_base, "ou=Users,dc=esl,dc=com"},
-     {ldap_filter, "(objectClass=inetOrgPerson)"}];
-vcard_backend_specific_options(_) ->
-    [].
-
-preset_to_vcard_backend("ldap_mnesia") -> ldap;
-preset_to_vcard_backend("riak_mnesia") -> riak;
-preset_to_vcard_backend("internal_mnesia") -> mnesia;
-preset_to_vcard_backend("elasticsearch_and_cassandra_mnesia") -> mnesia;
-preset_to_vcard_backend(_) -> rdbms.
+    HostType = domain_helper:host_type(),
+    CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [HostType]),
+    {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
+    CurrentVcardConfig.
