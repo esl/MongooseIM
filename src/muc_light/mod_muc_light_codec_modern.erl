@@ -50,7 +50,7 @@ decode(_, _, _, _) ->
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
              RoomUS :: jid:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
-             Acc :: mongoose_acc:t()) -> any().
+             Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     FromNick = jid:to_binary(US),
@@ -68,12 +68,14 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    #xmlel{ children = Children }
+    Packet1 = #xmlel{ children = Children }
                      = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
-      end, AffUsers);
+      end, AffUsers),
+    mongoose_acc:update_stanza(#{from_jid => RoomJID,
+                                 element => Packet1}, Acc);
 encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
     case encode_iq(OtherCase, Sender, RoomJID, RoomBin, HandleFun, Acc) of
@@ -97,7 +99,7 @@ get_sender_aff(Users, US) ->
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
         OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
-    any().
+    mongoose_acc:t().
 encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     mod_muc_light_codec:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
 

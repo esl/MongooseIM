@@ -53,7 +53,7 @@
 %%====================================================================
 
 -spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
-                     Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> ok.
+                     Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 handle_request(From, To, OrigPacket, Request, Acc) ->
     RoomUS = jid:to_lus(To),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
@@ -253,7 +253,7 @@ process_aff_set(_AffReq, _RoomUS, Error, _Acc) ->
 
 -spec send_response(From :: jid:jid(), RoomJID :: jid:jid(),
                     RoomUS :: jid:simple_bare_jid(), OrigPacket :: exml:element(),
-                    Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> ok.
+                    Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err, _Acc) ->
     mod_muc_light_codec_backend:encode_error(
       Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
