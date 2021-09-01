@@ -13,7 +13,12 @@
 %% API
 -export([do_route/5]).
 
-
+-spec do_route(jid:jid(),
+               jid:jid(),
+               mongoose_acc:t(),
+               exml:element(),
+               mongoose_packet_handler:t()) ->
+    mongoose_acc:t().
 do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, Handler) ->
     % strip acc from all sender-related values, from now on we are interested in the recipient
     LDstDomain = OrigTo#jid.lserver,
@@ -41,6 +46,6 @@ do_route(OrigFrom, OrigTo, OrigAcc, OrigPacket, Handler) ->
                 drop ->
                     mongoose_hooks:xmpp_stanza_dropped(Acc0, OrigFrom,
                                                        OrigTo, OrigPacket),
-                    ok
+                    Acc0
             end
     end.
