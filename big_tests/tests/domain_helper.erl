@@ -5,12 +5,20 @@
          insert_domain/3,
          delete_domain/2,
          make_metrics_prefix/1,
+         host_types/0,
+         host_types/1,
          host_type/0,
          host_type/1,
          secondary_host_type/0,
          secondary_host_type/1]).
 
 -import(distributed_helper, [get_or_fail/1, rpc/4, mim/0]).
+
+host_types() ->
+    host_types(mim).
+
+host_types(NodeKey) ->
+    lists:usort([host_type(NodeKey), secondary_host_type(NodeKey)]).
 
 host_type() ->
     host_type(mim).
