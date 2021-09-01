@@ -10,14 +10,11 @@
 %%%-------------------------------------------------------------------
 -module(xmpp_router).
 
--include("mongoose.hrl").
--include("jlib.hrl").
-
 -ignore_xref([behaviour_info/1]).
 
 -callback route(From :: jid:jid(), To :: jid:jid(),
-                   Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    done | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
+                Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
+    {done, mongoose_acc:t()} | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 
 -callback filter(From :: jid:jid(), To :: jid:jid(),
     Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
@@ -28,10 +25,9 @@
 
 -spec call_route(Module :: module(), From :: jid:jid(),
     To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    done | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
+    {done, mongoose_acc:t()} | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 call_route(Module, From, To, Acc, Packet) ->
     Module:route(From, To, Acc, Packet).
-
 
 -spec call_filter(Module :: module(), From :: jid:jid(),
     To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
