@@ -10,7 +10,6 @@
 
 -behaviour(xmpp_router).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include("external_component.hrl").
 %% xmpp_router callback
@@ -19,12 +18,12 @@
 filter(OrigFrom, OrigTo, OrigAcc, OrigPacket) ->
     {OrigFrom, OrigTo, OrigAcc, OrigPacket}.
 
-route(From, To, Acc, Packet) ->
+route(From, To, Acc0, Packet) ->
     LDstDomain = To#jid.lserver,
     case ejabberd_router:lookup_component(LDstDomain) of
         [] ->
-            {From, To, Acc, Packet};
+            {From, To, Acc0, Packet};
         [#external_component{handler = Handler}|_] -> %% may be multiple on various nodes
-            mongoose_local_delivery:do_route(From, To, Acc, Packet, Handler),
-            done
+            Acc1 = mongoose_local_delivery:do_route(From, To, Acc0, Packet, Handler),
+            {done, Acc1}
     end.

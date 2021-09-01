@@ -262,7 +262,7 @@ code_change(_OldVsn, State, _Extra) ->
                To :: jid:jid(),
                Acc :: mongoose_acc:t(),
                Packet :: exml:element()) ->
-        done. % this is the 'last resort' router, it always returns 'done'.
+    {done, mongoose_acc:t()}. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc, Packet) ->
     ?LOG_DEBUG(#{what => s2s_route, acc => Acc}),
     case find_connection(From, To) of
@@ -277,18 +277,20 @@ do_route(From, To, Acc, Packet) ->
             NewPacket = Packet#xmlel{attrs = NewAttrs},
             Acc1 = mongoose_hooks:s2s_send_packet(Acc, From, To, Packet),
             send_element(Pid, Acc1, NewPacket),
-            done;
+            {done, Acc1};
         {aborted, _Reason} ->
             case mongoose_acc:stanza_type(Acc) of
-                <<"error">> -> done;
-                <<"result">> -> done;
+                <<"error">> ->
+                    {done, Acc};
+                <<"result">> ->
+                    {done, Acc};
                 _ ->
                     ?LOG_DEBUG(#{what => s2s_connection_not_found, acc => Acc}),
                     {Acc1, Err} = jlib:make_error_reply(
                             Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
-                    ejabberd_router:route(To, From, Acc1, Err)
-            end,
-            done
+                    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
+                    {done, Acc2}
+            end
     end.
 
 -spec find_connection(From :: jid:jid(),

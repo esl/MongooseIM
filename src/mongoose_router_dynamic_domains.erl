@@ -13,9 +13,7 @@
 
 -behaviour(xmpp_router).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
--include("route.hrl").
 
 %% API
 %% xmpp_router callback
