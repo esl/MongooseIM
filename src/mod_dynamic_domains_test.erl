@@ -3,6 +3,8 @@
 -include("mongoose_config_spec.hrl").
 -include("jlib.hrl").
 
+-behaviour(mongoose_packet_handler).
+
 %% API
 -export([start/2, stop/1,
          config_spec/0,
@@ -88,10 +90,10 @@ stop(HostType) ->
     ok.
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                     El :: exml:element(), Extra :: map()) -> any().
-process_packet(_Acc, _From, _To, _El, _Extra) ->
+                     El :: exml:element(), Extra :: map()) -> mongoose_acc:t().
+process_packet(Acc, _From, _To, _El, _Extra) ->
     %% do nothing, just ignore the packet
-    ok.
+    Acc.
 
 -spec process_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                  IQ :: jlib:iq(), Extra :: map()) -> {NewAcc :: mongoose_acc:t(),

@@ -136,9 +136,10 @@ socket_type() ->
 %%%----------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-    El :: exml:element(), #{pid := pid()}) -> any().
+    El :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
 process_packet(Acc, From, To, _El, #{pid := Pid}) ->
-    Pid ! {route, From, To, Acc}.
+    Pid ! {route, From, To, Acc},
+    Acc.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
