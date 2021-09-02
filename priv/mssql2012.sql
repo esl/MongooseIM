@@ -212,9 +212,11 @@ CREATE TABLE [dbo].[privacy_list](
 	[name] [nvarchar](250) NOT NULL,
 	[id] [bigint] IDENTITY(1,1) NOT NULL,
 	[created_at] [datetime] NOT NULL,
- CONSTRAINT [privacy_list$id] UNIQUE CLUSTERED
+ CONSTRAINT [PK_privacy_list] PRIMARY KEY CLUSTERED
 (
-	[id] ASC
+	[server] ASC, 
+	[username] ASC, 
+	[name] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 
