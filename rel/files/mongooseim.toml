@@ -213,8 +213,8 @@
 [modules.mod_adhoc]
 
 {{#mod_amp}}
+[modules.mod_amp]
 {{{mod_amp}}}
-
 {{/mod_amp}}
 [modules.mod_disco]
   users_can_see_hidden_services = false
