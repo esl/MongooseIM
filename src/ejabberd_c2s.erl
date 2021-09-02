@@ -1651,6 +1651,9 @@ send_element_from_server_jid(Acc, StateData, #xmlel{} = El) ->
 
 %% @doc This is the termination point - from here stanza is sent to the user
 -spec send_element(mongoose_acc:t(), exml:element(), state()) -> mongoose_acc:t().
+send_element(Acc, El, #state{host_type = undefined} = StateData) ->
+    Res = do_send_element(El, StateData),
+    mongoose_acc:set(c2s, send_result, Res, Acc);
 send_element(Acc, El, #state{host_type = HostType} = StateData) ->
     Acc1 = mongoose_hooks:xmpp_send_element(HostType, Acc, El),
     Res = do_send_element(El, StateData),

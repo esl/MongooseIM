@@ -44,10 +44,14 @@ c2s_start_stop_test(_) ->
 
 
 stream_error_when_invalid_domain(_) ->
+    ok = meck:new(mongoose_hooks, [passthrough]),
     {ok, C2SPid} = given_c2s_started(),
 
     C2Sactions = when_stream_is_opened(C2SPid, stream_header(<<"badhost">>)),
     [StreamStart, StreamError, StreamEnd, CloseSocket] = C2Sactions,
+    History = meck:history(mongoose_hooks),
+    HookRes = [ok || {_, {mongoose_hooks, xmpp_send_element, [undefined, #{host_type := undefined} | _]}, _} <- History],
+    ?am([], HookRes),
     ?am({send, [_P,
          <<"<?xml version='1.0'?>",
              "<stream:stream xmlns='jabber:client' ",
