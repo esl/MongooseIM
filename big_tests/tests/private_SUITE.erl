@@ -45,8 +45,6 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    HostType = domain_helper:host_type(mim),
-    ok = dynamic_modules:ensure_modules(HostType, private_modules(HostType)),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
@@ -63,19 +61,6 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
-
-private_modules(HostType) ->
-    [{mod_private, [{backend, mod_private_backend(HostType)}]}].
-
-mod_private_backend(HostType) ->
-    case mam_helper:is_riak_enabled(HostType) of
-        true -> riak;
-        false ->
-            case mongoose_helper:is_rdbms_enabled(HostType) of
-                true -> rdbms;
-                false -> mnesia
-            end
-    end.
 
 %%--------------------------------------------------------------------
 %% Private storage tests
