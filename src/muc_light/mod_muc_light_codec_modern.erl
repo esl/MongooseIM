@@ -75,6 +75,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
       end, AffUsers),
     mongoose_acc:update_stanza(#{from_jid => RoomJID,
+                                 to_jid => jid:make_noprep(RoomU, RoomS, <<>>),
                                  element => Packet1}, Acc);
 encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
