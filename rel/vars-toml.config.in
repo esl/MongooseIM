@@ -26,7 +26,7 @@
 {mod_offline, ""}.
 {mod_privacy, ""}.
 {mod_blocking, ""}.
-{mod_private, "[modules.mod_private]"}.
+{mod_private, ""}.
 {mod_roster, ""}.
 {mod_vcard, "  host = \"vjud.@HOST@\""}.
 {sm_backend, "\"mnesia\""}.
