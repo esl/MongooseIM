@@ -35,6 +35,8 @@
                              require_rpc_nodes/1,
                              subhost_pattern/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0,
+                        host_types/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -466,12 +468,9 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    [{mod_vcard_opts, mongoose_helper:get_vcard_config(Config)} | Config1].
-
-host_types() ->
-    HostType = ct:get_config({hosts, mim, host_type}),
-    SecHostType = ct:get_config({hosts, mim, secondary_host_type}),
-    lists:usort([HostType, SecHostType]).
+    HostType = domain_helper:host_type(),
+    VCardOpts = dynamic_modules:get_saved_config(host_type(), mod_vcard, Config1),
+    [{mod_vcard_opts, VCardOpts} | Config1].
 
 restore_vcard_module(Config) ->
     dynamic_modules:restore_modules(Config).

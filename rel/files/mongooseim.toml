@@ -213,8 +213,8 @@
 [modules.mod_adhoc]
 
 {{#mod_amp}}
+[modules.mod_amp]
 {{{mod_amp}}}
-
 {{/mod_amp}}
 [modules.mod_disco]
   users_can_see_hidden_services = false
@@ -248,6 +248,7 @@
 {{{mod_blocking}}}
 {{/mod_blocking}}
 {{#mod_private}}
+[modules.mod_private]
 {{{mod_private}}}
 
 {{/mod_private}}
@@ -266,8 +267,8 @@
 [modules.mod_sic]
 
 {{#mod_vcard}}
+[modules.mod_vcard]
 {{{mod_vcard}}}
-
 {{/mod_vcard}}
 [modules.mod_bosh]
 
