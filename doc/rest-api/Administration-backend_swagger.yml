@@ -276,8 +276,9 @@ paths:
               stanza:
                 description: the complete stanza
                 type: string
-                required: true
                 example: "<message from=\"alice@wonderlant.lit\" to=\"bob@wonderlant.lit\"><body>whatever</body></message>"
+            required:
+              - stanza
       description: Send an arbitrary stanza (attributes `from` and `to` are required).
       responses:
         204:
@@ -318,6 +319,11 @@ paths:
                 format: JID
                 description: Contact's jid
                 example: "alice@wonderlant.lit"
+        - name: user
+          in: path
+          description: User's JID (f.e. alice@wonderland.lit)
+          required: true
+          type: string
       responses:
         204:
           description: "The user was added to a contacts list."
@@ -534,7 +540,7 @@ paths:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
-      - user: owner
+      - name: user
         in: path
         description: User's JID (f.e. alice@wonderland.lit)
         required: true
