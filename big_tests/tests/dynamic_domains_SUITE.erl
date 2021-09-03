@@ -11,7 +11,7 @@
 -define(TEST_NODES, [mim() | ?CLUSTER_NODES]).
 -define(CLUSTER_NODES, [mim2()]).
 -define(DOMAINS, [<<"example.com">>, <<"example.org">>]).
--define(HOST_TYPE, <<"test type">>). %% preconfigured in the toml file
+-define(HOST_TYPE, <<"dummy auth">>). %% preconfigured in the toml file
 
 suite() ->
     require_rpc_nodes([mim, mim2]).
