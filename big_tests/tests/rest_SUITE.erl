@@ -63,15 +63,14 @@ all() ->
     ].
 
 groups() ->
-    G = [{admin, [parallel], test_cases()},
-         {auth, [parallel], auth_test_cases()},
-         {blank_auth, [parallel], blank_auth_testcases()},
-         {roster, [parallel], [list_contacts,
-                               befriend_and_alienate,
-                               befriend_and_alienate_auto,
-                               invalid_roster_operations]},
-         {dynamic_module, [], [stop_start_command_module]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{admin, [parallel], test_cases()},
+     {auth, [parallel], auth_test_cases()},
+     {blank_auth, [parallel], blank_auth_testcases()},
+     {roster, [parallel], [list_contacts,
+                           befriend_and_alienate,
+                           befriend_and_alienate_auto,
+                           invalid_roster_operations]},
+     {dynamic_module, [], [stop_start_command_module]}].
 
 auth_test_cases() ->
     [auth_passes_correct_creds,
