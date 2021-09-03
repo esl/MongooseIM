@@ -1,0 +1,103 @@
+swagger: '2.0'
+info:
+  version: "1.0.0"
+  title: "MongooseIM's domain management REST API"
+  description: |
+    Explore MongooseIM features using our REST API.
+
+    Please keep in mind that all requests require authentication. This is to make sure the server can identify who sent the request and if it comes from an authorized user.
+    Currently the only supported method is **Basic Auth**.
+
+basePath: /api
+schemes:
+  - http
+produces:
+  - application/json
+consumes:
+  - application/json
+host: "localhost:8088"
+paths:
+  /domains/{domain}:
+    put:
+      description: Adds a domain.
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Domain was successfully inserted.
+        409:
+          description: Domain already exists with a different host type.
+        403:
+          description: DB service disabled or the host type is unknown.
+        500:
+          description: Other errors.
+    patch:
+      description: Enables/disables a domain.
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: enabled
+          description: Whether to enable or to disable a domain.
+          required: true
+          schema:
+            type: boolean
+      responses:
+        204:
+          description: Domain was sucessfully updated.
+        404:
+          description: Domain not found.
+        403:
+          description: Domain is static, or the service is disabled.
+        500:
+          description: Other errors.
+    get:
+      description: Returns information about the domain.
+      parameters:
+        - name: domain
+          type: string
+          in: path
+          required: true
+      responses:
+        200:
+          description: Successful response.
+        404:
+          description: Domain not found.
+    delete:
+      description: "Removes a domain"
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          type: string
+        - in: body
+          name: host_type
+          description: The host type of the domain.
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: "The domain is removed or not found."
+        403:
+          description: |
+            One of:
+              * the domain is static.
+              * the DB service is disabled.
+              * the host type is wrong (does not match the host type in the database).
+              * the host type is unknown.
+        404:
+          description: "There was no such contact."
+        500:
+          description: "Other errors"

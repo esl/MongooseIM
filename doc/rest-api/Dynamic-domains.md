@@ -13,70 +13,25 @@ documentation of the [listeners](../advanced-configuration/listen.md),
 in particular the [`mongoose_domain_handler`](../advanced-configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler)
 section.
 
-## Services
+## OpenAPI specifications
 
-### Add domain
+Read our [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html?domains=true) for more information.
 
-```bash
-curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"host_type": "type1"}'
-```
+[![Swagger](https://nordicapis.com/wp-content/uploads/swagger-Top-Specification-Formats-for-REST-APIs-nordic-apis-sandoval-e1441412425742-300x170.png)](https://esl.github.io/MongooseDocs/latest/swagger/index.html?domains=true)
 
-Result codes:
+<iframe src="https://esl.github.io/MongooseDocs/latest/swagger/index.html?domains=true"
+height="800" width="800" id="swagger-ui-iframe"></iframe>
 
-* 204 - inserted.
-* 409 - domain already exists with a different host type.
-* 403 - DB service disabled.
-* 403 - unknown host type.
-* 500 - other errors.
+<script>
 
-Example of the result body with a failure reason:
+$(document).ready(function() {
+  if (window.location.host.match("github")){
+    path = window.location.pathname.match("(.*)/rest-api/Dynamic-domains")[1]
+    url = window.location.protocol + "//" + window.location.hostname
+    finalURL = url + path + "/swagger/index.html?domains=true"
+    $('a[href$="swagger/index.html?domains=true"]').attr('href', finalURL)
+    $('#swagger-ui-iframe').attr('src', finalURL)
+  }
+})
 
-```
-{"what":"unknown host type"}
-```
-
-Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
-
-
-### Delete domain
-
-You must provide the domain's host type inside the body:
-
-```bash
-curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"host_type": "type1"}'
-```
-
-Result codes:
-
-* 204 - the domain is removed or not found.
-* 403 - the domain is static.
-* 403 - the DB service is disabled.
-* 403 - the host type is wrong (does not match the host type in the database).
-* 403 - the host type is unknown.
-* 500 - other errors.
-
-
-### Enable/disable domain
-
-Provide `{"enabled": true}` as a body to enable a domain.
-Provide `{"enabled": false}` as a body to disable a domain.
-
-```bash
-curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
-    --user admin:secret \
-    -H 'content-type: application/json' \
-    -d '{"enabled": true}'
-```
-
-Result codes:
-
-* 204 - updated.
-* 404 - domain not found;
-* 403 - domain is static;
-* 403 - service disabled.
+</script>
