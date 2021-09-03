@@ -53,6 +53,8 @@
 
 {suites, "tests", race_conditions_SUITE}.
 
+{suites, "tests", rest_SUITE}.
+
 {suites, "tests", rest_client_SUITE}.
 {skip_cases, "tests", rest_client_SUITE,
  [non_default_http_server_name_is_returned_if_configured],
