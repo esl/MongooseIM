@@ -2,28 +2,27 @@
 
 Implemented by `mongoose_domain_core` module.
 
-It must be based on gen\_server & ETS table w. public read access.
-This module is local for the node, it must not implement any sync across the
+It is based on gen\_server & ETS table w. public read access.
+This module is local for the node, it does not implement any sync across the
 nodes in a cluster.
-This component will be responsible for dynamic routing, it will always be
+This component is responsible for dynamic routing, it is always
 started by MIM even if there is no support of dynamic domain names configured.
 
-It must provide the following interfaces:
+It provides the following interfaces:
 
-- Init - should accept the list of initial domain/host\_type pairs provided in
-  config file and the list of host\_types that can be used for dynamic insertion.
+- Init - accepts the list of initial domain/host\_type pairs provided in
+  config file, and the list of host\_types that can be used for dynamic insertion.
   Any of these lists can be empty, initial list of domain/host\_type pairs can
   have some unique host\_types not mentioned in the host\_types list.
-  The component must be initialised by the main MIM supervisor.
+  The component is initialised by the main MIM supervisor.
   Implemented in `mongoose_domain_api:init()`.
 - Insert - adding new domain/host\_type pair.
-  This function must be **idempotent**, it must return success on attempt to
-  insert the existing data, but it must fail if ETS already has the domain
-  name associated with another host type.
+  This function is idempotent. It returns success on an attempt to insert the existing data,
+  but fails if ETS already has the domain name associated with another host type.
   Implemented in `mongoose_domain_api:insert_domain(Domain, HostType)`.
-- Remove - This function must be idempotent. this function deletes existing
+- Remove - This function is idempotent. It deletes existing
   domain/host\_type pairs.
-  It must be impossible to delete domain/host\_type pairs specified on init
+  It is impossible to delete domain/host\_type pairs specified on init
   of the component.
   Implemented in `mongoose_domain_api:delete_domain(Domain)`.
 - Get host type by domain.
@@ -44,12 +43,13 @@ It must provide the following interfaces:
 
 ## MongooseIM service
 
+As described in [Services](../advanced-configuration/Services.md#service_domain_db).
 Implements the service behaviour.
 Implemented by `service_domain_db` module.
 
-This service must provide an interface for dynamic management of domain names.
-It must have persistent storage (RDBMS) where it stores information about domain names.
-This service must ensure synchronization of dynamically managed domain names
+This service provides an interface for dynamic management of domain names.
+It has persistent storage (RDBMS) where it stores information about domain names.
+This service ensures synchronization of dynamically managed domain names
 across different nodes in the cluster.
 
 The minimal set of information associated with domain name is this:
@@ -57,26 +57,26 @@ The minimal set of information associated with domain name is this:
 - Host type
 - Status (enabled/disabled)
 
-This service must provide the following interfaces:
+This service provides the following interfaces:
 
 - Init - on init all the “enabled” domain names from the persistent storage
-  must be added to the core MIM component described above.
-- Add domain name (w/ host type) - This function must be idempotent.
-  Added domain is always “enabled” by default it must be added in the core MIM
+  is added to the core MIM component described above.
+- Add domain name (w/ host type) - This function is idempotent.
+  An added domain is always “enabled” by default - it must be added in the core MIM
   component described in the previous section.
-  If it’s successfully enabled than Information about the domain name must be
+  If it’s successfully enabled than Information about the domain name is
   added into persistent storage and distributed across all the nodes in the cluster.
-- Disabling/Enabling domain name - This function must be idempotent. the status
-  of the existing domain must be changed.
-  If domain name is enabled, then it must be added in the core MIM component.
-  On disabling domain name must be deleted from the core MIM component.
-  Change of the status must be distributed across all the nodes in the cluster.
-- Remove the domain name - This function must be idempotent.
-  Domain name must be deleted from the core MIM component (if required) and from the DB.
-  This action must be distributed across all the nodes in the cluster.
+- Disabling/Enabling domain name - This function is idempotent. The status
+  of the existing domain is always changed on successful call.
+  If domain name is enabled, then it is added in the core MIM component.
+  On disabling domain name is deleted from the core MIM component.
+  Change of the status is distributed across all the nodes in the cluster.
+- Remove the domain name - This function is idempotent.
+  Domain name is deleted from the core MIM component (if required) and from the DB.
+  This action is distributed across all the nodes in the cluster.
 
 In case of any issues (domain name is already configured with another
-host\_type or host\_type is not supported), they must be logged as errors.
+host\_type or host\_type is not supported), errors are logged.
 
 The database schema contains two tables:
 
@@ -101,67 +101,17 @@ Configure host-type first to delete such domains.
 
 ## Service options
 
-```toml
-[services.service_domain_db]
-  db_pool = "global"
-  event_cleaning_interval = 1800
-  event_max_age = 7200
-```
-
-### `db_pool`
-By default, this service uses the RDBMS connection pool configured with the scope `"global"`.
-You can put a specific host type there to use the pool with the `"host"` or `"single_host"` scope for that particular host type. See [outgoing connections docs](../advanced-configuration/outgoing-connections.md) for more information about pool scopes.
-
-* **Syntax:** string
-* **Default:** `global`
-* **Example:** `db_pool = "my_host_type"`
-
-### `event_cleaning_interval`
-The number of seconds between cleaning attempts of the `domain_events` table.
-* **Syntax:** positive integer
-* **Default:** `1800` (30 minutes)
-* **Example:** `event_cleaning_interval = 1800`
-
-### `event_max_age`
-The number of seconds after an event must be deleted from the `domain_events` table.
-* **Syntax:** positive integer
-* **Default:** `7200` (2 hours)
-* **Example:** `event_max_age = 7200`
+Described in the [`services` section](../advanced-configuration/Services.md#service_domain_db).
 
 ## REST API
 
 Provides API for adding/removing and enabling/disabling domains over HTTP.
 Implemented by `mongoose_domain_handler` module.
 
-### `listen.http.handlers.mongoose_domain_handler.username`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `username = "admin"`
+Configuration described in the [`listen` section](../advanced-configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler).
 
-When set, enables authentication to access this endpoint. Requires setting `password`.
-
-### `listen.http.handlers.mongoose_domain_handler.password`
-* **Syntax:** string
-* **Default:** not set
-* **Example:** `password = "secret"`
-
-Required to enable authentication for this endpoint.
-
-### Example configuration
-
-```toml
-[[listen.http]]
-  ip_address = "127.0.0.1"
-  port = 8088
-  transport.num_acceptors = 10
-  transport.max_connections = 1024
-
-  [[listen.http.handlers.mongoose_domain_handler]]
-    host = "localhost"
-    path = "/api"
-    username = "admin"
-    password = "secret"
-```
+REST API is documented using Swagger in [REST API for dynamic domains management](../rest-api/Dynamic-domains.md).
+Below are examples of how to use this API with the help of `curl`:
 
 ### Add domain
 
