@@ -179,7 +179,7 @@ init_per_suite(Config) ->
     prepare_test_queries(mim2()),
     erase_database(mim()),
     Config1 = ejabberd_node_utils:init(mim(), Config),
-    Config2 = dynamic_modules:save_modules(<<"test type">>, Config1),
+    Config2 = dynamic_modules:save_modules(dummy_auth_host_type(), Config1),
     escalus:init_per_suite([{mim_conf1, Conf1},
                             {mim_conf2, Conf2},
                             {service_setup, per_testcase} | Config2]).
@@ -195,7 +195,7 @@ end_per_suite(Config) ->
     Conf2 = proplists:get_value(mim_conf2, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
-    dynamic_modules:restore_modules(<<"test type">>, Config),
+    dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
@@ -262,7 +262,7 @@ end_per_testcase(TestcaseName, Config) ->
 
 init_per_testcase2(TestcaseName, Config)
     when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
-    HostType = <<"test type">>,
+    HostType = dummy_auth_host_type(),
     Mods = [{mod_mam_meta, [{backend, rdbms}, {pm, []}]}],
     rpc(mim(), gen_mod_deps, start_modules, [HostType, Mods]),
     escalus:init_per_testcase(TestcaseName, Config);
@@ -280,7 +280,7 @@ setup_service(Opts, Config) ->
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
              {<<"erlang-solutions.local">>, <<"type2">>}],
-    CommonTypes = [<<"type1">>, <<"type2">>, <<"test type">>,
+    CommonTypes = [<<"type1">>, <<"type2">>, dummy_auth_host_type(),
                    <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
     Types2 = [<<"mim2only">>|CommonTypes],
     init_with(mim(), Pairs1, CommonTypes),
@@ -583,7 +583,7 @@ db_restarts_properly(_) ->
     mongoose_helper:wait_until(F, true, #{time_left => timer:seconds(15)}).
 
 db_keeps_syncing_after_cluster_join(Config) ->
-    HostType = <<"test type">>,
+    HostType = dummy_auth_host_type(),
     %% GIVING mim1 and mim2 are not clustered.
     %% Ask mim1 to join mim2's cluster
     %% (and mongooseim application gets restarted on mim1)
@@ -940,7 +940,7 @@ rest_cannot_enable_domain_when_it_is_static(Config) ->
         rest_patch_enabled(Config, <<"example.cfg">>, true).
 
 rest_delete_domain_cleans_data_from_mam(Config) ->
-    HostType = <<"test type">>,
+    HostType = dummy_auth_host_type(),
     rest_put_domain(Config, <<"example.com">>, HostType), %% alice3
     rest_put_domain(Config, <<"example.org">>, HostType), %% bob3
     sync(),
@@ -1111,3 +1111,6 @@ assert_domains_are_equal(HostType) ->
         true -> ok;
         false -> ct:fail({Domains1, Domains2})
     end.
+
+dummy_auth_host_type() ->
+    <<"dummy auth">>. %% specified in the TOML config file
