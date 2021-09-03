@@ -315,25 +315,25 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| `[Host, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
-| `[Host, modMamArchived]` | spiral | A message is stored in user's archive. |
-| `[Host, modMamDropped]` | spiral | A message couldn't be stored in the DB (and got dropped). |
-| `[Host, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
-| `[Host, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
-| `[Host, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |
-| `[Host, modMamLookups]` | spiral | A MAM lookup is performed. |
-| `[Host, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
-| `[Host, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
-| `[Host, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
-| `[Host, modMucMamArchived]` | spiral | A message is stored in room's archive. |
-| `[Host, modMucMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result from MUC room. |
-| `[Host, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
-| `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
-| `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
-| `[Host, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
-| `[Host, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
-| `[Host, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
-| `[Host, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
+| `[HostType, modMamArchiveRemoved]` | spiral | User's entire archive is removed. |
+| `[HostType, modMamArchived]` | spiral | A message is stored in user's archive. |
+| `[HostType, modMamDropped]` | spiral | A message couldn't be stored in the DB (and got dropped). |
+| `[HostType, modMamDroppedIQ]` | spiral | MAM IQ has been dropped due to: high query frequency/invalid syntax or type. |
+| `[HostType, modMamFlushed]` | spiral | Message was stored in a DB asynchronously. |
+| `[HostType, modMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result. |
+| `[HostType, modMamLookups]` | spiral | A MAM lookup is performed. |
+| `[HostType, modMamPrefsGets]` | spiral | Archiving preferences have been requested by a client. |
+| `[HostType, modMamPrefsSets]` | spiral | Archiving preferences have been updated by a client. |
+| `[HostType, modMucMamArchiveRemoved]` | spiral | Room's entire archive is removed. |
+| `[HostType, modMucMamArchived]` | spiral | A message is stored in room's archive. |
+| `[HostType, modMucMamForwarded]` | spiral | A message is sent to a client as a part of a MAM query result from MUC room. |
+| `[HostType, modMucMamLookups]` | spiral | A MAM lookup in MUC room is performed. |
+| `[HostType, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
+| `[HostType, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
+| `[HostType, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[HostType, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+| `[HostType, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
+| `[HostType, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
 
 | Backend action | Description (when it gets incremented) |
 | -------------- | ---------------------------------------|
