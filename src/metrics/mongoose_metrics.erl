@@ -52,6 +52,23 @@
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
+%% #static{} from https://github.com/erlang/otp/blob/OTP-24.0.6/lib/ssl/src/tls_sender.erl#L43
+-record(static, {
+    connection_pid,
+    role,
+    socket,
+    socket_options,
+    trackers,
+    transport_cb,
+    negotiated_version,
+    renegotiate_at,
+    key_update_at,  %% TLS 1.3
+    bytes_sent,     %% TLS 1.3
+    connection_monitor,
+    dist_handle,
+    log_level
+}).
+
 -type use_or_skip() :: use | skip.
 -type hook_name() :: atom().
 
@@ -304,31 +321,9 @@ inet_stats(Port) when is_port(Port) ->
     Stats;
 %% TLS dist is operated by PID, not PORT directly, so we need to find the relevant port
 inet_stats(Pid) when is_pid(Pid) ->
-    {links, Links} = erlang:process_info(Pid, links),
-    %% In case of TLS, controlling process of a TCP port is one of the linked proceses
-    %% so we should check all links of all processes linked to givan one
-    RelatedPidsAndPorts =
-        lists:map(fun(LinkedPid) ->
-            {links, SubLinks} = erlang:process_info(LinkedPid, links),
-            SubLinks
-        end, [Pid | Links]),
-
-    PortsTCP = lists:filter(
-        fun(Link) ->
-            case Link of
-                Port when is_port(Port) ->
-                    {name, "tcp_inet"} == erlang:port_info(Port, name);
-                _ ->
-                    false
-            end
-        end, lists:flatten(RelatedPidsAndPorts)),
-
-    case PortsTCP of
-        [Port | _] ->
-            inet_stats(Port);
-        _ ->
-            ?EMPTY_INET_STATS
-    end;
+    inet_stats(sys:get_state(Pid));
+inet_stats({connection, {data, #static{socket = Socket}, _}}) ->
+    inet_stats(Socket);
 inet_stats(_) ->
     ?EMPTY_INET_STATS.
 
