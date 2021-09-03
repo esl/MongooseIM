@@ -47,11 +47,11 @@ detailed information on the topic.
 %% IQ handlers
 -export([process_iq/4]).
 
-start(Host, _Opts) ->
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, <<"erlang-solutions.com:example">>,
-                                  ?MODULE, process_iq, no_queue).
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, <<"erlang-solutions.com:example">>).
+start(HostType, _Opts) ->
+    gen_iq_handler:add_iq_handler_for_domain(HostType, <<"erlang-solutions.com:example">>,
+                                  ejabberd_sm, process_iq, #{}, no_queue).
+stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, <<"erlang-solutions.com:example">>, ejabberd_sm).
 
 process_iq(_From, _To, Acc, IQ) ->
     IQRes = IQ#iq{type = result},

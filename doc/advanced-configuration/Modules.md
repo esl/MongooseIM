@@ -30,7 +30,7 @@ The server may use one of the following strategies to handle incoming IQ stanzas
 * **Syntax:** positive integer
 * **Example:** `iqdisc.workers = 50`
 
-Their semantics works as follow:
+Their semantics works as follows:
 
 * `no_queue` registers a new IQ handler, which will be called in the
   context of the process serving the connection on which the IQ arrives.
@@ -188,3 +188,30 @@ Provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.
 
 ### [mod_version](../modules/mod_version.md)
 This module provides the functionality specified in [XEP-0092: Software Version](https://xmpp.org/extensions/xep-0092.html).
+
+## Modules supporting dynamic domains
+
+These modules can be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
+
+* mod_blocking
+* mod_caps
+* mod_cache_users
+* mod_carboncopy
+* mod_commands
+* mod_disco
+* mod_domain_isolation
+* mod_inbox
+* mod_last
+* mod_mam
+* mod_muc
+* mod_muc_log
+* mod_muc_light
+* mod_muc_light_commands
+* mod_offline
+* mod_offline_stub
+* mod_ping
+* mod_privacy
+* mod_private
+* mod_roster
+* mod_stream_management
+* mod_vcard

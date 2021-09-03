@@ -1,5 +1,5 @@
-The `host_config` section is used to configure options for specific XMPP domains.
-For each domain requiring such options, a `host_config` section needs to be created with the following format:
+The `host_config` section is used to configure options for specific XMPP domains or for host types, which are used to group multiple domains.
+For each domain or host type requiring such options, a `host_config` section needs to be created with the following format:
 
 * **Scope:** for each option the scope is the same as for the corresponding top-level option.
 * **Syntax:** domain subsection starts with `[[host_config]]` and contains the options listed below.
@@ -7,16 +7,25 @@ For each domain requiring such options, a `host_config` section needs to be crea
 * **Example:** see the examples for each section below.
 
 **Note:** Each hosted domain needs to be included in the list of [`hosts`](general.md#generalhosts) in the `general` section.
+Similarly, each host type needs to be included in [`general.host_types`](general.md#generalhost_types).
 
 ## General options
 
 ### `host_config.host`
 
 * **Syntax:** string, domain name
-* **Default:** no default, this option is mandatory
+* **Default:** no default, either this option or `host_config.host_type` is mandatory
 * **Example:** `host = "my-xmpp-server.com"`
 
 This option specifies the XMPP domain that this section refers to.
+
+### `host_config.host_type`
+
+* **Syntax:** string, host type name
+* **Default:** no default, either this option or `host_config.host` is mandatory
+* **Example:** `host_type = "first type"`
+
+This option specifies the host type that this section refers to.
 
 ## Configuration sections
 
@@ -101,7 +110,9 @@ The last section would work the same without `methods`:
 
 ### `host_config.modules`
 
-This section completely overrides the top-level [`modules`](../Modules) section. All options are allowed.
+This section completely overrides the top-level [`modules`](../Modules) section.
+Remember that only the modules supporting dynamic domains are allowed if you are specifying options for a host type.
+These can be found in the [modules list](./Modules.md#modules-supporting-dynamic-domains).
 
 #### Example
 

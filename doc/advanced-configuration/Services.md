@@ -1,13 +1,12 @@
 Some functionalities in MongooseIM are provided by "services".
-A service is similar to a module, but while a module is started for every virtual 
-host and may have global or host-specific configuration, a service is started 
+A service is similar to a module, but while a module is started for every 
+host type and may have global or specific configuration, a service is started 
 only once with global configuration.
-Currently, only two modules are categorised as "service providers".
-Eventually the modules which are not host-specific will be refactored to be services.
+Currently, three modules are categorised as "service providers".
+Eventually the modules which are not specific for a host type will be refactored to be services.
 
 * **Scope:** global
-* **Syntax:** Both services are specified in their own sections, either
-`[services.service_admin_extra]` or `[services.service_mongoose_system_metrics]`. 
+* **Syntax:** Each service is specified in its own `services.*` section. 
 * **Default:** None - each service needs to be enabled explicitly.
 Typical services are already specified in the example configuration file.
 * **Example:** A configuration of the `service_admin_extra` service.
@@ -23,7 +22,7 @@ Typical services are already specified in the example configuration file.
 ### `services.service_admin_extra.submods`
 * **Syntax:** Array of strings representing function groups added by `service_admin_extra`.
 * **Default:** All submodules: `["node", "account", "sessions", "vcard", "gdpr",
- "upload", "roster", "last", "private", "stanza", "stats"]`
+ "upload", "roster", "last", "private", "stanza", "stats", "domain"]`
 * **Example:** `submods = ["stats", "gdpr"]`
 
 This service provides additional commands to the mongooseimctl script.
@@ -46,6 +45,7 @@ They are bundled in the following groups:
  `set_vcard2`, `set_vcard2_multi`
 * `gdpr`: Adds `retrieve_personal_data`
 * `upload` : Adds `http_upload`
+* `domain` : Adds `insert_domain`, `delete_domain`, `enable_domain`, `disable_domain`
 
 ## service_mongoose_system_metrics
 
@@ -57,8 +57,8 @@ See [System Metrics Privacy Policy](../operation-and-maintenance/System-Metrics-
 * **Default:** not specified
 * **Example:** `report = true`
 
-Explicit acknowledgement that the metrics are gathered and reported.
-When this option is not specified, the reports are gathered and a notification 
+An explicit acknowledgement that the metrics are gathered and reported.
+When this option is not specified, the reports are gathered, and a notification 
 appears in logs on startup.
 Enabling this option silences the notification reminder that metrics are gathered.
 When this option is set to `false`, System Metrics Service is not started and metrics are not collected.
@@ -89,6 +89,36 @@ Metrics will not be collected and shared.
 It will generate a notification that the feature is not being used.
 The notification can be silenced by setting the `no_report` option explicitly.
 
+## service_domain_db
+
+This service is needed to use the dynamic domains API.
+It is used to synchronise dynamic domains between nodes after starting.
+
+### `services.service_domain_db.db_pool`
+
+* **Syntax:** string
+* **Default:** `global`
+* **Example:** `db_pool = "my_host_type"`
+
+By default, this service uses the RDBMS connection pool configured with the scope `"global"`.
+You can put a specific host type there to use the pool with the `"host"` or `"single_host"` scope for that particular host type. See the [outgoing connections docs](../advanced-configuration/outgoing-connections.md) for more information about pool scopes.
+
+### `services.service_domain_db.event_cleaning_interval`
+
+* **Syntax:** positive integer
+* **Default:** `1800` (seconds - 30 minutes)
+* **Example:** `event_cleaning_interval = 1800`
+
+The number of seconds between cleaning attempts of the `domain_events` table.
+
+### `services.service_domain_db.event_max_age`
+
+* **Syntax:** positive integer
+* **Default:** `7200` (seconds - 2 hours)
+* **Example:** `event_max_age = 7200`
+
+The number of seconds after an event must be deleted from the `domain_events` table.
+
 ## Example configuration
 
 ```toml
@@ -101,4 +131,9 @@ The notification can be silenced by setting the `no_report` option explicitly.
   initial_report = 300_000
   periodic_report = 108_000_000
   tracking_id = "UA-123456789"
+  
+[services.service_domain_db]
+  db_pool = "global"
+  event_cleaning_interval = 1800
+  event_max_age = 7200
 ```
