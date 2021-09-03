@@ -151,9 +151,9 @@ setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
 make_routing_fun(Name, all) ->
     Self = self(),
     Marker = list_to_atom([lists:last(atom_to_list(Name))]),
-    fun(_From, _To, _Acc, Packet) ->
+    fun(_From, _To, Acc, Packet) ->
         Self ! {Marker, Packet},
-        done
+        {done, Acc}
     end;
 make_routing_fun(Name, PacketToRoute) ->
     Self = self(),
@@ -162,7 +162,7 @@ make_routing_fun(Name, PacketToRoute) ->
         case msg_to_id(Packet) of
             PacketToRoute ->
                 Self ! {Marker, Packet},
-                done;
+                {done, Acc};
             _ -> {From, To, Acc, Packet}
         end
     end.
@@ -219,5 +219,5 @@ remove_component_tables() ->
 
 resend_as_error(From0, To0, Acc0, Packet0) ->
     {Acc1, Packet1} = jlib:make_error_reply(Acc0, Packet0, #xmlel{}),
-    ejabberd_router:route(To0, From0, Acc1, Packet1),
-    done.
+    Acc2 = ejabberd_router:route(To0, From0, Acc1, Packet1),
+    {done, Acc2}.

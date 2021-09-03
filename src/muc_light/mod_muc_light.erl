@@ -322,7 +322,7 @@ hooks(HostType) ->
 %%====================================================================
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                     El :: exml:element(), Extra :: map()) -> any().
+                     El :: exml:element(), Extra :: map()) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, _Extra) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     DecodedPacket = mod_muc_light_codec_backend:decode(From, To, El, Acc),
@@ -333,7 +333,7 @@ process_packet(Acc, From, To, El, _Extra) ->
                      From :: jid:jid(), To :: jid:jid(),
                      Acc :: mongoose_acc:t(),
                      OrigPacket :: exml:element(),
-                     DecodedPacket :: mod_muc_light_codec:decode_result()) -> any().
+                     DecodedPacket :: mod_muc_light_codec:decode_result()) -> mongoose_acc:t().
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, {set, #create{} = Create}}) ->
     FromUS = jid:to_lus(From),
@@ -353,7 +353,7 @@ process_decoded_packet(HostType, From, To, Acc, El,
         true ->
             case handle_blocking(Acc, From, To, Blocking) of
                 {error, _} = Res -> make_err(From, To, El, Acc, Res);
-                _ -> ok
+                _ -> Acc
             end;
         false -> make_err(From, To, El, Acc, {error, blocking_disabled})
     end;
@@ -363,7 +363,7 @@ process_decoded_packet(_HostType, From, To, Acc, El,
         {Acc1, error} ->
             E = {error, {feature_not_implemented, <<"mod_muc_iq returns error">>}},
             make_err(From, To, El, Acc1, E);
-        _ -> ok
+        _ -> Acc
     end;
 process_decoded_packet(_HostType, From, To, Acc, El,
                        {ok, RequestToRoom})
@@ -375,8 +375,8 @@ process_decoded_packet(_HostType, From, To, Acc, El,
 process_decoded_packet(_HostType, From, To, Acc, El,
                        {error, _} = Err) ->
     make_err(From, To, El, Acc, Err);
-process_decoded_packet(_HostType, _From, _To, _Acc, _El, ignore) ->
-     ok;
+process_decoded_packet(_HostType, _From, _To, Acc, _El, ignore) ->
+     Acc;
 process_decoded_packet(_HostType, From, To, Acc, El, InvalidReq) ->
     ?LOG_WARNING(#{what => muc_light_invalid_request,
                    acc => Acc, reason => InvalidReq}),
@@ -636,7 +636,7 @@ creator_aff(false) -> owner.
                             Acc :: mongoose_acc:t()) -> ok.
 handle_disco_info_get(From, To, DiscoInfo, Acc) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, jid:to_lus(To),
-                                       fun ejabberd_router:route/3, Acc).
+                                       make_handler_fun(Acc), Acc).
 
 -spec handle_disco_items_get(HostType :: host_type(),
                              Acc :: mongoose_acc:t(),
@@ -650,10 +650,10 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
                          text => <<"Couldn't get room list for user">>,
                          from_jid => From, reason => Error}),
             mod_muc_light_codec_backend:encode_error(
-              {error, internal_server_error}, From, To, OrigPacket, fun ejabberd_router:route/3);
+              {error, internal_server_error}, From, To, OrigPacket, make_handler_fun(Acc));
         Rooms ->
             RoomsInfo = get_rooms_info(lists:sort(Rooms)),
-            RouteFun = fun ejabberd_router:route/3,
+            RouteFun = make_handler_fun(Acc),
             RoomsPerPage = gen_mod:get_module_opt(HostType, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of

@@ -28,7 +28,7 @@
 %%----------------------------------------------------------------------
 
 -callback process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                         El :: exml:element(), Extra :: map()) -> any().
+                         El :: exml:element(), Extra :: map()) -> mongoose_acc:t().
 
 %%----------------------------------------------------------------------
 %% API
@@ -52,7 +52,7 @@ new(Module, Extra) when is_atom(Module), is_map(Extra) ->
               Acc :: mongoose_acc:t(),
               From ::jid:jid(),
               To ::jid:jid(),
-              El :: exml:element()) -> any().
+              El :: exml:element()) -> mongoose_acc:t().
 process(#packet_handler{ module = Module, extra = Extra }, Acc, From, To, El) ->
     Module:process_packet(Acc, From, To, El, Extra).
 

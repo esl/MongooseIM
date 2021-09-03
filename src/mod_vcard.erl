@@ -377,9 +377,10 @@ process_search_reported_spec(KVs) ->
 %%--------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                     Packet :: exml:element(), #{pid := pid()}) -> any().
+                     Packet :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
 process_packet(Acc, From, To, Packet, #{pid := Pid}) ->
-    Pid ! {route, From, To, Acc, Packet}.
+    Pid ! {route, From, To, Acc, Packet},
+    Acc.
 
 handle_route(From, To, Acc, HostType) ->
     {IQ, Acc1} = mongoose_iq:info(Acc),

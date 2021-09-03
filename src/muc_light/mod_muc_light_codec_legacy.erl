@@ -46,7 +46,7 @@ decode(_, _, _, _Acc) ->
 -spec encode(Request :: muc_light_encode_request(),
              OriginalSender :: jid:jid(), RoomUS :: jid:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
-             Acc :: mongoose_acc:t()) -> any().
+             Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     Aff = get_sender_aff(AffUsers, US),
@@ -64,12 +64,15 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
-    #xmlel{ children = Children }
+    Packet1 = #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
     lists:foreach(
       fun({{U, S}, _}) ->
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
-      end, AffUsers);
+      end, AffUsers),
+    mongoose_acc:update_stanza(#{from_jid => RoomJID,
+                                 to_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                                 element => Packet1}, Acc);
 encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
     {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
     case encode_meta(OtherCase, RoomJID, Sender, HandleFun, Acc) of
@@ -80,13 +83,13 @@ encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
             IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, XMLNS, Els),
             HandleFun(RoomJID, Sender, IQRes);
         noreply ->
-            ok
+            Acc
     end.
 
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
         OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
-    any().
+    mongoose_acc:t().
 encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
     %% The only error case for valid presence is registration-required for room creation
     X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },

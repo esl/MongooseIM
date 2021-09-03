@@ -547,28 +547,28 @@ route(_From, _To, Acc, _Packet, []) ->
     ?LOG_ERROR(#{what => no_more_routing_modules, acc => Acc}),
     mongoose_metrics:update(global, routingErrors, 1),
     mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
-route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
-    try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket) of
+route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
+    try xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc0, OrigPacket) of
         drop ->
-            mongoose_acc:append(router, result, {drop, M}, Acc);
-        {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
-            try xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered) of
-                done ->
-                    mongoose_acc:append(router, result, {done, M}, NAcc);
+            mongoose_acc:append(router, result, {drop, M}, Acc0);
+        {OrigFrom, OrigTo, Acc1, OrigPacketFiltered} ->
+            try xmpp_router:call_route(M, OrigFrom, OrigTo, Acc1, OrigPacketFiltered) of
+                {done, Acc2} ->
+                    mongoose_acc:append(router, result, {done, M}, Acc2);
                 {From, To, NAcc1, Packet} ->
                     route(From, To, NAcc1, Packet, Tail)
                 catch Class:Reason:Stacktrace ->
                     ?LOG_WARNING(#{what => routing_failed,
-                                   router_module => M, acc =>Acc,
+                                   router_module => M, acc => Acc1,
                                    class => Class, reason => Reason, stacktrace => Stacktrace}),
-                    mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc)
+                    mongoose_acc:append(router, result, {error, {M, Reason}}, Acc1)
             end
         catch Class:Reason:Stacktrace ->
             ?LOG_WARNING(#{what => route_filter_failed,
                            text => <<"Error when filtering packet in router">>,
-                           router_module => M, acc => Acc,
+                           router_module => M, acc => Acc0,
                            class => Class, reason => Reason, stacktrace => Stacktrace}),
-            mongoose_acc:append(router, result, {error, {M, Reason}}, Acc)
+            mongoose_acc:append(router, result, {error, {M, Reason}}, Acc0)
     end.
 
 update_tables() ->

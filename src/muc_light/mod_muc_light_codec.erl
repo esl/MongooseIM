@@ -17,7 +17,7 @@
 -ignore_xref([behaviour_info/1]).
 
 -type encoded_packet_handler() ::
-    fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> any()).
+    fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> mongoose_acc:t()).
 
 -type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
                        | {error, bad_request} | ignore.
@@ -35,11 +35,11 @@
 -callback encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
                  RoomUS :: jid:simple_bare_jid(), % may be just service domain
                  HandleFun :: encoded_packet_handler(),
-                 Acc :: mongoose_acc:t()) -> any().
+                 Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 
 -callback encode_error(ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
                        OrigPacket :: exml:element(), HandleFun :: encoded_packet_handler()) ->
-    any().
+    mongoose_acc:t().
 
 %%====================================================================
 %% API
@@ -47,7 +47,7 @@
 
 -spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: jid:jid(),
                    OrigTo :: jid:jid(), OrigPacket :: exml:element(),
-                   HandleFun :: encoded_packet_handler()) -> any().
+                   HandleFun :: encoded_packet_handler()) -> mongoose_acc:t().
 encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorElem = make_error_elem(ErrMsg),
     ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = ExtraChildren }, ErrorElem),

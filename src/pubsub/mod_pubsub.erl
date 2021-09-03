@@ -350,10 +350,10 @@ default_host() ->
 
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     #{state := #state{}}) -> any().
-process_packet(_Acc, From, To, El, #{state := State}) ->
+                     #{state := #state{}}) -> mongoose_acc:t().
+process_packet(Acc, From, To, El, #{state := State}) ->
     #state{server_host = ServerHost, access = Access, plugins = Plugins} = State,
-    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
+    do_route(Acc, ServerHost, Access, Plugins, To#jid.lserver, From, To, El).
 
 %%====================================================================
 %% GDPR callback
@@ -809,7 +809,7 @@ handle_pep_authorization_response(<<"message">>, _, From, To, Acc, Packet)
             none -> {From, To, Acc, Packet};
             invalid -> {From, To, Acc, Packet};
             XFields ->
-                handle_authorization_response(jid:to_lower(To), From, To, Packet, XFields),
+                handle_authorization_response(Acc, jid:to_lower(To), From, To, Packet, XFields),
                 drop
         end;
 handle_pep_authorization_response(_, _, From, To, Acc, Packet) ->
@@ -1006,6 +1006,7 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec do_route(
+        Acc :: mongoose_acc:t(),
         ServerHost :: binary(),
           Access     :: atom(),
           Plugins    :: [binary(), ...],
@@ -1013,12 +1014,12 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
           From       ::jid:jid(),
           To         ::jid:jid(),
           Packet     :: exml:element())
-        -> ok.
+        -> mongoose_acc:t().
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-do_route(ServerHost, Access, Plugins, Host, From,
+do_route(Acc, ServerHost, Access, Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"iq">> } = Packet) ->
     case jlib:iq_query_info(Packet) of
@@ -1036,7 +1037,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Res);
+            ejabberd_router:route(To, From, Acc, Res);
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
@@ -1050,7 +1051,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Res);
+            ejabberd_router:route(To, From, Acc, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub(Host, ServerHost, From, IQType,
                                  SubEl, Lang, Access, Plugins)
@@ -1060,7 +1061,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Res);
+            ejabberd_router:route(To, From, Acc, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub_owner(Host, ServerHost, From,
                                        IQType, SubEl, Lang)
@@ -1072,14 +1073,14 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {error, Error} ->
                           make_error_reply(Packet, Error)
                   end,
-            ejabberd_router:route(To, From, Res);
+            ejabberd_router:route(To, From, Acc, Res);
         #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
             Res = IQ#iq{type = result,
                         sub_el =
                         [#xmlel{name = <<"vCard">>,
                                 attrs = [{<<"xmlns">>, XMLNS}],
                                 children = iq_get_vcard(Lang)}]},
-            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
+            ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(Res));
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
             Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
                       {error, Error} ->
@@ -1087,14 +1088,14 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
                   end,
-            ejabberd_router:route(To, From, Res);
+            ejabberd_router:route(To, From, Acc, Res);
         #iq{} ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
-            ejabberd_router:route(To, From, Err);
+            ejabberd_router:route(To, From, Acc, Err);
         _ ->
-            ok
+            Acc
     end;
-do_route(_ServerHost, _Access, _Plugins, Host, From,
+do_route(Acc, _ServerHost, _Access, _Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"message">> } = Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
@@ -1103,26 +1104,26 @@ do_route(_ServerHost, _Access, _Plugins, Host, From,
         _ ->
             case find_authorization_response(Packet) of
                 none ->
-                    ok;
+                    Acc;
                 invalid ->
                     Err = make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
-                    ejabberd_router:route(To, From, Err);
+                    ejabberd_router:route(To, From, Acc, Err);
                 XFields ->
-                    handle_authorization_response(Host, From, To, Packet, XFields)
+                    handle_authorization_response(Acc, Host, From, To, Packet, XFields)
             end
     end;
-do_route(_ServerHost, _Access, _Plugins, _Host, _From,
+do_route(Acc, _ServerHost, _Access, _Plugins, _Host, _From,
          #jid{luser = <<>>, lresource = <<>>} = _To, _Packet) ->
-    ok;
-do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
+    Acc;
+do_route(Acc, _ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"error">> ->
-            ok;
+            Acc;
         <<"result">> ->
-            ok;
+            Acc;
         _ ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
-            ejabberd_router:route(To, From, Err)
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
 command_disco_info(_Host, ?NS_COMMANDS, _From) ->
@@ -1797,7 +1798,7 @@ send_authorization_approval(Host, JID, SNode, Subscription) ->
                           ++ SubAttrs),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
 
-handle_authorization_response(Host, From, To, Packet, XFields) ->
+handle_authorization_response(Acc, Host, From, To, Packet, XFields) ->
     case {lists:keysearch(<<"pubsub#node">>, 1, XFields),
           lists:keysearch(<<"pubsub#subscriber_jid">>, 1, XFields),
           lists:keysearch(<<"pubsub#allow">>, 1, XFields)} of
@@ -1814,17 +1815,17 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
             case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {error, Error} ->
                     Err = make_error_reply(Packet, Error),
-                    ejabberd_router:route(To, From, Err);
+                    ejabberd_router:route(To, From, Acc, Err);
                 {result, {_, _NewSubscription}} ->
                     %% XXX: notify about subscription state change, section 12.11
-                    ok;
+                    Acc;
                 _ ->
                     Err = make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
-                    ejabberd_router:route(To, From, Err)
+                    ejabberd_router:route(To, From, Acc, Err)
             end;
         _ ->
             Err = make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
-            ejabberd_router:route(To, From, Err)
+            ejabberd_router:route(To, From, Acc, Err)
     end.
 
 string_allow_to_boolean(<<"1">>) -> true;

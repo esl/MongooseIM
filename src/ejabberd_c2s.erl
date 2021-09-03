@@ -2312,9 +2312,9 @@ process_privacy_iq(Acc, set, To, StateData) ->
                                          From, To, IQ),
     case mongoose_acc:get(hook, result, undefined, Acc2) of
         {result, _, NewPrivList} ->
-            Acc3 = maybe_update_presence(Acc2, StateData, NewPrivList),
+            maybe_update_presence(Acc2, StateData, NewPrivList),
             NState = StateData#state{privacy_list = NewPrivList},
-            {Acc3, NState};
+            {Acc2, NState};
         _ -> {Acc2, StateData}
     end.
 

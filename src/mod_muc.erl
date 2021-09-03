@@ -590,7 +590,7 @@ stop_supervisor(HostType) ->
                      From :: jid:jid(),
                      To :: jid:simple_jid() | jid:jid(),
                      El :: exml:element(),
-                     #{state := state()}) -> ok | mongoose_acc:t().
+                     #{state := state()}) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, #{state := State}) ->
     {AccessRoute, _, _, _} = State#state.access,
     ServerHost = make_server_host(To, State),
@@ -598,7 +598,8 @@ process_packet(Acc, From, To, El, #{state := State}) ->
     case acl:match_rule_for_host_type(HostType, ServerHost, AccessRoute, From) of
         allow ->
             {Room, MucHost, _} = jid:to_lower(To),
-            route_to_room(MucHost, Room, {From, To, Acc, El}, State);
+            route_to_room(MucHost, Room, {From, To, Acc, El}, State),
+            Acc;
         _ ->
             #xmlel{attrs = Attrs} = El,
             Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -731,9 +732,9 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
     #xmlel{attrs = Attrs} = Packet,
     case xml:get_attr_s(<<"type">>, Attrs) of
         <<"error">> ->
-            ok;
+            Acc;
         <<"result">> ->
-            ok;
+            Acc;
         _ ->
             {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Acc1, Err)
