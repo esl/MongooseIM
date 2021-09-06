@@ -13,13 +13,13 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
--spec init(Host :: jid:lserver(), Opts :: proplists:proplist()) -> ok.
-init(Host, _) ->
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(HostType, _) ->
     KeyFields = [<<"from_jid">>, <<"to_jid">>, <<"thread">>, <<"type">>],
     UpdateFields = [<<"msg_id">>, <<"timestamp">>],
     InsertFields = KeyFields ++ UpdateFields,
     QueryName = smart_markers_upsert,
-    rdbms_queries:prepare_upsert(Host, QueryName, smart_markers,
+    rdbms_queries:prepare_upsert(HostType, QueryName, smart_markers,
                                  InsertFields, UpdateFields, KeyFields),
     mongoose_rdbms:prepare(smart_markers_select, smart_markers,
         [to_jid, thread, timestamp],
@@ -33,35 +33,36 @@ init(Host, _) ->
 %%% then chat marker must be added. Otherwise this function must update
 %%% chat marker record for that composite key.
 %%% @end
--spec update_chat_marker(Host :: jid:lserver(),
-                         ChatMarker :: mod_smart_markers:chat_marker()) -> ok.
-update_chat_marker(Host, ChatMarker) ->
-    do_update_chat_marker(Host, ChatMarker).
+-spec update_chat_marker(mongooseim:host_type(),
+                         mod_smart_markers:chat_marker()) -> ok.
+update_chat_marker(HostType, ChatMarker) ->
+    do_update_chat_marker(HostType, ChatMarker).
 
 %%% @doc
 %%% This function must return the latest chat markers sent to the
 %%% user/room (with or w/o thread) later than provided timestamp.
 %%% @end
--spec get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
+-spec get_chat_markers(HostType :: mongooseim:host_type(),
+                       To :: jid:jid(),
                        Thread :: mod_smart_markers:maybe_thread(),
                        Timestamp :: integer()) -> [mod_smart_markers:chat_marker()].
-get_chat_markers(Host, To, Thread, TS) ->
-    do_get_chat_markers(Host, To, Thread, TS).
+get_chat_markers(HostType, To, Thread, TS) ->
+    do_get_chat_markers(HostType, To, Thread, TS).
 
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
--spec execute_select_chat_markers(Host :: jid:lserver(),
+-spec execute_select_chat_markers(HostType :: mongooseim:host_type(),
                                   To :: binary(),
                                   Thread :: binary(),
                                   Timestamp :: integer()) ->
     mongoose_rdbms:query_result().
-execute_select_chat_markers(Host, To, Thread, Timestamp) ->
-    mongoose_rdbms:execute_successfully(Host, smart_markers_select,
+execute_select_chat_markers(HostType, To, Thread, Timestamp) ->
+    mongoose_rdbms:execute_successfully(HostType, smart_markers_select,
         [To, Thread, Timestamp]).
 
-do_update_chat_marker(Host, #{from := From, to := To, thread := Thread,
-                              type := Type, timestamp := TS, id := Id}) ->
+do_update_chat_marker(HostType, #{from := From, to := To, thread := Thread,
+                                  type := Type, timestamp := TS, id := Id}) ->
     FromEncoded = encode_jid(From),
     ToEncoded = encode_jid(To),
     ThreadEncoded = encode_thread(Thread),
@@ -69,12 +70,12 @@ do_update_chat_marker(Host, #{from := From, to := To, thread := Thread,
     KeyValues = [FromEncoded, ToEncoded, ThreadEncoded, TypeEncoded],
     UpdateValues = [Id, TS],
     InsertValues = KeyValues ++ UpdateValues,
-    Res = rdbms_queries:execute_upsert(Host, smart_markers_upsert,
+    Res = rdbms_queries:execute_upsert(HostType, smart_markers_upsert,
                                        InsertValues, UpdateValues, KeyValues),
     ok = check_upsert_result(Res).
 
-do_get_chat_markers(Host, To, Thread, TS) ->
-    {selected, ChatMarkers} = execute_select_chat_markers(Host,
+do_get_chat_markers(HostType, To, Thread, TS) ->
+    {selected, ChatMarkers} = execute_select_chat_markers(HostType,
                                                           encode_jid(To),
                                                           encode_thread(Thread),
                                                           TS),
@@ -82,7 +83,7 @@ do_get_chat_markers(Host, To, Thread, TS) ->
 
 encode_jid(JID) -> jid:to_binary(jid:to_lus(JID)).
 
-encode_thread(undefined) -> <<"">>;
+encode_thread(undefined) -> <<>>;
 encode_thread(Thread)    -> Thread.
 
 encode_type(received)     -> <<"R">>;
@@ -109,7 +110,7 @@ decode_record({From, To, Thread, Type, Id, TS}) ->
 
 decode_jid(EncodedJID) -> jid:from_binary(EncodedJID).
 
-decode_thread(<<"">>) -> undefined;
+decode_thread(<<>>) -> undefined;
 decode_thread(Thread) -> Thread.
 
 decode_type(<<"R">>) -> received;
@@ -118,4 +119,3 @@ decode_type(<<"A">>) -> acknowledged.
 
 decode_timestamp(EncodedTS) ->
     mongoose_rdbms:result_to_integer(EncodedTS).
-

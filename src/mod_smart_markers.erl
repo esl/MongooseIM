@@ -61,10 +61,12 @@
 -behaviour(gen_mod).
 
 %% gen_mod API
--export([start/2, stop/1]).
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
 
 %% gen_mod API
--export([get_chat_markers/4]).
+-export([get_chat_markers/3]).
 
 %% Hook handlers
 -export([user_send_packet/4]).
@@ -85,9 +87,9 @@
 
 -type chat_marker() :: #{from := jid:jid(),
                          to := jid:jid(),
-                         thread := maybe_thread(), %%it is not optional!!!
+                         thread := maybe_thread(), % it is not optional!
                          type := mongoose_chat_markers:chat_marker_type(),
-                         timestamp := integer(), %microsecond
+                         timestamp := integer(), % microsecond
                          id := binary()}.
 
 -export_type([chat_marker/0]).
@@ -95,48 +97,53 @@
 %%--------------------------------------------------------------------
 %% DB backend behaviour definition
 %%--------------------------------------------------------------------
--callback init(Host :: jid:lserver(), Opts :: proplists:proplist()) -> ok.
+-callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
 %%% 'from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
 %%% as a composite database key. If key is not available in the database,
 %%% then chat marker must be added. Otherwise this function must update
 %%% chat marker record for that composite key.
--callback update_chat_marker(Host :: jid:lserver(), ChatMarker :: chat_marker()) -> ok.
+-callback update_chat_marker(mongooseim:host_type(), chat_marker()) -> ok.
 
 %%% This function must return the latest chat markers sent to the
 %%% user/room (with or w/o thread) later than provided timestamp.
--callback get_chat_markers(Host :: jid:lserver(), To :: jid:jid(),
-                           Thread :: maybe_thread(), Timestamp :: integer()) ->
-                              [chat_marker()].
+-callback get_chat_markers(HostType :: mongooseim:host_type(),
+                           To :: jid:jid(),
+                           Thread :: maybe_thread(),
+                           Timestamp :: integer()) ->
+    [chat_marker()].
 
 %%--------------------------------------------------------------------
 %% gen_mod API
 %%--------------------------------------------------------------------
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts) ->
     gen_mod:start_backend_module(?MODULE, add_default_backend(Opts),
                                  [get_chat_markers, update_chat_marker]),
-    mod_smart_markers_backend:init(Host, Opts),
-    ejabberd_hooks:add(hooks(Host)).
+    mod_smart_markers_backend:init(HostType, Opts),
+    ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(Host :: jid:lserver()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
--spec hooks(Host :: jid:lserver()) -> [ejabberd_hooks:hook()].
-hooks(Host) ->
-    [{user_send_packet, Host, ?MODULE, user_send_packet, 90}].
+-spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+hooks(HostType) ->
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90}].
 
--spec user_send_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-                       Packet :: exml:element()) -> mongoose_acc:t().
+-spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
+	mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
-    TS = mongoose_acc:timestamp(Acc),
-    case has_valid_markers(From, To, Packet, TS) of
-        {true, Host, Markers} ->
-            update_chat_markers(Acc, Host, Markers);
+    case has_valid_markers(Acc, From, To, Packet) of
+        {true, HostType, Markers} ->
+            update_chat_markers(Acc, HostType, Markers);
         false -> Acc
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
@@ -145,33 +152,47 @@ user_send_packet(Acc, _From, _To, _Packet) ->
 %%--------------------------------------------------------------------
 %% Other API
 %%--------------------------------------------------------------------
--spec get_chat_markers(ChatType :: chat_type(), To :: jid:jid(),
-                       Thread :: maybe_thread(), TS :: os:timestamp()) -> [chat_marker()].
-get_chat_markers(ChatType, #jid{lserver = LServer} = To, Thread, TS) ->
+-spec get_chat_markers(jid:jid(), maybe_thread(), integer()) ->
+    [chat_marker()].
+get_chat_markers(#jid{lserver = LServer} = To, Thread, TS) ->
     %% internal API, no room access rights verification here!
-    Host = case ChatType of
-               one2one -> LServer;
-               groupchat ->
-                   mod_muc_light_utils:muc_host_to_host_type(LServer)
-           end,
-    mod_smart_markers_backend:get_chat_markers(Host, To, Thread, TS).
+    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+    mod_smart_markers_backend:get_chat_markers(HostType, To, Thread, TS).
 
 %%--------------------------------------------------------------------
 %% Local functions
 %%--------------------------------------------------------------------
--spec update_chat_markers(Acc :: mongoose_acc:t(),
-                          Host :: jid:lserver(),
-                          Markers :: [chat_marker()]) -> mongoose_acc:t().
-update_chat_markers(Acc, Host, Markers) ->
+-spec update_chat_markers(mongoose_acc:t(), mongooseim:host_type(), [chat_marker()]) ->
+    mongoose_acc:t().
+update_chat_markers(Acc, HostType, Markers) ->
     TS = mongoose_acc:timestamp(Acc),
-    [mod_smart_markers_backend:update_chat_marker(Host, CM) || CM <- Markers],
+    [mod_smart_markers_backend:update_chat_marker(HostType, CM) || CM <- Markers],
     mongoose_acc:set_permanent(?MODULE, timestamp, TS, Acc).
 
--spec extract_chat_markers(From :: jid:jid(),
-                           To :: jid:jid(),
-                           Packet :: exml:element(),
-                           TS :: integer()) -> [chat_marker()].
-extract_chat_markers(From, To, Packet, TS) ->
+-spec has_valid_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
+    false | {true, mongooseim:host_type(), Markers :: [chat_marker()]}.
+has_valid_markers(Acc, From, To, Packet) ->
+    case extract_chat_markers(Acc, From, To, Packet) of
+        [] -> false;
+        Markers ->
+            case is_valid_host(Acc, From, To) of
+                false -> false;
+                {true, HostType} -> {true, HostType, Markers}
+            end
+    end.
+
+-spec is_valid_host(mongoose_acc:t(), jid:jid(), jid:jid()) ->
+    false | {true, mongooseim:host_type()}.
+is_valid_host(Acc, From, To) ->
+    case mongoose_acc:stanza_type(Acc) of
+        <<"groupchat">> -> get_host(groupchat, From, To);
+        _ -> get_host(one2one, From, To)
+    end.
+
+-spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
+	[chat_marker()].
+extract_chat_markers(Acc, From, To, Packet) ->
+    TS = mongoose_acc:timestamp(Acc),
     case mongoose_chat_markers:list_chat_markers(Packet) of
         [] -> [];
         ChatMarkers ->
@@ -186,52 +207,16 @@ get_thread(El) ->
         _ -> undefined
     end.
 
--spec has_valid_markers(From :: jid:jid(),
-                        To :: jid:jid(),
-                        Packet :: exml:element(),
-                        TS :: integer()) ->
-    false | {true, Host :: jid:lserver(), Markers :: [chat_marker()]}.
-has_valid_markers(From, To, Packet, TS) ->
-    case is_valid_markers(From, To, Packet, TS) of
-        false -> false;
-        {true, Markers} ->
-            case is_valid_host(From, To, Packet) of
-                false -> false;
-                {true, Host} ->
-                    {true, Host, Markers}
-            end
-    end.
-
--spec is_valid_host(jid:jid(), jid:jid(), exml:element()) ->
-    false | {true, jid:lserver()}.
-is_valid_host(From, To, Packet) ->
+-spec get_host(chat_type(), jid:jid(), jid:jid()) ->
+    false | {true, mongooseim:host_type()}.
+get_host(groupchat, From, To) ->
+    HostType = mod_muc_light_utils:room_jid_to_host_type(To),
+    can_access_room(HostType, From, To) andalso {true, HostType};
+get_host(one2one, _From, To) ->
     LServer = To#jid.lserver,
-    case exml_query:attr(Packet, <<"type">>, undefined) of
-        <<"groupchat">> -> get_host(groupchat, LServer, From, To);
-        _ -> get_host(one2one, LServer, From, To)
-    end.
-
--spec is_valid_markers(jid:jid(), jid:jid(), exml:element(), integer()) ->
-    false | {true, [chat_marker()]}.
-is_valid_markers(From, To, Packet, TS) ->
-    case extract_chat_markers(From, To, Packet, TS) of
-        [] -> false;
-        ChatMarkers ->
-            {true, ChatMarkers}
-    end.
-
--spec get_host(chat_type(), jid:lserver(), jid:jid(), jid:jid()) ->
-    false | {true, jid:lserver()}.
-get_host(groupchat, SubHost, From, To) ->
-    case mongoose_domain_api:get_subdomain_info(SubHost) of
-        {ok, #{host_type := HostType}} ->
-            can_access_room(HostType, From, To) andalso {true, HostType}
-    end;
-get_host(one2one, Host, _, _) ->
-    Hosts = ejabberd_config:get_global_option(hosts),
-    case lists:member(Host, Hosts) of
-        false -> false;
-        _ -> {true, Host}
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} -> {true, HostType};
+        {error, not_found} -> false
     end.
 
 -spec can_access_room(HostType :: mongooseim:host_type(),

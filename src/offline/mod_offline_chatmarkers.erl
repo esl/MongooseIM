@@ -35,7 +35,11 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1, deps/2]).
+%% gen_mod API
+-export([start/2]).
+-export([stop/1]).
+-export([deps/2]).
+-export([supported_features/0]).
 
 %% Hook handlers
 -export([inspect_packet/4,
@@ -44,66 +48,70 @@
 
 -define(MOD_OFFLINE_CHATMARKERS_BACKEND, mod_offline_chatmarkers_backend).
 -ignore_xref([
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, maybe_store, 4},
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, get, 1},
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, remove_user, 1},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, maybe_store, 5},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, get, 2},
+    {?MOD_OFFLINE_CHATMARKERS_BACKEND, remove_user, 2},
     {?MOD_OFFLINE_CHATMARKERS_BACKEND, init, 2},
     behaviour_info/1, inspect_packet/4, pop_offline_messages/2, remove_user/3
 ]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
--callback init(Host :: jid:lserver(), Opts :: list()) -> ok.
--callback get(Jid :: jid:jid()) -> {ok, [{Thread :: undefined | binary(),
-                                          Room :: undefined | jid:jid(),
-                                          Timestamp :: integer()}]}.
+-callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+-callback get(mongooseim:host_type(), jid:jid()) -> {ok, [{Thread :: undefined | binary(),
+                                                           Room :: undefined | jid:jid(),
+                                                           Timestamp :: integer()}]}.
 
 %%% Jid, Thread, and Room parameters serve as a composite database key. If
 %%% key is not available in the database, then it must be added with the
 %%% corresponding timestamp. Otherwise this function does nothing, the stored
 %%% timestamp for the composite key MUST remain unchanged!
--callback maybe_store(Jid :: jid:jid(), Thread :: undefined | binary(),
+-callback maybe_store(mongooseim:host_type(), Jid :: jid:jid(), Thread :: undefined | binary(),
                       Room :: undefined | jid:jid(), Timestamp :: integer()) -> ok.
--callback remove_user(Jid :: jid:jid()) -> ok.
+-callback remove_user(mongooseim:host_type(), Jid :: jid:jid()) -> ok.
 
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
--spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod:deps_list().
 deps(_,_)->
     [{mod_smart_markers, hard}].
 
-start(Host, Opts) ->
+start(HostType, Opts) ->
     gen_mod:start_backend_module(?MODULE, add_default_backend(Opts), [get, maybe_store]),
-    mod_offline_chatmarkers_backend:init(Host, Opts),
-    ejabberd_hooks:add(hooks(Host)),
+    mod_offline_chatmarkers_backend:init(HostType, Opts),
+    ejabberd_hooks:add(hooks(HostType)),
     ok.
 
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
     ok.
 
-hooks(Host) ->
+hooks(HostType) ->
     DefaultHooks = [
-        {offline_message_hook, Host, ?MODULE, inspect_packet, 40},
-        {resend_offline_messages_hook, Host, ?MODULE, pop_offline_messages, 60},
-        {remove_user, Host, ?MODULE, remove_user, 50}
+        {offline_message_hook, HostType, ?MODULE, inspect_packet, 40},
+        {resend_offline_messages_hook, HostType, ?MODULE, pop_offline_messages, 60},
+        {remove_user, HostType, ?MODULE, remove_user, 50}
     ],
-    case gen_mod:get_module_opt(Host, ?MODULE, store_groupchat_messages, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages, false) of
         true ->
             GroupChatHook = {offline_groupchat_message_hook,
-                             Host, ?MODULE, inspect_packet, 40},
+                             HostType, ?MODULE, inspect_packet, 40},
             [GroupChatHook | DefaultHooks];
         _ -> DefaultHooks
     end.
 
 remove_user(Acc, User, Server) ->
-    mod_offline_chatmarkers_backend:remove_user(jid:make(User, Server, <<"">>)),
+    HostType = mongoose_acc:host_type(Acc),
+    mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<"">>)),
     Acc.
 
 pop_offline_messages(Acc, JID) ->
@@ -118,12 +126,13 @@ inspect_packet(Acc, From, To, Packet) ->
     end.
 
 maybe_store_chat_marker(Acc, From, To, Packet) ->
+    HostType = mongoose_acc:host_type(Acc),
     case mongoose_acc:get(mod_smart_markers, timestamp, undefined, Acc) of
         undefined -> false;
         Timestamp when is_integer(Timestamp) ->
             Room = get_room(Acc, From),
             Thread = get_thread(Packet),
-            mod_offline_chatmarkers_backend:maybe_store(To, Thread, Room, Timestamp),
+            mod_offline_chatmarkers_backend:maybe_store(HostType, To, Thread, Room, Timestamp),
             true
     end.
 
@@ -140,15 +149,16 @@ get_thread(El) ->
     end.
 
 offline_chatmarkers(Acc, JID) ->
-    {ok, Rows} = mod_offline_chatmarkers_backend:get(JID),
-    mod_offline_chatmarkers_backend:remove_user(JID),
+    HostType = mongoose_acc:host_type(Acc),
+    {ok, Rows} = mod_offline_chatmarkers_backend:get(HostType, JID),
+    mod_offline_chatmarkers_backend:remove_user(HostType, JID),
     lists:concat([process_row(Acc, JID, R) || R <- Rows]).
 
 process_row(Acc, Jid, {Thread, undefined, TS}) ->
-    ChatMarkers = mod_smart_markers:get_chat_markers(one2one, Jid, Thread, TS),
+    ChatMarkers = mod_smart_markers:get_chat_markers(Jid, Thread, TS),
     [build_one2one_chatmarker_msg(Acc, CM) || CM <- ChatMarkers];
 process_row(Acc, Jid, {Thread, Room, TS}) ->
-    ChatMarkers = mod_smart_markers:get_chat_markers(groupchat, Room, Thread, TS),
+    ChatMarkers = mod_smart_markers:get_chat_markers(Room, Thread, TS),
     [build_room_chatmarker_msg(Acc, Jid, CM) || CM <- ChatMarkers].
 
 build_one2one_chatmarker_msg(Acc, CM) ->
