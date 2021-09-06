@@ -32,7 +32,12 @@ paths:
           description: The host type of the domain.
           required: true
           schema:
-            type: string
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
       responses:
         204:
           description: Domain was successfully inserted.
@@ -56,7 +61,12 @@ paths:
           description: Whether to enable or to disable a domain.
           required: true
           schema:
-            type: boolean
+            title: Enabled
+            type: object
+            properties:
+              enabled:
+                example: true
+                type: boolean
       responses:
         204:
           description: Domain was sucessfully updated.
@@ -94,7 +104,12 @@ paths:
           description: The host type of the domain.
           required: true
           schema:
-            type: string
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
       responses:
         204:
           description: "The domain is removed or not found."
