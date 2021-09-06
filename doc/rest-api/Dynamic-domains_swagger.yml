@@ -20,6 +20,8 @@ paths:
   /domains/{domain}:
     put:
       description: Adds a domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
@@ -30,18 +32,35 @@ paths:
           description: The host type of the domain.
           required: true
           schema:
-            type: string
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
       responses:
         204:
           description: Domain was successfully inserted.
+        400:
+          description: Bad request
+          examples:
+            application/json: {"what": "body is empty"}
         409:
           description: Domain already exists with a different host type.
+          examples:
+            application/json: {"what": "duplicate"}
         403:
           description: DB service disabled or the host type is unknown.
+          examples:
+            application/json: {"what": "domain is static"}
         500:
           description: Other errors.
+          examples:
+            application/json: {"what": "database error"}
     patch:
       description: Enables/disables a domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
@@ -52,18 +71,31 @@ paths:
           description: Whether to enable or to disable a domain.
           required: true
           schema:
-            type: boolean
+            title: Enabled
+            type: object
+            properties:
+              enabled:
+                example: true
+                type: boolean
       responses:
         204:
           description: Domain was sucessfully updated.
         404:
           description: Domain not found.
+          examples:
+            application/json: {"what": "domain not found"}
         403:
           description: Domain is static, or the service is disabled.
+          examples:
+            application/json: {"what": "domain is static"}
         500:
           description: Other errors.
+          examples:
+            application/json: {"what": "database error"}
     get:
       description: Returns information about the domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - name: domain
           type: string
@@ -74,8 +106,12 @@ paths:
           description: Successful response.
         404:
           description: Domain not found.
+          examples:
+            application/json: {"what": "domain not found"}
     delete:
       description: "Removes a domain"
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
@@ -86,7 +122,12 @@ paths:
           description: The host type of the domain.
           required: true
           schema:
-            type: string
+            title: host_type
+            type: object
+            properties:
+              host_type:
+                example: "type1"
+                type: string
       responses:
         204:
           description: "The domain is removed or not found."
@@ -97,7 +138,9 @@ paths:
               * the DB service is disabled.
               * the host type is wrong (does not match the host type in the database).
               * the host type is unknown.
-        404:
-          description: "There was no such contact."
+          examples:
+            application/json: {"what": "unknown host type"}
         500:
           description: "Other errors"
+          examples:
+            application/json: {"what": "database error"}
