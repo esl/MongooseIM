@@ -172,9 +172,9 @@ update_chat_markers(Acc, HostType, Markers) ->
 -spec has_valid_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
     false | {true, mongooseim:host_type(), Markers :: [chat_marker()]}.
 has_valid_markers(Acc, From, To, Packet) ->
-    case is_valid_markers(Acc, From, To, Packet) of
-        false -> false;
-        {true, Markers} ->
+    case extract_chat_markers(Acc, From, To, Packet) of
+        [] -> false;
+        Markers ->
             case is_valid_host(Acc, From, To) of
                 false -> false;
                 {true, HostType} -> {true, HostType, Markers}
@@ -187,15 +187,6 @@ is_valid_host(Acc, From, To) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"groupchat">> -> get_host(groupchat, From, To);
         _ -> get_host(one2one, From, To)
-    end.
-
--spec is_valid_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
-    false | {true, [chat_marker()]}.
-is_valid_markers(Acc, From, To, Packet) ->
-    case extract_chat_markers(Acc, From, To, Packet) of
-        [] -> false;
-        ChatMarkers ->
-            {true, ChatMarkers}
     end.
 
 -spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
