@@ -516,6 +516,26 @@ To enable the REST API for clients, several handlers need to be added:
 The recommended configuration is shown in [Example 3](#example-3-client-api) below.
 Please refer to [REST interface](../rest-api/Client-frontend.md) documentation for more information.
 
+### Handler types: REST API - Domain management - `mongoose_domain_handler`
+
+This handler enables dynamic domain management for different host types.
+For more information about the API, see the [REST interface](../rest-api/Dynamic-domains.md) documentation.
+The following options are supported for this handler:
+
+#### `listen.http.handlers.mongoose_domain_handler.username`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `username = "admin"`
+
+When set, enables authentication to access this endpoint. Requires setting password.
+
+#### `listen.http.handlers.mongoose_domain_handler.password`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `password = "secret"`
+
+Required to enable authentication for this endpoint.
+
 ### Handler types: Metrics API (obsolete) - `mongoose_api`
 
 REST API for accessing the internal MongooseIM metrics.
@@ -727,3 +747,20 @@ REST API for clients.
     content_path = "swagger"
 ```
 
+#### Example 4. Domain API
+
+REST API for domain management.
+
+```toml
+[[listen.http]]
+  ip_address = "127.0.0.1"
+  port = 8088
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_domain_handler]]
+    host = "localhost"
+    path = "/api"
+    username = "admin"
+    password = "secret"
+```

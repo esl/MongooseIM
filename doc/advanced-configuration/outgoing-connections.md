@@ -26,9 +26,10 @@ This allows you to create multiple dedicated pools of the same type.
 * **Example:** `host = "anotherhost.com"`
 
 `scope` can be set to:
-* `global` - meaning that the pool will started once no matter how many XMPP hosts are served by MongooseIM
-* `host` - the pool will be started for each XMPP host served by MongooseIM
-* `single_host` - the pool will be started for the selected host only (you must provide a host name).
+
+* `global` - meaning that the pool will be started once no matter how many XMPP hosts are served by MongooseIM
+* `host` - the pool will be started for each XMPP host or host type served by MongooseIM
+* `single_host` - the pool will be started for the selected host or host type only (you must provide the name).
 
 ## Worker pool options
 
@@ -40,7 +41,7 @@ Available options are:
 * **Default:** `"best_worker"`
 * **Example:** `strategy = "available_worker"`
 
-Defines worker seletion strategy. Consult worker_pool documentation for details.
+Defines worker selection strategy. Consult worker_pool documentation for details.
 
 ### `outgoing_pools.*.*.workers`
 * **Syntax:** positive integer
@@ -76,7 +77,7 @@ For example:
 * **Syntax:** string, one of `"pgsql"`, `"mysql"` or `"odbc"` (a supported driver)
 * **Example:** `driver = "psgql"`
 
-Selects driver for RDBMS connection. The choice of driver impacts the set of available options.
+Selects the driver for RDBMS connection. The choice of a driver impacts the set of available options.
 
 #### `outgoing_pools.rdbms.*.connection.call_timeout`
 * **Syntax:** positive integer

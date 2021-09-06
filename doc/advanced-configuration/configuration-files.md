@@ -22,7 +22,7 @@ The file is divided into the following sections:
 * [**acl**](acl.md) - Access classes to which connecting users are assigned.
 * [**access**](access.md) - Access rules, specifying the privileges of the defined access classes.
 * [**s2s**](s2s.md) - Server-to-server connection options, used for XMPP federation.
-* [**host_config**](host_config.md) - Configuration options that need to be different for a specific XMPP domain.
+* [**host_config**](host_config.md) - Configuration options for different XMPP domains or host types (groups of domains).
 
 The section names above are links to the detailed documentation of each section.
 

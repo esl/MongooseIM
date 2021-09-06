@@ -40,25 +40,20 @@
         return "https://raw.githubusercontent.com/esl/MongooseIM/master/doc/rest-api/" + SpecFile
       }
 
-      var determine_client_mode = function(Search) {
-        var client = Search.match(/client=([^&]+)/)
-        if (client && client.length > 1) {
-          return client[1] == "true"
-        } else {
-          return false
-        }
-      }
-      var backend_or_client_spec = function(CurrentLocation) {
-        var clientMode = determine_client_mode(CurrentLocation.search)
-        if (clientMode) {
+      var determine_spec = function(CurrentLocation) {
+        var searchParams = new URLSearchParams(CurrentLocation.search);
+
+        if (searchParams.has('client')) {
           return "Client-frontend_swagger.yml"
-        } else{
-          return "Administration-backend_swagger.yml"
         }
+        if (searchParams.has('domains')) {
+          return "Dynamic-domains_swagger.yml"
+        }
+        return "Administration-backend_swagger.yml"
       }
 
       var get_spec_url = function(CurrentLocation){
-        var SpecFile = backend_or_client_spec(CurrentLocation)
+        var SpecFile = determine_spec(CurrentLocation)
         if (CurrentLocation.host.match("github")){
           return make_spec_url(CurrentLocation, SpecFile)
         }

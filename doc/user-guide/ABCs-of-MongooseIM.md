@@ -48,6 +48,12 @@ Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/prod
 
 For load testing consider [Tide](http://tide.erlang-solutions.com/), another Erlang Solutions' tool that enables devs and ops to validate their scalability, given the clients scenarios.
 
+## Multi-tenancy (dynamic domains)
+
+MongooseIM supports multi-tenancy.
+This makes it possible to set up thousands of domains dynamically without a noticeable performance overhead.
+On more information on how to set up this feature, see [dynamic domains configuration](../advanced-configuration/general.md#generalhost_types) and [REST API for dynamic domains](../rest-api/Dynamic-domains.md).
+
 ## Client side
 
 In order to build client applications, the MoongooseIM team recommends the following libraries:

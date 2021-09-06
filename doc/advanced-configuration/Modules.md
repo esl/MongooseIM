@@ -30,7 +30,7 @@ The server may use one of the following strategies to handle incoming IQ stanzas
 * **Syntax:** positive integer
 * **Example:** `iqdisc.workers = 50`
 
-Their semantics works as follow:
+Their semantics works as follows:
 
 * `no_queue` registers a new IQ handler, which will be called in the
   context of the process serving the connection on which the IQ arrives.
@@ -188,3 +188,30 @@ Provides support for vCards, as specified in [XEP-0054: vcard-temp](http://xmpp.
 
 ### [mod_version](../modules/mod_version.md)
 This module provides the functionality specified in [XEP-0092: Software Version](https://xmpp.org/extensions/xep-0092.html).
+
+## Modules supporting dynamic domains
+
+These modules can be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
+
+* [mod_blocking](../modules/mod_blocking.md)
+* [mod_caps](../modules/mod_caps.md)
+* [mod_cache_users](../modules/mod_cache_users.md)
+* [mod_carboncopy](../modules/mod_carboncopy.md)
+* [mod_commands](../modules/mod_commands.md)
+* [mod_disco](../modules/mod_disco.md)
+* [mod_domain_isolation](../modules/mod_domain_isolation.md)
+* [mod_inbox](../modules/mod_inbox.md)
+* [mod_last](../modules/mod_last.md)
+* [mod_mam](../modules/mod_mam.md)
+* [mod_muc](../modules/mod_muc.md)
+* [mod_muc_log](../modules/mod_muc_log.md)
+* [mod_muc_light](../modules/mod_muc_light.md)
+* [mod_muc_light_commands](../modules/mod_muc_light_commands.md)
+* [mod_offline](../modules/mod_offline.md)
+* [mod_offline_stub](../modules/mod_offline_stub.md)
+* [mod_ping](../modules/mod_ping.md)
+* [mod_privacy](../modules/mod_privacy.md)
+* [mod_private](../modules/mod_private.md)
+* [mod_roster](../modules/mod_roster.md)
+* [mod_stream_management](../modules/mod_stream_management.md)
+* [mod_vcard](../modules/mod_vcard.md)

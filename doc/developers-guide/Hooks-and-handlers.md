@@ -27,7 +27,7 @@ To avoid that coupling and also to enable other ([possibly yet to be written](#s
 
 ```erlang
 Acc1 = ejabberd_hooks:run_fold(offline_message_hook,
-                               LServer,
+                               HostType,
                                Acc,
                                [From, To, Packet])
 ```
@@ -35,7 +35,7 @@ Acc1 = ejabberd_hooks:run_fold(offline_message_hook,
 The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
 `offline_message_hook` is just the name of the hook (in other words of the event that is being signalled);
 `From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
-`LServer` is [the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
+`HostType` is [the host type of the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
 **Notice:** For the clarity of the explanation of the hooks mechanism, the provided code snippets are not exactly taken from the current code.
 The reasons for it will be described [later](#creating-your-own-hooks).
@@ -122,13 +122,15 @@ That's usually done in, respectively, `start/2` and `stop/1` functions.
 Here is the relevant snippet from `mod_offline:start/2`:
 
 ```erlang
-ejabberd_hooks:add(offline_message_hook, Host,
+ejabberd_hooks:add(offline_message_hook, HostType,
                    ?MODULE, store_packet, 50)
 ```
 
 It is clearly visible that the handler is added to the `offline_message_hook`.
 
-`Host` corresponds to the `LServer` used in the aforementioned call to the `ejabberd_hooks:run_fold`, i.e. it's the XMPP domain for which the handler is to be executed.
+`HostType` corresponds to the one used in the aforementioned call to the `ejabberd_hooks:run_fold`.
+That is, it's the host type for which the handler is to be executed.
+In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../advanced-configuration/general.md#generalhosts).
 
 The handler itself is specified as a module-function pair;
 the arity of the function is not specified at the registration nor verified when calling the handler.
@@ -147,7 +149,7 @@ For that purpose there's the option to unregister a hook handler.
 It's done in `mod_offline:stop/1` in a similar fashion to:
 
 ```erlang
-ejabberd_hooks:delete(offline_message_hook, Host,
+ejabberd_hooks:delete(offline_message_hook, HostType,
                       ?MODULE, store_packet, 50)
 ```
 

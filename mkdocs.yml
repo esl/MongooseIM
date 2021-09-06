@@ -104,6 +104,7 @@ nav:
       - 'Client/frontend': 'rest-api/Client-frontend.md'
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
+      - 'Dynamic domains': 'rest-api/Dynamic-domains.md'
   - 'Operation and maintenance':
       - 'GDPR considerations': 'operation-and-maintenance/gdpr-considerations.md'
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'

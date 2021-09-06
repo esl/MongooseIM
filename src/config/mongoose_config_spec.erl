@@ -189,7 +189,7 @@ general() ->
                                                            validate = non_empty},
                                            validate = unique,
                                            format = config},
-                 <<"default_server_domain">> =># option{type = binary,
+                 <<"default_server_domain">> => #option{type = binary,
                                                         validate = non_empty,
                                                         process = fun ?MODULE:process_host/1,
                                                         format = config},

@@ -55,6 +55,6 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
-| ``[Host, mod_ping, ping_response]`` | spiral | Client responds to a ping. |
-| ``[Host, mod_ping, ping_response_timeout]`` | spiral | Ping request timeouts without a response from client. |
-| ``[Host, mod_ping, ping_response_time]`` | histogram | Response times (doesn't include timeouts). |
+| ``[HostType, mod_ping, ping_response]`` | spiral | Client responds to a ping. |
+| ``[HostType, mod_ping, ping_response_timeout]`` | spiral | Ping request timeouts without a response from client. |
+| ``[HostType, mod_ping, ping_response_time]`` | histogram | Response times (doesn't include timeouts). |

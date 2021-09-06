@@ -1,10 +1,11 @@
 The `general` section contains basic settings as well as some miscellaneous options.
-You can start with providing only the basic options, configuring the loglevel, a single host (XMPP domain) and setting the default server language:
+You can start with providing only the basic options, for example configuring the loglevel, a single host (XMPP domain) as the default, and setting the server language:
 
 ```toml
 [general]
   loglevel = "warning"
   hosts = ["my-xmpp-domain.com"]
+  default_server_domain = "my-xmpp-domain.com"
   language = "en"
 ```
 
@@ -25,12 +26,44 @@ Verbosity level of the logger. Values recommended for production systems are `"e
 ### `general.hosts`
 * **Scope:** global
 * **Syntax:** array of strings representing the domain names.
-* **Default:** there is no default, you have to provide at least one host name.
+* **Default:** none. If omitted, at least one host type has to be defined in `general.host_types`.
 * **Example:** `hosts = ["localhost", "domain2"]`
 
-Mandatory option, specifying the XMPP domains served by this cluster.
+This option specifies the statically defined XMPP domains served by this cluster.
+In order to configure these hosts independently, use the [`host_config` section](./host_config.md).
 
-**Warning:** Extension modules and database backends will be started separately for every domain. When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+
+**Warning:** Extension modules and database backends will be started separately for every domain from this list.
+When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+
+### `general.host_types`
+* **Scope:** global
+* **Syntax:** array of strings the names for host types.
+* **Default:** none. If omitted, at least one hast has to be defined in `general.hosts`.
+* **Example:** `host_types = ["first type", "second type"]`
+
+This is the list of names for the types of hosts that will serve dynamic XMPP domains.
+Each host type can be seen as a label for a group of independent domains that use the same server configuration.
+In order to configure these host types independently, use the [`host_config` section](./host_config.md).
+The domains can be added or removed dynamically via the [dynamic domains REST API](../rest-api/Dynamic-domains.md).
+
+If you use the host type mechanism, make sure you only configure modules which support it in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
+MongooseIM will not start otherwise.
+In order to see which modules support dynamic domains, please check the [modules list](./Modules.md#modules-supporting-dynamic-domains).
+
+**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+
+**Warning:** Extension modules and database backends will be started separately for every host type from this list.
+When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+
+### `general.default_server_domain`
+* **Scope:** global
+* **Syntax:** a string
+* **Default:** none, this option is mandatory.
+* **Example:** `default_server_domain = "my-xmpp-domain.com"`
+
+This domain is used as a default when one cannot be determined, for example when sending XMPP stream errors to unauthenticated clients.
 
 ### `general.language`
 * **Scope:** global
@@ -61,10 +94,10 @@ User access rules are configured mainly in the [`acl`](acl.md) and [`access`](ac
 * **Scope:** local
 * **Syntax:** TOML table, whose **keys** are the names of the access rules defined in the [`access`](access.md) config section and **values** specify allowed administration commands. Each value is a table with the following nested options:
     * `commands`: optional, a list of strings representing the allowed commands. When not specified, all commands are allowed.
-    * `argument_restrictions`: optional, a table whose keys are the argument names and the values are strings representing the allowed values. When not specified, there are no restrictions.
+    * `argument_restrictions`: optional, a table whose keys are the argument names, and the values are strings representing the allowed values. When not specified, there are no restrictions.
 * **Default:** not set
 
-By default all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for a specific access rule. When the rule returns the value `"allow"`, the user is permitted to use the specified commands with the optional restrictions.
+By default, all admin operations are permitted with the `mongooseimctl` command without authentication. You can change that by setting this option for a specific access rule. When the rule returns the value `"allow"`, the user is permitted to use the specified commands with the optional restrictions.
 
 **Example 1.** Allow administrators to execute all commands without any restrictions:
 
@@ -180,7 +213,7 @@ Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned i
 * **Default:** not set
 * **Example:** `override = ["global", "local"]`
 
-Will cause MongooseIM to erase all global/local/acl configuration options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
+Will cause MongooseIM to erase all global/local/acl configuration options in the database respectively. This ensures that ALL settings of a specific type will be reloaded on the startup.
 
 ### `general.max_fsm_queue`
 * **Scope:** local

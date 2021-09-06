@@ -4,13 +4,14 @@ MongooseIM provides:
 
 * Massive scalability: for greater and faster growth, costs-effectiveness as well as resource utilisation
 * Platform approach: designed with consistency, end-to-end battle testing across the whole ecosystem (all server and client components, and tools)
+* Dynamic domains: thanks to the support for multi-tenancy, it is possible to set up thousands of domains dynamically without a noticeable performance overhead.
 * Code quality: extensive refactoring, substantial optimisations, continuous integration and deployment
 * Extensive testing: automated continuous functional code coverage, integration testing, end-to-end testing with real clients
 * Continuous load testing
 * Unique version: no proprietary extensions, fully open source, fully open standards
 * Contributions to ([XMPP Standards Foundation](https://xmpp.org/)): implementations of XEPs, innovations contributed
 * Professional support, and flexible customer service
-* Contributions to third party open source codebases: strenghthening the ecosystem
+* Contributions to third party open source codebases: strengthening the ecosystem
 
 ## Initial differences from the parent project
 
