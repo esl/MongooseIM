@@ -193,25 +193,25 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 
 These modules can be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
 
-* mod_blocking
-* mod_caps
-* mod_cache_users
-* mod_carboncopy
-* mod_commands
-* mod_disco
-* mod_domain_isolation
-* mod_inbox
-* mod_last
-* mod_mam
-* mod_muc
-* mod_muc_log
-* mod_muc_light
-* mod_muc_light_commands
-* mod_offline
-* mod_offline_stub
-* mod_ping
-* mod_privacy
-* mod_private
-* mod_roster
-* mod_stream_management
-* mod_vcard
+* [mod_blocking](../modules/mod_blocking.md)
+* [mod_caps](../modules/mod_caps.md)
+* [mod_cache_users](../modules/mod_cache_users.md)
+* [mod_carboncopy](../modules/mod_carboncopy.md)
+* [mod_commands](../modules/mod_commands.md)
+* [mod_disco](../modules/mod_disco.md)
+* [mod_domain_isolation](../modules/mod_domain_isolation.md)
+* [mod_inbox](../modules/mod_inbox.md)
+* [mod_last](../modules/mod_last.md)
+* [mod_mam](../modules/mod_mam.md)
+* [mod_muc](../modules/mod_muc.md)
+* [mod_muc_log](../modules/mod_muc_log.md)
+* [mod_muc_light](../modules/mod_muc_light.md)
+* [mod_muc_light_commands](../modules/mod_muc_light_commands.md)
+* [mod_offline](../modules/mod_offline.md)
+* [mod_offline_stub](../modules/mod_offline_stub.md)
+* [mod_ping](../modules/mod_ping.md)
+* [mod_privacy](../modules/mod_privacy.md)
+* [mod_private](../modules/mod_private.md)
+* [mod_roster](../modules/mod_roster.md)
+* [mod_stream_management](../modules/mod_stream_management.md)
+* [mod_vcard](../modules/mod_vcard.md)
