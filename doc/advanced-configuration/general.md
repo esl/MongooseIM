@@ -63,7 +63,7 @@ When increasing the number of host types, please make sure you have enough resou
 * **Default:** none, this option is mandatory.
 * **Example:** `default_server_domain = "my-xmpp-domain.com"`
 
-This domain is used as a default when one cannot be determined, for example in some cases when serving multiple XMPP domains. 
+This domain is used as a default when one cannot be determined, for example when sending XMPP stream errors to unauthenticated clients.
 
 ### `general.language`
 * **Scope:** global

@@ -37,7 +37,7 @@ The extra level of indirection introduced by this call gives the flexibility to 
 `From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
 `HostType` is [the host type of the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
 
-**Notice:** For the clarity of the explanation of the hooks' mechanism, the provided code snippets are not exactly taken from the current code.
+**Notice:** For the clarity of the explanation of the hooks mechanism, the provided code snippets are not exactly taken from the current code.
 The reasons for it will be described [later](#creating-your-own-hooks).
 
 ### Getting results from handlers
