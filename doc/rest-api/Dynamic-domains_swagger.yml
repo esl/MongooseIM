@@ -20,6 +20,8 @@ paths:
   /domains/{domain}:
     put:
       description: Adds a domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
@@ -42,6 +44,8 @@ paths:
           description: Other errors.
     patch:
       description: Enables/disables a domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
@@ -64,6 +68,8 @@ paths:
           description: Other errors.
     get:
       description: Returns information about the domain.
+      tags:
+        - "Dynamic domains"
       parameters:
         - name: domain
           type: string
@@ -76,6 +82,8 @@ paths:
           description: Domain not found.
     delete:
       description: "Removes a domain"
+      tags:
+        - "Dynamic domains"
       parameters:
         - in: path
           name: domain
