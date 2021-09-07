@@ -38,9 +38,8 @@ all() ->
      {group, negative}].
 
 groups() ->
-    G = [{positive, [parallel], success_response()},
-         {negative, [parallel], negative_response()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{positive, [parallel], success_response()},
+     {negative, [parallel], negative_response()}].
 
 success_response() ->
     [create_unique_room,
