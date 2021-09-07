@@ -28,6 +28,7 @@
 
 -import(muc_light_helper, [stanza_create_room/3]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -38,9 +39,8 @@ all() ->
      {group, negative}].
 
 groups() ->
-    G = [{positive, [parallel], success_response()},
-         {negative, [parallel], negative_response()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{positive, [parallel], success_response()},
+     {negative, [parallel], negative_response()}].
 
 success_response() ->
     [create_unique_room,
@@ -62,15 +62,15 @@ negative_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_muc_light,
-        [{host, subhost_pattern(muc_light_domain())},
+    dynamic_modules:start(host_type(), mod_muc_light,
+        [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
          {rooms_in_rosters, true},
          {backend, mongoose_helper:mnesia_or_rdbms_backend()}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:stop(<<"localhost">>, mod_muc_light),
+    dynamic_modules:stop(host_type(), mod_muc_light),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -92,8 +92,7 @@ end_per_testcase(CaseName, Config) ->
 
 create_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Domain = <<"localhost">>,
-        Path = <<"/muc-lights", $/, Domain/binary>>,
+        Path = path([domain()]),
         Name = <<"wonderland">>,
         Body = #{ name => Name,
                   owner => escalus_client:short_jid(Alice),
@@ -108,8 +107,7 @@ create_unique_room(Config) ->
 
 create_identifiable_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Domain = <<"localhost">>,
-        Path = <<"/muc-lights", $/, Domain/binary>>,
+        Path = path([domain()]),
         RandBits = base16:encode(crypto:strong_rand_bytes(5)),
         Name = <<"wonderland">>,
         RoomID = <<"just_some_id_", RandBits/binary>>,
@@ -129,10 +127,8 @@ create_identifiable_room(Config) ->
     end).
 
 invite_to_room(Config) ->
-    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
-    Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/,
-             "participants">>,
+    Path = path([muc_light_domain(), Name, "participants"]),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
@@ -158,10 +154,8 @@ invite_to_room(Config) ->
       end).
 
 send_message_to_room(Config) ->
-    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
-    Path = <<"/muc-lights",$/,Domain/binary,$/,
-             Name/binary,$/,"messages">>,
+    Path = path([muc_light_domain(), Name, "messages"]),
     Text = <<"Hello everyone!">>,
     escalus:fresh_story(Config,
       [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -229,8 +223,7 @@ delete_room_without_having_a_membership(Config) ->
 
 create_non_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Domain = <<"localhost">>,
-        Path = <<"/muc-lights", $/, Domain/binary>>,
+        Path = path([domain()]),
         RandBits = base16:encode(crypto:strong_rand_bytes(5)),
         Name = <<"wonderland">>,
         RoomID = <<"just_some_id_", RandBits/binary>>,
@@ -298,15 +291,20 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     escalus:assert(is_iq_result, CreationResult),
     muc_light_helper:verify_aff_bcast(Members, Affiliations),
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
-    Path = <<"/muc-lights",$/,Domain/binary,$/,
-             RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
+    Path = path([muc_light_domain(), RoomNameToDelete, ShortJID, "management"]),
     rest_helper:delete(admin, Path).
 
+
 %%--------------------------------------------------------------------
-%% Constants
+%% Helpers
 %%--------------------------------------------------------------------
+
+path(Items) ->
+    AllItems = ["muc-lights" | Items],
+    iolist_to_binary([[$/, Item] || Item <- AllItems]).
 
 muc_light_domain() ->
-    XMPPParentDomain = ct:get_config({hosts, mim, domain}),
-    <<"muclight", ".", XMPPParentDomain/binary>>.
+    muc_light_helper:muc_host().
 
+domain() ->
+    ct:get_config({hosts, mim, domain}).
