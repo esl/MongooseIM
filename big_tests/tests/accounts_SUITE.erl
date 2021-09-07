@@ -66,8 +66,8 @@ change_password_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config1) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    ok = dynamic_modules:ensure_modules(Host, required_modules()),
+    %Host = ct:get_config({hosts, mim, domain}),
+    ok = dynamic_modules:ensure_modules(host_type(), required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
     escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
 
@@ -460,6 +460,10 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
+
+host_type() ->
+    <<"test type">>.
+    %domain_helper:host_type(mim).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

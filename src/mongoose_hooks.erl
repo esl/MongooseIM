@@ -574,7 +574,7 @@ c2s_stream_features(HostType, LServer) ->
     IP :: {inet:ip_address(), inet:port_number()} | undefined,
     Result :: exml:element() | empty.
 c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
-    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, [Server, IQ, IP]).
+    run_hook_for_host_type(c2s_unauthenticated_iq, HostType, empty, [HostType, Server, IQ, IP]).
 
 -spec c2s_update_presence(HostType, Acc) -> Result when
     HostType :: mongooseim:host_type(),
