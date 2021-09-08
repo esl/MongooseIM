@@ -37,7 +37,6 @@
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, modify_aff_users, 4},
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_config, 3},
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, destroy_room, 1},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_aff_users, 1},
     {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode, 5},
     {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode_error, 5}
 ]).
@@ -54,11 +53,11 @@
 
 -spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                      Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-handle_request(From, To, OrigPacket, Request, Acc) ->
+handle_request(From, To, OrigPacket, Request, Acc1) ->
     RoomUS = jid:to_lus(To),
-    AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
-    Response = process_request(From, RoomUS, Request, AffUsersRes, Acc),
-    send_response(From, To, RoomUS, OrigPacket, Response, Acc).
+    {Acc2, AffUsersRes} = mod_muc_light:get_room_affiliations(Acc1, To),
+    Response = process_request(From, RoomUS, Request, AffUsersRes, Acc2),
+    send_response(From, To, RoomUS, OrigPacket, Response, Acc2).
 
 -spec maybe_forget(Acc :: mongoose_acc:t(),
                    RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().

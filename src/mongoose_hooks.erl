@@ -9,6 +9,8 @@
 -include("mod_privacy.hrl").
 -include("mongoose.hrl").
 
+-ignore_xref([get_room_affiliations/2]).
+
 -export([adhoc_local_commands/4,
          adhoc_sm_commands/4,
          anonymous_purge_hook/3,
@@ -84,7 +86,8 @@
 
 -export([is_muc_room_owner/3,
          can_access_identity/3,
-         can_access_room/3]).
+         can_access_room/3,
+         get_room_affiliations/2]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -898,6 +901,14 @@ can_access_identity(HostType, Room, User) ->
       Result :: boolean().
 can_access_room(HostType, Room, User) ->
     run_hook_for_host_type(can_access_room, HostType, false, [HostType, Room, User]).
+
+-spec get_room_affiliations(Acc, Room) -> Result when
+      Acc :: mongoose_acc:t(),
+      Room :: jid:jid(),
+      Result :: {mongoose_acc:t(), term()}.
+get_room_affiliations(Acc, Room) ->
+    HostType = mongoose_acc:host_type(Acc),
+    run_hook_for_host_type(get_room_affiliations, HostType, Acc, [Room]).
 
 %% MAM related hooks
 

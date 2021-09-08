@@ -62,6 +62,7 @@
 %% Hooks handlers
 -export([is_muc_room_owner/4,
          can_access_room/4,
+         get_room_affiliations/2,
          can_access_identity/4,
          disco_local_items/1]).
 
@@ -82,7 +83,7 @@
     {?MOD_MUC_DB_BACKEND, set_nick, 4},
     {?MOD_MUC_DB_BACKEND, store_room, 4},
     {?MOD_MUC_DB_BACKEND, unset_nick, 3},
-    can_access_identity/4, can_access_room/4, create_instant_room/6,
+    can_access_identity/4, can_access_room/4, get_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4,
     online_rooms_number/0, register_room/4, restore_room/3, start_link/2
 ]).
@@ -1251,6 +1252,23 @@ can_access_room(_, _HostType, Room, User) ->
         {ok, CanAccess} -> CanAccess
     end.
 
+-spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->
+    {mongoose_acc:t(), any()}.
+get_room_affiliations(Acc1, Room) ->
+    case mongoose_acc:get(?MODULE, affiliations, undefined, Acc1) of
+        undefined ->
+            case mod_muc_room:get_room_users(Room) of
+                {error, not_found} ->
+                    Acc2 = mongoose_acc:set(?MODULE, affiliations, {error, not_found}, Acc1),
+                    {Acc2, {error, not_found}};
+                {ok, _Affs} = Res ->
+                    Acc2 = mongoose_acc:set_permanent(?MODULE, affiliations, Res, Acc1),
+                    {Acc2, Res}
+            end;
+        Affs ->
+            {Acc1, Affs}
+    end.
+
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
                           Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
@@ -1322,6 +1340,7 @@ config_metrics(HostType) ->
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {get_room_affiliations, HostType, ?MODULE, get_room_affiliations, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
      {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
 
