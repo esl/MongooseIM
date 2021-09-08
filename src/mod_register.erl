@@ -45,7 +45,7 @@
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([c2s_stream_features/3, process_iq/5, try_register/6, unauthenticated_iq_register/4]).
+-ignore_xref([c2s_stream_features/3, process_iq/5, try_register/6, unauthenticated_iq_register/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -120,10 +120,6 @@ ip_access_spec() ->
 
 supported_features() -> [dynamic_domains].
 
-%%%
-%%% api
-%%%
-
 process_ip_access(KVs) ->
     {[[{address, Address}], [{policy, Policy}]], []} = proplists:split(KVs, [address, policy]),
     {Policy, Address}.
@@ -132,6 +128,10 @@ process_welcome_message(KVs) ->
     Body = proplists:get_value(body, KVs, ""),
     Subject = proplists:get_value(subject, KVs, ""),
     {Subject, Body}.
+
+%%%
+%%% Hooks and IQ handlers
+%%%
 
 -spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
           [exml:element()].
@@ -200,12 +200,12 @@ handle_set(HostType, IQ, ClientJID, ServerJID, Source) ->
     end.
 
 which_child_elements(#xmlel{children = C} = Q) when length(C) =:= 1 ->
-        case Q#xmlel.children of
-            [#xmlel{name = <<"remove">>}] ->
-                only_remove_child;
-            [_] ->
-                bad_request
-        end;
+    case Q#xmlel.children of
+        [#xmlel{name = <<"remove">>}] ->
+            only_remove_child;
+        [_] ->
+            bad_request
+    end;
 which_child_elements(#xmlel{children = C} = Q) when length(C) > 1 ->
     case exml_query:subelement(Q, <<"remove">>) of
         #xmlel{name = <<"remove">>} ->
