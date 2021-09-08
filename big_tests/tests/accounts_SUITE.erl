@@ -33,27 +33,26 @@ all() ->
     ].
 
 groups() ->
-    G = [{register, [parallel], [register,
-                                 already_registered,
-                                 registration_conflict,
-                                 check_unregistered]},
-         {registration_watchers, [sequence], [admin_notify]},
-         {bad_registration, [sequence], [null_password]},
-         {bad_cancelation, [sequence], [bad_request_registration_cancelation,
-                                        not_allowed_registration_cancelation]},
-         {registration_timeout, [sequence], [registration_timeout,
-                                             registration_failure_timeout]},
-         {change_account_details, [parallel], change_password_tests()},
-         {change_account_details_store_plain, [parallel], change_password_tests()},
-         {utilities, [{group, user_info},
-                      {group, users_number_estimate}]},
-         {user_info, [parallel], [list_users,
-                                  list_selected_users,
-                                  count_users,
-                                  count_selected_users]},
-         {users_number_estimate, [], [count_users_estimate]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{register, [parallel], [register,
+                             already_registered,
+                             registration_conflict,
+                             check_unregistered]},
+     {registration_watchers, [sequence], [admin_notify]},
+     {bad_registration, [sequence], [null_password]},
+     {bad_cancelation, [sequence], [bad_request_registration_cancelation,
+                                    not_allowed_registration_cancelation]},
+     {registration_timeout, [sequence], [registration_timeout,
+                                         registration_failure_timeout]},
+     {change_account_details, [parallel], change_password_tests()},
+     {change_account_details_store_plain, [parallel], change_password_tests()},
+     {utilities, [{group, user_info},
+                  {group, users_number_estimate}]},
+     {user_info, [parallel], [list_users,
+                              list_selected_users,
+                              count_users,
+                              count_selected_users]},
+     {users_number_estimate, [], [count_users_estimate]}
+    ].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -66,8 +65,7 @@ change_password_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config1) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    ok = dynamic_modules:ensure_modules(Host, required_modules()),
+    ok = dynamic_modules:ensure_modules(host_type(), required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
     escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
 
@@ -126,12 +124,12 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 get_auth_opts() ->
-    rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, domain()}]).
+    rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, host_type()}]).
 
 set_auth_opts(AuthOpts) ->
-    rpc(mim(), ejabberd_auth, stop, [domain()]),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, domain()}, AuthOpts]),
-    rpc(mim(), ejabberd_auth, start, [domain()]).
+    rpc(mim(), ejabberd_auth, stop, [host_type()]),
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, host_type()}, AuthOpts]),
+    rpc(mim(), ejabberd_auth, start, [host_type()]).
 
 init_per_testcase(admin_notify, Config) ->
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
@@ -445,13 +443,13 @@ user_exists(Name, Config) ->
     rpc(mim(), ejabberd_auth, does_user_exist, [mongoose_helper:make_jid(Username, Server)]).
 
 reload_mod_register_option(Config, Key, Value) ->
-    Host = domain(),
+    Host = host_type(),
     Args = proplists:get_value(mod_register_options, Config),
     Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
     dynamic_modules:restart(Host, mod_register, Args1).
 
 restore_mod_register_options(Config) ->
-    Host = domain(),
+    Host = host_type(),
     Args = proplists:get_value(mod_register_options, Config),
     dynamic_modules:restart(Host, mod_register, Args).
 
@@ -460,6 +458,9 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
+
+host_type() ->
+    domain_helper:host_type(mim).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

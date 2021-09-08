@@ -478,13 +478,11 @@ restore_sasl_mechanisms_config(Config) ->
 set_sasl_mechanisms(GlobalOrHostSASLMechanisms, Mechanisms) ->
     rpc(mim(), ejabberd_config, add_local_option, [GlobalOrHostSASLMechanisms, Mechanisms]).
 
-
 set_store_password(Type) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config({hosts, mim, domain})),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
+    HostType = domain_helper:host_type(mim),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, HostType}]),
     NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, HostType}, NewAuthOpts]).
 
 build_new_auth_opts(scram, AuthOpts) ->
     NewAuthOpts0 = lists:keystore(password_format, 1, AuthOpts, {password_format, scram}),

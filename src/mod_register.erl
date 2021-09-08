@@ -29,32 +29,36 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+%% Gen_mod callbacks
 -export([start/2,
          stop/1,
          config_spec/0,
-         c2s_stream_features/3,
-         unauthenticated_iq_register/4,
-         try_register/5,
-         process_iq/4,
+         supported_features/0]).
+
+%% IQ and hook handlers
+-export([c2s_stream_features/3,
+         unauthenticated_iq_register/5,
+         process_iq/5]).
+
+%% API
+-export([try_register/6,
          process_ip_access/1,
          process_welcome_message/1]).
 
--ignore_xref([c2s_stream_features/3, process_iq/4, try_register/5, unauthenticated_iq_register/4]).
+-ignore_xref([c2s_stream_features/3, process_iq/5, try_register/6, unauthenticated_iq_register/5]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), list()) -> ok.
+start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_REGISTER,
-                                  ?MODULE, process_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_REGISTER,
-                                  ?MODULE, process_iq, IQDisc),
-    ejabberd_hooks:add(c2s_stream_features, Host,
-                       ?MODULE, c2s_stream_features, 50),
-    ejabberd_hooks:add(c2s_unauthenticated_iq, Host,
-                       ?MODULE, unauthenticated_iq_register, 50),
+
+    [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_REGISTER, Component, Fn, #{}, IQDisc) ||
+        {Component, Fn} <- iq_handlers()],
+    ejabberd_hooks:add(hooks(HostType)),
+
     mnesia:create_table(mod_register_ip,
                         [{ram_copies, [node()]},
                          {local_content, true},
@@ -62,13 +66,23 @@ start(Host, Opts) ->
     mnesia:add_table_copy(mod_register_ip, node(), ram_copies),
     ok.
 
-stop(Host) ->
-    ejabberd_hooks:delete(c2s_stream_features, Host,
-                          ?MODULE, c2s_stream_features, 50),
-    ejabberd_hooks:delete(c2s_unauthenticated_iq, Host,
-                          ?MODULE, unauthenticated_iq_register, 50),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_REGISTER),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_REGISTER).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_REGISTER, Component) ||
+        {Component, _Fn} <- iq_handlers()],
+    ok.
+
+iq_handlers() ->
+    [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
+
+hooks(HostType) ->
+    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
+    {c2s_unauthenticated_iq, HostType, ?MODULE, unauthenticated_iq_register, 50}].
+
+%%%
+%%% config_spec
+%%%
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -103,6 +117,8 @@ ip_access_spec() ->
         process = fun ?MODULE:process_ip_access/1
     }.
 
+supported_features() -> [dynamic_domains].
+
 process_ip_access(KVs) ->
     {[[{address, Address}], [{policy, Policy}]], []} = proplists:split(KVs, [address, policy]),
     {Policy, Address}.
@@ -112,19 +128,27 @@ process_welcome_message(KVs) ->
     Subject = proplists:get_value(subject, KVs, ""),
     {Subject, Body}.
 
+%%%
+%%% Hooks and IQ handlers
+%%%
+
 -spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
           [exml:element()].
 c2s_stream_features(Acc, _HostType, _LServer) ->
     [#xmlel{name = <<"register">>,
             attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
 
-unauthenticated_iq_register(_Acc,
-                            Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
+-spec unauthenticated_iq_register(exml:element() | empty, mongooseim:host_type(), 
+                                  jid:server(), jlib:iq(), 
+                                  {inet:ip_address(), inet:port_number()} | undefined) -> 
+    exml:element() | empty.
+unauthenticated_iq_register(_Acc, HostType, Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
     Address = case IP of
                   {A, _Port} -> A;
                   _ -> undefined
               end,
-    ResIQ = process_unauthenticated_iq(no_JID,
+    ResIQ = process_unauthenticated_iq(HostType,
+                                       no_JID,
                                        %% For the above: the client is
                                        %% not registered (no JID), at
                                        %% least not yet, so they can
@@ -133,50 +157,54 @@ unauthenticated_iq_register(_Acc,
                                        IQ,
                                        Address),
     set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(Server));
-unauthenticated_iq_register(Acc, _Server, _IQ, _IP) ->
+unauthenticated_iq_register(Acc, _HostType, _Server, _IQ, _IP) ->
     Acc.
 
 %% Clients must register before being able to authenticate.
-process_unauthenticated_iq(From, To, #iq{type = set} = IQ, IPAddr) ->
-    process_iq_set(From, To, IQ, IPAddr);
-process_unauthenticated_iq(From, To, #iq{type = get} = IQ, IPAddr) ->
-    process_iq_get(From, To, IQ, IPAddr).
+process_unauthenticated_iq(HostType, From, To, #iq{type = set} = IQ, IPAddr) ->
+    process_iq_set(HostType, From, To, IQ, IPAddr);
+process_unauthenticated_iq(HostType, From, To, #iq{type = get} = IQ, IPAddr) ->
+    process_iq_get(HostType, From, To, IQ, IPAddr).
 
-process_iq(From, To, Acc, #iq{type = set} = IQ) ->
-    Res = process_iq_set(From, To, IQ, jid:to_lower(From)),
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+        -> {mongoose_acc:t(), jlib:iq()}.
+process_iq(Acc, From, To, #iq{type = set} = IQ, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Res = process_iq_set(HostType, From, To, IQ, jid:to_lower(From)),
     {Acc, Res};
-process_iq(From, To, Acc, #iq{type = get} = IQ) ->
-    Res = process_iq_get(From, To, IQ, jid:to_lower(From)),
+process_iq(Acc, From, To, #iq{type = get} = IQ, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Res = process_iq_get(HostType, From, To, IQ, jid:to_lower(From)),
     {Acc, Res}.
 
-process_iq_set(From, To, #iq{sub_el = Child} = IQ, Source) ->
+process_iq_set(HostType, From, To, #iq{sub_el = Child} = IQ, Source) ->
     true = is_query_element(Child),
-    handle_set(IQ, From, To, Source).
+    handle_set(HostType, IQ, From, To, Source).
 
-handle_set(IQ, ClientJID, ServerJID, Source) ->
+handle_set(HostType, IQ, ClientJID, ServerJID, Source) ->
     #iq{sub_el = Query} = IQ,
     case which_child_elements(Query) of
         bad_request ->
             error_response(IQ, mongoose_xmpp_errors:bad_request());
         only_remove_child ->
-            attempt_cancelation(ClientJID, ServerJID, IQ);
+            attempt_cancelation(HostType, ClientJID, ServerJID, IQ);
         various_elements_present ->
             case has_username_and_password_children(Query) of
                 true ->
                     Credentials = get_username_and_password_values(Query),
-                    register_or_change_password(Credentials, ClientJID, ServerJID, IQ, Source);
+                    register_or_change_password(HostType, Credentials, ClientJID, ServerJID, IQ, Source);
                 false ->
                     error_response(IQ, mongoose_xmpp_errors:bad_request())
             end
     end.
 
 which_child_elements(#xmlel{children = C} = Q) when length(C) =:= 1 ->
-        case Q#xmlel.children of
-            [#xmlel{name = <<"remove">>}] ->
-                only_remove_child;
-            [_] ->
-                bad_request
-        end;
+    case Q#xmlel.children of
+        [#xmlel{name = <<"remove">>}] ->
+            only_remove_child;
+        [_] ->
+            bad_request
+    end;
 which_child_elements(#xmlel{children = C} = Q) when length(C) > 1 ->
     case exml_query:subelement(Q, <<"remove">>) of
         #xmlel{name = <<"remove">>} ->
@@ -196,20 +224,20 @@ get_username_and_password_values(Q) ->
     {exml_query:path(Q, [{element, <<"username">>}, cdata]),
      exml_query:path(Q, [{element, <<"password">>}, cdata])}.
 
-register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}, IQ, IPAddr) ->
+register_or_change_password(HostType, Credentials, ClientJID, #jid{lserver = ServerDomain}, IQ, IPAddr) ->
     {Username, Password} = Credentials,
-    case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
+    case inband_registration_and_cancelation_allowed(HostType, ServerDomain, ClientJID) of
         true ->
             #iq{sub_el = Children, lang = Lang} = IQ,
-            try_register_or_set_password(Username, ServerDomain, Password,
+            try_register_or_set_password(HostType, Username, ServerDomain, Password,
                                          ClientJID, IQ, Children, IPAddr, Lang);
         false ->
             %% This is not described in XEP 0077.
             error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
-attempt_cancelation(#jid{} = ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
-    case inband_registration_and_cancelation_allowed(ServerDomain, ClientJID) of
+attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
+    case inband_registration_and_cancelation_allowed(HostType, ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
             %% XML stream is closed (the call to
@@ -228,13 +256,13 @@ attempt_cancelation(#jid{} = ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ
             error_response(IQ, mongoose_xmpp_errors:not_allowed())
     end.
 
-inband_registration_and_cancelation_allowed(_, no_JID) ->
+inband_registration_and_cancelation_allowed(_HostType, _ServerDomain, no_JID) ->
     true;
-inband_registration_and_cancelation_allowed(Server, JID) ->
-    Rule = gen_mod:get_module_opt(Server, ?MODULE, access, none),
-    allow =:= acl:match_rule(Server, Rule, JID).
+inband_registration_and_cancelation_allowed(HostType, ServerDomain, JID) ->
+    Rule = gen_mod:get_module_opt(HostType, ?MODULE, access, none),
+    allow =:= acl:match_rule_for_host_type(HostType, ServerDomain,  Rule, JID).
 
-process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
+process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
     {_IsRegistered, UsernameSubels, QuerySubels} =
         case From of
@@ -261,13 +289,13 @@ process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
                                        #xmlel{name = <<"password">>}
                                        | QuerySubels]}]}.
 
-try_register_or_set_password(User, Server, Password, #jid{user = User, lserver = Server} = UserJID,
+try_register_or_set_password(HostType, User, Server, Password, #jid{user = User, lserver = Server} = UserJID,
                              IQ, SubEl, _Source, Lang) ->
-    try_set_password(UserJID, Password, IQ, SubEl, Lang);
-try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
+    try_set_password(HostType, UserJID, Password, IQ, SubEl, Lang);
+try_register_or_set_password(HostType, User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
     case check_timeout(Source) of
         true ->
-            case try_register(User, Server, Password, Source, Lang) of
+            case try_register(HostType, User, Server, Password, Source, Lang) of
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, Error} ->
@@ -279,8 +307,8 @@ try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, L
     end.
 
 %% @doc Try to change password and return IQ response
-try_set_password(#jid{lserver = LServer} = UserJID, Password, IQ, SubEl, Lang) ->
-    case is_strong_password(LServer, Password) of
+try_set_password(HostType, #jid{} = UserJID, Password, IQ, SubEl, Lang) ->
+    case is_strong_password(HostType, Password) of
         true ->
             case ejabberd_auth:set_password(UserJID, Password) of
                 ok ->
@@ -297,27 +325,27 @@ try_set_password(#jid{lserver = LServer} = UserJID, Password, IQ, SubEl, Lang) -
             error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)])
     end.
 
-try_register(User, Server, Password, SourceRaw, Lang) ->
+try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
     case jid:is_nodename(User) of
         false ->
             {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             JID = jid:make(User, Server, <<>>),
-            Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
-            IPAccess = get_ip_access(Server),
-            case {acl:match_rule(Server, Access, JID),
+            Access = gen_mod:get_module_opt(HostType, ?MODULE, access, all),
+            IPAccess = get_ip_access(HostType),
+            case {acl:match_rule_for_host_type(HostType, Server, Access, JID),
                   check_ip_access(SourceRaw, IPAccess)} of
                 {deny, _} ->
                     {error, mongoose_xmpp_errors:forbidden()};
                 {_, deny} ->
                     {error, mongoose_xmpp_errors:forbidden()};
                 {allow, allow} ->
-                    verify_password_and_register(JID, Password, SourceRaw, Lang)
+                    verify_password_and_register(HostType, JID, Password, SourceRaw, Lang)
             end
     end.
 
-verify_password_and_register(#jid{lserver = LServer} = JID, Password, SourceRaw, Lang) ->
-    case is_strong_password(LServer, Password) of
+verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw, Lang) ->
+    case is_strong_password(HostType, Password) of
         true ->
             case ejabberd_auth:try_register(JID, Password) of
                 {error, exists} ->
@@ -329,8 +357,8 @@ verify_password_and_register(#jid{lserver = LServer} = JID, Password, SourceRaw,
                 {error, null_password} ->
                     {error, mongoose_xmpp_errors:not_acceptable()};
                 _ ->
-                    send_welcome_message(JID),
-                    send_registration_notifications(JID, SourceRaw),
+                    send_welcome_message(HostType, JID),
+                    send_registration_notifications(HostType, JID, SourceRaw),
                     ok
             end;
         false ->
@@ -338,13 +366,13 @@ verify_password_and_register(#jid{lserver = LServer} = JID, Password, SourceRaw,
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
     end.
 
-send_welcome_message(#jid{lserver = Host} = JID) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, welcome_message, {"", ""}) of
+send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, welcome_message, {"", ""}) of
         {"", ""} ->
             ok;
         {Subj, Body} ->
             ejabberd_router:route(
-              jid:make_noprep(<<>>, Host, <<>>),
+              jid:make_noprep(<<>>, Server, <<>>),
               JID,
               #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"normal">>}],
                      children = [#xmlel{name = <<"subject">>,
@@ -355,8 +383,8 @@ send_welcome_message(#jid{lserver = Host} = JID) ->
             ok
     end.
 
-send_registration_notifications(#jid{lserver = Host} = UJID, Source) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, registration_watchers, []) of
+send_registration_notifications(HostType, #jid{lserver = Domain} = UJID, Source) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, registration_watchers, []) of
         [] -> ok;
         JIDs when is_list(JIDs) ->
             Body = lists:flatten(
@@ -365,12 +393,12 @@ send_registration_notifications(#jid{lserver = Host} = UJID, Source) ->
                        "on node ~w using ~p.",
                        [get_time_string(), jid:to_binary(UJID),
                         ip_to_string(Source), node(), ?MODULE])),
-            lists:foreach(fun(S) -> send_registration_notification(S, Host, Body) end, JIDs);
+            lists:foreach(fun(S) -> send_registration_notification(S, Domain, Body) end, JIDs);
         _ ->
             ok
     end.
 
-send_registration_notification(JIDBin, Host, Body) ->
+send_registration_notification(JIDBin, Domain, Body) ->
     case jid:from_binary(JIDBin) of
         error -> ok;
         JID ->
@@ -378,7 +406,7 @@ send_registration_notification(JIDBin, Host, Body) ->
                              attrs = [{<<"type">>, <<"chat">>}],
                              children = [#xmlel{name = <<"body">>,
                                                 children = [#xmlcdata{content = Body}]}]},
-            ejabberd_router:route(jid:make_noprep(<<>>, Host, <<>>), JID, Message)
+            ejabberd_router:route(jid:make_noprep(<<>>, Domain, <<>>), JID, Message)
     end.
 
 check_timeout(undefined) ->
@@ -446,15 +474,15 @@ write_time({{Y, Mo, D}, {H, Mi, S}}) ->
     io_lib:format("~w-~.2.0w-~.2.0w ~.2.0w:~.2.0w:~.2.0w",
                   [Y, Mo, D, H, Mi, S]).
 
-is_strong_password(LServer, Password) ->
-    case gen_mod:get_module_opt(LServer, ?MODULE, password_strength, 0) of
+is_strong_password(HostType, Password) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, password_strength, 0) of
         Entropy when is_number(Entropy), Entropy == 0 ->
             true;
         Entropy when is_number(Entropy), Entropy > 0 ->
             ejabberd_auth:entropy(Password) >= Entropy;
         Wrong ->
             ?LOG_WARNING(#{what => reg_wrong_password_strength,
-                           host => LServer, value => Wrong}),
+                           host => HostType, value => Wrong}),
             true
     end.
 
@@ -462,8 +490,8 @@ is_strong_password(LServer, Password) ->
 %%% ip_access management
 %%%
 
-get_ip_access(Host) ->
-    IPAccess = gen_mod:get_module_opt(Host, ?MODULE, ip_access, []),
+get_ip_access(HostType) ->
+    IPAccess = gen_mod:get_module_opt(HostType, ?MODULE, ip_access, []),
     lists:flatmap(
       fun({Access, {IP, Mask}}) ->
               [{Access, IP, Mask}];
