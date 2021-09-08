@@ -252,8 +252,7 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
                        To :: jid:jid(),
                        Packet :: exml:element()) -> map().
 user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
-    maybe_process_message(Acc, From, To, Msg, outgoing),
-    Acc;
+    maybe_process_message(Acc, From, To, Msg, outgoing);
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
@@ -262,28 +261,18 @@ inbox_unread_count(Acc, To) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
     get_inbox_unread(Res, Acc, To).
 
--type fpacket() :: {From :: jid:jid(),
-                    To :: jid:jid(),
-                    Acc :: mongoose_acc:t(),
-                    Packet :: exml:element()}.
--spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_local_packet(drop) ->
-    drop;
+-spec filter_local_packet(mongoose_hooks:filter_packet_acc() | drop) ->
+    mongoose_hooks:filter_packet_acc() | drop.
 filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
     %% (when push notification is created)
-    Acc0 = case maybe_process_message(Acc, From, To, Msg, incoming) of
-               {ok, UnreadCount} ->
-                   mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
-               _ ->
-                   Acc
-           end,
+    % mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
+    Acc0 = maybe_process_message(Acc, From, To, Msg, incoming),
     {From, To, Acc0, Msg};
-
-filter_local_packet({From, To, Acc, Packet}) ->
-    {From, To, Acc, Packet}.
+filter_local_packet(FilterAcc) ->
+    FilterAcc.
 
 remove_user(Acc, User, Server) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -307,15 +296,15 @@ disco_local_features(Acc) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> ok | {ok, integer()}.
+                            Dir :: outgoing | incoming) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
     HostType = mongoose_acc:host_type(Acc),
-    case should_be_stored_in_inbox(Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
+    case should_be_stored_in_inbox(Acc, Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
-            Type = get_message_type(Msg),
+            Type = get_message_type(Acc),
             maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type);
         false ->
-            ok
+            Acc
     end.
 
 -spec inbox_owner_exists(Acc :: mongoose_acc:t(),
@@ -330,10 +319,12 @@ inbox_owner_exists(Acc, _From, To, incoming) ->
     ejabberd_auth:does_user_exist(HostType, To, stored).
 
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
-            process_message(HostType, From, To, Msg, Acc, Dir, one2one);
+    process_message(HostType, From, To, Msg, Acc, Dir, one2one);
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) ->
-            muclight_enabled(HostType) andalso
-            process_message(HostType, From, To, Msg, Acc, Dir, groupchat).
+    case muclight_enabled(HostType) of
+        true -> process_message(HostType, From, To, Msg, Acc, Dir, groupchat);
+        false -> Acc
+    end.
 
 -spec process_message(HostType :: host(),
                       From :: jid:jid(),
@@ -341,7 +332,7 @@ maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) -
                       Message :: exml:element(),
                       Acc :: mongoose_acc:t(),
                       Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> ok | {ok, integer()}.
+                      Type :: one2one | groupchat) -> mongoose_acc:t().
 process_message(HostType, From, To, Message, Acc, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(HostType, From, To, Message, Acc);
 process_message(HostType, From, To, Message, Acc, incoming, one2one) ->
@@ -350,13 +341,13 @@ process_message(HostType, From, To, Message, Acc, outgoing, groupchat) ->
     mod_inbox_muclight:handle_outgoing_message(HostType, From, To, Message, Acc);
 process_message(HostType, From, To, Message, Acc, incoming, groupchat) ->
     mod_inbox_muclight:handle_incoming_message(HostType, From, To, Message, Acc);
-process_message(HostType, From, To, Message, _TS, Dir, Type) ->
+process_message(HostType, From, To, Message, Acc, Dir, Type) ->
     ?LOG_WARNING(#{what => inbox_unknown_message,
                    text => <<"Unknown message was not written into inbox">>,
                    exml_packet => Message,
                    from_jid => jid:to_binary(From), to_jid => jid:to_binary(To),
                    host_type => HostType, dir => Dir, inbox_message_type => Type}),
-    ok.
+    Acc.
 
 
 %%%%%%%%%%%%%%%%%%%
@@ -642,9 +633,9 @@ muclight_enabled(HostType) ->
     Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
--spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
-get_message_type(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
+-spec get_message_type(mongoose_acc:t()) -> groupchat | one2one.
+get_message_type(Acc) ->
+    case mongoose_acc:stanza_type(Acc) of
         <<"groupchat">> ->
             groupchat;
         _ ->
@@ -653,7 +644,8 @@ get_message_type(Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
--spec should_be_stored_in_inbox(Msg :: exml:element(), outgoing | incoming) -> boolean().
-should_be_stored_in_inbox(Msg, Dir) ->
+-spec should_be_stored_in_inbox(mongoose_acc:t(), exml:element(), outgoing | incoming) -> boolean().
+should_be_stored_in_inbox(Acc, Msg, Dir) ->
+    (not mongoose_acc:get(inbox, stored, false, Acc)) andalso
     mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true) andalso
     mod_inbox_entries:should_be_stored_in_inbox(Msg).

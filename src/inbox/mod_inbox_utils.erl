@@ -35,7 +35,8 @@
          maybe_muted_until/2,
          binary_to_bool/1,
          bool_to_binary/1,
-         build_inbox_entry_key/2
+         build_inbox_entry_key/2,
+         get_msg_id/1
         ]).
 
 -define(MOD_INBOX_BACKEND, mod_inbox_backend).
@@ -78,7 +79,7 @@ reset_unread_count(HostType, From, Remote, MsgId) ->
                             Sender :: jid:jid(),
                             Receiver :: jid:jid(),
                             Packet :: exml:element(),
-                            Acc :: mongoose_acc:t()) -> ok.
+                            Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
@@ -86,20 +87,22 @@ write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Sender, Receiver),
-    ok = mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
+    ok = mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp),
+    Acc.
 
 -spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
                               Sender :: jid:jid(),
                               Receiver :: jid:jid(),
                               Packet :: exml:element(),
-                              Acc :: mongoose_acc:t()) -> ok | {ok, integer()}.
+                              Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Receiver, Sender),
     mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
-                                            Content, MsgId, Timestamp).
+                                            Content, MsgId, Timestamp),
+    Acc.
 
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   User :: jid:user(),
@@ -140,18 +143,17 @@ if_chat_marker_get_id(Packet, Marker) ->
 has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).
 
--spec maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) -> ok | {ok, integer()} when
+-spec maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) -> mongoose_acc:t() when
       HostType ::mongooseim:host_type(),
       User :: jid:jid(),
       Remote :: jid:jid(),
       Packet :: exml:element(),
       Acc :: mongoose_acc:t(),
-      %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
-      WriteF :: fun().
+      WriteF :: fun(). %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
 maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) ->
     case has_chat_marker(Packet) of
         true ->
-            ok;
+            Acc;
         false ->
             Packet2 = fill_from_attr(Packet, User),
             WriteF(HostType, User, Remote, Packet2, Acc)
