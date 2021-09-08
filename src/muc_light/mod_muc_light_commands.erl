@@ -252,12 +252,12 @@ create_room(Domain, RoomId, RoomTitle, Creator, Subject) ->
     LServer = jid:nameprep(Domain),
     HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
     MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
-    CreatorUS = jid:to_lus(jid:from_binary(Creator)),
+    CreatorJid = jid:from_binary(Creator),
     MUCServiceJID = jid:make(RoomId, MUCLightDomain, <<>>),
     Config = make_room_config(RoomTitle, Subject),
-    case mod_muc_light:try_to_create_room(CreatorUS, MUCServiceJID, Config) of
-        {ok, RoomUS, _} ->
-            jid:to_binary(RoomUS);
+    case mod_muc_light:try_to_create_room(CreatorJid, MUCServiceJID, Config) of
+        {ok, RoomJid, _} ->
+            jid:to_binary(RoomJid);
         {error, exists} ->
             {error, denied, "Room already exists"};
         {error, Reason} ->

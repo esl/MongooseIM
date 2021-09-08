@@ -33,7 +33,7 @@
     decode_result().
 
 -callback encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
-                 RoomUS :: jid:simple_bare_jid(), % may be just service domain
+                 RoomJid :: jid:jid(), % may be just service domain
                  HandleFun :: encoded_packet_handler(),
                  Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 
@@ -76,4 +76,3 @@ make_error_elem({error, registration_required}) ->
     mongoose_xmpp_errors:registration_required();
 make_error_elem({error, _}) ->
     mongoose_xmpp_errors:bad_request().
-
