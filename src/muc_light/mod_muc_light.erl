@@ -300,6 +300,7 @@ hooks(HostType) ->
     Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters, ?DEFAULT_ROOMS_IN_ROSTERS),
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {get_room_affiliations, HostType, ?MODULE, get_room_affiliations, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
       %% Prevent sending service-unavailable on groupchat messages
      {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},

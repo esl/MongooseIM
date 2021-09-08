@@ -1340,6 +1340,7 @@ config_metrics(HostType) ->
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {get_room_affiliations, HostType, ?MODULE, get_room_affiliations, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
      {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
 
