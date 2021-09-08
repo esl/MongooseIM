@@ -138,7 +138,8 @@ c2s_stream_features(Acc, _HostType, _LServer) ->
     [#xmlel{name = <<"register">>,
             attrs = [{<<"xmlns">>, ?NS_FEATURE_IQREGISTER}]} | Acc].
 
--spec unauthenticated_iq_register(empty, mongooseim:host_type(), jid:server(), jlib:iq(), 
+-spec unauthenticated_iq_register(exml:element() | empty, mongooseim:host_type(), 
+                                  jid:server(), jlib:iq(), 
                                   {inet:ip_address(), inet:port_number()} | undefined) -> 
     exml:element() | empty.
 unauthenticated_iq_register(_Acc, HostType, Server, #iq{xmlns = ?NS_REGISTER} = IQ, IP) ->
@@ -156,7 +157,6 @@ unauthenticated_iq_register(_Acc, HostType, Server, #iq{xmlns = ?NS_REGISTER} = 
                                        IQ,
                                        Address),
     set_sender(jlib:iq_to_xml(ResIQ), make_host_only_jid(Server));
-
 unauthenticated_iq_register(Acc, _HostType, _Server, _IQ, _IP) ->
     Acc.
 

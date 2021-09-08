@@ -41,7 +41,6 @@
 -export([backup_sasl_mechanisms_config/1, restore_sasl_mechanisms_config/1]).
 -export([set_sasl_mechanisms/2]).
 -export([set_store_password/1]).
--export([set_store_password/2]).
 -export([get_listener_opts/2]).
 -export([restart_listener_with_opts/3]).
 -export([should_minio_be_running/1]).
@@ -479,17 +478,11 @@ restore_sasl_mechanisms_config(Config) ->
 set_sasl_mechanisms(GlobalOrHostSASLMechanisms, Mechanisms) ->
     rpc(mim(), ejabberd_config, add_local_option, [GlobalOrHostSASLMechanisms, Mechanisms]).
 
-set_store_password(HostType, Type) ->
+set_store_password(Type) ->
+    HostType = domain_helper:host_type(mim),
     AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, HostType}]),
     NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
     rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, HostType}, NewAuthOpts]).
-
-set_store_password(Type) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config({hosts, mim, domain})),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
-    NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
 
 build_new_auth_opts(scram, AuthOpts) ->
     NewAuthOpts0 = lists:keystore(password_format, 1, AuthOpts, {password_format, scram}),

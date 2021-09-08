@@ -34,25 +34,25 @@ all() ->
 
 groups() ->
     [{register, [parallel], [register,
-                                 already_registered,
-                                 registration_conflict,
-                                 check_unregistered]},
-         {registration_watchers, [sequence], [admin_notify]},
-         {bad_registration, [sequence], [null_password]},
-         {bad_cancelation, [sequence], [bad_request_registration_cancelation,
-                                        not_allowed_registration_cancelation]},
-         {registration_timeout, [sequence], [registration_timeout,
-                                             registration_failure_timeout]},
-         {change_account_details, [parallel], change_password_tests()},
-         {change_account_details_store_plain, [parallel], change_password_tests()},
-         {utilities, [{group, user_info},
-                      {group, users_number_estimate}]},
-         {user_info, [parallel], [list_users,
-                                  list_selected_users,
-                                  count_users,
-                                  count_selected_users]},
-         {users_number_estimate, [], [count_users_estimate]}
-        ].
+                             already_registered,
+                             registration_conflict,
+                             check_unregistered]},
+     {registration_watchers, [sequence], [admin_notify]},
+     {bad_registration, [sequence], [null_password]},
+     {bad_cancelation, [sequence], [bad_request_registration_cancelation,
+                                    not_allowed_registration_cancelation]},
+     {registration_timeout, [sequence], [registration_timeout,
+                                         registration_failure_timeout]},
+     {change_account_details, [parallel], change_password_tests()},
+     {change_account_details_store_plain, [parallel], change_password_tests()},
+     {utilities, [{group, user_info},
+                  {group, users_number_estimate}]},
+     {user_info, [parallel], [list_users,
+                              list_selected_users,
+                              count_users,
+                              count_selected_users]},
+     {users_number_estimate, [], [count_users_estimate]}
+    ].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -89,7 +89,7 @@ init_per_group(change_account_details, Config) ->
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config];
 init_per_group(change_account_details_store_plain, Config) ->
     Config1 = mongoose_helper:backup_auth_config(Config),
-    mongoose_helper:set_store_password(host_type(), plain),
+    mongoose_helper:set_store_password(plain),
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config1];
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
