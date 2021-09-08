@@ -52,6 +52,7 @@
          process_iq_set/4,
          is_muc_room_owner/4,
          can_access_room/4,
+         get_room_affiliations/2,
          can_access_identity/4]).
 
 %% For propEr
@@ -530,6 +531,23 @@ can_access_room(true, _HostType, _Room, _User) ->
     true;
 can_access_room(_, _HostType, Room, User) ->
     none =/= get_affiliation(Room, User).
+
+-spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->
+    {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
+get_room_affiliations(Acc1, Room) ->
+    case mongoose_acc:get(?MODULE, affiliations, undefined, Acc1) of
+        undefined ->
+            case mod_muc_light_db_backend:get_aff_users(jid:to_lus(Room)) of
+                {error, not_exists} ->
+                    Acc2 = mongoose_acc:set(?MODULE, affiliations, {error, not_exists}, Acc1),
+                    {Acc2, {error, not_exists}};
+                {ok, _Affs, _Version} = Res ->
+                    Acc2 = mongoose_acc:set_permanent(?MODULE, affiliations, Res, Acc1),
+                    {Acc2, Res}
+            end;
+        Affs ->
+            {Acc1, Affs}
+    end.
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
                           Room :: jid:jid(), User :: jid:jid()) ->
