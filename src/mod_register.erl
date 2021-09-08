@@ -77,7 +77,6 @@ iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_iq/5}, {ejabberd_sm, fun ?MODULE:process_iq/5}].
 
 hooks(HostType) ->
-    %FIXME handle host_type in hooks
     [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
     {c2s_unauthenticated_iq, HostType, ?MODULE, unauthenticated_iq_register, 50}].
 
@@ -238,7 +237,6 @@ register_or_change_password(HostType, Credentials, ClientJID, #jid{lserver = Ser
     end.
 
 attempt_cancelation(HostType, #jid{} = ClientJID, #jid{lserver = ServerDomain}, #iq{} = IQ) ->
-    %Is replacing server lserver with passed hostname ok?  
     case inband_registration_and_cancelation_allowed(HostType, ServerDomain, ClientJID) of
         true ->
             %% The response must be sent *before* the
@@ -295,8 +293,6 @@ try_register_or_set_password(HostType, User, Server, Password, #jid{user = User,
                              IQ, SubEl, _Source, Lang) ->
     try_set_password(HostType, UserJID, Password, IQ, SubEl, Lang);
 try_register_or_set_password(HostType, User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
-    ?LOG_DEBUG(#{what => user_data_info,
-                 host=> HostType, reason => #{user => User, server => Server, password => Password}}),
     case check_timeout(Source) of
         true ->
             case try_register(HostType, User, Server, Password, Source, Lang) of

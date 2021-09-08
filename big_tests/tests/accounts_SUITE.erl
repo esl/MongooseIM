@@ -65,7 +65,6 @@ change_password_tests() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config1) ->
-    %Host = ct:get_config({hosts, mim, domain}),
     ok = dynamic_modules:ensure_modules(host_type(), required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
     escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
