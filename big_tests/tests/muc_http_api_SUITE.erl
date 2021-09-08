@@ -92,8 +92,7 @@ end_per_testcase(CaseName, Config) ->
 
 create_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Host = <<"localhost">>,
-        Path = <<"/mucs/", Host/binary>>,
+        Path = path([]),
         Name = ?config(room_name, Config),
         Body = #{name => Name,
                  owner => escalus_client:short_jid(Alice),
@@ -104,7 +103,7 @@ create_room(Config) ->
                                          body => Body,
                                          return_headers => true}),
         {{<<"201">>, _}, Headers, Name} = Res,
-        Exp = <<"/api/mucs/", Host/binary, "/", Name/binary>>,
+        Exp = <<"/api", (path([Name]))/binary>>,
         Uri = uri_string:parse(proplists:get_value(<<"location">>, Headers)),
         ?assertEqual(Exp, maps:get(path, Uri)),
         %% Service acknowledges room creation (10.1.1 Ex. 154), then
@@ -121,7 +120,7 @@ create_room(Config) ->
 invite_online_user_to_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Name = ?config(room_name, Config),
-        Path = <<"/mucs/localhost/", Name/binary, "/participants">>,
+        Path = path([Name, "participants"]),
         Reason = <<"I think you'll like this room!">>,
         Body = #{sender => escalus_client:short_jid(Alice),
                  recipient => escalus_client:short_jid(Bob),
@@ -146,8 +145,7 @@ send_message_to_room(Config) ->
                                                       <<"bobcat">>)),
         escalus:wait_for_stanzas(Bob, 2),
         %% Parameters for this test.
-        Host = <<"localhost">>,
-        Path = <<"/mucs", $/, Host/binary, $/, Name/binary, $/, "messages">>,
+        Path = path([Name, "messages"]),
         Message = <<"Greetings!">>,
         Body = #{from => escalus_client:short_jid(Bob),
                  body => Message},
@@ -162,8 +160,7 @@ kick_user_from_room(Config) ->
       [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         %% Parameters for this test.
         Name = ?config(room_name, Config),
-        Host = <<"localhost">>,
-        Path = <<"/mucs",$/,Host/binary,$/,Name/binary,$/,"bobcat">>,
+        Path = path([Name, "bobcat"]),
         %% Alice creates and enters the room.
         escalus:send(Alice,
                      muc_helper:stanza_muc_enter_room(Name,
@@ -207,13 +204,11 @@ kick_user_from_room(Config) ->
     end).
 
 multiparty_multiprotocol(Config) ->
-    Host = <<"localhost">>,
-    MUCPath = <<"/mucs/", Host/binary>>,
+    MUCPath = path([]),
     Room = ?config(room_name, Config),
-    RoomPath = <<MUCPath/binary, $/, Room/binary>>,
-    RoomInvitePath = <<MUCPath/binary, $/, Room/binary, "/participants">>,
+    RoomInvitePath = path([Room, "participants"]),
     Reason = <<"I think you'll like this room!">>,
-    MessagePath = <<"/mucs", $/, Host/binary, $/, Room/binary, $/, "messages">>,
+    MessagePath = path([Room, "messages"]),
     Message = <<"Greetings!">>,
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, Kate) ->
@@ -312,8 +307,7 @@ failed_messages(Config) ->
 set_up_room(Config, Alice) ->
     % create a room first
     Name = ?config(room_name, Config),
-    Host = <<"localhost">>,
-    Path = <<"/mucs/", Host/binary>>,
+    Path = path([]),
     Body = #{name => Name,
              owner => escalus_client:short_jid(Alice),
              nick => <<"ali">>},
@@ -322,7 +316,7 @@ set_up_room(Config, Alice) ->
     Name.
 
 send_invite(RoomName, BinFrom, BinTo) ->
-    Path = <<"/mucs/localhost/", RoomName/binary, "/participants">>,
+    Path = path([RoomName, "participants"]),
     Reason = <<"I think you'll like this room!">>,
     Body = #{sender => BinFrom,
              recipient => BinTo,
@@ -400,3 +394,10 @@ user_sees_message_from(User, Room, Times, Messages) ->
 is_unavailable_presence_from(Stanza, RoomJID) ->
     escalus:assert(is_presence_with_type, [<<"unavailable">>], Stanza),
     escalus_assert:is_stanza_from(RoomJID, Stanza).
+
+path(Items) ->
+    AllItems = ["mucs", domain() | Items],
+    iolist_to_binary([[$/, Item] || Item <- AllItems]).
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).

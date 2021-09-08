@@ -22,7 +22,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 
 -export([create_instant_room/4]).
 -export([invite_to_room/5]).
@@ -42,6 +42,10 @@ start(_, _) ->
 stop(_) ->
     mongoose_commands:unregister(commands()).
 
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
 commands() ->
     [
      [{name, create_muc_room},
@@ -50,12 +54,12 @@ commands() ->
       {module, ?MODULE},
       {function, create_instant_room},
       {action, create},
-      {identifiers, [host]},
+      {identifiers, [domain]},
       {args,
-       %% The argument `host' is what we normally term the XMPP
-       %% host, `name' is the room name, `owner' is the XMPP entity
+       %% The argument `domain' is what we normally term the XMPP
+       %% domain, `name' is the room name, `owner' is the XMPP entity
        %% that would normally request an instant MUC room.
-       [{host, binary},
+       [{domain, binary},
         {name, binary},
         {owner, binary},
         {nick, binary}]},
@@ -68,9 +72,9 @@ commands() ->
       {module, ?MODULE},
       {function, invite_to_room},
       {action, create},
-      {identifiers, [host, name]},
+      {identifiers, [domain, name]},
       {args,
-       [{host, binary},
+       [{domain, binary},
         {name, binary},
         {sender, binary},
         {recipient, binary},
@@ -85,9 +89,9 @@ commands() ->
       {module, ?MODULE},
       {function, send_message_to_room},
       {action, create},
-      {identifiers, [host, name]},
+      {identifiers, [domain, name]},
       {args,
-       [{host, binary},
+       [{domain, binary},
         {name, binary},
         {from, binary},
         {body, binary}
@@ -101,9 +105,9 @@ commands() ->
       {module, ?MODULE},
       {function, kick_user_from_room},
       {action, delete},
-      {identifiers, [host, name, nick]},
+      {identifiers, [domain, name, nick]},
       {args,
-       [{host, binary},
+       [{domain, binary},
         {name, binary},
         {nick, binary}
        ]},
@@ -111,14 +115,13 @@ commands() ->
 
     ].
 
-create_instant_room(Host, Name, Owner, Nick) ->
+create_instant_room(Domain, Name, Owner, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
     %% the HTTP API, they will certainly recieve stanzas as a
     %% consequence, even if their client(s) did not initiate this.
     OwnerJID = jid:binary_to_bare(Owner),
-    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
-    UserRoomJID = jid:make(Name, MUCHost, Nick),
-    BareRoomJID = jid:make(Name, MUCHost, <<"">>),
+    BareRoomJID = #jid{server = MUCDomain} = room_jid(Domain, Name),
+    UserRoomJID = jid:make(Name, MUCDomain, Nick),
     %% Send presence to create a room.
     ejabberd_router:route(OwnerJID, UserRoomJID,
                           presence(OwnerJID, UserRoomJID)),
@@ -128,70 +131,69 @@ create_instant_room(Host, Name, Owner, Nick) ->
     case verify_room(BareRoomJID, OwnerJID) of
         ok ->
             Name;
-        E ->
-            E
+        Error ->
+            Error
     end.
 
-invite_to_room(Host, Name, Sender, Recipient, Reason) ->
+invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
     case mod_commands:parse_from_to(Sender, Recipient) of
-        {ok, S, R} ->
-            case verify_room(Host, Name, Sender) of
+        {ok, SenderJid, RecipientJid} ->
+            RoomJid = room_jid(Domain, Name),
+            case verify_room(RoomJid, SenderJid) of
                 ok ->
                     %% Direct invitation: i.e. not mediated by MUC room. See XEP 0249.
                     X = #xmlel{name = <<"x">>,
                                attrs = [{<<"xmlns">>, ?NS_CONFERENCE},
-                                        {<<"jid">>, room_address(Name, Host)},
+                                        {<<"jid">>, jid:to_binary(RoomJid)},
                                         {<<"reason">>, Reason}]
                     },
-                    Invite = message(S, R, <<>>, [ X ]),
-                    ejabberd_router:route(S, R, Invite);
-                E ->
-                    E
+                    Invite = message(SenderJid, RecipientJid, <<>>, [ X ]),
+                    ejabberd_router:route(SenderJid, RecipientJid, Invite);
+                Error ->
+                    Error
             end;
-        E ->
-            E
+        Error ->
+            Error
     end.
 
-send_message_to_room(Host, Name, Sender, Message) ->
-    case mod_commands:parse_from_to(Sender, room_address(Name, Host)) of
-        {ok, S, Room} ->
-            B = #xmlel{name = <<"body">>,
-                       children = [ #xmlcdata{ content = Message } ]
-            },
-            Stanza = message(S, Room, <<"groupchat">>, [ B ]),
-            ejabberd_router:route(S, Room, Stanza);
-        E ->
-            E
+send_message_to_room(Domain, Name, Sender, Message) ->
+    RoomJid = room_jid(Domain, Name),
+    case jid:from_binary(Sender) of
+        error ->
+            error;
+        SenderJid ->
+            Body = #xmlel{name = <<"body">>,
+                          children = [ #xmlcdata{ content = Message } ]
+                         },
+            Stanza = message(SenderJid, RoomJid, <<"groupchat">>, [ Body ]),
+            ejabberd_router:route(SenderJid, RoomJid, Stanza)
     end.
 
-kick_user_from_room(Host, Name, Nick) ->
-    %% All the machinery which is already deeply embedden in the MUC
+kick_user_from_room(Domain, Name, Nick) ->
+    %% All the machinery which is already deeply embedded in the MUC
     %% modules will perform the neccessary checking.
-    R = jid:from_binary(room_address(Name, Host)),
-    S = room_moderator(R),
+    RoomJid = room_jid(Domain, Name),
+    SenderJid = room_moderator(RoomJid),
     Reason = #xmlel{name = <<"reason">>,
                     children = [ #xmlcdata{ content = reason() } ]
                    },
-    K = #xmlel{name = <<"item">>,
-               attrs = [{<<"nick">>, Nick},
-                        {<<"role">>, <<"none">>}],
-               children = [ Reason ]
-              },
-    IQ = iq(<<"set">>, S, R, [ query(?NS_MUC_ADMIN, [ K ]) ]),
-    ejabberd_router:route(S, R, IQ).
-
+    Item = #xmlel{name = <<"item">>,
+                  attrs = [{<<"nick">>, Nick},
+                           {<<"role">>, <<"none">>}],
+                  children = [ Reason ]
+                 },
+    IQ = iq(<<"set">>, SenderJid, RoomJid, [ query(?NS_MUC_ADMIN, [ Item ]) ]),
+    ejabberd_router:route(SenderJid, RoomJid, IQ).
 
 %%--------------------------------------------------------------------
 %% Ancillary
 %%--------------------------------------------------------------------
 
--spec verify_room(jid:server(), mod_muc:room(), jid:literal_jid()) ->
-    ok | {error, internal | not_found, term()}.
-verify_room(Host, RoomName, User) ->
-    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
-    BareRoomJID = jid:make(RoomName, MUCHost, <<"">>),
-    UserJID = jid:binary_to_bare(User),
-    verify_room(BareRoomJID, UserJID).
+-spec room_jid(jid:lserver(), binary()) -> jid:jid() | error.
+room_jid(Domain, Name) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
+    MUCDomain = mod_muc:server_host_to_muc_host(HostType, Domain),
+    jid:make(Name, MUCDomain, <<>>).
 
 -spec verify_room(jid:jid(), jid:jid()) ->
     ok | {error, internal | not_found, term()}.
@@ -204,10 +206,6 @@ verify_room(BareRoomJID, OwnerJID) ->
         {error, not_found} ->
             {error, not_found, "room does not exist"}
     end.
-
-room_address(Name, Host) ->
-    MUCHost = gen_mod:get_module_opt_subhost(Host, mod_muc, mod_muc:default_host()),
-    <<Name/binary, $@, MUCHost/binary>>.
 
 iq(Type, Sender, Recipient, Children)
   when is_binary(Type), is_list(Children) ->
