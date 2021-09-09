@@ -47,16 +47,15 @@ all() ->
      ].
 
 groups() ->
-    G = [
-         {essential, [shuffle], essential_test_cases()},
-         {essential_https, [shuffle], essential_test_cases()},
-         {chat, [shuffle], chat_test_cases()},
-         {chat_https, [shuffle], chat_test_cases()},
-         {time, [parallel], time_test_cases()},
-         {acks, [shuffle], acks_test_cases()},
-         {interleave_requests_statem, [parallel], [interleave_requests_statem]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {essential, [shuffle], essential_test_cases()},
+     {essential_https, [shuffle], essential_test_cases()},
+     {chat, [shuffle], chat_test_cases()},
+     {chat_https, [shuffle], chat_test_cases()},
+     {time, [parallel], time_test_cases()},
+     {acks, [shuffle], acks_test_cases()},
+     {interleave_requests_statem, [parallel], [interleave_requests_statem]}
+    ].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
