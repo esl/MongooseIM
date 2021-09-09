@@ -97,16 +97,18 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(jid:lserver(), mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+-spec start(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
+            binary() | undefined) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(LServer, Sid, Peer, PeerCert) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [LServer, Sid, Peer, PeerCert]).
+start(HostType, Sid, Peer, PeerCert) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [HostType, Sid, Peer, PeerCert]).
 
 
--spec start_link(jid:lserver(), mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+-spec start_link(mongooseim:host_type(), mod_bosh:sid(), mongoose_transport:peer(),
+                 binary() | undefined) ->
     'ignore' | {'error', _} | {'ok', pid()}.
-start_link(LServer, Sid, Peer, PeerCert) ->
-    gen_fsm_compat:start_link(?MODULE, [LServer, Sid, Peer, PeerCert], []).
+start_link(HostType, Sid, Peer, PeerCert) ->
+    gen_fsm_compat:start_link(?MODULE, [HostType, Sid, Peer, PeerCert], []).
 
 -spec start_supervisor() -> {ok, pid()} | {error, any()}.
 start_supervisor() ->
@@ -185,23 +187,23 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([LServer, Sid, Peer, PeerCert]) ->
+init([HostType, Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
     State = #state{sid = Sid,
                    c2s_pid = C2SPid,
-                   inactivity = mod_bosh:get_inactivity(LServer),
-                   maxpause = get_maxpause(LServer),
-                   max_wait = mod_bosh:get_max_wait(LServer),
-                   server_acks = mod_bosh:get_server_acks(LServer)},
+                   inactivity = mod_bosh:get_inactivity(HostType),
+                   maxpause = get_maxpause(HostType),
+                   max_wait = mod_bosh:get_max_wait(HostType),
+                   server_acks = mod_bosh:get_server_acks(HostType)},
     ?LOG_DEBUG(ls(#{what => bosh_socket_init}, State)),
     {ok, accumulate, State}.
 
 
 %% TODO: maybe make maxpause runtime configurable like inactivity?
-get_maxpause(LServer) ->
-    case gen_mod:get_module_opt(LServer, mod_bosh, maxpause, undefined) of
+get_maxpause(HostType) ->
+    case gen_mod:get_module_opt(HostType, mod_bosh, maxpause, undefined) of
         undefined -> ?DEFAULT_MAXPAUSE;
         MP -> MP
     end.
