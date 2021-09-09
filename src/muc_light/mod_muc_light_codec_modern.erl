@@ -48,14 +48,14 @@ decode(_, _, _, _) ->
     {error, {bad_request, <<"Failed to decode unknown format">>}}.
 
 -spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
-             RoomUS :: jid:simple_bare_jid(),
+             RoomJID :: jid:jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
              Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
+encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     FromNick = jid:to_binary(US),
     Aff = get_sender_aff(AffUsers, US),
-    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
+    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
              {<<"type">>, <<"groupchat">>},
@@ -64,7 +64,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     EventData = #{from_nick =>FromNick,
                   from_jid => Sender,
-                  room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                  room_jid => RoomBareJid,
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
@@ -75,10 +75,10 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
               msg_to_aff_user(RoomJID, U, S, Attrs, Children, HandleFun)
       end, AffUsers),
     mongoose_acc:update_stanza(#{from_jid => RoomJID,
-                                 to_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                                 to_jid => RoomBareJid,
                                  element => Packet1}, Acc);
-encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
-    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
+encode(OtherCase, Sender, RoomBareJid, HandleFun, Acc) ->
+    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, <<>>),
     case encode_iq(OtherCase, Sender, RoomJID, RoomBin, HandleFun, Acc) of
         {reply, ID} ->
             IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
@@ -486,11 +486,11 @@ msg_to_aff_user(From, ToU, ToS, Attrs, Children, HandleFun) ->
                      children = Children },
     HandleFun(From, To, Packet).
 
--spec jids_from_room_with_resource(RoomUS :: jid:simple_bare_jid(), binary()) ->
+-spec jids_from_room_with_resource(jid:jid(), binary()) ->
     {jid:jid(), binary()}.
-jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
-    FromBin = jid:to_binary({RoomU, RoomS, Resource}),
-    From = jid:make_noprep(RoomU, RoomS, Resource),
+jids_from_room_with_resource(RoomJID, Resource) ->
+    From = jid:replace_resource(RoomJID, Resource),
+    FromBin = jid:to_binary(jid:to_lower(From)),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),

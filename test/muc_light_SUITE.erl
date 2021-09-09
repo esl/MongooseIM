@@ -115,7 +115,7 @@ rsm_disco_item_not_found(_Config) ->
 codec_calls(_Config) ->
     AffUsers = [{{<<"alice">>, <<"localhost">>}, member}, {{<<"bob">>, <<"localhost">>}, member}],
     Sender = jid:from_binary(<<"bob@localhost/bbb">>),
-    RoomUS = {<<"pokoik">>, <<"localhost">>},
+    RoomJid = jid:make(<<"pokoik">>, <<"muc.localhost">>, <<>>),
     HandleFun = fun(_, _, _) -> count_call(handler) end,
     gen_hook:add_handler(filter_room_packet,
                          <<"localhost">>,
@@ -133,23 +133,23 @@ codec_calls(_Config) ->
                               from_jid => jid:make_noprep(<<"a">>, <<"localhost">>, <<>>),
                               to_jid => jid:make_noprep(<<>>, <<"muc.localhost">>, <<>>) }),
     mod_muc_light_codec_modern:encode({#msg{id = <<"ajdi">>}, AffUsers},
-                                      Sender, RoomUS, HandleFun, Acc),
+                                      Sender, RoomJid, HandleFun, Acc),
     % 1 filter packet, sent 1 msg to 2 users
     check_count(1, 2),
     mod_muc_light_codec_modern:encode({set, #affiliations{}, [], []},
-                                      Sender, RoomUS, HandleFun, Acc),
+                                      Sender, RoomJid, HandleFun, Acc),
     % 1 filter packet, sent 1 IQ response to Sender
     check_count(1, 1),
     mod_muc_light_codec_modern:encode({set, #create{id = <<"ajdi">>, aff_users = AffUsers}, false},
-                                      Sender, RoomUS, HandleFun, Acc),
+                                      Sender, RoomJid, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
     mod_muc_light_codec_modern:encode({set, #config{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomUS, HandleFun, Acc),
+        Sender, RoomJid, HandleFun, Acc),
     % 1 filter, 1 IQ response to Sender, 1 notification to 2 users
     check_count(1, 3),
     mod_muc_light_codec_legacy:encode({#msg{id = <<"ajdi">>}, AffUsers},
-        Sender, RoomUS, HandleFun, Acc),
+        Sender, RoomJid, HandleFun, Acc),
     % 1 filter, 1 msg to 2 users
     check_count(1, 2),
     ok.

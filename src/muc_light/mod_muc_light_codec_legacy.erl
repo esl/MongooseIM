@@ -44,14 +44,14 @@ decode(_, _, _, _Acc) ->
     {error, bad_request}.
 
 -spec encode(Request :: muc_light_encode_request(),
-             OriginalSender :: jid:jid(), RoomUS :: jid:simple_bare_jid(),
+             OriginalSender :: jid:jid(), RoomUS :: jid:jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
              Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc) ->
+encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
     Aff = get_sender_aff(AffUsers, US),
     FromNick = jid:to_binary(jid:to_lus(Sender)),
-    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, FromNick),
+    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, FromNick),
     Attrs = [
              {<<"id">>, Msg#msg.id},
              {<<"type">>, <<"groupchat">>},
@@ -60,7 +60,7 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
     EventData = #{from_nick => FromNick,
                   from_jid => Sender,
-                  room_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                  room_jid => RoomBareJid,
                   affiliation => Aff,
                   role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
@@ -71,10 +71,10 @@ encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun, Acc
               send_to_aff_user(RoomJID, U, S, <<"message">>, Attrs, Children, HandleFun)
       end, AffUsers),
     mongoose_acc:update_stanza(#{from_jid => RoomJID,
-                                 to_jid => jid:make_noprep(RoomU, RoomS, <<>>),
+                                 to_jid => RoomBareJid,
                                  element => Packet1}, Acc);
-encode(OtherCase, Sender, RoomUS, HandleFun, Acc) ->
-    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomUS, <<>>),
+encode(OtherCase, Sender, RoomBareJid, HandleFun, Acc) ->
+    {RoomJID, RoomBin} = jids_from_room_with_resource(RoomBareJid, <<>>),
     case encode_meta(OtherCase, RoomJID, Sender, HandleFun, Acc) of
         {iq_reply, ID} ->
             IQRes = make_iq_result(RoomBin, jid:to_binary(Sender), ID, <<>>, undefined),
@@ -297,7 +297,7 @@ encode_meta({set, #blocking{ id = ID }}, _RoomJID, _SenderJID, _HandleFun, _Acc)
 encode_meta({set, #create{} = Create, _UniqueRequested}, RoomJID, _SenderJID, HandleFun, _Acc) ->
     [{{ToU, ToS}, CreatorAff}] = Create#create.aff_users,
     ToBin = jid:to_binary({ToU, ToS, <<>>}),
-    {From, FromBin} = jids_from_room_with_resource({RoomJID#jid.luser, RoomJID#jid.lserver}, ToBin),
+    {From, FromBin} = jids_from_room_with_resource(RoomJID, ToBin),
     Attrs = [{<<"from">>, FromBin}],
     {AffBin, RoleBin} = case CreatorAff of
                             owner -> {<<"owner">>, <<"moderator">>};
@@ -406,7 +406,7 @@ bcast_aff_messages(Room, [{{ToU, ToS} = User, _} | ROldAffUsers], [{User, _} | R
     lists:foreach(
       fun({{ChangedU, ChangedS}, NewAff} = ChangedAffUser) ->
               ChangedUserBin = jid:to_binary({ChangedU, ChangedS, <<>>}),
-              {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver},
+              {From, FromBin} = jids_from_room_with_resource(Room,
                                                              ChangedUserBin),
               Attrs0 = [{<<"from">>, FromBin}],
               ElToEnvelope0 = aff_user_to_item(ChangedAffUser),
@@ -438,7 +438,7 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
                           HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jid:to_binary({ToU, ToS, <<>>}),
-    {From, FromBin} = jids_from_room_with_resource({Room#jid.luser, Room#jid.lserver}, UserBin),
+    {From, FromBin} = jids_from_room_with_resource(Room, UserBin),
     Attrs = [{<<"from">>, FromBin},
              {<<"type">>, <<"unavailable">>}],
     NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"321">>) ]),
@@ -455,11 +455,11 @@ send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
                      children = Children },
     HandleFun(From, To, Packet).
 
--spec jids_from_room_with_resource(RoomUS :: jid:simple_bare_jid(), binary()) ->
+-spec jids_from_room_with_resource(Room :: jid:jid(), binary()) ->
     {jid:jid(), binary()}.
-jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
-    FromBin = jid:to_binary({RoomU, RoomS, Resource}),
-    From = jid:make_noprep(RoomU, RoomS, Resource),
+jids_from_room_with_resource(RoomJID, Resource) ->
+    From = jid:replace_resource(RoomJID, Resource),
+    FromBin = jid:to_binary(jid:to_lower(From)),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),

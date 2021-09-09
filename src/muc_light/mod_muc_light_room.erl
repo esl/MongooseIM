@@ -53,11 +53,10 @@
 
 -spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                      Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-handle_request(From, To, OrigPacket, Request, Acc1) ->
-    RoomUS = jid:to_lus(To),
-    {Acc2, AffUsersRes} = mod_muc_light:get_room_affiliations(Acc1, To),
-    Response = process_request(From, RoomUS, Request, AffUsersRes, Acc2),
-    send_response(From, To, RoomUS, OrigPacket, Response, Acc2).
+handle_request(From, Room, OrigPacket, Request, Acc1) ->
+    {Acc2, AffUsersRes} = mod_muc_light:get_room_affiliations(Acc1, Room),
+    Response = process_request(From, Room, Request, AffUsersRes, Acc2),
+    send_response(From, Room, OrigPacket, Response, Acc2).
 
 -spec maybe_forget(Acc :: mongoose_acc:t(),
                    RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
@@ -89,55 +88,56 @@ participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
 %%====================================================================
 
 -spec process_request(From :: jid:jid(),
-                      RoomUS :: jid:simple_bare_jid(),
+                      RoomBareJid :: jid:jid(),
                       Request :: muc_light_packet(),
                       AffUsersRes :: {ok, aff_users(), binary()} | {error, term()},
                       Acc :: mongoose_acc:t()) ->
     packet_processing_result().
-process_request(_From, _RoomUS, _Request, {error, _} = Error, _Acc) ->
+process_request(_From, _RoomBareJid, _Request, {error, _} = Error, _Acc) ->
     Error;
-process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}, Acc) ->
+process_request(From, RoomBareJid, Request, {ok, AffUsers, _Ver}, Acc) ->
     UserUS = jid:to_lus(From),
+    RoomUS = jid:to_lus(RoomBareJid),
     Auth = lists:keyfind(UserUS, 1, AffUsers),
-    process_request(Request, From, UserUS, RoomUS, Auth, AffUsers, Acc).
+    process_request(Request, From, RoomUS, Auth, AffUsers, Acc).
 
 -spec process_request(Request :: muc_light_packet(),
-                      From ::jid:jid(),
-                      UserUS :: jid:simple_bare_jid(),
+                      From :: jid:jid(),
                       RoomUS :: jid:simple_bare_jid(),
                       Auth :: false | aff_user(),
                       AffUsers :: aff_users(),
                       Acc :: mongoose_acc:t()) ->
     packet_processing_result().
-process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers, _Acc) ->
+process_request(_Request, _From, _RoomUS, false, _AffUsers, _Acc) ->
     {error, item_not_found};
-process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers, _Acc) ->
+process_request(#msg{} = Msg, _From, _RoomUS, _Auth, AffUsers, _Acc) ->
     {Msg, AffUsers};
 process_request({get, #config{} = ConfigReq},
-                _From, _UserUS, RoomUS, _Auth, _AffUsers, _Acc) ->
+                _From, RoomUS, _Auth, _AffUsers, _Acc) ->
     {_, RoomS} = RoomUS,
     {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(RoomUS),
     RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq},
-                _From, _UserUS, RoomUS, _Auth, _AffUsers, _Acc) ->
+                _From, RoomUS, _Auth, _AffUsers, _Acc) ->
     {ok, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_aff_users(RoomUS),
     {get, AffReq#affiliations{ version = RoomVersion,
                                aff_users = AffUsers }};
 process_request({get, #info{} = InfoReq},
-                _From, _UserUS, {_, RoomS} = RoomUS, _Auth, _AffUsers, _Acc) ->
+                _From, {_, RoomS} = RoomUS, _Auth, _AffUsers, _Acc) ->
     {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(RoomUS),
     RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
 process_request({set, #config{} = ConfigReq},
-                _From, _UserUS, RoomUS, {_, UserAff}, AffUsers, Acc) ->
+                _From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     AllCanConfigure = all_can_configure(HostType),
     process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
-                _From, UserUS, RoomUS, {_, UserAff}, AffUsers, Acc) ->
+                From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
+    UserUS = jid:to_lus(From),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
                   false -> undefined;
@@ -155,14 +155,14 @@ process_request({set, #affiliations{} = AffReq},
       end,
     process_aff_set(AffReq, RoomUS, ValidateResult, Acc);
 process_request({set, #destroy{} = DestroyReq},
-                _From, _UserUS, RoomUS, {_, owner}, AffUsers, Acc) ->
+                _From, RoomUS, {_, owner}, AffUsers, Acc) ->
     ok = mod_muc_light_db_backend:destroy_room(RoomUS),
     maybe_forget(Acc, RoomUS, []),
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}},
-                _From, _UserUS, _RoomUS, _Auth, _AffUsers, _Acc) ->
+                _From, _RoomUS, _Auth, _AffUsers, _Acc) ->
     {error, not_allowed};
-process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers, _Acc) ->
+process_request(_UnknownReq, _From, _RoomUS, _Auth, _AffUsers, _Acc) ->
     {error, bad_request}.
 
 all_can_invite(HostType) ->
@@ -250,15 +250,14 @@ process_aff_set(_AffReq, _RoomUS, Error, _Acc) ->
 %% Response processing
 %%====================================================================
 
--spec send_response(From :: jid:jid(), RoomJID :: jid:jid(),
-                    RoomUS :: jid:simple_bare_jid(), OrigPacket :: exml:element(),
+-spec send_response(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                     Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err, _Acc) ->
+send_response(From, RoomJID, OrigPacket, {error, _} = Err, _Acc) ->
     mod_muc_light_codec_backend:encode_error(
       Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
-send_response(From, _RoomJID, RoomUS, _OriginalPacket, Response, Acc) ->
+send_response(From, RoomJID, _OriginalPacket, Response, Acc) ->
     F = make_handler_fun(Acc),
-    mod_muc_light_codec_backend:encode(Response, From, RoomUS, F, Acc).
+    mod_muc_light_codec_backend:encode(Response, From, RoomJID, F, Acc).
 
 %%====================================================================
 %% Internal functions

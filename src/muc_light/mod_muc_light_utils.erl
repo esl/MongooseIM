@@ -94,10 +94,10 @@ light_aff_to_muc_role(owner) -> moderator;
 light_aff_to_muc_role(member) -> participant;
 light_aff_to_muc_role(none) -> none.
 
--spec room_limit_reached(UserUS :: jid:simple_bare_jid(), HostType :: mongooseim:host_type()) ->
+-spec room_limit_reached(UserJid :: jid:jid(), HostType :: mongooseim:host_type()) ->
     boolean().
-room_limit_reached(UserUS, HostType) ->
-    check_room_limit_reached(UserUS, HostType, rooms_per_user(HostType)).
+room_limit_reached(UserJid, HostType) ->
+    check_room_limit_reached(jid:to_lus(UserJid), HostType, rooms_per_user(HostType)).
 
 rooms_per_user(HostType) ->
     gen_mod:get_module_opt(HostType, mod_muc_light,
@@ -129,8 +129,8 @@ filter_out_prevented(HostType, FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 %% ---------------- Checks ----------------
 
 -spec check_room_limit_reached(UserUS :: jid:simple_bare_jid(),
-                         HostType :: mongooseim:host_type(),
-                         RoomsPerUser :: infinity | pos_integer()) ->
+                               HostType :: mongooseim:host_type(),
+                               RoomsPerUser :: infinity | pos_integer()) ->
     boolean().
 check_room_limit_reached(_UserUS, _HostType, infinity) ->
     false;
