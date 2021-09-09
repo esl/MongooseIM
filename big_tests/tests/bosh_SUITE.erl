@@ -24,6 +24,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -44,7 +45,7 @@ all() ->
      {group, essential_https},
      {group, chat_https},
      {group, interleave_requests_statem}
-     ].
+    ].
 
 groups() ->
     [
@@ -185,10 +186,10 @@ do_not_accept_0_hold_value(Config) ->
 
 
 send_specific_hold(Config, HoldValue) ->
-    {Server, Path, Client} = get_fusco_connection(Config),
+    {Domain, Path, Client} = get_fusco_connection(Config),
 
     Rid = rand:uniform(1000000),
-    Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Server, nil),
+    Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
     #xmlel{attrs = Attrs0} = Body0,
     Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, HoldValue}),
     Body = Body0#xmlel{attrs = Attrs},
@@ -258,10 +259,11 @@ get_fusco_connection(Config) ->
     NamedSpecs = escalus_config:get_config(escalus_users, Config),
     CarolSpec = proplists:get_value(?config(user, Config), NamedSpecs),
     Server = proplists:get_value(server, CarolSpec),
+    Host = proplists:get_value(host, CarolSpec, Server),
     Path = proplists:get_value(path, CarolSpec),
     Port = proplists:get_value(port, CarolSpec),
     UseSSL = proplists:get_value(ssl, CarolSpec, false),
-    {ok, Client} = fusco_cp:start_link({binary_to_list(Server), Port, UseSSL}, [], 1),
+    {ok, Client} = fusco_cp:start_link({binary_to_list(Host), Port, UseSSL}, [], 1),
     {Server, Path, Client}.
 
 stream_error(Config) ->
@@ -847,8 +849,8 @@ inactivity() ->
 
 inactivity(Value) ->
     {inactivity,
-     fun() -> rpc(mim(), mod_bosh, get_inactivity, [domain()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [domain(), V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_inactivity, [host_type()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [host_type(), V]) end,
      Value}.
 
 max_wait() ->
@@ -856,14 +858,14 @@ max_wait() ->
 
 max_wait(Value) ->
     {max_wait,
-     fun() -> rpc(mim(), mod_bosh, get_max_wait, [domain()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [domain(), V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_max_wait, [host_type()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [host_type(), V]) end,
      Value}.
 
 server_acks_opt() ->
     {server_acks,
-     fun() -> rpc(mim(), mod_bosh, get_server_acks, [domain()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [domain(), V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_server_acks, [host_type()]) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [host_type(), V]) end,
      true}.
 
 is_session_alive(Sid) ->
