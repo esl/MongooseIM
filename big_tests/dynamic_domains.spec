@@ -11,6 +11,8 @@
 
 {suites, "tests", accounts_SUITE}.
 
+{suites, "tests", anonymous_SUITE}.
+
 {suites, "tests", acc_e2e_SUITE}.
 
 {suites, "tests", bosh_SUITE}.
