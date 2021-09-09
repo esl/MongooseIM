@@ -20,19 +20,21 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(NS_COMMANDS, <<"http://jabber.org/protocol/commands">>).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
+
+-define(NS_COMMANDS, <<"http://jabber.org/protocol/commands">>).
+
 all() ->
     [{group, disco_visible},
      {group, adhoc}].
 
 groups() ->
-    G = [{adhoc, [parallel], common_disco_cases() ++ hidden_disco_cases() ++ [ping]},
-         {disco_visible, [parallel], common_disco_cases() ++ visible_disco_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{adhoc, [parallel], common_disco_cases() ++ hidden_disco_cases() ++ [ping]},
+         {disco_visible, [parallel], common_disco_cases() ++ visible_disco_cases()}].
 
 common_disco_cases() ->
     [disco_info,
@@ -75,15 +77,15 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 init_modules(disco_visible, Config) ->
-    Config1 = escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)),
-    dynamic_modules:ensure_modules(domain(), [{mod_adhoc, [{report_commands_node, true}]}]),
+    Config1 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), Config)),
+    dynamic_modules:ensure_modules(host_type(), [{mod_adhoc, [{report_commands_node, true}]}]),
     Config1;
 init_modules(_, Config) ->
     Config.
 
 restore_modules(disco_visible, Config) ->
-    dynamic_modules:restore_modules(domain(), Config);
-restore_modules(_, Config) ->
+    dynamic_modules:restore_modules(host_type(), Config);
+restore_modules(_, _Config) ->
     ok.
 
 %%--------------------------------------------------------------------
