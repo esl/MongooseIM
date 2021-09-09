@@ -68,9 +68,6 @@
 
 -include("jlib.hrl").
 
--include("mod_privacy.hrl").
--include("mod_last.hrl").
-
 %% ------------------------------------------------------------------
 %% Backend callbacks
 

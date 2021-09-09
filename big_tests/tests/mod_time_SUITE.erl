@@ -29,8 +29,7 @@ all() ->
     [{group, mod_time}].
 
 groups() ->
-    G = [{mod_time, [], [ask_for_time, time_service_discovery]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{mod_time, [parallel], [ask_for_time, time_service_discovery]}].
 
 suite() ->
     escalus:suite().
@@ -40,19 +39,18 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_time, []),
+    dynamic_modules:start(domain_helper:host_type(), mod_time, []),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    dynamic_modules:stop(<<"localhost">>, mod_time),
+    dynamic_modules:stop(domain_helper:host_type(), mod_time),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_time, Config) ->
-    escalus:create_users(Config, escalus:get_users([alice])).
+    Config.
 
 end_per_group(mod_time, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice])).
-
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -65,7 +63,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 ask_for_time(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Server = escalus_users:get_server(Config, alice),
         ID = escalus_stanza:id(),
         TimeStanza = time_request_stanza(Server, ID),
@@ -83,7 +81,7 @@ ask_for_time(Config) ->
 %%--------------------------------------------------------------------
 
 time_service_discovery(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}],
         fun(Client) ->
             ServJID = escalus_client:server(Client),
