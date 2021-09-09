@@ -4,24 +4,31 @@
 -behaviour(mongoose_module_metrics).
 
 -include("jlib.hrl").
--include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--export([start/2, stop/1, config_spec/0, process_iq/4]).
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
+-export([config_spec/0]).
+-export([process_iq/5]).
 
--ignore_xref([process_iq/4]).
+-ignore_xref([process_iq/5]).
 
 -xep([{xep, 92}, {version, "1.1"}]).
 
--spec start(jid:server(), list()) -> any().
-start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-                                  ?NS_VERSION, ?MODULE, process_iq, IQDisc).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VERSION, ejabberd_local,
+                                             fun ?MODULE:process_iq/5, #{}, IQDisc).
 
--spec stop(jid:server()) -> any().
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_VERSION).
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VERSION, ejabberd_local).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -31,13 +38,13 @@ config_spec() ->
                 }
       }.
 
--spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), any()) ->
           {mongoose_acc:t(), jlib:iq()}.
-process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_iq(From, _To, Acc, #iq{type = get} = IQ) ->
+process_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
     {Name, Version} = mongoose_info(),
-    Host = From#jid.lserver,
     {Acc, IQ#iq{type = result,
           sub_el =
           [#xmlel{name = <<"query">>,
@@ -47,11 +54,11 @@ process_iq(From, _To, Acc, #iq{type = get} = IQ) ->
                           children =[#xmlcdata{content = Name}]},
                    #xmlel{name = <<"version">>, attrs = [],
                           children =[#xmlcdata{content = Version}]}
-                  ] ++ add_os_info(Host)}]}}.
+                  ] ++ add_os_info(HostType)}]}}.
 
--spec add_os_info(binary()) -> [exml:element()] | [].
-add_os_info(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, os_info, false) of
+-spec add_os_info(mongooseim:host_type()) -> [exml:element()] | [].
+add_os_info(HostType) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, os_info, false) of
         true ->
             [#xmlel{name = <<"os">>, attrs = [],
                     children = [#xmlcdata{content = os_info()}]}];

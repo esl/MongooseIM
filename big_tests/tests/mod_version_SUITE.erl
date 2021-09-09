@@ -13,9 +13,8 @@ all() ->
     [{group, soft_version}, {group, soft_version_with_os}].
 
 groups() ->
-    G = [{soft_version, [], [version_service_discovery, ask_for_version]},
-         {soft_version_with_os, [], [version_service_discovery, ask_for_version_with_os]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{soft_version, [parallel], [version_service_discovery, ask_for_version]},
+     {soft_version_with_os, [parallel], [version_service_discovery, ask_for_version_with_os]}].
 
 suite() ->
     escalus:suite().
@@ -31,16 +30,15 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(soft_version, Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_version, []),
-    escalus:create_users(Config, escalus:get_users([bob]));
-
+    dynamic_modules:start(domain_helper:host_type(), mod_version, []),
+    Config;
 init_per_group(soft_version_with_os, Config) ->
-    dynamic_modules:start(<<"localhost">>, mod_version, [{os_info, true}]),
-    escalus:create_users(Config, escalus:get_users([bob])).
+    dynamic_modules:start(domain_helper:host_type(), mod_version, [{os_info, true}]),
+    Config.
 
 end_per_group(_Group, Config) ->
-    dynamic_modules:stop(<<"localhost">>, mod_version),
-    escalus:delete_users(Config, escalus:get_users([bob])).
+    dynamic_modules:stop(domain_helper:host_type(), mod_version),
+    Config.
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -53,7 +51,7 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 version_service_discovery(Config) ->
-    escalus:story(Config, [{bob, 1}],
+    escalus:fresh_story(Config, [{bob, 1}],
         fun(Bob) ->
             ServJID = escalus_client:server(Bob),
             Result = escalus:send_and_wait(Bob,
@@ -67,7 +65,7 @@ version_service_discovery(Config) ->
 %%--------------------------------------------------------------------
 
 ask_for_version(Config) ->
-    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         Server = escalus_users:get_server(Config, bob),
         ID = escalus_stanza:id(),
         SoftStanza = soft_version_stanza(Server, ID),
@@ -83,7 +81,7 @@ ask_for_version(Config) ->
 %%--------------------------------------------------------------------
 
 ask_for_version_with_os(Config) ->
-    escalus:story(Config, [{bob, 1}], fun(Bob) ->
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         Server = escalus_users:get_server(Config, bob),
         ID = escalus_stanza:id(),
         SoftStanza = soft_version_stanza(Server, ID),
