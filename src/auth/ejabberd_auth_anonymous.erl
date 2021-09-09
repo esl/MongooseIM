@@ -122,20 +122,15 @@ remove_connection(SID, LUser, LServer) ->
                           HostType :: mongooseim:host_type(),
                           SID :: ejabberd_sm:sid(),
                           JID :: jid:jid(),
-                          Info :: list()) -> Acc when Acc :: any().
-register_connection(Acc, HostType, SID, #jid{luser = LUser, lserver = LServer}, Info) ->
-    case lists:keyfind(auth_module, 1, Info) of
-        {_, ?MODULE} ->
-            mongoose_hooks:register_user(HostType, LServer, LUser),
-            US = {LUser, LServer},
-            mnesia:sync_dirty(
-              fun() -> mnesia:write(#anonymous{us = US, sid=SID})
-              end);
-        _ ->
-            ok
-    end,
+                          Info :: ejabberd_sm:info()) -> Acc when Acc :: any().
+register_connection(Acc, HostType, SID, #jid{luser = LUser, lserver = LServer},
+                    #{auth_module := cyrsasl_anonymous}) ->
+    mongoose_hooks:register_user(HostType, LServer, LUser),
+    US = {LUser, LServer},
+    mnesia:sync_dirty(fun() -> mnesia:write(#anonymous{us = US, sid = SID}) end),
+    Acc;
+register_connection(Acc, _HostType, _SID, _JID, _Info) ->
     Acc.
-
 
 %% @doc Remove an anonymous user from the anonymous users table
 -spec unregister_connection(Acc, SID :: ejabberd_sm:sid(), JID :: jid:jid(),
