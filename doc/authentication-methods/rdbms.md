@@ -2,7 +2,7 @@
 
 This authentication method stores user accounts in a relational database, e.g. MySQL or PostgreSQL.
 
-## Configuration
+## Configuration options
 
 The `rdbms` method uses an outgoing connection pool of type `rdbms` with the `default` tag - it has to be defined in the `outgoing_pools` section.
 

@@ -114,8 +114,8 @@ This one is rather complex, since removing a user requires many cleanup operatio
 `mod_offline` deletes the user's offline messages;
 `mod_privacy` removes the user's privacy lists;
 `mod_private` removes the user's private xml data storage;
-`mod_pubsub` unsubscribes from publish/subsribe channels;
-and `mod_roster` removes the user's roster from database.
+`mod_pubsub` unsubscribes from publish/subscribe channels;
+and `mod_roster` removes the user's roster from the database.
 
 ## `node_cleanup`
 

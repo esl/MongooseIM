@@ -6,7 +6,7 @@ MongooseIM's birthplace is a private Erlang Solutions' branch of ProcessOne's ej
 What would later become a leading, highly customisable and scalable XMPP platform, originated in a strong idea - storing all internal strings in binaries instead of lists, among other significant improvements.
 
 The change was introduced in 0.1.0 proto-MongooseIM release and 3.0.0-alpha-X series of ejabberd.
-This opened the door for achieving higher performance, lower latency and introducing other subsequent improvements building up to a plaform we are truly proud of.
+This opened the door for achieving higher performance, lower latency and introducing other subsequent improvements building up to a platform we are truly proud of.
 
 ## 2012-2015: Fully independent project growing fast
 

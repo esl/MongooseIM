@@ -149,12 +149,12 @@ Clients usually have two different boxes for the inbox: the regular one, simply 
 It is expected that entries will reside in the archive until they're either manually moved back to the active box, or they receive a new message: in such case the entry should jump back to the active box automatically.
 
 ### Read
-Entries keep a count of unread messages that is incremented automatically upon receiving a new message, and (in the current implementation) set to zero upon receiving either a message by one-self, or an appropriate chat marker as defined in [XEP-0333](https://xmpp.org/extensions/xep-0333.html) (which markers reset the count is a matter of configuration, see [doc](../../modules/mod_inbox/#modulesmod_inboxreset_markers)).
+Entries keep a count of unread messages that is incremented automatically upon receiving a new message, and (in the current implementation) set to zero upon receiving either a message by one-self, or an appropriate chat marker as defined in [XEP-0333](https://xmpp.org/extensions/xep-0333.html) (which markers reset the count is a matter of configuration, see [doc](../modules/mod_inbox.md#modulesmod_inboxreset_markers)).
 
 This property can also be manually set to zero or to one using the appropriate requests as explained below.
 
 ### Muted
-Entries can be muted for given periods of time, and likewise, unmuted. This changes the UI representation, and also, means that the user won't get PNs (Push Notifications) for this entry, until the time set expires or the user sets otherwise. Knowledge of this is necessary to help build the UI.
+Entries can be muted for given periods of time, and likewise, unmuted. This changes the UI representation, and also, means that the user won't get PNs (Push Notifications) for this entry, until the time set expires, or the user sets otherwise. Knowledge of this is necessary to help build the UI.
 
 Expected times can be extended before the period has expired, without the need to first unmuting. When muting a conversation, the final timestamp will be calculated by the server as the current time plus the requested period, in seconds, to centralise knowledge of UTC clocks. When muting an already muted conversation, the timestamp is simply overridden following the previous specification.
 

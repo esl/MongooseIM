@@ -39,7 +39,7 @@ There are three main benefits from this approach:
 A constructor for accumulators. `new_acc_params()` is a map with following supported keys:
 
 * `location` - Should be a `{Module, Function, Line}` tuple (may be constructed with `?LOCATION` macro from `mongoose.hrl`). Its format is not enforced by the acc logic but Dialyzer will most probably complain about any other type.
-* `lserver` - Nameprepped domain of a the processing context.
+* `lserver` - Nameprepped domain of the processing context.
 * `element` (optional) - If present, it will be used as a source for the `stanza` map.
 * `from_jid`, `to_jid` (optional) - Values used to override `from` and `to` attributes of the `element`, respectively.
 
@@ -60,7 +60,7 @@ While allowed, stanza-less accumulators usage should be avoided.
 
 ### `update_stanza(stanza_params(), t())`
 
-Replaces the whole `stanza` field in accumulator with params provided in `stanza_params()`, which is a map of 3 fields: `element`, `from_jid`, `to_jid`.
+Replaces the whole `stanza` field in the accumulator with params provided in `stanza_params()`, which is a map of 3 fields: `element`, `from_jid`, `to_jid`.
 The same rules apply as in the case of constructor (`new/1`) but this time `element` field is **mandatory**.
 
 ### Access to namespaced fields
@@ -94,7 +94,7 @@ Acc2 = mongoose_acc:set_permanent(myns, myprop, 123, Acc1),
 
 Permanent fields may be retrieved with ordinary `get/3,4` functions.
 
-The rationale behind stripping an accumulator is that some values stored in it are context-dependend.
+The rationale behind stripping an accumulator is that some values stored in it are context-dependent.
 For example, at the beginning `lserver` refers to the host of the sender C2S.
 When an accumulator goes to the c2s of the recipient, the `lserver` attribute may change.
 There are also many cached values which are not valid anymore when user changes (e.g. privacy checks).
@@ -109,11 +109,11 @@ In order to strip an accumulator, please use `strip(strip_params(), t())`, where
 1. An accumulator is created when a stanza enters the server.
 2. An XML stanza is never passed around as a pure `exml:element()`.
 3. An accumulator is stripped when it is passed to a different context (e.g. another c2s process).
-4. If a process produces more stanzas to be routed, they must reuse original acc but with stanza replaced with `update_stanza/2`.
+4. If a process produces more stanzas to be routed, they must reuse the original acc but with the stanza replaced with `update_stanza/2`.
 
 ## Hooks
 
-Many of the MongooseIM functionalities are implemented in submodules which attach their handlers to hooks (this is covered in detail in ["Hooks and handlers"](Hooks-and-handlers.md).
+Many of the MongooseIM functionalities are implemented in submodules which attach their handlers to hooks (this is covered in detail in ["Hooks and handlers"](Hooks-and-handlers.md)).
 When it comes to the accumulators, the following rules apply:
 
 * If a hook is related to stanza processing and is executed with `run_fold`, a Mongoose accumulator should be provided. A hook handler may modify an accumulator in every permitted way (i.e. shouldn't directly modify acc fields, bypassing `mongoose_acc` API) and should return the execution result in the `hook:result` field. This is not enforced but should be followed by convention.

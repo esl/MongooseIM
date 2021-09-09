@@ -17,9 +17,9 @@ MongooseIM is a robust and efficient chat (or instant messaging) platform aimed 
 
 <img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
 
-Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or VM.
+Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or a VM.
 
-MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets, and BOSH (HTTP long-polling).
+MongooseIM can accept client sessions over vanilla XMPP, REST API and SSE, as well as Websockets and BOSH (HTTP long-polling).
 
 As a platform, MongooseIM includes several server-side (backend) and client-side (frontend) components.
 We provide a test suite, metrics, a load testing platform, and a monitoring server.
@@ -33,7 +33,7 @@ MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.
 
 ### Server-side components
 
-We offer a set of server-side components:
+We offer a set of additional server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with a dedicated MongooseIM plugin
 * Test suite - here are some useful tools to test and validate your XMPP servers:
@@ -46,7 +46,7 @@ We offer a set of server-side components:
 ### Client-side components
 
 * XMPP client libraries - we recommend the following client libraries:
-    * iOS, Objective-C: [XMPPframework](https://github.com/robbiehanson/XMPPFramework)
+    * iOS, Objective-C: [XMPPFramework](https://github.com/robbiehanson/XMPPFramework)
     * Android, Java: [Smack](https://github.com/igniterealtime/Smack)
     * Web, JavaScript: [Stanza.io](https://github.com/otalk/stanza.io), [Strophe.js](https://github.com/strophe/strophejs)
 * REST API client libraries - we recommend the following client libraries:
