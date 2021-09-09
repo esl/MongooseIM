@@ -48,6 +48,7 @@ delete_domain(Node, Domain) ->
     ok = rpc(Node, mongoose_domain_core, delete, [Domain]).
 
 for_each_configured_domain(F) ->
-    [F(#{node => proplists:get_value(node, Opts)}, Domain, proplists:get_value(host_type, Opts)) ||
+    [F(#{node => proplists:get_value(node, Opts)}, Domain, HostType) ||
         {_, Opts} <- ct:get_config(hosts),
-        Domain <- proplists:get_value(dynamic_domains, Opts, [])].
+        {HostType, Domains} <- proplists:get_value(dynamic_domains, Opts, []),
+        Domain <- Domains].
