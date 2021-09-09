@@ -13,6 +13,8 @@
 
 {suites, "tests", acc_e2e_SUITE}.
 
+{suites, "tests", bosh_SUITE}.
+
 {suites, "tests", carboncopy_SUITE}.
 
 {suites, "tests", disco_and_caps_SUITE}.

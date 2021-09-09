@@ -22,7 +22,8 @@
 %% gen_mod callbacks
 -export([start/2,
          stop/1,
-         config_spec/0]).
+         config_spec/0,
+         supported_features/0]).
 
 %% cowboy_loop_handler callbacks
 -export([init/2,
@@ -106,47 +107,47 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec get_inactivity(jid:lserver()) -> pos_integer() | infinity.
-get_inactivity(LServer) ->
-    gen_mod:get_module_opt(LServer, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
+-spec get_inactivity(mongooseim:host_type()) -> pos_integer() | infinity.
+get_inactivity(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
 
 
 %% @doc Return true if succeeded, false otherwise.
--spec set_inactivity(jid:lserver(), Seconds :: pos_integer() | infinity) -> boolean().
-set_inactivity(LServer, infinity) ->
-    gen_mod:set_module_opt(LServer, ?MODULE, inactivity, infinity);
-set_inactivity(LServer, Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(LServer, ?MODULE, inactivity, Seconds).
+-spec set_inactivity(mongooseim:host_type(), Seconds :: pos_integer() | infinity) -> boolean().
+set_inactivity(HostType, infinity) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, inactivity, infinity);
+set_inactivity(HostType, Seconds) when is_integer(Seconds), Seconds > 0 ->
+    gen_mod:set_module_opt(HostType, ?MODULE, inactivity, Seconds).
 
 
--spec get_max_wait(jid:lserver()) -> pos_integer() | infinity.
-get_max_wait(LServer) ->
-    gen_mod:get_module_opt(LServer, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
+-spec get_max_wait(mongooseim:host_type()) -> pos_integer() | infinity.
+get_max_wait(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
 
 
 %% @doc Return true if succeeded, false otherwise.
--spec set_max_wait(jid:lserver(), Seconds :: pos_integer() | infinity) -> boolean().
-set_max_wait(LServer, infinity) ->
-    gen_mod:set_module_opt(LServer, ?MODULE, max_wait, infinity);
-set_max_wait(LServer, Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(LServer, ?MODULE, max_wait, Seconds).
+-spec set_max_wait(mongooseim:host_type(), Seconds :: pos_integer() | infinity) -> boolean().
+set_max_wait(HostType, infinity) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, max_wait, infinity);
+set_max_wait(HostType, Seconds) when is_integer(Seconds), Seconds > 0 ->
+    gen_mod:set_module_opt(HostType, ?MODULE, max_wait, Seconds).
 
 
--spec get_server_acks(jid:lserver()) -> boolean().
-get_server_acks(LServer) ->
-    gen_mod:get_module_opt(LServer, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
+-spec get_server_acks(mongooseim:host_type()) -> boolean().
+get_server_acks(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
 
 
--spec set_server_acks(jid:lserver(), EnableServerAcks :: boolean()) -> boolean().
-set_server_acks(LServer, EnableServerAcks) ->
-    gen_mod:set_module_opt(LServer, ?MODULE, server_acks, EnableServerAcks).
+-spec set_server_acks(mongooseim:host_type(), EnableServerAcks :: boolean()) -> boolean().
+set_server_acks(HostType, EnableServerAcks) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, server_acks, EnableServerAcks).
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(jid:server(), [option()]) -> any().
-start(_Host, Opts) ->
+-spec start(mongooseim:host_type(), [option()]) -> any().
+start(_HostType, Opts) ->
     try
         start_backend(Opts),
         {ok, _Pid} = mod_bosh_socket:start_supervisor(),
@@ -156,7 +157,7 @@ start(_Host, Opts) ->
             ErrorReason
     end.
 
-stop(_Host) ->
+stop(_HostType) ->
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -172,6 +173,10 @@ config_spec() ->
                                             format = {kv, maxpause}}
                 }
       }.
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 %%--------------------------------------------------------------------
 %% Hooks handlers
@@ -368,18 +373,20 @@ get_session_socket(Sid) ->
 -spec maybe_start_session(req(), exml:element()) ->
     {SessionStarted :: boolean(), req()}.
 maybe_start_session(Req, Body) ->
-    Host = exml_query:attr(Body, <<"to">>),
-    case is_known_host(Host) of
-        true ->
-            maybe_start_session_on_known_host(Host, Req, Body);
-        false ->
+    Domain = exml_query:attr(Body, <<"to">>),
+    case mongoose_domain_api:get_domain_host_type(Domain) of
+        {ok, HostType} ->
+            maybe_start_session_on_known_host(HostType, Req, Body);
+        {error, not_found} ->
             Req1 = terminal_condition(<<"host-unknown">>, Req),
             {false, Req1}
     end.
 
-maybe_start_session_on_known_host(Host, Req, Body) ->
+-spec maybe_start_session_on_known_host(mongooseim:host_type(), req(), exml:element()) ->
+          {SessionStarted :: boolean(), req()}.
+maybe_start_session_on_known_host(HostType, Req, Body) ->
     try
-        maybe_start_session_on_known_host_unsafe(Host, Req, Body)
+        maybe_start_session_on_known_host_unsafe(HostType, Req, Body)
     catch
         error:Reason ->
             %% It's here because something catch-y was here before
@@ -389,25 +396,22 @@ maybe_start_session_on_known_host(Host, Req, Body) ->
             {false, Req1}
     end.
 
-maybe_start_session_on_known_host_unsafe(Host, Req, Body) ->
+-spec maybe_start_session_on_known_host_unsafe(mongooseim:host_type(), req(), exml:element()) ->
+          {SessionStarted :: boolean(), req()}.
+maybe_start_session_on_known_host_unsafe(HostType, Req, Body) ->
     %% Version isn't checked as it would be meaningless when supporting
     %% only a subset of the specification.
     {ok, NewBody} = set_max_hold(Body),
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    start_session(Host, Peer, PeerCert, NewBody),
+    start_session(HostType, Peer, PeerCert, NewBody),
     {true, Req}.
 
-%% @doc Is the argument locally served host?
-is_known_host(Host) ->
-    Hosts = ejabberd_config:get_global_option(hosts),
-    lists:member(Host, Hosts).
-
--spec start_session(jid:lserver(), mongoose_transport:peer(),
+-spec start_session(mongooseim:host_type(), mongoose_transport:peer(),
                     binary() | undefined, exml:element()) -> any().
-start_session(LServer, Peer, PeerCert, Body) ->
+start_session(HostType, Peer, PeerCert, Body) ->
     Sid = make_sid(),
-    {ok, Socket} = mod_bosh_socket:start(LServer, Sid, Peer, PeerCert),
+    {ok, Socket} = mod_bosh_socket:start(HostType, Sid, Peer, PeerCert),
     store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?LOG_DEBUG(#{what => bosh_start_session, sid => Sid}).
@@ -513,6 +517,7 @@ maybe_set_max_hold(_, _) ->
 cowboy_reply(Code, Headers, Body, Req) when is_list(Headers) ->
     cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [option()].
+config_metrics(HostType) ->
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
