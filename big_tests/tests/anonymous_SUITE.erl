@@ -20,6 +20,8 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -28,11 +30,11 @@ all() ->
     [{group, anonymous}].
 
 groups() ->
-    G = [{anonymous, [sequence], all_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{anonymous, [sequence], all_tests()}].
 
 all_tests() ->
-    [messages_story].
+    [connection_is_registered,
+     messages_story].
 
 suite() ->
     escalus:suite().
@@ -66,6 +68,15 @@ end_per_testcase(CaseName, Config) ->
 %% Anonymous tests
 %%--------------------------------------------------------------------
 
+connection_is_registered(Config) ->
+    escalus:story(Config, [{jon, 1}], fun(Jon) ->
+        JID = jid:from_binary(escalus_client:short_jid(Jon)),
+        F = fun() -> rpc(mim(), ejabberd_auth, does_user_exist, [JID]) end,
+        true = F(),
+        escalus_connection:kill(Jon),
+        mongoose_helper:wait_until(F, false)
+    end).
+
 messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {jon, 1}], fun(Alice, Jon) ->
         erlang:put(anon_user, escalus_utils:get_jid(Jon)),
@@ -74,4 +85,3 @@ messages_story(Config) ->
         %% Below's dirty, but there is no other easy way...
         escalus_assert:is_chat_message(<<"Hi!">>, Stanza)
     end).
-
