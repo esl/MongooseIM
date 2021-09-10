@@ -60,7 +60,7 @@ start(HostType, Opts) ->
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
-    {Component, _Fn} <- iq_handlers()],
+        {Component, _Fn} <- iq_handlers()],
     ok.
 
 iq_handlers() ->
