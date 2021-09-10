@@ -141,7 +141,8 @@ amp_feature_suffixes() ->
           amp_rules() | drop.
 process_rules(Packet, From, Event, Rules, Acc) ->
     HostType = mongoose_acc:host_type(Acc),
-    Strategy = determine_strategy(HostType, Packet, From, Event),
+    To = mongoose_acc:to_jid(Acc),
+    Strategy = determine_strategy(HostType, Packet, From, To, Event),
     RulesWithResults = apply_rules(fun(Rule) ->
                                            resolve_condition(HostType, Strategy, Event, Rule)
                                    end, Rules),
@@ -153,10 +154,10 @@ process_rules(Packet, From, Event, Rules, Acc) ->
 verify_support(HostType, Rules) ->
     mongoose_hooks:amp_verify_support(HostType, Rules).
 
--spec determine_strategy(mongooseim:host_type(), exml:element(), jid:jid(), amp_event()) ->
+-spec determine_strategy(mongooseim:host_type(), exml:element(), jid:jid(), jid:jid(),
+                         amp_event()) ->
           amp_strategy().
-determine_strategy(HostType, Packet, From, Event) ->
-    To = message_target(Packet),
+determine_strategy(HostType, Packet, From, To, Event) ->
     mongoose_hooks:amp_determine_strategy(HostType, From, To, Packet, Event).
 
 apply_rules(F, Rules) ->
@@ -219,7 +220,7 @@ send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
 
 -spec update_metric_and_drop(exml:element(), jid:jid(), mongoose_acc:t()) -> drop.
 update_metric_and_drop(Packet, From, Acc) ->
-    mongoose_hooks:xmpp_stanza_dropped(Acc, From, message_target(Packet), Packet),
+    mongoose_hooks:xmpp_stanza_dropped(Acc, From, mongoose_acc:to_jid(Acc), Packet),
     drop.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().
@@ -228,13 +229,6 @@ is_supported_rule(_)              -> false.
 
 server_jid(#jid{lserver = Host}) ->
     jid:from_binary(Host).
-
--spec message_target(exml:element()) -> jid:jid() | undefined.
-message_target(El) ->
-    case exml_query:attr(El, <<"to">>) of
-        undefined -> undefined;
-        J -> jid:from_binary(J)
-    end.
 
 find(_Pred, []) -> not_found;
 find(Pred, [H|T]) ->
