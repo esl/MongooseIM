@@ -8,7 +8,7 @@
 -behavior(gen_mod).
 -behaviour(mongoose_module_metrics).
 -xep([{xep, 79}, {version, "1.2"}, {comment, "partially implemented."}]).
--export([start/2, stop/1]).
+-export([start/2, stop/1, supported_features/0]).
 -export([run_initial_check/2,
          check_packet/2,
          disco_local_features/1,
@@ -27,19 +27,24 @@
 -define(AMP_RESOLVER, amp_resolver).
 -define(AMP_STRATEGY, amp_strategy).
 
-start(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
-hooks(Host) ->
-    [{c2s_stream_features, Host, ?MODULE, c2s_stream_features, 50},
-     {disco_local_features, Host, ?MODULE, disco_local_features, 99},
-     {c2s_preprocessing_hook, Host, ?MODULE, run_initial_check, 10},
-     {amp_verify_support, Host, ?AMP_RESOLVER, verify_support, 10},
-     {amp_check_condition, Host, ?AMP_RESOLVER, check_condition, 10},
-     {amp_determine_strategy, Host, ?AMP_STRATEGY, determine_strategy, 10}].
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
+
+hooks(HostType) ->
+    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 50},
+     {disco_local_features, HostType, ?MODULE, disco_local_features, 99},
+     {c2s_preprocessing_hook, HostType, ?MODULE, run_initial_check, 10},
+     {amp_verify_support, HostType, ?AMP_RESOLVER, verify_support, 10},
+     {amp_check_condition, HostType, ?AMP_RESOLVER, check_condition, 10},
+     {amp_determine_strategy, HostType, ?AMP_STRATEGY, determine_strategy, 10}].
 
 %% API
 
@@ -95,9 +100,10 @@ run_initial_check(Acc) ->
                                          to_jid => To}, Acc1)
     end.
 
--spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) -> amp_rules() | drop.
+-spec validate_and_process_rules(exml:element(), jid:jid(), amp_rules(), mongoose_acc:t()) ->
+          amp_rules() | drop.
 validate_and_process_rules(Packet, From, Rules, Acc) ->
-    VerifiedRules = verify_support(host(From), Rules),
+    VerifiedRules = verify_support(mongoose_acc:host_type(Acc), Rules),
     {Good, Bad} = lists:partition(fun is_supported_rule/1, VerifiedRules),
     ValidRules = [ Rule || {supported, Rule} <- Good ],
     case Bad of
@@ -131,31 +137,35 @@ amp_feature_suffixes() ->
      <<"?condition=deliver">>,
      <<"?condition=match-resource">>].
 
--spec process_rules(exml:element(), jid:jid(), amp_event(), amp_rules(), mongoose_acc:t()) -> amp_rules() | drop.
+-spec process_rules(exml:element(), jid:jid(), amp_event(), amp_rules(), mongoose_acc:t()) ->
+          amp_rules() | drop.
 process_rules(Packet, From, Event, Rules, Acc) ->
-    Strategy = determine_strategy(Packet, From, Event),
+    HostType = mongoose_acc:host_type(Acc),
+    Strategy = determine_strategy(HostType, Packet, From, Event),
     RulesWithResults = apply_rules(fun(Rule) ->
-                                           resolve_condition(From, Strategy, Event, Rule)
+                                           resolve_condition(HostType, Strategy, Event, Rule)
                                    end, Rules),
     PacketResult = take_action(Packet, From, RulesWithResults, Acc),
     return_result(PacketResult, Event, RulesWithResults).
 
 %% @doc hooks helpers
--spec verify_support(binary(), amp_rules()) -> [amp_rule_support()].
-verify_support(Host, Rules) ->
-    mongoose_hooks:amp_verify_support(Host, Rules).
+-spec verify_support(mongooseim:host_type(), amp_rules()) -> [amp_rule_support()].
+verify_support(HostType, Rules) ->
+    mongoose_hooks:amp_verify_support(HostType, Rules).
 
--spec determine_strategy(exml:element(), jid:jid(), amp_event()) -> amp_strategy().
-determine_strategy(Packet, From, Event) ->
+-spec determine_strategy(mongooseim:host_type(), exml:element(), jid:jid(), amp_event()) ->
+          amp_strategy().
+determine_strategy(HostType, Packet, From, Event) ->
     To = message_target(Packet),
-    mongoose_hooks:amp_determine_strategy(host(From), From, To, Packet, Event).
+    mongoose_hooks:amp_determine_strategy(HostType, From, To, Packet, Event).
 
 apply_rules(F, Rules) ->
     [Rule#amp_rule{result = F(Rule)} || Rule <- Rules].
 
--spec resolve_condition(jid:jid(), amp_strategy(), amp_event(), amp_rule()) -> amp_match_result().
-resolve_condition(From, Strategy, Event, Rule) ->
-    Result = mongoose_hooks:amp_check_condition(host(From), Strategy, Rule),
+-spec resolve_condition(mongooseim:host_type(), amp_strategy(), amp_event(), amp_rule()) ->
+          amp_match_result().
+resolve_condition(HostType, Strategy, Event, Rule) ->
+    Result = mongoose_hooks:amp_check_condition(HostType, Strategy, Rule),
     match_undecided_for_final_event(Rule, Event, Result).
 
 match_undecided_for_final_event(#amp_rule{condition = deliver}, Event, undecided)
@@ -176,11 +186,10 @@ return_result(pass, _Event, Rules) ->
                          Result =:= undecided
                  end, Rules).
 
--spec take_action_for_matched_rule(exml:element(), jid:jid(), amp_rule(), mongoose_acc:t()) -> pass | drop.
-take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, _) ->
-    Host = host(From),
+-spec take_action_for_matched_rule(exml:element(), jid:jid(), amp_rule(), mongoose_acc:t()) ->
+          pass | drop.
+take_action_for_matched_rule(Packet, From, #amp_rule{action = notify} = Rule, _Acc) ->
     reply_to_sender(Rule, server_jid(From), From, Packet),
-    mongoose_hooks:amp_notify_action_triggered(Host),
     pass;
 take_action_for_matched_rule(Packet, From, #amp_rule{action = error} = Rule, Acc) ->
     send_error_and_drop(Packet, From, 'undefined-condition', Rule, Acc);
@@ -203,26 +212,19 @@ send_errors_and_drop(Packet, From, [], Acc) ->
                  exml_packet => Packet, from => From}),
     update_metric_and_drop(Packet, From, Acc);
 send_errors_and_drop(Packet, From, ErrorRules, Acc) ->
-    Host = host(From),
     {Errors, Rules} = lists:unzip(ErrorRules),
     ErrorResponse = amp:make_error_response(Errors, Rules, From, Packet),
     ejabberd_router:route(server_jid(From), From, ErrorResponse),
-    mongoose_hooks:amp_error_action_triggered(Host),
     update_metric_and_drop(Packet, From, Acc).
 
 -spec update_metric_and_drop(exml:element(), jid:jid(), mongoose_acc:t()) -> drop.
 update_metric_and_drop(Packet, From, Acc) ->
-    mongoose_hooks:xmpp_stanza_dropped(Acc, From,
-                                       message_target(Packet),
-                                       Packet),
+    mongoose_hooks:xmpp_stanza_dropped(Acc, From, message_target(Packet), Packet),
     drop.
 
 -spec is_supported_rule(amp_rule_support()) -> boolean().
 is_supported_rule({supported, _}) -> true;
 is_supported_rule(_)              -> false.
-
--spec host(jid:jid()) -> binary().
-host(#jid{lserver=Host}) -> Host.
 
 server_jid(#jid{lserver = Host}) ->
     jid:from_binary(Host).
