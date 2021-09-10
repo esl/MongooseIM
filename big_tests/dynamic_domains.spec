@@ -72,6 +72,8 @@
  [non_default_http_server_name_is_returned_if_configured],
  "at the moment mim2 node is not configured for dynamic domains"}.
 
+{suites, "tests", sic_SUITE}.
+
 {suites, "tests", sm_SUITE}.
 
 {suites, "tests", vcard_SUITE}.
