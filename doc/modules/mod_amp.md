@@ -44,7 +44,11 @@ mod_amp supports.
 
 3.3 Defined Conditions
 
-  * 3.3.1 deliver: **supported** for values: `direct`, `stored`, and `none`. The `stored` condition works with `mod_mam` and `mod_offline`. **Note**: if both `mod_mam` and `mod_offline` are enabled, some delivery conditions may not work correctly.
+  * 3.3.1 deliver: **supported** for values: `direct`, `stored`, and `none`. The `stored` condition works with `mod_mam` and `mod_offline`.
+       
+    !!! Note
+        If both `mod_mam` and `mod_offline` are enabled, some delivery conditions may not work correctly.
+  
   * 3.3.2 expire-at: **not supported**
   * 3.3.3 match-resource: **supported**
 

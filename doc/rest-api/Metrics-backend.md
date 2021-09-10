@@ -1,7 +1,8 @@
 ## Introduction
 
-**Warning:** This API is considered obsolete.
-Please use [WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/) for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
+!!! Warning
+    This API is considered obsolete.
+    Please use [WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/) for monitoring or one of the [exometer reporters](../operation-and-maintenance/Logging-&-monitoring.md#monitoring) and your favourite statistics service.
 
 To expose MongooseIM metrics, an adequate endpoint must be included in the [listen](../advanced-configuration/listen.md)
 section of `mongooseim.toml`. The specific configuration options are described in

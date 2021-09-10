@@ -6,8 +6,9 @@ For each domain or host type requiring such options, a `host_config` section nee
 * **Default:** none - all domain-level options need to be specified explicitly.
 * **Example:** see the examples for each section below.
 
-**Note:** Each hosted domain needs to be included in the list of [`hosts`](general.md#generalhosts) in the `general` section.
-Similarly, each host type needs to be included in [`general.host_types`](general.md#generalhost_types).
+!!! Note
+    Each hosted domain needs to be included in the list of [`hosts`](general.md#generalhosts) in the `general` section.
+    Similarly, each host type needs to be included in [`general.host_types`](general.md#generalhost_types).
 
 ## General options
 
@@ -213,7 +214,8 @@ c2s = [
 
 The `register` rule is defined only for `domain2.com`.
 
-**Note:** some access rules are checked outside of the context of any domain, e.g. the [access rule for external components](listen.md#listenserviceaccess) - defining them in `host_config` would have no effect.
+!!! Note
+    Some access rules are checked outside of the context of any domain, e.g. the [access rule for external components](listen.md#listenserviceaccess) - defining them in `host_config` would have no effect.
 
 ### `host_config.s2s`
 

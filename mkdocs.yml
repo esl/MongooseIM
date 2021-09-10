@@ -35,6 +35,7 @@ markdown_extensions:
   - pymdownx.highlight:
       linenums: true
   - pymdownx.superfences
+  - admonition
 
 nav:
   - 'Getting Started':

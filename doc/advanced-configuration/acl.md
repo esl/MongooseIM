@@ -19,8 +19,8 @@ When there are multiple patterns listed, the resulting pattern will be the union
 
 The options listed below are used to assign the users to the access class. There are no default values for any of them.
 
-**Note:** the options can NOT be combined with each other unless the description says otherwise.
-
+!!! Note
+    The options can NOT be combined with each other unless the description says otherwise.
 
 ### `acl.*.match`
 

@@ -1,15 +1,19 @@
 In this short guide we will set MongooseIM up and get users chatting right away.
 The goal is to get to know MongooseIM, set it up, go through basic operations and validation.
 
-Warning: This setup is not intended for production.
+!!! warning
+    This setup is not intended for production.
 
-Note: This procedure has been tested on an Ubuntu 18.04.x LTS.
+!!! Note
+    This procedure has been tested on an Ubuntu 18.04.x LTS.
 
 ## Running MongooseIM
 
-Warning: MongooseIM will use its default database - Mnesia, which is faster and simpler to set up, but not intended for production purposes when it comes to persistent data.
+!!! Warning
+    MongooseIM will use its default database - Mnesia, which is faster and simpler to set up, but not intended for production purposes when it comes to persistent data.
 
-Note: It is possible at anytime to use external databases. For more information, see the [database backend configuration](../advanced-configuration/database-backends-configuration.md) page.
+!!! Note
+    It is possible at anytime to use external databases. For more information, see the [database backend configuration](../advanced-configuration/database-backends-configuration.md) page.
 
 The following command will start the MongooseIM server:
 ```bash
@@ -81,7 +85,9 @@ mongooseimctl register_identified bob localhost 12345678
 mongooseimctl register_identified carol localhost abc123
 mongooseimctl register_identified dan localhost dan
 ```
-Warning: The password is entered manually in the command line and history is accessible to the command line users. This method is not recommended for production use, you may prefer for example LDAP.
+!!! Warning
+    The password is entered manually in the command line and history is accessible to the command line users.
+    This method is not recommended for production use, you may prefer for example [LDAP](../authentication-methods/ldap.md).
 
 You can check that it has correctly been created:
 ```bash
@@ -125,7 +131,8 @@ mongooseimctl add_rosteritem alice localhost bob localhost bob friends both
 mongooseimctl add_rosteritem bob localhost alice localhost alice friends both
 ```
 
-Note: The `subs`parameter is the "subscription" to a user's presence. Possible values are: `none`, `from`, `to`, or `both`. A subscription in `both` direction means each user will receive each other's presence.
+!!! Note
+    The `subs`parameter is the "subscription" to a user's presence. Possible values are: `none`, `from`, `to`, or `both`. A subscription in `both` direction means each user will receive each other's presence.
 
 Verify the contact list:
 ```bash
@@ -150,7 +157,8 @@ Learn more about MongooseIM [configuration files](../advanced-configuration/conf
 For each change, edit the configuration file using the right Linux/Unix user.
 Save (and optionally backup, archive, or version) the configuration file and restart the MongooseIM server.
 
-Warning: We recommend that you do not touch these settings at this stage.
+!!! Warning
+    We recommend that you do not touch these settings at this stage.
 
 ### Logging
 
@@ -220,7 +228,8 @@ Otherwise, the clients will keep disconnecting each other, because MongooseIM al
 
 Gajim is available on Ubuntu, CentOS & Windows.
 
-Warning: Gajim has an obsolete UX. However, it is still well maintained, and has a console that is extremely useful for debugging and testing/validation purposes at the XMPP protocol level.
+!!! Warning
+    Gajim has an obsolete UX. However, it is still well maintained, and has a console that is extremely useful for debugging and testing/validation purposes at the XMPP protocol level.
 
 1. Launch Gajim. Ignore the window with Plugin updates.
 2. Go to Edit -> Accounts.

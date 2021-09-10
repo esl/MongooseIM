@@ -197,7 +197,8 @@ Logical database index (zero-based).
 
 Currently only one Riak connection pool can exist for each supported XMPP host (the default pool).
 
-*WARNING:* `riak` backend is not compatible with `available_worker` strategy.
+!!! WARNING
+    `riak` backend is not compatible with `available_worker` strategy.
 
 ### `outgoing_pools.riak.*.connection.address`
 * **Syntax:** string

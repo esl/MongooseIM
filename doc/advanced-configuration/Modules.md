@@ -24,7 +24,8 @@ The server may use one of the following strategies to handle incoming IQ stanzas
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, or `"parallel"`
 * **Example:** `iqdisc.type = "one_queue"`
 
-**Note:** In the `"queues"` case alone, the following key becomes mandatory:
+!!! Note
+    In the `"queues"` case alone, the following key becomes mandatory:
 
 ### `modules.*.iqdisc.workers`
 * **Syntax:** positive integer
@@ -164,8 +165,9 @@ This does not provide a solution to the forgotten password use case via SMS or e
 ### mod_revproxy
 With this extension, MongooseIM may serve as a reverse proxy.
 
-**Warning:** This module is deprecated and can only be configured with the older, `.cfg` configuration file.
-Please refer to the older versions of the documentation to see how to do this.
+!!! Warning
+    This module is deprecated and can only be configured with the older, `.cfg` configuration file.
+    Please refer to the older versions of the documentation to see how to do this.
 
 ### [mod_roster](../modules/mod_roster.md)
 Roster support, specified in [RFC 6121](http://xmpp.org/rfcs/rfc6121.html).

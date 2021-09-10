@@ -67,10 +67,10 @@ Path to the X509 PEM file with a certificate and a private key inside (not prote
 
 This option overrides the configured certificate file for specific local XMPP domains.
 
-**Notes:**
-
-* This option applies to **S2S and C2S** connections.
-* Each domain needs to be included in the list of [`hosts`](general.md#generalhosts) configured in the `general` section.
+!!! Notes
+    
+    * This option applies to **S2S and C2S** connections.
+    * Each domain needs to be included in the list of [`hosts`](general.md#generalhosts) configured in the `general` section.
 
 ### `s2s.shared`
 * **Scope:** local

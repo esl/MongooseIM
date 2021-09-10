@@ -28,8 +28,9 @@ Database backend to use.
 When enabled, MUC Light rooms won't have owners. 
 It means that every occupant will be a `member`, even the room creator.
 
-**Warning:** This option does not implicitly set `all_can_invite` to `true`. 
-If that option is set to `false`, nobody will be able to join the room after the initial creation request.
+!!! Warning
+    This option does not implicitly set `all_can_invite` to `true`. 
+    If that option is set to `false`, nobody will be able to join the room after the initial creation request.
 
 ### `modules.mod_muc_light.legacy_mode`
   * **Syntax:** boolean
@@ -46,7 +47,8 @@ It allows using a subset of classic MUC stanzas with some MUC Light functions li
 
 Specifies a cap on a number of rooms a user can occupy.
 
-**Warning:** Setting such a limit may trigger expensive DB queries for every occupant addition.
+!!! Warning
+    Setting such a limit may trigger expensive DB queries for every occupant addition.
 
 ### `modules.mod_muc_light.blocking`
   * **Syntax:** boolean
@@ -126,8 +128,8 @@ Each `config_schema` item is a TOML table with the following keys:
     * `float_value` - floating-point number.
 * `internal_key` - optional, non-empty string - field name used in the internal representation, useful only for debugging or custom applications. By default it is the same as `field`.
 
-**WARNING!** Lack of the `roomname` field will cause room names in Disco results
-and Roster items be set to the room username.
+!!! WARNING
+    Lack of the `roomname` field will cause room names in Disco results and Roster items be set to the room username.
 
 ## Example Configuration
 

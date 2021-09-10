@@ -101,7 +101,8 @@ Where `X` is initially set to 0 and certain values are added if at least one of 
 * Printable ASCII (0x21 - 0x7e): 33
 * Any other value: 128
 
-*Note:* These values are added only once, no matter how many bytes of specific type are found.
+!!! Note
+    These values are added only once, no matter how many bytes of specific type are found.
 
 ### Example entropies
 

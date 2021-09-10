@@ -7,10 +7,14 @@ MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tre
 All metrics are divided into the following groups:
 
 * Per host type metrics: Gathered separately for every host type supported by the cluster.
- **Warning:** If a cluster supports many (thousands or more) host types, performance issues might occur.
- To avoid this, use global equivalents of the metrics with `all_metrics_are_global` config option.
+    
+    !!! Warning
+        If a cluster supports many (thousands or more) host types, performance issues might occur.
+        To avoid this, use global equivalents of the metrics with `all_metrics_are_global` config option.
+    
     * Hook metrics.
     They are created for every [hook](../developers-guide/Hooks-and-handlers.md) and incremented on every call to it.
+
 * Global metrics: Metrics common for all host types.
     * Data metrics.
     These are misc. metrics related to data transfers (e.g. sent and received stanza size statistics).

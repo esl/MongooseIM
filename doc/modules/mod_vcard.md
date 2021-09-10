@@ -31,7 +31,10 @@ Enables/disables the domain set in the previous option. `false` makes searching 
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
-vCard storage backend. **Warning:** LDAP backend is read-only.
+vCard storage backend.
+
+!!! Warning 
+    LDAP backend is read-only.
 
 ### `modules.mod_vcard.matches`
 * **Syntax:** non-negative integer or the string `"infinity"`

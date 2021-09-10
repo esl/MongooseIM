@@ -32,10 +32,12 @@ Verbosity level of the logger. Values recommended for production systems are `"e
 This option specifies the statically defined XMPP domains served by this cluster.
 In order to configure these hosts independently, use the [`host_config` section](./host_config.md).
 
-**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+!!! Note
+    At least one of `general.hosts` or `general.host_types` have to be provided.
 
-**Warning:** Extension modules and database backends will be started separately for every domain from this list.
-When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+!!! Warning
+    Extension modules and database backends will be started separately for every domain from this list.
+    When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.host_types`
 * **Scope:** global
@@ -52,10 +54,12 @@ If you use the host type mechanism, make sure you only configure modules which s
 MongooseIM will not start otherwise.
 In order to see which modules support dynamic domains, please check the [modules list](./Modules.md#modules-supporting-dynamic-domains).
 
-**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+!!! Note
+    At least one of `general.hosts` or `general.host_types` have to be provided.
 
-**Warning:** Extension modules and database backends will be started separately for every host type from this list.
-When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+!!! Warning
+    Extension modules and database backends will be started separately for every host type from this list.
+    When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.default_server_domain`
 * **Scope:** global

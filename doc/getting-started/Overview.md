@@ -1,4 +1,4 @@
-# MongooseIM platform
+# MongooseIM platform overview
 
 [![GitHub Actions](https://github.com/esl/MongooseIM/workflows/CI/badge.svg?branch=master)](https://github.com/esl/MongooseIM/actions?query=workflow%3ACI+branch%3Amaster)
 [![CircleCI](https://circleci.com/gh/esl/MongooseIM.svg?style=shield&circle-token=53cdda11cfb95bd7a7044c509c89cb73d3fdeb5a)](https://app.circleci.com/pipelines/github/esl/MongooseIM)
@@ -9,7 +9,6 @@
 * Home: [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://esl.github.io/MongooseDocs/](https://esl.github.io/MongooseDocs/)
-
 
 ## Get to know MongooseIM
 

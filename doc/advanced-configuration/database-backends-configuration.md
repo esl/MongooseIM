@@ -23,10 +23,12 @@ Transient data:
 
 * Mnesia - we highly recommend Mnesia (a highly available and distributed database) over Redis for storing **transient** data.
  Being an Erlang-based database, it's the default persistence option for most modules in MongooseIM.
- **Warning**: we **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
- Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
- Sooner or later a migration will be needed which may be painful.
- It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
+  
+    !!! Warning
+        We **strongly recommend** keeping **persistent** data in an external DB (RDBMS or Riak) for production.
+        Mnesia is not suitable for the volumes of **persistent** data which some modules may require.
+        Sooner or later a migration will be needed which may be painful.
+        It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
 
 * Redis - A fantastic choice for storing live data.
  It's highly scalable and it can be easily shared by multiple MongooseIM nodes.
@@ -129,7 +131,8 @@ for more information.
 
 Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
-**Warning: MongooseIM can only connect to MSSQL [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).**
+!!! Warning
+    MongooseIM can only connect to MSSQL [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
 
 **This can be used for:**
 

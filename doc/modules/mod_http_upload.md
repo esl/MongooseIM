@@ -57,7 +57,8 @@ Maximum file size (in bytes) accepted by the module.
 
 Options specific to [S3][s3] backend.
 
-**Note:** this section is mandatory.
+!!! Note
+    This section is mandatory.
 
 ### [S3][s3] backend options
 

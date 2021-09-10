@@ -68,7 +68,8 @@ Bounce mechanism solves this and similar edge cases by storing messages for whic
 The stored messages are then assigned a bounce-TTL value and periodically - with backoff - are attempted to be routed again.
 In the example above, the message from **U2** would be temporarily stored at **DC2** and rerouted successfully once **DC2** learns (via replication) that **U1** is available at **DC3**.
 
-> Note: bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
+!!! Note
+    Bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
 
 ### Metrics
 
@@ -110,7 +111,8 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **Example:** `global_host = "example.com"`
 
 The XMPP domain that will be shared between datacenters.
-*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+!!! Note
+    This needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 ### `modules.mod_global_distrib.local_host`
 * **Syntax:** string
@@ -118,7 +120,8 @@ The XMPP domain that will be shared between datacenters.
 * **Example:** `local_host = "datacenter1.example.com"`
 
 XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
-*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+!!! Note
+    This needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 ### `modules.mod_global_distrib.message_ttl`
 * **Syntax:** non-negative integer
@@ -184,7 +187,8 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 
 ### TLS options
 
-**Note:** By default `tls` is disabled and all data will be sent via standard TCP connections.
+!!! Note
+    By default `tls` is disabled and all data will be sent via standard TCP connections.
 
 To enable TLS support, the `cacertfile` and `certfile` options have to be present.
 These options will be passed to the `fast_tls` driver.

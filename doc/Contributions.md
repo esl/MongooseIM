@@ -53,7 +53,8 @@ amoc is a simple tool for running massively parallel XMPP tests
 
 Apache license 2.0
 
-Note: amoc stands for "A Murder of Crows"
+!!! Info
+    amoc stands for "A Murder of Crows"
 
 ### exml
 
