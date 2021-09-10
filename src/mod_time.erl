@@ -10,37 +10,42 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2, stop/1, config_spec/0, process_local_iq/4]).
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
+-export([config_spec/0]).
+-export([process_local_iq/5]).
 
--ignore_xref([process_local_iq/4]).
+-ignore_xref([process_local_iq/5]).
 
 -include("jlib.hrl").
--include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).
 
-start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts,
-                             one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-                                  ?NS_TIME, ?MODULE, process_local_iq, IQDisc).
+start(HostType, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_TIME, ejabberd_local,
+                                             fun ?MODULE:process_local_iq/5, #{}, IQDisc).
 
 
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host,
-                                     ?NS_TIME).
+stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_TIME, ejabberd_local).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
-process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
+process_local_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 
-process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
+process_local_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
     {UTC, TZODiff} = calculate_time(),
     R = IQ#iq{type = result,
           sub_el =

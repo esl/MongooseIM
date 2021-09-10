@@ -35,6 +35,8 @@
 
 {suites, "tests", mod_ping_SUITE}.
 
+{suites, "tests", mod_time_SUITE}.
+
 {suites, "tests", muc_SUITE}.
 {skip_groups, "tests", muc_SUITE,
  [register_over_s2s],
