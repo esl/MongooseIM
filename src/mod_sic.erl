@@ -49,7 +49,7 @@
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
--spec start(mongooseim:host_type(), list()) -> ok.
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
