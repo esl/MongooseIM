@@ -7,9 +7,13 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--export([start/2]).
--export([stop/1]).
--export([config_spec/0]).
+%% gen_mod callbacks
+-export([start/2, 
+         stop/1, 
+         config_spec/0, 
+         supported_features/0]).
+
+%% Hook handlers 
 -export([c2s_stream_features/3]).
 
 -ignore_xref([c2s_stream_features/3]).
@@ -21,16 +25,27 @@
 
 -export_type([state/0]).
 
-start(Host, _Opts) ->
-    [ejabberd_hooks:add(Name, Host, Module, Function, Priority) ||
-     {Name, Module, Function, Priority} <- hooks()],
-    ensure_metrics(Host),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)),
+    ensure_metrics(HostType),
     ok.
 
-stop(Host) ->
-    [ejabberd_hooks:delete(Name, Host, Module, Function, Priority) ||
-     {Name, Module, Function, Priority} <- hooks()],
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
     ok.
+
+hooks(HostType) ->
+    [{c2s_stream_features, HostType, ?MODULE, c2s_stream_features, 60}].
+
+ensure_metrics(HostType) ->
+    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIInactive], spiral),
+    mongoose_metrics:ensure_metric(HostType, [HostType, modCSIInactive], spiral).
+
+%%%
+%%% config_spec
+%%%
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -39,12 +54,13 @@ config_spec() ->
                                              validate = non_negative}}
       }.
 
-hooks() ->
-    [{c2s_stream_features, ?MODULE, c2s_stream_features, 60}].
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
-ensure_metrics(Host) ->
-    mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral),
-    mongoose_metrics:ensure_metric(Host, [Host, modCSIInactive], spiral).
+%%%
+%%% Hook handlers
+%%%
 
 -spec c2s_stream_features([exml:element()], mongooseim:host_type(), jid:lserver()) ->
           [exml:element()].

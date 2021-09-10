@@ -80,6 +80,9 @@
 
 {suites, "tests", vcard_SUITE}.
 {suites, "tests", vcard_simple_SUITE}.
+
+{suites, "tests", xep_0352_csi_SUITE}.
+
 {suites, "tests", domain_removal_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.

@@ -5,6 +5,8 @@
 
 -compile([export_all]).
 
+-import(domain_helper, [host_type/0]).
+
 -define(CSI_BUFFER_MAX, 10).
 
 all() ->
@@ -12,8 +14,7 @@ all() ->
 
 
 groups() ->
-    G = [{basic, [parallel, shuffle], all_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{basic, [parallel, shuffle], all_tests()}].
 
 all_tests() ->
     [
@@ -32,13 +33,11 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Domain, mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]),
+    dynamic_modules:start(host_type(), mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
 
 end_per_suite(Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Domain, mod_csi),
+    dynamic_modules:stop(host_type(), mod_csi),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
