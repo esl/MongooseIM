@@ -29,14 +29,19 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
+%% gen_mod callbacks
 -export([start/2,
          stop/1,
          config_spec/0,
-         process_local_iq/4,
-         process_sm_iq/4
+         supported_features/0
         ]).
 
--ignore_xref([process_local_iq/4, process_sm_iq/4]).
+%% IQ and hook handlers
+-export([process_local_iq/5,
+         process_sm_iq/5
+        ]).
+
+-ignore_xref([process_local_iq/5, process_sm_iq/5]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -44,40 +49,57 @@
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-                                  ?NS_SIC, ?MODULE, process_local_iq, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host,
-                                  ?NS_SIC, ?MODULE, process_sm_iq, IQDisc).
 
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_SIC),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_SIC).
+    [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_SIC, Component, Fn, #{}, IQDisc) ||
+        {Component, Fn} <- iq_handlers()],
+    ok.
+
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_LAST, Component) ||
+        {Component, _Fn} <- iq_handlers()],
+    ok.
+
+iq_handlers() ->
+    [{ejabberd_local, fun ?MODULE:process_local_iq/5},
+     {ejabberd_sm, fun ?MODULE:process_sm_iq/5}].
+
+%%%
+%%% config_spec
+%%%
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
 
-process_local_iq(#jid{} = JID, _To,
-                 Acc, #iq{type = 'get', sub_el = _SubEl} = IQ) ->
-    {Acc, get_ip(JID, IQ)};
+-spec supported_features() -> [atom()].
+supported_features() -> [dynamic_domains].
 
-process_local_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
+%%%
+%%% IQ handlers
+%%%
+
+-spec process_local_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+        -> {mongoose_acc:t(), jlib:iq()}.
+process_local_iq(Acc, #jid{} = JID, _To,
+                 #iq{type = 'get', sub_el = _SubEl} = IQ, _Extra) ->
+    {Acc, get_ip(JID, IQ)};
+process_local_iq(Acc, _From, _To, #iq{type = 'set', sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
-
-process_sm_iq(#jid{user = User, server = Server} = JID,
+-spec process_sm_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) 
+        -> {mongoose_acc:t(), jlib:iq()}.
+process_sm_iq(Acc, #jid{user = User, server = Server} = JID,
               #jid{user = User, server = Server},
-              Acc,
-              #iq{type = 'get', sub_el = _SubEl} = IQ) ->
+              #iq{type = 'get', sub_el = _SubEl} = IQ, _Extra) ->
     {Acc, get_ip(JID, IQ)};
-
-process_sm_iq(_From, _To, Acc, #iq{type = 'get', sub_el = SubEl} = IQ) ->
+process_sm_iq(Acc, _From, _To, #iq{type = 'get', sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}};
-
-process_sm_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
+process_sm_iq(Acc, _From, _To, #iq{type = 'set', sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
 get_ip(JID, #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
