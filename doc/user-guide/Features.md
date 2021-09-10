@@ -1,6 +1,21 @@
-## Overview
+# MongooseIM Features
 
-MongooseIM is Erlang Solutions' robust, scalable and efficient XMPP server, aimed at large installations. Specifically designed for enterprise purposes, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scale when more capacity is required by just adding nodes (new hardware boxes or VMs). It provides support for WebSockets and reimplemented BOSH (HTTP long-polling).
+MongooseIM is Erlang Solutions' robust, scalable and efficient XMPP server, aimed at large installations.
+Specifically designed for enterprise purposes, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scale when more capacity is required by just adding nodes (new hardware boxes or VMs).
+
+Some of the traits that make it unique include:
+
+* Massive scalability: for greater and faster growth, costs-effectiveness as well as resource utilisation
+* Platform approach: designed with consistency, end-to-end battle testing across the whole ecosystem (all server and client components, and tools)
+* Dynamic domains: thanks to the support for multi-tenancy, it is possible to set up thousands of domains dynamically without a noticeable performance overhead.
+* Code quality: extensive refactoring, substantial optimisations, continuous integration and deployment
+* Extensive testing: automated continuous functional code coverage, integration testing, end-to-end testing with real clients
+* Continuous load testing
+* Unique version: no proprietary extensions, fully open source, fully open standards
+* Contributions to ([XMPP Standards Foundation](https://xmpp.org/)): implementations of XEPs, innovations contributed
+* Professional support, and flexible customer service
+* Contributions to third party open source codebases: strengthening the ecosystem
+
 
 ## Architecture
 
@@ -56,7 +71,7 @@ On more information on how to set up this feature, see [dynamic domains configur
 
 ## Client side
 
-In order to build client applications, the MoongooseIM team recommends the following libraries:
+In order to build client applications, the MongooseIM team recommends the following libraries:
 
 | |XMPP|REST API|
 | ------------- | ------------- | ------------- |
@@ -65,3 +80,13 @@ In order to build client applications, the MoongooseIM team recommends the follo
 |Web|[Stanza.io](https://github.com/otalk/stanza.io)/[Strophe.js](https://github.com/strophe/strophejs), JavaScript||
 
 General knowledge of Erlang and XMPP allows complete control over the system and its components.
+
+## Integration with other platform components
+
+### MongoosePUSH
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
+For more details visit the push notification [user guide](./push-notifications/Push-notifications.md).
+
+### MongooseICE
+You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE).
+To get started, we recommend going through [this tutorial](ICE_tutorial.md).

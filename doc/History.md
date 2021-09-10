@@ -8,6 +8,19 @@ What would later become a leading, highly customisable and scalable XMPP platfor
 The change was introduced in 0.1.0 proto-MongooseIM release and 3.0.0-alpha-X series of ejabberd.
 This opened the door for achieving higher performance, lower latency and introducing other subsequent improvements building up to a platform we are truly proud of.
 
+### Initial differences from the parent project
+
+This project began its life as a fork of ejabberd v.2.1.8, and later underwent major cleanup, refactoring and optimization:
+
+*   Bringing the project source tree to compliance with OTP project structure recommendations
+*   Swapping `autotools` for the Erlang community-standard build tool `rebar`
+*   Removal of obsolete and/or rarely used modules to reduce maintenance burden
+*   Reduction of runtime memory consumption by refactoring the code
+    to use Erlang's binary data type for string manipulation and storage
+    instead of operating on linked lists of characters
+*   Functional test coverage of the system according to corresponding
+    RFCs and XEPs
+
 ## 2012-2015: Fully independent project growing fast
 
 The next steps were achieving full OTP and `rebar` compliance, removal of obsolete and/or rarely used modules, reduction of the runtime memory consumption and functional test coverage. 

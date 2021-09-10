@@ -105,7 +105,7 @@ make [rel]
 `rel` is optional as it is the default target.
 This will download all dependencies, compile everything and build a `prod` release.
 
-If a more advanced release is required (with only specific DB support, e.g. mysql or pgsql) or you want to set the `prefix` or `user` for the installation script please refer to the [release configuration](release_config.md) page in our documentation.
+If a more advanced release is required (with only specific DB support, e.g. mysql or pgsql) or you want to set the `prefix` or `user` for the installation script please refer to the [release configuration](../developers-guide/release_config.md) page in our documentation.
 
 The `make rel` commands will generate a self-contained OTP system structure in the project's `_build/prod/rel/mongooseim` subdirectory.
 The contents of that directory are as follows:

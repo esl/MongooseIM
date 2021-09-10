@@ -5,40 +5,11 @@ Warning: This setup is not intended for production.
 
 Note: This procedure has been tested on an Ubuntu 18.04.x LTS.
 
-## Installation
-
-We recommend, you install mongooseIM binaries from a package Erlang Solutions delivers.
-
-Alternatively, check out our tutorial on [How to build MongooseIM from source code](How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
-
-### Download a package
-
-Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) section of the Erlang Solutions website, and choose the version of MongooseIM you want. The following sections describe the installation process for different operating systems.
-
-### Ubuntu and Debian
-
-Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
-
-```bash
-sudo dpkg -i mongooseim_[version here].deb
-```
-
-### CentOS
-
-An ODBC (RDBMS) driver must be installed on your machine to unpack and install from RPM packages. Enter the following command in a terminal window to install the latest unixODBC driver:
-```bash
-sudo yum install unixODBC
-```
-Once the RPM file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
-```bash
-sudo rpm -i mongooseim_[version here].rpm
-```
-
 ## Running MongooseIM
 
-Warning: MongooseIM will use its default database - Mnesia, which is faster and simpler to setup, but not intended for production purposes when it comes to persistent data.
+Warning: MongooseIM will use its default database - Mnesia, which is faster and simpler to set up, but not intended for production purposes when it comes to persistent data.
 
-Note: It is possible at anytime to use external databases. For more information see the end of this guide.
+Note: It is possible at anytime to use external databases. For more information, see the [database backend configuration](../advanced-configuration/database-backends-configuration.md) page.
 
 The following command will start the MongooseIM server:
 ```bash
@@ -87,7 +58,7 @@ Run bootstrap scripts for initial configuration:
 mongooseimctl bootstrap
 ```
 
-It executes scripts inside the `scripts/` directory with a `bootstrap` prefix in alphabetical order. [More information](Bootstrap-Scripts.md)
+It executes scripts inside the `scripts/` directory with a `bootstrap` prefix in alphabetical order. [More information](../developers-guide/Bootstrap-Scripts.md)
 
 Execute `Hello` from the `scripts/bootstrap01-hello.sh` script that you can find in the release directory `$REPO_DIR/_build/prod/rel/mongooseim`.
 
@@ -169,15 +140,17 @@ mongooseimctl get_roster carol localhost
 
 ## Basic MongooseIM configuration
 
-You can edit the `mongooseim.toml` file:
+The main configuration file of MongooseIM is `mongooseim.toml`:
 ```bash
 /etc/mongooseim/mongooseim.toml
 ```
-
-Warning: We recommend you do not touch the advanced settings at this stage.
+You can edit this file to tailor MongooseIM to your needs.
+Learn more about MongooseIM [configuration files](../advanced-configuration/configuration-files.md) in general, or jump right into the [documentations of different `mongooseim.toml` sections](../advanced-configuration/general.md). 
 
 For each change, edit the configuration file using the right Linux/Unix user.
 Save (and optionally backup, archive, or version) the configuration file and restart the MongooseIM server.
+
+Warning: We recommend that you do not touch these settings at this stage.
 
 ### Logging
 

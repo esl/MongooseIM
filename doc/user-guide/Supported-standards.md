@@ -92,13 +92,3 @@
 |[MUC Light](../open-extensions/muc_light.md)|[`mod_muc_light`](../modules/mod_muc_light.md)|
 |[Inbox](../open-extensions/inbox.md)|[`mod_inbox`](../modules/mod_inbox.md)|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|[`mod_auth_token`](../modules/mod_auth_token.md), [`mod_keystore`](../modules/mod_keystore.md)|
-
-## Integration with other platform components
-
-### MongoosePUSH
-MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
-For more details visit the push notification [user guide](./push-notifications/Push-notifications.md).
-
-### MongooseICE
-You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE).
-To get started, we recommend going through [this tutorial](ICE_tutorial.md).
