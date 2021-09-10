@@ -17,6 +17,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [host_type/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -28,8 +30,7 @@ all_tests() ->
     [user_sic, forbidden_user_sic].
 
 groups() ->
-    G = [{mod_sic_tests, [sequence], all_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{mod_sic_tests, [sequence], all_tests()}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -107,11 +108,11 @@ is_sic_response() ->
 %%%===================================================================
 
 start_module(ModuleName, Options) ->
-    Args = [ct:get_config({hosts, mim, domain}), ModuleName, Options],
+    Args = [host_type(), ModuleName, Options],
     rpc(mim(), gen_mod, start_module, Args).
 
 stop_module(ModuleName) ->
-    Args = [ct:get_config({hosts, mim, domain}), ModuleName],
+    Args = [host_type(), ModuleName],
     rpc(mim(), gen_mod, stop_module, Args).
 
 sic_iq_get() ->
