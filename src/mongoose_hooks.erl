@@ -175,24 +175,24 @@ c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) ->
     run_hook_for_host_type(c2s_remote_hook, HostType, HandlerState,
                            [Tag, Args, C2SState]).
 
--spec adhoc_local_commands(LServer, From, To, AdhocRequest) -> Result when
-    LServer :: jid:lserver(),
+-spec adhoc_local_commands(HostType, From, To, AdhocRequest) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     AdhocRequest :: adhoc:request(),
     Result :: mod_adhoc:command_hook_acc().
-adhoc_local_commands(LServer, From, To, AdhocRequest) ->
-    run_hook_for_host_type(adhoc_local_commands, LServer, empty,
+adhoc_local_commands(HostType, From, To, AdhocRequest) ->
+    run_hook_for_host_type(adhoc_local_commands, HostType, empty,
                            [From, To, AdhocRequest]).
 
--spec adhoc_sm_commands(LServer, From, To, AdhocRequest) -> Result when
-    LServer :: jid:lserver(),
+-spec adhoc_sm_commands(HostType, From, To, AdhocRequest) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid(),
     AdhocRequest :: adhoc:request(),
     Result :: mod_adhoc:command_hook_acc().
-adhoc_sm_commands(LServer, From, To, AdhocRequest) ->
-    run_hook_for_host_type(adhoc_sm_commands, LServer, empty, [From, To, AdhocRequest]).
+adhoc_sm_commands(HostType, From, To, AdhocRequest) ->
+    run_hook_for_host_type(adhoc_sm_commands, HostType, empty, [From, To, AdhocRequest]).
 
 %%% @doc The `anonymous_purge_hook' hook is called when anonymous user's data is removed.
 -spec anonymous_purge_hook(LServer, Acc, LUser) -> Result when
