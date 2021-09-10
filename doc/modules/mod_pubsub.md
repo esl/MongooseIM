@@ -11,6 +11,9 @@ Due to the complexity of the protocol, the PubSub engine makes successive calls 
 Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
 It's all about tailoring PubSub to your needs!
 
+!!! warning
+    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+
 ## Options
 
 ### `modules.mod_pubsub.iqdisc.type`

@@ -10,6 +10,9 @@ and outgoing) are already hooked up to the frontend via `mod_event_pusher_hook_t
 `mod_event_pusher` dependency, which is a proxy between various hooks and the `push_event/3` hook
 handler.
 
+!!! warning
+    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+
 ## Options
 
 ### `modules.mod_event_pusher.backend`

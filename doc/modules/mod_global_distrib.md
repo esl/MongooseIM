@@ -3,6 +3,9 @@
 This module enables global distribution of a single XMPP domain.
 With `mod_global_distrib`, multiple distinct MongooseIM clusters can share a single domain name and route messages to the specific datacenter where the recipient is available.
 
+!!! warning
+    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+
 ## How it works
 
 There are multiple subsystems that cooperate to enable global distribution:

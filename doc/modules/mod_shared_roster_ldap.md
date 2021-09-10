@@ -6,6 +6,9 @@ It might get quite complicated to configure it properly, so fasten your seatbelt
 When a default value for an option is defined with "top-level/XXX", it means that the default value is equal to a top-level parameter in `mongooseim.toml` of the same name.
 If it is not defined, XXX becomes the default value.
 
+!!! warning
+    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+
 ## Options: general
 
 ### `modules.mod_shared_roster_ldap.ldap_pool_tag`
