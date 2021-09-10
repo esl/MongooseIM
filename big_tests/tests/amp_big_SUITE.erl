@@ -15,6 +15,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(muc_light_helper, [lbin/1]).
+-import(domain_helper, [host_type/0]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -23,9 +24,9 @@ all() ->
     [{group, G} || G <- main_group_names(), is_enabled(G)].
 
 groups() ->
-    ct_helper:repeat_all_until_all_ok(group_spec(main_group_names())).
+    group_spec(main_group_names()).
 
-is_enabled(mam) -> mongoose_helper:is_rdbms_enabled(domain());
+is_enabled(mam) -> mongoose_helper:is_rdbms_enabled(host_type());
 is_enabled(_) -> true.
 
 %% Group definitions
@@ -100,7 +101,7 @@ deliver_test_cases(notify) ->
      notify_deliver_to_offline_user_recipient_privacy_test,
      notify_deliver_to_online_user_broken_connection_test,
      notify_deliver_to_stranger_test,
-     notify_deliver_to_malformed_jid_test];
+     notify_deliver_to_unknown_domain_test];
 deliver_test_cases(error) ->
     [error_deliver_to_online_user_test,
      error_deliver_to_offline_user_test,
@@ -113,7 +114,6 @@ deliver_test_cases(drop) ->
 %% Setup and teardown
 
 init_per_suite(Config) ->
-    rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
     ConfigWithHooks = [{ct_hooks, [{multiple_config_cth, fun tests_with_config/1}]} | Config],
     {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [amp_test_helper_code()]),
     rpc(mim(), code, load_binary, [Mod, "amp_test_helper.erl", Code]),
@@ -132,19 +132,18 @@ amp_test_helper_code() ->
     "  end.\n".
 
 end_per_suite(C) ->
-    rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
     teardown_meck(suite),
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
 
 init_per_group(GroupName, Config) ->
     Config1 = case lists:member(GroupName, main_group_names()) of
-                            true ->
-                                ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
-                                dynamic_modules:ensure_modules(domain(), required_modules(GroupName)),
-                                ConfigWithModules;
-                            false ->
-                                Config
+                  true ->
+                      ConfigWithModules = dynamic_modules:save_modules(host_type(), Config),
+                      dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
+                      ConfigWithModules;
+                  false ->
+                      Config
               end,
     setup_meck(GroupName),
     save_offline_status(GroupName, Config1).
@@ -168,7 +167,7 @@ save_offline_status(_GN, Config) -> Config.
 end_per_group(GroupName, Config) ->
     teardown_meck(GroupName),
     case lists:member(GroupName, main_group_names()) of
-        true -> dynamic_modules:restore_modules(domain(), Config);
+        true -> dynamic_modules:restore_modules(host_type(), Config);
         false -> ok
     end.
 
@@ -455,15 +454,15 @@ notify_deliver_to_stranger_test(Config) ->
               client_receives_nothing(Alice)
       end).
 
-notify_deliver_to_malformed_jid_test(Config) ->
+notify_deliver_to_unknown_domain_test(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
               %% given
-              StrangerJid = <<"not a jid">>,
+              StrangerJid = <<"stranger@unknown.domain">>,
               Rule = {deliver, none, notify},
               Rules = rules(Config, [Rule]),
-              Msg = amp_message_to(StrangerJid, Rules, <<"Msg to malformed jid">>),
+              Msg = amp_message_to(StrangerJid, Rules, <<"Msg to unknown domain">>),
               %% when
               client_sends_message(Alice, Msg),
 
@@ -472,8 +471,8 @@ notify_deliver_to_malformed_jid_test(Config) ->
                   true -> client_receives_notification(Alice, StrangerJid, Rule);
                   false -> ok
               end,
-              % s2s does not allow routing to 'not a jid', so error 503 is expected
-              client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
+              % error 404: 'remote server not found' is expected
+              client_receives_generic_error(Alice, <<"404">>, <<"cancel">>),
               client_receives_nothing(Alice)
       end).
 
@@ -977,7 +976,7 @@ amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
 
 is_module_loaded(Mod) ->
-    rpc(mim(), gen_mod, is_loaded, [domain(), Mod]).
+    rpc(mim(), gen_mod, is_loaded, [host_type(), Mod]).
 
 required_modules(basic) ->
     mam_modules(off) ++ offline_modules(off);
