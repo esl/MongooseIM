@@ -4,9 +4,10 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
--export([start/2,
-         stop/1,
-         config_spec/0]).
+-export([start/2]).
+-export([stop/1]).
+-export([supported_features/0]).
+-export([config_spec/0]).
 
 %% Hook handlers
 -export([get_key/2]).
@@ -54,17 +55,15 @@
 
 -type key() :: #key{id :: key_id(), key :: raw_key()}.
 
--callback init(Domain, Opts) -> ok when
-      Domain :: jid:server(),
-      Opts :: [any()].
+-callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
 %% Cluster members race to decide whose key gets stored in the distributed database.
 %% That's why ProposedKey (the key this cluster member tries to propagate to other nodes)
 %% might not be the same as ActualKey (key of the member who will have won the race).
 -callback init_ram_key(ProposedKey) -> Result when
-      ProposedKey :: mod_keystore:key(),
+      ProposedKey :: key(),
       Result :: {ok, ActualKey} | {error, any()},
-      ActualKey :: mod_keystore:key().
+      ActualKey :: key().
 
 -callback get_key(ID :: key_id()) -> key_list().
 
@@ -72,23 +71,30 @@
 %% gen_mod callbacks
 %%
 
--spec start(jid:server(), list()) -> ok.
-start(Domain, Opts) ->
+-spec start(mongooseim:host_type(), list()) -> ok.
+start(HostType, Opts) ->
     validate_opts(Opts),
     create_keystore_ets(),
     gen_mod:start_backend_module(?MODULE, Opts),
-    mod_keystore_backend:init(Domain, Opts),
-    init_keys(Domain, Opts),
-    [ ejabberd_hooks:add(Hook, Domain, ?MODULE, Handler, Priority)
-      || {Hook, Handler, Priority} <- hook_handlers() ],
+    mod_keystore_backend:init(HostType, Opts),
+    init_keys(HostType, Opts),
+    ejabberd_hooks:add(hooks(HostType)),
     ok.
 
--spec stop(jid:server()) -> ok.
-stop(Domain) ->
-    [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
-      || {Hook, Handler, Priority} <- hook_handlers() ],
-    clear_keystore_ets(Domain),
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
+    clear_keystore_ets(HostType),
     ok.
+
+hooks(HostType) ->
+    [
+     {get_key, HostType, ?MODULE, get_key, 50}
+    ].
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -148,11 +154,6 @@ get_key(HandlerAcc, KeyID) ->
 %% Internal functions
 %%
 
-hook_handlers() ->
-    [
-     {get_key, get_key, 50}
-    ].
-
 create_keystore_ets() ->
     case does_table_exist(keystore) of
         true -> ok;
@@ -160,7 +161,7 @@ create_keystore_ets() ->
             BaseOpts = [named_table, public,
                         {read_concurrency, true}],
             Opts = maybe_add_heir(whereis(ejabberd_sup), self(), BaseOpts),
-            keystore = ets:new(keystore, Opts),
+            ets:new(keystore, Opts),
             ok
     end.
 
@@ -175,23 +176,24 @@ maybe_add_heir(EjdSupPid, _Self, BaseOpts) when is_pid(EjdSupPid) ->
 maybe_add_heir(_, _, BaseOpts) ->
       BaseOpts.
 
-clear_keystore_ets(Domain) ->
-    Pattern = {{'_', Domain}, '$1'},
+clear_keystore_ets(HostType) ->
+    Pattern = {{'_', HostType}, '$1'},
     ets:match_delete(keystore, Pattern).
+
 does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
-init_keys(Domain, Opts) ->
-    [ init_key(K, Domain, Opts) || K <- proplists:get_value(keys, Opts, []) ].
+init_keys(HostType, Opts) ->
+    [ init_key(K, HostType, Opts) || K <- proplists:get_value(keys, Opts, []) ].
 
--spec init_key({key_name(), key_type()}, jid:server(), list()) -> ok.
-init_key({KeyName, {file, Path}}, Domain, _Opts) ->
+-spec init_key({key_name(), key_type()}, mongooseim:host_type(), list()) -> ok.
+init_key({KeyName, {file, Path}}, HostType, _Opts) ->
     {ok, Data} = file:read_file(Path),
-    true = ets_store_key({KeyName, Domain}, Data),
+    true = ets_store_key({KeyName, HostType}, Data),
     ok;
-init_key({KeyName, ram}, Domain, Opts) ->
+init_key({KeyName, ram}, HostType, Opts) ->
     ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
-    KeyRecord = #key{id = {KeyName, Domain},
+    KeyRecord = #key{id = {KeyName, HostType},
                      key = ProposedKey},
     {ok, _ActualKey} = mod_keystore_backend:init_ram_key(KeyRecord),
     ok.

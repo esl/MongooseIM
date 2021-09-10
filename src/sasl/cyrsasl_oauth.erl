@@ -24,7 +24,8 @@ mech_new(_Host, Creds, _Socket) ->
                                        | {error, binary()}.
 mech_step(#state{creds = Creds}, SerializedToken) ->
     %% SerializedToken is a token decoded from CDATA <auth/> body sent by client
-    case mod_auth_token:authenticate(SerializedToken) of
+    HostType = mongoose_credentials:host_type(Creds),
+    case mod_auth_token:authenticate(HostType, SerializedToken) of
         % Validating access token
         {ok, AuthModule, User} ->
             {ok, mongoose_credentials:extend(Creds,

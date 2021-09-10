@@ -77,10 +77,10 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config0) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         true ->
             Config = dynamic_modules:stop_running(mod_last, Config0),
-            Host = ct:get_config({hosts, mim, domain}),
+            HostType = domain_helper:host_type(),
             KeyStoreOpts = [{keys, [
                                     {token_secret, ram},
                                     %% This is a hack for tests! As the name implies,
@@ -92,18 +92,18 @@ init_per_suite(Config0) ->
                                    ]}],
             AuthOpts = [{ {validity_period, access}, {60, minutes} },
                         { {validity_period, refresh}, {1, days} }],
-            dynamic_modules:start(Host, mod_keystore, KeyStoreOpts),
-            dynamic_modules:start(Host, mod_auth_token, AuthOpts),
+            dynamic_modules:start(HostType, mod_keystore, KeyStoreOpts),
+            dynamic_modules:start(HostType, mod_auth_token, AuthOpts),
             escalus:init_per_suite([{auth_opts, AuthOpts} | Config]);
         false ->
             {skip, "RDBMS not available"}
     end.
 
 end_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
+    HostType = domain_helper:host_type(),
     dynamic_modules:start_running(Config),
-    dynamic_modules:stop(Host, mod_auth_token),
-    dynamic_modules:stop(Host, mod_keystore),
+    dynamic_modules:stop(HostType, mod_auth_token),
+    dynamic_modules:stop(HostType, mod_keystore),
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config0) ->
@@ -123,19 +123,19 @@ end_per_group(_GroupName, Config) ->
     mongoose_helper:restore_auth_config(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
-init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_auth_token),
+init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded, Config) ->
+    HostType = domain_helper:host_type(),
+    dynamic_modules:stop(HostType, mod_auth_token),
     init_per_testcase(generic, Config);
 init_per_testcase(CaseName, Config) ->
     clean_token_db(),
     escalus:init_per_testcase(CaseName, Config).
 
 
-end_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded = CaseName, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    AuthOpts = proplists:get_value(auth_opts, Config),
-    dynamic_modules:start(Host, mod_auth_token, AuthOpts),
+end_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded, Config) ->
+    HostType = domain_helper:host_type(),
+    AuthOpts = ?config(auth_opts, Config),
+    dynamic_modules:start(HostType, mod_auth_token, AuthOpts),
     end_per_testcase(generic, Config);
 end_per_testcase(CaseName, Config) ->
     clean_token_db(),
@@ -172,12 +172,13 @@ token_login_failure(Config, User, Token) ->
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
     JID = rpc(mim(), jid, from_binary, [BJID]),
-    Token = rpc(mim(), mod_auth_token, token, [refresh, JID]),
-    ValidSeqNo = rpc(mim(), mod_auth_token_rdbms, get_valid_sequence_number, [JID]),
+    HostType = domain_helper:host_type(),
+    Token = rpc(mim(), mod_auth_token, token, [HostType, JID, refresh]),
+    ValidSeqNo = rpc(mim(), mod_auth_token_rdbms, get_valid_sequence_number, [HostType, JID]),
     RevokedToken0 = record_set(Token, [{5, invalid_sequence_no(ValidSeqNo)},
                                        {7, undefined},
                                        {8, undefined}]),
-    RevokedToken = rpc(mim(), mod_auth_token, token_with_mac, [RevokedToken0]),
+    RevokedToken = rpc(mim(), mod_auth_token, token_with_mac, [HostType, RevokedToken0]),
     rpc(mim(), mod_auth_token, serialize, [RevokedToken]).
 
 invalid_sequence_no(SeqNo) ->
@@ -293,7 +294,7 @@ get_owner_seqno_to_revoke(Config, User) ->
     {Owner, binary_to_integer(SeqNo), RefreshToken}.
 
 revoke_token(Owner) ->
-    rpc(mim(), mod_auth_token, revoke, [Owner]).
+    rpc(mim(), mod_auth_token, revoke, [domain_helper:host_type(), Owner]).
 
 revoke_token_cmd_when_no_token(Config) ->
     %% given existing user with no token
@@ -313,7 +314,7 @@ revoke_token_cmd(Config) ->
 token_removed_on_user_removal(Config) ->
     %% given existing user with token and XMPP (de)registration available
     _Tokens = request_tokens_once_logged_in_impl(Config, bob),
-    true = is_xmpp_registration_available(escalus_users:get_server(Config, bob)),
+    true = is_xmpp_registration_available(domain_helper:host_type()),
     %% when user account is deleted
     S = fun (Bob) ->
                 IQ = escalus_stanza:remove_account(),
@@ -382,7 +383,8 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
     JID = mongoose_helper:make_jid(Username, Server),
-    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule, [host_type(), JID]),
+    {SPassword, _} = rpc(mim(), ejabberd_auth, get_passterm_with_authmodule,
+                         [domain_helper:host_type(), JID]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->
@@ -411,8 +413,7 @@ convert_arg(S) when is_list(S) -> S.
 
 clean_token_db() ->
     Q = [<<"DELETE FROM auth_token">>],
-    RDBMSHost = domain(), %% mam is also tested against local rdbms
-    {updated, _} = rpc(mim(), mongoose_rdbms, sql_query, [RDBMSHost, Q]).
+    {updated, _} = rpc(mim(), mongoose_rdbms, sql_query, [domain_helper:host_type(), Q]).
 
 get_users_token(C, User) ->
     Q = ["SELECT * FROM auth_token at "
@@ -459,7 +460,7 @@ make_provision_token(Config, User, VCard) ->
           undefined,
           %% body
           undefined},
-    T = rpc(mim(), mod_auth_token, token_with_mac, [T0]),
+    T = rpc(mim(), mod_auth_token, token_with_mac, [domain_helper:host_type(), T0]),
     %% assert no RPC error occured
     {token, provision} = {element(1, T), element(2, T)},
     serialize(T).
@@ -473,9 +474,6 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
-
-host_type() ->
-    domain().
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

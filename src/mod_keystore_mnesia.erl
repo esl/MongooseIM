@@ -8,10 +8,8 @@
 
 -include("mod_keystore.hrl").
 
--spec init(Domain, Opts) -> ok when
-      Domain :: jid:server(),
-      Opts :: [any()].
-init(_Domain, _Opts) ->
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     mnesia:create_table(key,
                         [{ram_copies, [node()]},
                          {type, set},
