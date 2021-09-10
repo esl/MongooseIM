@@ -115,7 +115,7 @@ pop_offline_messages(HostType, LUser, LServer, ExtTimeStamp) ->
             execute_offline_delete(HostType, LUser, LServer),
             Res
         end,
-    mongoose_rdbms:sql_transaction(LServer, F).
+    mongoose_rdbms:sql_transaction(HostType, F).
 
 -spec push_offline_messages(mongooseim:host_type(), [list()]) ->
           mongoose_rdbms:transaction_result().
