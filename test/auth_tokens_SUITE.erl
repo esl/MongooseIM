@@ -129,7 +129,7 @@ validation_test(_, ExampleToken) ->
     %% given
     Serialized = ?TESTED:serialize(ExampleToken),
     %% when
-    Result = ?TESTED:authenticate(Serialized),
+    Result = ?TESTED:authenticate(host_type(), Serialized),
     %% then
     ?ae(true, is_validation_success(Result)).
 
@@ -139,26 +139,25 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = ?TESTED:start(<<"localhost">>,
+    ok = ?TESTED:start(host_type(),
                        validity_period_cfg(access, {13, hours})),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + (    13 %% hours
                                     * 3600 %% seconds per hour
                                    ),
     %% when
-    ActualDT = ?TESTED:expiry_datetime(<<"localhost">>, access, UTCSeconds),
+    ActualDT = ?TESTED:expiry_datetime(host_type(), access, UTCSeconds),
     %% then
     ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
         ActualDT).
 
 choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
-    JID = jid:from_binary(<<"alice@localhost">>),
     %% when mod_auth_token asks for key for given token type
     %% then the correct key is returned
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(access, JID)),
-    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_user(refresh, JID)),
-    ?ae(<<"provision">>, ?TESTED:get_key_for_user(provision, JID)).
+    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_host_type(host_type(), access)),
+    ?ae(<<"access_or_refresh">>, ?TESTED:get_key_for_host_type(host_type(), refresh)),
+    ?ae(<<"provision">>, ?TESTED:get_key_for_host_type(host_type(), provision)).
 
 is_join_and_split_with_base16_and_zeros_reversible(RawToken) ->
     MAC = base16:encode(crypto:mac(hmac, sha384, <<"unused_key">>, RawToken)),
@@ -177,7 +176,7 @@ is_serialization_reversible(Token) ->
 
 is_valid_token_prop(Token) ->
     Serialized = ?TESTED:serialize(Token),
-    R = ?TESTED:authenticate(Serialized),
+    R = ?TESTED:authenticate(host_type(), Serialized),
     case is_validation_success(R) of
         true -> true;
         _    -> ct:fail(R)
@@ -199,9 +198,9 @@ revoked_token_is_not_valid(_) ->
                expiry_datetime = ?TESTED:seconds_to_datetime(utc_now_as_seconds() + 10),
                user_jid = jid:from_binary(<<"alice@localhost">>),
                sequence_no = RevokedSeqNo},
-    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(T)),
+    Revoked = ?TESTED:serialize(?TESTED:token_with_mac(host_type(), T)),
     %% when
-    ValidationResult = ?TESTED:authenticate(Revoked),
+    ValidationResult = ?TESTED:authenticate(host_type(), Revoked),
     %% then
     {error, _} = ValidationResult.
 
@@ -225,7 +224,7 @@ utc_now_as_seconds() ->
 %%           ]}.
 validity_period_cfg(Type, Period) ->
     Opts = [ {{validity_period, Type}, Period} ],
-    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, <<"localhost">>}, Opts}),
+    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, host_type()}, Opts}),
     Opts.
 
 %% This is a negative test case helper - that's why we invert the logic below.
@@ -244,16 +243,16 @@ mock_rdbms_backend() ->
     meck:new(mod_auth_token_rdbms, []),
     meck:expect(mod_auth_token_rdbms, start, fun(_) -> ok end),
     meck:expect(mod_auth_token_rdbms, get_valid_sequence_number,
-                fun (_) -> valid_seq_no_threshold() end),
+                fun (_, _) -> valid_seq_no_threshold() end),
     gen_mod:start_backend_module(?TESTED, [{backend, rdbms}]),
     ok.
 
 mock_keystore() ->
-    ejabberd_hooks:add(get_key, <<"localhost">>, ?MODULE, mod_keystore_get_key, 50).
+    ejabberd_hooks:add(get_key, host_type(), ?MODULE, mod_keystore_get_key, 50).
 
 mock_gen_iq_handler() ->
     meck:new(gen_iq_handler, []),
-    meck:expect(gen_iq_handler, add_iq_handler, fun (_, _, _, _, _, _) -> ok end).
+    meck:expect(gen_iq_handler, add_iq_handler_for_domain, fun (_, _, _, _, _, _) -> ok end).
 
 mod_keystore_get_key(_, {KeyName, _} = KeyID) ->
     case KeyName of
@@ -264,7 +263,7 @@ mod_keystore_get_key(_, {KeyName, _} = KeyID) ->
 mock_tested_backend() ->
     meck:new(mod_auth_token_rdbms, []),
     meck:expect(mod_auth_token_rdbms, get_valid_sequence_number,
-                fun (_) ->
+                fun (_, _) ->
                         receive {valid_seq_no, SeqNo} -> SeqNo end
                 end).
 
@@ -275,8 +274,8 @@ mock_ejabberd_commands() ->
 provision_token_example() ->
     {token,provision,
      {{2055,10,27},{10,54,22}},
-     {jid,<<"cEE2M1S0I">>,<<"localhost">>,<<>>,<<"cee2m1s0i">>,
-      <<"localhost">>,<<>>},
+     {jid,<<"cEE2M1S0I">>,domain(),<<>>,<<"cee2m1s0i">>,
+      domain(),<<>>},
      undefined,
      {xmlel,<<"vCard">>,
       [{<<"sgzldnl">>,<<"inxdutpu">>},
@@ -323,7 +322,7 @@ provision_token_example() ->
 refresh_token_example() ->
     {token,refresh,
      {{2055,10,27},{10,54,14}},
-     {jid,<<"a">>,<<"localhost">>,<<>>,<<"a">>,<<"localhost">>,<<>>},
+     {jid,<<"a">>,domain(),<<>>,<<"a">>,domain(),<<>>},
      4,undefined,
      <<151,225,117,181,0,168,228,208,238,182,157,253,24,200,231,25,189,
        160,176,144,85,193,20,108,31,23,46,35,215,41,250,57,68,201,45,33,
@@ -361,11 +360,11 @@ make_token({Type, Expiry, JID, SeqNo, VCard}) ->
                user_jid = jid:from_binary(JID)},
     case Type of
         access ->
-            ?TESTED:token_with_mac(T);
+            ?TESTED:token_with_mac(host_type(), T);
         refresh ->
-            ?TESTED:token_with_mac(T#token{sequence_no = SeqNo});
+            ?TESTED:token_with_mac(host_type(), T#token{sequence_no = SeqNo});
         provision ->
-            ?TESTED:token_with_mac(T#token{vcard = VCard})
+            ?TESTED:token_with_mac(host_type(), T#token{vcard = VCard})
     end.
 
 serialized_token(Sep) ->
@@ -400,15 +399,16 @@ vcard() ->
 
 bare_jid() ->
     ?LET({Username, Domain}, {username(), domain()},
-         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes>>).
+         <<(?l2b(Username))/bytes, "@", (Domain)/bytes>>).
 
 %full_jid() ->
 %    ?LET({Username, Domain, Res}, {username(), domain(), resource()},
 %         <<(?l2b(Username))/bytes, "@", (?l2b(Domain))/bytes, "/", (?l2b(Res))/bytes>>).
 
 username() -> ascii_string().
-domain()   -> "localhost".
+domain()   -> <<"localhost">>.
 %resource() -> ascii_string().
+host_type()   -> <<"localhost">>.
 
 ascii_string() ->
     ?LET({Alpha, Alnum}, {ascii_alpha(), list(ascii_alnum())}, [Alpha | Alnum]).

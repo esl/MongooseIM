@@ -451,8 +451,8 @@ supports_sasl_module(Module) ->
     rpc(mim(), ejabberd_auth, supports_sasl_module, [Host, Module]).
 
 backup_auth_config(Config) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
+    HostType = domain_helper:host_type(),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, HostType}]),
     [{auth_opts, AuthOpts} | Config].
 
 backup_sasl_mechanisms_config(Config) ->
