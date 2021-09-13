@@ -1,5 +1,7 @@
 -module(mongoose_doctor).
 
+-export([start/0, stop/0]).
+
 -export([format_stanza/1,
          c2s_io_stanza/1,
          c2s_io/0,
@@ -9,6 +11,13 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("erlang_doctor/include/tr.hrl").
+
+start() ->
+    {ok, App} = application:get_application(?MODULE),
+    tr:trace_calls(tr:app_modules(App)).
+
+stop() ->
+    tr:stop_tracing_calls().
 
 format_stanza(#{ts := Ts,
                 pid := Pid,
