@@ -130,8 +130,6 @@
 
 -export([amp_check_condition/3,
          amp_determine_strategy/5,
-         amp_error_action_triggered/1,
-         amp_notify_action_triggered/1,
          amp_verify_support/2]).
 
 -export([filter_room_packet/3,
@@ -1264,53 +1262,37 @@ disco_info(Acc = #{host_type := HostType}) ->
 
 %%% @doc The `amp_check_condition' hook is called to determine whether
 %%% the AMP strategy matches the given AMP rule.
--spec amp_check_condition(Server, Strategy, Rule) -> Result when
-    Server :: jid:server(),
+-spec amp_check_condition(HostType, Strategy, Rule) -> Result when
+    HostType :: mongooseim:host_type(),
     Strategy :: mod_amp:amp_strategy(),
     Rule :: mod_amp:amp_rule(),
     Result :: mod_amp:amp_match_result().
-amp_check_condition(Server, Strategy, Rule) ->
+amp_check_condition(HostType, Strategy, Rule) ->
     InitialAcc = no_match, %% mod_amp:amp_match_result() type
-    run_hook_for_host_type(amp_check_condition, Server, InitialAcc, [Strategy, Rule]).
+    run_hook_for_host_type(amp_check_condition, HostType, InitialAcc, [Strategy, Rule]).
 
 %%% @doc The `amp_determine_strategy' hook is called when checking to determine
 %%% which strategy will be chosen when executing AMP rules.
--spec amp_determine_strategy(Server, From, To, Packet, Event) -> Result when
-    Server :: jid:server(),
+-spec amp_determine_strategy(HostType, From, To, Packet, Event) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     To :: jid:jid() | undefined,
     Packet :: exml:element(),
     Event :: mod_amp:amp_event(),
     Result :: mod_amp:amp_strategy().
-amp_determine_strategy(Server, From, To, Packet, Event) ->
+amp_determine_strategy(HostType, From, To, Packet, Event) ->
     DefaultStrategy = amp_strategy:null_strategy(),
-    run_hook_for_host_type(amp_determine_strategy, Server, DefaultStrategy,
+    run_hook_for_host_type(amp_determine_strategy, HostType, DefaultStrategy,
                            [From, To, Packet, Event]).
-
-%%% @doc The `amp_error_action_triggered' hook is called to inform
-%%% that the `error' action has been triggered.
--spec amp_error_action_triggered(Server) -> Result when
-    Server :: jid:server(),
-    Result :: any().
-amp_error_action_triggered(Server) ->
-    run_hook_for_host_type(amp_error_action_triggered, Server, ok, [Server]).
-
-%%% @doc The `amp_notify_action_triggered' hook is called to inform
-%%% that the `notify' action has been triggered.
--spec amp_notify_action_triggered(Server) -> Result when
-    Server :: jid:server(),
-    Result :: any().
-amp_notify_action_triggered(Server) ->
-    run_hook_for_host_type(amp_notify_action_triggered, Server, ok, [Server]).
 
 %%% @doc The `amp_verify_support' hook is called when checking
 %%% whether the host supports given AMP rules.
--spec amp_verify_support(Server, Rules) -> Result when
-    Server :: jid:lserver(),
+-spec amp_verify_support(HostType, Rules) -> Result when
+    HostType :: mongooseim:host_type(),
     Rules :: mod_amp:amp_rules(),
     Result :: [mod_amp:amp_rule_support()].
-amp_verify_support(Server, Rules) ->
-    run_hook_for_host_type(amp_verify_support, Server, [], [Rules]).
+amp_verify_support(HostType, Rules) ->
+    run_hook_for_host_type(amp_verify_support, HostType, [], [Rules]).
 
 %% MUC and MUC Light related hooks
 
