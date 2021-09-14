@@ -9,6 +9,8 @@
 %% http://www.erlang.org/doc/apps/common_test/run_test_chapter.html#test_specifications
 {include, "tests"}.
 
+{suites, "tests", s2s_SUITE}.
+
 {suites, "tests", accounts_SUITE}.
 
 {suites, "tests", anonymous_SUITE}.
