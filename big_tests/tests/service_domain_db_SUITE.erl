@@ -195,6 +195,7 @@ end_per_suite(Config) ->
     Conf2 = proplists:get_value(mim_conf2, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
+    domain_helper:insert_configured_domains(),
     dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
     escalus:end_per_suite(Config).
 
