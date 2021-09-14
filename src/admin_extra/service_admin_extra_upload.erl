@@ -26,20 +26,20 @@ commands() -> [
     }
 ].
 
--spec get_urls(Host :: binary(), Filename :: binary(), Size :: pos_integer(),
+-spec get_urls(HostType :: mongooseim:host_type(), Filename :: binary(), Size :: pos_integer(),
                ContentType :: binary() | undefined, Timeout :: pos_integer()) ->
         {ok, string()} | {error, string()}.
-get_urls(_Host, _Filename, Size, _ContentType, _Timeout) when Size =< 0->
+get_urls(_HostType, _Filename, Size, _ContentType, _Timeout) when Size =< 0->
     {error, "size must be positive integer"};
-get_urls(_Host, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0->
+get_urls(_HostType, _Filename, _Size, _ContentType, Timeout) when Timeout =< 0->
     {error, "timeout must be positive integer"};
-get_urls(Host, Filename, Size, <<"">>, Timeout) ->
-    get_urls(Host, Filename, Size, undefined, Timeout);
-get_urls(Host, Filename, Size, ContentType, Timeout) ->
-    case gen_mod:is_loaded(Host, mod_http_upload) of
+get_urls(HostType, Filename, Size, <<"">>, Timeout) ->
+    get_urls(HostType, Filename, Size, undefined, Timeout);
+get_urls(HostType, Filename, Size, ContentType, Timeout) ->
+    case gen_mod:is_loaded(HostType, mod_http_upload) of
         true ->
             {PutURL, GetURL, Header} =
-                mod_http_upload:get_urls(Host, Filename, Size, ContentType, Timeout),
+                mod_http_upload:get_urls(HostType, Filename, Size, ContentType, Timeout),
             {ok, generate_output_message(PutURL, GetURL, Header)};
         false ->
             {error, "mod_http_upload is not loaded for this host"}
