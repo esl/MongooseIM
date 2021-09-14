@@ -6,6 +6,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(domain_helper, [host_type/0]).
+
 -define(NS_XDATA, <<"jabber:x:data">>).
 -define(NS_HTTP_UPLOAD_030, <<"urn:xmpp:http:upload:0">>).
 
@@ -66,29 +68,28 @@ all() ->
      {group, real_upload_with_acl}, {group, real_upload_without_acl}].
 
 groups() ->
-    G = [{unset_size, [], [does_not_advertise_max_size_if_unset]},
-         {real_upload_with_acl, [], [test_minio_upload_without_content_type,
-                                     test_minio_upload_with_content_type]},
-         {real_upload_without_acl, [], [test_minio_upload_without_content_type,
-                                        test_minio_upload_with_content_type]},
-         {mod_http_upload_s3, [], [
-                                   http_upload_item_discovery,
-                                   http_upload_feature_discovery,
-                                   advertises_max_file_size,
-                                   request_slot,
-                                   rejects_set_iq,
-                                   rejects_disco_set_iq,
-                                   rejects_feature_discovery_with_node,
-                                   get_url_ends_with_filename,
-                                   urls_contain_s3_hostname,
-                                   rejects_empty_filename,
-                                   rejects_negative_filesize,
-                                   rejects_invalid_size_type,
-                                   denies_slots_over_max_file_size,
-                                   sends_different_put_and_get_urls,
-                                   escapes_urls_once
-                                  ]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{unset_size, [], [does_not_advertise_max_size_if_unset]},
+     {real_upload_with_acl, [], [test_minio_upload_without_content_type,
+                                 test_minio_upload_with_content_type]},
+     {real_upload_without_acl, [], [test_minio_upload_without_content_type,
+                                    test_minio_upload_with_content_type]},
+     {mod_http_upload_s3, [], [
+                               http_upload_item_discovery,
+                               http_upload_feature_discovery,
+                               advertises_max_file_size,
+                               request_slot,
+                               rejects_set_iq,
+                               rejects_disco_set_iq,
+                               rejects_feature_discovery_with_node,
+                               get_url_ends_with_filename,
+                               urls_contain_s3_hostname,
+                               rejects_empty_filename,
+                               rejects_negative_filesize,
+                               rejects_invalid_size_type,
+                               denies_slots_over_max_file_size,
+                               sends_different_put_and_get_urls,
+                               escapes_urls_once
+                              ]}].
 
 suite() ->
     escalus:suite().
@@ -104,28 +105,28 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(unset_size, Config) ->
-    dynamic_modules:start(host(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
+    dynamic_modules:start(host_type(), mod_http_upload, [{max_file_size, undefined} | ?S3_OPTS]),
     escalus:create_users(Config, escalus:get_users([bob]));
 init_per_group(real_upload_without_acl, Config) ->
     case mongoose_helper:should_minio_be_running(Config) of
         true ->
-            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(false)),
+            dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(false)),
             escalus:create_users(Config, escalus:get_users([bob]));
         false -> {skip, "minio is not running"}
     end;
 init_per_group(real_upload_with_acl, Config) ->
     case mongoose_helper:should_minio_be_running(Config) of
         true ->
-            dynamic_modules:start(host(), mod_http_upload, ?MINIO_OPTS(true)),
+            dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(true)),
             [{with_acl, true} | escalus:create_users(Config, escalus:get_users([bob]))];
         false -> {skip, "minio is not running"}
     end;
 init_per_group(_, Config) ->
-    dynamic_modules:start(host(), mod_http_upload, ?S3_OPTS),
+    dynamic_modules:start(host_type(), mod_http_upload, ?S3_OPTS),
     escalus:create_users(Config, escalus:get_users([bob])).
 
 end_per_group(_, Config) ->
-    dynamic_modules:stop(host(), mod_http_upload),
+    dynamic_modules:stop(host_type(), mod_http_upload),
     escalus:delete_users(Config, escalus:get_users([bob])).
 
 init_per_testcase(CaseName, Config) ->
@@ -469,11 +470,7 @@ has_field(Var, Type, Value, Form) ->
     lists:any(fun(Item) -> VarFits(Item) andalso TypeFits(Item) andalso ValueFits(Item) end,
               Fields).
 
-host() ->
-    ct:get_config({hosts, mim, domain}).
-
 extract_url(Result, UrlType) ->
     exml_query:path(Result, [{element, <<"slot">>}, {element, UrlType}, {attr, <<"url">>}]).
 
 ns() -> ?NS_HTTP_UPLOAD_030.
-
