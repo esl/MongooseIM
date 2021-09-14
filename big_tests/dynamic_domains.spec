@@ -81,6 +81,8 @@
 
 {suites, "tests", rest_client_SUITE}.
 
+{suites, "tests", sasl_SUITE}.
+
 {suites, "tests", service_domain_db_SUITE}.
 
 {suites, "tests", sic_SUITE}.

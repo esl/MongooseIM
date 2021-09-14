@@ -39,9 +39,8 @@ all() ->
      {group, node_config}].
 
 groups() ->
-    G = [{domain_config, [sequence], all_tests()},
-         {node_config, [sequence], all_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{domain_config, [sequence], all_tests()},
+     {node_config, [sequence], all_tests()}].
 
 all_tests() ->
     [text_response].
@@ -90,8 +89,8 @@ text_response(Config) ->
 %%--------------------------------------------------------------------
 
 mech_option_key(domain_config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    {sasl_mechanisms, Domain};
+    HostType = domain_helper:host_type(),
+    {sasl_mechanisms, HostType};
 mech_option_key(node_config) ->
     sasl_mechanisms.
 
