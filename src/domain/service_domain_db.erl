@@ -13,13 +13,13 @@
 -export([start_link/0]).
 -export([enabled/0]).
 -export([force_check_for_updates/0]).
--export([sync/0, sync_local/0]).
+-export([sync_local/0]).
 
 %% exported for integration tests only!
 -export([reset_last_event_id/0]).
 
 -ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2,
-              init/1, start_link/0, sync/0, sync_local/0, terminate/2, reset_last_event_id/0]).
+              init/1, start_link/0, sync_local/0, terminate/2, reset_last_event_id/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -73,16 +73,6 @@ force_check_for_updates() ->
     case ?PG_GET_MEMBERS(?GROUP) of
         [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
-            ok;
-        _ ->
-            ok
-    end.
-
-%% Does nothing but blocks until every member processes its queue.
-sync() ->
-    case ?PG_GET_MEMBERS(?GROUP) of
-        [_|_] = Pids ->
-            [gen_server:call(Pid, ping) || Pid <- Pids],
             ok;
         _ ->
             ok
