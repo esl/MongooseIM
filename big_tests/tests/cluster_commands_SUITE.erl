@@ -24,6 +24,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
+-import(domain_helper, [host_type/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -41,11 +42,10 @@ all() ->
      {group, clustering_three}].
 
 groups() ->
-    G = [{clustered, [], [one_to_one_message]},
-         {clustering_two, [], clustering_two_tests()},
-         {clustering_three, [], clustering_three_tests()},
-         {mnesia, [], [set_master_test]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{clustered, [], [one_to_one_message]},
+     {clustering_two, [], clustering_two_tests()},
+     {clustering_three, [], clustering_three_tests()},
+     {mnesia, [], [set_master_test]}].
 
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
@@ -189,12 +189,10 @@ one_to_one_message(ConfigIn) ->
 %%--------------------------------------------------------------------
 
 set_master_test(ConfigIn) ->
-    Host = ct:get_config({hosts, mim, domain}),
-
     %% To ensure that passwd table exists.
     %% We also need at least two nodes for set_master to work.
-    catch distributed_helper:rpc(mim(), ejabberd_auth_internal, start, [Host]),
-    catch distributed_helper:rpc(mim2(), ejabberd_auth_internal, start, [Host]),
+    catch distributed_helper:rpc(mim(), ejabberd_auth_internal, start, [host_type(mim1)]),
+    catch distributed_helper:rpc(mim2(), ejabberd_auth_internal, start, [host_type(mim2)]),
 
     TableName = passwd,
     NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
