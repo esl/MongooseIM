@@ -210,6 +210,10 @@
   initial_report = 300_000
   periodic_report = 10_800_000
 
+{{#service_domain_db}}
+[services.service_domain_db]
+{{{service_domain_db}}}
+{{/service_domain_db}}
 [modules.mod_adhoc]
 
 {{#mod_amp}}

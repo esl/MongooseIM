@@ -36,10 +36,10 @@ make_metrics_prefix(HostType) ->
     rpc(mim(), mongoose_metrics, make_host_type_name, [HostType]).
 
 insert_configured_domains() ->
-    for_each_configured_domain(fun insert_domain/3).
+    for_each_configured_domain(fun insert_persistent_domain/3).
 
 delete_configured_domains() ->
-    for_each_configured_domain(fun(Node, Domain, _) -> delete_domain(Node, Domain) end).
+    for_each_configured_domain(fun delete_persistent_domain/3).
 
 insert_domain(Node, Domain, HostType) ->
     ok = rpc(Node, mongoose_domain_core, insert, [Domain, HostType, dummy_source]).
@@ -47,8 +47,23 @@ insert_domain(Node, Domain, HostType) ->
 delete_domain(Node, Domain) ->
     ok = rpc(Node, mongoose_domain_core, delete, [Domain]).
 
+insert_persistent_domain(Node, Domain, HostType) ->
+    ok = rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
+
+delete_persistent_domain(Node, Domain, HostType) ->
+    ok = rpc(Node, mongoose_domain_api, delete_domain, [Domain, HostType]).
+
 for_each_configured_domain(F) ->
-    [F(#{node => proplists:get_value(node, Opts)}, Domain, HostType) ||
-        {_, Opts} <- ct:get_config(hosts),
-        {HostType, Domains} <- proplists:get_value(dynamic_domains, Opts, []),
-        Domain <- Domains].
+    [for_each_configured_domain(F, Opts) || {_, Opts} <- ct:get_config(hosts)],
+    ok.
+
+for_each_configured_domain(F, Opts) ->
+    case proplists:get_value(dynamic_domains, Opts, []) of
+        [] ->
+            ok;
+        DomainsByHostType ->
+            Node = #{node => proplists:get_value(node, Opts)},
+            [F(Node, Domain, HostType) || {HostType, Domains} <- DomainsByHostType,
+                                          Domain <- Domains],
+            rpc(Node, service_domain_db, sync_local, [])
+    end.

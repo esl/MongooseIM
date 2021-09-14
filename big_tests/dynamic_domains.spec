@@ -23,9 +23,13 @@
 
 {suites, "tests", carboncopy_SUITE}.
 
+{suites, "tests", cluster_commands_SUITE}.
+
 {suites, "tests", disco_and_caps_SUITE}.
 
 {suites, "tests", domain_isolation_SUITE}.
+
+{suites, "tests", dynamic_domains_SUITE}.
 
 {suites, "tests", inbox_SUITE}.
 
@@ -76,6 +80,8 @@
 {suites, "tests", rest_SUITE}.
 
 {suites, "tests", rest_client_SUITE}.
+
+{suites, "tests", service_domain_db_SUITE}.
 
 {suites, "tests", sic_SUITE}.
 

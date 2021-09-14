@@ -195,6 +195,7 @@ end_per_suite(Config) ->
     Conf2 = proplists:get_value(mim_conf2, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
+    domain_helper:insert_configured_domains(),
     dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
     escalus:end_per_suite(Config).
 
@@ -504,7 +505,7 @@ db_deleted_from_one_node_while_service_disabled_on_another(_) ->
     service_disabled(mim2()),
     %% Removed from the first node
     ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
-    sync(),
+    sync_local(mim()),
     {error, not_found} = get_host_type(mim(), <<"example.com">>),
     {ok, <<"dbgroup">>} = get_host_type(mim2(), <<"example.com">>),
     %% Sync is working again
@@ -529,9 +530,9 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     service_disabled(mim2()),
     %% Removed from the first node
     ok = delete_domain(mim(), <<"example.com">>, <<"dbgroup">>),
-    sync(),
+    sync_local(mim()),
     ok = insert_domain(mim(), <<"example.com">>, <<"dbgroup2">>),
-    sync(),
+    sync_local(mim()),
     %% Sync is working again
     service_enabled(mim2()),
     sync(),
@@ -1036,7 +1037,8 @@ enable_domain(Node, Domain) ->
 
 %% Call sync before get_host_type, if there are some async changes expected
 sync() ->
-    rpc(mim(), service_domain_db, sync, []).
+    sync_local(mim()),
+    sync_local(mim2()).
 
 sync_local(Node) ->
     rpc(Node, service_domain_db, sync_local, []).
