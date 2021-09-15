@@ -25,6 +25,8 @@
 
 {suites, "tests", cluster_commands_SUITE}.
 
+{suites, "tests", connect_SUITE}.
+
 {suites, "tests", disco_and_caps_SUITE}.
 
 {suites, "tests", domain_isolation_SUITE}.
