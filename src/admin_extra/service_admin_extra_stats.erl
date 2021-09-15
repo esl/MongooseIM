@@ -69,9 +69,9 @@ stats(Name) ->
         <<"uptimeseconds">> ->
             trunc(element(1, erlang:statistics(wall_clock))/1000);
         <<"registeredusers">> ->
-            lists:sum([
-                    ejabberd_auth:get_vh_registered_users_number(Server)
-                    || Server <- ejabberd_config:get_global_option(hosts) ]);
+            Domains = lists:flatmap(fun mongoose_domain_api:get_domains_by_host_type/1,
+                                    ?ALL_HOST_TYPES),
+            lists:sum([ejabberd_auth:get_vh_registered_users_number(Domain) || Domain <- Domains]);
         <<"onlineusersnode">> ->
             ejabberd_sm:get_node_sessions_number();
         <<"onlineusers">> ->
