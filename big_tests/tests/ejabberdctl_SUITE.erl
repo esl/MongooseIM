@@ -115,20 +115,19 @@ all() ->
     ].
 
 groups() ->
-    G = [{accounts, [sequence], accounts()},
-         {sessions, [sequence], sessions()},
-         {vcard, [sequence], vcard()},
-         {roster, [sequence], roster()},
-         {last, [sequence], last()},
-         {private, [sequence], private()},
-         {stanza, [sequence], stanza()},
-         {roster_advanced, [sequence], roster_advanced()},
-         {basic, [sequence], basic()},
-         {stats, [sequence], stats()},
-         {upload, [], upload()},
-         {upload_with_acl, [], upload_enabled()},
-         {upload_without_acl, [], upload_enabled()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{accounts, [sequence], accounts()},
+     {sessions, [sequence], sessions()},
+     {vcard, [sequence], vcard()},
+     {roster, [sequence], roster()},
+     {last, [sequence], last()},
+     {private, [sequence], private()},
+     {stanza, [sequence], stanza()},
+     {roster_advanced, [sequence], roster_advanced()},
+     {basic, [sequence], basic()},
+     {stats, [sequence], stats()},
+     {upload, [], upload()},
+     {upload_with_acl, [], upload_enabled()},
+     {upload_without_acl, [], upload_enabled()}].
 
 basic() ->
     [simple_register,
