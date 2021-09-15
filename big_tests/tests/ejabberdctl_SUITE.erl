@@ -26,6 +26,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 
 -define(HTTP_UPLOAD_FILENAME, "tmp.txt").
 -define(HTTP_UPLOAD_FILESIZE, "5").
@@ -39,7 +40,7 @@
 -define(HTTP_UPLOAD_PARAMS_WITH_TIMEOUT(X), ?HTTP_UPLOAD_PARAMS(?HTTP_UPLOAD_FILENAME,
                                                                 ?HTTP_UPLOAD_FILESIZE, "", X)).
 -define(HTTP_UPLOAD_PARAMS(FileName, FileSize, ContentType, Timeout),
-    [ct:get_config({hosts, mim, domain}), FileName, FileSize, ContentType, Timeout]).
+    [domain(), FileName, FileSize, ContentType, Timeout]).
 
 -define(CTL_ERROR(Messsage), "Error: \"" ++ Messsage ++ "\"\n").
 -define(HTTP_UPLOAD_NOT_ENABLED_ERROR, ?CTL_ERROR("mod_http_upload is not loaded for this host")).
@@ -115,20 +116,19 @@ all() ->
     ].
 
 groups() ->
-    G = [{accounts, [sequence], accounts()},
-         {sessions, [sequence], sessions()},
-         {vcard, [sequence], vcard()},
-         {roster, [sequence], roster()},
-         {last, [sequence], last()},
-         {private, [sequence], private()},
-         {stanza, [sequence], stanza()},
-         {roster_advanced, [sequence], roster_advanced()},
-         {basic, [sequence], basic()},
-         {stats, [sequence], stats()},
-         {upload, [], upload()},
-         {upload_with_acl, [], upload_enabled()},
-         {upload_without_acl, [], upload_enabled()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{accounts, [sequence], accounts()},
+     {sessions, [sequence], sessions()},
+     {vcard, [sequence], vcard()},
+     {roster, [sequence], roster()},
+     {last, [sequence], last()},
+     {private, [sequence], private()},
+     {stanza, [sequence], stanza()},
+     {roster_advanced, [sequence], roster_advanced()},
+     {basic, [sequence], basic()},
+     {stats, [sequence], stats()},
+     {upload, [], upload()},
+     {upload_with_acl, [], upload_enabled()},
+     {upload_without_acl, [], upload_enabled()}].
 
 basic() ->
     [simple_register,
@@ -192,12 +192,19 @@ init_per_suite(Config) ->
     Node = mim(),
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
-                                        {roster_template, TemplatePath} | Config1]),
+                                      {roster_template, TemplatePath} | Config1]),
+    prepare_roster_template(TemplatePath, domain()),
     %% dump_and_load requires at least one mnesia table
     %% ensure, that passwd table is available
-    Host = ct:get_config({hosts, mim, domain}),
-    catch rpc_call(ejabberd_auth_internal, start, [Host]),
+    catch rpc_call(ejabberd_auth_internal, start, [host_type()]),
     escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
+
+prepare_roster_template(TemplatePath, Domain) ->
+    {ok, [RosterIn]} = file:consult(TemplatePath ++ ".in"),
+    DomainStr = binary_to_list(Domain),
+    Roster = [{User, DomainStr, Group, Name} || {User, Group, Name} <- RosterIn],
+    FormattedRoster = io_lib:format("~tp.~n", [Roster]),
+    file:write_file(TemplatePath, FormattedRoster).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
@@ -205,30 +212,24 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(vcard, Config) ->
-    case rpc(mim(), gen_mod, get_module_opt,
-             [ct:get_config({hosts, mim, domain}), mod_vcard, backend, mnesia])
-    of
+    case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_vcard, backend, mnesia]) of
         ldap ->
             {skip, vcard_set_not_supported_with_ldap};
         _ ->
             Config
     end;
 init_per_group(roster_advanced, Config) ->
-    case rpc(mim(), gen_mod, get_module_opt,
-             [ct:get_config({hosts, mim, domain}), mod_roster, backend, mnesia])
-    of
+    case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, backend, mnesia]) of
         mnesia ->
             Config;
         _ ->
             {skip, command_process_rosteritems_supports_only_mnesia}
     end;
 init_per_group(upload_without_acl, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_http_upload, ?MINIO_OPTS(false)),
+    dynamic_modules:start(host_type(),  mod_http_upload, ?MINIO_OPTS(false)),
     [{with_acl, false} | Config];
 init_per_group(upload_with_acl, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_http_upload, ?MINIO_OPTS(true)),
+    dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(true)),
     [{with_acl, true} | Config];
 init_per_group(_GroupName, Config) ->
     Config.
@@ -252,25 +253,21 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
     Config;
 end_per_group(UploadGroup, Config) when UploadGroup =:= upload_without_acl;
                                         UploadGroup =:= upload_with_acl ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_http_upload),
+    dynamic_modules:stop(host_type(), mod_http_upload),
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
 get_registered_users() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Users = rpc(mim(), ejabberd_auth, get_vh_registered_users, [Host]).
+    rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()]).
 
 init_per_testcase(CaseName, Config)
-  % these cases are incompatible with domainless rdbms schema
   when CaseName == delete_old_users_vhost
        orelse CaseName == stats_global
        orelse CaseName == stats_host ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
-    case lists:member(ejabberd_auth_rdbms, AuthMods) orelse
-         lists:member(ejabberd_auth_ldap, AuthMods) of
-        true -> {skip, vhost_rdbms_incompatible};
+    case lists:member(ejabberd_auth_ldap, AuthMods) of
+        true -> {skip, "not supported for LDAP"};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(check_password_hash, Config) ->
@@ -1086,7 +1083,7 @@ stats_host(Config) ->
 
 simple_register(Config) ->
     %% given
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {R1, 0} = ejabberdctl("registered_users", [Domain], Config),
@@ -1101,7 +1098,7 @@ simple_register(Config) ->
 
 simple_unregister(Config) ->
     %% given
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     {Name, _} = {<<"tyler">>, <<"durden">>},
     %% when
     {_, 0} = ejabberdctl("unregister", [Name, Domain], Config),
@@ -1111,7 +1108,7 @@ simple_unregister(Config) ->
 
 register_twice(Config) ->
     %% given
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {_, 0} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
@@ -1201,8 +1198,8 @@ remove_old_messages_test(Config) ->
         OfflineOld = generate_offline_message(JidRecordAlice, JidRecordBob, Msg1, OldTimestamp),
         OfflineNew = generate_offline_message(JidRecordAlice, JidRecordBob, Msg2, os:system_time(microsecond)),
         {jid, _, _, _, LUser, LServer, _} = JidRecordBob,
-        HostType = domain_helper:host_type(),
-        rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, [OfflineOld, OfflineNew]]),
+        HostType = host_type(),
+        rpc_call(mod_offline_backend, write_messages, [host_type(), LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
         {_, 0} = ejabberdctl("delete_old_messages", [LServer, "1"], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [HostType, JidRecordBob]),
@@ -1239,7 +1236,7 @@ remove_expired_messages_test(Config) ->
                                                           ExpirationTimeFuture),
         {jid, _, _, _, LUser, LServer, _} = JidRecordKate,
         Args = [OfflineOld, OfflineNow, OfflineFuture, OfflineFuture2],
-        HostType = domain_helper:host_type(),
+        HostType = host_type(),
         rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, Args]),
         %% when
         {_, 0} = ejabberdctl("delete_expired_messages", [LServer], Config),
@@ -1289,9 +1286,8 @@ get_sha(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
-    HostType = domain_helper:host_type(),
     rpc(mim(), mod_last, store_last_info,
-        [HostType, escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
+        [host_type(), escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),

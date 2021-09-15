@@ -122,11 +122,11 @@ private_set2(Username, Host, Xml) ->
             {user_does_not_exist, io_lib:format("User ~s does not exist", [jid:to_binary(JID)])}
     end.
 
-do_private_set2(#jid{lserver = Host} = JID, Xml) ->
-    case is_private_module_loaded(Host) of
+do_private_set2(#jid{lserver = Domain} = JID, Xml) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
+    case is_private_module_loaded(HostType) of
         true ->
             From = To = JID,
-            {ok, HostType} = mongoose_domain_api:get_domain_host_type(From#jid.lserver),
             IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
                   #xmlel{ name = <<"query">>,
                           attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
@@ -134,13 +134,13 @@ do_private_set2(#jid{lserver = Host} = JID, Xml) ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                       from_jid => From,
                                       to_jid => To,
-                                      lserver => From#jid.lserver,
+                                      lserver => Domain,
                                       host_type => HostType,
                                       element => jlib:iq_to_xml(IQ) }),
             mod_private:process_iq(Acc, From, To, IQ, #{}),
             {ok, ""};
         false ->
-            {not_loaded, io_lib:format("Module mod_private is not loaded on host ~s", [Host])}
+            {not_loaded, io_lib:format("Module mod_private is not loaded on domain ~s", [Domain])}
     end.
 
 -spec is_private_module_loaded(jid:server()) -> true | false.

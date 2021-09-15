@@ -462,11 +462,10 @@ backup_sasl_mechanisms_config(Config) ->
     [{global_sasl_mechanisms, GlobalSASLMechanisms},
      {host_sasl_mechanisms, HostSASLMechanisms} | Config].
 
-
 restore_auth_config(Config) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    HostType = domain_helper:host_type(),
     AuthOpts = proplists:get_value(auth_opts, Config),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, AuthOpts]).
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, HostType}, AuthOpts]).
 
 restore_sasl_mechanisms_config(Config) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
