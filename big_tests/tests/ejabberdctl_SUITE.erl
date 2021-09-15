@@ -191,12 +191,20 @@ init_per_suite(Config) ->
     Node = mim(),
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
-                                        {roster_template, TemplatePath} | Config1]),
+                                      {roster_template, TemplatePath} | Config1]),
+    prepare_roster_template(TemplatePath, domain()),
     %% dump_and_load requires at least one mnesia table
     %% ensure, that passwd table is available
     Host = ct:get_config({hosts, mim, domain}),
     catch rpc_call(ejabberd_auth_internal, start, [Host]),
     escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
+
+prepare_roster_template(TemplatePath, Domain) ->
+    {ok, [RosterIn]} = file:consult(TemplatePath ++ ".in"),
+    DomainStr = binary_to_list(Domain),
+    Roster = [{User, DomainStr, Group, Name} || {User, Group, Name} <- RosterIn],
+    FormattedRoster = io_lib:format("~tp.~n", [Roster]),
+    file:write_file(TemplatePath, FormattedRoster).
 
 end_per_suite(Config) ->
     Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
