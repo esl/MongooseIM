@@ -39,8 +39,8 @@ markdown_extensions:
   - pymdownx.tabbed
 
 nav:
+  - 'Home': 'index.md'
   - 'Getting Started':
-      - 'Overview': 'getting-started/Overview.md'
       - 'Installation': 'getting-started/Installation.md'
       - 'Quick Setup': 'getting-started/Quick-setup.md'
   - 'User Guide':

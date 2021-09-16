@@ -61,7 +61,7 @@ For a quick start just download:
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
 * The [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim) ([source code repository](https://github.com/esl/MongooseHelm))
 
-See the [installation guide](./Installation.md) for more details.
+See the [installation guide](getting-started/Installation.md) for more details.
 
 ## Public testing
 
