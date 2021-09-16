@@ -447,7 +447,7 @@ MUC rooms can be protected by a password that is set by the room owner.
 Note that MongooseIM supports another custom solution, where each attempt to enter or create a room requires the password to be checked by an external HTTP service.
 To enable this option, you need to:
 
-* Configure an [HTTP connection pool](../advanced-configuration/outgoing-connections.md#http-options).
+* Configure an [HTTP connection pool](../configuration/outgoing-connections.md#http-options).
 * Set the name of the connection pool as the value of the `http_auth_pool` option of `mod_muc`.
 * Enable the `password_protected` default room option (without setting the password itself).
 

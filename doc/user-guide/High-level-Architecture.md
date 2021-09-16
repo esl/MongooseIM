@@ -7,7 +7,7 @@
 At its core MongooseIM is a huge message router you can customise to fit your system's needs.
 You can choose and enable behaviours and functionalities by configuring any of the available modules.
 A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations.
-See [Extension Modules](../advanced-configuration/Modules.md) for a full list.
+See [Extension Modules](../configuration/Modules.md) for a full list.
 
 Modules can be configured and started either for all virtual hosts served by the instance or with individual configuration for only some of them.
 Modules may depend on services and on other modules.
@@ -26,7 +26,7 @@ Modules which are not host-specific are gradually being refactored to services.
 
 MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
-Please refer to [Database Backends](../advanced-configuration/database-backends-configuration.md) doc for more configuration information.
+Please refer to [Database Backends](../configuration/database-backends-configuration.md) doc for more configuration information.
 
 #### Transient databases
 
@@ -50,7 +50,7 @@ Backups should be regular, and tested.
 
 ## Outside MongooseIM: ecosystem in a datacenter
 
-![MongooseIM high-level architecture](MongooseIM_high-level_architecture.png)
+![MongooseIM high-level architecture](high-level_architecture.png)
 
 ### Frontend
 
@@ -84,7 +84,7 @@ Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
-![MongooseIM worldwide architecture](MongooseIM_worldwide_architecture.png)
+![MongooseIM worldwide architecture](worldwide_architecture.png)
 
 The MongooseIM platform enables a service to scale worldwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 

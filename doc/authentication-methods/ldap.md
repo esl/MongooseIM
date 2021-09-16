@@ -20,7 +20,7 @@ Example:
   connection.password = "ldap-admin-password"
 ```
 
-For more details see [outgoing connections](../advanced-configuration/outgoing-connections.md).
+For more details see [outgoing connections](../configuration/outgoing-connections.md).
 
 ### SASL PLAIN
 
@@ -44,7 +44,7 @@ Example:
   connection.servers = ["ldap-server.example.com"]
 ```
 
-For more details see [outgoing connections](../advanced-configuration/outgoing-connections.md).
+For more details see [outgoing connections](../configuration/outgoing-connections.md).
 
 ## Configuration options
 

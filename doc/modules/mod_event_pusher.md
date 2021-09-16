@@ -11,7 +11,7 @@ and outgoing) are already hooked up to the frontend via `mod_event_pusher_hook_t
 handler.
 
 !!! warning
-    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## Options
 

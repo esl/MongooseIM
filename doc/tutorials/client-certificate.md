@@ -25,7 +25,7 @@ Please check [Options: Listen](../../advanced-configuration/listen/#http-based-s
 ### Enable `SASL EXTERNAL` mechanism
 
 A `SASL EXTERNAL` authentication mechanism is disabled by default.
-In order to enable it, please configure [`auth.sasl_mechanisms` option](../advanced-configuration/auth.md#authsasl_mechanisms) in the MongooseIM config file.
+In order to enable it, please configure [`auth.sasl_mechanisms` option](../configuration/auth.md#authsasl_mechanisms) in the MongooseIM config file.
 ```toml
 [auth]
   sasl_mechanisms = ["external"]
@@ -37,7 +37,7 @@ The `SASL EXTERNAL` authentication mechanism requires a digital client certifica
 This digital certificate should contain `xmppAddr` field(s), which is always checked first.
 If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
 
-When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide the client's username, but it is optional and can be configured with the [`sasl_external`](../advanced-configuration/auth.md#authsasl_external) option in the `auth` section.
+When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide the client's username, but it is optional and can be configured with the [`sasl_external`](../configuration/auth.md#authsasl_external) option in the `auth` section.
 
 If the client certificate does not contain a JID, the client must provide one in authorisation entity.
 
@@ -45,7 +45,7 @@ For the details please refer to [XEP-0178: Best Practices for Use of SASL EXTERN
 
 ### Enable compatible authentication method
 
-You need to enable one of the following authentication methods by using the [`auth.methods` option](../advanced-configuration/auth.md#authmethods) in the MongooseIM configuration file.
+You need to enable one of the following authentication methods by using the [`auth.methods` option](../configuration/auth.md#authmethods) in the MongooseIM configuration file.
 
 * `"pki"` - accepts user credentials,
 * `"http"` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)

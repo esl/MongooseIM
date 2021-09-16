@@ -98,7 +98,7 @@ tools/configure with-all
 MongooseIM packages are built with Jingle/SIP support.
 
 !!! warning
-    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## Options
 

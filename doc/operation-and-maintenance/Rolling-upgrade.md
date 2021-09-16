@@ -47,7 +47,7 @@ For example, when migrating from MongooseIM 3.7 to 4.1, please familiarize yours
 
 ### 4. Stop the running node.
 
-Use the following command to stop the MognooseIM node:
+Use the following command to stop the MongooseIM node:
 
 ```bash
 mongooseimctl stop
@@ -55,11 +55,11 @@ mongooseimctl stop
 
 ### 5. Install new MongooseIM version.
 
-You can get the new version of MongooseIM by either [building MongooseIM from source code](../user-guide/How-to-build.md) or [downloading and upgrading from package](../../user-guide/Getting-started/#download-a-package).
+You can get the new version of MongooseIM by either [building MongooseIM from source code](../tutorials/How-to-build.md) or [downloading and upgrading from package](../getting-started/Installation.md).
 
 ### 6. Start the node.
 
-Use the following command to start and check the status of the MognooseIM node and the cluster:
+Use the following command to start and check the status of the MongooseIM node and the cluster:
 
 ```bash
 mongooseimctl start

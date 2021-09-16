@@ -4,7 +4,7 @@ This module enables global distribution of a single XMPP domain.
 With `mod_global_distrib`, multiple distinct MongooseIM clusters can share a single domain name and route messages to the specific datacenter where the recipient is available.
 
 !!! warning
-    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## How it works
 
@@ -225,7 +225,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 * **Default:** `"global_distrib"`
 * **Example:** `pool = "global_distrib"`
 
-Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
+Name of the redis pool defined in [outgoing pools](../configuration/outgoing-connections.md).
 
 #### `modules.mod_global_distrib.redis.expire_after`
 * **Syntax:** positive integer

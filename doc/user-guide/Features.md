@@ -18,7 +18,7 @@ Some traits that make it unique include:
 ## Architecture
 
 MongooseIM brings configurability, scalability and fault-tolerance to the core feature of XMPP – routing messages.
-Its architecture is based on a set of pluggable [extension modules](../advanced-configuration/Modules.md) that enable different features, including:
+Its architecture is based on a set of pluggable [extension modules](../configuration/Modules.md) that enable different features, including:
 
 -   Websockets: long-lived connections in the browser
 -   BOSH: HTTP long-polling
@@ -37,7 +37,7 @@ This modular architecture allows high customisability and easy access to the req
 MongooseIM enables authenticating users using external or internal [databases](../authentication-methods/rdbms.md) (Mnesia, RDBMS, NoSQL), [LDAP](../authentication-methods/ldap.md), [HTTP](../authentication-methods/http.md) or [external scripts](../authentication-methods/external.md). It also allows connecting [anonymous users](../authentication-methods/anonymous.md), when required.
 
 For storing persistent data, MongooseIM uses Mnesia (the distributed internal Erlang database), relational databases: MySQL, PostgreSQL or a NoSQL alternative: Riak KV.
-Please take a look at [database backends configurations](../advanced-configuration/database-backends-configuration.md) to learn more.
+Please take a look at [database backends configurations](../configuration/database-backends-configuration.md) to learn more.
 If necessary, MongooseIM can be customised to work with a different database.
 You can [contact us](https://www.erlang-solutions.com/contact/) to learn more.
 
@@ -70,7 +70,7 @@ For load testing consider [Tide](http://tide.erlang-solutions.com/), another Erl
 
 MongooseIM supports multi-tenancy.
 This makes it possible to set up thousands of domains dynamically without a noticeable performance overhead.
-On more information on how to set up this feature, see [dynamic domains configuration](../advanced-configuration/general.md#generalhost_types) and [REST API for dynamic domains](../rest-api/Dynamic-domains.md).
+On more information on how to set up this feature, see [dynamic domains configuration](../configuration/general.md#generalhost_types) and [REST API for dynamic domains](../rest-api/Dynamic-domains.md).
 
 ## Integration with other platform components
 
@@ -86,8 +86,8 @@ In order to build client applications, the MongooseIM team recommends the follow
 
 ### MongoosePUSH
 MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
-For more details visit the push notification [user guide](./push-notifications/Push-notifications.md).
+For more details visit the push notification [user guide](../tutorials/push-notifications/Push-notifications.md).
 
 ### MongooseICE
 You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE).
-To get started, we recommend going through [this tutorial](ICE_tutorial.md).
+To get started, we recommend going through [this tutorial](../tutorials/ICE_tutorial.md).

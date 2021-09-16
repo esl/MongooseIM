@@ -22,8 +22,8 @@ To activate those commands, put the modules you need into the `mongooseim.toml` 
 ```
 
 You also have to hook the `mongoose_api_admin` module to an HTTP endpoint as described
-in the [admin REST API handlers configuration](../advanced-configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
-section of the [listeners](../advanced-configuration/listen.md) documentation.
+in the [admin REST API handlers configuration](../configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
+section of the [listeners](../configuration/listen.md) documentation.
 
 ## OpenAPI specifications
 

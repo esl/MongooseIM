@@ -7,7 +7,7 @@ When a default value for an option is defined with "top-level/XXX", it means tha
 If it is not defined, XXX becomes the default value.
 
 !!! warning
-    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## Options: general
 

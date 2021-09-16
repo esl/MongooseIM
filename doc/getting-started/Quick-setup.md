@@ -16,7 +16,7 @@ If you have not installed MIM, please refer to the [installation instructions](.
     MongooseIM will use its default database - Mnesia, which is faster and simpler to set up, but not intended for production purposes when it comes to persistent data.
 
 !!! Note
-    It is possible at anytime to use external databases. For more information, see the [database backend configuration](../advanced-configuration/database-backends-configuration.md) page.
+    It is possible at anytime to use external databases. For more information, see the [database backend configuration](../configuration/database-backends-configuration.md) page.
 
 The following command will start the MongooseIM server:
 ```bash
@@ -155,7 +155,7 @@ The main configuration file of MongooseIM is `mongooseim.toml`:
 /etc/mongooseim/mongooseim.toml
 ```
 You can edit this file to tailor MongooseIM to your needs.
-Learn more about MongooseIM [configuration files](../advanced-configuration/configuration-files.md) in general, or jump right into the [documentations of different `mongooseim.toml` sections](../advanced-configuration/general.md). 
+Learn more about MongooseIM [configuration files](../configuration/configuration-files.md) in general, or jump right into the [documentations of different `mongooseim.toml` sections](../configuration/general.md). 
 
 For each change, edit the configuration file using the right Linux/Unix user.
 Save (and optionally backup, archive, or version) the configuration file and restart the MongooseIM server.

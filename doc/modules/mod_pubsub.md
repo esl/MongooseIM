@@ -12,7 +12,7 @@ Such an architecture makes it much easier to write custom pubsub plugins and add
 It's all about tailoring PubSub to your needs!
 
 !!! warning
-    This module does not support [dynamic domains](../advanced-configuration/general.md#generalhost_types).
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## Options
 

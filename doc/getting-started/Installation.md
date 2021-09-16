@@ -6,7 +6,7 @@ There are multiple ways in which you can get MongooseIM:
 * get the [Docker image](#docker),
 * use the [Helm chart](#helm).
 
-Alternatively, check out our tutorial on [How to build MongooseIM from source code](../user-guide/How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
+Alternatively, check out our tutorial on [How to build MongooseIM from source code](../tutorials/How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
 
 ## Packages
 
@@ -73,4 +73,4 @@ You can use any name instead of `my-mongooseim`, or generate a random name.
 
 ## Source
 
-Please see the tutorial [How to build MongooseIM from source code](../user-guide/How-to-build.md).
+Please see the tutorial [How to build MongooseIM from source code](../tutorials/How-to-build.md).

@@ -24,4 +24,4 @@ To add a new pool type, create a `mongoose_wpool_NEW_TYPE` module implementing t
 This means that for a new type `xyz` we need to create a `mongoose_wpool_xyz` module.
 Then we can use the `xyz` type to start the pool via `outgoing_pools` option or directly via the `mongoose_wpool` API.
 
-[outgoing pools]: ../advanced-configuration/outgoing-connections.md
+[outgoing pools]: ../configuration/outgoing-connections.md

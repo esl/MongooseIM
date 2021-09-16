@@ -132,5 +132,5 @@ the defaults are used instead.
 [mod_event_pusher]: ./mod_event_pusher.md
 [XEP-0198]: https://xmpp.org/extensions/xep-0198.html
 [enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
-[tutorial]: ../user-guide/push-notifications/Push-notifications.md
+[tutorial]: ../tutorials/push-notifications/Push-notifications.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html

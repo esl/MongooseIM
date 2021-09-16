@@ -288,14 +288,14 @@ Riak index name.
 
 ### Cassandra backend
 
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-options) page to learn how to properly configure Cassandra connection pool.
+Please consult [Outgoing connections](../configuration/outgoing-connections.md#cassandra-options) page to learn how to properly configure Cassandra connection pool.
 By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag.
 
 
 ### ElasticSearch backend
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
+Please consult [Outgoing connections](../configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
 
 ## Example configuration
 

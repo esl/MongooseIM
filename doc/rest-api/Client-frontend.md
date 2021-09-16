@@ -36,13 +36,13 @@ Authorization: Basic YWxpY2VAbG9jYWxob3N0OnNlY3JldA==
 
 ## Configuration
 
-Handlers have to be configured as shown in the [REST API configuration example](../advanced-configuration/listen.md#example-3-client-api)
+Handlers have to be configured as shown in the [REST API configuration example](../configuration/listen.md#example-3-client-api)
 to enable REST API.
 
 In order to get the client REST API up and running simply copy the provided example.
 For more details about possible configuration parameters please see the relevant
-documentation of the [listeners](../advanced-configuration/listen.md),
-in particular the [client REST API handlers](../advanced-configuration/listen.md#handler-types-rest-api-client)
+documentation of the [listeners](../configuration/listen.md),
+in particular the [client REST API handlers](../configuration/listen.md#handler-types-rest-api-client)
 section.
 
 ## Smack library support

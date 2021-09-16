@@ -86,7 +86,7 @@ mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
 You should also configure the MySQL database in the `mongooseim.toml` file.
-Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options) for more information.
+Please refer to the [RDBMS options](/outgoing-connections.md#rdbms-options) for more information.
 
 **Version notice**
 
@@ -123,7 +123,7 @@ psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
 You should also configure the Postgres database in the `mongooseim.toml` file.
-Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options)
+Please refer to the [RDBMS options](/outgoing-connections.md#rdbms-options)
 and [general database options](general.md#database-settings)
 for more information.
 
@@ -318,8 +318,8 @@ riak-admin bucket-type activate privacy_lists
 This will create bucket types, search schemas and indexes required for storing the above persitent data and it will activate them.
 
 You should also configure Riak in the `mongooseim.toml` file.
-Please refer to the [RDBMS options](../advanced-configuration/outgoing-connections.md#rdbms-options)
-and [Riak options](../advanced-configuration/outgoing-connections.md#riak-options) for more information.
+Please refer to the [RDBMS options](/outgoing-connections.md#rdbms-options)
+and [Riak options](/outgoing-connections.md#riak-options) for more information.
 
 ### Cassandra
 
@@ -351,7 +351,7 @@ curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
 
 where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
 
-Please refer to the [advanced configuration](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
+Please refer to the [advanced configuration](/outgoing-connections.md#elasticsearch-options) page to check how to configure MongooseIM to connect to ElasticSearch node.
 
 ### Redis
 
@@ -361,7 +361,7 @@ Please refer to the [advanced configuration](../advanced-configuration/outgoing-
 
 **Setup**
 
-Please refer to the [Redis options](../advanced-configuration/outgoing-connections.md#redis-specific-options) for more information.
+Please refer to the [Redis options](/outgoing-connections.md#redis-specific-options) for more information.
 
 ## LDAP
 
@@ -373,4 +373,4 @@ Please refer to the [Redis options](../advanced-configuration/outgoing-connectio
 
 **Setup**
 
-Please refer to the [LDAP options](../advanced-configuration/outgoing-connections.md#ldap-options) for more information.
+Please refer to the [LDAP options](/outgoing-connections.md#ldap-options) for more information.

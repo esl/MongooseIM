@@ -24,7 +24,7 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
 
 The module requires `rabbit` pool of AMQP connections to be configured in order
 to make the module work. It's well advised to read through
-[*Advanced configuration/Outgoing connections*](../advanced-configuration/outgoing-connections.md)
+[*Advanced configuration/Outgoing connections*](../configuration/outgoing-connections.md)
 section before enabling the module.
 
 ## Presence exchange options
@@ -225,7 +225,7 @@ up flexibility over performance.
 
 By default publisher confirmations are disabled. However, one-to-one
 confirmations can be enabled (see
-[*RabbitMQ connection setup*](../advanced-configuration/outgoing-connections.md#rabbitmq-options)
+[*RabbitMQ connection setup*](../configuration/outgoing-connections.md#rabbitmq-options)
 section). When a worker sends a message to a RabbitMQ server it waits for a
 confirmation from the server before it starts to process next message. This
 approach allows to introduce backpressure on a RabbitMQ server connection cause
