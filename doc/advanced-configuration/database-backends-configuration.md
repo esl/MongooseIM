@@ -1,6 +1,6 @@
 # Database Backends
 
-MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones.
+MongooseIM can work with several databases, both RDBMS (SQL) and NoSQL ones.
 Some of them require extra work before they can be used.
 For example the SQL databases require defining a schema.
 MongooseIM is tested with CI, so the CI scripts can be used as a reference.
@@ -230,7 +230,7 @@ Configure the `outgoing_pools.rdbms` section as follows:
     settings = "DSN=mongoose-mssql;UID=username;PWD=password"
 ```
 
-## NOSQL
+## NoSQL
 
 ### Riak KV
 

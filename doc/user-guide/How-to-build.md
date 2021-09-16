@@ -119,7 +119,7 @@ The contents of that directory are as follows:
 
 ## Running MongooseIM
 
-To run MongooseIM from the project tree after compiling it, change to `$REPO/_build/prod/rel/mongooseim`.
+To run MongooseIM from the project tree after compiling it, change the directory to `$REPO/_build/prod/rel/mongooseim`.
 
 There you can use the `mongooseim` command line administration script to start and stop MongooseIM.
 For example, this command will start the server:

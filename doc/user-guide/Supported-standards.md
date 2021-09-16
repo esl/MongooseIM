@@ -27,7 +27,7 @@
         * Redis
     * Persistent:
         * RDBMS: MySQL, PostgreSQL, generic ODBC
-        * NOSQL: Riak KV, Cassandra
+        * NoSQL: Riak KV, Cassandra
 * Integration with third-party services
     * [Amazon Simple Notification Service](../modules/mod_event_pusher_sns.md)
 

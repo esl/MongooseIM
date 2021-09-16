@@ -12,7 +12,7 @@
 
 ## Get to know MongooseIM
 
-MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations.
+MongooseIM is a robust, scalable and efficient XMPP server at the core of an Instant Messaging platform aimed at large installations.
 
 <img align="left" src="../../MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
 
@@ -35,12 +35,11 @@ MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.
 We offer a set of additional server-side components:
 
 * [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html) is a powerful monitoring platform that comes with a dedicated MongooseIM plugin
-* Test suite - here are some useful tools to test and validate your XMPP servers:
-    * [escalus](https://github.com/esl/escalus): Erlang XMPP client
-    * [amoc](https://github.com/esl/amoc): a load testing tools
+* Test suite is written with the help of these useful tools:
+    * [escalus](https://github.com/esl/escalus): an XMPP client for Erlang
+    * [amoc](https://github.com/esl/amoc): a load testing tool
 * [MongooseICE](https://github.com/esl/MongooseICE): is a STUN and TURN server written for traversing NATs and relaying streams
 * [MongoosePush](https://github.com/esl/MongoosePush): is a flexible push notification server with APNS and FCM support
-
 
 ### Client-side components
 
@@ -52,15 +51,17 @@ We offer a set of additional server-side components:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
-
 <img src="../../mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 ## Download packages
 
 For a quick start just download:
 
-* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian, CentOS, and macOS)
+* The [pre-built packages](https://www.erlang-solutions.com/resources/download.html) that suit your platform (Ubuntu, Debian and CentOS)
 * The [Docker image](https://hub.docker.com/r/mongooseim/mongooseim/) ([source code repository](https://github.com/esl/mongooseim-docker))
+* The [Helm chart](https://artifacthub.io/packages/helm/mongoose/mongooseim) ([source code repository](https://github.com/esl/MongooseHelm))
+
+See the [installation guide](./Installation.md) for more details.
 
 ## Public testing
 
@@ -90,10 +91,6 @@ See the documentation for the latest releases:
 * [3.1.1](https://esl.github.io/MongooseDocs/3.1.1/)
 * [3.0.1](https://esl.github.io/MongooseDocs/3.0.1/)
 
-
-When developing new features/modules, please make sure you add basic documentation to the `doc/` directory, and add a link to your document in `doc/README.md.`
-
-
 ## Participate!
 
 Suggestions, questions, thoughts? Contact us directly:
@@ -101,5 +98,3 @@ Suggestions, questions, thoughts? Contact us directly:
 * Raise a [GitHub issue](https://github.com/esl/MongooseIM/issues)
 * Email us at <a href='mailto:mongoose-im@erlang-solutions.com'>mongoose-im@erlang-solutions.com</a>
 * Follow our [Twitter account](https://twitter.com/MongooseIM)
-* Like our [Facebook page](https://www.facebook.com/MongooseIM/)
-* Subscribe to our [mailing list](https://groups.google.com/d/forum/mongooseim-announce) to receive no more than two monthly emails as well as access to the free and open archives.

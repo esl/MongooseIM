@@ -1,6 +1,9 @@
 In this short guide we will set MongooseIM up and get users chatting right away.
 The goal is to get to know MongooseIM, set it up, go through basic operations and validation.
 
+You should have MongooseIM already installed on your machine and the `mongooseimctl` command available.
+If you have not installed MIM, please refer to the [installation instructions](./Installation.md).
+
 !!! warning
     This setup is not intended for production.
 
@@ -156,9 +159,6 @@ Learn more about MongooseIM [configuration files](../advanced-configuration/conf
 
 For each change, edit the configuration file using the right Linux/Unix user.
 Save (and optionally backup, archive, or version) the configuration file and restart the MongooseIM server.
-
-!!! Warning
-    We recommend that you do not touch these settings at this stage.
 
 ### Logging
 

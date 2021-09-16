@@ -10,9 +10,9 @@ MongooseIM is compatible with MAM 0.4-0.6.
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
-* Riak KV (NOSQL)
-* Cassandra (NOSQL)
-* ElasticSearch (NOSQL)
+* Riak KV (NoSQL)
+* Cassandra (NoSQL)
+* ElasticSearch (NoSQL)
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
