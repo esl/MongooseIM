@@ -47,15 +47,14 @@ all() ->
                        ]).
 
 groups() ->
-    G = [
+    [
          {metrics, [], ?METRICS_CASES},
          {all_metrics_are_global, [], ?METRICS_CASES},
          {global, [], [session_counters,
                        node_uptime,
                        cluster_size
                       ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
