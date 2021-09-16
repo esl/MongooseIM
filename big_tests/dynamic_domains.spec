@@ -91,7 +91,7 @@
 {suites, "tests", sasl_external_SUITE}.
 
 {suites, "tests", service_domain_db_SUITE}.
-
+{suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.
 
 {suites, "tests", sm_SUITE}.

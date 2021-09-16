@@ -36,11 +36,10 @@ all() ->
     [{group, shared_roster}].
 
 groups() ->
-    G = [{shared_roster, [sequence], [receive_presences,
+    [{shared_roster, [sequence], [receive_presences,
                                       get_contacts,
                                       delete_user,
-                                      add_user]}],
-    ct_helper:repeat_all_until_all_ok(G).
+                                      add_user]}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -143,7 +142,7 @@ add_user(Config) ->
 
 start_roster_module(ldap) ->
     case rpc(mim(), gen_mod, start_module,
-             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap, get_ldap_args()]) of
+             [ct:get_config({hosts, mim, host_type}), mod_shared_roster_ldap, get_ldap_args()]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
         _ -> ok
@@ -153,7 +152,7 @@ start_roster_module(_) ->
 
 stop_roster_module(ldap) ->
     case rpc(mim(), gen_mod, stop_module,
-             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap]) of
+             [ct:get_config({hosts, mim, host_type}), mod_shared_roster_ldap]) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [mod_shared_roster_ldap, Reason]);
         _ -> ok
@@ -162,8 +161,8 @@ stop_roster_module(_) ->
     ok.
 
 get_auth_method() ->
-    XMPPDomain = ct:get_config({hosts, mim, domain}),
-    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
+    HostType = ct:get_config({hosts, mim, host_type}),
+    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, HostType}]) of
         [Method|_] ->
             Method;
         _ ->
