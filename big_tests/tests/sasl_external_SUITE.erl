@@ -194,7 +194,7 @@ cert_no_xmpp_addrs_fails(C) ->
 
 cert_no_xmpp_addrs_just_use_identity(C) ->
     User = username("not-mike", C),
-    UserSpec = [{requested_name, <<"mike@localhost">>} |
+    UserSpec = [{requested_name, requested_name("mike")} |
 		generate_user_tcp(C, User)],
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
@@ -227,13 +227,13 @@ cert_with_cn_no_xmpp_addrs_no_identity(C) ->
     escalus_connection:stop(Client).
 
 cert_with_jid_cn_no_xmpp_addrs_no_identity(C) ->
-    User = "john@localhost",
+    User = add_domain_str("john"),
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
 cert_with_jid_cn_many_xmpp_addrs_no_identity(C) ->
-    User = "grace@localhost",
+    User = add_domain_str("grace"),
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
@@ -247,7 +247,7 @@ cert_with_cn_no_xmpp_addrs_identity_correct(C) ->
 
 cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C) ->
     User = username("not-mike", C),
-    UserSpec = [{requested_name, <<"mike@localhost">>} |
+    UserSpec = [{requested_name, requested_name("mike")} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
@@ -343,7 +343,8 @@ self_signed_cert_is_allowed_with(EscalusTransport, C) ->
 
 no_cert_fails_to_authenticate(_C) ->
     UserSpec = [{username, <<"no_cert_user">>},
-		{server, <<"localhost">>},
+		{server, domain()},
+		{host, <<"localhost">>},
         {port, ct:get_config({hosts, mim, c2s_port})},
 		{password, <<"break_me">>},
 		{resource, <<>>}, %% Allow the server to generate the resource
@@ -357,15 +358,15 @@ no_cert_fails_to_authenticate(_C) ->
     ok.
 
 generate_certs(C) ->
-    CA = [#{cn => "not-alice", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
-          #{cn => "kate", xmpp_addrs => ["kate@localhost", "kate@fed1"]},
-          #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
-          #{cn => "greg", xmpp_addrs => ["greg@localhost"]},
+    CA = [#{cn => "not-alice", xmpp_addrs => [add_domain_str("alice"), "alice@fed1"]},
+          #{cn => "kate", xmpp_addrs => [add_domain_str("kate"), "kate@fed1"]},
+          #{cn => "bob", xmpp_addrs => [add_domain_str("bob")]},
+          #{cn => "greg", xmpp_addrs => [add_domain_str("greg")]},
           #{cn => "john", xmpp_addrs => undefined},
-          #{cn => "john@localhost", xmpp_addrs => undefined},
+          #{cn => add_domain_str("john"), xmpp_addrs => undefined},
           #{cn => "not-mike", xmpp_addrs => undefined},
           #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
-          #{cn => "grace@localhost", xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
+          #{cn => add_domain_str("grace"), xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
     SelfSigned = [ M#{cn => CN ++ "-self-signed", signed => self, xmpp_addrs => replace_addrs(Addrs)}
                    || M = #{ cn := CN , xmpp_addrs := Addrs} <- CA],
     CertSpecs = CA ++ SelfSigned,
@@ -420,7 +421,8 @@ generate_user(C, User, Transport) ->
     UserCert = maps:get(User, Certs),
 
     Common = [{username, list_to_binary(User)},
-	      {server, <<"localhost">>},
+	      {server, domain()},
+          {host, <<"localhost">>},
 	      {password, <<"break_me">>},
 	      {resource, <<>>}, %% Allow the server to generate the resource
 	      {auth, {escalus_auth, auth_sasl_external}},
@@ -454,7 +456,7 @@ make_xmpp_addr_entry(Addr, I) ->
     "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
 requested_name(User) ->
-    <<(list_to_binary(User))/binary, <<"@localhost">>/binary>>.
+    add_domain(list_to_binary(User)).
 
 username(Name, Config) ->
     case escalus_config:get_config(signed, Config, ca) of
@@ -469,3 +471,15 @@ replace_addrs(undefined) ->
 replace_addrs(Addresses) ->
     lists:map( fun(Addr) -> [User, Hostname] = binary:split(list_to_binary(Addr), <<"@">>),
                             binary_to_list(<<User/binary, <<"-self-signed@">>/binary, Hostname/binary>>) end, Addresses).
+
+-spec domain() -> mongooseim:domain_name().
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+-spec add_domain_str(User :: string()) -> string().
+add_domain_str(User) ->
+    User ++ "@" ++ binary:bin_to_list(domain()).
+
+-spec add_domain(User :: binary()) -> binary().
+add_domain(User) ->
+    <<User/binary, <<"@">>/binary, (domain())/binary>>.
