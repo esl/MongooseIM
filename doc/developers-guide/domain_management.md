@@ -1,3 +1,7 @@
+!!! warning
+    Some [modules](../configuration/Modules.md#modules-incompatible-with-dynamic-domains) do not work with dynamic domains.
+    This is also the case for [`s2s`](s2s.md) and the XMPP components (XEP-0114) mechanism, as configured in the [`listen.service` section](listen.md#xmpp-components-listenservice).
+
 ## MongooseIM core component
 
 Implemented by `mongoose_domain_core` module.

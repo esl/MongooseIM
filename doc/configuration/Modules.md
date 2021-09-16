@@ -194,7 +194,7 @@ This module provides the functionality specified in [XEP-0092: Software Version]
 ## Modules incompatible with dynamic domains
 
 There are some modules that don't support dynamic domains for now.
-These must not be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
+These must **not** be enabled when using host types in `modules` or [`host_config.modules`](./host_config.md#host_configmodules) sections:
 
 * [mod_event_pusher](../modules/mod_event_pusher.md)
 * [mod_extdisco](../modules/mod_extdisco.md)
@@ -203,3 +203,5 @@ These must not be enabled when using host types in `modules` or [`host_config.mo
 * [mod_pubsub](../modules/mod_pubsub.md)
 * [mod_push_service_mongoosepush](../modules/mod_push_service_mongoosepush.md)
 * [mod_shared_roster_ldap](../modules/mod_shared_roster_ldap.md)
+
+Please note, that [`s2s`](s2s.md) and the XMPP components (XEP-0114) mechanism, as configured in the [`listen.service` section](listen.md#xmpp-components-listenservice), do not support dynamic domains as well.

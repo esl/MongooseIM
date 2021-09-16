@@ -1,5 +1,9 @@
 The `s2s` section contains options configuring the server-to-server connections used to communicate with other federated XMPP servers.
 
+!!! warning
+    Server-to-server connections do not support [dynamic domains](../configuration/general.md#generalhost_types).
+    Do not use dynamic domains when using `s2s`.
+
 ## General options
 
 These options affect both incoming and outgoing S2S connections.
