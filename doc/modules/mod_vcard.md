@@ -9,7 +9,7 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 * **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_vcard.host`
 * **Syntax:** string
@@ -45,13 +45,13 @@ Maximum search results to be returned to the user.
 
 ### LDAP-specific options
 
-The following options are the same as for the [LDAP authentication module](../../authentication-methods/ldap#configuration-options):
+The following options are the same as for the [LDAP authentication module](../authentication-methods/ldap.md#configuration-options):
 
-* [`modules.mod_vcard.ldap_pool_tag`](../../authentication-methods/ldap#authldappool_tag)
-* [`modules.mod_vcard.ldap_base`](../../authentication-methods/ldap#authldapbase)
-* [`modules.mod_vcard.ldap_uids`](../../authentication-methods/ldap#authldapuids)
-* [`modules.mod_vcard.ldap_filter`](../../authentication-methods/ldap#authldapfilter)
-* [`modules.mod_vcard.ldap_deref`](../../authentication-methods/ldap#authldapderef)
+* [`modules.mod_vcard.ldap_pool_tag`](../authentication-methods/ldap.md#authldappool_tag)
+* [`modules.mod_vcard.ldap_base`](../authentication-methods/ldap.md#authldapbase)
+* [`modules.mod_vcard.ldap_uids`](../authentication-methods/ldap.md#authldapuids)
+* [`modules.mod_vcard.ldap_filter`](../authentication-methods/ldap.md#authldapfilter)
+* [`modules.mod_vcard.ldap_deref`](../authentication-methods/ldap.md#authldapderef)
 
 #### `modules.mod_vcard.ldap_vcard_map`
 * **Syntax:** Array of TOML tables with the following keys: `"vcard_field"`, `"ldap_pattern"`, `"ldap_field"` and string values.

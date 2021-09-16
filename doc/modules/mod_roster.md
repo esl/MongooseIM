@@ -11,7 +11,7 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 * **Default:** "one_queue"
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_roster.versioning`
 * **Syntax:** boolean

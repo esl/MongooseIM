@@ -22,14 +22,14 @@ These options are inserted into the `rel/files/vm.args` template.
 ### node_name
 
 * **Type:** parameter
-* **Option:** value of `-sname` in [vm.args](../../advanced-configuration#options)
+* **Option:** value of `-sname` in [vm.args](configuration-files.md#vmargs)
 * **Syntax:** Erlang node name: `name@host`
 * **Example:** `{node_name, "mongooseim@localhost"}.`
 
 ### highload_vm_args
 
 * **Type:** block
-* **Option:** arguments in [vm.args](../../advanced-configuration#options): `+K`, `+A`, `+P`, `-env ERL_MAX_PORTS`
+* **Option:** arguments in [vm.args](configuration-files.md#vmargs): `+K`, `+A`, `+P`, `-env ERL_MAX_PORTS`
 * **Syntax:** command-line arguments
 * **Example:** `{highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.`
 
@@ -40,14 +40,14 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### hosts
 
 * **Type:** parameter
-* **Option:** [`general.hosts`](../../advanced-configuration/general#generalhosts)
+* **Option:** [`general.hosts`](general.md#generalhosts)
 * **Syntax:** comma-separated list of strings
 * **Example:** `{hosts, "\"localhost\", \"domain2\""}.`
 
 ### host_config
 
 * **Type:** block
-* **Option:** [`host_config`](../../advanced-configuration/host_config)
+* **Option:** [`host_config`](host_config.md)
 * **Syntax:** TOML block, one or more `[[host_config]]` sections.
 * **Example:**
 
@@ -64,7 +64,7 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### auth_ldap
 
 * **Type:** block
-* **Option:** [`auth.ldap`](../../authentication-methods/ldap)
+* **Option:** [`auth.ldap`](../authentication-methods/ldap.md)
 * **Syntax:** TOML block, the `[auth.ldap]` subsection
 * **Example:**
 
@@ -79,14 +79,14 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### all_metrics_are_global
 
 * **Type:** parameter
-* **Option:** [`general.all_metrics_are_global`](../../advanced-configuration/general#generalall_metrics_are_global)
+* **Option:** [`general.all_metrics_are_global`](general.md#generalall_metrics_are_global)
 * **Syntax:** boolean
 * **Example:** `{all_metrics_are_global, "false"}.`
 
 ### s2s_addr
 
 * **Type:** block
-* **Option:** [`auth.s2s.address`](../../advanced-configuration/s2s#s2saddress)
+* **Option:** [`auth.s2s.address`](s2s.md#s2saddress)
 * **Syntax:** TOML key-value pair with the `address` option
 * **Example:**
 
@@ -102,49 +102,49 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### s2s_default_policy
 
 * **Type:** parameter
-* **Option:** [`s2s.default_policy`](../../advanced-configuration/s2s#s2sdefault_policy)
+* **Option:** [`s2s.default_policy`](s2s.md#s2sdefault_policy)
 * **Syntax:** string
 * **Example:** `{s2s_default_policy, "\"deny\""}.`
 
 ### outgoing_s2s_port
 
 * **Type:** parameter
-* **Option:** [`s2s.outgoing.port`](../../advanced-configuration/s2s#s2soutgoingport)
+* **Option:** [`s2s.outgoing.port`](s2s.md#s2soutgoingport)
 * **Syntax:** integer
 * **Example:** `{outgoing_s2s_port, "5269"}.`
 
 ### c2s_port
 
 * **Type:** parameter
-* **Option:** [`listen.c2s.port`](../../advanced-configuration/listen#listenport)
+* **Option:** [`listen.c2s.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{c2s_port, "5222"}.`
 
 ### s2s_port
 
 * **Type:** parameter
-* **Option:** [`listen.s2s.port`](../../advanced-configuration/listen#listenport)
+* **Option:** [`listen.s2s.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{s2s_port, "5269"}.`
 
 ### cowboy_port
 
 * **Type:** parameter
-* **Option:** [`listen.http.port`](../../advanced-configuration/listen#listenport)
+* **Option:** [`listen.http.port`](listen.md#listenport)
 * **Syntax:** integer
 * **Example:** `{http_port, "5280"}.`
 
 ### mod_last
 
 * **Type:** block
-* **Option:** [`modules.mod_last`](../../modules/mod_last)
+* **Option:** [`modules.mod_last`](../modules/mod_last.md)
 * **Syntax:** TOML section: `[modules.mod_last]`
 * **Example:** `{mod_last, "[modules.mod_last]"}.`
 
 ### mod_offline
 
 * **Type:** block
-* **Option:** [`modules.mod_offline`](../../modules/mod_offline)
+* **Option:** [`modules.mod_offline`](../modules/mod_offline.md)
 * **Syntax:** TOML section: `[modules.mod_offline]`
 * **Example:**
 
@@ -158,28 +158,28 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### mod_privacy
 
 * **Type:** block
-* **Option:** [`modules.mod_privacy`](../../modules/mod_privacy)
+* **Option:** [`modules.mod_privacy`](../modules/mod_privacy.md)
 * **Syntax:** TOML section: `[modules.mod_privacy]`
 * **Example:** `{mod_privacy, "[modules.mod_privacy]"}.`
 
 ### mod_private
 
 * **Type:** block
-* **Option:** [`modules.mod_private`](../../modules/mod_private)
+* **Option:** [`modules.mod_private`](../modules/mod_private.md)
 * **Syntax:** TOML section: `[modules.mod_private]`
 * **Example:** `{mod_private, "[modules.mod_private]"}.`
 
 ### mod_roster
 
 * **Type:** block
-* **Option:** [`modules.mod_roster`](../../modules/mod_roster)
+* **Option:** [`modules.mod_roster`](../modules/mod_roster.md)
 * **Syntax:** TOML section: `[modules.mod_roster]`
 * **Example:** `{mod_roster, "[modules.mod_roster]"}.`
 
 ### mod_vcard
 
 * **Type:** block
-* **Option:** [`modules.mod_vcard`](../../modules/mod_vcard)
+* **Option:** [`modules.mod_vcard`](../modules/mod_vcard.md)
 * **Syntax:** TOML section: `[modules.mod_vcard]`
 * **Example:**
 
@@ -193,14 +193,14 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### sm_backend
 
 * **Type:** parameter
-* **Option:** [`general.sm_backend`](../../advanced-configuration/general#generalsm_backend)
+* **Option:** [`general.sm_backend`](general.md#generalsm_backend)
 * **Syntax:** string
 * **Example:** `{sm_backend, "\"redis\""}.`
 
 ### tls_config
 
 * **Type:** block
-* **Option:** [`listen.c2s.tls.*`](../../advanced-configuration/listen#tls-options-for-c2s)
+* **Option:** [`listen.c2s.tls.*`](listen.md#tls-options-for-c2s)
 * **Syntax:** TOML key-value pairs
 * **Example:**
 
@@ -214,13 +214,13 @@ These options are inserted into the `rel/files/mongooseim.toml` template.
 ### auth_method
 
 * **Type:** parameter
-* **Option:** [`auth.methods`](../../advanced-configuration/auth#authmethods)
+* **Option:** [`auth.methods`](auth.md#authmethods)
 * **Syntax:** comma-separated list of strings
 * **Example:** `{auth_method, "\"internal\""}.`
 
 ### zlib
 
 * **Type:** parameter
-* **Option:** [`listen.c2s.zlib`](../../advanced-configuration/listen#listenc2szlib)
+* **Option:** [`listen.c2s.zlib`](listen.md#listenc2szlib)
 * **Syntax:** positive integer
 * **Example:** `{zlib, "10_000"}.`

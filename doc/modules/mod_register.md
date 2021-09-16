@@ -9,14 +9,14 @@ This module implements [XEP-0077: In-Band Registration](http://xmpp.org/extensio
 * **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_register.access`
 * **Syntax:** string, rule name or `"all"`
 * **Default:** `"all"`
 * **Example:** `access = "all"`
 
-Defines which [access rule](../../advanced-configuration/access#registration) should be used for checking if a chosen username is allowed for registration.
+Defines which [access rule](../configuration/access.md#registration) should be used for checking if a chosen username is allowed for registration.
 
 ### `modules.mod_register.welcome_message`
 * **Syntax:** TOML table with the following keys: `"body"`, `"subject"` and string values.

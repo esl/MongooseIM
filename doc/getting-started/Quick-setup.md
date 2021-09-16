@@ -15,8 +15,7 @@ If you have not installed MIM, please refer to the [installation instructions](.
 !!! Warning
     MongooseIM will use its default database - Mnesia, which is faster and simpler to set up, but not intended for production purposes when it comes to persistent data.
 
-!!! Note
-    It is possible at anytime to use external databases. For more information, see the [database backend configuration](../configuration/database-backends-configuration.md) page.
+It is possible to use external databases instead - for more information, see the [database backend configuration](../configuration/database-backends-configuration.md) page.
 
 The following command will start the MongooseIM server:
 ```bash
@@ -135,7 +134,7 @@ mongooseimctl add_rosteritem bob localhost alice localhost alice friends both
 ```
 
 !!! Note
-    The `subs`parameter is the "subscription" to a user's presence. Possible values are: `none`, `from`, `to`, or `both`. A subscription in `both` direction means each user will receive each other's presence.
+    The `subs` parameter is the "subscription" to a user's presence. Possible values are: `none`, `from`, `to`, or `both`. A subscription in `both` direction means each user will receive each other's presence.
 
 Verify the contact list:
 ```bash

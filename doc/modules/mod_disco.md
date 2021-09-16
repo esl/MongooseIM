@@ -8,7 +8,7 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 * **Default:** `"no_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_disco.extra_domains`
 * **Syntax:** array of strings, valid domain names
@@ -41,7 +41,7 @@ Keys and their values for each entry:
 * **Default:** `true`
 * **Example:** `users_can_see_hidden_services = false`
 
-MongooseIM node with this option set to `false` will exclude ["hidden components"](../../advanced-configuration/listen/#listenservicehidden_components)
+MongooseIM node with this option set to `false` will exclude ["hidden components"](../configuration/listen.md#listenservicehidden_components)
 from disco results sent to clients (identified by bare or full JID).
 Other entities, with empty username part in their JIDs (e.g. `component.example.com`),
 will still receive full disco results.

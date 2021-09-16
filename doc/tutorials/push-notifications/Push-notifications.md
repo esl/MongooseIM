@@ -144,4 +144,3 @@ the _XMPP Push Service_.
 [WithMongoosePush]: MongoosePush-setup.md
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html
-[federation]: ../../../advanced-configuration/listen/#server-to-server-s2s-listens2s

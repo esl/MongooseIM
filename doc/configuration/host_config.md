@@ -66,17 +66,17 @@ It is recommended to repeat all top-level options in the domain-specific section
     - [`sasl_external`](auth.md#authsasl_external)
     - [`password.*`](auth.md#password-related-options)
     - [`scram_iterations`](auth.md#authscram_iterations)
-    - [`external.program`](../../authentication-methods/external/#authexternalprogram)
-    - [`rdbms.*`](../../authentication-methods/rdbms)
-    - [`ldap.*`](../../authentication-methods/ldap)
-    - [`jwt.*`](../../authentication-methods/jwt)
-    - [`riak.*`](../../authentication-methods/riak)
-    - [`http.*`](../../authentication-methods/http)
+    - [`external.program`](../authentication-methods/external.md#authexternalprogram)
+    - [`rdbms.*`](../authentication-methods/rdbms.md)
+    - [`ldap.*`](../authentication-methods/ldap.md)
+    - [`jwt.*`](../authentication-methods/jwt.md)
+    - [`riak.*`](../authentication-methods/riak.md)
+    - [`http.*`](../authentication-methods/http.md)
 - If you specify any of the following options, only these options will be overridden:
     - [`methods`](auth.md#authmethods)
     - [`sasl_mechanisms`](auth.md#authsasl_mechanisms)
-    - [`external.instances`](../../authentication-methods/external/#authexternalinstances)
-    - [`anonymous.*`](../../authentication-methods/anonymous)
+    - [`external.instances`](../authentication-methods/external.md#authexternalinstances)
+    - [`anonymous.*`](../authentication-methods/anonymous.md)
 
 #### Example
 
@@ -111,9 +111,9 @@ The last section would work the same without `methods`:
 
 ### `host_config.modules`
 
-This section completely overrides the top-level [`modules`](../Modules) section.
+This section completely overrides the top-level [`modules`](Modules.md) section.
 Remember that only the modules supporting dynamic domains are allowed if you are specifying options for a host type.
-These can be found in the [modules list](./Modules.md#modules-supporting-dynamic-domains).
+The ones that do not support it can be found in the [modules list](./Modules.md#modules-incompatible-with-dynamic-domains).
 
 #### Example
 

@@ -76,8 +76,8 @@ See [MongoosePush](https://github.com/esl/MongoosePush) on GitHub for more detai
 
 ### MUC light
 
-MUC stands for Multi-User Chat. [MUC light](../open-extensions/muc_light/) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
+MUC stands for Multi-User Chat. [MUC light](open-extensions/muc_light.md) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
 
 ### Token-based reconnection
 
-[Token-based reconnection](../open-extensions/token-reconnection/) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords
+[Token-based reconnection](open-extensions/token-reconnection.md) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords

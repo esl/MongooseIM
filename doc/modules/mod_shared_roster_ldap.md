@@ -15,7 +15,7 @@ If it is not defined, XXX becomes the default value.
 ### `modules.mod_shared_roster_ldap.ldap_base`
 ### `modules.mod_shared_roster_ldap.ldap_deref`
 
-These 3 options are the same as for the [LDAP authentication module](../../authentication-methods/ldap#configuration-options).
+These 3 options are the same as for the [LDAP authentication module](../authentication-methods/ldap.md#configuration-options).
 
 ## Options: attributes
 

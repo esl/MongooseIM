@@ -9,7 +9,7 @@ This method uses the `SASL EXTERNAL` mechanism.
 
 A server must request the certificate from a client, so you'll need to enable `verify_peer` option and provide a path to CA chain that may be used for client's certificate check (`cafile` option).
 
-Please check the [Listener modules](../../advanced-configuration/listen/#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
+Please check the [Listener modules](../configuration/listen.md#client-to-server-c2s-listenc2s) page for more information or simply follow the examples at the end of this section.
 
 ### Properly configure `http` listener
 
@@ -17,10 +17,10 @@ SASL EXTERNAL authentication is also possible for WebSocketSecure and BOSH conne
 Similarly as in the `client-to-server` case, the server must request the certificate from the client.
 In this case it's enabled by adding the following options to the `tls` option of `listen.http` :
 
-* [`tls.verify_peer = true`](../../advanced-configuration/listen/#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
-* [`tls.cacertfile = "ca.pem"`](../../advanced-configuration/listen/#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
+* [`tls.verify_peer = true`](../configuration/listen.md#listenhttptlsverify_peer) - this is to tell Erlang's SSL to request the cert from the client
+* [`tls.cacertfile = "ca.pem"`](../configuration/listen.md#listenhttptlscacertfile) - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
 
-Please check [Options: Listen](../../advanced-configuration/listen/#http-based-services-listenhttp) for more details regarding `http` listener configuration.
+Please check [Options: Listen](../configuration/listen.md#http-based-services-listenhttp) for more details regarding `http` listener configuration.
 
 ### Enable `SASL EXTERNAL` mechanism
 
@@ -48,7 +48,7 @@ For the details please refer to [XEP-0178: Best Practices for Use of SASL EXTERN
 You need to enable one of the following authentication methods by using the [`auth.methods` option](../configuration/auth.md#authmethods) in the MongooseIM configuration file.
 
 * `"pki"` - accepts user credentials,
-* `"http"` - accepts user credentials if the provided certificate is [known and valid](../../authentication-methods/http#method-get_certs)
+* `"http"` - accepts user credentials if the provided certificate is [known and valid](../authentication-methods/http.md#method-get_certs)
 * `"ldap"` - accepts user credentials if a corresponding user account exists in LDAP.
 
 ### Self-signed certificates

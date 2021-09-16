@@ -37,7 +37,7 @@ Backend to use for storing the registrations.
 * **Default:** `{}`
 * **Example:** `wpool.workers = 200`
 
-Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../../advanced-configuration/outgoing-connections#worker-pool-options).
+Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../configuration/outgoing-connections.md#worker-pool-options).
 
 ### `modules.mod_event_pusher_push.plugin_module`
 * **Syntax:** non-empty string

@@ -14,7 +14,7 @@ handlers for specific namespaces.
 
 ## Clone & build
 
-See [How-to-build](../../user-guide/How-to-build) for details on building MongooseIM
+See [How-to-build](../tutorials/How-to-build.md) for details on building MongooseIM
 from source code.
 
 ## Create a module & add a basic IQ handler
@@ -183,7 +183,7 @@ should_return_error(Config) ->
 ## Run it
 
 Compile & generate releases for testing purposes according to
-[How-to-build](../../user-guide/How-to-build/#building-the-testing-target-and-running-tests).
+[How-to-build](../tutorials/How-to-build.md#building-the-testing-target-and-running-tests).
 Go to `$REPO/_build/mim1/rel/mongooseim` and start one MongooseIM node.
 
 ```bash

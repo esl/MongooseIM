@@ -10,7 +10,7 @@ It allows users to store custom XML data in the server's database. Used e.g. for
 * **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_private.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`, `"riak"`.

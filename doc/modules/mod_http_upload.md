@@ -12,7 +12,7 @@ Currently, the module supports only the [S3][s3] backend using [AWS Signature Ve
 * **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_http_upload.host`
 * **Syntax:** string

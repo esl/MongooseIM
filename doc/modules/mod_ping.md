@@ -37,7 +37,7 @@ Defines how long the server waits for the client to reply to the ping request.
 * **Default:** `"no_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ## Example Configuration
 
