@@ -482,4 +482,4 @@ add_domain_str(User) ->
 
 -spec add_domain(User :: binary()) -> binary().
 add_domain(User) ->
-    <<User/binary, <<"@">>/binary, (domain())/binary>>.
+    <<User/binary, "@", (domain())/binary>>.
