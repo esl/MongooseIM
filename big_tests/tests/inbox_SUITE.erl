@@ -214,6 +214,7 @@ end_per_suite(Config) ->
       domain_helper:host_type(mim), mod_inbox),
     dynamic_modules:stop(
       ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->

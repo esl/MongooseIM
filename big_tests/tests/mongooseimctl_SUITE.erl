@@ -13,7 +13,7 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
--module(ejabberdctl_SUITE).
+-module(mongooseimctl_SUITE).
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
@@ -21,7 +21,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
+-import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -320,19 +320,19 @@ end_per_testcase(CaseName, Config) ->
 %% http upload tests
 %%--------------------------------------------------------------------
 upload_not_enabled(Config) ->
-    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS("text/plain"), Config),
+    Ret = mongooseimctl("http_upload", ?HTTP_UPLOAD_PARAMS("text/plain"), Config),
     ?assertEqual({?HTTP_UPLOAD_NOT_ENABLED_ERROR, 1}, Ret).
 
 upload_wrong_filesize(Config) ->
-    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("0"), Config),
+    Ret = mongooseimctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("0"), Config),
     ?assertEqual({?HTTP_UPLOAD_FILESIZE_ERROR, 1}, Ret),
-    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("-1"), Config),
+    Ret = mongooseimctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_FILESIZE("-1"), Config),
     ?assertEqual({?HTTP_UPLOAD_FILESIZE_ERROR, 1}, Ret).
 
 upload_wrong_timeout(Config) ->
-    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("0"), Config),
+    Ret = mongooseimctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("0"), Config),
     ?assertEqual({?HTTP_UPLOAD_TIMEOUT_ERROR, 1}, Ret),
-    Ret = ejabberdctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("-1"), Config),
+    Ret = mongooseimctl("http_upload", ?HTTP_UPLOAD_PARAMS_WITH_TIMEOUT("-1"), Config),
     ?assertEqual({?HTTP_UPLOAD_TIMEOUT_ERROR, 1}, Ret).
 
 upload_returns_correct_urls_with_content_type(Config) ->
@@ -349,7 +349,7 @@ real_upload_without_content_type(Config) ->
 
 upload_returns_correct_urls(Config, ContentType) ->
     HttpUploadParams = ?HTTP_UPLOAD_PARAMS(ContentType),
-    {Output, 0} = ejabberdctl("http_upload", HttpUploadParams, Config),
+    {Output, 0} = mongooseimctl("http_upload", HttpUploadParams, Config),
     {PutURL, GetURL} = get_urls(Output),
     WithACL = proplists:get_value(with_acl, Config),
     check_urls(PutURL, GetURL, WithACL, ContentType).
@@ -390,7 +390,7 @@ real_upload(Config, ContentType) ->
     #{node := Node} = mim(),
     BinPath = distributed_helper:bin_path(Node, Config),
     UploadScript = filename:join(?config(mim_data_dir, Config), "test_file_upload.sh"),
-    Ret = ejabberdctl_helper:run(UploadScript, [ContentType], [{cd, BinPath}]),
+    Ret = mongooseimctl_helper:run(UploadScript, [ContentType], [{cd, BinPath}]),
     ?assertMatch({_, 0}, Ret),
     ok.
 %%--------------------------------------------------------------------
@@ -399,9 +399,9 @@ real_upload(Config, ContentType) ->
 
 change_password(Config) ->
     {User, Domain, OldPassword} = get_user_data(alice, Config),
-    ejabberdctl("change_password", [User, Domain, <<OldPassword/binary, $2>>], Config),
+    mongooseimctl("change_password", [User, Domain, <<OldPassword/binary, $2>>], Config),
     {error, {connection_step_failed, _, _}} = escalus_client:start_for(Config, alice, <<"newres">>),
-    ejabberdctl("change_password", [User, Domain, OldPassword], Config),
+    mongooseimctl("change_password", [User, Domain, OldPassword], Config),
     {ok, Alice2} = escalus_client:start_for(Config, alice, <<"newres2">>),
     escalus_client:stop(Config, Alice2).
 
@@ -411,34 +411,34 @@ check_password_hash(Config) ->
     MD5HashBad = get_md5(<<Pass/binary, "bad">>),
     SHAHash = get_sha(Pass),
 
-    {_, 0} = ejabberdctl("check_password_hash", [User, Domain, MD5Hash, "md5"], Config),
-    {_, ErrCode} = ejabberdctl("check_password_hash", [User, Domain, MD5HashBad, "md5"], Config),
+    {_, 0} = mongooseimctl("check_password_hash", [User, Domain, MD5Hash, "md5"], Config),
+    {_, ErrCode} = mongooseimctl("check_password_hash", [User, Domain, MD5HashBad, "md5"], Config),
     true = (ErrCode =/= 0), %% Must return code other than 0
-    {_, 0} = ejabberdctl("check_password_hash", [User, Domain, SHAHash, "sha"], Config).
+    {_, 0} = mongooseimctl("check_password_hash", [User, Domain, SHAHash, "sha"], Config).
 
 check_password(Config) ->
     {User, Domain, Pass} = get_user_data(alice, Config),
 
-    {_, 0} = ejabberdctl("check_password", [User, Domain, Pass], Config),
-    {_, ErrCode} = ejabberdctl("check_password", [User, Domain, <<Pass/binary, "Bad">>], Config),
+    {_, 0} = mongooseimctl("check_password", [User, Domain, Pass], Config),
+    {_, ErrCode} = mongooseimctl("check_password", [User, Domain, <<Pass/binary, "Bad">>], Config),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 check_account(Config) ->
     {User, Domain, _Pass} = get_user_data(alice, Config),
 
-    {_, 0} = ejabberdctl("check_account", [User, Domain], Config),
-    {_, ErrCode} = ejabberdctl("check_account", [<<User/binary, "Bad">>, Domain], Config),
+    {_, 0} = mongooseimctl("check_account", [User, Domain], Config),
+    {_, ErrCode} = mongooseimctl("check_account", [<<User/binary, "Bad">>, Domain], Config),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 ban_account(Config) ->
     {User, Domain, Pass} = get_user_data(mike, Config),
 
     {ok, Mike} = escalus_client:start_for(Config, mike, <<"newres">>),
-    {_, 0} = ejabberdctl("ban_account", [User, Domain, "SomeReason"], Config),
+    {_, 0} = mongooseimctl("ban_account", [User, Domain, "SomeReason"], Config),
     escalus:assert(is_stream_error, [<<"conflict">>, <<"SomeReason">>],
                    escalus:wait_for_stanza(Mike)),
     {error, {connection_step_failed, _, _}} = escalus_client:start_for(Config, mike, <<"newres2">>),
-    ejabberdctl("change_password", [User, Domain, Pass], Config),
+    mongooseimctl("change_password", [User, Domain, Pass], Config),
     escalus_connection:wait_for_close(Mike, 1000),
     escalus_cleaner:remove_client(Config, Mike).
 
@@ -450,13 +450,13 @@ num_active_users(Config) ->
     Now = Mega * 1000000 + Secs,
     set_last(AliceName, Domain, Now),
     set_last(MikeName, Domain, Now),
-    {SLastActiveBefore, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    {SLastActiveBefore, _} = mongooseimctl("num_active_users", [Domain, "5"], Config),
     %% When we artificially remove a user's last activity timestamp in the given period
     TenDaysAgo = Now - 864000,
     set_last(MikeName, Domain, TenDaysAgo),
     %% Then we expect that the number of active users in the last 5 days is one less
     %% than before the change above
-    {SLastActiveAfter, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    {SLastActiveAfter, _} = mongooseimctl("num_active_users", [Domain, "5"], Config),
     NLastActiveBefore = list_to_integer(string:strip(SLastActiveBefore, both, $\n)),
     NLastActiveAfter = list_to_integer(string:strip(SLastActiveAfter, both, $\n)),
     NLastActiveAfter = NLastActiveBefore - 1.
@@ -474,9 +474,9 @@ delete_old_users(Config) ->
     set_last(MikeName, Domain, Now),
     set_last(KateName, Domain, 0),
 
-    {_, 0} = ejabberdctl("delete_old_users", ["10"], Config),
-    {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
-    {_, ErrCode} = ejabberdctl("check_account", [KateName, Domain], Config),
+    {_, 0} = mongooseimctl("delete_old_users", ["10"], Config),
+    {_, 0} = mongooseimctl("check_account", [AliceName, Domain], Config),
+    {_, ErrCode} = mongooseimctl("check_account", [KateName, Domain], Config),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 delete_old_users_vhost(Config) ->
@@ -488,11 +488,11 @@ delete_old_users_vhost(Config) ->
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now-86400*30),
 
-    {_, 0} = ejabberdctl("register_identified", [KateName, SecDomain, KatePass], Config),
-    {_, 0} = ejabberdctl("check_account", [KateName, SecDomain], Config),
-    {_, 0} = ejabberdctl("delete_old_users_vhost", [SecDomain, "10"], Config),
-    {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
-    {_, ErrCode} = ejabberdctl("check_account", [KateName, SecDomain], Config),
+    {_, 0} = mongooseimctl("register_identified", [KateName, SecDomain, KatePass], Config),
+    {_, 0} = mongooseimctl("check_account", [KateName, SecDomain], Config),
+    {_, 0} = mongooseimctl("delete_old_users_vhost", [SecDomain, "10"], Config),
+    {_, 0} = mongooseimctl("check_account", [AliceName, Domain], Config),
+    {_, ErrCode} = mongooseimctl("check_account", [KateName, SecDomain], Config),
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 %%--------------------------------------------------------------------
@@ -505,8 +505,8 @@ num_resources_num(Config) ->
                 {Username, Domain, _} = get_user_data(alice, Config),
                 ResName = binary_to_list(escalus_client:resource(Alice2)) ++ "\n",
 
-                {"3\n", _} = ejabberdctl("num_resources", [Username, Domain], Config),
-                {ResName, _} = ejabberdctl("resource_num", [Username, Domain, "2"], Config)
+                {"3\n", _} = mongooseimctl("num_resources", [Username, Domain], Config),
+                {ResName, _} = mongooseimctl("resource_num", [Username, Domain, "2"], Config)
         end).
 
 kick_session(Config) ->
@@ -516,7 +516,7 @@ kick_session(Config) ->
                 Resource = escalus_client:resource(Alice),
                 Args = [Username, Domain, Resource, "Because I can!"],
 
-                {_, 0} = ejabberdctl("kick_session", Args, Config),
+                {_, 0} = mongooseimctl("kick_session", Args, Config),
                 Stanza = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_stream_error, [<<"conflict">>, <<"Because I can!">>], Stanza)
         end).
@@ -528,18 +528,18 @@ status(Config) ->
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
                 escalus_client:send(User2, AwayPresence),
 
-                {"2\n", _} = ejabberdctl("status_num", ["available"], Config),
+                {"2\n", _} = mongooseimctl("status_num", ["available"], Config),
 
-                {"2\n", _} = ejabberdctl("status_num_host", [PriDomain, "available"], Config),
-                {"0\n", _} = ejabberdctl("status_num_host", [SecDomain, "available"], Config),
+                {"2\n", _} = mongooseimctl("status_num_host", [PriDomain, "available"], Config),
+                {"0\n", _} = mongooseimctl("status_num_host", [SecDomain, "available"], Config),
 
-                {StatusList, _} = ejabberdctl("status_list", ["available"], Config),
+                {StatusList, _} = mongooseimctl("status_list", ["available"], Config),
                 match_user_status([User1, User3], StatusList),
 
-                {StatusList2, _} = ejabberdctl("status_list_host",
+                {StatusList2, _} = mongooseimctl("status_list_host",
                                                [PriDomain, "available"], Config),
                 match_user_status([User1, User3], StatusList2),
-                {[], _} = ejabberdctl("status_list_host", [SecDomain, "available"], Config)
+                {[], _} = mongooseimctl("status_list_host", [SecDomain, "available"], Config)
         end).
 
 sessions_info(Config) ->
@@ -550,14 +550,15 @@ sessions_info(Config) ->
                 AwayPresence = escalus_stanza:presence_show(<<"away">>),
                 escalus_client:send(User2, AwayPresence),
 
-                {UserList, _} = ejabberdctl("connected_users_info", [], Config),
+                {UserList, _} = mongooseimctl("connected_users_info", [], Config),
                 match_user_info([User1, User2, User3], UserList),
 
-                {UserList2, _} = ejabberdctl("connected_users_vhost", [PriDomain], Config),
+                {UserList2, _} = mongooseimctl("connected_users_vhost", [PriDomain], Config),
                 match_user_info([User1, User2, User3], UserList2),
-                {[], _} = ejabberdctl("connected_users_vhost", [SecDomain], Config),
+                {[], _} = mongooseimctl("connected_users_vhost", [SecDomain], Config),
 
-                {UserList3, _} = ejabberdctl("user_sessions_info", [Username1, PriDomain], Config),
+                {UserList3, _} = mongooseimctl("user_sessions_info",
+                                               [Username1, PriDomain], Config),
                 match_user_info([User1], UserList3)
         end).
 
@@ -567,7 +568,7 @@ set_presence(Config) ->
                 Domain = escalus_client:server(Alice),
                 Resource = escalus_client:resource(Alice),
 
-                {_, 0} = ejabberdctl("set_presence",
+                {_, 0} = mongooseimctl("set_presence",
                                      [Username, Domain, Resource,
                                       "available", "away", "mystatus", "10"],
                                      Config),
@@ -584,30 +585,31 @@ set_presence(Config) ->
 vcard_rw(Config) ->
     {Username, Domain, _} = get_user_data(alice, Config),
 
-    {_, ExitCode} = ejabberdctl("get_vcard", [Username, Domain, "NICKNAME"], Config),
+    {_, ExitCode} = mongooseimctl("get_vcard", [Username, Domain, "NICKNAME"], Config),
     true = (ExitCode /= 0),
 
-    {_, 0} = ejabberdctl("set_vcard", [Username, Domain, "NICKNAME", "SomeNickname"], Config),
-    {"SomeNickname\n", 0} = ejabberdctl("get_vcard", [Username, Domain, "NICKNAME"], Config).
+    {_, 0} = mongooseimctl("set_vcard", [Username, Domain, "NICKNAME", "SomeNickname"], Config),
+    {"SomeNickname\n", 0} = mongooseimctl("get_vcard", [Username, Domain, "NICKNAME"], Config).
 
 vcard2_rw(Config) ->
     {Username, Domain, _} = get_user_data(alice, Config),
 
-    {_, ExitCode} = ejabberdctl("get_vcard2", [Username, Domain, "ORG", "ORGNAME"], Config),
+    {_, ExitCode} = mongooseimctl("get_vcard2", [Username, Domain, "ORG", "ORGNAME"], Config),
     true = (ExitCode /= 0),
 
-    {_, 0} = ejabberdctl("set_vcard2", [Username, Domain, "ORG", "ORGNAME", "ESL"], Config),
-    {"ESL\n", 0} = ejabberdctl("get_vcard2", [Username, Domain, "ORG", "ORGNAME"], Config).
+    {_, 0} = mongooseimctl("set_vcard2", [Username, Domain, "ORG", "ORGNAME", "ESL"], Config),
+    {"ESL\n", 0} = mongooseimctl("get_vcard2", [Username, Domain, "ORG", "ORGNAME"], Config).
 
 vcard2_multi_rw(Config) ->
     {Username, Domain, _} = get_user_data(alice, Config),
 
-    {_, ExitCode} = ejabberdctl("get_vcard2_multi", [Username, Domain, "ORG", "ORGUNIT"], Config),
+    {_, ExitCode} = mongooseimctl("get_vcard2_multi", [Username, Domain, "ORG", "ORGUNIT"], Config),
     true = (ExitCode /= 0),
 
     Args = [Username, Domain, "ORG", "ORGUNIT", "sales;marketing"],
-    {_, 0} = ejabberdctl("set_vcard2_multi", Args, Config),
-    {OrgUnits0, 0} = ejabberdctl("get_vcard2_multi", [Username, Domain, "ORG", "ORGUNIT"], Config),
+    {_, 0} = mongooseimctl("set_vcard2_multi", Args, Config),
+    {OrgUnits0, 0} = mongooseimctl("get_vcard2_multi",
+                                   [Username, Domain, "ORG", "ORGUNIT"], Config),
     OrgUnits = string:tokens(OrgUnits0, "\n"),
     2 = length(OrgUnits),
     true = (lists:member("sales", OrgUnits) andalso lists:member("marketing", OrgUnits)).
@@ -626,7 +628,7 @@ rosteritem_rw(Config) ->
                 {MikeName, Domain, _} = get_user_data(mike, Config),
 
                 {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
-                {_, 0} = ejabberdctl("add_rosteritem",
+                {_, 0} = mongooseimctl("add_rosteritem",
                                      [AliceName, Domain, MikeName,
                                       Domain, "My Mike",
                                       "My Group", "both"], Config),
@@ -637,7 +639,7 @@ rosteritem_rw(Config) ->
                 escalus:assert(is_roster_set, Push2),
                 escalus:assert(roster_contains, [MikeJid], Push2),
 
-                {Items1, 0} = ejabberdctl("get_roster", [AliceName, Domain], Config),
+                {Items1, 0} = mongooseimctl("get_roster", [AliceName, Domain], Config),
                 match_roster([{BobName, Domain, "MyBob", "MyGroup", "both"},
                               {MikeName, Domain, "MyMike", "MyGroup", "both"}], Items1),
 
@@ -647,7 +649,7 @@ rosteritem_rw(Config) ->
                 escalus:assert(roster_contains, [BobJid], Roster1),
                 escalus:assert(roster_contains, [MikeJid], Roster1),
 
-                {_, 0} = ejabberdctl("delete_rosteritem",
+                {_, 0} = mongooseimctl("delete_rosteritem",
                                      [AliceName, Domain, BobName, Domain],
                                      Config),
 
@@ -655,7 +657,7 @@ rosteritem_rw(Config) ->
                 escalus:assert(is_roster_set, Push3),
                 escalus:assert(roster_contains, [BobJid], Push3),
 
-                {Items2, 0} = ejabberdctl("get_roster", [AliceName, Domain], Config),
+                {Items2, 0} = mongooseimctl("get_roster", [AliceName, Domain], Config),
                 match_roster([{MikeName, Domain, "MyMike", "MyGroup", "both"}], Items2),
 
                 escalus:send(Alice, escalus_stanza:roster_remove_contact(MikeJid)),  % cleanup
@@ -684,7 +686,7 @@ push_roster(Config) ->
                 {AliceName, Domain, _} = get_user_data(alice, Config),
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
-                {_, 0} = ejabberdctl("push_roster", [TemplatePath, AliceName, Domain], Config),
+                {_, 0} = mongooseimctl("push_roster", [TemplatePath, AliceName, Domain], Config),
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_roster_result, Roster1),
@@ -707,10 +709,10 @@ process_rosteritems_list_simple(Config) ->
         %% when
         {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
         _S = escalus:wait_for_stanzas(Alice, 2),
-        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
+        {R, 0} = mongooseimctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ Contact ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
     end).
 
 process_rosteritems_list_nomatch(Config) ->
@@ -723,14 +725,14 @@ process_rosteritems_list_nomatch(Config) ->
         Contact =string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
         {AliceName, Domain, _} = get_user_data(alice, Config),
         {BobName, Domain, _} = get_user_data(bob, Config),
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, BobName,
+        {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, BobName,
                                                 Domain, "MyBob", "MyGroup", "to"], Config),
         escalus:wait_for_stanzas(Alice, 2),
         %% when
-        {R, 0} = ejabberdctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
+        {R, 0} = mongooseimctl("process_rosteritems", [Action, Subs, Asks, User, Contact], Config),
         %% then
         nomatch = re:run(R, ".*Matches:.*" ++ Contact ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, BobName, Domain], Config)
     end).
 
 process_rosteritems_list_advanced1(Config) ->
@@ -750,18 +752,18 @@ process_rosteritems_list_advanced1(Config) ->
                          ".*@.*",
 
         {_, 0} = add_rosteritem2(AliceName, Domain, MikeName, Domain, Config),
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+        {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "BestFriend", "MyGroup", "both"], Config),
         escalus:wait_for_stanzas(Alice, 4),
         %% when
-        {R, 0} = ejabberdctl("process_rosteritems",
+        {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
                              Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactMike ++ ".*"),
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactKate ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
     end).
 
 process_rosteritems_delete_advanced(Config) ->
@@ -779,20 +781,20 @@ process_rosteritems_delete_advanced(Config) ->
         ContactsRegexp = ".*" ++ string:substr(ContactMike, 3) ++
                          ":" ++ string:substr(ContactKate, 1, 2) ++
                          "@" ++ binary_to_list(Domain),
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, MikeName,
+        {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, MikeName,
                                                 Domain, "DearMike", "MyGroup", "from"], Config),
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+        {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "Friend", "MyGroup", "from"], Config),
         escalus:wait_for_stanzas(Alice, 4),
         %% when
-        {R, 0} = ejabberdctl("process_rosteritems",
+        {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
                              Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactMike ++ ".*"),
         nomatch = re:run(R, ".*Matches:.*" ++ ContactKate ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
     end).
 
 process_rosteritems_list_advanced2(Config) ->
@@ -809,19 +811,19 @@ process_rosteritems_list_advanced2(Config) ->
         ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
         ContactsRegexp = ".*e@lo.*",
         {_, 0} = add_rosteritem2(AliceName, Domain, MikeName, Domain, Config),
-        {_, 0} = ejabberdctl("add_rosteritem", [AliceName, Domain, KateName,
+        {_, 0} = mongooseimctl("add_rosteritem", [AliceName, Domain, KateName,
                                                 Domain, "KateFromSchool",
                                                 "MyGroup", "from"], Config),
         escalus:wait_for_stanzas(Alice, 4),
         %% when
-        {R, 0} = ejabberdctl("process_rosteritems",
+        {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsRegexp],
                              Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactMike ++ ".*"),
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactKate ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config)
     end).
 
 process_rosteritems_delete_advanced2(Config) ->
@@ -840,36 +842,36 @@ process_rosteritems_delete_advanced2(Config) ->
         ContactKate= string:to_lower(binary_to_list(escalus_client:short_jid(Kate))),
         ContactBob= string:to_lower(binary_to_list(escalus_client:short_jid(Bob))),
         ContactsReg = ".ik[ea]@localho+.*:k@loc.*st:(alice)+@.*:no",
-        {_, 0} = ejabberdctl("add_rosteritem",
+        {_, 0} = mongooseimctl("add_rosteritem",
                              [AliceName, Domain, MikeName,
                               Domain, "DearMike", "MyGroup", "to"],
                              Config),
-        {_, 0} = ejabberdctl("add_rosteritem",
+        {_, 0} = mongooseimctl("add_rosteritem",
                              [AliceName, Domain, KateName,
                               Domain, "HateHerSheHasSoNiceLegs",
                               "MyGroup", "to"], Config),
-        {_, 0} = ejabberdctl("add_rosteritem", [BobName, Domain, AliceName,
+        {_, 0} = mongooseimctl("add_rosteritem", [BobName, Domain, AliceName,
                                                 Domain, "Girlfriend", "MyGroup", "from"], Config),
         escalus:wait_for_stanzas(Alice, 4),
         escalus:wait_for_stanzas(Bob, 2),
         %% when
-        {R, 0} = ejabberdctl("process_rosteritems",
+        {R, 0} = mongooseimctl("process_rosteritems",
                              [Action, Subs, Asks, User, ContactsReg],
                              Config),
         %% then
         {match, _} = re:run(R, ".*Matches:.*" ++ ContactMike ++ ".*"),
         nomatch = re:run(R, ".*Matches:.*" ++ ContactKate ++ ".*"),
         nomatch = re:run(R, ".*Matches:.*" ++ ContactBob ++ ".*"),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
-        {_, 0} = ejabberdctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config),
-        {_, 0} = ejabberdctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, MikeName, Domain], Config),
+        {_, 0} = mongooseimctl("delete_rosteritem", [AliceName, Domain, KateName, Domain], Config),
+        {_, 0} = mongooseimctl("delete_rosteritem", [BobName, Domain, AliceName, Domain], Config)
     end).
 
 push_roster_all(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
                 TemplatePath = escalus_config:get_config(roster_template, Config),
 
-                {_, 0} = ejabberdctl("push_roster_all", [TemplatePath], Config),
+                {_, 0} = mongooseimctl("push_roster_all", [TemplatePath], Config),
 
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster1 = escalus:wait_for_stanza(Alice),
@@ -894,7 +896,7 @@ push_roster_alltoall(Config) ->
                 KateJid = escalus_users:get_jid(Config, kate),
                 {_, Domain, _} = get_user_data(alice, Config),
 
-                {_, 0} = ejabberdctl("push_roster_alltoall", [Domain, "MyGroup"], Config),
+                {_, 0} = mongooseimctl("push_roster_alltoall", [Domain, "MyGroup"], Config),
 
                 escalus:send(Alice, escalus_stanza:roster_get()),
                 Roster = escalus:wait_for_stanza(Alice),
@@ -916,7 +918,7 @@ set_last(Config) ->
                 {BobName, Domain, _} = get_user_data(bob, Config),
 
                 {_, 0} = add_rosteritem1(AliceName, Domain, BobName, Config),
-                {_, 0} = ejabberdctl("add_rosteritem",
+                {_, 0} = mongooseimctl("add_rosteritem",
                                      [BobName, Domain, AliceName,
                                       Domain, "MyAlice", "MyGroup", "both"],
                                      Config),
@@ -925,7 +927,7 @@ set_last(Config) ->
 
                 Now = os:system_time(second),
                 TS = integer_to_list(Now - 7200),
-                {_, 0} = ejabberdctl("set_last", [BobName, Domain, TS, "Status"], Config),
+                {_, 0} = mongooseimctl("set_last", [BobName, Domain, TS, "Status"], Config),
                 escalus:send(Alice, escalus_stanza:last_activity(BobJid)),
                 LastAct = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_last_result, LastAct),
@@ -934,10 +936,10 @@ set_last(Config) ->
                             {attr, <<"seconds">>}]))),
                 true = (( (Seconds > 7100) andalso (Seconds < 7300) ) orelse Seconds),
 
-                {_, 0} = ejabberdctl("delete_rosteritem",
+                {_, 0} = mongooseimctl("delete_rosteritem",
                                      [AliceName, Domain, BobName, Domain],
                                      Config), % cleanup
-                {_, 0} = ejabberdctl("delete_rosteritem",
+                {_, 0} = mongooseimctl("delete_rosteritem",
                                      [BobName, Domain, AliceName, Domain],
                                      Config)
         end).
@@ -951,10 +953,10 @@ private_rw(Config) ->
     XmlEl1 = "<secretinfo xmlns=\"nejmspejs\">1</secretinfo>",
     XmlEl2 = "<secretinfo xmlns=\"inny\">2</secretinfo>",
 
-    {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl1], Config),
-    {_, 0} = ejabberdctl("private_set", [AliceName, Domain, XmlEl2], Config),
+    {_, 0} = mongooseimctl("private_set", [AliceName, Domain, XmlEl1], Config),
+    {_, 0} = mongooseimctl("private_set", [AliceName, Domain, XmlEl2], Config),
 
-    {Result, 0} = ejabberdctl("private_get",
+    {Result, 0} = mongooseimctl("private_get",
                               [AliceName, Domain, "secretinfo", "nejmspejs"],
                               Config),
     {ok, #xmlel{ name = <<"secretinfo">>, attrs = [{<<"xmlns">>, <<"nejmspejs">>}],
@@ -966,13 +968,13 @@ private_rw(Config) ->
 
 send_message(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob1, Bob2) ->
-                {_, 0} = ejabberdctl("send_message_chat", [escalus_client:full_jid(Alice),
+                {_, 0} = mongooseimctl("send_message_chat", [escalus_client:full_jid(Alice),
                                                            escalus_client:full_jid(Bob1),
                                                            "Hi Bob!"], Config),
                 Stanza1 = escalus:wait_for_stanza(Bob1),
                 escalus:assert(is_chat_message, [<<"Hi Bob!">>], Stanza1),
 
-                {_, 0} = ejabberdctl("send_message_headline",
+                {_, 0} = mongooseimctl("send_message_headline",
                                      [escalus_client:full_jid(Alice),
                                       escalus_client:short_jid(Bob1),
                                       "Subj", "Hi Bob!!"], Config),
@@ -984,10 +986,10 @@ send_message(Config) ->
 
 send_message_wrong_jid(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {_, Err1} = ejabberdctl("send_message_chat", ["@@#$%!!.§§£",
+        {_, Err1} = mongooseimctl("send_message_chat", ["@@#$%!!.§§£",
                                                    escalus_client:full_jid(Bob),
                                                    "Hello bobby!"], Config),
-        {_, Err2} = ejabberdctl("send_message_headline", ["%%@&@&@==//\///",
+        {_, Err2} = mongooseimctl("send_message_headline", ["%%@&@&@==//\///",
                                                        escalus_client:short_jid(Bob),
                                                        "Subj", "Are
                                                        you there?"],
@@ -1007,7 +1009,7 @@ send_stanza(Config) ->
                            (escalus_client:resource(Bob))/binary>>,
 
                 Stanza = Stanza = create_stanza(Alice, BobJID),
-                {_, 0} = ejabberdctl("send_stanza_c2s",
+                {_, 0} = mongooseimctl("send_stanza_c2s",
                        [BobName, Domain, Resource, Stanza],
                        Config),
 
@@ -1025,10 +1027,10 @@ send_stanzac2s_wrong(Config) ->
         BobJID = <<BobName/binary, $@, Domain/binary, $/, (escalus_client:resource(Bob))/binary>>,
         Stanza = create_stanza(Alice, BobJID),
         StanzaWrong = <<"<iq type='get' id='234234'><xmlns='wrongwrong'>">>,
-        {_, Err} = ejabberdctl("send_stanza_c2s",
+        {_, Err} = mongooseimctl("send_stanza_c2s",
                   [WrongBobName, Domain, Resource, Stanza],
                   Config),
-        {_, Err2} = ejabberdctl("send_stanza_c2s",
+        {_, Err2} = mongooseimctl("send_stanza_c2s",
                   [BobName, Domain, Resource,  StanzaWrong],
                   Config),
 
@@ -1049,13 +1051,13 @@ stats_global(Config) ->
                 RegisteredCount = length(escalus_config:get_config(escalus_users, Config, [])),
                 Registered = integer_to_list(RegisteredCount) ++ "\n",
 
-                {UpTime, 0} = ejabberdctl("stats", ["uptimeseconds"], Config),
+                {UpTime, 0} = mongooseimctl("stats", ["uptimeseconds"], Config),
                 _ = list_to_integer(string:strip(UpTime, both, $\n)),
-                {Registered, 0} = ejabberdctl("stats", ["registeredusers"], Config),
+                {Registered, 0} = mongooseimctl("stats", ["registeredusers"], Config),
 
-                {"2\n", 0} = ejabberdctl("stats", ["onlineusersnode"], Config),
+                {"2\n", 0} = mongooseimctl("stats", ["onlineusersnode"], Config),
 
-                {"2\n", 0} = ejabberdctl("stats", ["onlineusers"], Config)
+                {"2\n", 0} = mongooseimctl("stats", ["onlineusers"], Config)
         end).
 
 stats_host(Config) ->
@@ -1066,11 +1068,12 @@ stats_host(Config) ->
                 PriDomain = escalus_client:server(Alice),
                 SecDomain = ct:get_config({hosts, mim, secondary_domain}),
 
-                {Registered, 0} = ejabberdctl("stats_host", ["registeredusers", PriDomain], Config),
-                {"0\n", 0} = ejabberdctl("stats_host", ["registeredusers", SecDomain], Config),
+                {Registered, 0} = mongooseimctl("stats_host",
+                                                ["registeredusers", PriDomain], Config),
+                {"0\n", 0} = mongooseimctl("stats_host", ["registeredusers", SecDomain], Config),
 
-                {"2\n", 0} = ejabberdctl("stats_host", ["onlineusers", PriDomain], Config),
-                {"0\n", 0} = ejabberdctl("stats_host", ["onlineusers", SecDomain], Config)
+                {"2\n", 0} = mongooseimctl("stats_host", ["onlineusers", PriDomain], Config),
+                {"0\n", 0} = mongooseimctl("stats_host", ["onlineusers", SecDomain], Config)
         end).
 
 
@@ -1086,12 +1089,12 @@ simple_register(Config) ->
     Domain = domain(),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {R1, 0} = ejabberdctl("registered_users", [Domain], Config),
+    {R1, 0} = mongooseimctl("registered_users", [Domain], Config),
     Before = length(string:tokens(R1, "\n")),
-    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
-    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
+    {_, 0} = mongooseimctl("register", [Domain, Password], Config),
+    {_, 0} = mongooseimctl("register", [Domain, Password], Config),
 
-    {R2, 0} = ejabberdctl("registered_users", [Domain], Config),
+    {R2, 0} = mongooseimctl("registered_users", [Domain], Config),
     After = length(string:tokens(R2, "\n")),
     %% then
     2 = After - Before.
@@ -1101,8 +1104,8 @@ simple_unregister(Config) ->
     Domain = domain(),
     {Name, _} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("unregister", [Name, Domain], Config),
-    {R2, 0} = ejabberdctl("registered_users", [Domain], Config),
+    {_, 0} = mongooseimctl("unregister", [Name, Domain], Config),
+    {R2, 0} = mongooseimctl("registered_users", [Domain], Config),
     %% then
     nomatch = re:run(R2, ".*(" ++ binary_to_list(Name) ++ ").*").
 
@@ -1111,12 +1114,12 @@ register_twice(Config) ->
     Domain = domain(),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
-    {R, Code} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
+    {_, 0} = mongooseimctl("register_identified", [Name, Domain, Password], Config),
+    {R, Code} = mongooseimctl("register_identified", [Name, Domain, Password], Config),
     %% then
     {match, _} = re:run(R, ".*(already registered).*"),
     true = (Code =/= 0),
-    {_, 0} = ejabberdctl("unregister", [Name, Domain], Config).
+    {_, 0} = mongooseimctl("unregister", [Name, Domain], Config).
 
 
 
@@ -1127,18 +1130,18 @@ backup_restore_mnesia(Config) ->
     %% Table passwd should not be empty
     FileName = "backup_mnesia.bup",
     %% when
-    {R, 0} = ejabberdctl("backup", [FileName], Config),
+    {R, 0} = mongooseimctl("backup", [FileName], Config),
     nomatch = re:run(R, ".+"),
     rpc_call(mnesia, clear_table, [TableName]),
     0 = rpc_call(mnesia, table_info, [TableName, size]),
-    {R2, 0} = ejabberdctl("restore", [FileName], Config),
+    {R2, 0} = mongooseimctl("restore", [FileName], Config),
     %% then
     nomatch = re:run(R2, ".+"),
     TableSize = rpc_call(mnesia, table_info, [TableName, size]).
 
 restore_mnesia_wrong(Config) ->
     FileName = "file that doesnt exist13123.bup",
-    {R2, _} = ejabberdctl("restore", [FileName], Config),
+    {R2, _} = mongooseimctl("restore", [FileName], Config),
     {match, Code} = re:run(R2, ".+"),
     true = (Code =/= 0).
 
@@ -1147,20 +1150,20 @@ dump_and_load(Config) ->
     TableName = passwd,
     %% Table passwd should not be empty
     TableSize = rpc_call(mnesia, table_info, [TableName, size]),
-    {DumpReturns, 0} = ejabberdctl("dump", [FileName], Config),
+    {DumpReturns, 0} = mongooseimctl("dump", [FileName], Config),
     ct:log("DumpReturns ~p", [DumpReturns]),
     {ok, DumpData} = rpc_call(file, consult, [FileName]),
     ct:log("DumpData ~p", [DumpData]),
     rpc_call(mnesia, clear_table, [TableName]),
     0 = rpc_call(mnesia, table_info, [TableName, size]),
-    {R, 0} = ejabberdctl("load", [FileName], Config),
+    {R, 0} = mongooseimctl("load", [FileName], Config),
     ct:log("LoadReturns ~p", [R]),
     {match, _} = re:run(R, ".+"),
     TableSize = rpc_call(mnesia, table_info, [TableName, size]).
 
 load_mnesia_wrong(Config) ->
     FileName = "file that doesnt existRHCP.bup",
-    {R2, Code} = ejabberdctl("restore", [FileName], Config),
+    {R2, Code} = mongooseimctl("restore", [FileName], Config),
     {match, _} = re:run(R2, ".+"),
     true = (Code =/= 0).
 
@@ -1169,15 +1172,15 @@ dump_table(Config) ->
     TableName = passwd,
     %% Table passwd should not be empty
     TableSize = rpc_call(mnesia, table_info, [TableName, size]),
-    {_, 0} = ejabberdctl("dump_table", [FileName, atom_to_list(TableName)], Config),
+    {_, 0} = mongooseimctl("dump_table", [FileName, atom_to_list(TableName)], Config),
     rpc_call(mnesia, clear_table, [TableName]),
     0 = rpc_call(mnesia, table_info, [TableName, size]),
-    {R, 0} = ejabberdctl("load", [FileName], Config),
+    {R, 0} = mongooseimctl("load", [FileName], Config),
     {match, _} = re:run(R, ".+"),
     TableSize = rpc_call(mnesia, table_info, [TableName, size]).
 
 get_loglevel(Config) ->
-    {R, 0} = ejabberdctl("get_loglevel", [], Config),
+    {R, 0} = mongooseimctl("get_loglevel", [], Config),
     LogLevel = rpc_call(mongoose_logs, get_global_loglevel, []),
     Regexp = io_lib:format("global loglevel is \(.\)\{1,2\}, which means '~p'", [LogLevel]),
     {match, _} = re:run(R, Regexp, [{capture, first}]).
@@ -1201,7 +1204,7 @@ remove_old_messages_test(Config) ->
         HostType = host_type(),
         rpc_call(mod_offline_backend, write_messages, [host_type(), LUser, LServer, [OfflineOld, OfflineNew]]),
         %% when
-        {_, 0} = ejabberdctl("delete_old_messages", [LServer, "1"], Config),
+        {_, 0} = mongooseimctl("delete_old_messages", [LServer, "1"], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [HostType, JidRecordBob]),
         %% then
         1 = length(SecondList)
@@ -1239,7 +1242,7 @@ remove_expired_messages_test(Config) ->
         HostType = host_type(),
         rpc_call(mod_offline_backend, write_messages, [HostType, LUser, LServer, Args]),
         %% when
-        {_, 0} = ejabberdctl("delete_expired_messages", [LServer], Config),
+        {_, 0} = mongooseimctl("delete_expired_messages", [LServer], Config),
         {ok, SecondList} = rpc_call(mod_offline_backend, pop_messages, [HostType, JidRecordKate]),
         %% then
         2 = length(SecondList)
@@ -1370,11 +1373,11 @@ domain() ->
     ct:get_config({hosts, mim, domain}).
 
 add_rosteritem1(UserName1, Domain, UserName2, Config) ->
-    ejabberdctl("add_rosteritem",
+    mongooseimctl("add_rosteritem",
                 [UserName1, Domain, UserName2,
                  Domain, "MyBob", "MyGroup", "both"], Config).
 
 add_rosteritem2(Name1, Domain1, Name2, Domain2, Config) ->
-    ejabberdctl("add_rosteritem",
+    mongooseimctl("add_rosteritem",
                 [Name1, Domain1, Name2,
                  Domain2, "DearMike", "MyGroup", "both"], Config).

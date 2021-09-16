@@ -44,6 +44,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     dynamic_modules:stop(domain_helper:host_type(), mod_time),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(mod_time, Config) ->

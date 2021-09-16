@@ -155,6 +155,7 @@ end_per_suite(Config) ->
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_inbox),
     muc_light_helper:clear_db(),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config1).
 
 init_per_group(muclight, Config) ->

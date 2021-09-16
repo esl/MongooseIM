@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 12. Nov 2015 14:39
 %%%-------------------------------------------------------------------
--module(ejabberdctl_helper).
+-module(mongooseimctl_helper).
 -author("ludwikbukowski").
 
 -compile(export_all).
@@ -16,13 +16,13 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
--spec ejabberdctl(Cmd :: string(), Args :: [binary() | string()], Config :: list()) ->
+-spec mongooseimctl(Cmd :: string(), Args :: [binary() | string()], Config :: list()) ->
     {Data :: iolist(), ExitStatus :: integer()} | no_return().
-ejabberdctl(Cmd, Args, Config) ->
+mongooseimctl(Cmd, Args, Config) ->
     #{node := Node} = mim(),
-    ejabberdctl(Node, Cmd, Args, Config).
+    mongooseimctl(Node, Cmd, Args, Config).
 
-ejabberdctl(Node, Cmd, Args, Config) ->
+mongooseimctl(Node, Cmd, Args, Config) ->
     CtlCmd = distributed_helper:ctl_path(Node, Config),
     run(CtlCmd, [Cmd | Args]).
 
