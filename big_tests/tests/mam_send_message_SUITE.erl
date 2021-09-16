@@ -50,6 +50,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 %%%===================================================================
