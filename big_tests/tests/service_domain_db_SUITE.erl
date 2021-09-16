@@ -5,7 +5,7 @@
 
 -compile(export_all).
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
--import(ejabberdctl_helper, [ejabberdctl/3]).
+-import(mongooseimctl_helper, [mongooseimctl/3]).
 
 -import(domain_rest_helper,
         [set_invalid_creds/1,
@@ -607,108 +607,108 @@ db_keeps_syncing_after_cluster_join(Config) ->
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_disable_domain(Config) ->
-    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    ejabberdctl("disable_domain", [<<"example.db">>], Config),
+    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    mongooseimctl("disable_domain", [<<"example.db">>], Config),
     {ok, #{host_type := <<"type1">>, enabled := false}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_enable_domain(Config) ->
-    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    ejabberdctl("disable_domain", [<<"example.db">>], Config),
-    ejabberdctl("enable_domain", [<<"example.db">>], Config),
+    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    mongooseimctl("disable_domain", [<<"example.db">>], Config),
+    mongooseimctl("enable_domain", [<<"example.db">>], Config),
     {ok, #{host_type := <<"type1">>, enabled := true}} =
         select_domain(mim(), <<"example.db">>).
 
 cli_can_delete_domain(Config) ->
-    ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
-    ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
+    mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+    mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config),
     {error, not_found} = select_domain(mim(), <<"example.db">>).
 
 cli_cannot_delete_domain_without_correct_type(Config) ->
     {"Added\n", 0} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     {"Error: \"Wrong host type\"\n", 1} =
-        ejabberdctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
+        mongooseimctl("delete_domain", [<<"example.db">>, <<"type2">>], Config),
     {ok, _} = select_domain(mim(), <<"example.db">>).
 
 cli_cannot_insert_domain_twice_with_another_host_type(Config) ->
     {"Added\n", 0} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config),
     {"Error: \"Domain already exists\"\n", 1} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type2">>], Config).
 
 cli_cannot_insert_domain_with_unknown_host_type(Config) ->
     {"Error: \"Unknown host type\"\n", 1} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type6">>], Config).
 
 cli_cannot_delete_domain_with_unknown_host_type(Config) ->
     {"Error: \"Unknown host type\"\n", 1} =
-        ejabberdctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
+        mongooseimctl("delete_domain", [<<"example.db">>, <<"type6">>], Config).
 
 cli_cannot_enable_missing_domain(Config) ->
     {"Error: \"Domain not found\"\n", 1} =
-        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+        mongooseimctl("enable_domain", [<<"example.db">>], Config).
 
 cli_cannot_disable_missing_domain(Config) ->
     {"Error: \"Domain not found\"\n", 1} =
-        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+        mongooseimctl("disable_domain", [<<"example.db">>], Config).
 
 cli_cannot_insert_domain_when_it_is_static(Config) ->
     {"Error: \"Domain is static\"\n", 1} =
-        ejabberdctl("insert_domain", [<<"example.cfg">>, <<"type1">>], Config).
+        mongooseimctl("insert_domain", [<<"example.cfg">>, <<"type1">>], Config).
 
 cli_cannot_delete_domain_when_it_is_static(Config) ->
     {"Error: \"Domain is static\"\n", 1} =
-        ejabberdctl("delete_domain", [<<"example.cfg">>, <<"type1">>], Config).
+        mongooseimctl("delete_domain", [<<"example.cfg">>, <<"type1">>], Config).
 
 cli_cannot_enable_domain_when_it_is_static(Config) ->
     {"Error: \"Domain is static\"\n", 1} =
-        ejabberdctl("enable_domain", [<<"example.cfg">>], Config).
+        mongooseimctl("enable_domain", [<<"example.cfg">>], Config).
 
 cli_cannot_disable_domain_when_it_is_static(Config) ->
     {"Error: \"Domain is static\"\n", 1} =
-        ejabberdctl("disable_domain", [<<"example.cfg">>], Config).
+        mongooseimctl("disable_domain", [<<"example.cfg">>], Config).
 
 cli_insert_domain_fails_if_db_fails(Config) ->
     {"Error: \"Database error\"\n", 1} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_insert_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {"Error: \"Service disabled\"\n", 1} =
-        ejabberdctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
+        mongooseimctl("insert_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_delete_domain_fails_if_db_fails(Config) ->
     {"Error: \"Database error\"\n", 1} =
-        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+        mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_delete_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {"Error: \"Service disabled\"\n", 1} =
-        ejabberdctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
+        mongooseimctl("delete_domain", [<<"example.db">>, <<"type1">>], Config).
 
 cli_enable_domain_fails_if_db_fails(Config) ->
     {"Error: \"Database error\"\n", 1} =
-        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+        mongooseimctl("enable_domain", [<<"example.db">>], Config).
 
 cli_enable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {"Error: \"Service disabled\"\n", 1} =
-        ejabberdctl("enable_domain", [<<"example.db">>], Config).
+        mongooseimctl("enable_domain", [<<"example.db">>], Config).
 
 cli_disable_domain_fails_if_db_fails(Config) ->
     {"Error: \"Database error\"\n", 1} =
-        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+        mongooseimctl("disable_domain", [<<"example.db">>], Config).
 
 cli_disable_domain_fails_if_service_disabled(Config) ->
     service_disabled(mim()),
     {"Error: \"Service disabled\"\n", 1} =
-        ejabberdctl("disable_domain", [<<"example.db">>], Config).
+        mongooseimctl("disable_domain", [<<"example.db">>], Config).
 
 rest_can_insert_domain(Config) ->
     {{<<"204">>, _}, _} =
@@ -1097,14 +1097,14 @@ leave_cluster(Config) ->
     Cmd = "leave_cluster",
     #{node := Node} = distributed_helper:mim(),
     Args = ["--force"],
-    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).
+    mongooseimctl_helper:mongooseimctl(Node, Cmd, Args, Config).
 
 join_cluster(Config) ->
     Cmd = "join_cluster",
     #{node := Node} = distributed_helper:mim(),
     #{node := Node2} = distributed_helper:mim2(),
     Args = ["--force", atom_to_list(Node2)],
-    ejabberdctl_helper:ejabberdctl(Node, Cmd, Args, Config).
+    mongooseimctl_helper:mongooseimctl(Node, Cmd, Args, Config).
 
 assert_domains_are_equal(HostType) ->
     Domains1 = lists:sort(get_domains_by_host_type(mim(), HostType)),

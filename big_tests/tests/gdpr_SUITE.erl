@@ -58,7 +58,7 @@
          data_is_not_retrieved_for_missing_user/1
         ]).
 
--import(ejabberdctl_helper, [ejabberdctl/3]).
+-import(mongooseimctl_helper, [mongooseimctl/3]).
 
 -import(distributed_helper, [mim/0, subhost_pattern/1, rpc/4]).
 
@@ -1707,13 +1707,14 @@ make_dir_name(Filename, User) when is_list(User) ->
 
 retrieve_personal_data(User, Domain, Config) ->
     Filename = random_filename(Config),
-    {CommandOutput, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
+    {CommandOutput, Code} = mongooseimctl("retrieve_personal_data",
+                                          [User, Domain, Filename], Config),
     {Filename, Code, CommandOutput}.
 
 unregister(Client, Config) ->
     User = escalus_client:username(Client),
     Domain = escalus_client:server(Client),
-    {CommandOutput, Code} = ejabberdctl("unregister", [User, Domain], Config),
+    {CommandOutput, Code} = mongooseimctl("unregister", [User, Domain], Config),
     {Code, CommandOutput}.
 
 random_filename(Config) ->

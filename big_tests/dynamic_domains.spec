@@ -33,8 +33,6 @@
 
 {suites, "tests", dynamic_domains_SUITE}.
 
-{suites, "tests", ejabberdctl_SUITE}.
-
 {suites, "tests", inbox_SUITE}.
 
 {suites, "tests", inbox_extensions_SUITE}.
@@ -52,6 +50,8 @@
 {suites, "tests", mod_time_SUITE}.
 
 {suites, "tests", mod_version_SUITE}.
+
+{suites, "tests", mongooseimctl_SUITE}.
 
 {suites, "tests", muc_SUITE}.
 {skip_groups, "tests", muc_SUITE,

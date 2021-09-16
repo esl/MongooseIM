@@ -23,7 +23,7 @@
                              remove_node_from_cluster/2,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
+-import(mongooseimctl_helper, [mongooseimctl/3, rpc_call/3]).
 -import(domain_helper, [host_type/1]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -196,14 +196,14 @@ set_master_test(ConfigIn) ->
 
     TableName = passwd,
     NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
-    ejabberdctl("set_master", ["self"], ConfigIn),
+    mongooseimctl("set_master", ["self"], ConfigIn),
     [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
     true = lists:member(MasterNode, NodeList),
     RestNodesList = lists:delete(MasterNode, NodeList),
     OtherNode = hd(RestNodesList),
-    ejabberdctl("set_master", [atom_to_list(OtherNode)], ConfigIn),
+    mongooseimctl("set_master", [atom_to_list(OtherNode)], ConfigIn),
     [OtherNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]),
-    ejabberdctl("set_master", ["self"], ConfigIn),
+    mongooseimctl("set_master", ["self"], ConfigIn),
     [MasterNode] = rpc_call(mnesia, table_info, [TableName, master_nodes]).
 
 
@@ -216,7 +216,8 @@ join_successful_prompt(Config) ->
     %% given
     #{node := Node2} = RPCSpec2 = mim2(),
     %% when
-    {_, OpCode} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
+    {_, OpCode} =
+        mongooseimctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
     %% then
     distributed_helper:verify_result(RPCSpec2, add),
     ?eq(0, OpCode).
@@ -225,7 +226,7 @@ join_successful_force(Config) ->
     %% given
     #{node := Node2} = RPCSpec2 = mim2(),
     %% when
-    {_, OpCode} = ejabberdctl_force("join_cluster", [atom_to_list(Node2)], "--force", Config),
+    {_, OpCode} = mongooseimctl_force("join_cluster", [atom_to_list(Node2)], "--force", Config),
     %% then
     distributed_helper:verify_result(RPCSpec2, add),
     ?eq(0, OpCode).
@@ -235,7 +236,7 @@ leave_successful_prompt(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config),
     %% when
-    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode).
@@ -245,7 +246,7 @@ leave_successful_force(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config),
     %% when
-    {_, OpCode} = ejabberdctl_force("leave_cluster", [], "-f", Config),
+    {_, OpCode} = mongooseimctl_force("leave_cluster", [], "-f", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode).
@@ -254,7 +255,7 @@ join_unsuccessful(Config) ->
     %% given
     Node2 = mim2(),
     %% when
-    {_, OpCode} = ejabberdctl_interactive("join_cluster", [], "no\n", Config),
+    {_, OpCode} = mongooseimctl_interactive("join_cluster", [], "no\n", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?ne(0, OpCode).
@@ -264,7 +265,7 @@ leave_unsuccessful(Config) ->
     Node2 = mim(),
     add_node_to_cluster(Node2, Config),
     %% when
-    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "no\n", Config),
+    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "no\n", Config),
     %% then
     distributed_helper:verify_result(Node2, add),
     ?ne(0, OpCode).
@@ -273,7 +274,7 @@ leave_but_no_cluster(Config) ->
     %% given
     Node2 = mim2(),
     %% when
-    {_, OpCode} = ejabberdctl_interactive("leave_cluster", [], "yes\n", Config),
+    {_, OpCode} = mongooseimctl_interactive("leave_cluster", [], "yes\n", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?ne(0, OpCode).
@@ -282,8 +283,10 @@ join_twice(Config) ->
     %% given
     #{node := Node2} = RPCSpec2 = mim2(),
     %% when
-    {_, OpCode1} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
-    {_, OpCode2} = ejabberdctl_interactive("join_cluster", [atom_to_list(Node2)], "yes\n", Config),
+    {_, OpCode1} = mongooseimctl_interactive("join_cluster",
+                                             [atom_to_list(Node2)], "yes\n", Config),
+    {_, OpCode2} = mongooseimctl_interactive("join_cluster",
+                                             [atom_to_list(Node2)], "yes\n", Config),
     %% then
     distributed_helper:verify_result(RPCSpec2, add),
     ?eq(0, OpCode1),
@@ -340,8 +343,8 @@ leave_twice(Config) ->
     Node2 = mim2(),
     add_node_to_cluster(Node2, Config),
     %% when
-    {_, OpCode1} = ejabberdctl_force("leave_cluster", [], "--force", Config),
-    {_, OpCode2} = ejabberdctl_force("leave_cluster", [], "-f", Config),
+    {_, OpCode1} = mongooseimctl_force("leave_cluster", [], "--force", Config),
+    {_, OpCode2} = mongooseimctl_force("leave_cluster", [], "-f", Config),
     %% then
     distributed_helper:verify_result(Node2, remove),
     ?eq(0, OpCode1),
@@ -353,8 +356,10 @@ cluster_of_three(Config) ->
     #{node := Node2Nodename} = Node2 = mim2(),
     #{node := Node3Nodename} = Node3 = mim3(),
     %% when
-    {_, OpCode1} = ejabberdctl_force(Node2Nodename, "join_cluster", [atom_to_list(ClusterMemberNodeName)], "-f", Config),
-    {_, OpCode2} = ejabberdctl_force(Node3Nodename, "join_cluster", [atom_to_list(ClusterMemberNodeName)], "-f", Config),
+    {_, OpCode1} = mongooseimctl_force(Node2Nodename, "join_cluster",
+                                       [atom_to_list(ClusterMemberNodeName)], "-f", Config),
+    {_, OpCode2} = mongooseimctl_force(Node3Nodename, "join_cluster",
+                                       [atom_to_list(ClusterMemberNodeName)], "-f", Config),
     %% then
     ?eq(0, OpCode1),
     ?eq(0, OpCode2),
@@ -371,10 +376,10 @@ leave_the_three(Config) ->
     ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [ClusterMemberNode]),
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [ClusterMemberNode]),
     %% when
-    {_, OpCode1} = ejabberdctl_interactive(Node2Nodename, "leave_cluster", [], "yes\n", Config),
+    {_, OpCode1} = mongooseimctl_interactive(Node2Nodename, "leave_cluster", [], "yes\n", Config),
     nodes_clustered(Node2, ClusterMember, false),
     nodes_clustered(Node3, ClusterMember, true),
-    {_, OpCode2} = ejabberdctl_interactive(Node3Nodename, "leave_cluster", [], "yes\n", Config),
+    {_, OpCode2} = mongooseimctl_interactive(Node3Nodename, "leave_cluster", [], "yes\n", Config),
     %% then
     nodes_clustered(Node3, ClusterMember, false),
     nodes_clustered(Node2, Node3, false),
@@ -391,7 +396,8 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     %% when
     distributed_helper:stop_node(Node3, Config),
-    {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node3Nodename)], "yes\n", Config),
+    {_, OpCode1} = mongooseimctl_interactive(Node1, "remove_from_cluster",
+                                             [atom_to_list(Node3Nodename)], "yes\n", Config),
     %% then
     ?eq(0, OpCode1),
     % node is down hence its not in mnesia cluster
@@ -413,7 +419,8 @@ remove_alive_from_cluster(Config) ->
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Name]),
     %% when
     %% Node2 is still running
-    {_, OpCode1} = ejabberdctl_force(Node1Name, "remove_from_cluster", [atom_to_list(Node2Name)], "-f", Config),
+    {_, OpCode1} = mongooseimctl_force(Node1Name, "remove_from_cluster",
+                                       [atom_to_list(Node2Name)], "-f", Config),
     %% then
     ?eq(0, OpCode1),
     % node is down hence its not in mnesia cluster
@@ -424,10 +431,10 @@ remove_alive_from_cluster(Config) ->
 
 
 %% Helpers
-ejabberdctl_interactive(C, A, R, Config) ->
+mongooseimctl_interactive(C, A, R, Config) ->
     #{node := DefaultNode} = mim(),
-    ejabberdctl_interactive(DefaultNode, C, A, R, Config).
-ejabberdctl_interactive(Node, Cmd, Args, Response, Config) ->
+    mongooseimctl_interactive(DefaultNode, C, A, R, Config).
+mongooseimctl_interactive(Node, Cmd, Args, Response, Config) ->
     CtlCmd = escalus_config:get_config(ctl_path_atom(Node), Config),
     run_interactive(string:join([CtlCmd, Cmd | normalize_args(Args)], " "), Response).
 
@@ -439,11 +446,11 @@ normalize_args(Args) ->
                       Arg
               end, Args).
 
-ejabberdctl_force(Command, Args, ForceFlag, Config) ->
+mongooseimctl_force(Command, Args, ForceFlag, Config) ->
     #{node := DefaultNode} = mim(),
-    ejabberdctl_force(DefaultNode, Command, Args, ForceFlag, Config).
-ejabberdctl_force(Node, Cmd, Args, ForceFlag, Config) ->
-    ejabberdctl_helper:ejabberdctl(Node, Cmd, [ForceFlag | Args], Config).
+    mongooseimctl_force(DefaultNode, Command, Args, ForceFlag, Config).
+mongooseimctl_force(Node, Cmd, Args, ForceFlag, Config) ->
+    mongooseimctl_helper:mongooseimctl(Node, Cmd, [ForceFlag | Args], Config).
 
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
@@ -457,7 +464,7 @@ run_interactive(Cmd, Response, Timeout) ->
     Port = erlang:open_port({spawn, Cmd}, [exit_status]),
     %% respond to interactive question (yes/no)
     Port ! {self(), {command, Response}},
-    ejabberdctl_helper:loop(Cmd, [], Port, [], Timeout).
+    mongooseimctl_helper:loop(Cmd, [], Port, [], Timeout).
 
 nodes_clustered(#{node := Node1Name} = Node1, #{node := Node2Name} = Node2, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
@@ -475,4 +482,8 @@ have_node_in_mnesia(Node1, #{node := Node2}, ShouldBe) ->
 
 wait_for_process_to_stop(Pid, Timeout) ->
     erlang:monitor(process, Pid),
-    receive {'DOWN', _, process, Pid, _} -> ok after Timeout -> ct:fail(wait_for_process_to_stop_timeout) end.
+    receive
+        {'DOWN', _, process, Pid, _} -> ok
+    after Timeout ->
+            ct:fail(wait_for_process_to_stop_timeout)
+    end.

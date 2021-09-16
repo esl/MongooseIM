@@ -23,7 +23,6 @@
 {suites, "tests", component_SUITE}.
 {suites, "tests", connect_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
-{suites, "tests", ejabberdctl_SUITE}.
 {suites, "tests", extdisco_SUITE}.
 {suites, "tests", gdpr_SUITE}.
 {suites, "tests", inbox_SUITE}.
@@ -48,6 +47,7 @@
 {suites, "tests", mod_version_SUITE}.
 {suites, "tests", mongoose_cassandra_SUITE}.
 {suites, "tests", mongoose_elasticsearch_SUITE}.
+{suites, "tests", mongooseimctl_SUITE}.
 {suites, "tests", muc_SUITE}.
 {suites, "tests", muc_http_api_SUITE}.
 {suites, "tests", muc_light_SUITE}.

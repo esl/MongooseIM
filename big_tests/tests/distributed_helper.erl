@@ -164,9 +164,9 @@ get_or_fail(Key) ->
     Val.
 
 start_node(Node, Config) ->
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
-    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
+    {_, 0} = mongooseimctl_helper:mongooseimctl(Node, "start", [], Config),
+    {_, 0} = mongooseimctl_helper:mongooseimctl(Node, "started", [], Config),
+    %% TODO Looks like "started" run by mongooseimctl fun is not really synchronous
     timer:sleep(3000).
 
 stop_node(Node, Config) ->
@@ -174,7 +174,7 @@ stop_node(Node, Config) ->
 
 mongooseim_script(Node, Cmd, Args, Config) ->
     CtlCmd = script_path(Node, Config, "mongooseim"),
-    ejabberdctl_helper:run(CtlCmd, [Cmd | Args]).
+    mongooseimctl_helper:run(CtlCmd, [Cmd | Args]).
 
 subhost_pattern(SubhostTemplate) ->
     rpc(mim(), mongoose_subdomain_utils, make_subdomain_pattern, [SubhostTemplate]).
