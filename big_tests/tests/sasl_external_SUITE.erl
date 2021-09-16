@@ -343,13 +343,13 @@ self_signed_cert_is_allowed_with(EscalusTransport, C) ->
 
 no_cert_fails_to_authenticate(_C) ->
     UserSpec = [{username, <<"no_cert_user">>},
-		{server, domain()},
-		{host, <<"localhost">>},
-        {port, ct:get_config({hosts, mim, c2s_port})},
-		{password, <<"break_me">>},
-		{resource, <<>>}, %% Allow the server to generate the resource
-		{auth, {escalus_auth, auth_sasl_external}},
-		{starttls, required}],
+                {server, domain()},
+                {host, <<"localhost">>},
+                {port, ct:get_config({hosts, mim, c2s_port})},
+                {password, <<"break_me">>},
+                {resource, <<>>}, %% Allow the server to generate the resource
+                {auth, {escalus_auth, auth_sasl_external}},
+                {starttls, required}],
 
     Result = escalus_connection:start(UserSpec),
     ?assertMatch({error, {connection_step_failed, _, _}}, Result),
@@ -421,14 +421,14 @@ generate_user(C, User, Transport) ->
     UserCert = maps:get(User, Certs),
 
     Common = [{username, list_to_binary(User)},
-	      {server, domain()},
-          {host, <<"localhost">>},
-	      {password, <<"break_me">>},
-	      {resource, <<>>}, %% Allow the server to generate the resource
-	      {auth, {escalus_auth, auth_sasl_external}},
-	      {transport, Transport},
-	      {ssl_opts, [{certfile, maps:get(cert, UserCert)},
-			  {keyfile, maps:get(key, UserCert)}]}],
+              {server, domain()},
+              {host, <<"localhost">>},
+              {password, <<"break_me">>},
+              {resource, <<>>}, %% Allow the server to generate the resource
+              {auth, {escalus_auth, auth_sasl_external}},
+              {transport, Transport},
+              {ssl_opts, [{certfile, maps:get(cert, UserCert)},
+                          {keyfile, maps:get(key, UserCert)}]}],
     Common ++ transport_specific_options(Transport)
     ++ [{port, ct:get_config({hosts, mim, c2s_port})}].
 
@@ -472,7 +472,7 @@ replace_addrs(Addresses) ->
     lists:map( fun(Addr) -> [User, Hostname] = binary:split(list_to_binary(Addr), <<"@">>),
                             binary_to_list(<<User/binary, <<"-self-signed@">>/binary, Hostname/binary>>) end, Addresses).
 
--spec domain() -> mongooseim:domain_name().
+-spec domain() -> jid:lserver().
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
