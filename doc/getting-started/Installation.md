@@ -13,24 +13,28 @@ Alternatively, check out our tutorial on [How to build MongooseIM from source co
 Go to the [downloads](https://www.erlang-solutions.com/resources/download.html) section of the Erlang Solutions website, and choose the version of MongooseIM you want.
 The following sections describe the installation process for different operating systems.
 
-### Ubuntu and Debian
 
-Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
+=== "Ubuntu and Debian"
 
-```bash
-sudo dpkg -i mongooseim_[version here].deb
-```
+    Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
 
-### CentOS
+    ```bash
+    sudo dpkg -i mongooseim_[version here].deb
+    ```
 
-An ODBC (RDBMS) driver must be installed on your machine to unpack and install from RPM packages. Enter the following command in a terminal window to install the latest unixODBC driver:
-```bash
-sudo yum install unixODBC
-```
-Once the RPM file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
-```bash
-sudo rpm -i mongooseim_[version here].rpm
-```
+=== "CentOS"
+
+    An ODBC (RDBMS) driver must be installed on your machine to unpack and install from RPM packages. Enter the following command in a terminal window to install the latest unixODBC driver:
+    
+    ```bash
+    sudo yum install unixODBC
+    ```
+    
+    Once the RPM file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
+    
+    ```bash
+    sudo rpm -i mongooseim_[version here].rpm
+    ```
 
 ## Docker
 

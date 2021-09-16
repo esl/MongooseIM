@@ -13,86 +13,95 @@ For any other OS versions, the instructions should still work, however, some ste
 
 To compile MongooseIM you need:
 
-*   Make
-    * CentOS: `make`
-    * Ubuntu: `make`
-    * Mac: Xcode Command Line Tools
-*   C and C++ compiler
-    * CentOS: `gcc`, `gcc-c++`
-    * Ubuntu: `gcc`, `g++`
-    * Mac: Xcode Command Line Tools
-*   Erlang/OTP 21.2 or higher;
-    * CentOS: `erlang` 
-    * Ubuntu: `erlang`
-    * Mac (Homebrew): `erlang`
-    * Alternative for CentOS and Ubuntu: `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html)
-    * Alternative for all OS: [kerl](https://github.com/kerl/kerl)
-*   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption
-    * CentOS: `openssl` and `openssl-devel`
-    * Ubuntu: `libssl-dev`
-    * Mac (Homebrew): `openssl`
-*   ODBC library
-    * CentOS: `unixODBC-devel`
-    * Ubuntu: `unixodbc-dev`
-    * Mac (Homebrew): `unixodbc`
-*   Zlib 1.2.3 or higher
-    * CentOS: `zlib-devel`
-    * Ubuntu: `zlib1g-dev`
-    * Mac: built-in
+=== "CentOS"
 
-## Preparing macOS environment
+      *   Make: `make`,
+      *   C and C++ compiler: `gcc`, `gcc-c++`,
+      *   Erlang/OTP 21.2 or higher:
+        * `erlang` package, or,
+        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
+        * install using [kerl](https://github.com/kerl/kerl),
+      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `openssl` and `openssl-devel`,
+      *   ODBC library: `unixODBC-devel`,
+      *   Zlib 1.2.3 or higher: `zlib-devel`.
+    
+=== "Ubuntu"
 
-### Step 1
+      *   Make: `make`,
+      *   C and C++ compiler: `gcc`, `g++`,
+      *   Erlang/OTP 21.2 or higher:
+        * `erlang` package, or,
+        * `esl-erlang` from [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html), or,
+        * install using [kerl](https://github.com/kerl/kerl),
+      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: `olibssl-dev`,
+      *   ODBC library: `unixodbc-dev`,
+      *   Zlib 1.2.3 or higher: `zlib1g-dev`.
 
-Install [Homebrew](http://brew.sh) to manage packages on your Mac.
-You may use a different package manager but you'll need to figure out the package names and file paths on your own.
+=== "macOS"
 
-### Step 2
+      *   Make, C and C++ compiler: Xcode Command Line Tools,
+      *   Erlang/OTP 21.2 or higher:
+        * [`erlang`](https://formulae.brew.sh/formula/erlang) from Homebrew,
+        * install using [kerl](https://github.com/kerl/kerl),
+      *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption: [`openssl`](https://formulae.brew.sh/formula/openssl@1.1) from Homebrew
+      *   ODBC library: [`unixodbc`](https://formulae.brew.sh/formula/unixodbc) from Homebrew.
 
-Install Xcode Command Line Tools.
+## Preparing the environment
 
-```bash
-xcode-select --install # install compilation tools
-```
+=== "centOS"
 
-### Step 3
+    Please install the required dependencies:
+    
+    ```bash
+    sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
+    ```
+    
+    Now, please proceed to the "Building" section.
 
-Install dependencies with Brew.
+=== "Ubuntu"
 
-```bash
-brew install erlang openssl unixodbc
-```
+    Please install the required dependencies:
+    
+    ```bash
+    sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
+    ```
+    
+    Now, please proceed to the "Building" section.
 
-### Step 4
+=== "macOS"
 
-Add OpenSSL paths to the compiler and linker environment variables:
+    #### Step 1
+    
+    Install [Homebrew](http://brew.sh) to manage packages on your Mac.
+    You may use a different package manager but you'll need to figure out the package names and file paths on your own.
+    
+    #### Step 2
+    
+    Install Xcode Command Line Tools.
+    
+    ```bash
+    xcode-select --install # install compilation tools
+    ```
+    
+    #### Step 3
+    
+    Install dependencies with Brew.
+    
+    ```bash
+    brew install erlang openssl unixodbc
+    ```
+    
+    #### Step 4
+    
+    Add OpenSSL paths to the compiler and linker environment variables:
+    
+    ```bash
+    export LDFLAGS="-L/usr/local/opt/openssl/lib"
+    export CFLAGS="-I/usr/local/opt/openssl/include"
+    ```
+    
+    Now, please proceed to the "Building" section.
 
-```bash
-export LDFLAGS="-L/usr/local/opt/openssl/lib"
-export CFLAGS="-I/usr/local/opt/openssl/include"
-```
-
-Now, please proceed to the "Building" section.
-
-## Preparing CentOS environment
-
-Please install the required dependencies:
-
-```bash
-sudo yum install git make zlib-devel openssl openssl-devel unixODBC-devel gcc gcc-c++ erlang
-```
-
-Now, please proceed to the "Building" section.
-
-## Preparing Ubuntu environment
-
-Please install the required dependencies:
-
-```bash
-sudo apt install git make zlib1g-dev libssl-dev unixodbc-dev gcc g++ erlang
-```
-
-Now, please proceed to the "Building" section.
 
 ## Building
 
