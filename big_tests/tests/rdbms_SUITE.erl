@@ -24,6 +24,8 @@
 %% We need assert from it
 -include("mam_helper.hrl").
 
+-import(domain_helper, [host_type/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -32,8 +34,7 @@ all() ->
     [{group, rdbms_queries}].
 
 groups() ->
-    G = [{rdbms_queries, [], rdbms_queries_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{rdbms_queries, [], rdbms_queries_cases()}].
 
 rdbms_queries_cases() ->
     [select_one_works_case,
@@ -74,7 +75,8 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
+    case not ct_helper:is_ct_running()
+         orelse mongoose_helper:is_rdbms_enabled(host_type()) of
         false -> {skip, rdbms_or_ct_not_running};
         true -> escalus:init_per_suite(Config)
     end.
@@ -340,17 +342,14 @@ select_like_prep_case(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-host() ->
-    ct:get_config({hosts, mim, domain}).
-
 sql_query(_Config, Query) ->
-    slow_rpc(mongoose_rdbms, sql_query, [host(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query, [host_type(), Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
 sql_execute(_Config, Name, Parameters) ->
-    slow_rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute, [host_type(), Name, Parameters]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
@@ -359,7 +358,7 @@ escape_string(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
 
 escape_binary(_Config, Value) ->
-    slow_rpc(mongoose_rdbms, escape_binary, [host(), Value]).
+    slow_rpc(mongoose_rdbms, escape_binary, [host_type(), Value]).
 
 escape_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_boolean, [Value]).
@@ -371,7 +370,7 @@ escape_prepared_like(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_prepared_like, [Value]).
 
 unescape_binary(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, unescape_binary, [host(), Value]).
+    escalus_ejabberd:rpc(mongoose_rdbms, unescape_binary, [host_type(), Value]).
 
 use_escaped(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, use_escaped, [Value]).
@@ -817,10 +816,10 @@ drop_common_prefix(Pos, SelValue, Value) ->
       expected_suffix => safe_binary(100, Value)}.
 
 is_odbc() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == odbc.
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == odbc.
 
 is_pgsql() ->
-    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == pgsql.
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host_type()]) == pgsql.
 
 slow_rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
