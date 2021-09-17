@@ -898,8 +898,8 @@ search_open_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Server = domain(),
-              DirJID = <<"directory.", Server/binary>>,
+              Domain = domain(),
+              DirJID = <<"directory.", Domain/binary>>,
               Fields = [null],
               Res = escalus:send_and_wait(Client,
                            escalus_stanza:search_iq(DirJID,
@@ -1069,12 +1069,12 @@ prepare_vcard(_, JID, Fields) ->
 
 insert_alice_photo(Config) ->
     User = <<"alice">>,
-    Server = domain(),
-    Base = get_ldap_base(Server),
+    Domain = domain(),
+    Base = get_ldap_base(Domain),
     Photo = ?PHOTO_BIN,
     Modificators = [eldap:mod_replace("jpegPhoto", [binary_to_list(Photo)])],
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = call_ldap(Server, modify, [binary_to_list(Dn), Modificators]),
+    ok = call_ldap(Domain, modify, [binary_to_list(Dn), Modificators]),
     Config.
 
 
