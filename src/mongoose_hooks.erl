@@ -845,13 +845,13 @@ roster_process_item(HostType, LServer, Item) ->
 
 %%% @doc The `roster_push' hook is called when a roster item is
 %%% being pushed and roster versioning is not enabled.
--spec roster_push(LServer, From, Item) -> Result when
-    LServer :: jid:lserver(),
+-spec roster_push(HostType, From, Item) -> Result when
+    HostType :: mongooseim:host_type(),
     From :: jid:jid(),
     Item :: mod_roster:roster(),
     Result :: any().
-roster_push(LServer, From, Item) ->
-    run_hook_for_host_type(roster_push, LServer, ok, [From, Item]).
+roster_push(HostType, From, Item) ->
+    run_hook_for_host_type(roster_push, HostType, ok, [HostType, From, Item]).
 
 %%% @doc The `roster_set' hook is called when a user's roster is set through an IQ.
 -spec roster_set(HostType, From, To, SubEl) -> Result when

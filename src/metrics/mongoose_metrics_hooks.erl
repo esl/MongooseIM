@@ -26,7 +26,7 @@
          xmpp_send_element/2,
          roster_get/2,
          roster_set/4,
-         roster_push/3,
+         roster_push/4,
          roster_in_subscription/5,
          register_user/3,
          remove_user/3,
@@ -38,7 +38,7 @@
 
 -ignore_xref([auth_failed/3, privacy_check_packet/5, privacy_iq_get/5, privacy_iq_set/4,
              privacy_list_push/5, register_user/3, remove_user/3, roster_get/2,
-             roster_in_subscription/5, roster_push/3, roster_set/4,
+             roster_in_subscription/5, roster_push/4, roster_set/4,
              sm_register_connection_hook/5, sm_remove_connection_hook/5,
              user_receive_packet/5, user_send_packet/4, xmpp_bounce_message/1,
              xmpp_send_element/2, xmpp_stanza_dropped/4]).
@@ -186,11 +186,10 @@ roster_in_subscription(Acc, _, _, unsubscribed, _) ->
 roster_in_subscription(Acc, _, _, _, _) ->
     Acc.
 
--spec roster_push(any(), jid:jid(), term()) -> any().
-roster_push(Acc, #jid{lserver = LServer}, _) ->
-    {ok, HostType} = mongoose_domain_api:get_host_type(LServer),
+-spec roster_push(any(), mongooseim:host_type(), jid:jid(), mod_roster:roster()) -> any().
+roster_push(HookAcc, HostType, _JID, _Item) ->
     mongoose_metrics:update(HostType, modRosterPush, 1),
-    Acc.
+    HookAcc.
 
 %% Register
 
