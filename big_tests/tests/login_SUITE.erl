@@ -50,14 +50,13 @@ all() ->
     ].
 
 groups() ->
-    G = [{login, [parallel], all_tests()},
-         {login_digest, [sequence], digest_tests()},
-         {login_scram, [parallel], scram_tests()},
-         {login_scram_store_plain, [parallel], scram_tests()},
-         {login_scram_tls, [parallel], scram_tests()},
-         {login_specific_scram, [sequence], configure_specific_scram_test()},
-         {messages, [sequence], [messages_story, message_zlib_limit]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{login, [parallel], all_tests()},
+     {login_digest, [sequence], digest_tests()},
+     {login_scram, [parallel], scram_tests()},
+     {login_scram_store_plain, [parallel], scram_tests()},
+     {login_scram_tls, [parallel], scram_tests()},
+     {login_specific_scram, [sequence], configure_specific_scram_test()},
+     {messages, [sequence], [messages_story, message_zlib_limit]}].
 
 scram_tests() ->
     [log_one,

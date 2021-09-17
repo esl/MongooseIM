@@ -447,8 +447,8 @@ wait_for_pid_to_die(Pid) ->
     end.
 
 supports_sasl_module(Module) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), ejabberd_auth, supports_sasl_module, [Host, Module]).
+    HostType = domain_helper:host_type(),
+    rpc(mim(), ejabberd_auth, supports_sasl_module, [HostType, Module]).
 
 backup_auth_config(Config) ->
     HostType = domain_helper:host_type(),
