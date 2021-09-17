@@ -49,9 +49,9 @@
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
--spec is_rdbms_enabled(Host :: binary()) -> boolean().
-is_rdbms_enabled(Host) ->
-    case rpc(mim(), mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
+-spec is_rdbms_enabled(HostType :: binary()) -> boolean().
+is_rdbms_enabled(HostType) ->
+    case rpc(mim(), mongoose_rdbms, sql_transaction, [HostType, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
     end.

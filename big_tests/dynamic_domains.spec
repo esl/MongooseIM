@@ -91,6 +91,8 @@
 
 {suites, "tests", offline_stub_SUITE}.
 
+{suites, "tests", persistent_cluster_id_SUITE}.
+
 {suites, "tests", presence_SUITE}.
 
 {suites, "tests", privacy_SUITE}.
@@ -98,6 +100,8 @@
 {suites, "tests", private_SUITE}.
 
 {suites, "tests", race_conditions_SUITE}.
+
+{suites, "tests", rdbms_SUITE}.
 
 {suites, "tests", rest_SUITE}.
 
