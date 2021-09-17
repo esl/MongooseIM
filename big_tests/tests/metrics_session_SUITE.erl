@@ -36,12 +36,11 @@ all() ->
      {group, session_global}].
 
 groups() ->
-    G = [{session, [sequence], [login_one,
-                                login_many,
-                                auth_failed]},
-         {session_global, [sequence], [session_global,
-                                       session_unique]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{session, [sequence], [login_one,
+                            login_many,
+                            auth_failed]},
+     {session_global, [sequence], [session_global,
+                                   session_unique]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].

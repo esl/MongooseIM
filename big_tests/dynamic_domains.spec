@@ -45,6 +45,8 @@
 
 {suites, "tests", metrics_register_SUITE}.
 
+{suites, "tests", metrics_session_SUITE}.
+
 {suites, "tests", mod_blocking_SUITE}.
 
 {suites, "tests", mod_http_upload_SUITE}.
