@@ -30,6 +30,7 @@
 -import(metrics_helper, [assert_counter/2,
                          get_counter_value/1]).
 
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -66,8 +67,7 @@ init_per_testcase(unregister, Config) ->
     escalus_users:create_user(Config, Alice),
     Config;
 init_per_testcase(registered_users, Config) ->
-    XMPPDomain = ct:get_config({hosts, mim, domain}),
-    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
+    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, host_type()}]) of
         external ->
             {skip, "counter not supported with ejabberd_auth_external"};
         anonymous ->
