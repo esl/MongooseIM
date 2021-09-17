@@ -37,9 +37,8 @@ all() ->
     ].
 
 groups() ->
-    G = [{roster, [sequence], roster_tests()},
-         {subscriptions, [sequence], subscription_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{roster, [sequence], roster_tests()},
+     {subscriptions, [sequence], subscription_tests()}].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -296,8 +295,8 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    rpc(mim(), mod_roster_rdbms, remove_user, [Username, Server]),
-    rpc(mim(), mod_roster, remove_user, [Username, Server]).
+    Acc = mongoose_helper:new_mongoose_acc(Server),
+    rpc(mim(), mod_roster, remove_user, [Acc, Username, Server]).
 
 mongoose_metrics(ConfigIn, Metrics) ->
     Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
