@@ -8,6 +8,7 @@ docs_dir: doc
 theme:
   name: material
   favicon: favicon.ico
+  logo: MongooseIM_logo_white.png
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
