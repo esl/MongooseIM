@@ -79,6 +79,8 @@
 
 {suites, "tests", offline_stub_SUITE}.
 
+{suites, "tests", persistent_cluster_id_SUITE}.
+
 {suites, "tests", presence_SUITE}.
 
 {suites, "tests", privacy_SUITE}.
