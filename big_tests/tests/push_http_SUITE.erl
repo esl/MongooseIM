@@ -11,6 +11,8 @@
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -242,9 +244,6 @@ custom_module_code_2() ->
          <<$2, $-, (atom_to_binary(Dir, utf8))/binary, $-, Message/binary>>.
      "
     .
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 to_lower(B) ->
     list_to_binary(

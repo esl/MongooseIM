@@ -36,7 +36,8 @@
                              subhost_pattern/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0,
-                        host_types/0]).
+                        host_types/0,
+                        domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -142,7 +143,7 @@ user_doesnt_exist(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               BadJID = <<"nonexistent@", Domain/binary>>,
               Res = escalus:send_and_wait(Client,
                         escalus_stanza:vcard_request(BadJID)),
@@ -211,7 +212,7 @@ request_search_fields(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               DirJID = <<"vjud.", Domain/binary>>,
               Res = escalus:send_and_wait(Client,
                                       escalus_stanza:search_fields_iq(DirJID)),
@@ -234,7 +235,7 @@ search_empty(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), <<"nobody">>}],
               Res = escalus:send_and_wait(Client,
@@ -249,7 +250,7 @@ search_some(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Client) ->
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN(Config)}],
               timer:sleep(timer:seconds(1)), %% this is required by Riak 2.0
@@ -270,7 +271,7 @@ search_wildcard(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Client) ->
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               DirJID = <<"vjud.", Domain/binary>>,
               Fields = [{get_field_name(fn), get_FN_wildcard()}],
               Res = escalus:send_and_wait(Client,

@@ -21,6 +21,8 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -277,6 +279,3 @@ wait_for_pong_hooks(N) ->
         5000 ->
             ct:fail({pong_hook_runs_missing, N})
     end.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

@@ -14,6 +14,9 @@
                              rpc/4]).
 
 -import(mongoose_helper, [wait_for_user/3]).
+
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -461,6 +464,3 @@ disable_watcher(Config) ->
 
 host_type() ->
     domain_helper:host_type(mim).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

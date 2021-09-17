@@ -24,7 +24,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -161,7 +161,7 @@ create_and_terminate_session(Config) ->
     %% Assert there are no BOSH sessions on the server.
     [] = get_bosh_sessions(),
 
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Body = escalus_bosh:session_creation_body(get_bosh_rid(Conn), Domain),
     ok = bosh_send_raw(Conn, Body),
     escalus_connection:get_stanza(Conn, session_creation_response),
@@ -373,7 +373,7 @@ cant_send_invalid_rid(Config) ->
         %% completes. This will leave the following message in the log:
         %%
         %% mod_bosh:forward_body:265 session not found!
-        
+
         %% NOTICE 3
         %% We enable quickfail mode, because sometimes request with invalid RID
         %% arrives before empty body req. with valid RID, so server returns an error
@@ -524,7 +524,7 @@ interrupt_long_poll_is_activity(ConfigIn) ->
         %% Wait until after the inactivity timeout (which should be less than
         %% the BOSH wait timeout).
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
-              
+
         %% No disconnection should have occurred.
         escalus_assert:has_no_stanzas(Carol),
         true = is_session_alive(Sid),
@@ -879,13 +879,13 @@ wait_for_session_close(Sid, LeftTime) ->
     mongoose_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
                                #{
                                  time_left => timer:seconds(10),
-                                 time_sleep => LeftTime, 
+                                 time_sleep => LeftTime,
                                  name => is_session_alive
                                 }).
 
 wait_for_handler(Pid, Count) ->
     mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
-                                #{   
+                                #{
                                  time_left => timer:seconds(10),
                                  time_sleep => timer:seconds(1),
                                  name => get_handlers
@@ -893,20 +893,17 @@ wait_for_handler(Pid, Count) ->
 
 
 wait_for_handler(Pid, Count, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count, 
-                               #{   
+    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
+                               #{
                                  time_left => LeftTime,
                                  time_sleep => timer:seconds(1),
                                  name => get_handlers
                                 }).
 
 wait_until_user_has_no_stanzas(User) ->
-        mongoose_helper:wait_until(fun() -> 
-                                       escalus_assert:has_no_stanzas(User) 
+        mongoose_helper:wait_until(fun() ->
+                                       escalus_assert:has_no_stanzas(User)
                                    end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 wait_for_zero_bosh_sessions() ->
     mongoose_helper:wait_until(fun() ->

@@ -29,7 +29,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -460,7 +460,7 @@ unset_acl_for_blocking(Spec) ->
 
 modify_acl_for_blocking(Method, Spec) ->
     ct:print("Spec: ~p", [Spec]),
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     User = proplists:get_value(username, Spec),
     Lower = escalus_utils:jid_to_lower(User),
     rpc(mim(), acl, Method, [Domain, blocked, {user, Lower}]).

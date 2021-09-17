@@ -9,6 +9,8 @@
          host_types/1,
          host_type/0,
          host_type/1,
+         domain/0,
+         domain/1,
          secondary_host_type/0,
          secondary_host_type/1]).
 
@@ -23,8 +25,14 @@ host_types(NodeKey) ->
 host_type() ->
     host_type(mim).
 
+domain() ->
+    domain(mim).
+
 host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, host_type}).
+
+domain(NodeKey) ->
+    get_or_fail({hosts, NodeKey, domain}).
 
 secondary_host_type() ->
     secondary_host_type(mim).

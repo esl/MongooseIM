@@ -23,7 +23,9 @@
                              rpc/4]).
 -import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
 
--define(HOST, (ct:get_config({hosts, mim, domain}))).
+-import(domain_helper, [domain/0]).
+
+-define(DOMAIN, (domain())).
 -define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
 -define(USERNAME, "http_guy").
 
@@ -86,7 +88,7 @@ user_transaction(Config) ->
     wait_for_user_removal(proplists:get_value(riak_auth, Config)).
 
 add_malformed_user(_Config) ->
-    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
+    Path = unicode:characters_to_list(["/users/host/", ?DOMAIN, "/username/" ?USERNAME]),
     % cannot use jiffy here, because the JSON is malformed
     Res = simple_request(<<"PUT">>, Path, ?PORT,
                          <<"{
@@ -96,13 +98,13 @@ add_malformed_user(_Config) ->
     assert_status(400, Res).
 
 add_user_without_proper_fields(_Config) ->
-    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/" ?USERNAME]),
+    Path = unicode:characters_to_list(["/users/host/", ?DOMAIN, "/username/" ?USERNAME]),
     Body = jiffy:encode(#{<<"user">> => #{<<"pazzwourd">> => <<"my_http_password">>}}),
     Res = simple_request(<<"PUT">>, Path, ?PORT, Body),
     assert_status(422, Res).
 
 delete_non_existent_user(_Config) ->
-    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/i_don_exist"]),
+    Path = unicode:characters_to_list(["/users/host/", ?DOMAIN, "/username/i_don_exist"]),
     Res = simple_request(<<"DELETE">>, Path, ?PORT),
     assert_status(404, Res).
 
@@ -111,7 +113,7 @@ delete_non_existent_user(_Config) ->
 %%--------------------------------------------------------------------
 
 fetch_list_of_users(_Config) ->
-    Result = simple_request(<<"GET">>, unicode:characters_to_list(["/users/host/", ?HOST]), ?PORT),
+    Result = simple_request(<<"GET">>, unicode:characters_to_list(["/users/host/", ?DOMAIN]), ?PORT),
     assert_status(200, Result),
     {_S, H, B} = Result,
     ?assertEqual(<<"application/json">>, proplists:get_value(<<"content-type">>, H)),
@@ -120,14 +122,14 @@ fetch_list_of_users(_Config) ->
     Count.
 
 add_user(UserName, Password) ->
-    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
+    Path = unicode:characters_to_list(["/users/host/", ?DOMAIN, "/username/", UserName]),
     Body = jiffy:encode(#{<<"user">> => #{<<"password">> => Password}}),
     Res = simple_request(<<"PUT">>, Path, ?PORT, Body),
     assert_status(204, Res),
     Res.
 
 delete_user(UserName) ->
-    Path = unicode:characters_to_list(["/users/host/", ?HOST, "/username/", UserName]),
+    Path = unicode:characters_to_list(["/users/host/", ?DOMAIN, "/username/", UserName]),
     Res = simple_request(<<"DELETE">>, Path, ?PORT),
     assert_status(204, Res),
     Res.
@@ -148,7 +150,7 @@ auth_modules() ->
 wait_for_user_removal(false) ->
     ok;
 wait_for_user_removal(_) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     try mongoose_helper:wait_until(
             fun() ->
                 rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain])
@@ -158,7 +160,7 @@ wait_for_user_removal(_) ->
     of
 	    {ok, 0} ->
 		    ok
-    catch	
+    catch
 	_Error:Reason ->
 		ct:pal("~p", [Reason]),
 		ok

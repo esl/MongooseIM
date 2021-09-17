@@ -19,6 +19,8 @@
     disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
+-import(domain_helper, [domain/0]).
+
 -define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
@@ -106,9 +108,9 @@ init_per_group(pubsub_ful, Config) ->
 init_per_group(pubsub_less, Config) ->
     [{pubsub_host, virtual} | Config];
 init_per_group(muclight_msg_notifications, Config0) ->
-    Host = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     Config = ensure_pusher_module_and_save_old_mods(Config0),
-    dynamic_modules:ensure_modules(Host, [{mod_muc_light,
+    dynamic_modules:ensure_modules(Domain, [{mod_muc_light,
                                            [{host, subhost_pattern(?MUCHOST)},
                                             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                             {rooms_in_rosters, true}]}]),
@@ -163,15 +165,14 @@ end_per_testcase(CaseName, Config) ->
 ensure_pusher_module_and_save_old_mods(Config) ->
     PushOpts = [{virtual_pubsub_hosts, [subhost_pattern(?VIRTUAL_PUBSUB_DOMAIN)]},
                 {backend, mongoose_helper:mnesia_or_rdbms_backend()}],
-    Host = ct:get_config({hosts, mim, domain}),
-    Config1 = dynamic_modules:save_modules(Host, Config),
+    Domain = domain(),
+    Config1 = dynamic_modules:save_modules(Domain, Config),
     PusherMod = {mod_event_pusher, [{backends, [{push, PushOpts}]}]},
-    dynamic_modules:ensure_modules(Host, [PusherMod]),
+    dynamic_modules:ensure_modules(Domain, [PusherMod]),
     [{push_opts, PushOpts} | Config1].
 
 restore_modules(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:restore_modules(Host, Config).
+    dynamic_modules:restore_modules(domain(), Config).
 
 %%--------------------------------------------------------------------
 %% GROUP disco
@@ -790,7 +791,7 @@ rpc_stop_hook_handler(TestCasePid, PubSubJID) ->
 %%--------------------------------------------------------------------
 
 create_room(Room, [Owner | Members], Config) ->
-    Domain = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     create_room(Room, <<"muclight.", Domain/binary>>, Owner, Members,
                                 Config, <<"v1">>).
 

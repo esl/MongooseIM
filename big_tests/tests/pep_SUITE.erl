@@ -43,6 +43,8 @@
                              subhost_pattern/1,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -476,9 +478,6 @@ features(PEPNodeNS) ->
 
 ns_notify(NS) ->
     <<NS/binary, "+notify">>.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 random_node_ns() ->
     base64:encode(crypto:strong_rand_bytes(16)).

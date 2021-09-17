@@ -208,6 +208,8 @@
          when_archive_query_is_sent/3,
          then_archive_response_is/3]).
 
+-import(domain_helper, [domain/0]).
+
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -349,7 +351,7 @@ basic_groups() ->
      {chat_markers, [parallel],
          [{mam04, [parallel], chat_markers_cases()}]},
      {disabled_retraction, [],
-      [{mam06, [parallel], disabled_retract_cases() ++ 
+      [{mam06, [parallel], disabled_retract_cases() ++
             [mam_service_discovery]}]},
      {muc_disabled_retraction, [],
       [{muc06, [parallel], disabled_muc_retract_cases() ++
@@ -2968,7 +2970,7 @@ mam_service_discovery(Config) ->
 muc_service_discovery(Config) ->
     _P = ?config(props, Config),
     F = fun(Alice) ->
-        Domain = ct:get_config({hosts, mim, domain}),
+        Domain = domain(),
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:service_discovery(Server)),
         Stanza = escalus:wait_for_stanza(Alice),

@@ -6,6 +6,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(domain_helper, [domain/0]).
+
 all() ->
     [
      {group, fast_tls},
@@ -471,10 +473,6 @@ replace_addrs(undefined) ->
 replace_addrs(Addresses) ->
     lists:map( fun(Addr) -> [User, Hostname] = binary:split(list_to_binary(Addr), <<"@">>),
                             binary_to_list(<<User/binary, <<"-self-signed@">>/binary, Hostname/binary>>) end, Addresses).
-
--spec domain() -> jid:lserver().
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 -spec add_domain_str(User :: string()) -> string().
 add_domain_str(User) ->

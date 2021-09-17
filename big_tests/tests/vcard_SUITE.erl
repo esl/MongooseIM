@@ -47,7 +47,8 @@
 -import(ldap_helper, [get_ldap_base/1,
                       call_ldap/3]).
 -import(domain_helper, [host_type/0,
-                        host_types/0]).
+                        host_types/0,
+                        domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -333,10 +334,10 @@ server_vcard(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               Res = escalus:send_and_wait(Client,
-                        escalus_stanza:vcard_request(ServJID)),
-              ServerVCardTups = get_server_vcard(ServJID, Config),
+                        escalus_stanza:vcard_request(Domain)),
+              ServerVCardTups = get_server_vcard(Domain, Config),
               check_vcard(ServerVCardTups, Res)
       end).
 
@@ -355,9 +356,9 @@ vcard_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-          ServJID = ct:get_config({hosts, mim, domain}),
+          Domain = domain(),
               Res = escalus:send_and_wait(Client,
-                        escalus_stanza:disco_info(ServJID)),
+                        escalus_stanza:disco_info(Domain)),
               escalus:assert(is_iq_result, Res),
               escalus:assert(has_feature, [<<"vcard-temp">>], Res)
     end).
@@ -434,7 +435,7 @@ search_some(Config) ->
 
               %% Basically test that the right values exist
               %% and map to the right column headings
-              Domain = ct:get_config({hosts, mim, domain}),
+              Domain = domain(),
               AliceJID = <<"alice@", Domain/binary>>,
 
               %% Extra check
@@ -897,7 +898,7 @@ search_open_limited(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              Server = ct:get_config({hosts, mim, domain}),
+              Server = domain(),
               DirJID = <<"directory.", Server/binary>>,
               Fields = [null],
               Res = escalus:send_and_wait(Client,
@@ -935,12 +936,12 @@ search_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = ct:get_config({hosts, mim, domain}),
-              DirJID = <<"directory.", ServJID/binary>>,
+              Domain = domain(),
+              DirJID = <<"directory.", Domain/binary>>,
 
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
-                                escalus_stanza:disco_items(ServJID)),
+                                escalus_stanza:disco_items(Domain)),
               escalus:assert(is_iq_result, ItemsRes),
               escalus:assert(has_item, [DirJID], ItemsRes),
 
@@ -980,11 +981,10 @@ search_not_in_service_discovery(Config) ->
     escalus:story(
       Config, [{alice, 1}],
       fun(Client) ->
-              ServJID = ct:get_config({hosts, mim, domain}),
               DirJID = ?config(directory_jid, Config),
               %% Item
               ItemsRes = escalus:send_and_wait(Client,
-                            escalus_stanza:disco_items(ServJID)),
+                            escalus_stanza:disco_items(domain())),
               escalus:assert(is_iq_result, ItemsRes),
               escalus:assert(has_no_such_item, [DirJID], ItemsRes)
       end).
@@ -1545,9 +1545,6 @@ vcard_result_mapping(_) -> undefined.
 get_utf8_city() ->
     %% This is the UTF-8 of Москва
     <<208, 156, 208, 190, 209, 129, 208, 186, 208, 178, 208, 176>>.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 secondary_domain() ->
     ct:get_config({hosts, mim, secondary_domain}).

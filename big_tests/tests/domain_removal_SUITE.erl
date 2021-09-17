@@ -18,7 +18,7 @@
          private_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -41,9 +41,6 @@ groups() ->
                               muc_light_blocking_removal]},
      {private_removal, [], [private_removal]}
     ].
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 %%%===================================================================
 %%% Overall setup/teardown

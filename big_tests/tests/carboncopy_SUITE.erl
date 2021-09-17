@@ -9,6 +9,7 @@
 -define(BODY, <<"And pious action">>).
 
 -import(mongoose_helper, [enable_carbons/1, disable_carbons/1]).
+-import(domain_helper, [domain/0]).
 
 all() ->
     [{group, all}].
@@ -56,7 +57,7 @@ discovering_support(Config) ->
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              IqGet = escalus_stanza:disco_info(ct:get_config({hosts, mim, domain})),
+              IqGet = escalus_stanza:disco_info(domain()),
               escalus_client:send(Alice, IqGet),
               Result = escalus_client:wait_for_stanza(Alice),
               escalus:assert(is_iq_result, [IqGet], Result),

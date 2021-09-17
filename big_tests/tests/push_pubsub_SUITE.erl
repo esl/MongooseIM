@@ -9,6 +9,8 @@
 
 -import(distributed_helper, [subhost_pattern/1]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -374,9 +376,6 @@ publish_iq(Client, Node, Content, Options) ->
 %% ----------------------------------
 %% Other helpers
 %% ----------------------------------
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 push_pubsub_node() ->
     pubsub_tools:pubsub_node_with_subdomain(?PUBSUB_SUB_DOMAIN ++ ".").

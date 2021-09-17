@@ -20,7 +20,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -215,6 +215,3 @@ ping(Config) ->
                 escalus:assert(is_adhoc_response, [<<"ping">>, <<"completed">>],
                                AdHocResp)
         end).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

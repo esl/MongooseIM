@@ -19,6 +19,8 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 -export([suite/0, all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1,
          init_per_group/2, end_per_group/2,
@@ -123,8 +125,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    start_rabbit_wpool(Host),
+    start_rabbit_wpool(domain()),
     {ok, _} = application:ensure_all_started(amqp_client),
     case is_rabbitmq_available() of
         true ->
@@ -135,8 +136,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    stop_rabbit_wpool(Host),
+    stop_rabbit_wpool(domain()),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
@@ -144,9 +144,9 @@ end_per_suite(Config) ->
 init_per_group(initialization_on_startup, Config) ->
     Config;
 init_per_group(_, Config0) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Config = dynamic_modules:save_modules(Host, Config0),
-    dynamic_modules:ensure_modules(Host,
+    Domain = domain(),
+    Config = dynamic_modules:save_modules(Domain, Config0),
+    dynamic_modules:ensure_modules(Domain,
                                    [{mod_event_pusher, ?MOD_EVENT_PUSHER_CFG}]),
     Config.
 
@@ -154,9 +154,9 @@ end_per_group(initialization_on_startup, Config) ->
     Config;
 end_per_group(_, Config) ->
     delete_exchanges(),
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_event_pusher),
-    dynamic_modules:restore_modules(Host, Config),
+    Domain = domain(),
+    dynamic_modules:stop(Domain, mod_event_pusher),
+    dynamic_modules:restore_modules(Domain, Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
@@ -186,11 +186,11 @@ end_per_testcase(CaseName, Config) ->
 
 rabbit_pool_starts_with_default_config(_Config) ->
     %% GIVEN
-    Host = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     DefaultWpoolConfig = {rabbit, host, rabbit_event_pusher_default, [], []},
-    RabbitWpool = {rabbit, Host, rabbit_event_pusher_default},
+    RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},
     %% WHEN
-    start_rabbit_wpool(Host, DefaultWpoolConfig),
+    start_rabbit_wpool(Domain, DefaultWpoolConfig),
     %% THEN
     Pools = rpc(mim(), mongoose_wpool, get_pools, []),
     ?assertMatch(RabbitWpool,
@@ -623,12 +623,10 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %%--------------------------------------------------------------------
 
 start_mod_event_pusher_rabbit(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit, Config]).
+    rpc(mim(), gen_mod, start_module, [domain(), mod_event_pusher_rabbit, Config]).
 
 stop_mod_event_pusher_rabbit() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
+    rpc(mim(), gen_mod, stop_module, [domain(), mod_event_pusher_rabbit]).
 
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).

@@ -26,6 +26,8 @@
 
 -define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -345,9 +347,6 @@ generic_end_per_testcase(CaseName, Config) ->
 
 virtual_hosts() ->
     [domain(), secondary_domain()].
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 secondary_domain() ->
     ct:get_config({hosts, mim, secondary_domain}).

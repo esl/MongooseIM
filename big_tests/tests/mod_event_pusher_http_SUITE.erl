@@ -22,6 +22,8 @@
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
+-import(domain_helper, [domain/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -61,7 +63,7 @@ init_per_group(with_prefix, Config) ->
     set_modules(Config, [{path, "/prefix"}]).
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(host(), Config),
+    dynamic_modules:restore_modules(domain(), Config),
     ok.
 
 init_per_testcase(CaseName, Config) ->
@@ -175,12 +177,12 @@ stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]).
 
 set_modules(Config0, Opts) ->
-    Config = dynamic_modules:save_modules(host(), Config0),
+    Config = dynamic_modules:save_modules(domain(), Config0),
     ModOpts = [{backends,
                     [{http,
                         [{worker_timeout, 500},
                          {host, http_notifications_host()}] ++ Opts}]}],
-    dynamic_modules:ensure_modules(host(), [{mod_event_pusher, ModOpts}]),
+    dynamic_modules:ensure_modules(domain(), [{mod_event_pusher, ModOpts}]),
     Config.
 
 start_http_listener(simple_message, Prefix) ->
@@ -209,6 +211,3 @@ create_events_collection() ->
 
 clear_events_collection() ->
     ets:delete_all_objects(?ETS_TABLE).
-
-host() ->
-    ct:get_config({hosts, mim, domain}).

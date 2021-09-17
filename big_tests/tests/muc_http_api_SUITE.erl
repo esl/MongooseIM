@@ -26,6 +26,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(domain_helper, [domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -398,6 +399,3 @@ is_unavailable_presence_from(Stanza, RoomJID) ->
 path(Items) ->
     AllItems = ["mucs", domain() | Items],
     iolist_to_binary([[$/, Item] || Item <- AllItems]).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

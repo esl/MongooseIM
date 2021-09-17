@@ -28,7 +28,7 @@
 
 -import(muc_light_helper, [stanza_create_room/3]).
 -import(distributed_helper, [subhost_pattern/1]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -305,6 +305,3 @@ path(Items) ->
 
 muc_light_domain() ->
     muc_light_helper:muc_host().
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
