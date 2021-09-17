@@ -10,25 +10,29 @@
 
 -export([start/2,
          stop/1,
+         supported_features/0,
          lookup_messages/3,
          send_message/4]).
 
 
-start(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)).
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
-hooks(Host) ->
-    [{mam_lookup_messages, Host, ?MODULE, lookup_messages, 60},
-     {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 60}].
+supported_features() ->
+    [dynamic_domains].
+
+hooks(HostType) ->
+    [{mam_lookup_messages, HostType, ?MODULE, lookup_messages, 60},
+     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages, 60}].
 
 %% caller_jid could be used for privacy checking or per-user customization
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
 lookup_messages({ok, {TotalCount, Offset, MessageRows}},
-                Host, Params = #{owner_jid := ArcJID, caller_jid := _CallerJID}) ->
+                Host, _Params = #{owner_jid := ArcJID, caller_jid := _CallerJID}) ->
     MessageRows2 = [extend_message(Host, ArcJID, Row) || Row <- MessageRows],
     {ok, {TotalCount, Offset, MessageRows2}}.
 

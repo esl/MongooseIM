@@ -24,6 +24,7 @@
                              require_rpc_nodes/1,
                              subhost_pattern/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -40,9 +41,6 @@ groups() ->
                          mam_muc_send_message]}
     ].
 
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
 %%%===================================================================
 %%% Overall setup/teardown
 %%%===================================================================
@@ -57,20 +55,20 @@ end_per_suite(Config) ->
 %%% Group specific setup/teardown
 %%%===================================================================
 init_per_group(Group, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
             load_custom_module(),
-            Config2 = dynamic_modules:save_modules(domain(), Config),
-            rpc(mim(), gen_mod_deps, start_modules, [domain(), group_to_modules(Group)]),
+            Config2 = dynamic_modules:save_modules(host_type(), Config),
+            rpc(mim(), gen_mod_deps, start_modules, [host_type(), group_to_modules(Group)]),
             [{props, mam_helper:mam06_props()}|Config2];
         false ->
             {skip, require_rdbms}
     end.
 
 end_per_group(_Groupname, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(domain(), Config);
+            dynamic_modules:restore_modules(host_type(), Config);
         false ->
             ok
     end,
@@ -80,7 +78,8 @@ group_to_modules(send_message) ->
     MH = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MH}]},
                      {send_message, mam_send_message_example}]},
-     {mod_muc_light, []},
+     {mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
+                      {backend, mongoose_helper:mnesia_or_rdbms_backend()}]},
      {mam_send_message_example, []}].
 
 load_custom_module() ->

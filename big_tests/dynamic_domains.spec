@@ -41,6 +41,8 @@
 
 {suites, "tests", mam_SUITE}.
 
+{suites, "tests", mam_send_message_SUITE}.
+
 {suites, "tests", metrics_register_SUITE}.
 
 {suites, "tests", mod_blocking_SUITE}.
