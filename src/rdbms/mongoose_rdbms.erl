@@ -171,7 +171,7 @@
 %% the retry counter runs out. We just attempt to reduce log pollution.
 -define(CONNECT_RETRIES, 5).
 
--type server() :: binary() | global.
+-type server() :: mongooseim:host_type() | global.
 -type rdbms_msg() :: {sql_query, _}
                    | {sql_transaction, fun()}
                    | {sql_dirty, fun()}
@@ -211,28 +211,28 @@ prepare(Name, Table, Fields, Statement) when is_atom(Name), is_binary(Table) ->
 prepared(Name) ->
     ets:member(prepared_statements, Name).
 
--spec execute(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
+-spec execute(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
-execute(Host, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
-    sql_call(Host, {sql_execute, Name, Parameters}).
+execute(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
+    sql_call(HostType, {sql_execute, Name, Parameters}).
 
 %% Same as execute/3, but would fail loudly on any error.
--spec execute_successfully(Host :: server(), Name :: atom(), Parameters :: [term()]) ->
+-spec execute_successfully(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
-execute_successfully(Host, Name, Parameters) ->
-    try execute(Host, Name, Parameters) of
+execute_successfully(HostType, Name, Parameters) ->
+    try execute(HostType, Name, Parameters) of
         {selected, _} = Result ->
             Result;
         {updated, _} = Result ->
             Result;
         Other ->
-            Log = #{what => sql_execute_failed, host => Host,statement_name => Name,
+            Log = #{what => sql_execute_failed, host => HostType,statement_name => Name,
                     statement_query => query_name_to_string(Name),
                     statement_params => Parameters, reason => Other},
             ?LOG_ERROR(Log),
             error(Log)
     catch error:Reason:Stacktrace ->
-            Log = #{what => sql_execute_failed, host => Host, statement_name => Name,
+            Log = #{what => sql_execute_failed, host => HostType, statement_name => Name,
                     statement_query => query_name_to_string(Name),
                     statement_params => Parameters,
                     reason => Reason, stacktrace => Stacktrace},
@@ -248,28 +248,28 @@ query_name_to_string(Name) ->
             Statement
     end.
 
--spec sql_query(Host :: server(), Query :: any()) -> query_result().
-sql_query(Host, Query) ->
-    sql_call(Host, {sql_query, Query}).
+-spec sql_query(HostType :: server(), Query :: any()) -> query_result().
+sql_query(HostType, Query) ->
+    sql_call(HostType, {sql_query, Query}).
 
 %% @doc SQL transaction based on a list of queries
 -spec sql_transaction(server(), fun() | maybe_improper_list()) -> transaction_result().
-sql_transaction(Host, Queries) when is_list(Queries) ->
+sql_transaction(HostType, Queries) when is_list(Queries) ->
     F = fun() -> lists:map(fun sql_query_t/1, Queries) end,
-    sql_transaction(Host, F);
+    sql_transaction(HostType, F);
 %% SQL transaction, based on a erlang anonymous function (F = fun)
-sql_transaction(Host, F) when is_function(F) ->
-    sql_call(Host, {sql_transaction, F}).
+sql_transaction(HostType, F) when is_function(F) ->
+    sql_call(HostType, {sql_transaction, F}).
 
 %% This function allows to specify delay between retries.
 -spec transaction_with_delayed_retry(server(), fun() | maybe_improper_list(), map()) -> transaction_result().
-transaction_with_delayed_retry(Host, F, Info) ->
+transaction_with_delayed_retry(HostType, F, Info) ->
     Retries = maps:get(retries, Info),
     Delay = maps:get(delay, Info),
-    do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info).
+    do_transaction_with_delayed_retry(HostType, F, Retries, Delay, Info).
 
-do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info) ->
-    Result = mongoose_rdbms:sql_transaction(Host, F),
+do_transaction_with_delayed_retry(HostType, F, Retries, Delay, Info) ->
+    Result = mongoose_rdbms:sql_transaction(HostType, F),
     case Result of
         {atomic, _} ->
             Result;
@@ -278,7 +278,7 @@ do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info) ->
                                text => <<"Transaction aborted. Restart">>,
                                reason => Reason, retries_left => Retries}),
             timer:sleep(Delay),
-            do_transaction_with_delayed_retry(Host, F, Retries - 1, Delay, Info);
+            do_transaction_with_delayed_retry(HostType, F, Retries - 1, Delay, Info);
         _ ->
             Err = Info#{what => mam_transaction_failed,
                         text => <<"Transaction failed. Do not restart">>,
@@ -288,34 +288,34 @@ do_transaction_with_delayed_retry(Host, F, Retries, Delay, Info) ->
     end.
 
 -spec sql_dirty(server(), fun()) -> any() | no_return().
-sql_dirty(Host, F) when is_function(F) ->
-    case sql_call(Host, {sql_dirty, F}) of
+sql_dirty(HostType, F) when is_function(F) ->
+    case sql_call(HostType, {sql_dirty, F}) of
         {ok, Result} -> Result;
         {error, Error} -> throw(Error)
     end.
 
 %% TODO: Better spec for RPC calls
--spec sql_call(Host :: server(), Msg :: rdbms_msg()) -> any().
-sql_call(Host, Msg) ->
+-spec sql_call(HostType :: server(), Msg :: rdbms_msg()) -> any().
+sql_call(HostType, Msg) ->
     case get_state() of
-        undefined -> sql_call0(Host, Msg);
+        undefined -> sql_call0(HostType, Msg);
         State     ->
             {Res, NewState} = nested_op(Msg, State),
             put_state(NewState),
             Res
     end.
 
--spec sql_call0(Host :: server(), Msg :: rdbms_msg()) -> any().
-sql_call0(Host, Msg) ->
+-spec sql_call0(HostType :: server(), Msg :: rdbms_msg()) -> any().
+sql_call0(HostType, Msg) ->
     Timestamp = erlang:monotonic_time(millisecond),
-    mongoose_wpool:call(rdbms, Host, {sql_cmd, Msg, Timestamp}).
+    mongoose_wpool:call(rdbms, HostType, {sql_cmd, Msg, Timestamp}).
 
 -spec get_db_info(Target :: server() | pid()) ->
                          {ok, DbType :: atom(), DbRef :: term()} | {error, any()}.
 get_db_info(Pid) when is_pid(Pid) ->
     wpool_process:call(Pid, get_db_info, 5000);
-get_db_info(Host) ->
-    mongoose_wpool:call(rdbms, Host, get_db_info).
+get_db_info(HostType) ->
+    mongoose_wpool:call(rdbms, HostType, get_db_info).
 
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
@@ -358,7 +358,7 @@ escape_like_prefix(S) ->
     {escaped_like, [$', escape_like_internal(S), $%, $']}.
 
 -spec escape_binary(server(), binary()) -> escaped_binary().
-escape_binary(_Host, Bin) when is_binary(Bin) ->
+escape_binary(_HostType, Bin) when is_binary(Bin) ->
     {escaped_binary, mongoose_rdbms_backend:escape_binary(Bin)}.
 
 %% @doc The same as escape, but returns value including ''
@@ -498,7 +498,7 @@ escape_character(C)   -> C.
 
 
 -spec unescape_binary(server(), binary()) -> binary().
-unescape_binary(_Host, Bin) when is_binary(Bin) ->
+unescape_binary(_HostType, Bin) when is_binary(Bin) ->
     mongoose_rdbms_backend:unescape_binary(Bin).
 
 
@@ -761,8 +761,8 @@ abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, St
 abort_on_driver_error({Reply, State}) ->
     {reply, Reply, State}.
 
--spec db_engine(Host :: server()) -> odbc | mysql | pgsql | undefined.
-db_engine(_Host) ->
+-spec db_engine(HostType :: server()) -> odbc | mysql | pgsql | undefined.
+db_engine(_HostType) ->
     try mongoose_rdbms_backend:backend_name()
     catch error:undef -> undefined end.
 
