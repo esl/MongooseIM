@@ -25,6 +25,8 @@
 
 -import(distributed_helper, [mim/0, mim2/0]).
 
+-import(domain_helper, [host_type/0]).
+
 all() ->
     [
      {group, mnesia},
@@ -62,12 +64,12 @@ group(_Groupname) ->
     [].
 
 init_per_group(mnesia, Config) ->
-    case not mongoose_helper:is_rdbms_enabled(domain()) of
+    case not mongoose_helper:is_rdbms_enabled(host_type()) of
         true -> Config;
         false -> {skip, require_no_rdbms}
     end;
 init_per_group(_Groupname, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(host_type()) of
         true -> Config;
         false -> {skip, require_rdbms}
     end.
@@ -142,7 +144,3 @@ cluster_id_is_restored_to_mnesia_from_rdbms_if_mnesia_lost(_Config) ->
     {ok, SecondID} = mongoose_helper:successful_rpc(
                Node, mongoose_cluster_id, get_cached_cluster_id, []),
     ?assertEqual(FirstID, SecondID).
-
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
