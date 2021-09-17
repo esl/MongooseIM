@@ -539,13 +539,13 @@ push_item(HostType, JID, From, Item) ->
             push_item_version(JID, From, Item, roster_version(HostType, JID));
         false ->
             lists:foreach(fun(Resource) ->
-                                  push_item_without_version(JID, Resource, From, Item)
+                                  push_item_without_version(HostType, JID, Resource, From, Item)
                           end,
                           ejabberd_sm:get_user_resources(JID))
     end.
 
-push_item_without_version(#jid{lserver = Server} = JID, Resource, From, Item) ->
-    mongoose_hooks:roster_push(Server, From, Item),
+push_item_without_version(HostType, JID, Resource, From, Item) ->
+    mongoose_hooks:roster_push(HostType, From, Item),
     push_item_final(jid:replace_resource(JID, Resource), From, Item, not_found).
 
 push_item_version(JID, From, Item, RosterVersion) ->
