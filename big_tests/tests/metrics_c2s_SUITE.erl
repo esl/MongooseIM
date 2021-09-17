@@ -38,20 +38,19 @@ all() ->
      {group, count}].
 
 groups() ->
-    G = [{single, [sequence], [message_one,
-                               stanza_one,
-                               presence_one,
-                               presence_direct_one,
-                               iq_one]},
-         {multiple, [sequence], [messages]},
-         {drop, [sequence], [bounced
-                            ]},
-         {errors, [sequence], [error_total,
-                               error_mesg,
-                               error_iq,
-                               error_presence]},
-         {count, [sequence], [stanza_count]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{single, [sequence], [message_one,
+                           stanza_one,
+                           presence_one,
+                           presence_direct_one,
+                           iq_one]},
+     {multiple, [sequence], [messages]},
+     {drop, [sequence], [bounced
+                        ]},
+     {errors, [sequence], [error_total,
+                           error_mesg,
+                           error_iq,
+                           error_presence]},
+     {count, [sequence], [stanza_count]}].
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
