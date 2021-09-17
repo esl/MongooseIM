@@ -33,6 +33,12 @@
 
 {suites, "tests", dynamic_domains_SUITE}.
 
+{suites, "tests", gdpr_SUITE}.
+{skip_groups, "tests", gdpr_SUITE,
+ [retrieve_personal_data_pubsub,
+  remove_personal_data_pubsub],
+ "at the moment mod_pubsub doesn't support dynamic domains"}.
+
 {suites, "tests", inbox_SUITE}.
 
 {suites, "tests", inbox_extensions_SUITE}.
