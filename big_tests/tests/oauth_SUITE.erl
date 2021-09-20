@@ -26,6 +26,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -474,6 +476,3 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

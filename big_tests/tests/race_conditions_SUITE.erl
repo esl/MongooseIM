@@ -24,6 +24,8 @@
 
 -include("mam_helper.hrl"). %% mam? we need assert_equal_extra
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -158,9 +160,6 @@ delayiq_iq() ->
     Payload = #xmlel{name = <<"data">>,
                      attrs = [{<<"caller_pid">>, BinCallerPid}]},
     escalus_stanza:iq_get(delayiq_ns(), [Payload]).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 %% This function is executed by MongooseIM
 handle_delayiq_iq(_From, _To, Acc, IQ) ->

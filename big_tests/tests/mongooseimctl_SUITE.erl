@@ -26,7 +26,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 -define(HTTP_UPLOAD_FILENAME, "tmp.txt").
 -define(HTTP_UPLOAD_FILESIZE, "5").
@@ -1368,9 +1368,6 @@ string_to_binary(List) ->
         _ ->
             unicode:characters_to_binary(List)
     end.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 add_rosteritem1(UserName1, Domain, UserName2, Config) ->
     mongooseimctl("add_rosteritem",

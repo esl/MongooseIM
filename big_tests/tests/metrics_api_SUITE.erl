@@ -24,6 +24,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-import(domain_helper, [host_type/1, domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -47,15 +49,14 @@ all() ->
                        ]).
 
 groups() ->
-    G = [
-         {metrics, [], ?METRICS_CASES},
-         {all_metrics_are_global, [], ?METRICS_CASES},
-         {global, [], [session_counters,
-                       node_uptime,
-                       cluster_size
-                      ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [
+     {metrics, [], ?METRICS_CASES},
+     {all_metrics_are_global, [], ?METRICS_CASES},
+     {global, [], [session_counters,
+                   node_uptime,
+                   cluster_size
+                  ]}
+    ].
 
 init_per_suite(Config) ->
     Config1 = dynamic_modules:stop_running(mod_offline, Config),
@@ -168,7 +169,7 @@ one_message_error(Config) ->
       (Config, metrics_helper:userspec(1, Config),
        fun(User1) ->
                Chat = escalus_stanza:chat_to
-                        (<<"nobody@localhost">>, <<"Hi!">>),
+                        (<<"nobody@", (domain())/binary>>, <<"Hi!">>),
                escalus_client:send(User1, Chat),
                escalus_client:wait_for_stanza(User1)
         end,
@@ -195,7 +196,7 @@ one_presence_error(Config) ->
       (Config, metrics_helper:userspec(1, Config),
        fun(User1) ->
                BadPres = escalus_stanza:presence_direct
-                           (<<"localhost/no-such-resource">>, <<"subscribed">>, []),
+                           (<<(domain())/binary, "/no-such-resource">>, <<"subscribed">>, []),
                escalus_client:send(User1, BadPres),
                escalus_client:wait_for_stanza(User1)
         end,
@@ -385,7 +386,7 @@ find(CounterName, CounterList) ->
 fetch_counter_value(Counter, _Config) ->
     Metric = atom_to_binary(Counter, utf8),
 
-    HostType = domain_helper:host_type(mim),
+    HostType = host_type(mim),
     HostTypeName = metrics_helper:make_host_type_name(HostType),
 
     Result = simple_request(<<"GET">>,

@@ -12,6 +12,8 @@
 -import(jingle_helper, [content/1,
                         content_group/1]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -84,12 +86,12 @@ wait_for_process_to_stop(Pid) ->
     end.
 
 start_nskip_in_parallel(RPCSpec, ExtraOpts) ->
-    Host = ct:get_config({hosts, mim, domain}),
+    Domain = domain(),
     proc_lib:spawn_link(
       fun() ->
               {ok, _} = rpc(RPCSpec#{timeout => timer:seconds(60)}, gen_mod, start_module,
                             [
-                             Host, mod_jingle_sip,
+                             Domain, mod_jingle_sip,
                              [{proxy_host, "localhost"},
                               {proxy_port, 12345},
                               {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}
@@ -100,9 +102,9 @@ start_nskip_in_parallel(RPCSpec, ExtraOpts) ->
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(mim(), Host, mod_jingle_sip),
-    dynamic_modules:stop(mim2(), Host, mod_jingle_sip),
+    Domain = domain(),
+    dynamic_modules:stop(mim(), Domain, mod_jingle_sip),
+    dynamic_modules:stop(mim2(), Domain, mod_jingle_sip),
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     escalus:end_per_suite(Config).
 

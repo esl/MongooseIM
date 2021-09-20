@@ -51,7 +51,7 @@
          story_with_room/4
          ]).
 
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
 -define(PASSWORD, <<"pa5sw0rd">>).
@@ -459,9 +459,6 @@ end_per_group(register_over_s2s, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 init_per_testcase(CaseName = create_already_registered_room, Config) ->
     meck_room(),
@@ -4928,7 +4925,7 @@ stanza_get_services(_Config) ->
     %%   <query xmlns='http://jabber.org/protocol/disco#items'/>
     %% </iq>
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
-        ct:get_config({hosts, mim, domain})).
+        domain()).
 
 get_nick_form_iq() ->
     GetIQ = escalus_stanza:iq_get(<<"jabber:iq:register">>, []),

@@ -8,6 +8,8 @@
 
 -include("assert_received_match.hrl").
 
+-import(domain_helper, [domain/0]).
+
 -define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
 -define(SNS_OPTS,
@@ -82,15 +84,15 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config0) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Config1 = dynamic_modules:save_modules(Host, Config0),
+    Domain = domain(),
+    Config1 = dynamic_modules:save_modules(Domain, Config0),
     Config = [{sns_config, ?SNS_OPTS} | Config1],
-    dynamic_modules:ensure_modules(Host, [{mod_aws_sns, ?SNS_OPTS}]),
+    dynamic_modules:ensure_modules(Domain, [{mod_aws_sns, ?SNS_OPTS}]),
     Config.
 
 end_per_group(_, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:restore_modules(Host, Config),
+    Domain = domain(),
+    dynamic_modules:restore_modules(Domain, Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(muc_messages = C, Config0) ->

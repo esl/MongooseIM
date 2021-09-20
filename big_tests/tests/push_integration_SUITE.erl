@@ -26,6 +26,8 @@
         ]).
 -import(distributed_helper, [rpc/4, subhost_pattern/1]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -929,9 +931,6 @@ gen_token() ->
 
 lower(Bin) when is_binary(Bin) ->
     list_to_binary(string:to_lower(binary_to_list(Bin))).
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 pubsub_node_from_host(Config) ->
     case ?config(pubsub_host, Config) of

@@ -26,6 +26,8 @@
          start_listener/1,
          stop_listener/0]).
 
+-import(domain_helper, [domain/0]).
+
 -define(INV_PWD, <<"basic auth provided, invalid password">>).
 -define(NO_PWD, <<"basic auth is required">>).
 -define(UNWANTED_PWD, <<"basic auth provided, but not configured">>).
@@ -163,8 +165,6 @@ rest_cases() ->
      rest_delete_domain_cleans_data_from_mam].
 
 -define(APPS, [inets, crypto, ssl, ranch, cowlib, cowboy]).
-
-domain() -> ct:get_config({hosts, mim, domain}).
 
 %%--------------------------------------------------------------------
 %% Suite configuration

@@ -15,7 +15,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(muc_light_helper, [lbin/1]).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -1000,6 +1000,3 @@ offline_modules(on) ->
 offline_modules(off) ->
     [{mod_offline, stopped},
      {mod_offline_stub, []}].
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

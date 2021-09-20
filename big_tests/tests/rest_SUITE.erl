@@ -32,7 +32,7 @@
          putt/3,
          delete/2]
     ).
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -709,6 +709,3 @@ path(Category) ->
 path(Category, Items) ->
     DomainStr = binary_to_list(domain()),
     string:join(["", Category, DomainStr | Items], "/").
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).

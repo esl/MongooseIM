@@ -35,6 +35,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -685,8 +687,7 @@ close_connection_if_protocol_violation_after_binding(Config) ->
 close_connection_if_protocol_violation(Config, Steps) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
-    escalus:send(Alice, escalus_stanza:stream_start(ct:get_config({hosts, mim, domain}),
-                                                    ?NS_JABBER_CLIENT)),
+    escalus:send(Alice, escalus_stanza:stream_start(domain(), ?NS_JABBER_CLIENT)),
     escalus:assert(is_stream_error, [<<"policy-violation">>, <<>>],
                    escalus_connection:get_stanza(Alice, no_stream_error_stanza_received)),
     escalus:assert(is_stream_end,

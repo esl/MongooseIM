@@ -22,6 +22,8 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 -define(NS_EXTDISCO, <<"urn:xmpp:extdisco:2">>).
 
 -compile([export_all]).
@@ -311,9 +313,6 @@ turn_service() ->
         {transport, "tcp"},
         {username, "username"},
         {password, "secret"}].
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 set_external_services(Opts, Config) ->
     Module = [{mod_extdisco, Opts}],

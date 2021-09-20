@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
--import(domain_helper, [host_type/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 all() ->
     [{group, disco_with_caps},
@@ -31,9 +31,6 @@ caps_test_cases() ->
 extra_feature_test_cases() ->
     [user_can_query_extra_domains,
      user_can_query_server_info].
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
 
 init_per_suite(C) ->
     C.

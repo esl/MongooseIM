@@ -28,6 +28,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(domain_helper, [domain/0]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -143,7 +145,7 @@ add_user(Config) ->
 
 start_roster_module(ldap) ->
     case rpc(mim(), gen_mod, start_module,
-             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap, get_ldap_args()]) of
+             [domain(), mod_shared_roster_ldap, get_ldap_args()]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
         _ -> ok
@@ -153,7 +155,7 @@ start_roster_module(_) ->
 
 stop_roster_module(ldap) ->
     case rpc(mim(), gen_mod, stop_module,
-             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap]) of
+             [domain(), mod_shared_roster_ldap]) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [mod_shared_roster_ldap, Reason]);
         _ -> ok
@@ -162,7 +164,7 @@ stop_roster_module(_) ->
     ok.
 
 get_auth_method() ->
-    XMPPDomain = ct:get_config({hosts, mim, domain}),
+    XMPPDomain = domain(),
     case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
         [Method|_] ->
             Method;
