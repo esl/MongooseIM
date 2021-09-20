@@ -3,6 +3,9 @@
 This module enables global distribution of a single XMPP domain.
 With `mod_global_distrib`, multiple distinct MongooseIM clusters can share a single domain name and route messages to the specific datacenter where the recipient is available.
 
+!!! warning
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
+
 ## How it works
 
 There are multiple subsystems that cooperate to enable global distribution:
@@ -28,7 +31,7 @@ Following structures are stored in Redis:
 Example: `"user1@example.com/res" -> "dc2.example.com"`.
 * Domains of components and services registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{domains}" -> {"muc1.example.com", "muc2.example.com"}`.
-* Domains of non-hidden components and services (see the [`XMPP Components`](../../advanced-configuration/listen/#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
+* Domains of non-hidden components and services (see the [`XMPP Components`](../configuration/listen.md#xmpp-components-listenservice) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
 * Declared endpoints available on a node are similarly stored in a per-node set structure where the key is `<local_host>#<node_name>#{endpoints}` and the values represent the TCP endpoints of the node.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{endpoints}" -> {"172.16.2.14#8231", "2001:0db8:85a3:0000:0000:8a2e:0370:7334#8882"}`.
 * Nodes that comprise a host are stored in a set structure with key `<local_host>#{nodes}` and values being the names of the nodes.
@@ -68,7 +71,8 @@ Bounce mechanism solves this and similar edge cases by storing messages for whic
 The stored messages are then assigned a bounce-TTL value and periodically - with backoff - are attempted to be routed again.
 In the example above, the message from **U2** would be temporarily stored at **DC2** and rerouted successfully once **DC2** learns (via replication) that **U1** is available at **DC3**.
 
-> Note: bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
+!!! Note
+    Bounce mechanism, similarly to multi-datacenter routing, may result in out-of-order messages being received at the destination datacenter.
 
 ### Metrics
 
@@ -110,7 +114,8 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **Example:** `global_host = "example.com"`
 
 The XMPP domain that will be shared between datacenters.
-*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+!!! Note
+    This needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 ### `modules.mod_global_distrib.local_host`
 * **Syntax:** string
@@ -118,7 +123,8 @@ The XMPP domain that will be shared between datacenters.
 * **Example:** `local_host = "datacenter1.example.com"`
 
 XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
-*Note:* this needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
+!!! Note
+    This needs to be one of the domains given in `general.hosts` option in `mongooseim.toml`.
 
 ### `modules.mod_global_distrib.message_ttl`
 * **Syntax:** non-negative integer
@@ -184,7 +190,8 @@ It means that disabled endpoints are periodically verified and if Global Distrib
 
 ### TLS options
 
-**Note:** By default `tls` is disabled and all data will be sent via standard TCP connections.
+!!! Note
+    By default `tls` is disabled and all data will be sent via standard TCP connections.
 
 To enable TLS support, the `cacertfile` and `certfile` options have to be present.
 These options will be passed to the `fast_tls` driver.
@@ -218,7 +225,7 @@ Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL document
 * **Default:** `"global_distrib"`
 * **Example:** `pool = "global_distrib"`
 
-Name of the redis pool defined in [outgoing pools](../advanced-configuration/outgoing-connections.md).
+Name of the redis pool defined in [outgoing pools](../configuration/outgoing-connections.md).
 
 #### `modules.mod_global_distrib.redis.expire_after`
 * **Syntax:** positive integer

@@ -37,7 +37,7 @@ Backend to use for storing the registrations.
 * **Default:** `{}`
 * **Example:** `wpool.workers = 200`
 
-Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../../advanced-configuration/outgoing-connections#worker-pool-options).
+Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../configuration/outgoing-connections.md#worker-pool-options).
 
 ### `modules.mod_event_pusher_push.plugin_module`
 * **Syntax:** non-empty string
@@ -132,5 +132,5 @@ the defaults are used instead.
 [mod_event_pusher]: ./mod_event_pusher.md
 [XEP-0198]: https://xmpp.org/extensions/xep-0198.html
 [enabling]: https://xmpp.org/extensions/xep-0357.html#enabling
-[tutorial]: ../user-guide/push-notifications/Push-notifications.md
+[tutorial]: ../tutorials/push-notifications/Push-notifications.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html

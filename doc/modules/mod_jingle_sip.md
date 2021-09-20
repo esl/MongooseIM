@@ -71,7 +71,7 @@ When MongooseIM observes the above Jingle stanzas, it will translate them to a S
 In the SDP content of the request, there will be a custom attribute `a=jingle-action`.
 The value of the custom attribute is one of the three presented above.
 
-Similarly when MongooseIM gets a SIP in-dialog `INVITE` request,
+Similarly, when MongooseIM gets a SIP in-dialog `INVITE` request,
 it will check if there is a custom attribute and use it as the `action` attribute of the Jingle stanza sent to the user.
 If there is no such attribute, the action will be set to regular Jingle `transport-info`.
 
@@ -82,7 +82,6 @@ This may be useful in web applications when there is a need to handle the call i
 
 In order to get the `session-initiate`, which was not answered yet, the user can send a `get` Jingle stanza to self with action set to `existing-session-initiate`.
 As a result, MongooseIM will resend the original `session-initiate` request to the device which sent the query.
-
 
 ## Prerequisites
 
@@ -97,6 +96,9 @@ tools/configure with-all
 ```
 
 MongooseIM packages are built with Jingle/SIP support.
+
+!!! warning
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
 
 ## Options
 

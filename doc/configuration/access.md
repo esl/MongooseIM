@@ -203,7 +203,7 @@ The `max_user_sessions` rule is used to determine the maximum number of sessions
   ]
 ```
 
-By default all users can open at most 10 concurrent sessions.
+By default, all users can open at most 10 concurrent sessions.
 
 ### Maximum number of offline messages
 

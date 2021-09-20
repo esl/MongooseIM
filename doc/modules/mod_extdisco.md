@@ -2,6 +2,9 @@
 Implements [XEP-0215: External Service Discovery](http://xmpp.org/extensions/xep-0215.html) for discovering information about services external to the XMPP network.
 The main use-case is to help discover STUN/TURN servers to allow for negotiating media exchanges.
 
+!!! warning
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
+
 ## Options
 
 ### `modules.mod_extdisco.service.type`

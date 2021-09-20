@@ -29,7 +29,7 @@ By default it uses the function in `mod_event_pusher_http` itself, which ships a
 ## Prerequisites
 
 This module uses a connection pool created by mongoose_http_client.
-It must be defined in the [`outgoing_pools` settings](../advanced-configuration/outgoing-connections.md#http-options).
+It must be defined in the [`outgoing_pools` settings](../configuration/outgoing-connections.md#http-options).
 
 ## Options
 

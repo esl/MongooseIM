@@ -2,11 +2,11 @@
 
 Automatic reconnection after spurious disconnection is a must-have feature in modern IM applications. 
 One way of providing this feature is storing the user login information on the disk. 
-Here you need to balance two values - security and convienience for the end-user. 
-To put it simply: storing passowords in plaintext is inherently insecure while protecting the XMPP password with a master-password is damages the user experience.
+Here you need to balance two values - security and convenience for the end-user. 
+To put it simply: storing passwords in plaintext is inherently insecure while protecting the XMPP password with a master-password damages the user experience.
 With a token-based authentication mechanism, the user has to provide login information only once, for the initial connection to the XMPP server, and can later rely on the application's automatic use of tokens for subsequent reconnections.
 
-Reconnecting to the XMPP server, usually means that the client has to go through the same long process of SASL challenge-response exchange which may cause noticable lags, especially while using SCRAM-based mechanisms. 
+Reconnecting to the XMPP server, usually means that the client has to go through the same long process of SASL challenge-response exchange which may cause noticeable lags, especially while using SCRAM-based mechanisms. 
 Providing a token to the XMPP server is secure and doesn't require multiple challenge-response roundtrips, therefore might significantly speed up reconnection times.
 
 ## Requirements

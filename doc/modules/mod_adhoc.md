@@ -8,7 +8,7 @@ This module implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xe
 * **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_adhoc.report_commands_node`
 * **Syntax:** boolean

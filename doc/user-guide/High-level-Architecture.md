@@ -7,12 +7,12 @@
 At its core MongooseIM is a huge message router you can customise to fit your system's needs.
 You can choose and enable behaviours and functionalities by configuring any of the available modules.
 A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations.
-See '[Extension Modules](../advanced-configuration/Modules.md)' for a full list.
+See [Extension Modules](../configuration/Modules.md) for a full list.
 
 Modules can be configured and started either for all virtual hosts served by the instance or with individual configuration for only some of them.
-Modules may include dependencies on services and on other modules.
+Modules may depend on services and on other modules.
 If a module depends on other modules, required modules are started automatically with configuration provided by the dependent module.
-If a module requires certain services which are not started, the module refuses to start.
+If a module requires certain services which are not running, the module will not start.
 
 ### Services
 
@@ -26,7 +26,7 @@ Modules which are not host-specific are gradually being refactored to services.
 
 MongooseIM manages two sets of data: transient for session data management, and persistent for archive and configurations.
 
-Please refer to '[Database Backends](../advanced-configuration/database-backends-configuration.md)' doc for more configuration information.
+Please refer to [Database Backends](../configuration/database-backends-configuration.md) doc for more configuration information.
 
 #### Transient databases
 
@@ -38,7 +38,7 @@ There is no need to set up any backups for transient data since it naturally reb
 
 #### Persistent databases
 
-Both RDBMS/SQL (MySQL/PostgreSQL) and NOSQL (Riak KV) databases are supported.
+Both RDBMS/SQL (MySQL/PostgreSQL) and NoSQL (Riak KV) databases are supported.
 
 Backups should be regular, and tested.
 
@@ -50,7 +50,7 @@ Backups should be regular, and tested.
 
 ## Outside MongooseIM: ecosystem in a datacenter
 
-![MongooseIM high-level architecture](MongooseIM_high-level_architecture.png)
+![MongooseIM high-level architecture](high-level_architecture.png)
 
 ### Frontend
 
@@ -72,7 +72,7 @@ An HTTP notification enables forwarding of the events to any other external HTTP
 
 ### Management and monitoring
 
-WombatOAM enables the monitoring and management of MongooseIM clusters, as well as Riak KV, RabbitMQ, and any other Erlang and Elixir based system.
+[WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/) enables the monitoring and management of MongooseIM clusters, as well as Riak KV, RabbitMQ, and any other Erlang and Elixir based system.
 
 ### MongooseICE (STUN/TURN)
 
@@ -84,7 +84,7 @@ Available on: [MongoosePush](https://github.com/esl/MongoosePush)
 
 ## MongooseIM in a worldwide, multi-datacenter configuration
 
-![MongooseIM worldwide architecture](MongooseIM_worldwide_architecture.png)
+![MongooseIM worldwide architecture](worldwide_architecture.png)
 
 The MongooseIM platform enables a service to scale worldwide, with proximity servers across continents and datacenters. It leverages the use of the open standard S2S (server-to-server) protocol.
 

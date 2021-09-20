@@ -359,7 +359,8 @@ If you want to check how much of the code is covered by tests, run:
 make cover_quicktest
 ```
 
-Note: You need all the mim nodes (mim1, mim2 and mim3) up and running, even if you only run some of the tests. If any of the nodes is down, the test will crash.
+!!! Note
+    You need all the mim nodes (mim1, mim2 and mim3) up and running, even if you only run some of the tests. If any of the nodes is down, the test will crash.
 
 This command will recompile and reload the code on dev nodes with coverage enabled and run test suites as defined in the spec.
 Coverage statistics will be available in `big_tests/ct_report/cover.html` and `coverage` subdirectory.

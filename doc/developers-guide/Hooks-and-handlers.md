@@ -130,7 +130,7 @@ It is clearly visible that the handler is added to the `offline_message_hook`.
 
 `HostType` corresponds to the one used in the aforementioned call to the `ejabberd_hooks:run_fold`.
 That is, it's the host type for which the handler is to be executed.
-In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../advanced-configuration/general.md#generalhosts).
+In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../configuration/general.md#generalhosts).
 
 The handler itself is specified as a module-function pair;
 the arity of the function is not specified at the registration nor verified when calling the handler.

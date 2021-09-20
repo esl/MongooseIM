@@ -30,7 +30,8 @@ We are going to use use RaspberryPi 3, to give this tutorial a hint of IoT.
 It is necessary, because both [MongooseIM] and [MongooseICE](https://github.com/esl/MongooseICE) servers need to be accessible by all devices that are used in this demo system.
 You could use a private, local IP address, but then you would need to ensure that your phone and the RaspberryPi are behind some kind of a NAT relative to this IP address.
 
-> Note: the demo will probably work without the NAT, but then there is no point in setting up a TURN server.
+!!! Note
+    The demo will probably work without the NAT, but then there is no point in setting up a TURN server.
 
 We are going to use 2 VPS (Virtual Private Server) that are located somewhere far far away, both having public IPv4 address. Let's say MongooseICE is bound to *1.1.1.1*, and MongooseIM to *2.2.2.2*.
 
@@ -58,7 +59,7 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 
 ### Configuration
 
-You can find MongooseIM installation instructions on [this page](Getting-started.md).
+You can find MongooseIM installation instructions on [this page](../getting-started/Quick-setup.md).
 Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.toml` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.toml`, where `$REPO` is a top-level directory of the cloned repo).
 ```toml
 [general]

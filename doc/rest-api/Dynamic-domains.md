@@ -5,12 +5,12 @@ Implemented by `mongoose_domain_handler` module.
 
 ## Configuration
 
-`mongoose_domain_handler` has to be configured as shown in the [REST API configuration example](../advanced-configuration/listen.md#example-4-domain-api)
+`mongoose_domain_handler` has to be configured as shown in the [REST API configuration example](../configuration/listen.md#example-4-domain-api)
 to enable the REST API.
 
 For details about possible configuration parameters please see the relevant
-documentation of the [listeners](../advanced-configuration/listen.md),
-in particular the [`mongoose_domain_handler`](../advanced-configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler)
+documentation of the [listeners](../configuration/listen.md),
+in particular the [`mongoose_domain_handler`](../configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler)
 section.
 
 ## OpenAPI specifications

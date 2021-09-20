@@ -1,5 +1,9 @@
 The `s2s` section contains options configuring the server-to-server connections used to communicate with other federated XMPP servers.
 
+!!! warning
+    Server-to-server connections do not support [dynamic domains](../configuration/general.md#generalhost_types).
+    Do not use dynamic domains when using `s2s`.
+
 ## General options
 
 These options affect both incoming and outgoing S2S connections.
@@ -67,10 +71,10 @@ Path to the X509 PEM file with a certificate and a private key inside (not prote
 
 This option overrides the configured certificate file for specific local XMPP domains.
 
-**Notes:**
-
-* This option applies to **S2S and C2S** connections.
-* Each domain needs to be included in the list of [`hosts`](general.md#generalhosts) configured in the `general` section.
+!!! Notes
+    
+    * This option applies to **S2S and C2S** connections.
+    * Each domain needs to be included in the list of [`hosts`](general.md#generalhosts) configured in the `general` section.
 
 ### `s2s.shared`
 * **Scope:** local

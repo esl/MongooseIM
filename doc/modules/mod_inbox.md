@@ -44,7 +44,7 @@ If true, the inbox conversation is removed for a user when they are removed from
 * **Default:** `"no_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ## Note about supported RDBMS
 

@@ -1,3 +1,7 @@
+!!! warning
+    Some [modules](../configuration/Modules.md#modules-incompatible-with-dynamic-domains) do not work with dynamic domains.
+    This is also the case for [`s2s`](../configuration/s2s.md) and the XMPP components (XEP-0114) mechanism, as configured in the [`listen.service` section](../configuration/listen.md#xmpp-components-listenservice).
+
 ## MongooseIM core component
 
 Implemented by `mongoose_domain_core` module.
@@ -43,7 +47,7 @@ It provides the following interfaces:
 
 ## MongooseIM service
 
-As described in [Services](../advanced-configuration/Services.md#service_domain_db).
+As described in [Services](../configuration/Services.md#service_domain_db).
 Implements the service behaviour.
 Implemented by `service_domain_db` module.
 
@@ -101,14 +105,14 @@ Configure host-type first to delete such domains.
 
 ## Service options
 
-Described in the [`services` section](../advanced-configuration/Services.md#service_domain_db).
+Described in the [`services` section](../configuration/Services.md#service_domain_db).
 
 ## REST API
 
 Provides API for adding/removing and enabling/disabling domains over HTTP.
 Implemented by `mongoose_domain_handler` module.
 
-Configuration described in the [`listen` section](../advanced-configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler).
+Configuration described in the [`listen` section](../configuration/listen.md#handler-types-rest-api---domain-management---mongoose_domain_handler).
 
 REST API is documented using Swagger in [REST API for dynamic domains management](../rest-api/Dynamic-domains.md).
 Below are examples of how to use this API with the help of `curl`:

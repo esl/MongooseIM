@@ -87,7 +87,7 @@ It is the address to where we are going to send our stanzas.
 
 This is how a JID looks like:
 
-![This is how a JID looks like](./content_jid.png)
+![This is how a JID looks like](content_jid.png)
 
 * **localpart**: This is your username.
 * **domainpart**: Server name where the **localpart** resides.
@@ -436,7 +436,7 @@ extension ViewController: XMPPStreamDelegate {
 
 And that’s it! Our app can log in to our server as I’m showing here:
 
-![App connecting and authenticating](./content_login.gif)
+![App connecting and authenticating](content_login.gif)
 
 ## Logging!
 

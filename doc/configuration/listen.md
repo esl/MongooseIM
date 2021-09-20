@@ -82,8 +82,9 @@ The default, recommended value of 0 means that the client processes will hiberna
 * **Default:** not set, unlimited size
 * **Example:** `max_stanza_size = 10_000`
 
-Maximum allowed incoming stanza size in bytes.
-**Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
+Maximum allowed incoming stanza size in bytes. 
+!!! Warning
+    This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
 ### `listen.*.num_acceptors`
 * **Syntax:** positive integer
@@ -259,7 +260,8 @@ Both listeners use ZLIB and the `c2s` and `c2s_shaper` rules for access manageme
 Handles incoming server-to-server (S2S) connections (federation).
 The recommended port number for an S2S listener is 5269 [as registered in the XMPP protocol](https://tools.ietf.org/html/rfc6120#section-14.7).
 
-**Note:** Many S2S options are configured in the `s2s` section of the configuration file and they apply to both incoming and outgoing connections.
+!!! Note
+    Many S2S options are configured in the `s2s` section of the configuration file, and they apply to both incoming and outgoing connections.
 
 ### `listen.s2s.shaper`
 * **Syntax:** string, name of the shaper rule or `"none"`
@@ -312,6 +314,10 @@ The `s2s_shaper` access rule is used, which requires a definition in the `access
 Interface for external services acting as XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between MongooseIM and external services over the XMPP network. The recommended port number for a component listener is 8888.
 
 According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html) the component's hostname should be given in the <stream:stream> element.
+    
+!!! warning
+    This interface does not support [dynamic domains](../configuration/general.md#generalhost_types).
+    Do not use them both at the same time.
 
 ### `listen.service.access`
 * **Syntax:** string, rule name or `"all"`
@@ -469,7 +475,8 @@ The time between pings sent by server. By setting this option you enable server-
 * **Example:** `max_stanza_size = 10_000`
 
 Maximum allowed incoming stanza size.
-**Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
+!!! Warning
+    This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
 #### `listen.http.handlers.mod_websockets.service`
 * **Syntax:** an array of `listen.service.*` options

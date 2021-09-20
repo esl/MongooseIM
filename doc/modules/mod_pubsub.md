@@ -11,6 +11,9 @@ Due to the complexity of the protocol, the PubSub engine makes successive calls 
 Such an architecture makes it much easier to write custom pubsub plugins and add new storage backends.
 It's all about tailoring PubSub to your needs!
 
+!!! warning
+    This module does not support [dynamic domains](../configuration/general.md#generalhost_types).
+
 ## Options
 
 ### `modules.mod_pubsub.iqdisc.type`
@@ -18,7 +21,7 @@ It's all about tailoring PubSub to your needs!
 * **Default:** `"no_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
-[IQ processing policies](../../advanced-configuration/Modules/#iq-processing-policies).
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_pubsub.host`
 * **Syntax:** string
@@ -40,7 +43,7 @@ Database backend to use.
 * **Default:** `"all"`
 * **Example:** `access_createnode = "all"`
 
-Specifies who is allowed to create pubsub nodes. The access rule referenced here needs to be defined in the [access](../../advanced-configuration/access) section.
+Specifies who is allowed to create pubsub nodes. The access rule referenced here needs to be defined in the [access](../configuration/access.md) section.
 
 ### `modules.mod_pubsub.max_items_node`
 * **Syntax:** non-negative integer

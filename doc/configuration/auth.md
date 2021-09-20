@@ -27,7 +27,8 @@ The options listed here are used to configure the authentication methods.
 
 Specifies the methods used to authenticate connecting users. Methods from the list are queried one after another until one of them replies positively. By default there are no methods, so nobody can authenticate.
 
-**Warning:** Make sure that the compatible SASL mechanisms are enabled, see [capabilities](#authentication-method-capabilities).
+!!! Warning
+    Make sure that the compatible SASL mechanisms are enabled, see [capabilities](#authentication-method-capabilities).
 
 ### `auth.sasl_mechanisms`
 * **Syntax:** array of strings. Allowed values: `"scram_sha512_plus"`, `"scram_sha512"`, `"scram_sha384_plus"`, `"scram_sha384"`, `"scram_sha256_plus"`, `"scram_sha256"`, `"scram_sha224_plus"`, `"scram_sha224"`, `"scram_sha1_plus"`, `"scram_sha1"`, `"plain"`, `"anonymous"`, `"oauth"`, `"external"`, `"digest"`
@@ -36,13 +37,13 @@ Specifies the methods used to authenticate connecting users. Methods from the li
 
 Specifies the list of allowed SASL mechanisms, which are announced during stream negotiation and eventually enforced (users can't pick a mechanism not listed here).
 
-**Notes:**
-
-* This list is still filtered by [capabilities](#authentication-method-capabilities).
-* Configuring the `sasl_mechanisms` replaces the default list entirely.
-* The order in which the mechanisms are listed in the config will be taken as the order in which they are advertised.
-* All `SCRAM-SHA-*` mechanisms (specified as `scram_sha*`) have their counterparts which support channel binding and are advertised as separate authentication mechanisms suffixed by `-PLUS` (specified as `scram_sha*_plus`).
-* The `DIGEST-MD5` mechanism (specified as `digest`) is deprecated and will be removed in the next release.
+!!! Notes
+    
+    * This list is still filtered by [capabilities](#authentication-method-capabilities).
+    * Configuring the `sasl_mechanisms` replaces the default list entirely.
+    * The order in which the mechanisms are listed in the config will be taken as the order in which they are advertised.
+    * All `SCRAM-SHA-*` mechanisms (specified as `scram_sha*`) have their counterparts which support channel binding and are advertised as separate authentication mechanisms suffixed by `-PLUS` (specified as `scram_sha*_plus`).
+    * The `DIGEST-MD5` mechanism (specified as `digest`) is deprecated and will be removed in the next release.
 
 #### Authentication method capabilities
 
@@ -86,7 +87,8 @@ Decide whether user passwords will be kept plain or hashed in the database.
 Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version.
 The older XMPP clients can still use the `PLAIN` mechanism.
 
-**Note:** The `DIGEST-MD5` mechanism is not available with the `scram` password format.
+!!! Note
+    The `DIGEST-MD5` mechanism is not available with the `scram` password format.
 
 ### `auth.password.hash`
 * **Syntax:** list of strings, allowed values: `"sha"`, `"sha224"`, `"sha256"`, `"sha384"`, `"sha512"`

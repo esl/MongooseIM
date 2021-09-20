@@ -32,10 +32,12 @@ Verbosity level of the logger. Values recommended for production systems are `"e
 This option specifies the statically defined XMPP domains served by this cluster.
 In order to configure these hosts independently, use the [`host_config` section](./host_config.md).
 
-**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+!!! Note
+    At least one of `general.hosts` or `general.host_types` have to be provided.
 
-**Warning:** Extension modules and database backends will be started separately for every domain from this list.
-When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+!!! Warning
+    Extension modules and database backends will be started separately for every domain from this list.
+    When increasing the number of domains, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.host_types`
 * **Scope:** global
@@ -48,14 +50,17 @@ Each host type can be seen as a label for a group of independent domains that us
 In order to configure these host types independently, use the [`host_config` section](./host_config.md).
 The domains can be added or removed dynamically via the [dynamic domains REST API](../rest-api/Dynamic-domains.md).
 
-If you use the host type mechanism, make sure you only configure modules which support it in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
-MongooseIM will not start otherwise.
-In order to see which modules support dynamic domains, please check the [modules list](./Modules.md#modules-supporting-dynamic-domains).
+If you use the host type mechanism, make sure you only configure modules which support dynamic domains in the [`modules`](./Modules.md) or [`host_config.modules`](./host_config.md#host_configmodules) sections.
+MongooseIM will **not** start otherwise.
+Most of the modules are compatible with host types, but please read the particular extension module's page, or the [incompatible modules list](./Modules.md#modules-incompatible-with-dynamic-domains) to see which do not.
+Moreover, [`s2s`](s2s.md) as well as XMPP components (XEP-0114), as configured in the [`listen.service` section](listen.md#xmpp-components-listenservice), do not support dynamic domains.
 
-**Note:** At least one of `general.hosts` or `general.host_types` have to be provided.
+!!! Note
+    At least one of `general.hosts` or `general.host_types` have to be provided.
 
-**Warning:** Extension modules and database backends will be started separately for every host type from this list.
-When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
+!!! Warning
+    Extension modules and database backends will be started separately for every host type from this list.
+    When increasing the number of host types, please make sure you have enough resources available (e.g. connection limit set in the DBMS).
 
 ### `general.default_server_domain`
 * **Scope:** global

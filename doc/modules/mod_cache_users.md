@@ -29,5 +29,5 @@ Number of segments the cache has. The more segments there are, the more fine-gra
   number_of_segments = 1
 ```
 
-[MAM]: ../mod_mam
-[Inbox]: ../mod_inbox
+[MAM]: mod_mam.md
+[Inbox]: mod_inbox.md

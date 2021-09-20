@@ -2,7 +2,7 @@ Our contributions to the ecosystem.
 
 ## Third-party opensource projects
 
-### XMPPframework for iOS
+### XMPPFramework for iOS
 
 Available on: [robbiehanson/XMPPFramework](https://github.com/robbiehanson/XMPPFramework)
 
@@ -11,7 +11,7 @@ Available on: [robbiehanson/XMPPFramework](https://github.com/robbiehanson/XMPPF
 * [XEP-0030: Service Discovery](https://github.com/robbiehanson/XMPPFramework/pull/736)
 * [MUC light](https://github.com/robbiehanson/XMPPFramework/pull/750)
 * [Token-based reconnection](https://github.com/robbiehanson/XMPPFramework/pull/758)
-* Revamped README: making people feel like this is a well mantained and up to date framework
+* Revamped README: making people feel like this is a well maintained and up to date framework
 * Created a way to Mock a piece of the framework to improve the way we write tests
 
 ### Smack for Android
@@ -53,7 +53,8 @@ amoc is a simple tool for running massively parallel XMPP tests
 
 Apache license 2.0
 
-Note: amoc stands for "A Murder of Crows"
+!!! Info
+    amoc stands for "A Murder of Crows"
 
 ### exml
 
@@ -75,8 +76,8 @@ See [MongoosePush](https://github.com/esl/MongoosePush) on GitHub for more detai
 
 ### MUC light
 
-MUC stands for Multi-User Chat. [MUC light](../open-extensions/muc_light/) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
+MUC stands for Multi-User Chat. [MUC light](open-extensions/muc_light.md) is a presenceless and subscription-based group chat, relying on a simplified version of MUC.
 
 ### Token-based reconnection
 
-[Token-based reconnection](../open-extensions/token-reconnection/) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords
+[Token-based reconnection](open-extensions/token-reconnection.md) (TBR) Reconnection mechanism, for temporary disconnections, using tokens instead of passwords

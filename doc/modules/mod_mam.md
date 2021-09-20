@@ -10,9 +10,9 @@ MongooseIM is compatible with MAM 0.4-0.6.
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
-* Riak KV (NOSQL)
-* Cassandra (NOSQL)
-* ElasticSearch (NOSQL)
+* Riak KV (NoSQL)
+* Cassandra (NoSQL)
+* ElasticSearch (NoSQL)
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
@@ -155,9 +155,11 @@ To disable archive for MUC messages please remove MUC section or any MUC related
 * **Syntax:** string
 * **Default:** `"conference.@HOST@"`
 * **Example:** `modules.mod_mam_meta.muc.host = "conference.@HOST@"`
-* **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain
 
 The MUC host that will be archived if MUC archiving is enabled.
+
+!!! Warning
+    If you are using MUC Light, make sure this option is set to the MUC Light domain
 
 #### Example
 
@@ -186,7 +188,9 @@ Enables Archive ID to integer mappings cache.
 * **Syntax:** string, one of `"internal"` and `"simple"`
 * **Default:** `"internal"`
 * **Example:** `modules.mod_mam_meta.rdbms_message_format = "simple"`
-* **Warning**: archive MUST be empty to change this option
+
+!!! Warning
+    Archive MUST be empty to change this option
 
 When set to `simple`, stores messages in XML and full JIDs.
 When set to `internal`, stores messages and JIDs in internal format.
@@ -284,14 +288,14 @@ Riak index name.
 
 ### Cassandra backend
 
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-options) page to learn how to properly configure Cassandra connection pool.
+Please consult [Outgoing connections](../configuration/outgoing-connections.md#cassandra-options) page to learn how to properly configure Cassandra connection pool.
 By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag.
 
 
 ### ElasticSearch backend
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
-Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
+Please consult [Outgoing connections](../configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
 
 ## Example configuration
 

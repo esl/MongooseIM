@@ -132,7 +132,7 @@ node, we need to enable it in our [mod_pubsub][] on the MongooseIM server that w
 the _XMPP Push Service_.
 
 [pubsub-less]: #mongooseim-as-a-pubsub-less-xmpp-server
-[client-side]: ./Push-notifications-client-side.md
+[client-side]: Push-notifications-client-side.md
 [mod_event_pusher]: ../../modules/mod_event_pusher.md
 [mod_event_pusher_push]: ../../modules/mod_event_pusher_push.md
 [mod_event_pusher_push_plugin]: ../../modules/mod_event_pusher_push.md#plugin-module
@@ -141,7 +141,6 @@ the _XMPP Push Service_.
 [mod_pubsub]: ../../modules/mod_pubsub.md
 [mod_push_service_mongoosepush]: ../../modules/mod_push_service_mongoosepush.md
 [MongoosePush]: https://github.com/esl/MongoosePush
-[WithMongoosePush]: ./MongoosePush-setup.md
+[WithMongoosePush]: MongoosePush-setup.md
 [MongoosePushReadme]: https://github.com/esl/MongoosePush/blob/master/README.md
 [XEP-0357]: https://xmpp.org/extensions/xep-0357.html
-[federation]: ../../../advanced-configuration/listen/#server-to-server-s2s-listens2s

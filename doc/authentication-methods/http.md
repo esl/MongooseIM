@@ -157,23 +157,23 @@ Below you can find some examples of the auth service APIs and MongooseIM-side co
 An Auth token is provided as a password.
 
 * **Service implements:** `check_password`, `user_exists`
-* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
+* **MongooseIM config:** [`password.format`](../configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
 * **Client side:** Must NOT use the `DIGEST-MD5` mechanism; use `PLAIN` instead
 
 #### Central database of plaintext passwords
 
 * **Service implements:** `check_password`, `get_password`, `user_exists`
-* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
+* **MongooseIM config:** [`password.format`](../configuration/auth.md#authpasswordformat): `plain`, `mod_register` disabled
 * **Client side:** May use any available SASL mechanism
 
 #### Central database able to process SCRAM
 
 * **Service implements:** `get_password`, `user_exists`
-* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `scram`, `mod_register` disabled
+* **MongooseIM config:** [`password.format`](../configuration/auth.md#authpasswordformat): `scram`, `mod_register` disabled
 * **Client side:** May use any available SASL mechanism
 
 #### Godlike MongooseIM
 
 * **Service implements:** all methods
-* **MongooseIM config:** [`password.format`](../advanced-configuration/auth.md#authpasswordformat): `scram` (recommended) or `plain`, `mod_register` enabled
+* **MongooseIM config:** [`password.format`](../configuration/auth.md#authpasswordformat): `scram` (recommended) or `plain`, `mod_register` enabled
 * **Client side:** May use any available SASL mechanism

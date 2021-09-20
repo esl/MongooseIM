@@ -1,11 +1,14 @@
-# Features and supported standards
+# Supported standards
 
 * XMPP Core: [RFC 3920](https://tools.ietf.org/html/rfc3920),
 [RFC 6120](https://tools.ietf.org/html/rfc6120)
-    * **Note:** In RFC 6120 there are 3 different strategies defined in case of a session conflict (same full JID).
-    They are described in [7.7.2.2. Conflict](https://tools.ietf.org/html/rfc6120#section-7.7.2.2).
-    MongooseIM always uses the 3rd option.
-    It terminates the older session with a `<conflict/>` stream error.
+  
+    !!! Note
+        In RFC 6120 there are 3 different strategies defined in case of a session conflict (same full JID).
+        They are described in [7.7.2.2. Conflict](https://tools.ietf.org/html/rfc6120#section-7.7.2.2).
+        MongooseIM always uses the 3rd option.
+        It terminates the older session with a `<conflict/>` stream error.
+
 * XMPP Instant Messaging and Presence: [RFC 3921](https://tools.ietf.org/html/rfc3921),
 [RFC 6121](https://tools.ietf.org/html/rfc6121)
 * Client connections:
@@ -24,7 +27,7 @@
         * Redis
     * Persistent:
         * RDBMS: MySQL, PostgreSQL, generic ODBC
-        * NOSQL: Riak KV, Cassandra
+        * NoSQL: Riak KV, Cassandra
 * Integration with third-party services
     * [Amazon Simple Notification Service](../modules/mod_event_pusher_sns.md)
 
@@ -92,13 +95,3 @@
 |[MUC Light](../open-extensions/muc_light.md)|[`mod_muc_light`](../modules/mod_muc_light.md)|
 |[Inbox](../open-extensions/inbox.md)|[`mod_inbox`](../modules/mod_inbox.md)|
 |[Token-based reconnection](../open-extensions/token-reconnection.md)|[`mod_auth_token`](../modules/mod_auth_token.md), [`mod_keystore`](../modules/mod_keystore.md)|
-
-## Integration with other platform components
-
-### MongoosePUSH
-MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush).
-For more details visit the push notification [user guide](./push-notifications/Push-notifications.md).
-
-### MongooseICE
-You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE).
-To get started, we recommend going through [this tutorial](ICE_tutorial.md).
