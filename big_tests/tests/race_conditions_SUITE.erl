@@ -16,7 +16,7 @@
 -module(race_conditions_SUITE).
 -compile(export_all).
 
--export([handle_delayiq_iq/4]).
+-export([handle_delayiq_iq/5]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -24,7 +24,9 @@
 
 -include("mam_helper.hrl"). %% mam? we need assert_equal_extra
 
--import(domain_helper, [domain/0]).
+-import(distributed_helper, [mim/0, rpc/4]).
+
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -131,21 +133,22 @@ ignore_iq_result_from_old_session(Config) ->
 
 start_delayiq_handler() ->
     NS = delayiq_ns(),
-    Domain = domain(),
+    HostType = host_type(),
     %% Register our module as an iq handler.
     %% It's important to use IQDisc=parallel, because
     %% this particular IQ should be executed in a separate process.
-    Args = [ejabberd_sm, Domain, NS, ?MODULE, handle_delayiq_iq, parallel],
-    mongoose_helper:successful_rpc(gen_iq_handler, add_iq_handler, Args).
+    rpc(mim(), gen_iq_handler, add_iq_handler_for_domain,
+        [HostType, NS, ejabberd_sm,
+         fun ?MODULE:handle_delayiq_iq/5, #{}, parallel]).
 
 stop_delayiq_handler() ->
     NS = delayiq_ns(),
-    Domain = domain(),
+    HostType = host_type(),
     %% Register our module as an iq handler.
     %% It's important to use IQDisc=parallel, because
     %% this particular IQ should be executed in a separate process.
-    Args = [ejabberd_sm, Domain, NS],
-    mongoose_helper:successful_rpc(gen_iq_handler, remove_iq_handler, Args).
+    rpc(mim(), gen_iq_handler, remove_iq_handler_for_domain,
+        [HostType, NS, ejabberd_sm]).
 
 %% Brand new IQ namespace.
 %% Send IQ get with this namespace, and MongooseIM would send you
@@ -162,7 +165,7 @@ delayiq_iq() ->
     escalus_stanza:iq_get(delayiq_ns(), [Payload]).
 
 %% This function is executed by MongooseIM
-handle_delayiq_iq(_From, _To, Acc, IQ) ->
+handle_delayiq_iq(Acc, _From, _To, IQ, _Extra) ->
     SubEl = mongoose_iq:iq_to_sub_el(IQ),
     BinCallerPid = exml_query:path(SubEl, [{element, <<"data">>},
                                            {attr, <<"caller_pid">>}]),
