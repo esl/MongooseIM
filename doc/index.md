@@ -14,7 +14,7 @@
 
 MongooseIM is a robust, scalable and efficient XMPP server at the core of an Instant Messaging platform aimed at large installations.
 
-<img align="left" src="../../MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
+<img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
 
 Designed for enterprise, it is fault-tolerant, can utilise the resources of multiple clustered machines, and easily scales for more capacity by simply adding a box or a VM.
 
@@ -28,7 +28,7 @@ MongooseIM is brought to you by [Erlang Solutions](https://www.erlang-solutions.
 
 ## MongooseIM platform components
 
-<img src="../../MongooseIM_Platform_components.png" alt="MongooseIM platform schema" />
+<img src="MongooseIM_Platform_components.png" alt="MongooseIM platform schema" />
 
 ### Server-side components
 
@@ -51,7 +51,7 @@ We offer a set of additional server-side components:
     * iOS, Swift: [Jayme](https://github.com/inaka/Jayme)
     * Android, Java: [Retrofit](https://github.com/square/retrofit)
 
-<img src="../../mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
+<img src="mongoose_top_banner_800.jpeg" alt="MongooseIM platform's mongooses faces" />
 
 ## Download packages
 
