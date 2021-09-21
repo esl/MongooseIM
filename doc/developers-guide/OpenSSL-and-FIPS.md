@@ -17,7 +17,7 @@ If you want to use a different OpenSSL than the default one, specify the option 
 Here's an example of a command for building Erlang/OTP with kerl:
 
 ```bash
-KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 21.3 21.3-fips
+KERL_CONFIGURE_OPTIONS="--enable-fips" ./kerl build 23.3 23.3-fips
 ```
 
 ### Building MongooseIM with a custom OpenSSL
@@ -34,8 +34,8 @@ export CFLAGS="-I$OPENSSL_INC"
 
 ### How to enable/disable FIPS mode
 
-Find `etc/app.config` in the release directory. 
-FIPS mode is an option of the crypto application. 
+Find `etc/app.config` in the release directory.
+FIPS mode is an option of the crypto application.
 In order to enable/disable it, add the following section to `app.config`:
 
 ```erlang
@@ -70,7 +70,7 @@ The function returns:
 
 ### Cipher suites difference
 
-A test using a `cipher_suites_test.sh` script (available in the tools directory) can be performed on MongooseIM with FIPS mode enabled and disabled. 
+A test using a `cipher_suites_test.sh` script (available in the tools directory) can be performed on MongooseIM with FIPS mode enabled and disabled.
 We've used `OpenSSL 1.0.1j-fips`.
 
 Here are all the cipher suites available when the **FIPS** mode is **enabled** (the list may vary for different openssl versions):
