@@ -48,7 +48,7 @@ file will be suitable),
 is built for the same source code but with the usage of changed build scripts),
 * `$ERLANG_VERSION` - a version of the esl-erlang package which should be used
 while compiling MongooseIM (please remember about concerning minimal erlang version
-specified in the `rebar.config` file and the esl-erlang package revision - e.g. 22.2.5-2),
+specified in the `rebar.config` file and the esl-erlang package revision - e.g. 23.3.1-1),
 * `DOCKERFILE_PATH` - a dockerfile path which should be used to build a package
 for given platform (e.g. path of `Dockerfile_rpm` for `centos_7`),
 * `CONTEXT_PATH` - a root directory of the MongooseIM project (during building
@@ -76,7 +76,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 PLATFORM="debian_stretch"
 VERSION=$(cat "${PROJECT_ROOT}/VERSION")
 REVISION="1"
-ERLANG_VERSION="22.2.5-1"
+ERLANG_VERSION="23.3.1-1"
 DOCKERFILE_PATH="$PROJECT_ROOT/tools/pkg/Dockerfile_deb"
 CONTEXT_PATH=$PROJECT_ROOT
 BUILT_PACKAGES_DIRECTORY="$PROJECT_ROOT/tools/pkg/packages"
@@ -84,7 +84,7 @@ BUILT_PACKAGES_DIRECTORY="$PROJECT_ROOT/tools/pkg/packages"
 
 ## Setting package version and revision
 
-A package version consists of a MongooseIM `version` and a `revision` of a package. 
+A package version consists of a MongooseIM `version` and a `revision` of a package.
 Their default and recommended values were showed above. It is possible though
 that a package will be built for non tagged version of the source code.
 
@@ -94,7 +94,7 @@ recommended:
 * always set: `VERSION=$(cat "${PROJECT_ROOT}/VERSION")`,
 * while building a package for tagged source code use: `REVISION="1"`,
 * while building a package for non tagged source code try to indicate what source
-code was used (e.g. by adding a commit hash to the revision: 
+code was used (e.g. by adding a commit hash to the revision:
 `REVISION="1.$(git rev-parse --short HEAD)"`).
 
 Make sure to keep the `"${PROJECT_ROOT}/VERSION"` and passed `$VERSION`
