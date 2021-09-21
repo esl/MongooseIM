@@ -67,6 +67,8 @@
                            spec/2,
                            common/1]).
 
+-import(domain_helper, [host_type/0]).
+
 suite() ->
     require_rpc_nodes([mim]).
 
@@ -458,9 +460,8 @@ events_are_reported_to_configurable_tracking_id() ->
         end, Tab).
 
 maybe_start_module(Module) ->
-    Host = <<"localhost">>,
     Options = [],
-    distributed_helper:rpc(mim(), gen_mod, start_module, [Host, Module, Options]).
+    distributed_helper:rpc(mim(), gen_mod, start_module, [host_type(), Module, Options]).
 
 feature_is_reported(EventCategory, EventAction) ->
     Tab = ets:tab2list(?ETS_TABLE),
