@@ -44,8 +44,8 @@ In order to change the list, please find the following lines:
           ]}
 ```
 
-By default only TLS 1.2 is enabled, as 1.3 is not supported by OTPs older than 22.0.
-If you are using OTP 22.0 or newer, you may remove leading `%` before `'tlsv1.3'`.
+By default only TLS 1.2 is enabled, as 1.3 is not supported by OTPs older than 23.0.
+If you are using OTP 23.0 or newer, you may remove leading `%` before `'tlsv1.3'`.
 The remaining valid values are: `'tlsv1.1'`, `tlsv1`, `sslv3`.
 
 This setting affects the following MongooseIM components:
