@@ -290,13 +290,15 @@ outgoing_pools_are_reported(_Config) ->
 
 xmpp_stanzas_counts_are_reported(Config) ->
     escalus:story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
-        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"COVID-19">>)),
-        escalus:assert(is_chat_message, [<<"COVID-19">>],
-                       escalus:wait_for_stanza(Bob))
-
-    end),
-    mongoose_helper:wait_until(fun xmpp_messages_count_is_reported/0, true),
-    mongoose_helper:wait_until(fun xmpp_stanzas_counts_are_reported/0, true).
+        mongoose_helper:wait_until(fun message_count_is_reported/0, true),
+        mongoose_helper:wait_until(fun iq_count_is_reported/0, true),
+        Sent = get_metric_value(<<"xmppMessageSent">>),
+        Received = get_metric_value(<<"xmppMessageReceived">>),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi">>)),
+        escalus:assert(is_chat_message, [<<"Hi">>], escalus:wait_for_stanza(Bob)),
+        F = fun() -> assert_message_count_is_incremented(Sent, Received) end,
+        mongoose_helper:wait_until(F, ok)
+    end).
 
 config_type_is_reported(_Config) ->
     mongoose_helper:wait_until(fun config_type_is_reported/0, true).
@@ -358,20 +360,14 @@ in_config_with_explicit_reporting_goes_on_silently(_Config) ->
 
 all_event_have_the_same_client_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
-    UniqueSortedTab = lists:usort([Cid ||#event{cid = Cid} <- Tab]),
+    UniqueSortedTab = lists:usort([Cid || #event{cid = Cid} <- Tab]),
     1 = length(UniqueSortedTab).
 
 hosts_count_is_reported() ->
     is_in_table(<<"hosts">>).
 
-hosts_count_is_not_reported() ->
-    is_not_in_table(<<"hosts">>).
-
 modules_are_reported() ->
     is_in_table(<<"module">>).
-
-modules_are_not_reported() ->
-    is_not_in_table(<<"module">>).
 
 is_in_table(EventCategory) ->
     Tab = ets:tab2list(?ETS_TABLE),
@@ -379,9 +375,6 @@ is_in_table(EventCategory) ->
         fun(#event{ec = EC}) ->
             verify_category(EC, EventCategory)
         end, Tab).
-
-is_not_in_table(EventCategory) ->
-    not is_in_table(EventCategory).
 
 verify_category(EC, <<"module">>) ->
     Result = re:run(EC, "^mod_.*"),
@@ -395,7 +388,7 @@ verify_category(_EC, _EventCategory) ->
     false.
 
 get_events_collection_size() ->
-    length(ets:tab2list(?ETS_TABLE)).
+    ets:info(?ETS_TABLE, size).
 
 enable_system_metrics(Node) ->
     enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}]).
@@ -448,7 +441,7 @@ remove_service_from_config(Service) ->
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),
-    SetTab = sets:from_list([Tid ||#event{tid = Tid} <- Tab]),
+    SetTab = sets:from_list([Tid || #event{tid = Tid} <- Tab]),
     2 >= sets:size(SetTab).
 
 events_are_reported_to_configurable_tracking_id() ->
@@ -464,18 +457,10 @@ maybe_start_module(Module) ->
     distributed_helper:rpc(mim(), gen_mod, start_module, [host_type(), Module, Options]).
 
 feature_is_reported(EventCategory, EventAction) ->
-    Tab = ets:tab2list(?ETS_TABLE),
-    lists:any(
-        fun(#event{ec = EC, ea = EA}) ->
-            EC == EventCategory andalso EA == EventAction
-        end, Tab).
+    length(match_events(EventCategory, EventAction)) > 0.
 
 feature_is_reported(EventCategory, EventAction, EventLabel) ->
-    Tab = ets:tab2list(?ETS_TABLE),
-    lists:any(
-        fun(#event{ec = EC, ea = EA, el = EL}) ->
-            EC == EventCategory andalso EA == EventAction andalso EL == EventLabel
-        end, Tab).
+    length(match_events(EventCategory, EventAction, EventLabel)) > 0.
 
 mod_vcard_backend_is_reported() ->
     feature_is_reported(<<"mod_vcard">>, <<"backend">>).
@@ -503,22 +488,38 @@ transport_mechanisms_are_reported() ->
 outgoing_pools_are_reported() ->
     is_in_table(<<"outgoing_pools">>).
 
-xmpp_stanzas_counts_are_reported() ->
+iq_count_is_reported() ->
     is_in_table(<<"xmppIqSent">>).
 
-xmpp_messages_count_is_reported() ->
-    BoolMessageSent = feature_is_reported(<<"xmppMessageSent">>, <<"1">>),
-    BoolMessageReceived = feature_is_reported(<<"xmppMessageReceived">>, <<"1">>),
-    BoolMessageSent and BoolMessageReceived.
+message_count_is_reported() ->
+    is_in_table(<<"xmppMessageSent">>) andalso is_in_table(<<"xmppMessageReceived">>).
+
+assert_message_count_is_incremented(Sent, Received) ->
+    assert_increment(<<"xmppMessageSent">>, Sent),
+    assert_increment(<<"xmppMessageReceived">>, Received).
+
+assert_increment(EventCategory, InitialValue) ->
+    Events = match_events(EventCategory, integer_to_binary(InitialValue + 1), <<$1>>),
+    ?assertMatch([_], Events). % expect exactly one event with an increment of 1
+
+get_metric_value(EventCategory) ->
+    [#event{ea = Value} | _] = match_events(EventCategory),
+    binary_to_integer(Value).
 
 more_than_one_component_is_reported() ->
-    Tab = ets:tab2list(?ETS_TABLE),
-    EventCategory = <<"cluster">>,
-    EventAction = <<"number_of_components">>,
-    lists:any(
-        fun(#event{ec = EC, ea = EA, el = EL}) ->
-             EC == EventCategory andalso EA == EventAction andalso EL > <<"0">>
-        end, Tab).
+    Events = match_events(<<"cluster">>, <<"number_of_components">>),
+    lists:any(fun(#event{el = EL}) ->
+                       binary_to_integer(EL) > 0
+              end, Events).
+
+match_events(EC) ->
+    ets:match_object(?ETS_TABLE, #event{ec = EC, _ = '_'}).
+
+match_events(EC, EA) ->
+    ets:match_object(?ETS_TABLE, #event{ec = EC, ea = EA, _ = '_'}).
+
+match_events(EC, EA, EL) ->
+    ets:match_object(?ETS_TABLE, #event{ec = EC, ea = EA, el = EL, _ = '_'}).
 
 %%--------------------------------------------------------------------
 %% Cowboy handlers
