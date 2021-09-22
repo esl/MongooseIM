@@ -212,39 +212,20 @@ Always ensure what handlers are registered for a given hook (`grep` is your frie
 The following command should give you a list of all the hooks available in MongooseIM:
 
 ```bash
-$ find src/ -name '*.erl' -print | xargs ./tools/find-hooks.awk \
-> | sort | uniq
+awk '/\-export\(\[/,/\]\)\./' src/mongoose_hooks.erl | grep -oh "\w*\/" | sed 's/.$//' | sort
+```
+It returns:
+```bash
 adhoc_local_commands
-adhoc_local_items
+adhoc_sm_commands
 ...
 ...
 ...
-webadmin_user_parse_query
+xmpp_stanza_dropped
 ```
 
+It just extracts the hooks exported from the `mongoose_hooks` module.
 Refer to `grep`/`ack` to find where they're used.
-
-Here are the contents of `find-hooks.awk`:
-
-```awk
-#!/usr/bin/env awk -f
-BEGIN {
-    RS=")"
-    ORS=""
-    FS="[ (,]"
-}
-
-$0 ~ /ejabberd_hooks:run/ {
-    found = -1
-    for (i = 1; i < NF; i++) {
-        if ($i ~ /ejabberd_hooks:run/) {
-            found = i
-        }
-    }
-    if (found != -1 && $(found+1) != "" && $(found+1) ~ /^[a-z]/)
-        print $(found+1)"\n"
-}
-```
 
 ## Creating your own hooks
 
