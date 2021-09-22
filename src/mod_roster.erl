@@ -61,6 +61,7 @@
          get_subscription_lists/2,
          get_jid_info/4,
          remove_user/3,
+         remove_domain/3,
          get_versioning_feature/2,
          get_personal_data/3
         ]).
@@ -79,6 +80,7 @@
     {?MOD_ROSTER_BACKEND, get_subscription_lists, 3},
     {?MOD_ROSTER_BACKEND, read_roster_version, 3},
     {?MOD_ROSTER_BACKEND, remove_user_t, 3},
+    {?MOD_ROSTER_BACKEND, remove_domain_t, 2},
     {?MOD_ROSTER_BACKEND, roster_subscribe_t, 2},
     {?MOD_ROSTER_BACKEND, init, 2},
     {?MOD_ROSTER_BACKEND, transaction, 2},
@@ -87,7 +89,7 @@
     behaviour_info/1, get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
     get_user_roster/2, get_user_rosters_length/2, get_versioning_feature/2,
     in_subscription/5, item_to_xml/1, out_subscription/4, process_subscription_t/6,
-    remove_user/3, transaction/2
+    remove_user/3, remove_domain/3, transaction/2
 ]).
 
 -include("mongoose.hrl").
@@ -142,6 +144,10 @@
 -callback del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), contact()) -> ok.
 
 -callback remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
+
+-callback remove_domain_t(mongooseim:host_type(), jid:lserver()) -> ok.
+
+-optional_callbacks([remove_domain_t/2]).
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -224,6 +230,7 @@ hooks(HostType) ->
      {roster_get_subscription_lists, HostType, ?MODULE, get_subscription_lists, 50},
      {roster_get_jid_info, HostType, ?MODULE, get_jid_info, 50},
      {remove_user, HostType, ?MODULE, remove_user, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
      {roster_get_versioning_feature, HostType, ?MODULE, get_versioning_feature, 50},
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}].
@@ -877,6 +884,25 @@ send_presence_type(From, To, Type) ->
                                  attrs = [{<<"type">>, Type}], children = []}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) -> 
+    case backend_module:is_exported(mod_roster_backend, remove_domain_t, 2) of
+         true ->
+            F = fun() -> mod_roster_backend:remove_domain_t(HostType, Domain) end,
+            case transaction(HostType, F) of
+                {atomic, ok} ->
+                    ok;
+                Result ->
+                    ?LOG_ERROR(#{what => remove_domain_transaction_failed,
+                                 reason => Result})
+            end;
+        false ->
+            ok
+    end,
+    Acc.
 
 -spec set_items(mongooseim:host_type(), jid:jid(), exml:element()) -> ok | {error, any()}.
 set_items(HostType, #jid{luser = LUser, lserver = LServer}, SubEl) ->
