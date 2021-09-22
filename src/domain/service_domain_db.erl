@@ -4,7 +4,6 @@
 
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
--include("backward_compatible.hrl").
 
 -define(GROUP, service_domain_db_group).
 -define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
@@ -70,7 +69,7 @@ enabled() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case ?PG_GET_MEMBERS(?GROUP) of
+    case pg:get_members(?GROUP) of
         [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
             ok;
@@ -86,7 +85,7 @@ sync_local() ->
 
 init([]) ->
     mongoose_domain_gaps:init(),
-    ?PG_JOIN(?GROUP, self()),
+    pg:join(?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.

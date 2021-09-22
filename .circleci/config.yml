@@ -632,37 +632,6 @@ workflows:
           filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
-      # ============= TESTS OTP 22 =============
-      - build:
-          name: otp_22
-          otp_package: 22.3.4.9-1
-          context: mongooseim-org
-          filters: *all_tags
-      - small_tests:
-          name: small_tests_22
-          otp_package: 22.3.4.9-1
-          context: mongooseim-org
-          requires:
-            - otp_22
-          filters: *all_tags
-      - big_tests:
-          name: ldap_mnesia_22
-          otp_package: 22.3.4.9-1
-          preset: ldap_mnesia
-          db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_22
-          filters: *all_tags
-      - big_tests:
-          name: pgsql_mnesia_22
-          otp_package: 22.3.4.9-1
-          preset: pgsql_mnesia
-          db: pgsql
-          context: mongooseim-org
-          requires:
-            - otp_22
-          filters: *all_tags
       # ============= TESTS OTP 23 =============
       - build:
           name: otp_23
@@ -780,10 +749,6 @@ workflows:
           executor: otp_24
           context: mongooseim-org
           requires:
-            - small_tests_22
-            - ldap_mnesia_22
-            - pgsql_mnesia_22
-
             - small_tests_23
             - ldap_mnesia_23
             - pgsql_mnesia_23

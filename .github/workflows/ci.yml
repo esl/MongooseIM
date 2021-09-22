@@ -16,7 +16,7 @@ jobs:
     name: small_tests on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        otp: ['23.0.3', '22.3', '24.0.2']
+        otp: ['23.0.3', '24.0.2']
     runs-on: ubuntu-20.04
     env:
       PRESET: 'small_tests'
@@ -35,21 +35,20 @@ jobs:
         run: tools/test.sh -p $PRESET -s true -e true
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
-      - name: report coverage
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: small_tests on OTP ${{matrix.otp}}
-          path-to-lcov: ./lcov.info
-          parallel: true
-
+#      - name: report coverage
+#        uses: coverallsapp/github-action@master
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          flag-name: small_tests on OTP ${{matrix.otp}}
+#          path-to-lcov: ./lcov.info
+#
   big_tests:
     name: ${{matrix.preset}} on OTP ${{matrix.otp}}
     strategy:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, riak_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: ['22.3', '23.0.3', '24.0.2']
+        otp: ['23.0.3', '24.0.2']
     runs-on: ubuntu-20.04
     env:
       PRESET: ${{matrix.preset}}
@@ -78,23 +77,23 @@ jobs:
         run: tools/test.sh -p $PRESET -s false -e false
       - name: prepare coverage report
         run: ./rebar3 codecov analyze --lcov --json false
-      - name: report coverage
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
-          path-to-lcov: ./lcov.info
-          parallel: true
+#      - name: report coverage
+#        uses: coverallsapp/github-action@master
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          flag-name: ${{matrix.preset}} on OTP ${{matrix.otp}}
+#          path-to-lcov: ./lcov.info
+#          parallel: true
 
-  coveralls_webhook:
-    needs: [big_tests, small_tests]
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Finish coveralls parallel build
-        uses: coverallsapp/github-action@v1.1.2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          parallel-finished: true
+#  coveralls_webhook:
+#    needs: [big_tests, small_tests]
+#    runs-on: ubuntu-20.04
+#    steps:
+#      - name: Finish coveralls parallel build
+#        uses: coverallsapp/github-action@v1.1.2
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          parallel-finished: true
 
   dialyzer:
     name: dialyzer on OTP ${{matrix.otp}}
@@ -129,7 +128,7 @@ jobs:
         pkg: [centos_7, debian_stretch]
     runs-on: ubuntu-20.04
     env:
-      ESL_ERLANG_PKG_VER: "22.3.4.9-1"
+      ESL_ERLANG_PKG_VER: "23.3.1-1"
       pkg_PLATFORM: ${{matrix.pkg}}
     steps:
       - uses: actions/checkout@v2
