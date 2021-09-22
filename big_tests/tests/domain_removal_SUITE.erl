@@ -15,7 +15,8 @@
          inbox_removal/1,
          muc_light_removal/1,
          muc_light_blocking_removal/1,
-         private_removal/1]).
+         private_removal/1,
+         roster_removal/1]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).
@@ -30,7 +31,8 @@ all() ->
     [{group, mam_removal},
      {group, inbox_removal},
      {group, muc_light_removal},
-     {group, private_removal}].
+     {group, private_removal},
+     {group, roster_removal}].
 
 groups() ->
     [
@@ -39,7 +41,8 @@ groups() ->
      {inbox_removal, [], [inbox_removal]},
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
-     {private_removal, [], [private_removal]}
+     {private_removal, [], [private_removal]},
+     {roster_removal, [], [roster_removal]}
     ].
 
 %%%===================================================================
@@ -84,7 +87,9 @@ group_to_modules(muc_light_removal) ->
 group_to_modules(inbox_removal) ->
     [{mod_inbox, []}];
 group_to_modules(private_removal) ->
-    [{mod_private, [{backend, rdbms}]}].
+    [{mod_private, [{backend, rdbms}]}];
+group_to_modules(roster_removal) ->
+    [{mod_roster, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -196,6 +201,33 @@ private_removal(Config) ->
         ?assert_equal_extra(<<"banana">>, Val1, #{stanza => Res1}),
         ?assert_equal_extra(<<>>, Val2, #{stanza => Res2})
       end).
+
+bobs_default_groups() -> [<<"friends">>].
+
+bobs_default_name() -> <<"Bobby">>.
+
+roster_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% add contact
+        Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
+                                                   bobs_default_name()),
+        escalus:send(Alice, Stanza),
+        Received = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([is_roster_set, is_iq_result], Received),
+
+        %% check roster
+        BobJid = escalus_client:short_jid(Bob),
+        Received2 = escalus:send_iq_and_wait_for_result(Alice, escalus_stanza:roster_get()),
+        escalus:assert(is_roster_result, Received2),
+        escalus:assert(roster_contains, [BobJid], Received2),
+        escalus:assert(count_roster_items, [1], Received2),
+
+        %% remove domain and check roster
+        run_remove_domain(),
+        Received3 = escalus:send_iq_and_wait_for_result(Alice, escalus_stanza:roster_get()),
+        escalus:assert(is_roster_result, Received3),
+        escalus:assert(count_roster_items, [0], Received3)
+        end).
 
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [host_type(), domain()]).
