@@ -70,12 +70,12 @@ To compile MongooseIM you need:
 
 === "macOS"
 
-    #### Step 1
+    **Step 1**
     
     Install [Homebrew](http://brew.sh) to manage packages on your Mac.
     You may use a different package manager but you'll need to figure out the package names and file paths on your own.
     
-    #### Step 2
+    **Step 2**
     
     Install Xcode Command Line Tools.
     
@@ -83,7 +83,7 @@ To compile MongooseIM you need:
     xcode-select --install # install compilation tools
     ```
     
-    #### Step 3
+    **Step 3**
     
     Install dependencies with Brew.
     
@@ -91,7 +91,7 @@ To compile MongooseIM you need:
     brew install erlang openssl unixodbc
     ```
     
-    #### Step 4
+    **Step 4**
     
     Add OpenSSL paths to the compiler and linker environment variables:
     
