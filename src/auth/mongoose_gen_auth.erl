@@ -20,6 +20,8 @@
 
 -ignore_xref([behaviour_info/1]).
 
+-import(backend_module, [is_exported/3]).
+
 %% Mandatory callbacks
 
 -callback start(HostType :: mongooseim:host_type()) -> ok.
@@ -232,9 +234,3 @@ check_password(Mod, HostType, LUser, LServer, Password, Digest, DigestGen) ->
         true -> Mod:check_password(HostType, LUser, LServer, Password, Digest, DigestGen);
         false -> false
     end.
-
-%% Internal functions
-
-is_exported(Mod, F, Arity) ->
-    code:ensure_loaded(Mod),
-    erlang:function_exported(Mod, F, Arity).
