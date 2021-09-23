@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(pubsub_backend_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 -author('michael.uvarov@erlang-solutions.com').
 
 -include_lib("common_test/include/ct.hrl").
@@ -188,7 +188,7 @@ people_with_both_parents_unknown() ->
      <<"Suzi Q Joestar">>,
      <<"Tomoko Higashikata">>].
 
-%% Compare lists ignoring order 
+%% Compare lists ignoring order
 compare_lists(L1, L2) ->
     SL1 = lists:sort(L1),
     SL2 = lists:sort(L2),

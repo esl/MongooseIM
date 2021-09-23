@@ -2,7 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("ejabberd_c2s.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).

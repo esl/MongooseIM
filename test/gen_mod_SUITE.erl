@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(gen_mod_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
 -include_lib("common_test/include/ct.hrl").

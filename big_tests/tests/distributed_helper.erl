@@ -5,8 +5,7 @@
 
 -import(ejabberd_node_utils, [get_cwd/2]).
 
--compile(export_all).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 -type rpc_spec() :: #{node := node(),
                       cookie => atom(),

@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(auth_dummy_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 -author('kacper.mentel@erlang-solutions.com').
 
 -include_lib("common_test/include/ct.hrl").

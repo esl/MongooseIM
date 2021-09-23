@@ -14,7 +14,7 @@
 -include("mongoose.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("mod_roster.hrl").
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).

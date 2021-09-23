@@ -1,8 +1,7 @@
 -module(acc_test_helper).
 -author("bartek").
 
--compile(export_all).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 test_save_acc(#{ stanza := #{ type := <<"chat">>} } = Acc, _State) ->
     Rand = rand:uniform(),

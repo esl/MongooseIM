@@ -6,7 +6,7 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr LLC
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -include("amp.hrl").
 -include_lib("exml/include/exml.hrl").

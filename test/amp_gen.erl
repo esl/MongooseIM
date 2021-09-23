@@ -1,6 +1,6 @@
 -module(amp_gen).
 %% Generators for XEP-0079 models
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -include("amp.hrl").
 -include_lib("proper/include/proper.hrl").

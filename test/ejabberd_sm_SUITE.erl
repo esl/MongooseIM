@@ -6,7 +6,7 @@
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").
 -include_lib("session.hrl").
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 
 -define(_eq(E, I), ?_assertEqual(E, I)).

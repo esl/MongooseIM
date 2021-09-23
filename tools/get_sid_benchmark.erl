@@ -1,6 +1,6 @@
 -module(get_sid_benchmark).
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 %% Example results for 1mln of repetitions and data(2):
 %%

@@ -15,8 +15,7 @@
 %%==============================================================================
 
 -module(cluster_commands_SUITE).
--compile(export_all).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [add_node_to_cluster/2,
                              is_sm_distributed/0,

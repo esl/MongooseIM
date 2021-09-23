@@ -1,6 +1,6 @@
 -module(mongoose_lazy_routing_SUITE).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
 

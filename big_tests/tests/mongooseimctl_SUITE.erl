@@ -14,9 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mongooseimctl_SUITE).
--compile(export_all).
--compile(nowarn_export_all).
--compile(nowarn_shadow_vars).
+-compile([export_all, nowarn_export_all, nowarn_shadow_vars]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").

@@ -15,8 +15,7 @@
 %%==============================================================================
 
 -module(oauth_SUITE).
--compile(export_all).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").

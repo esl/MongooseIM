@@ -3,7 +3,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(TEST_COOLDOWN, 50).    % ms
 -define(COOLDOWN_EPS, 3).      % ms, must be much smaller than TEST_COOLDOWN

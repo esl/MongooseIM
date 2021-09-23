@@ -1,7 +1,6 @@
 -module(muc_light_helper).
 
--compile([export_all]).
--compile(nowarn_export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include("mam_helper.hrl").
 -include("muc_light.hrl").
