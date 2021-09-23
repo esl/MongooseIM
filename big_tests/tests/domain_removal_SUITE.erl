@@ -1,22 +1,6 @@
 -module(domain_removal_SUITE).
 
-%% API
--export([all/0,
-         groups/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2]).
-
--export([mam_pm_removal/1,
-         mam_muc_removal/1,
-         inbox_removal/1,
-         muc_light_removal/1,
-         muc_light_blocking_removal/1,
-         private_removal/1,
-         roster_removal/1]).
+-compile(export_all).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).
@@ -25,10 +9,12 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
 all() ->
-    [{group, mam_removal},
+    [{group, auth_removal},
+     {group, mam_removal},
      {group, inbox_removal},
      {group, muc_light_removal},
      {group, private_removal},
@@ -36,6 +22,7 @@ all() ->
 
 groups() ->
     [
+     {auth_removal, [], [auth_removal]},
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
@@ -89,7 +76,10 @@ group_to_modules(inbox_removal) ->
 group_to_modules(private_removal) ->
     [{mod_private, [{backend, rdbms}]}];
 group_to_modules(roster_removal) ->
-    [{mod_roster, [{backend, rdbms}]}].
+    [{mod_roster, [{backend, rdbms}]}];
+group_to_modules(auth_removal) ->
+    [].
+
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -110,6 +100,22 @@ end_per_testcase(TestCase, Config) ->
 %%%===================================================================
 %%% Test Cases
 %%%===================================================================
+
+auth_removal(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {alice_bis, 1}]),
+    AliceSpec = escalus_users:get_userspec(FreshConfig, alice),
+    AliceBisSpec = escalus_users:get_userspec(FreshConfig, alice_bis),
+    connect_and_disconnect(AliceSpec),
+    connect_and_disconnect(AliceBisSpec),
+    ?assertMatch([_Alice], rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()])),
+    run_remove_domain(),
+    ?assertMatch({error, {connection_step_failed, _, _}}, escalus_connection:start(AliceSpec)),
+    connect_and_disconnect(AliceBisSpec), % different domain - not removed
+    ?assertEqual([], rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()])).
+
+connect_and_disconnect(Spec) ->
+    {ok, Client, _} = escalus_connection:start(Spec),
+    escalus_connection:stop(Client).
 
 mam_pm_removal(Config) ->
     F = fun(Alice, Bob) ->
