@@ -95,9 +95,15 @@ group_to_modules(roster_removal) ->
 %%% Testcase specific setup/teardown
 %%%===================================================================
 
+init_per_testcase(roster_removal, ConfigIn) ->
+    Config = roster_helper:set_versioning(true, true, ConfigIn),
+    escalus:init_per_testcase(roster_removal, Config);
 init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).
 
+end_per_testcase(roster_removal, Config) ->
+    roster_helper:restore_versioning(Config),
+    escalus:end_per_testcase(roster_removal, Config);
 end_per_testcase(TestCase, Config) ->
     escalus:end_per_testcase(TestCase, Config).
 
@@ -202,15 +208,10 @@ private_removal(Config) ->
         ?assert_equal_extra(<<>>, Val2, #{stanza => Res2})
       end).
 
-bobs_default_groups() -> [<<"friends">>].
-
-bobs_default_name() -> <<"Bobby">>.
-
 roster_removal(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% add contact
-        Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
-                                                   bobs_default_name()),
+        Stanza = escalus_stanza:roster_add_contact(Bob, [<<"friends">>], <<"Bobby">>),
         escalus:send(Alice, Stanza),
         Received = escalus:wait_for_stanzas(Alice, 2),
         escalus:assert_many([is_roster_set, is_iq_result], Received),
