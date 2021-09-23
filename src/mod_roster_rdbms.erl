@@ -28,7 +28,8 @@
          roster_subscribe_t/2,
          update_roster_t/2,
          del_roster_t/4,
-         remove_user_t/3]).
+         remove_user_t/3,
+         remove_domain_t/2]).
 
 %% mod_roster backend API
 
@@ -114,6 +115,13 @@ remove_user_t(HostType, LUser, LServer) ->
     mongoose_rdbms:execute_successfully(HostType, roster_group_delete, [LServer, LUser]),
     ok.
 
+-spec remove_domain_t(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain_t(HostType, Domain) ->
+    mongoose_rdbms:execute_successfully(HostType, rosterusers_remove_domain, [Domain]),
+    mongoose_rdbms:execute_successfully(HostType, rostergroups_remove_domain, [Domain]),
+    mongoose_rdbms:execute_successfully(HostType, roster_version_remove_domain, [Domain]),
+    ok.
+
 %% Query preparation
 
 prepare_queries(HostType) ->
@@ -144,6 +152,12 @@ prepare_queries(HostType) ->
     mongoose_rdbms:prepare(roster_group_delete_by_jid, rostergroups, [server, username, jid],
                            <<"DELETE FROM rostergroups"
                              " WHERE server = ? AND username = ? AND jid = ?">>),
+    mongoose_rdbms:prepare(rosterusers_remove_domain, rosterusers, [server],
+                          <<"DELETE FROM rosterusers WHERE server = ?">>),
+    mongoose_rdbms:prepare(rostergroups_remove_domain, rostergroups, [server],
+                           <<"DELETE FROM rostergroups WHERE server = ?">>),
+    mongoose_rdbms:prepare(roster_version_remove_domain, roster_version, [server],
+                           <<"DELETE FROM roster_version WHERE server = ?">>),
     prepare_roster_upsert(HostType),
     prepare_version_upsert(HostType),
     ok.

@@ -26,7 +26,7 @@
 -author('alexey@process-one.net').
 -author('konrad.zemek@erlang-solutions.com').
 
--export([create/2, backend_module/2, create/3]).
+-export([create/2, backend_module/2, create/3, is_exported/3]).
 
 -ignore_xref([create/2, backend_module/2, behaviour_info/1]).
 
@@ -55,6 +55,12 @@ create(Module, Backend, TrackedFuns) ->
             code:load_binary(Mod, ProxyModuleStr ++ ".erl", Code),
             {ok, ProxyModule}
     end.
+
+-spec is_exported(Module :: module(), Function :: atom(), 
+                  Arity :: integer()) -> boolean().
+is_exported(Module, Function, Arity) ->
+    code:ensure_loaded(Module),
+    erlang:function_exported(Module, Function, Arity).
 
 %% Internal functions
 
