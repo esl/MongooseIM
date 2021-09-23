@@ -246,33 +246,24 @@ roster_removal(Config) ->
         escalus:assert(is_roster_result, Received2),
         escalus:assert(roster_contains, [BobJid], Received2),
         escalus:assert(count_roster_items, [1], Received2),
-
-        {selected, [_]} = select_rosterusers(host_type(), domain()),
-        {selected, [_]} = select_rostergroups(host_type(), domain()),
-        {selected, [_]} = select_roster_version(host_type(), domain()),
+        ?assertMatch([_], select_from_roster("rosterusers")),
+        ?assertMatch([_], select_from_roster("rostergroups")),
+        ?assertMatch([_], select_from_roster("roster_version")),
 
         %% remove domain and check roster
         run_remove_domain(),
         Received3 = escalus:send_iq_and_wait_for_result(Alice, escalus_stanza:roster_get()),
         escalus:assert(is_roster_result, Received3),
         escalus:assert(count_roster_items, [0], Received3),
+        ?assertMatch([], select_from_roster("rosterusers")),
+        ?assertMatch([], select_from_roster("rostergroups")),
+        ?assertMatch([], select_from_roster("roster_version"))
+    end).
 
-        {selected, []} = select_rosterusers(host_type(), domain()),
-        {selected, []} = select_rostergroups(host_type(), domain()),
-        {selected, []} = select_roster_version(host_type(), domain())
-        end).
-
-select_rosterusers(HostType, Domain) ->
-    Query = "SELECT * FROM rosterusers WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-select_rostergroups(HostType, Domain) ->
-    Query = "SELECT * FROM rostergroups WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-select_roster_version(HostType, Domain) ->
-    Query = "SELECT * FROM roster_version WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
+select_from_roster(Table) ->
+    Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
+    {selected, Res} = rpc(mim(), mongoose_rdbms, sql_query, [host_type(), Query]),
+    Res.
 
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [host_type(), domain()]).
