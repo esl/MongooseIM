@@ -26,6 +26,8 @@
 
 -import(domain_helper, [host_type/0]).
 
+-import(roster_helper, [set_versioning/3, restore_versioning/1]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -732,23 +734,6 @@ remove_roster(Config, UserSpec) ->
                     throw(roster_not_loaded)
             end
     end.
-
-set_versioning(Versioning, VersionStore, Config) ->
-    RosterVersioning = rpc(mim(), gen_mod, get_module_opt,
-                           [host_type(), mod_roster, versioning, false]),
-    RosterVersionOnDb = rpc(mim(), gen_mod, get_module_opt,
-                            [host_type(), mod_roster, store_current_id, false]),
-    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, versioning, Versioning]),
-    rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_roster, store_current_id, VersionStore]),
-    [{versioning, RosterVersioning},
-     {store_current_id, RosterVersionOnDb} | Config].
-
-restore_versioning(Config) ->
-    RosterVersioning = proplists:get_value(versioning, Config),
-    RosterVersionOnDb = proplists:get_value(store_current_id, Config),
-    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, versioning, RosterVersioning]),
-    rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_roster, store_current_id, RosterVersionOnDb]).
-
 
 check_roster_count(User, ExpectedCount) ->
     % the user sends get_roster iq
