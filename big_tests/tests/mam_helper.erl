@@ -896,14 +896,14 @@ generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content)
     MicrosecDateTime = datetime_to_microseconds(DateTime),
     NowMicro = rpc_apply(erlang, system_time, [microsecond]),
     Microsec = min(NowMicro, MicrosecDateTime),
-    MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
-    MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),
+    MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, rand:uniform(20)]),
+    MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, rand:uniform(20)]),
     Packet = escalus_stanza:chat_to(RemoteBin, Content),
     {{MsgIdOwner, MsgIdRemote}, Owner, Remote, Owner, Packet}.
 
 random_time() ->
     MaxSecondsInDay = 86399,
-    RandSeconds = random:uniform(MaxSecondsInDay),
+    RandSeconds = rand:uniform(MaxSecondsInDay),
     calendar:seconds_to_time(RandSeconds).
 
 datetime_to_microseconds({{_, _, _}, {_, _, _}} = DateTime) ->

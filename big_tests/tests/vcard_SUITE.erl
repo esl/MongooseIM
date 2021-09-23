@@ -27,6 +27,7 @@
 
 -module(vcard_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -439,7 +440,7 @@ search_some(Config) ->
               AliceJID = <<"alice@", Domain/binary>>,
 
               %% Extra check
-              Result = escalus:send_and_wait(Client, escalus_stanza:vcard_request(AliceJID)),
+              _Result = escalus:send_and_wait(Client, escalus_stanza:vcard_request(AliceJID)),
 
               [{AliceJID, ItemTups}] = search_result_item_tuples(Res),
               {_, _, <<"City">>, MoscowRUBin} = lists:keyfind(<<"City">>, 3, ItemTups)
@@ -1156,7 +1157,7 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    HostType = domain_helper:host_type(),
+    _HostType = domain_helper:host_type(),
     VCardOpts = dynamic_modules:get_saved_config(host_type(), mod_vcard, Config1),
     [{mod_vcard_opts, VCardOpts} | Config1].
 

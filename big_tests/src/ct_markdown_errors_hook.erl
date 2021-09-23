@@ -34,7 +34,7 @@ post_init_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, init_per_suite, Return, Config, State),
     {Return, State2#state{suite = SuiteName}}.
 
-post_init_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_init_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
     State2 = handle_return(SuiteName, init_per_group, Return, Config, State),
     {Return, State2#state{}}.
 
@@ -46,7 +46,7 @@ post_end_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, end_per_suite, Return, Config, State),
     {Return, State2#state{suite = ''}}.
 
-post_end_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+post_end_per_group(_GroupName, Config, Return, State=#state{suite = SuiteName}) ->
     State2 = handle_return(SuiteName, end_per_group, Return, Config, State),
     {Return, State2#state{}}.
 
@@ -76,7 +76,7 @@ handle_return_unsafe(SuiteName, Place, Return, Config, State) ->
             exec_limited_number_of_times(F, State)
     end.
 
-exec_limited_number_of_times(F, State=#state{limit=0, file=File,
+exec_limited_number_of_times(_F, State=#state{limit=0, file=_File,
                                              truncated_counter_file = TrFile}) ->
     %% Log truncated, increment counter
     TrCounter = old_truncated_counter_value(TrFile),
@@ -99,8 +99,8 @@ log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
     file:write_file(SummaryFile, [SummaryText, $\n], [append]),
     ok.
 
-log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File, summary_file = SummaryFile}) ->
-    MaybeLogLink = make_log_link(Config),
+log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File, summary_file = _SummaryFile}) ->
+    _MaybeLogLink = make_log_link(Config),
     LogLink = make_log_link(Config),
     %% Spoler syntax
     %% https://github.com/dear-github/dear-github/issues/166
@@ -132,7 +132,6 @@ make_summary_text(SuiteName, GroupName, TC) ->
 
 make_log_link(Config) ->
     LogFile = proplists:get_value(tc_logfile, Config, ""),
-    LogLink =
     case LogFile of
         "" ->
             <<>>;

@@ -1,6 +1,7 @@
 -module(sasl_external_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -396,7 +397,7 @@ generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
     UserCsr = filename:join(?config(priv_dir, C), User ++ ".csr"),
     Cmd = ["openssl req -config ", UserConfig, " -newkey rsa:2048 -sha256 -nodes -out ",
            UserCsr, " -keyout ", UserKey, " -outform PEM"],
-    Out = os:cmd(Cmd),
+    _Out = os:cmd(Cmd),
     UserCert = filename:join(?config(priv_dir, C), User ++ "_cert.pem"),
     SignCmd = filename:join(?config(mim_data_dir, C), "sign_cert.sh"),
     Cmd2 = [SignCmd, " --req ", UserCsr, " --out ", UserCert],

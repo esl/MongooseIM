@@ -1,6 +1,7 @@
 -module(metrics_helper).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(distributed_helper, [mim/0, mim2/0,
                              rpc/4]).

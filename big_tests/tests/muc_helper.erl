@@ -1,5 +1,6 @@
 -module(muc_helper).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -249,7 +250,7 @@ stanza_get_features() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
                            muc_host()).
 
-has_features(#xmlel{children = [ Query ]} = Iq, Features) ->
+has_features(#xmlel{children = [ Query ]} = _Iq, Features) ->
     %%<iq from='chat.shakespeare.lit'
     %%  id='lx09df27'
     %%  to='hag66@shakespeare.lit/pda'

@@ -10,7 +10,7 @@
 
 -export([test/1, sample/0, prop/1]).
 
--export([initial_state/1, command/1, precondition/2, postcondition/3,
+-export([initial_state/0, initial_state/1, command/1, precondition/2, postcondition/3,
          next_state/3]).
 
 -export([read_config/1,
@@ -62,6 +62,9 @@ maybe_stop_client(Client) ->
     catch throw:{timeout, Details} ->
               ct:pal("There was timeout ~p when stopping ~p", [Details, Client])
     end.
+
+initial_state() ->
+    #state{}.
 
 initial_state(Pid) ->
     #state{carol = undefined,
@@ -157,7 +160,7 @@ wait_for_msgs_carol(Carol, Msgs) ->
 wait_for_msgs_alice(Alice, Msgs) ->
     wait_for_msgs(Alice, lists:reverse(Msgs)).
 
-wait_for_msgs(Client, []) ->
+wait_for_msgs(_Client, []) ->
     ok;
 wait_for_msgs(Client, All) ->
     StanzasFromServer = escalus:wait_for_stanzas(Client, length(All), timer:seconds(5)),

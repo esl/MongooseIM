@@ -20,7 +20,7 @@ id(_Opts) ->
 
 %% @doc Always called before any other callback function. Use this to initiate
 %% any common state.
-init(_Id, Opts) ->
+init(_Id, _Opts) ->
     %ct:pal("init opts: ~p", [Opts]),
     {ok, #{total_ok => 0,
            total_failed => 0,

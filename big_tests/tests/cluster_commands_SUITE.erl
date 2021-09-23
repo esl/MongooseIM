@@ -16,6 +16,7 @@
 
 -module(cluster_commands_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(distributed_helper, [add_node_to_cluster/2,
                              is_sm_distributed/0,
@@ -390,7 +391,7 @@ remove_dead_from_cluster(Config) ->
     % given
     Timeout = timer:seconds(60),
     #{node := Node1Nodename} = Node1 = mim(),
-    #{node := Node2Nodename} = Node2 = mim2(),
+    #{node := _Node2Nodename} = Node2 = mim2(),
     #{node := Node3Nodename} = Node3 = mim3(),
     ok = rpc(Node2#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),
     ok = rpc(Node3#{timeout => Timeout}, mongoose_cluster, join, [Node1Nodename]),

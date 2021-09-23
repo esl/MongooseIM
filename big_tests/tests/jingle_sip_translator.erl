@@ -33,16 +33,16 @@ message_in(#sip{method = <<"CANCEL">>} = Sip, _Socket) ->
 message_in(Sip, _Socket) ->
     Sip.
 
-message_out(Sip, Socket) ->
+message_out(Sip, _Socket) ->
     Sip.
 
-request(Sip, Socket) ->
+request(Sip, _Socket) ->
     Sip.
 
-request(#sip{method = <<"INVITE">>, hdrs = Hdrs, uri = Uri} = Sip, Socket, Tr) ->
+request(#sip{method = <<"INVITE">>, hdrs = Hdrs, uri = _Uri} = Sip, Socket, Tr) ->
     {ReqBack, Contact} = make_forward_req(Sip),
 
-    {To, ToURI, _} = esip:get_hdr(to, Hdrs),
+    {To, _ToURI, _} = esip:get_hdr(to, Hdrs),
 
     case To of
         <<"error.", ErrorCode/binary>> ->
@@ -52,11 +52,11 @@ request(#sip{method = <<"INVITE">>, hdrs = Hdrs, uri = Uri} = Sip, Socket, Tr) -
                                          status = ErrorInt,
                                          hdrs = [{contact, [Contact]}]}, %% contact headers is needed so that the dialog know where to send packets
                                esip:make_tag()); %% tag is needed to create dialog on the reciving side
-        <<"+", Number/binary>> ->
+        <<"+", _Number/binary>> ->
             {_, Resp} = make_provisional_response(Sip, 183, Contact),
             timer:apply_after(200, ?MODULE, make_200_ok_for_phone_call, [Tr, Sip, Resp]),
             Resp;
-        <<"*", Number/binary>> ->
+        <<"*", _Number/binary>> ->
             {_, Resp} = make_provisional_response(Sip, 183, Contact),
             timer:apply_after(200, ?MODULE, make_200_ok_for_conference_call, [Socket, Tr, Sip, Resp]),
             Resp;
@@ -72,13 +72,10 @@ request(Sip, Socket, Tr) ->
     ct:pal("UNKNOWN req: ~p~nsock: ~p~ntr: ~p", [Sip, Socket, Tr]),
     error.
 
-noop(Arg) ->
-   ok.
-
 make_provisional_response(Request, Status, Contact) ->
     make_provisional_response(Request, Status, Contact, undefined).
 
-make_provisional_response(#sip{hdrs = Hdrs} = Sip, Status, Contact, CorrespondingCallID) ->
+make_provisional_response(#sip{hdrs = Hdrs} = Sip, Status, Contact, _CorrespondingCallID) ->
     %% Make provisional response to initiator
     Tag = esip:make_tag(),
     Resp = esip:make_response(Sip, #sip{type = response,
@@ -100,7 +97,7 @@ make_provisional_response(#sip{hdrs = Hdrs} = Sip, Status, Contact, Correspondin
     {Tag, Resp}.
 
 send_invite_back(Socket, Sip, ReqBack, Tag, Tr) ->
-    {ok, TrID} = esip:request(Socket, ReqBack,
+    {ok, _TrID} = esip:request(Socket, ReqBack,
                               {?MODULE, back_invite_callbacks, [Sip, Tr, ReqBack, Tag]}),
     InitialID = esip:get_hdr('call-id', Sip#sip.hdrs),
     BackID = esip:get_hdr('call-id', ReqBack#sip.hdrs),
@@ -108,7 +105,7 @@ send_invite_back(Socket, Sip, ReqBack, Tag, Tr) ->
     ets:insert(jingle_sip_translator_bindings, {BackID, InitialID}),
     ok.
 
-make_200_ok_for_phone_call(Tr, Sip, #sip{hdrs = RespHdrs} = Resp183) ->
+make_200_ok_for_phone_call(Tr, Sip, #sip{hdrs = RespHdrs} = _Resp183) ->
     {_, _, Params} = esip:get_hdr(to, RespHdrs),
     Tag = esip:get_param(<<"tag">>, Params),
     Resp = esip:make_response(Sip, #sip{type = response,
@@ -119,7 +116,7 @@ make_200_ok_for_phone_call(Tr, Sip, #sip{hdrs = RespHdrs} = Resp183) ->
 
 make_200_ok_for_conference_call(Socket, Tr, #sip{hdrs = Hdrs} = Sip, #sip{hdrs = RespHdrs} = Resp183) ->
     make_200_ok_for_phone_call(Tr, Sip, Resp183),
-    {_, #uri{user = ReceiverUser}, Params} = Receiver = esip:get_hdr(to, RespHdrs),
+    {_, #uri{user = ReceiverUser}, _Params} = Receiver = esip:get_hdr(to, RespHdrs),
     {_, _, _} = Initiator = esip:get_hdr(from, RespHdrs),
     Branch = base16:encode(crypto:strong_rand_bytes(3)),
     URIBin = <<"sip:",ReceiverUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
@@ -170,7 +167,7 @@ back_invite_callbacks(#sip{type = response, method = <<"INVITE">>,
                      Socket, TrID, InitialReq, InitialTr, ForwardedRequest, Tag) ->
     send_ack_for_200_ok(Resp, Socket, TrID, ForwardedRequest),
     %% Forward reply to the initial req
-    CallID = esip:get_hdr('call-id', Hdrs),
+    _CallID = esip:get_hdr('call-id', Hdrs),
 
     Reply = esip:make_response(InitialReq, #sip{type = response,
                                                 status = 200,
@@ -179,10 +176,10 @@ back_invite_callbacks(#sip{type = response, method = <<"INVITE">>,
     esip:reply(InitialTr, Reply),
 
     ok;
-back_invite_callbacks(#sip{type = response, status = 180, hdrs = Hdrs} = Sip, _, TrID,
-                    InitialReq, InitialTr, ForwardedRequest, Tag) ->
-    {_, #uri{user = ToUser}, _} = To = esip:get_hdr(to, Hdrs),
-    {_, #uri{user = FromUser}, _} = From = esip:get_hdr(from, Hdrs),
+back_invite_callbacks(#sip{type = response, status = 180, hdrs = Hdrs} = Sip, _, _TrID,
+                    _InitialReq, _InitialTr, ForwardedRequest, Tag) ->
+    {_, #uri{user = _ToUser}, _} = To = esip:get_hdr(to, Hdrs),
+    {_, #uri{user = _FromUser}, _} = From = esip:get_hdr(from, Hdrs),
     CallID = esip:get_hdr('call-id', Hdrs),
     {ok, DialogId}  = esip_dialog:open(ForwardedRequest, Sip, uac, {?MODULE, dialog_callback, []}),
     ct:pal("Back Dialog ~p for call ~p", [DialogId, CallID]),
@@ -200,15 +197,15 @@ back_invite_callbacks(#sip{type = response, status = 486}, _, _TrId, InitialReq,
                               Tag),
     esip:reply(InitialTr, Reply),
     ok;
-back_invite_callbacks(_Sip, _, _TrId, _InitialReq, _InitialTr, _, Tag) ->
+back_invite_callbacks(_Sip, _, _TrId, _InitialReq, _InitialTr, _, _Tag) ->
     ok.
 
 in_invite_transaction_callback(#sip{type = request, method = <<"CANCEL">>, hdrs = Hdrs} = Sip,
-                               Socket, Tr, #sip{hdrs = ReqBackHdrs}) ->
+                               Socket, _Tr, #sip{hdrs = ReqBackHdrs}) ->
 
     %% We want to preserve From and To headers so that we know who CANCELed the INVITE
-    {_, #uri{user = FromUserReq}, _} = esip:get_hdr(from, Hdrs),
-    {_, #uri{user = ToUser}, _} = esip:get_hdr(to, Hdrs),
+    {_, #uri{user = _FromUserReq}, _} = esip:get_hdr(from, Hdrs),
+    {_, #uri{user = _ToUser}, _} = esip:get_hdr(to, Hdrs),
 
     Contact = esip:get_hdr(contact, ReqBackHdrs),
     CorrespondingCall = esip:get_hdr('call-id', ReqBackHdrs),
@@ -224,7 +221,7 @@ in_invite_transaction_callback(#sip{type = request, method = <<"CANCEL">>, hdrs 
     Hdrs2 = [{via, Via}, {'call-id', CorrespondingCall}, {contact, Contact} | Hdrs1],
     ReqBack = Sip#sip{uri = esip_codec:decode_uri(<<"sip:127.0.0.1:5600">>),
                       hdrs = Hdrs2},
-    {ok, TrID} = esip:request(Socket, ReqBack),
+    {ok, _TrID} = esip:request(Socket, ReqBack),
    esip:make_response(Sip, #sip{type = response,
                                 status = 487});
 in_invite_transaction_callback(Req, Socket, Tr, CorrespondingCall) ->
@@ -234,7 +231,7 @@ in_invite_transaction_callback(Req, Socket, Tr, CorrespondingCall) ->
 dialog_callback(#sip{type = request, method = <<"ACK">>}, _, _) ->
    ok;
 %% Below function forwards any in-dialog request to correspoding jingle session
-dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
+dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, _Tr) ->
     CallID = esip:get_hdr('call-id', Hdrs),
     [{_, OtherCallID}] = ets:lookup(jingle_sip_translator_bindings, CallID),
 
@@ -247,7 +244,7 @@ dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
     {_, #uri{user = FromUserReq}, _} = esip:get_hdr(from, Hdrs),
     {From, To} = get_from_and_to_for_request_and_call_id(OtherCallID, FromUserReq),
     {_, #uri{user = ToUser}, _} = To,
-    {_, #uri{user = FromUser}, _} = From,
+    {_, #uri{user = _FromUser}, _} = From,
 
     Branch = base16:encode(crypto:strong_rand_bytes(3)),
     URIBin = <<"sip:",ToUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
@@ -271,7 +268,7 @@ dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
     esip:make_response(Req, #sip{type = response,
                                         status = 200
                                         });
-dialog_callback(SIP, Socket, Tr) ->
+dialog_callback(SIP, _Socket, _Tr) ->
    ct:pal("unknown in-dialog sip msg: ~p", [SIP]).
 
 send_invite(From, To, Pid) ->
@@ -308,18 +305,18 @@ send_invite(From, To, Pid) ->
                        {'max-forwards', 70}]},
 
     {ok, Socket} = esip:connect(Req),
-    {ok, TrID} = esip:request(Socket, Req, {?MODULE, send_message_to_test_on_resp, [Pid]}),
+    {ok, _TrID} = esip:request(Socket, Req, {?MODULE, send_message_to_test_on_resp, [Pid]}),
 
     ok.
 
-send_message_to_test_on_resp(#sip{type = response, status = 100}, _Socket, _Tr, Pid) ->
+send_message_to_test_on_resp(#sip{type = response, status = 100}, _Socket, _Tr, _Pid) ->
    ok; %% test is not interested in this resp
 send_message_to_test_on_resp(#sip{type = response, status = Status}, _Socket, _Tr, Pid) ->
    Pid ! {sip_resp, Status}.
 
 send_ack_for_200_ok(#sip{type = response, method = <<"INVITE">>,
-                         hdrs = Hdrs, status = 200} = Resp,
-                     Socket, TrID, #sip{uri = ReqURI, hdrs = ReqHdrs} = InitialReq) ->
+                         hdrs = Hdrs, status = 200} = _Resp,
+                     Socket, _TrID, #sip{uri = ReqURI, hdrs = ReqHdrs} = _InitialReq) ->
     Contact = esip:get_hdrs(contact, ReqHdrs),
     Hdrs1 = esip:filter_hdrs(['call-id', 'cseq',
                               'route', 'max-forwards',
@@ -339,7 +336,7 @@ send_ack_for_200_ok(#sip{type = response, method = <<"INVITE">>,
 send_ack_for_200_ok(_, _, _, _) ->
     ok.
 
-response(Sip, Socket) ->
+response(Sip, _Socket) ->
     Sip.
 
 

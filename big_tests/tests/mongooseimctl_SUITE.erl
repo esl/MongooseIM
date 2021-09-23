@@ -15,6 +15,8 @@
 %%==============================================================================
 -module(mongooseimctl_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
+-compile(nowarn_shadow_vars).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -1087,7 +1089,7 @@ stats_host(Config) ->
 simple_register(Config) ->
     %% given
     Domain = domain(),
-    {Name, Password} = {<<"tyler">>, <<"durden">>},
+    {_, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {R1, 0} = mongooseimctl("registered_users", [Domain], Config),
     Before = length(string:tokens(R1, "\n")),
@@ -1292,8 +1294,7 @@ set_last(User, Domain, TStamp) ->
     rpc(mim(), mod_last, store_last_info,
         [host_type(), escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
-delete_users(Config) ->
-    Users = escalus_users:get_users([alice, bob, kate, mike]),
+delete_users(_Config) ->
     lists:foreach(fun({User, Domain}) ->
                 JID = mongoose_helper:make_jid(User, Domain),
                 rpc(mim(), ejabberd_auth, remove_user, [JID])
@@ -1351,10 +1352,10 @@ match_roster(ItemsValid, Items) ->
     ItemsTokens = [ string:tokens(ItemToken, "\t") || ItemToken <- string:tokens(Items, "\n") ],
 
     true = (length(ItemsValid) == length(ItemsTokens)),
-    true = lists:all(fun({Username, Domain, Nick, Group, Sub}) ->
+    true = lists:all(fun({Username, Domain, _Nick, _Group, _Sub}) ->
                     JID = escalus_utils:jid_to_lower(<<Username/binary, "@", Domain/binary >>),
                     lists:any(fun
-                                ([RosterJID, Nick, Sub, "none", Group]) ->
+                                ([RosterJID, _Nick, _Sub, "none", _Group]) ->
                                     JID =:= escalus_utils:jid_to_lower(list_to_binary(RosterJID));
                                 (_) ->
                                     false

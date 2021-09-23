@@ -206,9 +206,6 @@ fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = P
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
     fusco_request(Method, Path, Body, [], get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
 
-fusco_request(Method, Path, Body, HeadersIn, Port, SSL) ->
-    fusco_request(Method, Path, Body, HeadersIn, Port, SSL, #{}).
-
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
     Headers = [{<<"Content-Type">>, <<"application/json">>},
@@ -222,7 +219,7 @@ random_request_id() ->
     base16:encode(crypto:strong_rand_bytes(8)).
 
 report_errors(Client, Path, Method, Headers, Body,
-              {{CodeBin, _} = RCode, _RHeaders, _RBody, _, _} = Result,
+              {{CodeBin, _}, _RHeaders, _RBody, _, _} = Result,
               Params) ->
     Code = binary_to_integer(CodeBin),
     case Code >= 400 of
@@ -250,7 +247,7 @@ report_errors(Client, Path, Method, Headers, Body,
 -spec get_port(Role :: role(), Server :: distributed_helper:rpc_spec(), map()) -> Port :: integer().
 get_port(_Role, _Node, #{port := Port}) ->
     Port;
-get_port(Role, Node, Params) ->
+get_port(Role, Node, _Params) ->
     Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] =
         lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),

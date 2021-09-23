@@ -15,6 +15,7 @@
 
 -module(mongoose_cassandra_SUITE).
 -compile([export_all]).
+-compile(nowarn_export_all).
 
 %%
 %%' Imports
@@ -198,13 +199,13 @@ big_objects_read_write_should_succeed(Config) ->
 
     ok.
 
-should_work_after_connection_reset(Config) ->
+should_work_after_connection_reset(_Config) ->
     reset_all_cassandra_connections(),
     mongoose_helper:wait_until(fun() ->
                                        call(test_query, [?TEST_DB_POOL_NAME])
                                end, ok).
 
-should_work_after_restart_of_cqerl_cluster(Config) ->
+should_work_after_restart_of_cqerl_cluster(_Config) ->
     Pid1 = call(erlang, whereis, [cqerl_cluster]),
     call(erlang, exit, [Pid1, kill]),
     mongoose_helper:wait_until(fun() ->
@@ -304,7 +305,7 @@ cql_read(Config, QueryName, Params) ->
     call(cql_read, cql_args(Config, [QueryName, Params])).
 
 int() ->
-    crypto:rand_uniform(0, 999999999).
+    rand:uniform(999999999).
 
 str(Bytes) ->
     erlang:list_to_binary(

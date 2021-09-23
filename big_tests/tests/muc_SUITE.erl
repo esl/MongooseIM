@@ -16,6 +16,7 @@
 
 -module(muc_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -1512,7 +1513,7 @@ admin_member_list_allowed(ConfigIn) ->
         %% setup room - allow getmemberlist for moderator
         Form = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_getmemberlist">>, [<<"moderator">>], <<"list-multi">>}]),
-        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
+        escalus:send_iq_and_wait_for_result(Alice, Form),
         %% memberlist
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1530,7 +1531,7 @@ admin_member_list_allowed(ConfigIn) ->
         %% setup room - allow getmemberlist for participant
         Form1 = stanza_configuration_form(?config(room, Config), [
              {<<"muc#roomconfig_getmemberlist">>, [<<"participant">>], <<"list-multi">>}]),
-        Result1 = escalus:send_iq_and_wait_for_result(Alice, Form1),
+        escalus:send_iq_and_wait_for_result(Alice, Form1),
         %% memberlist
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1560,7 +1561,7 @@ admin_member_list_allowed(ConfigIn) ->
         %% setup room - allow getmemberlist for visitor
         Form2 = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_getmemberlist">>, [<<"visitor">>], <<"list-multi">>}]),
-        Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
+        escalus:send_iq_and_wait_for_result(Alice, Form2),
         %% member list
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1967,7 +1968,7 @@ admin_mo_invite_mere(ConfigIn) ->
 %Example 18
 groupchat_user_enter(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob) ->
         EnterRoomStanza = stanza_groupchat_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
         escalus:send(Bob, EnterRoomStanza),
         Presence = escalus:wait_for_stanza(Bob),
@@ -2083,7 +2084,7 @@ deny_entry_to_a_banned_user(ConfigIn) ->
 %Examlpe 31
 deny_entry_nick_conflict(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
         EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
         escalus:send(Bob, EnterRoomStanza),
         escalus:wait_for_stanzas(Bob, 2),
@@ -2465,7 +2466,7 @@ no_subject(ConfigIn)->
 %Example 44, 45
 send_to_all(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Kate))),
@@ -2484,7 +2485,7 @@ send_to_all(ConfigIn) ->
 %Examples 46, 47
 send_and_receive_private_message(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Kate))),
@@ -2528,7 +2529,7 @@ send_private_groupchat(ConfigIn) ->
 % Fails - no 110 status code
 change_nickname(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
         BobNick = escalus_utils:get_username(Bob),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), BobNick)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -2553,7 +2554,7 @@ change_nickname(ConfigIn) ->
 %Example 52
 deny_nickname_change_conflict(ConfigIn) ->
     UserSpecs = [{alice, 1}, {bob, 1}, {kate, 1}],
-    story_with_room(ConfigIn, [], UserSpecs, fun(Config, Alice, Bob, Kate) ->
+    story_with_room(ConfigIn, [], UserSpecs, fun(Config, _Alice, Bob, Kate) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
         escalus:send(Kate, stanza_muc_enter_room(?config(room, Config), <<"eve">>)),
@@ -2934,7 +2935,7 @@ disco_items(Config) ->
         _Stanza = escalus:wait_for_stanza(Alice),
 
         %% works because the list is public
-        Stanza2 = escalus:send_iq_and_wait_for_result(
+        _Stanza2 = escalus:send_iq_and_wait_for_result(
                       Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>))
     end).
 
@@ -3031,7 +3032,7 @@ create_instant_room(Config) ->
 
         escalus:wait_for_stanza(Alice), % topic
 
-        IQ = escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_room(RoomName, <<"bob">>)),
@@ -3600,7 +3601,7 @@ owner_list(ConfigIn) ->
 owner_unauthorized(ConfigIn) ->
     RoomOpts = [{persistent, true}],
     UserSpecs = [{alice, 1}, {bob, 1}],
-    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, Alice, Bob) ->
+    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, _Alice, Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -3802,7 +3803,7 @@ admin_list(ConfigIn) ->
 admin_unauthorized(ConfigIn) ->
     RoomOpts = [{persistent, true}],
     UserSpecs = [{alice, 1}, {bob, 1}],
-    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, Alice, Bob) ->
+    story_with_room(ConfigIn, RoomOpts, UserSpecs, fun(Config, _Alice, Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -4034,7 +4035,7 @@ create_instant_http_password_protected_room(Config) ->
 
         escalus:wait_for_stanza(Alice), % topic
 
-        IQ = escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_password_protected_room(RoomName, <<"bob">>, ?PASSWORD)),

@@ -16,6 +16,7 @@
 
 -module(rdbms_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -603,18 +604,18 @@ selected_boolean_to_binary_int(_Config, Other) ->
 boolean_to_binary_int(true) -> <<"1">>;
 boolean_to_binary_int(false) -> <<"0">>.
 
-maybe_selected_length(Config, {selected, [{Value}]}) when is_binary(Value) ->
+maybe_selected_length(_Config, {selected, [{Value}]}) when is_binary(Value) ->
     byte_size(Value);
-maybe_selected_length(_Config, Other) ->
+maybe_selected_length(_Config, _Other) ->
     unknown.
 
 maybe_selected_tail(Config, Selected) ->
     maybe_selected_tail(Config, Selected, 100).
 
-maybe_selected_tail(Config, {selected, [{Value}]}, TailLen)
+maybe_selected_tail(_Config, {selected, [{Value}]}, TailLen)
   when is_binary(Value), byte_size(Value) > TailLen ->
     binary:part(Value, {byte_size(Value), -TailLen});
-maybe_selected_tail(Config, {selected, [{Value}]}, _TailLen) ->
+maybe_selected_tail(_Config, {selected, [{Value}]}, _TailLen) ->
     Value;
 maybe_selected_tail(_Config, _Other, _TailLen) ->
     unknown.
@@ -791,7 +792,7 @@ check_like_matching(Config, TextValue, Matching, Info) ->
                               select_query => SelectQuery,
                               select_result => SelectResult}).
 
-check_like_not_matching(Config, TextValue, NotMatching, Info) ->
+check_like_not_matching(Config, _TextValue, NotMatching, Info) ->
     SLike = escape_like(Config, NotMatching),
     SelectQuery = ["SELECT unicode FROM test_types "
                     "WHERE unicode LIKE ", use_escaped_like(Config, SLike)],
@@ -803,7 +804,7 @@ check_like_not_matching(Config, TextValue, NotMatching, Info) ->
                               select_query => SelectQuery,
                               select_result => SelectResult}).
 
-compare_selected(Config, {selected, [{SelValue}]}, Value) ->
+compare_selected(_Config, {selected, [{SelValue}]}, Value) ->
     drop_common_prefix(0, SelValue, Value);
 compare_selected(_Config, _, _Value) ->
     nomatch.

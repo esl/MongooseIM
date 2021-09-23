@@ -4,6 +4,7 @@
 
 %% API
 -compile(export_all).
+-compile(nowarn_export_all).
 -import(distributed_helper, [mim/0, mim2/0, rpc/4,
                              require_rpc_nodes/1,
                              subhost_pattern/1]).

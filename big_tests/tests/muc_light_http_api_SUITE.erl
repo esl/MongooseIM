@@ -19,6 +19,7 @@
 
 -module(muc_light_http_api_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -276,9 +277,8 @@ member_is_affiliated(Stanza, User) ->
     Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
     MemberJID == Data.
 
-check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
+check_delete_room(_Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
-    Domain = muc_light_domain(),
     Members = [{Member, member} || Member <- RoomMembers],
     escalus:send(RoomOwner, stanza_create_room(undefined,
                                            [{<<"roomname">>, RoomNameToCreate}],

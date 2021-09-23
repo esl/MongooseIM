@@ -1,5 +1,6 @@
 -module(push_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -402,10 +403,10 @@ disable_all_nodes_removes_it_from_all_user_session_infos(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
 
             Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            {_JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
+            {JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            {_JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
+            {JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
 
             %% Now Bob1 disables all nodes
             escalus:send(Bob1, disable_stanza(PubsubJID)),
@@ -434,10 +435,10 @@ disable_node_enabled_in_other_session_leaves_current_info_unchanged(Config) ->
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob2)),
 
             Info = mongoose_helper:get_session_info(?RPC_SPEC, Bob1),
-            {_JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
+            {JID, NodeId, _} = maps:get(?SESSION_KEY, Info),
 
             Info2 = mongoose_helper:get_session_info(?RPC_SPEC, Bob2),
-            {_JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
+            {JID, NodeId2, _} = maps:get(?SESSION_KEY, Info2),
 
             %% Now Bob1 disables the node registered by Bob2
             escalus:send(Bob1, disable_stanza(PubsubJID, NodeId)),

@@ -16,6 +16,7 @@
 -module(connect_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -172,8 +173,6 @@ init_per_group(just_tls,Config)->
     [{tls_module, just_tls} | Config];
 init_per_group(fast_tls,Config)->
     [{tls_module, fast_tls} | Config];
-init_per_group(session_replacement, Config) ->
-    Config;
 init_per_group(proxy_protocol, Config) ->
     config_ejabberd_node_c2s(Config, [{proxy_protocol, true}]),
     Config;
@@ -722,7 +721,7 @@ connect_with_proxy_header(Config) ->
     %% WHEN
     ConnectionSteps = [{?MODULE, send_proxy_header}, start_stream, stream_features,
                        authenticate, bind, session],
-    {ok, Conn, Features} = escalus_connection:start(UserSpec, ConnectionSteps),
+    {ok, Conn, _Features} = escalus_connection:start(UserSpec, ConnectionSteps),
     % make sure the session is present
     escalus:send(Conn, escalus_stanza:presence(<<"available">>)),
     escalus:assert(is_presence, escalus:wait_for_stanza(Conn)),

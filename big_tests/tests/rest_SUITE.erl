@@ -16,6 +16,7 @@
 
 -module(rest_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -194,9 +195,9 @@ auth_always_passes_blank_creds(_Config) ->
     % we set control creds for blank
     rest_helper:change_admin_creds(any),
     % try with any auth
-    {?OK, _Lcmds} = gett(admin, <<"/commands">>, {<<"aaaa">>, <<"bbbb">>}),
+    {?OK, Lcmds} = gett(admin, <<"/commands">>, {<<"aaaa">>, <<"bbbb">>}),
     % try with no auth
-    {?OK, _Lcmds} = gett(admin, <<"/commands">>).
+    {?OK, Lcmds} = gett(admin, <<"/commands">>).
 
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(admin, <<"/commands">>),

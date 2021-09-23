@@ -1,5 +1,6 @@
 -module(offline_stub_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 %%%===================================================================
 %%% Suite configuration

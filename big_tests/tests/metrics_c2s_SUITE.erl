@@ -16,6 +16,7 @@
 
 -module(metrics_c2s_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").

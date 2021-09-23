@@ -1,6 +1,6 @@
 -module(common_helper).
 -compile(export_all).
-
+-compile(nowarn_export_all).
 
 get_bjid(UserSpec) ->
     User = proplists:get_value(username, UserSpec),

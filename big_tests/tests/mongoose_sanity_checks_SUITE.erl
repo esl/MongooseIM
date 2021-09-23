@@ -1,6 +1,7 @@
 -module(mongoose_sanity_checks_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 all() ->
     [is_mongooseim].

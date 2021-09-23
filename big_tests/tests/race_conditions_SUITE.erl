@@ -15,6 +15,7 @@
 %%==============================================================================
 -module(race_conditions_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -export([handle_delayiq_iq/5]).
 

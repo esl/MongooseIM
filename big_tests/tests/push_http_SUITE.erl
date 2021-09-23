@@ -1,5 +1,6 @@
 -module(push_http_SUITE).
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
