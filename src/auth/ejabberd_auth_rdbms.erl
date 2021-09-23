@@ -40,6 +40,7 @@
          get_password_s/3,
          does_user_exist/3,
          remove_user/3,
+         remove_domain/2,
          supports_sasl_module/2,
          supported_features/0
         ]).
@@ -285,6 +286,11 @@ remove_user(HostType, LUser, LServer) ->
     end,
     ok.
 
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    execute_successfully(HostType, auth_remove_domain, [Domain]),
+    ok.
+
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].
 
@@ -420,7 +426,9 @@ prepare_queries(HostType) ->
             <<"SELECT COUNT(*) FROM users WHERE server = ? AND username LIKE ? ESCAPE '$'">>),
     prepare_count_users(HostType),
     prepare(auth_count_users_without_scram, users, [server],
-            <<"SELECT COUNT(*) FROM users WHERE server = ? AND pass_details is NULL">>).
+            <<"SELECT COUNT(*) FROM users WHERE server = ? AND pass_details is NULL">>),
+    prepare(auth_remove_domain, users, [server],
+            <<"DELETE FROM users WHERE server = ?">>).
 
 prepare_count_users(HostType) ->
     case {ejabberd_auth:get_opt(HostType, rdbms_users_number_estimate),
