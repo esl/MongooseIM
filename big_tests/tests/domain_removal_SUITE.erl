@@ -18,7 +18,8 @@ all() ->
      {group, inbox_removal},
      {group, muc_light_removal},
      {group, private_removal},
-     {group, roster_removal}].
+     {group, roster_removal},
+     {group, offline_removal}].
 
 groups() ->
     [
@@ -29,7 +30,8 @@ groups() ->
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
      {private_removal, [], [private_removal]},
-     {roster_removal, [], [roster_removal]}
+     {roster_removal, [], [roster_removal]},
+     {offline_removal, [], [offline_removal]}
     ].
 
 %%%===================================================================
@@ -78,8 +80,9 @@ group_to_modules(private_removal) ->
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
 group_to_modules(auth_removal) ->
-    [].
-
+    [];
+group_to_modules(offline_removal) ->
+    [{mod_offline, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -213,6 +216,21 @@ private_removal(Config) ->
         ?assert_equal_extra(<<"banana">>, Val1, #{stanza => Res1}),
         ?assert_equal_extra(<<>>, Val2, #{stanza => Res2})
       end).
+
+offline_removal(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun(FreshConfig, Alice, Bob) ->
+        mongoose_helper:logout_user(FreshConfig, Bob),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"msgtxt">>)),
+        % wait until message is stored
+        BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
+        {LUser, LServer} = jid:to_lus(BobJid),
+        mongoose_helper:wait_until(
+          fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end, 1),
+        % check messages in DB
+        ?assertMatch({ok, [_]}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid])),
+        run_remove_domain(),
+        ?assertMatch({ok, []}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid]))
+    end).
 
 roster_removal(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
