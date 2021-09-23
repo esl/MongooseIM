@@ -1,6 +1,7 @@
 -module(domain_removal_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).

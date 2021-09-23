@@ -1,4 +1,4 @@
-{application, ejabberd_tests,
+{application, mongoose_tests,
  [
   {description, "MongooseIM big tests"},
   {vsn, git},
