@@ -40,6 +40,7 @@
 -export([inspect_packet/4,
          pop_offline_messages/2,
          remove_user/3,
+         remove_domain/3,
          disco_features/1,
          determine_amp_strategy/5,
          amp_failed_event/1,
@@ -69,6 +70,7 @@
     {?MOD_OFFLINE_BACKEND, remove_expired_messages, 1},
     {?MOD_OFFLINE_BACKEND, remove_old_messages, 2},
     {?MOD_OFFLINE_BACKEND, remove_user, 2},
+    {?MOD_OFFLINE_BACKEND, remove_domain, 2},
     {?MOD_OFFLINE_BACKEND, init, 2},
     {?MOD_OFFLINE_BACKEND, write_messages, 3},
     {?MOD_OFFLINE_BACKEND, write_messages, 4},
@@ -78,7 +80,7 @@
     amp_failed_event/1, behaviour_info/1, code_change/3, determine_amp_strategy/5,
     disco_features/1, get_personal_data/3, handle_call/3, handle_cast/2,
     handle_info/2, init/1, inspect_packet/4, pop_offline_messages/2, remove_user/2,
-    remove_user/3, start_link/3, terminate/2
+    remove_user/3, remove_domain/3, start_link/3, terminate/2
 ]).
 
 -include("mongoose.hrl").
@@ -134,6 +136,10 @@
 
 -callback remove_user(host_type(), jid:luser(), jid:lserver()) -> ok.
 
+-callback remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+
+-optional_callbacks([remove_domain/2]).
+
 %% Types used in backend callbacks
 -type msg_count() :: non_neg_integer().
 -type timestamp() :: integer().
@@ -181,6 +187,7 @@ hooks(HostType) ->
         {offline_message_hook, HostType, ?MODULE, inspect_packet, 50},
         {resend_offline_messages_hook, HostType, ?MODULE, pop_offline_messages, 50},
         {remove_user, HostType, ?MODULE, remove_user, 50},
+        {remove_domain, HostType, ?MODULE, remove_domain, 50},
         {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
         {disco_sm_features, HostType, ?MODULE, disco_features, 50},
         {disco_local_features, HostType, ?MODULE, disco_features, 50},
@@ -495,6 +502,18 @@ pop_messages(HostType, JID) ->
 remove_user(Acc, LUser, LServer) ->
     HostType = mongoose_acc:host_type(Acc),
     mod_offline_backend:remove_user(HostType, LUser, LServer),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) -> 
+    case backend_module:is_exported(mod_offline_backend, remove_domain, 2) of
+         true ->
+            mod_offline_backend:remove_domain(HostType, Domain);
+        false ->
+            ok
+    end,
     Acc.
 
 -spec disco_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
