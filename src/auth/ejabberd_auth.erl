@@ -455,6 +455,8 @@ get_auth_method_as_a_list(undefined) -> [];
 get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
 get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
 
+-spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
+          mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     F = fun(Mod) -> mongoose_gen_auth:remove_domain(Mod, HostType, Domain) end,
     call_auth_modules_for_host_type(HostType, F, #{op => map}),
