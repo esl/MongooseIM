@@ -114,6 +114,11 @@
 
 {suites, "tests", service_domain_db_SUITE}.
 
+{suites, "tests", service_mongoose_system_metrics_SUITE}.
+{skip_cases, "tests", service_mongoose_system_metrics_SUITE,
+ [xmpp_components_are_reported],
+ "at the moment external components doesn't support dynamic domains"}.
+
 {suites, "tests", sic_SUITE}.
 
 {suites, "tests", sm_SUITE}.
