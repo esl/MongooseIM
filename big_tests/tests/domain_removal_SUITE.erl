@@ -14,6 +14,7 @@
 
 all() ->
     [{group, auth_removal},
+     {group, cache_removal},
      {group, mam_removal},
      {group, inbox_removal},
      {group, muc_light_removal},
@@ -24,6 +25,7 @@ all() ->
 groups() ->
     [
      {auth_removal, [], [auth_removal]},
+     {cache_removal, [], [cache_removal]},
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
@@ -66,6 +68,9 @@ end_per_group(_Groupname, Config) ->
     end,
     ok.
 
+group_to_modules(cache_removal) ->
+    [{mod_cache_users, []},
+     {mod_mam_meta, [{backend, rdbms}, {pm, []}]}];
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MucHost}]}]},
@@ -115,6 +120,23 @@ auth_removal(Config) ->
     ?assertMatch({error, {connection_step_failed, _, _}}, escalus_connection:start(AliceSpec)),
     connect_and_disconnect(AliceBisSpec), % different domain - not removed
     ?assertEqual([], rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()])).
+
+cache_removal(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {alice_bis, 1}]),
+    F = fun(Alice, AliceBis) ->
+                escalus:send(Alice, escalus_stanza:chat_to(AliceBis, <<"Hi!">>)),
+                escalus:wait_for_stanza(AliceBis),
+                mam_helper:wait_for_archive_size(Alice, 1),
+                mam_helper:wait_for_archive_size(AliceBis, 1)
+        end,
+    escalus:story(FreshConfig, [{alice, 1}, {alice_bis, 1}], F),
+    %% Storing the message in MAM should have populated the cache for both users
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice)),
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)),
+    run_remove_domain(),
+    %% Cache removed only for Alice's domain
+    ?assertEqual(false, does_cached_user_exist(FreshConfig, alice)),
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)).
 
 mam_pm_removal(Config) ->
     F = fun(Alice, Bob) ->
@@ -261,6 +283,10 @@ roster_removal(Config) ->
 connect_and_disconnect(Spec) ->
     {ok, Client, _} = escalus_connection:start(Spec),
     escalus_connection:stop(Client).
+
+does_cached_user_exist(Config, User) ->
+    Jid = jid:from_binary(escalus_users:get_jid(Config, User)),
+    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, host_type(), Jid, stored]).
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
