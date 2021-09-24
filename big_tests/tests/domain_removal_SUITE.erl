@@ -18,7 +18,8 @@ all() ->
      {group, inbox_removal},
      {group, muc_light_removal},
      {group, private_removal},
-     {group, roster_removal}].
+     {group, roster_removal},
+     {group, offline_removal}].
 
 groups() ->
     [
@@ -29,7 +30,8 @@ groups() ->
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
      {private_removal, [], [private_removal]},
-     {roster_removal, [], [roster_removal]}
+     {roster_removal, [], [roster_removal]},
+     {offline_removal, [], [offline_removal]}
     ].
 
 %%%===================================================================
@@ -78,8 +80,9 @@ group_to_modules(private_removal) ->
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
 group_to_modules(auth_removal) ->
-    [].
-
+    [];
+group_to_modules(offline_removal) ->
+    [{mod_offline, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -214,6 +217,21 @@ private_removal(Config) ->
         ?assert_equal_extra(<<>>, Val2, #{stanza => Res2})
       end).
 
+offline_removal(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun(FreshConfig, Alice, Bob) ->
+        mongoose_helper:logout_user(FreshConfig, Bob),
+        escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"msgtxt">>)),
+        % wait until message is stored
+        BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
+        {LUser, LServer} = jid:to_lus(BobJid),
+        mongoose_helper:wait_until(
+          fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end, 1),
+        % check messages in DB
+        ?assertMatch({ok, [_]}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid])),
+        run_remove_domain(),
+        ?assertMatch({ok, []}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid]))
+    end).
+
 roster_removal(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% add contact
@@ -228,33 +246,24 @@ roster_removal(Config) ->
         escalus:assert(is_roster_result, Received2),
         escalus:assert(roster_contains, [BobJid], Received2),
         escalus:assert(count_roster_items, [1], Received2),
-
-        {selected, [_]} = select_rosterusers(host_type(), domain()),
-        {selected, [_]} = select_rostergroups(host_type(), domain()),
-        {selected, [_]} = select_roster_version(host_type(), domain()),
+        ?assertMatch([_], select_from_roster("rosterusers")),
+        ?assertMatch([_], select_from_roster("rostergroups")),
+        ?assertMatch([_], select_from_roster("roster_version")),
 
         %% remove domain and check roster
         run_remove_domain(),
         Received3 = escalus:send_iq_and_wait_for_result(Alice, escalus_stanza:roster_get()),
         escalus:assert(is_roster_result, Received3),
         escalus:assert(count_roster_items, [0], Received3),
+        ?assertMatch([], select_from_roster("rosterusers")),
+        ?assertMatch([], select_from_roster("rostergroups")),
+        ?assertMatch([], select_from_roster("roster_version"))
+    end).
 
-        {selected, []} = select_rosterusers(host_type(), domain()),
-        {selected, []} = select_rostergroups(host_type(), domain()),
-        {selected, []} = select_roster_version(host_type(), domain())
-        end).
-
-select_rosterusers(HostType, Domain) ->
-    Query = "SELECT * FROM rosterusers WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-select_rostergroups(HostType, Domain) ->
-    Query = "SELECT * FROM rostergroups WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
-
-select_roster_version(HostType, Domain) ->
-    Query = "SELECT * FROM roster_version WHERE server='" ++ binary_to_list(Domain) ++ "'",
-    rpc(mim(), mongoose_rdbms, sql_query, [HostType, Query]).
+select_from_roster(Table) ->
+    Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
+    {selected, Res} = rpc(mim(), mongoose_rdbms, sql_query, [host_type(), Query]),
+    Res.
 
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [host_type(), domain()]).

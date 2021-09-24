@@ -32,7 +32,8 @@
          count_offline_messages/4,
          remove_expired_messages/2,
          remove_old_messages/3,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
@@ -69,6 +70,9 @@ prepare_queries() ->
             [server, username],
             <<"DELETE FROM offline_message "
               "WHERE server = ? AND username = ?">>),
+    prepare(offline_remove_domain, offline_message,
+            [server],
+            <<"DELETE FROM offline_message WHERE server = ?">>),
     prepare(offline_delete_old, offline_message,
             [server, timestamp],
             <<"DELETE FROM offline_message WHERE server = ? AND timestamp < ?">>),
@@ -182,6 +186,11 @@ remove_old_messages(HostType, LServer, TimeStamp) ->
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user(HostType, LUser, LServer) ->
     execute_offline_delete(HostType, LUser, LServer),
+    ok.
+
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    mongoose_rdbms:execute_successfully(HostType, offline_remove_domain, [Domain]),
     ok.
 
 %% Pure helper functions
