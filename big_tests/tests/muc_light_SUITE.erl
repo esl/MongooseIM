@@ -323,11 +323,12 @@ disco_info_with_mam(Config) ->
 
 disco_info_story(Config, HasMAM) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?ROOM),
+            RoomJID = room_bin_jid(?ROOM),
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), RoomJID),
             escalus:send(Alice, DiscoStanza),
             Stanza = escalus:wait_for_stanza(Alice),
             check_features(Stanza, HasMAM),
-            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
+            escalus:assert(is_stanza_from, [RoomJID], Stanza)
         end).
 
 check_features(Stanza, HasMAM) ->
