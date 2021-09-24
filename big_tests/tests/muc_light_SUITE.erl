@@ -316,10 +316,19 @@ disco_features_story(Config, HasMAM) ->
         end).
 
 disco_info(Config) ->
-    disco_features_story(Config, false).
+    disco_info_story(Config, false).
 
 disco_info_with_mam(Config) ->
-    disco_features_story(Config, true).
+    disco_info_story(Config, true).
+
+disco_info_story(Config, HasMAM) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?ROOM),
+            escalus:send(Alice, DiscoStanza),
+            Stanza = escalus:wait_for_stanza(Alice),
+            check_features(Stanza, HasMAM),
+            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
+        end).
 
 check_features(Stanza, HasMAM) ->
     ExpectedFeatures = expected_features(HasMAM),
