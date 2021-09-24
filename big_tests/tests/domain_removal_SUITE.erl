@@ -116,10 +116,6 @@ auth_removal(Config) ->
     connect_and_disconnect(AliceBisSpec), % different domain - not removed
     ?assertEqual([], rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()])).
 
-connect_and_disconnect(Spec) ->
-    {ok, Client, _} = escalus_connection:start(Spec),
-    escalus_connection:stop(Client).
-
 mam_pm_removal(Config) ->
     F = fun(Alice, Bob) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -259,6 +255,12 @@ roster_removal(Config) ->
         ?assertMatch([], select_from_roster("rostergroups")),
         ?assertMatch([], select_from_roster("roster_version"))
     end).
+
+%% Helpers
+
+connect_and_disconnect(Spec) ->
+    {ok, Client, _} = escalus_connection:start(Spec),
+    escalus_connection:stop(Client).
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
