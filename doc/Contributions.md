@@ -56,6 +56,15 @@ Apache license 2.0
 !!! Info
     amoc stands for "A Murder of Crows"
 
+### amoc-arsenal-xmpp
+
+See [esl/amoc-arsenal-xmpp](https://github.com/esl/amoc-arsenal-xmpp) on GitHub for more details.
+
+A collection of scenarios for [amoc](#amoc), which we use to test MongooseIM.
+They can however be used to load test any XMPP server.
+
+Apache license 2.0
+
 ### exml
 
 See [esl/exml](https://github.com/esl/exml) on GitHub for more details.
