@@ -68,6 +68,8 @@ end_per_group(_Groupname, Config) ->
     end,
     ok.
 
+group_to_modules(auth_removal) ->
+    [];
 group_to_modules(cache_removal) ->
     [{mod_cache_users, []},
      {mod_mam_meta, [{backend, rdbms}, {pm, []}]}];
@@ -84,8 +86,6 @@ group_to_modules(private_removal) ->
     [{mod_private, [{backend, rdbms}]}];
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
-group_to_modules(auth_removal) ->
-    [];
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}].
 
