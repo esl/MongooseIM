@@ -129,9 +129,8 @@ curl -v -X PUT "http://localhost:8088/api/domains/example.db" \
 Result codes:
 
 * 204 - inserted.
+* 403 - DB service disabled, or an unknown host type.
 * 409 - domain already exists with a different host type.
-* 403 - DB service disabled.
-* 403 - unknown host type.
 * 500 - other errors.
 
 Example of the result body with a failure reason:
@@ -141,7 +140,6 @@ Example of the result body with a failure reason:
 ```
 
 Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
-
 
 ### Delete domain
 
@@ -157,12 +155,8 @@ curl -v -X DELETE "http://localhost:8088/api/domains/example.db" \
 Result codes:
 
 * 204 - the domain is removed or not found.
-* 403 - the domain is static.
-* 403 - the DB service is disabled.
-* 403 - the host type is wrong (does not match the host type in the database).
-* 403 - the host type is unknown.
+* 403 - the domain is static, the DB service is disabled, the host type is wrong (does not match the host type in the database), or the host type is unknown.
 * 500 - other errors.
-
 
 ### Enable/disable domain
 
@@ -179,10 +173,8 @@ curl -v -X PATCH "http://localhost:8088/api/domains/example.db" \
 Result codes:
 
 * 204 - updated.
-* 404 - domain not found;
-* 403 - domain is static;
-* 403 - service disabled.
-
+* 403 - the domain is static, or the service is disabled.
+* 404 - domain not found.
 
 ## Command Line Interface
 
