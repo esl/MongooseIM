@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(race_conditions_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -export([handle_delayiq_iq/5]).
 

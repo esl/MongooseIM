@@ -23,7 +23,7 @@ erlc tools/test_runner/complete_test_name.erl
 erl -noinput \
     -pa tools/test_runner \
     -pa _build/test/lib/mongooseim/test/ \
-    -pa big_tests/_build/default/lib/ejabberd_tests/ebin/ \
+    -pa big_tests/_build/default/lib/mongoose_tests/ebin/ \
     -pa big_tests/tests/ \
     -s complete_test_name main "${SUITE}"
 fi

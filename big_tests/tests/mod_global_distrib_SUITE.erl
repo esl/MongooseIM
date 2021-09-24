@@ -16,7 +16,7 @@
 
 -module(mod_global_distrib_SUITE).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -983,7 +983,7 @@ disable_endpoint_on_refresh(Config) ->
     [] = Disabled1,
     [NewEndpoint] = Disabled2.
 
-wait_for_connection(Config) ->
+wait_for_connection(_Config) ->
     set_endpoints(asia_node, []),
     %% Because of hosts refresher, a pool of connections to asia_node
     %% may already be present here
@@ -1202,7 +1202,7 @@ spawn_connection_getter(SenderNode) ->
                   TestPid ! Conn
           end).
 
-enable_extra_endpoint(ListenNode, SenderNode, Port, Config) ->
+enable_extra_endpoint(ListenNode, SenderNode, Port, _Config) ->
     OriginalEndpoint = listen_endpoint(ListenNode),
     NewEndpoint = {{127, 0, 0, 1}, Port},
 

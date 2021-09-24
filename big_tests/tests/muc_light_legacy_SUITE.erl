@@ -880,10 +880,3 @@ set_default_mod_config() ->
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
     <<Room/binary, $@, (muc_helper:muc_host())/binary>>.
-
-disco_disabled() ->
-    try
-        ct:get_config({disable_disco_tests})
-    catch _:_ ->
-              false
-    end.

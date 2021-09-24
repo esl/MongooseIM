@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(presence_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -567,7 +567,7 @@ subscribe_preserves_extra_info(Config) ->
         escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
         Received = escalus:wait_for_stanza(Bob),
         escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
-        
+
         %% Alice gets current roster
         escalus:send(Alice, escalus_stanza:roster_get()),
         RosterResult = escalus:wait_for_stanza(Alice),
@@ -575,7 +575,7 @@ subscribe_preserves_extra_info(Config) ->
 
         %% Actual verification
         [BobItem] = exml_query:paths(RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
-        
+
         ValidName = bobs_default_name(),
         ValidGroups = lists:sort(bobs_default_groups()),
 

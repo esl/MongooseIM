@@ -5,7 +5,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include_lib("common_test/include/ct.hrl").
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 all() -> [
           make_iq_reply_changes_type_to_result,

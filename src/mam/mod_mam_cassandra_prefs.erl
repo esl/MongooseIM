@@ -277,7 +277,7 @@ compile_params_module(Params) ->
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
                                       "-module(mod_mam_cassandra_prefs_params).~n"
-                                      "-compile(export_all).~n"
+                                      "-compile([export_all, nowarn_export_all]).~n"
                                       "pool_name() -> ~p.~n",
                                       [proplists:get_value(pool_name, Params, default)
                                       ]))).

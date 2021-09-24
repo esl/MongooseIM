@@ -3,7 +3,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -import(domain_helper, [host_type/0]).
 

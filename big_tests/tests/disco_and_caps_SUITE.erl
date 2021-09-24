@@ -1,5 +1,5 @@
 -module(disco_and_caps_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -44,7 +44,7 @@ init_per_group(Name, C) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(Name)),
     C2.
 
-end_per_group(Name, C) ->
+end_per_group(_Name, C) ->
     dynamic_modules:restore_modules(host_type(), C).
 
 init_per_testcase(Name, C) ->

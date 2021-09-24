@@ -1,6 +1,6 @@
 -module(muc_light_helper).
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -include("mam_helper.hrl").
 -include("muc_light.hrl").
@@ -96,7 +96,7 @@ user_leave(Room, User, RemainingOccupants) ->
   verify_aff_bcast(RemainingOccupants, AffUsersChanges),
   escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
-then_archive_response_is(Receiver, Expected, Config) ->
+then_archive_response_is(Receiver, Expected, _Config) ->
     Response = mam_helper:wait_archive_respond(Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],

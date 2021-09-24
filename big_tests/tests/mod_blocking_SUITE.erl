@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(mod_blocking_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -412,7 +412,7 @@ block_push_sent(Config) ->
     %% make sure privacy list push arrives to all the user's resources
     escalus:fresh_story(
         Config, [{alice, 2}, {bob, 2}],
-        fun(User1a, User1b, User2a, User2b) ->
+        fun(User1a, User1b, User2a, _User2b) ->
             user_blocks(User1a, [User2a]),
             client_gets_block_iq(User1b)
         end).
@@ -563,9 +563,9 @@ is_xep191_push(Type, #xmlel{attrs = A, children = [#xmlel{name = Type,
 
 is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = []}]}=Stanza) ->
     is_xep191_push(Type, Stanza);
-is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = Items}]}) ->
+is_xep191_push(Type, [], #xmlel{children = [#xmlel{name = Type, children = _}]}) ->
     false;
-is_xep191_push(Type, JIDs, #xmlel{attrs = A, children = [#xmlel{name = Type,
+is_xep191_push(Type, JIDs, #xmlel{attrs = _, children = [#xmlel{name = Type,
     attrs = Attrs, children = Items}]}=Stanza) ->
     true = escalus_pred:is_iq_set(Stanza),
     {<<"xmlns">>, ?NS_BLOCKING} = lists:keyfind(<<"xmlns">>, 1, Attrs),

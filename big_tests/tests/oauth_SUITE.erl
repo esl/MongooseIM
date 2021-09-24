@@ -15,7 +15,7 @@
 %%==============================================================================
 
 -module(oauth_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -254,7 +254,7 @@ login_refresh_token_impl(Config, {_AccessToken, RefreshToken}) ->
 
     {ok, ClientConnection = #client{props = Props}, _Features} = escalus_connection:start(BobSpec, ConnSteps),
     Props2 = lists:keystore(oauth_token, 1, Props, {oauth_token, RefreshToken}),
-    AuthResultToken = (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
+    (catch escalus_auth:auth_sasl_oauth(ClientConnection, Props2)),
     ok.
 
 %% users logs in using access token he obtained in previous session (stream has been

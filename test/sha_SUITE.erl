@@ -1,5 +1,5 @@
 -module(sha_SUITE).
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("proper/include/proper.hrl").
 -import(prop_helper, [prop/2]).

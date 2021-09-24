@@ -26,7 +26,7 @@
 
 -define(NS_EXTDISCO, <<"urn:xmpp:extdisco:2">>).
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 all() ->
     [{group, extdisco_not_configured},

@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include("mongoose.hrl").
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(_eq(E, I), ?_assertEqual(E, I)).
 -define(eq(E, I), ?assertEqual(E, I)).

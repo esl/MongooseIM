@@ -5,7 +5,7 @@
 %% @copyright 2014 Erlang Solutions, Ltd.
 %% This work was sponsored by Grindr.com
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -122,7 +122,7 @@ init_per_suite(Config) ->
 
 amp_test_helper_code() ->
     "-module(amp_test_helper).\n"
-    "-compile(export_all).\n"
+    "-compile([export_all, nowarn_export_all]).\n"
     "setup_meck() ->\n"
     "  meck:expect(ejabberd_socket, send, fun ejabberd_socket_send/2).\n"
     "ejabberd_socket_send(Socket, Data) ->\n"

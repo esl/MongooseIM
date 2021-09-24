@@ -792,7 +792,7 @@ simple_params() ->
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
                                       "-module(mod_mam_cassandra_arch_params).~n"
-                                      "-compile(export_all).~n"
+                                      "-compile([export_all, nowarn_export_all]).~n"
                                       "db_message_format() -> ~p.~n"
                                       "pool_name() -> ~p.~n",
                                       [proplists:get_value(db_message_format, Params,

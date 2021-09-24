@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 -module(configure).
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 -mode(compile).
 
 -define(b2l(B), binary_to_list(B)).

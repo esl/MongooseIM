@@ -1,5 +1,5 @@
 -module(amp_SUITE).
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 %% @doc Tests for XEP-0079 <rule> -related functions
 -include("amp.hrl").

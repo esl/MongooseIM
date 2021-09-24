@@ -1,5 +1,5 @@
 -module(async_helper).
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 start(Config, M, F, A) ->
     {ok, P} = start(M, F, A),

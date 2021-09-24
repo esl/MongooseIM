@@ -55,7 +55,7 @@ pre_end_per_suite(_Suite,Config,State) ->
     {Config, State#state{suite=no_suite}}.
 
 %% @doc Called after end_per_suite.
-post_end_per_suite(Suite,_Config,Return,State) ->
+post_end_per_suite(_Suite,_Config,Return,State) ->
     {Return, State}.
 
 %% @doc Called before each init_per_group.
@@ -67,7 +67,7 @@ post_init_per_group(_Group,_Config,Return,State) ->
     {Return, State}.
 
 %% @doc Called after each end_per_group.
-pre_end_per_group(Group,Config,State) ->
+pre_end_per_group(_Group,Config,State) ->
     {Config, State#state{group=no_group}}.
 
 %% @doc Called after each end_per_group.
@@ -97,11 +97,11 @@ on_tc_fail(_TC, _Reason, State) ->
 
 %% @doc Called when a test case is skipped by either user action
 %% or due to an init function failing.
-on_tc_skip(_TC, Reason, State) ->
+on_tc_skip(_TC, _Reason, State) ->
     State.
 
 %% @doc Called when the scope of the CTH is done
-terminate(State) ->
+terminate(_State) ->
     ok.
 
 
@@ -138,7 +138,7 @@ read_new_lines(Reader) ->
             []
     end.
 
-read_and_write_lines(Node, Reader, Writer, CurrentLineNum)  when is_integer(CurrentLineNum) ->
+read_and_write_lines(_Node, Reader, Writer, CurrentLineNum)  when is_integer(CurrentLineNum) ->
     Lines = read_new_lines(Reader),
     write_lines(Lines, CurrentLineNum+1, Writer),
     CurrentLineNum + length(Lines). % new current line
@@ -180,7 +180,7 @@ ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undef
                [node(), Reader, node(Reader), Writer, OutFile]),
         State#state{reader=Reader, writer=Writer, out_file=OutFile,
                     current_line_num=CurrentLineNum, url_file=UrlFile}
-    catch Class:Reason:Stacktrace ->
+    catch _Class:Reason:Stacktrace ->
             ct:pal("issue=\"Failed to init ct_mongoose_log_hook\"~n node=~p~n "
                    "reason=~p~n stacktrace=~p",
                    [Node, Reason, Stacktrace]),
@@ -212,7 +212,6 @@ post_insert_line_numbers_into_report(State=#state{node=Node, reader=Reader, writ
                                              current_line_num=CurrentLineNum, url_file=UrlFile,
                                              group=Group, suite=Suite, priv_dir=PrivDir}, TC) ->
     CurrentLineNum2 = read_and_write_lines(Node, Reader, Writer, CurrentLineNum),
-    Heading = atom_to_list(Node),
     add_log_link_to_line(PrivDir, UrlFile, CurrentLineNum2, Node, " when finished"),
     %% Write a message after the main part
     Message = io_lib:format(
@@ -230,7 +229,7 @@ add_log_link_to_line(PrivDir, UrlFile, LogLine, Node, ExtraDescription) ->
 
 %% Function `escalus_ct:add_log_link(Heading, URL, Type).'
 %% allows to add simple links.
-%% 
+%%
 %% We can't add link with label (i.e. index.html#LABEL), because it would be escaped.
 %% Let's create an HTML file for each link we want to insert, and insert our custom
 %% redirect code inside.
@@ -263,7 +262,7 @@ open_file_without_linking(Node, File, Opts) ->
     Res = rpc:block_call(Node, file, open, [File, Opts], 5000),
     check_result(Node, File, Res).
 
-check_result(Node, File, {ok, _} = Res) ->
+check_result(_Node, _File, {ok, _} = Res) ->
     Res;
 check_result(Node, File, Res) ->
     ct:fail({open_file_failed, Node, File, Res}).

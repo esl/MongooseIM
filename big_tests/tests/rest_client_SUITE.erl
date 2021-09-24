@@ -1,5 +1,5 @@
 -module(rest_client_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -152,7 +152,7 @@ init_per_group(_GN, C) ->
 end_per_group(_GN, C) ->
     C.
 
-init_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
+init_per_testcase(config_can_be_changed_by_all, Config) ->
     DefaultConfig = dynamic_modules:save_modules(host_type(), Config),
     set_mod_config(all_can_configure, true, config_to_muc_host(Config)),
     escalus:init_per_testcase(config_can_be_changed_by_all, DefaultConfig);
@@ -180,7 +180,7 @@ init_per_testcase(TC, Config) ->
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
-end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
+end_per_testcase(config_can_be_changed_by_all, Config) ->
     set_mod_config(all_can_configure, false, config_to_muc_host(Config)),
     dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_testcase(config_can_be_changed_by_all, Config);
@@ -456,7 +456,7 @@ sending_message_not_in_JSON_results_in_bad_request(Config) ->
 
 messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
+        {RoomID, _Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
         mam_helper:maybe_wait_for_archive(Config),
         {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
         [Aff, _Msg1, _Msg2] = rest_helper:decode_maplist(Result),
@@ -525,7 +525,7 @@ get_room_messages(Caller, RoomID) ->
 messages_can_be_paginated_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        [GenMsgs1, GenMsgs2 | _] = Msgs = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
+        [GenMsgs1, GenMsgs2 | _] = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
         mam_helper:maybe_wait_for_archive(Config),
         Msgs10 = get_room_messages({alice, Alice}, RoomID, 10),
         Msgs10Len = length(Msgs10),
@@ -571,7 +571,7 @@ room_can_be_fetched_by_jid(Config) ->
     end).
 
 messages_can_be_sent_and_fetched_by_room_jid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, _Bob) ->
         RoomID = given_new_room({alice, Alice}),
         RoomJID = room_jid(RoomID, Config),
         given_message_sent_to_room(RoomJID, {alice, Alice}),
@@ -661,7 +661,7 @@ msg_with_malformed_props_can_be_parsed(Config) ->
 
         % recent msgs with a limit
         M2 = get_messages_with_props(AliceCreds, BobJID, 1),
-        Recv = [_Msg] = rest_helper:decode_maplist(M2),
+        [_Msg] = rest_helper:decode_maplist(M2),
 
         MsgID = maps:get(id, _Msg)
 
@@ -764,7 +764,7 @@ msg_without_thread_can_be_parsed(Config) ->
 				mam_helper:wait_for_archive_size(Alice, 1),
 				% recent msgs with a limit
 				M2 = get_messages_with_props(AliceCreds, BobJID, 1),
-				Recv = [_Msg] = rest_helper:decode_maplist(M2),
+				[_Msg] = rest_helper:decode_maplist(M2),
 				MsgID = maps:get(id, _Msg)
 		end).
 
@@ -1027,7 +1027,7 @@ connect_to_sse(User) ->
 
 wait_for_event(#{pid := Pid, stream_ref := StreamRef} = Opts) ->
     case gun:await(Pid, StreamRef) of
-        {response, nofin, Status, _} ->
+        {response, nofin, _Status, _} ->
             wait_for_event(Opts);
         {sse, #{data := [Response]}} ->
           Opts#{data => Response};
@@ -1245,8 +1245,8 @@ add_and_remove_some_contacts_properly(Config) ->
                 escalus_client:short_jid(Kate)),
             MikeJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Mike)),
-            AliceContact = create_contact(AliceJID),
-            KateContact = create_contact(KateJID),
+            _AliceContact = create_contact(AliceJID),
+            _KateContact = create_contact(KateJID),
             MikeContact = create_contact(MikeJID),
             % delete Alice and Kate
             Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID]}),
@@ -1276,9 +1276,9 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
                 escalus_client:short_jid(Kate)),
             MikeJID = escalus_utils:jid_to_lower(
                 escalus_client:short_jid(Mike)),
-            AliceContact = create_contact(AliceJID),
-            KateContact = create_contact(KateJID),
-            MikeContact = create_contact(MikeJID),
+            _AliceContact = create_contact(AliceJID),
+            _KateContact = create_contact(KateJID),
+            _MikeContact = create_contact(MikeJID),
             % delete Alice, Kate and Mike (who is absent)
             Body = jiffy:encode(#{<<"to_delete">> => [AliceJID, KateJID, MikeJID]}),
             {?OK, {[{<<"not_deleted">>,[MikeJID]}]}} = delete(client, "/contacts", BCred, Body),

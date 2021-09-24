@@ -1,6 +1,6 @@
 -module(zlib_driver_SUITE).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 all()->
     [stanza_1024].

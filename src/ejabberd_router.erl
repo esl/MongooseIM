@@ -534,7 +534,7 @@ default_routing_modules() ->
 make_routing_module_source(Mods) ->
     binary_to_list(iolist_to_binary(io_lib:format(
         "-module(mod_routing_machine).~n"
-        "-compile(export_all).~n"
+        "-compile([export_all, nowarn_export_all]).~n"
         "get_routing_module_list() -> ~p.~n",
         [Mods]))).
 

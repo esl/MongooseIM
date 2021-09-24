@@ -18,7 +18,7 @@
 %%==============================================================================
 
 -module(vcard_simple_SUITE).
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -469,7 +469,6 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    HostType = domain_helper:host_type(),
     VCardOpts = dynamic_modules:get_saved_config(host_type(), mod_vcard, Config1),
     [{mod_vcard_opts, VCardOpts} | Config1].
 

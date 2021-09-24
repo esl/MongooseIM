@@ -1,5 +1,5 @@
 -module(ejabberd_hooks_SUITE).
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(HOST, <<"localhost">>).
 

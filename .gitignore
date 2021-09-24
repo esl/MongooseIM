@@ -123,6 +123,7 @@ big_tests/src/mim_ct_rest.erl
 big_tests/src/mim_ct_rest_handler.erl
 big_tests/src/mim_ct_sup.erl
 big_tests/priv/ssl
+big_tests/tests/mongooseimctl_SUITE_data/roster.template
 test_preset.log
 
 codecov.json

@@ -11,11 +11,11 @@
 -export([canonicalize_path/1]).
 
 %% @doc Get repository root directory
-repo_dir(Config) ->
+repo_dir(_Config) ->
     get_env_var("REPO_DIR").
 
 %% @doc Get `big_tests/' directory
-test_dir(Config) ->
+test_dir(_Config) ->
     get_env_var("TEST_DIR").
 
 %% @doc Returns`big_tests/ct_report/ct_run.*' directory
@@ -23,11 +23,11 @@ test_dir(Config) ->
 ct_run_dir(Config) ->
     PrivDir = proplists:get_value(priv_dir, Config),
     %% Remove: *SUITE.logs/run.*/log_private/
-    RunDir = path_helper:test_dir(Config),
+    _RunDir = path_helper:test_dir(Config),
     filename:absname(filename:join([PrivDir, "..", "..", ".."])).
 
 %% @doc Returns path, corresponding to `ct_run_dir' in browser
-ct_run_dir_in_browser(Config) ->
+ct_run_dir_in_browser(_Config) ->
     "../..".
 
 %% @doc Unsafe version of `filename:safe_relative_path/1'

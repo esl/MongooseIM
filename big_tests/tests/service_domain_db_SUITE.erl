@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
 -import(mongooseimctl_helper, [mongooseimctl/3]).
 

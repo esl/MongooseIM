@@ -1,6 +1,6 @@
 -module(mod_aws_sns_SUITE).
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").

@@ -24,7 +24,7 @@ erl -noinput \
     -pa tools/test_runner \
     -pa _build/test/lib/mongooseim/test/ \
     -pa big_tests/tests/ \
-    -pa big_tests/_build/default/lib/ejabberd_tests/ebin/ \
+    -pa big_tests/_build/default/lib/mongoose_tests/ebin/ \
     -s selected_tests_to_test_spec main $@
 fi
 

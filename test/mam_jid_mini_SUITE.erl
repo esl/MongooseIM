@@ -1,6 +1,6 @@
 -module(mam_jid_mini_SUITE).
 -include_lib("eunit/include/eunit.hrl").
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 all() -> [test_encode_decode_functionality].
 

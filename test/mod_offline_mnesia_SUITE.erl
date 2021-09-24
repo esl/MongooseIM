@@ -2,7 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--compile([export_all]).
+-compile([export_all, nowarn_export_all]).
 
 -define(OFFLINE_MSG_3_5_FIELDS, [us, timestamp, expire, from, to, packet]).
 
