@@ -16,7 +16,8 @@ jobs:
     name: small_tests on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        otp: ['23.0.3', '24.0.2']
+        otp: ['23.3', '24.1']
+      fail-fast: false
     runs-on: ubuntu-20.04
     env:
       PRESET: 'small_tests'
@@ -48,7 +49,7 @@ jobs:
       matrix:
         preset: [internal_mnesia, pgsql_mnesia, mysql_redis, odbc_mssql_mnesia,
                  ldap_mnesia, riak_mnesia, elasticsearch_and_cassandra_mnesia]
-        otp: ['23.0.3', '24.0.2']
+        otp: ['23.3', '24.1']
     runs-on: ubuntu-20.04
     env:
       PRESET: ${{matrix.preset}}
@@ -99,7 +100,7 @@ jobs:
     name: dialyzer on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        otp: ['24.0.2']
+        otp: ['24.1']
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
@@ -112,7 +113,7 @@ jobs:
     name: xref on OTP ${{matrix.otp}}
     strategy:
       matrix:
-        otp: ['24.0.2']
+        otp: ['24.1']
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
