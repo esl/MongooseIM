@@ -69,6 +69,7 @@
 -export([process_local_iq/5,
          process_sm_iq/5,
          remove_user/3,
+         remove_domain/3,
          set_vcard/4]).
 
 -export([start_link/2]).
@@ -91,12 +92,13 @@
     {?MOD_VCARD_BACKEND, get_vcard, 3},
     {?MOD_VCARD_BACKEND, init, 2},
     {?MOD_VCARD_BACKEND, remove_user, 3},
+    {?MOD_VCARD_BACKEND, remove_domain, 2},
     {?MOD_VCARD_BACKEND, search, 3},
     {?MOD_VCARD_BACKEND, search_reported_fields, 3},
     {?MOD_VCARD_BACKEND, tear_down, 1},
     {?MOD_VCARD_BACKEND, set_vcard, 5},
     behaviour_info/1, config_change/4, get_personal_data/3, process_local_iq/4,
-    process_packet/5, remove_user/3, set_vcard/4, start_link/2
+    process_packet/5, remove_user/3, remove_domain/3, set_vcard/4, start_link/2
 ]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
@@ -114,6 +116,10 @@
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver().
+
+-callback remove_domain(HostType, Domain) -> ok when
+    HostType :: mongooseim:host_type(),
+    Domain :: jid:lserver().
 
 -callback set_vcard(HostType, LUser, LServer, VCard, VCardSearch) ->
     ok | {error, Reason :: term()} when
@@ -149,7 +155,7 @@
 -callback tear_down(HostType) -> ok when
     HostType :: mongooseim:host_type().
 
--optional_callbacks([tear_down/1]).
+-optional_callbacks([tear_down/1, remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -238,6 +244,7 @@ hooks(HostType) ->
 hooks2() ->
     [{remove_user, remove_user, 50},
      {anonymous_purge_hook, remove_user, 50},
+     {remove_domain, remove_domain, 50},
      {host_config_update, config_change, 50},
      {set_vcard, set_vcard, 50},
      {get_personal_data, get_personal_data, 50}].
@@ -536,6 +543,18 @@ set_vcard({error, no_handler_defined}, HostType, From, VCARD) ->
                {error, {E, R}}
     end;
 set_vcard({error, _} = E, _HostType, _From, _VCARD) -> E.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    case backend_module:is_exported(mod_vcard_backend, remove_domain, 2) of
+        true ->
+            mod_vcard_backend:remove_domain(HostType, Domain);
+        false ->
+            ok
+    end,
+    Acc.
 
 %% #rh
 remove_user(Acc, User, Server) ->
