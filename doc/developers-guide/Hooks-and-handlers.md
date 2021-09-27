@@ -40,7 +40,7 @@ This depends on which handlers are registered to process the event.
 `Acc` is the [Accumulator, described later](#using-accumulators);
 `From`, `To` and `Packet` are the arguments passed to the handler, just as they would in case of the function being called directly.
 
-!!! note "Why do we even need the `mongoose_hooks` module?"
+!!! Note "Why do we even need the `mongoose_hooks` module?"
     Why is there a module in which we have to define the hook invocation beforehand?
     Could we not just use the low-level hooks mechanism directly and avoid this module altogether?
 
