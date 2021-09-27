@@ -3,14 +3,12 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, domain_to_host_type/2, domain/0]).
 
 -include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("jid/include/jid.hrl").
 
 all() ->
     [{group, auth_removal},
@@ -52,8 +50,10 @@ end_per_suite(Config) ->
 init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            Config2 = dynamic_modules:save_modules(host_type(), Config),
-            rpc(mim(), gen_mod_deps, start_modules, [host_type(), group_to_modules(Group)]),
+            HostTypes = domain_helper:host_types(),
+            Config2 = dynamic_modules:save_modules_for_host_types(HostTypes, Config),
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+                HostType <- HostTypes],
             Config2;
         false ->
             {skip, require_rdbms}
@@ -62,7 +62,7 @@ init_per_group(Group, Config) ->
 end_per_group(_Groupname, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(host_type(), Config);
+            dynamic_modules:restore_modules(Config);
         false ->
             ok
     end,
@@ -285,8 +285,9 @@ connect_and_disconnect(Spec) ->
     escalus_connection:stop(Client).
 
 does_cached_user_exist(Config, User) ->
-    Jid = jid:from_binary(escalus_users:get_jid(Config, User)),
-    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, host_type(), Jid, stored]).
+    Jid = #jid{server = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
+    HostType = domain_to_host_type(mim(), Domain),
+    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, HostType, Jid, stored]).
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
