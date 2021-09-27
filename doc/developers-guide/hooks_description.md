@@ -7,9 +7,7 @@ The following is meant to give you the idea of how the hooks work, what they are
 ## `user_send_packet`
 
 ```erlang
-mongoose_hooks:user_send_packet(LServer,
-                                Acc,
-                                FromJID, ToJID, El)
+mongoose_hooks:user_send_packet(Acc, FromJID, ToJID, El),
 ```
 
 This hook is run in `ejabberd_c2s` after the user sends a packet.
@@ -27,23 +25,26 @@ This hook won't be called for stanzas arriving from a user served by a federated
 
 It is handled by the following modules:
 
-* `mod_caps` - detects and caches capability information sent with certain messages for later use
+* [`mod_caps`](../modules/mod_caps.md) - detects and caches capability information sent with certain messages for later use.
 
-* `mod_carboncopy` - if the packet being sent is a message, it forwards it to all the user's resources which have carbon copying enabled
+* [`mod_carboncopy`](../modules/mod_carboncopy.md) - if the packet being sent is a message, it forwards it to all the user's resources which have carbon copying enabled.
 
-* `mod_event_pusher` - if configured, sends selected messages to an external service
+* [`mod_event_pusher`](../modules/mod_event_pusher.md) - if configured, sends selected messages to an external service.
 
-* `mod_mam` - stores outgoing messages in an archive
+* [`mod_inbox`](../modules/mod_inbox.md) - if configured, stores the message in the user's inbox.
 
-* `mod_ping` - upon reception of every message from the client, this module (re)starts a timer;
+* [`mod_mam`](../modules/mod_mam.md) - stores outgoing messages in an archive.
+
+* [`mod_ping`](../modules/mod_ping.md) - upon reception of every message from the client, this module (re)starts a timer;
  if nothing more is received from the client within 60 seconds, it sends an IQ ping, to which the client should reply - which starts another timer.
+
+* `mod_smart_markers` - checks if the stanza contains chat markers info and stores the update.
 
 ## `user_receive_packet`
 
 ```erlang
-Acc2 = mongoose_hooks:user_receive_packet(StateData#state.server, 
-                                          Acc, 
-                                          StateData#state.jid, From, To, FixedEl),
+mongoose_hooks:user_receive_packet(StateData#state.host_type, Acc,
+                                   StateData#state.jid, From, To, FixedEl),
 ```
 
 The hook is run just before a packet received by the server is sent to the user.
@@ -55,9 +56,9 @@ This hook won't run for stanzas which are destined to users of a different XMPP 
 
 It is handled by the following modules:
 
-* `mod_caps` - detects and caches capability information sent with certain messages for later use
+* [`mod_caps`](../modules/mod_caps.md) - detects and caches capability information sent with certain messages for later use.
 
-* `mod_carboncopy` - if the received packet is a message, it forwards it to all the user's resources which have carbon copying enabled
+* [`mod_carboncopy`](../modules/mod_carboncopy.md) - if the received packet is a message, it forwards it to all the user's resources which have carbon copying enabled.
 
 ## `filter_packet`
 
@@ -65,40 +66,44 @@ It is handled by the following modules:
 mongoose_hooks:filter_packet({OrigFrom, OrigTo, OrigAcc, OrigPacket})
 ```
 
-Which in turn executes this line of code:
-```erlang
-ejabberd_hooks:run_fold(filter_packet, {From, To, Acc, Packet}, []).
-```
-
 This hook is run by `mongoose_router_global` when the packet is being routed by `ejaberd_router:route/3`.
 It is in fact the first call made within the routing procedure.
 If a function hooked in to `filter_packet` returns `drop`, the packet is not processed.
 
-The `ejaberd_router:route/3` fun is the most general function used to route stanzas across the entire cluster and its calls are scattered all over ejabberd code.
+The `ejaberd_router:route/3` is the most general function used to route stanzas across the entire cluster, and calls to it are scattered all over MongooseIM code.
 `ejabberd_c2s` calls it after it receives a packet from `ejabberd_receiver` (i.e. the socket) and multiple modules use it for
 sending replies and errors.
 
-As seen in the example, the handlers take no arguments.
-The accumulator is the packet which may or may not be filtered out (in case the handler chain returns `drop`) or modified.
+The handlers expect no arguments other than the accumulator, which is a packet.
+It may or may not be filtered out (in case the handler chain returns `drop`) or modified.
 
-Note that this hook is run with `ejabberd_hooks:run_fold/3`, not the usual and already mentioned `ejabberd_hooks:run_fold/4`.
-The ternary variant doesn't take the XMPP domain argument and hence it's not possible to register per-domain handlers for this hook.
-Keep that in mind when registering the handlers and appropriately use `ejabberd_hooks:add/4` instead of `ejabberd_hooks:add/5`.
+Note the hook code inside `mongoose_hooks`:
+```erlang
+filter_packet(Acc) ->
+    run_global_hook(filter_packet, Acc, []).
+```
+This hook is run not for a host type, but globally across the whole cluster.
+Keep that in mind when registering the handlers and appropriately use the atom `global` instead of a host type as the second argument.
 
 ## `offline_message_hook`
 
 ```erlang
-mongoose_hooks:offline_message_hook(LServer, Acc, From, To, Packet)
+mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
 ```
 
 `ejabberd_sm` runs this hook once it determines that a routed stanza is a message and while it ordinarily could be delivered, no resource (i.e. device or desktop client application) of its recipient is available online for delivery.
 
-The hook is first handled by `mod_offline`, which should store that message in a persistent way until the recipient comes online and the message can be successfully delivered.
-The handler in `mod_offline` stores the message and returns `stop`, which terminates the call and no more hook handlers are called.
+The following depends on configuration, but the hook is first handled by `mod_offline_chatmarkers`, which filters out and chat marker packets processed by `mod_smart_markers`.
+The handler stores such messages and returns `{stop, Acc}`, which terminates the call and no more hook handlers are called.
+In case of other packets, `mod_offline` should store the message in a persistent way until the recipient comes online, and the message can be successfully delivered.
+Similarly, it stops the other hooks from running after that.
 
 If the `mod_offline` handler fails to store the message, we should notify the user that the message could not be stored.
 To this end, there is another handler registered, but with a greater sequence number, so that it is called after `mod_offline`.
-If `mod_offline` fails, `ejabberd_sm:bounce_offline_message` is called and the user gets their notification.
+If `mod_offline` fails, `ejabberd_sm:bounce_offline_message` is called, and the user gets their notification.
+
+In the case of using `mod_mam` the message is actually stored and no notification should be sent - that's why the module `mod_offline_stub` can be enabled.
+It can handle the hook before `ejabberd_sm`, preventing it from sending `<service-unavailable/>`.
 
 ## `remove_user`
 
@@ -123,20 +128,19 @@ and `mod_roster` removes the user's roster from the database.
 ejabberd_hooks:run(node_cleanup, [Node])
 ```
 
-`node_cleanup` is run by a mongooseim_cleaner process which subscribes to `nodedown` messages.
-Currently the hook is run inside a global transaction (via `global:trans/4`).
+`node_cleanup` is run by a `mongooseim_cleaner` process which subscribes to `nodedown` messages.
+Currently, the hook is run inside a global transaction (via `global:trans/4`).
 
 The job of this hook is to remove all processes registered in Mnesia.
 MongooseIM uses Mnesia to store processes through which messages are then routed - like user sessions or server-to-server communication channels - or various handlers, e.g. IQ request handlers.
-Those must obviously be removed when a node goes down, and to do this the modules `ejabberd_local`, `ejabberd_s2s`, `ejabberd_sm` and `mod_bosh` register their handlers with this hook.
+Those must obviously be removed when a node goes down, and to do this the modules `ejabberd_local`, `ejabberd_router`, `ejabberd_s2s`, `ejabberd_sm` and `mod_bosh` register their handlers with this hook.
 
 Number of retries for this transaction is set to 1 which means that in some situations the hook may be run on more than one node in the cluster, especially when there is little garbage to clean after the dead node.
 Setting retries to 0 is not good decision as it was observed that in some setups it may abort the transaction on all nodes.
 
 ## `session_opening_allowed_for_user`
 ```erlang
-allow == mongoose_hooks:session_opening_allowed_for_user(Server, 
-                                                         allow, JID).
+allow == mongoose_hooks:session_opening_allowed_for_user(HostType, JID).
 ```
 
 This hook is run after authenticating when user sends the IQ opening a session.
@@ -151,13 +155,10 @@ This is the perfect place to plug in custom security control.
 
 ## Other hooks
 
-* adhoc_local_items
-* adhoc_sm_items
+* adhoc_local_commands
+* adhoc_sm_commands
 * amp_check_condition
-* amp_check_packet
 * amp_determine_strategy
-* amp_error_action_triggered
-* amp_notify_action_triggered
 * amp_verify_support
 * anonymous_purge_hook
 * auth_failed
@@ -165,25 +166,25 @@ This is the perfect place to plug in custom security control.
 * c2s_filter_packet
 * c2s_preprocessing_hook
 * c2s_presence_in
+* c2s_remote_hook
 * c2s_stream_features
 * c2s_unauthenticated_iq
 * c2s_update_presence
 * can_access_identity
 * can_access_room
-* caps_add
 * caps_recognised
-* caps_update
 * check_bl_c2s
+* custom_new_hook
 * disco_info
 * disco_local_features
 * disco_local_identity
 * disco_local_items
+* disco_muc_features
 * disco_sm_features
 * disco_sm_identity
 * disco_sm_items
 * does_user_exist
 * ejabberd_ctl_process
-* empty
 * failed_to_store_message
 * filter_local_packet
 * filter_packet
@@ -192,28 +193,24 @@ This is the perfect place to plug in custom security control.
 * forbidden_session_hook
 * forget_room
 * get_key
-* host_config_update
+* get_mam_muc_gdpr_data
+* get_mam_pm_gdpr_data
+* get_personal_data
+* get_room_affiliations
 * inbox_unread_count
 * invitation_sent
 * is_muc_room_owner
 * join_room
 * leave_room
-* local_send_to_resource_hook
 * mam_archive_id
 * mam_archive_message
 * mam_archive_size
-* mam_drop_iq
-* mam_drop_message
-* mam_drop_messages
-* mam_flush_messages
 * mam_get_behaviour
 * mam_get_prefs
 * mam_lookup_messages
 * mam_muc_archive_id
 * mam_muc_archive_message
 * mam_muc_archive_size
-* mam_muc_drop_iq
-* mam_muc_drop_message
 * mam_muc_flush_messages
 * mam_muc_get_behaviour
 * mam_muc_get_prefs
@@ -224,6 +221,7 @@ This is the perfect place to plug in custom security control.
 * mam_set_prefs
 * mod_global_distrib_known_recipient
 * mod_global_distrib_unknown_recipient
+* node_cleanup
 * offline_groupchat_message_hook
 * offline_message_hook
 * packet_to_component
@@ -240,6 +238,7 @@ This is the perfect place to plug in custom security control.
 * register_command
 * register_subhost
 * register_user
+* remove_domain
 * remove_user
 * resend_offline_messages_hook
 * rest_user_send_packet
@@ -267,13 +266,14 @@ This is the perfect place to plug in custom security control.
 * sm_filter_offline_message
 * sm_register_connection_hook
 * sm_remove_connection_hook
+* unacknowledged_message
 * unregister_command
 * unregister_subhost
 * unset_presence_hook
 * update_inbox_for_muc
 * user_available_hook
-* user_ping_timeout
 * user_ping_response
+* user_ping_timeout
 * user_receive_packet
 * user_send_packet
 * user_sent_keep_alive

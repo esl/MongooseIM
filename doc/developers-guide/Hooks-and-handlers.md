@@ -23,50 +23,58 @@ mod_offline:store_packet(From, To, Packet)
 
 Note that in this example `ejabberd_sm` is coupled with `mod_offline`.
 I.e. if `mod_offline` was not available, the code would simply crash; if it was misconfigured or turned off, the behaviour would be undefined.
-To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-code-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` would instead call:
+To avoid that coupling and also to enable other ([possibly yet to be written](#sidenote-code-yet-to-be-written)) code to carry out some action at this particular moment, `ejabberd_sm` calls instead:
 
 ```erlang
-Acc1 = ejabberd_hooks:run_fold(offline_message_hook,
-                               HostType,
-                               Acc,
-                               [From, To, Packet])
+mongoose_hooks:offline_message_hook(Acc, From, To, Packet);
 ```
 
-The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
-`offline_message_hook` is just the name of the hook (in other words of the event that is being signalled);
-`From`, `To` and `Packet` are the arguments passed to the handler just as they would in case of the function being called directly;
-`HostType` is [the host type of the XMPP domain for which this hook is signalled](#sidenote-multiple-domains).
+`mongoose_hooks` is a module which serves as an API for calling all hooks in the server.
+For every hook, there needs to be a function in this module written beforehand which accepts the correct arity of arguments and makes the call to actual low-level hooks mechanism.
+This means that there is some degree of coupling still - but this time between the `ejabberd_sm` module and `mongoose_hooks`, and the latter is always available.
 
-**Notice:** For the clarity of the explanation of the hooks mechanism, the provided code snippets are not exactly taken from the current code.
-The reasons for it will be described [later](#creating-your-own-hooks).
+The extra level of indirection introduced by this call gives the flexibility to determine at runtime what code actually gets run at this point.
+This depends on which handlers are registered to process the event.
+
+`offline_message_hook` is the name of the hook (in other words of the event that is being signalled);
+`Acc` is the [Accumulator, described later](#using-accumulators);
+`From`, `To` and `Packet` are the arguments passed to the handler, just as they would in case of the function being called directly.
+
+!!! Note "Why do we even need the `mongoose_hooks` module?"
+    Why is there a module in which we have to define the hook invocation beforehand?
+    Could we not just use the low-level hooks mechanism directly and avoid this module altogether?
+
+    This was actually the case before this module was introduced, and hooks' names were just atoms provided as an argument to this low-level API.
+    However, we discovered it was causing problems and producing bugs, due to the lack of static code analysis.
+    Now we can have some guarantees thanks to Dialyzer, and each hook invocation has correct number of arguments.
+    Thanks to this, writing handlers is easier - there is a single source of truth about how a hook is run.
+    Remember that a given hook can be invoked from many places in many modules.
 
 ### Getting results from handlers
 
 Hook handlers are called by "folding".
-This means that each handler on a list is passed a set of arguments and an initial value that it then modifies, returns and hands over to the next handler in line.
+This means that each handler on a list is passed a set of arguments, and an initial value that it then modifies, returns and hands over to the next handler in line.
+This modified data that is processed by the series of handlers is called an accumulator - because it accumulates the results.
 
 A simple example would look like this:
 
 ```erlang
-ListOfSomething = ejabberd_hooks:run_fold(a_certain_hook,
-                                          StateData#state.server,
-                                          [],
-                                          [StateData#state.user,
-                                           StateData#state.server])
+NewAcc = mongoose_hooks:a_certain_hook(Accumulator,
+                                       StateData#state.user,
+                                       StateData#state.server).
 ```
 
-The initial value of the accumulator being passed through the sequence of handlers (in this case an empty list `[]`) is inserted between the XMPP domain `StateData#state.server` and handler arguments.
-In between the XMPP domain (`StateData#state.server`) and handler arguments is the initial value of the accumulator being passed through the sequence of handlers is inserted - in this case an empty list (`[]`).
+The initial value of the accumulator being passed through the sequence of handlers is provided with additional arguments required by the hook, as defined in the `mongoose_hooks` module.
 
-#### Sidenote: Folds
-
-If you haven't encountered the term _fold_ before, think of it as _reduce_ (like `Array.reduce`) in Ruby-speak, roughly equivalent to the Reduce step in MapReduce, sometimes called _accumulate_, _aggregate_ or _compress_.
-[See Wikipedia for more.][wiki:fold]
+!!! info "Folds"
+    If you haven't encountered the term _fold_ before, think of it as _reduce_ (like `Array.reduce`) in Ruby-speak, roughly equivalent to the Reduce step in MapReduce, sometimes called _accumulate_, _aggregate_ or _compress_.
+    [See Wikipedia for more.][wiki:fold]
 
 ### Using accumulators
 
 MongooseIM uses a dedicated data structure to accumulate data related to stanza processing (see ["Accumulators"](accumulators.md)).
 It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when stanza is leaving MongooseIM.
+There are some hooks which don't use this data structure.
 
 If a Mongoose accumulator is passed to a hook, handlers should store their return values in one of 3 ways:
 
@@ -77,33 +85,23 @@ If a Mongoose accumulator is passed to a hook, handlers should store their retur
 A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
 
 ```erlang
-Acc1 = ejabberd_hooks:run_fold(resend_offline_messages_hook,
-                               StateData#state.server,
-                               Acc,
-                               [StateData#state.user, StateData#state.server]),
-Rs = mongoose_acc:get(offline, messages, Acc1, []),
-
+Acc1 = mongoose_hooks:resend_offline_messages_hook(Acc, StateData#state.jid),
+Rs = mongoose_acc:get(offline, messages, [], Acc1),
 ```
-
-### Sidenote: something deprecated
-
-In the past you may have found some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
-Under the hood it called the same handlers with `ok` as the initial accumulator.
-This is deprecated, and some day will be removed.
 
 ### Error handling in hooks
 
 Hooks are meant to decouple modules; in other words, the caller signals that some event took place or that it intends to use a certain feature or a set of features, but how and if those features are implemented is beyond its interest.
-For that reason hooks don't use the "let it crash" approach. Instead it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
+For that reason hooks don't use the "let it crash" approach. Instead, it is rather like "fire-and-forget", more similar in principle to the `Pid ! signal` way.
 
 In practical terms: if a handler throws an error the hook machine logs a message and proceeds to the next handler with an unmodified accumulator.
-If there are no handlers registered for a given hook, the `run_fold` call simply has no effect.
+If there are no handlers registered for a given hook, the call simply has no effect.
 
 ### Sidenote: Code yet to be written
 
 Let's imagine, that when building a [minimum viable product][mvp] we settle on using `mod_offline` for delayed delivery of messages to unavailable clients.
 However, while the product evolves (or the relevant client software catches up) we might drop `mod_offline` in favour of a more sophisticated solution like [Message Archive Management][mam] which would require a different action to be taken at the same point.
-Thanks to loose coupling and `ejabberd_hooks` it's possible to turn off `mod_offline` and turn on `mod_mam` without changing
+Thanks to loose coupling and `mongoose_hooks`, it's possible to turn off `mod_offline` and turn on `mod_mam` without changing
 a single line of code in `ejabberd_sm`.
 
 The only required change is to the configuration (apart from deploying the new module) which can even be performed at runtime - without restarting the server.
@@ -112,6 +110,11 @@ The only required change is to the configuration (apart from deploying the new m
 
 A MongooseIM cluster may serve more than one domain at the same time.
 E.g. it is quite common that services like Multi User Chat or Publish-Subscribe are available as subdomains of the main XMPP domain served by an installation.
+
+Moreover, each XMPP host is of a certain type, as defined in [`general.host_types`](../configuration/general.md#generalhost_types), and hooks can be called either globally (across all hosts/host types) or for one host type.
+If you are not using [dynamic domains](../user-guide/Features.md#multi-tenancy-dynamic-domains) or grouping hosts under host types, then each host has a corresponding host type implicitly, and the two terms are interchangeable.
+Whether a hook is called globally or per host type is depends on its purpose.
+It is decided when creating a hook and can be checked in the `mongoose_hooks` module for existing hooks.
 
 ## Registering hook handlers
 
@@ -122,20 +125,22 @@ That's usually done in, respectively, `start/2` and `stop/1` functions.
 Here is the relevant snippet from `mod_offline:start/2`:
 
 ```erlang
-ejabberd_hooks:add(offline_message_hook, HostType,
-                   ?MODULE, store_packet, 50)
+ejabberd_hooks:add(hooks(HostType)),
+```
+and the `hooks/1` function returns a list of tuples describing hook handlers, like:
+```erlang
+{offline_message_hook, HostType, ?MODULE, inspect_packet, 50}
 ```
 
-It is clearly visible that the handler is added to the `offline_message_hook`.
+It is clearly visible that the handler `inspect_packet` is added to the `offline_message_hook`.
 
-`HostType` corresponds to the one used in the aforementioned call to the `ejabberd_hooks:run_fold`.
-That is, it's the host type for which the handler is to be executed.
+`HostType` is the one for which the handler will be executed.
 In the case of statically defined domains, it is the same as the host, as configured in the [`general.hosts` section](../configuration/general.md#generalhosts).
 
 The handler itself is specified as a module-function pair;
 the arity of the function is not specified at the registration nor verified when calling the handler.
-This may change in the future, but for now we recommend calling the hooks through the `mongoose_hooks` module and checking the arity there when writing a handler.
-If the handler expects an incorrect number of arguments it will simply crash.
+When writing a handler, the arity can be checked in the `mongoose_hooks` module.
+If the handler expects an incorrect number of arguments, it will simply crash.
 
 Multiple handlers may be registered for the same hook.
 The last argument, 50, is the sequence number of this handler in the handler chain.
@@ -154,42 +159,45 @@ ejabberd_hooks:delete(offline_message_hook, HostType,
 ```
 
 The arguments are exactly the same as passed to `ejabberd_hooks:add/5`.
+Both these functions accept either a list of tuples, or the arguments describing one handler directly.
 
 ### Sidenote: Metrics
 
 Every time a hook is run, a corresponding metric of the same name in the same host is incremented by one.
 There are some exceptions though as some metrics were implemented before the generic hook metrics.
 List of hooks not updating generic metrics can be found in the `mongoose_metrics:filter_hook/1` function.
-Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module.
+Such skipped hooks update metrics are defined in the `mongoose_metrics_hooks` module.
 
 ## Writing handlers
 
 The signature of a handler has to follow three rules:
 
-* Correct arity (the number of args passed to `run_fold` in `mongoose_hooks` + 1).
-* The first arg is a mutable accumulator (may be `mongoose_acc` in particular).
+* Correct arity (the number of Args passed to `run_hook` or `run_global_hook` in `mongoose_hooks` + 1).
+* The first argument is a mutable accumulator (may be `mongoose_acc` in particular).
 * Returns an accumulator of the same type as the input one.
 
 Let's look at this example, from MongooseIM codebase:
 
 ```erlang
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
-    MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
-    case {mod_muc_light_codec_backend:decode(From, To, IQ),
-          gen_mod:get_module_opt_by_subhost(MUCHost, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    MUCHost = server_host_to_muc_host(HostType, FromS),
+    case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
+          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), MUCHost),
             mod_muc_light_codec_backend:encode(
-              {get, Blocking#blocking{ items = Items }}, From, jid:to_lus(To),
-              fun(_, _, Packet) -> put(encode_res, Packet) end),
+                {get, Blocking#blocking{ items = Items }}, From, To,
+                fun(_, _, Packet) -> put(encode_res, Packet) end,
+                Acc),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
             Result = {result, ResponseChildren},
             {stop, mongoose_acc:set(hook, result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             {stop, mongoose_acc:set(hook, result, Result, Acc)};
         _ ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             mongoose_acc:set(hook, result, Result, Acc)
     end.
 ```
@@ -198,8 +206,8 @@ As seen in this example, a handler receives an accumulator, puts some value into
 for further processing.
 
 There's also one important feature to note: in some cases our handler returns a tuple  `{stop, Acc}`.
-This skips calling the latter actions in the handler sequence, while the call to `run_fold` returns the Acc.
-If a handler returns just an atom `stop`, then all later actions are skipped and `run_fold` returns `stopped`.
+This skips calling the latter actions in the handler sequence, while the hook call returns the `Acc`.
+If a handler returns just an atom `stop`, then all later actions are skipped.
 
 Watch out! Different handlers may be registered for the same hook - the priority mechanism orders their execution.
 If a handler returns `stop` but runs early in the handler chain, it may prevent some other handler from running at all!
@@ -212,55 +220,35 @@ Always ensure what handlers are registered for a given hook (`grep` is your frie
 The following command should give you a list of all the hooks available in MongooseIM:
 
 ```bash
-$ find src/ -name '*.erl' -print | xargs ./tools/find-hooks.awk \
-> | sort | uniq
+awk '/\-export\(\[/,/\]\)\./' src/mongoose_hooks.erl | grep -oh "\w*\/" | sed 's/.$//' | sort
+```
+It returns:
+```bash
 adhoc_local_commands
-adhoc_local_items
+adhoc_sm_commands
 ...
 ...
 ...
-webadmin_user_parse_query
+xmpp_stanza_dropped
 ```
 
+It just extracts the hooks exported from the `mongoose_hooks` module.
 Refer to `grep`/`ack` to find where they're used.
-
-Here are the contents of `find-hooks.awk`:
-
-```awk
-#!/usr/bin/env awk -f
-BEGIN {
-    RS=")"
-    ORS=""
-    FS="[ (,]"
-}
-
-$0 ~ /ejabberd_hooks:run/ {
-    found = -1
-    for (i = 1; i < NF; i++) {
-        if ($i ~ /ejabberd_hooks:run/) {
-            found = i
-        }
-    }
-    if (found != -1 && $(found+1) != "" && $(found+1) ~ /^[a-z]/)
-        print $(found+1)"\n"
-}
-```
 
 ## Creating your own hooks
 
-There's no special function or any setup necessary to create a new hook.
-The only thing that needs to be done is calling `ejabberd_hooks:run_fold/4` with the name of the new hook and relevant arguments.
-
-However, if you want static code analysis, you should put the new hook inside `mongoose_hooks` with a correct type specification.
-We've added this module to provide some security and type checking in places where the hooks are run.
+You should put the new hook inside `mongoose_hooks` with a correct type specification, which provides some security in places where the hooks are run.
 This is the way all hooks are called in MongooseIM (see the examples in the [hooks description](hooks_description.md)).
+You could run `gen_hook:run_fold` directly, providing the hook name, but this is advised against.
 
-Of course, as long as no module registers handlers for a hook, running a `run_fold` won't have any effects.
+Of course, as long as no module registers handlers for a hook, calling it won't have any effects.
 
-Similar is the case when a module registers handlers for some hook, but that hook is never run in the code.
+This is similar to the case when a module registers handlers for some hook, but that hook is never run in the code.
 That won't have an effect either.
 
-The following is a self-contained example of a module which both runs and registers a few handlers for a completely new hook.
+### Example of creating a new hook
+
+The following is an example of a module which both runs and registers a few handlers for a completely new hook.
 The handlers are run sequentially using disparate priorities and passing over an accumulator value.
 One of the handlers stops the handler execution chain prematurely by returning `{stop, NewVal}`.
 It's also possible to try out what happens when the same hook is run with different XMPP domains by passing an argument to `run_custom_hook/1` - we'll see that the handlers are registered for a particular domain only.
@@ -269,9 +257,27 @@ At the end, you can see a printout of an accumulator with some debugging info.
 
 To cut the long story short:
 
+#### 1. Add the hook with type specification to `mongoose_hooks`
+
+```erlang
+-spec custom_new_hook(HostType, Acc, Number) -> Result when
+    HostType :: mongooseim:host_type(),
+    Acc :: mongoose_acc:t(),
+    Number :: integer(),
+    Result :: mongoose_acc:t().
+custom_new_hook(HostType, Acc, Number) ->
+    run_hook_for_host_type(custom_new_hook, HostType, Acc, [Number]).
+```
+
+Don't forget about exporting the function:
+```erlang
+-export([custom_new_hook/3]).
+```
+
+#### 2. Create the `mod_hook_example` module
+
 ```erlang
 -module(mod_hook_example).
--author("bartek").
 
 -behaviour(gen_mod).
 
@@ -289,20 +295,21 @@ To cut the long story short:
          stopping_handler/2,
          never_run_handler/2]).
 
-start(Host, _Opts) ->
-    ejabberd_hooks:add(custom_new_hook, Host, ?MODULE, first_handler, 25),
-    ejabberd_hooks:add(custom_new_hook, Host, ?MODULE, stopping_handler, 50),
-    ejabberd_hooks:add(custom_new_hook, Host, ?MODULE, never_run_handler, 75).
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, first_handler, 25),
+    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, stopping_handler, 50),
+    ejabberd_hooks:add(custom_new_hook, HostType, ?MODULE, never_run_handler, 75).
 
-stop(Host) ->
-    ejabberd_hooks:delete(custom_new_hook, Host, ?MODULE, first_handler, 25),
-    ejabberd_hooks:delete(custom_new_hook, Host, ?MODULE, stopping_handler, 50),
-    ejabberd_hooks:delete(custom_new_hook, Host, ?MODULE, never_run_handler, 75).
+stop(HostType) ->
+    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, first_handler, 25),
+    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, stopping_handler, 50),
+    ejabberd_hooks:delete(custom_new_hook, HostType, ?MODULE, never_run_handler, 75).
 
 run_custom_hook(Host) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION, lserver => Host, element => undefined }),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Host),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION, lserver => Host, host_type => HostType }),
     Acc1 = mongoose_acc:set(example, value, 5, Acc),
-    ResultAcc = ejabberd_hooks:run_fold(custom_new_hook, Host, Acc1, [2]),
+    ResultAcc = mongoose_hooks:custom_new_hook(HostType, Acc1, 2),
     ResultValue = mongoose_acc:get(example, value, ResultAcc),
     ?LOG_INFO(#{what => hook_finished, result => ResultValue, result_acc => ResultAcc}).
 
@@ -338,10 +345,10 @@ true
 (mongooseim@localhost)4> mongoose_logs:set_module_loglevel(mod_hook_example, info).
 ok
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
-when=2020-12-02T10:29:14.875981+00:00 level=error what=first_handler pid=<0.2321.0> at=mod_hook_example:first_handler/2:40 value=5 result=7 argument=2
-when=2020-12-02T10:29:14.876248+00:00 level=error what=stopping_handler pid=<0.2321.0> at=mod_hook_example:stopping_handler/2:46 value=7 result=9 argument=2
+when=2021-09-22T14:26:21.623804+00:00 level=info what=first_handler pid=<0.1615.0> at=mod_hook_example:first_handler/2:40 value=5 result=7 argument=2
+when=2021-09-22T14:26:21.624091+00:00 level=info what=stopping_handler pid=<0.1615.0> at=mod_hook_example:stopping_handler/2:46 value=7 result=9 argument=2
+when=2021-09-22T14:26:21.624426+00:00 level=info what=hook_finished pid=<0.1615.0> at=mod_hook_example:run_custom_hook/1:35 result_acc_{example,value}=9 result_acc_timestamp=1632320781620603 result_acc_stanza=undefined result_acc_ref=#Ref<0.451395259.237240321.129750> result_acc_origin_stanza=undefined result_acc_origin_pid=<0.1615.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=31 result_acc_origin_location_file=/Users/developer/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result_acc_host_type=localhost result=9
 ok
-when=2020-12-02T10:29:14.876453+00:00 level=error what=hook_finished pid=<0.2321.0> at=mod_hook_example:run_custom_hook/1:35 result_acc_{example,value}=9 result_acc_timestamp=1606904954871246 result_acc_stanza=undefined result_acc_ref=#Ref<0.186499973.2771648514.42380> result_acc_origin_stanza=undefined result_acc_origin_pid=<0.2321.0> result_acc_origin_location_mfa={mod_hook_example,run_custom_hook,1} result_acc_origin_location_line=31 result_acc_origin_location_file=/Users/mikhailuvarov/erlang/esl/MongooseIM/src/mod_hook_example.erl result_acc_non_strippable= result_acc_mongoose_acc=true result_acc_lserver=localhost result=9
 ```
 
 [mam]: http://xmpp.org/extensions/xep-0313.html

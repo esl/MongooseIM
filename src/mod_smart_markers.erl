@@ -44,7 +44,7 @@
 %%%       marker information sent by the user.
 %%%
 %%%    4) MUC light doesn't have message serialization! So it doesn't
-%%%       guaranty one and the same message order for different users.
+%%%       guarantee one and the same message order for different users.
 %%%       This can result in a race condition situation when different
 %%%       users track (and mark) different messages as the last in a
 %%%       chat history. However, this is a rare situation, and it self

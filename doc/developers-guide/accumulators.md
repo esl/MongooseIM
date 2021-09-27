@@ -12,11 +12,11 @@ At the beginning of the main processing chain an accumulator is created containi
 * `origin_stanza` - Original stanza that triggered the processing (in a binary).
 * `lserver` - Nameprepped domain of the processing context.
 * `stanza` - A map with information about the stanza being routed. May be missing in some processing chains (when they are not triggered by a stanza)!
-  * `element` - `exml:element()` with the current stanza being routed.
-  * `from_jid`, `to_jid` - `jid:jid()` with the sender and the recipient.
-  * `name` - A name of the top-level element in `element`.
-  * `type` - A value of `type` attribute of the top-level element. If the attribute is missing, this field contains `undefined`.
-  * `ref` - A reference of routed stanza.
+    * `element` - `exml:element()` with the current stanza being routed.
+    * `from_jid`, `to_jid` - `jid:jid()` with the sender and the recipient.
+    * `name` - A name of the top-level element in `element`.
+    * `type` - A value of `type` attribute of the top-level element. If the attribute is missing, this field contains `undefined`.
+    * `ref` - A reference of routed stanza.
 
 It is then passed through all the stages until it reaches the end of its life.
 Throughout the process it is the very same accumulator; it is therefore possible to store a value in it on one stage of the processing and retrieve the same value later on.
@@ -54,6 +54,9 @@ While allowed, stanza-less accumulators usage should be avoided.
 * `timestamp(t())`
 * `lserver(t())`
 * `element(t())`
+* `to_jid(t())`
+* `from_jid(t())`
+* `packet(t())` - Returns an `ejabberd_c2s:packet()` if there is a stanza in the accumulator.
 * `stanza_name(t())` - Returns `name` value from `stanza` map.
 * `stanza_type(t())` - Returns `type` value from `stanza` map.
 * `stanza_ref(t())` - Returns `ref` value from `stanza` map. This is not the same as `ref(t())`!
@@ -93,6 +96,7 @@ Acc2 = mongoose_acc:set_permanent(myns, myprop, 123, Acc1),
 ```
 
 Permanent fields may be retrieved with ordinary `get/3,4` functions.
+There are also functions `get_permanent_keys/1` and `get_permanent_fields/1` for extracting all at once.
 
 The rationale behind stripping an accumulator is that some values stored in it are context-dependent.
 For example, at the beginning `lserver` refers to the host of the sender C2S.
@@ -116,11 +120,8 @@ In order to strip an accumulator, please use `strip(strip_params(), t())`, where
 Many of the MongooseIM functionalities are implemented in submodules which attach their handlers to hooks (this is covered in detail in ["Hooks and handlers"](Hooks-and-handlers.md)).
 When it comes to the accumulators, the following rules apply:
 
-* If a hook is related to stanza processing and is executed with `run_fold`, a Mongoose accumulator should be provided. A hook handler may modify an accumulator in every permitted way (i.e. shouldn't directly modify acc fields, bypassing `mongoose_acc` API) and should return the execution result in the `hook:result` field. This is not enforced but should be followed by convention.
+* If a hook is related to stanza processing, a Mongoose accumulator should be provided. A hook handler may modify an accumulator in every permitted way (i.e. shouldn't directly modify acc fields, bypassing `mongoose_acc` API) and should return the execution result in the `hook:result` field. This is not enforced but should be followed by convention.
 * Avoid passing superfluous arguments to handlers - e.g. an `LServer` in hook args is redundant since it is already present in the accumulator.
-* Do not use `run` - it is still present in API but executes `run_fold` with `ok` as an initial accumulator anyway.
- Handlers have been rewritten so that they accept an acc as the first arg.
- Note that `run` is deprecated now and at some point will be removed.
 
 Most handlers have already been modified so that they accept an instance of `mongoose_acc:t()` as the first argument and return value by storing it inside it.
 How the accumulator is used within a module is up to the implementors of the module.
