@@ -30,6 +30,7 @@
 %% mod_vcards callbacks
 -export([init/2,
          remove_user/3,
+         remove_domain/2,
          get_vcard/3,
          set_vcard/5,
          search/3,
@@ -51,6 +52,10 @@ init(HostType, _Options) ->
                            <<"DELETE FROM vcard WHERE username=? AND server=?">>),
     mongoose_rdbms:prepare(vcard_search_remove, vcard_search, [lusername, server],
                            <<"DELETE FROM vcard_search WHERE lusername=? AND server=?">>),
+    mongoose_rdbms:prepare(vcard_remove_domain, vcard, [server],
+                           <<"DELETE FROM vcard WHERE server=?">>),
+    mongoose_rdbms:prepare(vcard_search_remove_domain, vcard_search, [server],
+                           <<"DELETE FROM vcard_search WHERE server=?">>),
     mongoose_rdbms:prepare(vcard_select, vcard,
                            [username, server],
                            <<"SELECT vcard FROM vcard WHERE username=? AND server=?">>),
@@ -73,6 +78,17 @@ remove_user(HostType, LUser, LServer) ->
 remove_user_t(HostType, LUser, LServer) ->
     mongoose_rdbms:execute(HostType, vcard_remove, [LUser, LServer]),
     mongoose_rdbms:execute(HostType, vcard_search_remove, [LUser, LServer]).
+
+%% Remove domain callback
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
+remove_domain(HostType, Domain) ->
+    F = fun() -> remove_domain_t(HostType, Domain) end,
+    mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
+
+remove_domain_t(HostType, Domain) ->
+    mongoose_rdbms:execute_successfully(HostType, vcard_remove_domain, [Domain]),
+    mongoose_rdbms:execute_successfully(HostType, vcard_search_remove_domain, [Domain]).
 
 %% Get a single vCard callback
 get_vcard(HostType, LUser, LServer) ->
