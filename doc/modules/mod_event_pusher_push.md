@@ -52,7 +52,7 @@ See the [relevant section](#plugin-module) for more details.
 * **Default:** `[]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
 
-The list of "simulated" Publish-Subscribe domains. You may use the `@HOSTS@` pattern in the domain name.
+The list of "simulated" Publish-Subscribe domains. You may use the `@HOST@` pattern in the domain name.
 It will automatically be replaced by a respective XMPP domain (e.g. `localhost`).
 See the [relevant section](#virtual-pubsub-hosts) for more details.
 
@@ -61,7 +61,7 @@ See the [relevant section](#virtual-pubsub-hosts) for more details.
 If a notification is published to one of the configured domains, the internal push notification hook
 is executed in MongooseIM instead of the XEP-0357 typical behaviour. If an existing PubSub domain
 is added to this list, it will be shadowed in the push notifications context. To ensure complete
-shadowing of all the PubSub subdomains we must use the `@HOSTS@` pattern, otherwise only the
+shadowing of all the PubSub subdomains we must use the `@HOST@` pattern, otherwise only the
 subdomain of the user is shadowed. It enables easy migration from PubSub-full deployments to
 PubSub-less variants.
 
@@ -70,7 +70,7 @@ PubSub-less variants.
 This is an example of how you can migrate the existing setup to the new model. PubSub service still
 exists, just for the case of a user attempting to create a node. However, its domain is overridden
 for the purpose of sending push notifications. Please note the value of `virtual_pubsub_hosts`
-option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
+option. `"pubsub.@HOST@"` is the default domain for `mod_pubsub`.
 
 ```toml
 [modules.mod_pubsub]
@@ -80,7 +80,7 @@ option. `"pubsub.@HOSTS@"` is the default domain for `mod_pubsub`.
   backend.push.backend = "mnesia" # optional
   backend.push.wpool.workers = 200 # optional
   backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
-  backend.push.virtual_pubsub_hosts = ["pubsub.@HOSTS@"]
+  backend.push.virtual_pubsub_hosts = ["pubsub.@HOST@"]
 ```
 
 #### Advantages
