@@ -84,7 +84,7 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
   backend.push.backend = "mnesia" # optional
   backend.push.wpool.workers = 200 # optional
   backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
-  backend.push.virtual_pubsub_hosts = ["pubsub.@HOSTS@"]
+  backend.push.virtual_pubsub_hosts = ["pubsub.@HOST@"]
 ```
 
 ### Advantages

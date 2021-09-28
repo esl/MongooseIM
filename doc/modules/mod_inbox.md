@@ -1,6 +1,7 @@
 ## Module Description
 
 `Inbox` is an experimental feature implemented as a few separate modules.
+It is described in detail as our [Open XMPP Extension](../open-extensions/inbox.md).
 To use it, enable mod\_inbox in the config file.
 
 ## Options

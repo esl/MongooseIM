@@ -64,7 +64,7 @@ MongooseIM gathers over 50 different XMPP-related metrics, allowing close monito
 
 Erlang Solutions also provides [WombatOAM](https://www.erlang-solutions.com/products/wombat-oam.html), an Erlang VM monitoring solution, that enables ops and devs to better understand what going on in a MongooseIM cluster.
 
-For load testing consider [Tide](http://tide.erlang-solutions.com/), another Erlang Solutions' tool that enables devs and ops to validate their scalability, given the clients scenarios.
+For load testing we use [our own tools](../Contributions.md#amoc), that enable us to validate MongooseIM's scalability, given different scenarios.
 
 ## Multi-tenancy (dynamic domains)
 

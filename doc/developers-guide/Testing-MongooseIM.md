@@ -402,6 +402,4 @@ Finally, set `GDRIVE_PARENT_DIR` environment variable of your build to the direc
 ### Load testing
 
 Alongside CI, we do also CLT (Continuous Load Testing).
-We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback on changes to MongooseIM performance.
-
-Test results are publicly available on the [Hello Tide!](http://tide.erlang-solutions.com/public) page.
+We use [amoc](https://github.com/esl/amoc) and [amoc-arsenal-xmpp](https://github.com/esl/amoc-arsenal-xmpp/) to perform tests that give us a feedback on changes to MongooseIM performance.

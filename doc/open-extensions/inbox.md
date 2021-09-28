@@ -1,5 +1,5 @@
 When a messaging client starts, it typically builds a UI showing a list of recent chats, with metadata attached to them like, whether any chat has new messages and how many, or if it is fully read, or if they are for example muted and until when.
-
+In MongooseIM this functionality is provided by [mod_inbox](../modules/mod_inbox.md).
 
 ## Terminology:
 

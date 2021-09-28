@@ -42,7 +42,7 @@ paths:
         204:
           description: Domain was successfully inserted.
         400:
-          description: Bad request
+          description: Bad request.
           examples:
             application/json: {"what": "body is empty"}
         409:
@@ -50,7 +50,7 @@ paths:
           examples:
             application/json: {"what": "duplicate"}
         403:
-          description: DB service disabled or the host type is unknown.
+          description: DB service disabled, or the host type is unknown.
           examples:
             application/json: {"what": "domain is static"}
         500:
@@ -79,7 +79,7 @@ paths:
                 type: boolean
       responses:
         204:
-          description: Domain was sucessfully updated.
+          description: Domain was successfully updated.
         404:
           description: Domain not found.
           examples:
@@ -141,6 +141,6 @@ paths:
           examples:
             application/json: {"what": "unknown host type"}
         500:
-          description: "Other errors"
+          description: "Other errors."
           examples:
             application/json: {"what": "database error"}
