@@ -76,7 +76,7 @@ See the documentation for the latest releases:
 
 **MongooseIM documentation highlights:**
 
-When developing new features/modules, please make sure you add basic documentation to the 'doc/' directory, and add a link to your document in 'doc/README.md.'
+When developing new features/modules, please make sure you add basic documentation to the ['doc'](doc) directory, and add a link to your document in ['mkdocs.yml'](mkdocs.yml).
 
 * [Tutorials](https://esl.github.io/MongooseDocs/latest/tutorials/How-to-build/). Learn how to:
     * [Build MongooseIM from source code](https://esl.github.io/MongooseDocs/latest/tutorials/How-to-build/)
