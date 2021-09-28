@@ -142,7 +142,7 @@ Example of the result body with a failure reason:
 
 Check the `src/domain/mongoose_domain_handler.erl` file for the exact values of the `what` field if needed.
 
-### Delete domain
+### Remove domain
 
 You must provide the domain's host type inside the body:
 
