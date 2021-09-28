@@ -18,7 +18,8 @@ all() ->
      {group, muc_light_removal},
      {group, private_removal},
      {group, roster_removal},
-     {group, offline_removal}].
+     {group, offline_removal},
+     {group, vcard_removal}].
 
 groups() ->
     [
@@ -31,7 +32,8 @@ groups() ->
                               muc_light_blocking_removal]},
      {private_removal, [], [private_removal]},
      {roster_removal, [], [roster_removal]},
-     {offline_removal, [], [offline_removal]}
+     {offline_removal, [], [offline_removal]},
+     {vcard_removal, [], [vcard_removal]}
     ].
 
 %%%===================================================================
@@ -87,7 +89,9 @@ group_to_modules(private_removal) ->
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
 group_to_modules(offline_removal) ->
-    [{mod_offline, [{backend, rdbms}]}].
+    [{mod_offline, [{backend, rdbms}]}];
+group_to_modules(vcard_removal) ->
+    [{mod_vcard, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -278,6 +282,40 @@ roster_removal(Config) ->
         ?assertMatch([], select_from_roster("roster_version"))
     end).
 
+vcard_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Client) ->
+        DirJID = <<"vjud.", (domain())/binary>>,
+        {LUser, LServer} = jid:to_lus(jid:from_binary(escalus_client:full_jid(Client))),
+        VCardFields = [{<<"FN">>, <<"Old name">>}],
+        FilterFields = [{<<"fn">>, <<"Old name">>}],
+        DbFilterFields = [{<<"fn">>, [<<"Old name">>]}],
+        %create vcard for alice
+        UpdateResult = escalus:send_and_wait(Client,
+                                             escalus_stanza:vcard_update(VCardFields)),
+        escalus:assert(is_iq_result, UpdateResult),
+        %check before domain removal
+        RequestResult = escalus:send_and_wait(Client, escalus_stanza:vcard_request()),
+        ?assertMatch(<<"Old name">>, get_vcard_fn(RequestResult)),
+        SearchResult = escalus:send_and_wait(Client,
+                                             search_vcard_fields(DirJID, FilterFields)),
+        ?assertMatch(<<"1">>, get_vcard_search_query_count(SearchResult)),
+        ?assertMatch({ok, _}, rpc(mim(), mod_vcard_rdbms, get_vcard,
+                                  [host_type(), LUser, LServer])),
+        ?assertMatch([_], rpc(mim(), mod_vcard_rdbms, search,
+                              [host_type(), LServer, DbFilterFields])),
+        %check after domain removal
+        run_remove_domain(),
+        RequestResult2 = escalus:send_and_wait(Client, escalus_stanza:vcard_request()),
+        escalus:assert(is_iq_error, RequestResult2),
+        SearchResult2 = escalus:send_and_wait(Client,
+                                              search_vcard_fields(DirJID, FilterFields)),
+        ?assertMatch(<<"0">>, get_vcard_search_query_count(SearchResult2)),
+        ?assertMatch({error, _}, rpc(mim(), mod_vcard_rdbms, get_vcard,
+                                     [host_type(), LUser, LServer])),
+        ?assertMatch([], rpc(mim(), mod_vcard_rdbms, search,
+                             [host_type(), LServer, DbFilterFields]))
+    end).
+
 %% Helpers
 
 connect_and_disconnect(Spec) ->
@@ -288,6 +326,20 @@ does_cached_user_exist(Config, User) ->
     Jid = #jid{server = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
     HostType = domain_to_host_type(mim(), Domain),
     rpc(mim(), mod_cache_users, does_cached_user_exist, [false, HostType, Jid, stored]).
+
+search_vcard_fields(DirJID, Filters) ->
+    escalus_stanza:search_iq(DirJID, escalus_stanza:search_fields(Filters)).
+
+get_vcard_fn(Element) ->
+    exml_query:path(Element, [{element, <<"vCard">>},
+                              {element, <<"FN">>},
+                              cdata]).
+
+get_vcard_search_query_count(Element) ->
+    exml_query:path(Element, [{element, <<"query">>},
+                              {element, <<"set">>},
+                              {element, <<"count">>},
+                              cdata]).
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
