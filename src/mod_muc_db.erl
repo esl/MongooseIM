@@ -49,3 +49,7 @@
 %% Unregistered nicks can be used by someone else
 -callback unset_nick(server_host(), muc_host(), client_jid()) ->
     ok | {error, term()}.
+
+-callback remove_domain(mongooseim:host_type(), muc_host(), jid:lserver()) -> ok.
+
+-optional_callbacks([remove_domain/3]).
