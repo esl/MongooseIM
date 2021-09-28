@@ -9,6 +9,7 @@
          host_types/1,
          host_type/0,
          host_type/1,
+         domain_to_host_type/2,
          domain/0,
          domain/1,
          secondary_host_type/0,
@@ -30,6 +31,10 @@ domain() ->
 
 host_type(NodeKey) ->
     get_or_fail({hosts, NodeKey, host_type}).
+
+domain_to_host_type(Node, Domain) ->
+    {ok, HostType} = rpc(Node, mongoose_domain_core, get_host_type, [Domain]),
+    HostType.
 
 domain(NodeKey) ->
     get_or_fail({hosts, NodeKey, domain}).

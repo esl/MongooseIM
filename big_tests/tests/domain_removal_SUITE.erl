@@ -3,17 +3,16 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
--import(domain_helper, [host_type/0, domain/0]).
+-import(domain_helper, [host_type/0, domain_to_host_type/2, domain/0]).
 
 -include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
+-include_lib("jid/include/jid.hrl").
 
 all() ->
     [{group, auth_removal},
+     {group, cache_removal},
      {group, mam_removal},
      {group, inbox_removal},
      {group, muc_light_removal},
@@ -24,6 +23,7 @@ all() ->
 groups() ->
     [
      {auth_removal, [], [auth_removal]},
+     {cache_removal, [], [cache_removal]},
      {mam_removal, [], [mam_pm_removal,
                         mam_muc_removal]},
      {inbox_removal, [], [inbox_removal]},
@@ -50,8 +50,10 @@ end_per_suite(Config) ->
 init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            Config2 = dynamic_modules:save_modules(host_type(), Config),
-            rpc(mim(), gen_mod_deps, start_modules, [host_type(), group_to_modules(Group)]),
+            HostTypes = domain_helper:host_types(),
+            Config2 = dynamic_modules:save_modules_for_host_types(HostTypes, Config),
+            [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
+                HostType <- HostTypes],
             Config2;
         false ->
             {skip, require_rdbms}
@@ -60,12 +62,17 @@ init_per_group(Group, Config) ->
 end_per_group(_Groupname, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(host_type(), Config);
+            dynamic_modules:restore_modules(Config);
         false ->
             ok
     end,
     ok.
 
+group_to_modules(auth_removal) ->
+    [];
+group_to_modules(cache_removal) ->
+    [{mod_cache_users, []},
+     {mod_mam_meta, [{backend, rdbms}, {pm, []}]}];
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MucHost}]}]},
@@ -79,8 +86,6 @@ group_to_modules(private_removal) ->
     [{mod_private, [{backend, rdbms}]}];
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
-group_to_modules(auth_removal) ->
-    [];
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}].
 
@@ -116,9 +121,22 @@ auth_removal(Config) ->
     connect_and_disconnect(AliceBisSpec), % different domain - not removed
     ?assertEqual([], rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()])).
 
-connect_and_disconnect(Spec) ->
-    {ok, Client, _} = escalus_connection:start(Spec),
-    escalus_connection:stop(Client).
+cache_removal(Config) ->
+    FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {alice_bis, 1}]),
+    F = fun(Alice, AliceBis) ->
+                escalus:send(Alice, escalus_stanza:chat_to(AliceBis, <<"Hi!">>)),
+                escalus:wait_for_stanza(AliceBis),
+                mam_helper:wait_for_archive_size(Alice, 1),
+                mam_helper:wait_for_archive_size(AliceBis, 1)
+        end,
+    escalus:story(FreshConfig, [{alice, 1}, {alice_bis, 1}], F),
+    %% Storing the message in MAM should have populated the cache for both users
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice)),
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)),
+    run_remove_domain(),
+    %% Cache removed only for Alice's domain
+    ?assertEqual(false, does_cached_user_exist(FreshConfig, alice)),
+    ?assertEqual({stop, true}, does_cached_user_exist(FreshConfig, alice_bis)).
 
 mam_pm_removal(Config) ->
     F = fun(Alice, Bob) ->
@@ -259,6 +277,17 @@ roster_removal(Config) ->
         ?assertMatch([], select_from_roster("rostergroups")),
         ?assertMatch([], select_from_roster("roster_version"))
     end).
+
+%% Helpers
+
+connect_and_disconnect(Spec) ->
+    {ok, Client, _} = escalus_connection:start(Spec),
+    escalus_connection:stop(Client).
+
+does_cached_user_exist(Config, User) ->
+    Jid = #jid{server = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
+    HostType = domain_to_host_type(mim(), Domain),
+    rpc(mim(), mod_cache_users, does_cached_user_exist, [false, HostType, Jid, stored]).
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
