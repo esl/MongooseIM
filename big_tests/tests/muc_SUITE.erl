@@ -48,7 +48,11 @@
          room_address/2,
          room_address/1,
          disco_service_story/1,
-         story_with_room/4
+         story_with_room/4,
+         stanza_form/2,
+         form_field/1,
+         change_nick_form_iq/1,
+         set_nick/2
          ]).
 
 -import(domain_helper, [host_type/0, domain/0]).
@@ -4870,27 +4874,6 @@ stanza_cancel(Room) ->
     stanza_to_room(escalus_stanza:iq_set(
           ?NS_MUC_OWNER, Payload), Room).
 
-stanza_form(Payload, Type) ->
-    #xmlel{
-        name = <<"x">>,
-        attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
-        children = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
-    }.
-
-form_field_item(Value) ->
-    #xmlel{ name  = <<"value">>,
-        children = [#xmlcdata{content = Value}]}.
-
-form_field({Var, Value, Type}) when is_list(Value) ->
-    #xmlel{ name  = <<"field">>,
-        attrs = [{<<"var">>, Var},{<<"type">>, Type}],
-        children  = [form_field_item(V) || V <- Value]};
-form_field({Var, Value, Type}) ->
-    #xmlel{ name  = <<"field">>,
-                 attrs = [{<<"type">>, Type},{<<"var">>, Var}],
-                 children  = [#xmlel{name = <<"value">>,
-                                          children = [#xmlcdata{content = Value}] }] }.
-
 stanza_instant_room(Room) ->
     X = #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_DATA_FORMS},
                                              {<<"type">>, <<"submit">>}]},
@@ -4931,21 +4914,11 @@ get_nick_form_iq() ->
     GetIQ = escalus_stanza:iq_get(<<"jabber:iq:register">>, []),
     escalus_stanza:to(GetIQ, muc_host()).
 
-change_nick_form_iq(Nick) ->
-    NS = <<"jabber:iq:register">>,
-    NickField = form_field({<<"nick">>, Nick, <<"text-single">>}),
-    Form = stanza_form([NickField], NS),
-    SetIQ = escalus_stanza:iq_set(NS, [Form]),
-    escalus_stanza:to(SetIQ, muc_host()).
-
 remove_nick_form_iq() ->
     NS = <<"jabber:iq:register">>,
     RemoveEl = #xmlel{name = <<"remove">>},
     SetIQ = escalus_stanza:iq_set(NS, [RemoveEl]),
     escalus_stanza:to(SetIQ, muc_host()).
-
-set_nick(User, Nick) ->
-    escalus:send_iq_and_wait_for_result(User, change_nick_form_iq(Nick)).
 
 unset_nick(User) ->
     escalus:send_iq_and_wait_for_result(User, remove_nick_form_iq()).

@@ -296,3 +296,38 @@ story_with_room(Config, RoomOpts, [{Owner, _}|_] = UserSpecs, StoryFun) ->
     after
         destroy_room(Config2)
     end.
+
+%%--------------------------------------------------------------------
+%% Helpers (stanzas)
+%%--------------------------------------------------------------------
+
+stanza_form(Payload, Type) ->
+    #xmlel{
+        name = <<"x">>,
+        attrs = [{<<"xmlns">>,<<"jabber:x:data">>}, {<<"type">>,<<"submit">>}],
+        children = [form_field({<<"FORM_TYPE">>, Type, <<"hidden">>}) | Payload]
+    }.
+
+form_field_item(Value) ->
+    #xmlel{ name  = <<"value">>,
+        children = [#xmlcdata{content = Value}]}.
+
+form_field({Var, Value, Type}) when is_list(Value) ->
+    #xmlel{ name  = <<"field">>,
+        attrs = [{<<"var">>, Var},{<<"type">>, Type}],
+        children  = [form_field_item(V) || V <- Value]};
+form_field({Var, Value, Type}) ->
+    #xmlel{ name  = <<"field">>,
+                 attrs = [{<<"type">>, Type},{<<"var">>, Var}],
+                 children  = [#xmlel{name = <<"value">>,
+                                          children = [#xmlcdata{content = Value}] }] }.
+
+change_nick_form_iq(Nick) ->
+    NS = <<"jabber:iq:register">>,
+    NickField = form_field({<<"nick">>, Nick, <<"text-single">>}),
+    Form = stanza_form([NickField], NS),
+    SetIQ = escalus_stanza:iq_set(NS, [Form]),
+    escalus_stanza:to(SetIQ, muc_helper:muc_host()).
+
+set_nick(User, Nick) ->
+    escalus:send_iq_and_wait_for_result(User, change_nick_form_iq(Nick)).
