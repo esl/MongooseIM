@@ -43,7 +43,8 @@
          process_sm_iq/5,
          remove_user/3,
          on_presence_update/5,
-         session_cleanup/5]).
+         session_cleanup/5,
+         remove_domain/3]).
 
 %% API
 -export([store_last_info/5,
@@ -59,8 +60,9 @@
     {?MOD_LAST_BACKEND, count_active_users, 3},
     {?MOD_LAST_BACKEND, set_last_info, 5},
     {?MOD_LAST_BACKEND, remove_user, 3},
+    {?MOD_LAST_BACKEND, remove_domain, 2},
     behaviour_info/1, on_presence_update/5, process_local_iq/4,
-    process_sm_iq/4, remove_user/3, session_cleanup/5
+    process_sm_iq/4, remove_user/3, session_cleanup/5, remove_domain/3
 ]).
 
 -include("mongoose.hrl").
@@ -91,6 +93,9 @@
 -callback remove_user(host_type(), jid:luser(), jid:lserver()) ->
     ok | {error, term()}.
 
+-callback remove_domain(host_type(), jid:lserver()) ->
+    ok | {error, term()}.
+
 -spec start(mongooseim:host_type(), list()) -> 'ok'.
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -117,7 +122,8 @@ hooks(HostType) ->
     [{remove_user, HostType, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
      {unset_presence_hook, HostType, ?MODULE, on_presence_update, 50},
-     {session_cleanup, HostType, ?MODULE, session_cleanup, 50}].
+     {session_cleanup, HostType, ?MODULE, session_cleanup, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50}].
 
 %%%
 %%% config_spec
@@ -249,6 +255,11 @@ remove_user(Acc, User, Server) ->
     LServer = jid:nameprep(Server),
     R = mod_last_backend:remove_user(HostType, LUser, LServer),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) -> mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_last_backend:remove_domain(HostType, Domain),
     Acc.
 
 -spec on_presence_update(mongoose_acc:t(), jid:luser(), jid:lserver(), jid:lresource(), status()) ->
