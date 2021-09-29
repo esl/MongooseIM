@@ -10,10 +10,11 @@
          can_use_nick/4,
          get_nick/3,
          set_nick/4,
-         unset_nick/3
+         unset_nick/3,
+         remove_domain/3
         ]).
 
--ignore_xref([can_use_nick/4, forget_room/3, get_nick/3, get_rooms/2, init/2,
+-ignore_xref([can_use_nick/4, forget_room/3, get_nick/3, get_rooms/2, remove_domain/3, init/2,
               restore_room/3, set_nick/4, store_room/4, unset_nick/3]).
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
@@ -56,6 +57,9 @@ prepare_queries(ServerHost) ->
     prepare(muc_delete_room, muc_rooms,
             [muc_host, room_name],
             <<"DELETE FROM muc_rooms WHERE muc_host = ? AND room_name = ?">>),
+    prepare(muc_rooms_remove_domain, muc_rooms,
+            [muc_host],
+            <<"DELETE FROM muc_rooms WHERE muc_host = ?">>),
     prepare(muc_select_rooms, muc_rooms, [muc_host],
             <<"SELECT id, room_name, options FROM muc_rooms WHERE muc_host = ?">>),
     %% Queries to muc_room_aff table
@@ -70,6 +74,13 @@ prepare_queries(ServerHost) ->
               "FROM muc_room_aff WHERE room_id = ?">>),
     prepare(muc_delete_aff, muc_room_aff, [room_id],
             <<"DELETE FROM muc_room_aff WHERE room_id = ?">>),
+    prepare(muc_room_aff_remove_room_domain, muc_room_aff,
+            ['muc_rooms.muc_host'],
+            <<"DELETE FROM muc_room_aff WHERE room_id IN "
+              "(SELECT id FROM muc_rooms WHERE muc_host = ?)">>),
+    prepare(muc_room_aff_remove_user_domain, muc_room_aff,
+            [lserver],
+            <<"DELETE FROM muc_room_aff WHERE lserver = ?">>),
     %% Queries to muc_registered table
     prepare(muc_select_nick_user, muc_registered,
             [muc_host, lserver, nick],
@@ -83,6 +94,12 @@ prepare_queries(ServerHost) ->
             [muc_host, lserver, luser],
             <<"DELETE FROM muc_registered WHERE muc_host = ?"
               " AND lserver = ? AND luser = ?">>),
+    prepare(muc_registered_remove_room_domain, muc_registered,
+            [muc_host],
+            <<"DELETE FROM muc_registered WHERE muc_host = ?">>),
+    prepare(muc_registered_remove_user_domain, muc_registered,
+            [lserver],
+            <<"DELETE FROM muc_room_aff WHERE lserver = ?">>),
     rdbms_queries:prepare_upsert(ServerHost, muc_nick_upsert, muc_registered,
                                  [<<"muc_host">>, <<"luser">>, <<"lserver">>, <<"nick">>],
                                  [<<"nick">>],
@@ -90,6 +107,24 @@ prepare_queries(ServerHost) ->
     ok.
 
 %% Room API functions
+
+-spec remove_domain(mongooseim:host_type(), muc_host(), jid:lserver()) -> ok.
+remove_domain(HostType, MucHost, Domain) ->
+    F = fun() ->
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_registered_remove_room_domain, [MucHost]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_registered_remove_user_domain, [Domain]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_room_aff_remove_room_domain, [MucHost]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_room_aff_remove_user_domain, [Domain]),
+        mongoose_rdbms:execute_successfully(
+            HostType, muc_rooms_remove_domain, [MucHost]),
+        ok
+        end,
+    {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
+    ok.
 
 -spec store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
     ok | {error, term()}.

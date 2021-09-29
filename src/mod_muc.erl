@@ -62,6 +62,7 @@
 %% Hooks handlers
 -export([is_muc_room_owner/4,
          can_access_room/4,
+         remove_domain/3,
          get_room_affiliations/2,
          can_access_identity/4,
          disco_local_items/1]).
@@ -83,8 +84,9 @@
     {?MOD_MUC_DB_BACKEND, set_nick, 4},
     {?MOD_MUC_DB_BACKEND, store_room, 4},
     {?MOD_MUC_DB_BACKEND, unset_nick, 3},
+    {?MOD_MUC_DB_BACKEND, remove_domain, 3},
     can_access_identity/4, can_access_room/4, get_room_affiliations/2, create_instant_room/6,
-    disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4,
+    disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
     online_rooms_number/0, register_room/4, restore_room/3, start_link/2
 ]).
 
@@ -1252,6 +1254,19 @@ can_access_room(_, _HostType, Room, User) ->
         {ok, CanAccess} -> CanAccess
     end.
 
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    case backend_module:is_exported(mod_muc_db_backend, remove_domain, 3) of
+        true ->
+            MUCHost = server_host_to_muc_host(HostType, Domain),
+            mod_muc_db_backend:remove_domain(HostType, MUCHost, Domain);
+        false ->
+            ok
+    end,
+    Acc.
+
 -spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), any()}.
 get_room_affiliations(Acc1, Room) ->
@@ -1340,6 +1355,7 @@ config_metrics(HostType) ->
 hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
+     {remove_domain, HostType, ?MODULE, remove_domain, 50},
      {get_room_affiliations, HostType, ?MODULE, get_room_affiliations, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
      {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].

@@ -9,6 +9,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("jid/include/jid.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 all() ->
     [{group, auth_removal},
@@ -16,6 +17,7 @@ all() ->
      {group, mam_removal},
      {group, inbox_removal},
      {group, muc_light_removal},
+     {group, muc_removal},
      {group, private_removal},
      {group, roster_removal},
      {group, offline_removal},
@@ -30,6 +32,7 @@ groups() ->
      {inbox_removal, [], [inbox_removal]},
      {muc_light_removal, [], [muc_light_removal,
                               muc_light_blocking_removal]},
+     {muc_removal, [], [muc_removal]},
      {private_removal, [], [private_removal]},
      {roster_removal, [], [roster_removal]},
      {offline_removal, [], [offline_removal]},
@@ -82,6 +85,9 @@ group_to_modules(mam_removal) ->
 group_to_modules(muc_light_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
+group_to_modules(muc_removal) ->
+    MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
+    [{mod_muc, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, []}];
 group_to_modules(private_removal) ->
@@ -97,12 +103,20 @@ group_to_modules(vcard_removal) ->
 %%% Testcase specific setup/teardown
 %%%===================================================================
 
+init_per_testcase(muc_removal, Config) ->
+    muc_helper:load_muc(),
+    mongoose_helper:ensure_muc_clean(),
+    escalus:init_per_testcase(muc_removal, Config);
 init_per_testcase(roster_removal, ConfigIn) ->
     Config = roster_helper:set_versioning(true, true, ConfigIn),
     escalus:init_per_testcase(roster_removal, Config);
 init_per_testcase(TestCase, Config) ->
     escalus:init_per_testcase(TestCase, Config).
 
+end_per_testcase(muc_removal, Config) ->
+    mongoose_helper:ensure_muc_clean(),
+    muc_helper:unload_muc(),
+    escalus:end_per_testcase(muc_removal, Config);
 end_per_testcase(roster_removal, Config) ->
     roster_helper:restore_versioning(Config),
     escalus:end_per_testcase(roster_removal, Config);
@@ -179,6 +193,27 @@ inbox_removal(Config) ->
         inbox_helper:get_inbox(Alice, #{count => 0, unread_messages => 0, active_conversations => 0}),
         inbox_helper:get_inbox(Bob, #{count => 0, unread_messages => 0, active_conversations => 0})
       end).
+
+muc_removal(Config0) ->
+    muc_helper:story_with_room(Config0, [{persistent, true}], [{alice, 1}], fun(Config, Alice) ->
+        AliceJid= jid:from_binary(escalus_client:full_jid(Alice)),
+        {_, Domain} = jid:to_lus(AliceJid),
+        MucHost = muc_helper:muc_host(),
+        % Alice joins room and registers nick
+        EnterRoom = muc_helper:stanza_muc_enter_room(?config(room, Config), <<"alice">>),
+        escalus:send(Alice, EnterRoom),
+        escalus:wait_for_stanzas(Alice, 2),
+        muc_helper:set_nick(Alice, <<"alice2">>),
+        % check muc tables
+        ?assertMatch([_], get_muc_rooms(MucHost)),
+        ?assertMatch([_], get_muc_room_aff(Domain)),
+        ?assertMatch({ok, _}, get_muc_registered(MucHost, AliceJid)),
+        % remove domain and check muc tables
+        run_remove_domain(),
+        ?assertMatch([], get_muc_rooms(MucHost)),
+        ?assertMatch([], get_muc_room_aff(Domain)),
+        ?assertMatch({error, not_registered}, get_muc_registered(MucHost, AliceJid))
+    end).
 
 muc_light_removal(Config0) ->
     F = fun(Config, Alice) ->
@@ -340,6 +375,18 @@ get_vcard_search_query_count(Element) ->
                               {element, <<"set">>},
                               {element, <<"count">>},
                               cdata]).
+
+get_muc_registered(MucHost, UserJid) ->
+    rpc(mim(), mod_muc_db_rdbms, get_nick, [host_type(), MucHost, UserJid]).
+
+get_muc_rooms(MucHost) ->
+    {ok, Rooms} = rpc(mim(), mod_muc_db_rdbms, get_rooms, [host_type(), MucHost]),
+    Rooms.
+
+get_muc_room_aff(Domain) ->
+    Query = "SELECT * FROM muc_room_aff WHERE lserver = '" ++ binary_to_list(Domain) ++ "'",
+    {selected, Affs} = rpc(mim(), mongoose_rdbms, sql_query, [host_type(), Query]),
+    Affs.
 
 select_from_roster(Table) ->
     Query = "SELECT * FROM " ++ Table ++ " WHERE server='" ++ binary_to_list(domain()) ++ "'",
