@@ -35,28 +35,35 @@ MongooseIM Platform appeared in 2016, with the release of [MongooseIM XMPP serve
 The MongooseIM platform components were:
 
 * MongooseIM XMPP server, featuring a unique REST API for client developers and MUC light
-* WombatOAM, for monitoring and operations
-* escalus, an Erlang XMPP client for test automation
-* amoc, for load generation
-* Smack for Android in Java (third party)
-* XMPPFramework for iOS in Objective-C (third party)
-* Retrofit by Square for Android in Java (third party)
-* Jayme by Inaka for iOS in Swift
+* [WombatOAM](https://www.erlang-solutions.com/capabilities/wombatoam/), for monitoring and operations
+* [escalus](https://github.com/esl/escalus), an Erlang XMPP client for test automation
+* [amoc](https://github.com/esl/amoc), for load generation
+* [Smack](https://github.com/igniterealtime/Smack) for Android in Java (third party)
+* [XMPPFramework](https://github.com/robbiehanson/XMPPFramework) for iOS in Objective-C (third party)
+* [Retrofit](https://square.github.io/retrofit/) by Square for Android in Java (third party)
+* [Jayme](https://github.com/inaka/Jayme) by Inaka for iOS in Swift
 
 ## 2017: Platform expansion and strengthening
 
 We also introduced some MongooseIM platform components that are independent of the XMPP server.
 So far the list includes:
 
-* Mangosta iOS
-* Mangosta Android
-* MongoosePush
-* MongooseICE
+* [Mangosta iOS](https://github.com/esl/mangosta-ios)
+* [Mangosta Android](https://github.com/esl/mangosta-android)
+* [MongoosePush](https://github.com/esl/mongoosepush)
+* [MongooseICE](https://github.com/esl/MongooseICE)
 
-## 2018-2019: Planetary architecture, to welcome IoT-scale and chatbots
+## 2018-2019: Global distribution ready
 
-The next step on our journey with the MongooseIM platform is to enable building planetary scale architectures.
-This is necessary to welcome the massive influx of users that come with a full stack IoT and chatbot solution.
-The ability to connect robots and humans is the requirement of the next technological breakthrough.
+The next step on our journey with the MongooseIM platform was to enable building global scale architectures.
+This was necessary to welcome the massive influx of users that come with a full stack IoT and chatbot solution.
 
-Erlang Solution's goal is to utilise XMPP features suited for chatbots, and build open standards for completeness of solution.
+Erlang Solution's goal is to utilise XMPP features suited for chatbots, and build open standards for the completeness of our solution.
+
+## 2020-2021: Friendly, cloud-native and dynamic
+
+With the new configuration format, improved logging, and many more changes, MongooseIM has become more friendly for DevOps than ever before.
+This goes hand in hand with the prioritisation of solutions that enable MongooseIM to be easily deployed to the cloud.
+
+Whether in the cloud or on-premise, it is now possible to have a multi-tenant setup, powered by the new dynamic XMPP domains feature.
+It means thousands of domains can be simply set up, managed, and removed dynamically, without a noticeable performance overhead.
