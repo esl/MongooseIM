@@ -22,7 +22,8 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -68,6 +69,11 @@ remove_user(_HostType, LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() -> mnesia:delete({last_activity, US}) end,
     wrap_transaction_result(mnesia:transaction(F)).
+
+% Implementation only for RDBMS backends
+-spec remove_domain(host_type(), jid:lserver()) -> ok.
+remove_domain(_HostType, _Domain) ->
+    ok.
 
 -spec wrap_transaction_result({atomic, ok | term()} | term()) -> ok | {error, term()}.
 wrap_transaction_result({atomic, ok}) -> ok;

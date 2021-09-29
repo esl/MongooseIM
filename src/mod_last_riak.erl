@@ -56,7 +56,8 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -102,6 +103,11 @@ set_last_info(HostType, LUser, LServer, Timestamp, Status) ->
 -spec remove_user(host_type(), jid:luser(), jid:lserver()) -> ok | {error, term()}.
 remove_user(HostType, LUser, LServer) ->
     mongoose_riak:delete(bucket_type(HostType, LServer), LUser).
+
+% Implementation only for RDBMS backends
+-spec remove_domain(host_type(), jid:lserver()) -> ok.
+remove_domain(_HostType, _Domain) ->
+    ok.
 
 -spec bucket_type(host_type(), jid:lserver()) -> riakc_obj:bucket().
 bucket_type(HostType, LServer) ->
