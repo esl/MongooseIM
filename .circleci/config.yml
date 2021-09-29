@@ -664,7 +664,7 @@ workflows:
             - otp_23
           filters: *all_tags
       - big_tests:
-          name: dynamic_domains_23
+          name: dynamic_domains_pgsql_mnesia_23
           otp_package: 23.3.1-1
           spec: dynamic_domains.spec
           preset: pgsql_mnesia
@@ -734,11 +734,31 @@ workflows:
             - otp_24
           filters: *all_tags
       - big_tests:
-          name: dynamic_domains_24
+          name: dynamic_domains_pgsql_mnesia_24
           otp_package: 24.0-1
           spec: dynamic_domains.spec
           preset: pgsql_mnesia
           db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: dynamic_domains_mysql_redis_24
+          otp_package: 24.0-1
+          spec: dynamic_domains.spec
+          preset: mysql_redis
+          db: mysql
+          context: mongooseim-org
+          requires:
+            - otp_24
+          filters: *all_tags
+      - big_tests:
+          name: dynamic_domains_mssql_mnesia_24
+          otp_package: 24.0-1
+          spec: dynamic_domains.spec
+          preset: odbc_mssql_mnesia
+          db: mssql
           context: mongooseim-org
           requires:
             - otp_24
@@ -752,7 +772,7 @@ workflows:
             - small_tests_23
             - ldap_mnesia_23
             - pgsql_mnesia_23
-            - dynamic_domains_23
+            - dynamic_domains_pgsql_mnesia_23
 
             - small_tests_24
             - internal_mnesia_24
@@ -762,7 +782,9 @@ workflows:
             - ldap_mnesia_24
             - riak_mnesia_24
             - elasticsearch_and_cassandra_24
-            - dynamic_domains_24
+            - dynamic_domains_pgsql_mnesia_24
+            - dynamic_domains_mysql_redis_24
+            - dynamic_domains_mssql_mnesia_24
 
             - dialyzer
             - xref
