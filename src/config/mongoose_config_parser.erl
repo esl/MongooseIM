@@ -8,8 +8,6 @@
 
 %% state API
 -export([new_state/0,
-         allow_override_all/1,
-         allow_override_local_only/1,
          override/2,
          override_global/1,
          override_local/1,
@@ -29,7 +27,7 @@
 -export([dedup_state_opts/1,
          add_dep_modules/1]).
 
--ignore_xref([allow_override_all/1, allow_override_local_only/1, behaviour_info/1,
+-ignore_xref([behaviour_info/1,
               get_opts/1, override_acls/1, override_global/1, override_local/1,
               state_to_global_opt/3, state_to_host_types/1, state_to_hosts/1]).
 
@@ -85,18 +83,6 @@ parser_module(".toml") -> mongoose_config_parser_toml.
 -spec new_state() -> state().
 new_state() ->
     #state{}.
-
--spec allow_override_all(state()) -> state().
-allow_override_all(State = #state{}) ->
-    State#state{override_global = true,
-                override_local  = true,
-                override_acls   = true}.
-
--spec allow_override_local_only(state()) -> state().
-allow_override_local_only(State = #state{}) ->
-    State#state{override_global = false,
-                override_local  = true,
-                override_acls   = false}.
 
 -spec override(Scope :: atom(), state()) -> state().
 override(global, State) -> override_global(State);
