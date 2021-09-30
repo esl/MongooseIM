@@ -212,14 +212,6 @@ When enabled, all per-host metrics are merged into global equivalents. It means 
 
 Replaces [Cowboy](https://github.com/ninenines/cowboy)'s default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** configured HTTP listeners.
 
-### `general.override`
-* **Scope:** local
-* **Syntax:** array of strings: `"global"`, `"local"`, `"acls"`
-* **Default:** not set
-* **Example:** `override = ["global", "local"]`
-
-Will cause MongooseIM to erase all global/local/acl configuration options in the database respectively. This ensures that ALL settings of a specific type will be reloaded on the startup.
-
 ### `general.max_fsm_queue`
 * **Scope:** local
 * **Syntax:** positive integer
