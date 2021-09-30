@@ -100,8 +100,13 @@ We use `id` field to sort records when paginating.
 
 ### Domain removal
 
-You are not allowed to delete domains with unknown host-type. 
+You cannot delete domains with unknown host-type. 
 Configure host-type first to delete such domains.
+
+Modules which store data in RDBMS and support dynamic domains will remove **all** persistent data associated with a domain when its removal is requested.
+This is not the case for NoSQL databases or Mnesia.
+Because of that, we recommend using RDBMS with dynamic domains.
+Please note, that [`mod_auth_token`](../modules/mod_auth_token.md) is the only exception for now and does not remove data from RDBMS when removing a domain.
 
 ## Service options
 
