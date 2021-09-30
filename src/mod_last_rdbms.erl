@@ -21,7 +21,8 @@
          get_last/3,
          count_active_users/3,
          set_last_info/5,
-         remove_user/3]).
+         remove_user/3,
+         remove_domain/2]).
 
 -type host_type() :: mongooseim:host_type().
 
@@ -38,6 +39,8 @@ prepare_queries(HostType) ->
                            <<"SELECT COUNT(*) FROM last WHERE server = ? AND seconds > ?">>),
     mongoose_rdbms:prepare(last_delete, last, [server, username],
                            <<"DELETE FROM last WHERE server = ? AND username = ?">>),
+    mongoose_rdbms:prepare(last_remove_domain, last, [server],
+                            <<"DELETE FROM last WHERE server = ?">>),
     rdbms_queries:prepare_upsert(HostType, last_upsert, last,
                                  [<<"server">>, <<"username">>, <<"seconds">>, <<"state">>],
                                  [<<"seconds">>, <<"state">>],
@@ -87,6 +90,10 @@ set_last_info(HostType, LUser, LServer, Seconds, State) ->
 -spec remove_user(host_type(), jid:luser(), jid:lserver()) -> ok | {error, term()}.
 remove_user(HostType, LUser, LServer) ->
     wrap_rdbms_result(execute_remove_user(HostType, LServer, LUser)).
+
+-spec remove_domain(host_type(), jid:lserver()) -> ok | {error, term()}.
+remove_domain(HostType, Domain) ->
+    mongoose_rdbms:execute(HostType, last_remove_domain, [Domain]).
 
 %% Helper functions
 decode_last_result({selected, []}) ->

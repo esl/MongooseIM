@@ -21,7 +21,8 @@ all() ->
      {group, private_removal},
      {group, roster_removal},
      {group, offline_removal},
-     {group, vcard_removal}].
+     {group, vcard_removal},
+     {group, last_removal}].
 
 groups() ->
     [
@@ -36,7 +37,8 @@ groups() ->
      {private_removal, [], [private_removal]},
      {roster_removal, [], [roster_removal]},
      {offline_removal, [], [offline_removal]},
-     {vcard_removal, [], [vcard_removal]}
+     {vcard_removal, [], [vcard_removal]},
+     {last_removal, [], [last_removal]}
     ].
 
 %%%===================================================================
@@ -97,7 +99,9 @@ group_to_modules(roster_removal) ->
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}];
 group_to_modules(vcard_removal) ->
-    [{mod_vcard, [{backend, rdbms}]}].
+    [{mod_vcard, [{backend, rdbms}]}];
+group_to_modules(last_removal) ->
+    [{mod_last, [{backend, rdbms}]}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -351,6 +355,37 @@ vcard_removal(Config) ->
                              [host_type(), LServer, DbFilterFields]))
     end).
 
+last_removal(Config0) ->
+    Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
+    Config2 = escalus:make_everyone_friends(Config1),
+        escalus:story(Config2, [{alice, 1}],
+                  fun(Alice) ->
+                          %% Bob logs in
+                          {ok, Bob} = escalus_client:start_for(Config2, bob, <<"bob">>),
+
+                          %% Bob logs out with a status
+                          Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
+                          Presence = escalus_stanza:presence(<<"unavailable">>, Status),
+                          escalus_client:send(Bob, Presence),
+                          escalus_client:stop(Config2, Bob),
+                          timer:sleep(1024), % more than a second
+
+                          %% Alice asks for Bob's last availability
+                          BobShortJID = escalus_client:short_jid(Bob),
+                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+
+                          %% Alice receives Bob's status and last online time > 0
+                          Stanza = escalus_client:wait_for_stanza(Alice),
+                          escalus:assert(is_last_result, Stanza),
+                          true = (1 =< get_last_activity(Stanza)),
+                          <<"I am a banana!">> = get_last_status(Stanza),
+
+                          run_remove_domain(),                                         
+                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+                          Error = escalus_client:wait_for_stanza(Alice),
+                          escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
+                  end).
+
 %% Helpers
 
 connect_and_disconnect(Spec) ->
@@ -431,3 +466,10 @@ my_banana(NS) ->
 get_private_data(Elem, Tag, NS) ->
     Path = [{element, <<"query">>}, {element_with_ns, Tag, NS}, cdata],
     exml_query:path(Elem, Path).
+
+get_last_activity(Stanza) ->
+    S = exml_query:path(Stanza, [{element, <<"query">>}, {attr, <<"seconds">>}]),
+    list_to_integer(binary_to_list(S)).
+
+get_last_status(Stanza) ->
+    exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
