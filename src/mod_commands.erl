@@ -328,8 +328,8 @@ do_send_packet(From, To, Packet) ->
                                       host_type => HostType,
                                       lserver => From#jid.lserver,
                                       element => Packet}),
-            mongoose_hooks:user_send_packet(Acc, From, To, Packet),
-            ejabberd_router:route(From, To, Packet),
+            Acc1 = mongoose_hooks:user_send_packet(Acc, From, To, Packet),
+            ejabberd_router:route(From, To, Acc1),
             ok;
         {error, not_found} ->
             {error, unknown_domain}
