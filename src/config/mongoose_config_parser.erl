@@ -20,7 +20,6 @@
          state_to_hosts/1,
          state_to_host_types/1,
          state_to_global_opt/3,
-         state_to_required_files/1,
          can_override/2]).
 
 %% config post-processing
@@ -142,12 +141,6 @@ can_override(acls, #state{override_acls = Override}) ->
 state_to_global_opt(OptName, State, Default) ->
     Opts = state_to_opts(State),
     opts_to_global_opt(Opts, OptName, Default).
-
-%% @doc Files, that are required to be present on disc.
--spec state_to_required_files(state()) -> list(file:filename()).
-state_to_required_files(State) ->
-    Opts = state_to_opts(State),
-    opts_to_global_opt(Opts, required_files, []).
 
 opts_to_global_opt([{config, OptName, OptValue}|_], OptName, _Default) ->
     OptValue;
