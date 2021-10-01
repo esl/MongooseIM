@@ -34,7 +34,6 @@ start(_Opts) ->
     mnesia:add_table_index(session, us),
     mnesia:add_table_copy(session, node(), ram_copies).
 
-
 -spec get_sessions() -> [ejabberd_sm:session()].
 get_sessions() ->
     mnesia:activity(transaction,
@@ -55,12 +54,10 @@ get_sessions(Server) ->
 get_sessions(User, Server) ->
     mnesia:dirty_index_read(session, {User, Server}, #session.us).
 
-
 -spec get_sessions(jid:luser(), jid:lserver(), jid:lresource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
-
 
 -spec create_session(_User :: jid:luser(),
                      _Server :: jid:lserver(),
@@ -94,7 +91,6 @@ delete_session(SID, _User, _Server, _Resource) ->
                               mnesia:delete({session, SID})
                       end).
 
-
 -spec cleanup(atom()) -> any().
 cleanup(Node) ->
     F = fun() ->
@@ -103,24 +99,16 @@ cleanup(Node) ->
                        [{#session{sid = {'_', '$1'}, _ = '_'},
                          [{'==', {node, '$1'}, Node}],
                          ['$_']}]),
-                lists:foreach(fun cleanup_session/1, Es)
+                lists:foreach(fun(#session{sid = SID} = Session) ->
+                                      mnesia:delete({session, SID}),
+                                      ejabberd_sm:run_session_cleanup_hook(Session)
+                              end, Es)
         end,
     mnesia:async_dirty(F).
-
-cleanup_session(#session{usr = {U, S, R}, sid = SID}) ->
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(S),
-    mnesia:delete({session, SID}),
-    Acc = mongoose_acc:new(
-            #{location => ?LOCATION,
-              host_type => HostType,
-              lserver => S,
-              element => undefined}),
-    mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
 
 -spec total_count() -> integer().
 total_count() ->
     mnesia:table_info(session, size).
-
 
 -spec unique_count() -> integer().
 unique_count() ->

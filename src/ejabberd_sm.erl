@@ -64,7 +64,8 @@
          get_raw_sessions/1,
          is_offline/1,
          get_user_present_pids/2,
-         sync/0
+         sync/0,
+         run_session_cleanup_hook/1
         ]).
 
 %% Hook handlers
@@ -457,6 +458,16 @@ sync() ->
 unregister_iq_handler(Host, XMLNS) ->
     ejabberd_sm ! {unregister_iq_handler, Host, XMLNS},
     ok.
+
+-spec run_session_cleanup_hook(#session{}) -> mongoose_acc:t().
+run_session_cleanup_hook(#session{usr = {U, S, R}, sid = SID}) ->
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(S),
+    Acc = mongoose_acc:new(
+            #{location => ?LOCATION,
+              host_type => HostType,
+              lserver => S,
+              element => undefined}),
+    mongoose_hooks:session_cleanup(S, Acc, U, R, SID).
 
 %%====================================================================
 %% Hook handlers
