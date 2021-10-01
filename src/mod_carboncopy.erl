@@ -292,7 +292,7 @@ send_copies(Acc, JID, To, Packet, Direction) ->
                                        resource => JID#jid.lresource, exml_packet => Packet}),
                           Sender = jid:to_bare(JID),
                           New = build_forward_packet(Acc, JID, Packet, Sender, Dest, Direction, Version),
-                          ejabberd_router:route(Sender, Dest, New)
+                          ejabberd_router:route(Sender, Dest, Acc, New)
                   end, Targets).
 
 build_forward_packet(Acc, JID, Packet, Sender, Dest, Direction, Version) ->
