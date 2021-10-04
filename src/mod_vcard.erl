@@ -250,7 +250,7 @@ hooks2() ->
      {get_personal_data, get_personal_data, 50}].
 
 start_iq_handlers(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm,
                                              fun ?MODULE:process_sm_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_local,
@@ -384,12 +384,13 @@ process_search_reported_spec(KVs) ->
 %%--------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
-                     Packet :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
-process_packet(Acc, From, To, Packet, #{pid := Pid}) ->
-    Pid ! {route, From, To, Acc, Packet},
+                     Packet :: exml:element(), #{}) -> mongoose_acc:t().
+process_packet(Acc, From, To, _Packet, _Extra) ->
+    handle_route(Acc, From, To),
     Acc.
 
-handle_route(From, To, Acc, HostType) ->
+handle_route(Acc, From, To) ->
+    HostType = mongoose_acc:host_type(Acc),
     {IQ, Acc1} = mongoose_iq:info(Acc),
     LServer = directory_jid_to_server_host(To),
     try do_route(HostType, LServer, From, To, Acc1, IQ)
@@ -419,9 +420,6 @@ handle_call(stop, _From, State) ->
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
-handle_info({route, From, To, Acc, _El}, State = #state{host_type = HostType}) ->
-    handle_route(From, To, Acc, HostType),
-    {noreply, State};
 handle_info(_, State) ->
     {noreply, State}.
 
@@ -585,22 +583,22 @@ config_change(Acc, _, _, _) ->
 %% ------------------------------------------------------------------
 do_route(_HostType, _LServer, From,
          #jid{user = User, resource = Resource} = To, Acc, _IQ)
-  when (User /= <<"">>) or (Resource /= <<"">>) ->
+  when (User /= <<>>) or (Resource /= <<>>) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err);
 do_route(HostType, LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_SEARCH, lang = Lang, sub_el = SubEl} = IQ) ->
     route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ);
-do_route(HostType, LServer, From, To, _Acc,
+do_route(HostType, LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_SEARCH, lang = Lang} = IQ) ->
     Form = ?FORM(To, mod_vcard_backend:search_fields(HostType, LServer), Lang),
     ResIQ = make_search_form_result_iq(IQ, Form),
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_DISCO_INFO}) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
     ejabberd_router:route(To, From, Acc1, Err);
-do_route(HostType, _LServer, From, To, _Acc,
+do_route(HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_DISCO_INFO, lang = Lang} = IQ) ->
     IdentityXML = mongoose_disco:identities_to_xml([identity(Lang)]),
     FeatureXML = mongoose_disco:features_to_xml(features()),
@@ -609,26 +607,26 @@ do_route(HostType, _LServer, From, To, _Acc,
                   sub_el = [#xmlel{name = <<"query">>,
                                    attrs = [{<<"xmlns">>, ?NS_DISCO_INFO}],
                                    children = IdentityXML ++ FeatureXML ++ InfoXML}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = set, xmlns = ?NS_DISCO_ITEMS}) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
     ejabberd_router:route(To, From, Acc1, Err);
-do_route(_HostType, _LServer, From, To, _Acc,
+do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ) ->
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"query">>,
                                attrs = [{<<"xmlns">>, ?NS_DISCO_ITEMS}]}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
-do_route(_HostType, _LServer, From, To, _Acc,
+    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
+do_route(_HostType, _LServer, From, To, Acc,
          #iq{type = get, xmlns = ?NS_VCARD} = IQ) ->
     ResIQ =
         IQ#iq{type = result,
               sub_el = [#xmlel{name = <<"vCard">>,
                                attrs = [{<<"xmlns">>, ?NS_VCARD}],
                                children = iq_get_vcard()}]},
-    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
+    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ));
 do_route(_HostType, _LServer, From, To, Acc, _IQ) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err).
@@ -656,7 +654,7 @@ route_search_iq_set(HostType, LServer, From, To, Acc, Lang, SubEl, IQ) ->
                 _ ->
                     {SearchResult, RSMOutEls} = search_result(HostType, LServer, Lang, To, XData, RSMIn),
                     ResIQ = make_search_result_iq(IQ, SearchResult, RSMOutEls),
-                    ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ))
+                    ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ))
             end
     end.
 
