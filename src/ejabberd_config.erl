@@ -108,7 +108,6 @@ get_config_path() ->
 -spec load_file(File :: string()) -> ok.
 load_file(File) ->
     State = mongoose_config_parser:parse_file(File),
-    assert_required_files_exist(State),
     set_opts(State).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -277,23 +276,14 @@ get_categorized_options() ->
       local_config => get_local_config(),
       host_config => get_host_local_config()}.
 
-%% @doc Returns configs on disc and in memory for this node.
-%% This function prepares all state data to pass into pure code part
-%% (i.e. mongoose_config_parser).
+%% @doc Returns configs on disc and in memory for this node for inspection.
 config_state() ->
     ConfigFile = get_config_path(),
     State = mongoose_config_parser:parse_file(ConfigFile),
-    %% Performance optimization hint:
-    %% terms_to_missing_and_required_files/1 actually parses Terms into State.
-    #{missing_files := MissingFiles,
-      required_files := RequiredFiles} =
-        state_to_missing_and_required_files(State),
     #{mongoose_node => node(),
       config_file => ConfigFile,
       loaded_categorized_options => get_categorized_options(),
-      ondisc_config_state => State,
-      missing_files => MissingFiles,
-      required_files => RequiredFiles}.
+      ondisc_config_state => State}.
 
 config_states() ->
     config_states(all_cluster_nodes()).
@@ -322,22 +312,3 @@ other_cluster_nodes() ->
 is_mongooseim_node(Node) ->
     Apps = rpc:call(Node, application, which_applications, []),
     lists:keymember(mongooseim, 1, Apps).
-
-assert_required_files_exist(State) ->
-    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
-    case missing_files(RequiredFiles) of
-        [] ->
-            ok;
-        MissingFiles ->
-            erlang:error(#{issue => missing_files,
-                           filenames => MissingFiles})
-    end.
-
-state_to_missing_and_required_files(State) ->
-    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
-    MissingFiles = missing_files(RequiredFiles),
-    #{missing_files => MissingFiles, required_files => RequiredFiles}.
-
-missing_files(RequiredFiles) ->
-    [Filename || Filename <- RequiredFiles,
-                 not mongoose_config_utils:is_file_readable(Filename)].
