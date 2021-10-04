@@ -487,7 +487,7 @@ init([]) ->
     {Mod, Code} = dynamic_compile:from_string(sm_backend(Backend)),
     code:load_binary(Mod, "ejabberd_sm_backend.erl", Code),
 
-    ets:new(sm_iqtable, [named_table]),
+    ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
 
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,

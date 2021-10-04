@@ -277,8 +277,8 @@ node_cleanup(Acc, Node) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    catch ets:new(?IQTABLE, [named_table, protected]),
-    catch ets:new(?NSTABLE, [named_table, bag, protected]),
+    catch ets:new(?IQTABLE, [named_table, protected, {read_concurrency, true}]),
+    catch ets:new(?NSTABLE, [named_table, bag, protected, {read_concurrency, true}]),
     update_table(),
     mnesia:create_table(iq_response,
                         [{ram_copies, [node()]},
