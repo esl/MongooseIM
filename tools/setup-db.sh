@@ -153,7 +153,7 @@ elif [ "$db" = 'pgsql' ]; then
            $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
            $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/postgresql/data) \
            $(mount_ro_volume ${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
-           -p $PGSQL_PORT:5432 --name=$NAME postgres
+           -p $PGSQL_PORT:5432 --name=$NAME postgres:$PGSQL_VERSION
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
