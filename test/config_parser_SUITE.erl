@@ -57,7 +57,6 @@ groups() ->
                             max_fsm_queue,
                             http_server_name,
                             rdbms_server_type,
-                            override,
                             route_subdomains,
                             mongooseimctl_access_commands,
                             routing_modules,
@@ -433,12 +432,6 @@ rdbms_server_type(_Config) ->
     ?eq([#local_config{key = rdbms_server_type, value = pgsql}],
         parse(#{<<"general">> => #{<<"rdbms_server_type">> => <<"pgsql">>}})),
     ?err(parse(#{<<"general">> => #{<<"rdbms_server_type">> => <<"nosql">>}})).
-
-override(_Config) ->
-    ?eq([{override, local}, {override, global}, {override, acls}],
-        parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"acls">>]}})),
-    ?err(parse(#{<<"general">> => #{<<"override">> => [<<"local">>, <<"global">>, <<"local">>]}})),
-    ?err(parse(#{<<"general">> => #{<<"override">> => [<<"pingpong">>]}})).
 
 route_subdomains(_Config) ->
     eq_host_config([#local_config{key = {route_subdomains, ?HOST}, value = s2s}],
