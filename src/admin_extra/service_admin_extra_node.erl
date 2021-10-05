@@ -26,19 +26,14 @@
 -module(service_admin_extra_node).
 -author('badlop@process-one.net').
 
--export([
-     commands/0,
-
-         load_config/1,
+-export([commands/0,
          get_cookie/0,
-         remove_node/1
-        ]).
+         remove_node/1]).
 
 -ignore_xref([
     commands/0, load_config/1, get_cookie/0, remove_node/1
 ]).
 
--include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%
@@ -48,18 +43,13 @@
 -spec commands() -> [ejabberd_commands:cmd(), ...].
 commands() ->
     [
-        #ejabberd_commands{name = load_config, tags = [server],
-                           desc = "Load ejabberd configuration file",
-                           module = ?MODULE, function = load_config,
-                           args = [{file, string}],
-                           result = {res, rescode}},
         #ejabberd_commands{name = get_cookie, tags = [erlang],
                            desc = "Get the Erlang cookie of this node",
                            module = ?MODULE, function = get_cookie,
                            args = [],
                            result = {cookie, string}},
         #ejabberd_commands{name = remove_node, tags = [erlang],
-                           desc = "Remove an ejabberd node from Mnesia clustering config",
+                           desc = "Remove a MongooseIM node from Mnesia clustering config",
                            module = ?MODULE, function = remove_node,
                            args = [{node, string}],
                            result = {res, rescode}}
@@ -69,10 +59,6 @@ commands() ->
 %%%
 %%% Node
 %%%
-
--spec load_config(string()) -> 'ok'.
-load_config(Path) ->
-    ok = ejabberd_config:load_file(Path).
 
 
 -spec get_cookie() -> string().
