@@ -438,6 +438,7 @@ prepare_count_users(HostType) ->
                     <<"SELECT table_rows FROM information_schema.tables "
                       "WHERE table_name = 'users'">>);
         {true, pgsql} ->
+            prepare_count_users(),
             prepare(auth_count_users_estimate, pg_class, [],
                     <<"SELECT reltuples::numeric FROM pg_class "
                       "WHERE oid = 'users'::regclass::oid">>);
@@ -503,9 +504,15 @@ execute_count_users(HostType, LServer, #{prefix := Prefix}) ->
 execute_count_users(HostType, LServer, #{}) ->
     case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
           mongoose_rdbms:db_engine(LServer)} of
-        {true, DB} when DB =:= pgsql;
-                        DB =:= mysql ->
+        {true, mysql} ->
             execute_successfully(HostType, auth_count_users_estimate, []);
+        {true, pgsql} ->
+            case execute_successfully(HostType, auth_count_users_estimate, []) of
+                {selected,[{<<"-1">>}]} ->
+                    execute_successfully(HostType, auth_count_users, [LServer]);
+                Otherwise ->
+                    Otherwise
+            end;
         _ ->
             execute_successfully(HostType, auth_count_users, [LServer])
     end.
