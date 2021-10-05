@@ -139,7 +139,8 @@
                   from_jid := jid:jid(),
                   room_jid := jid:jid(),
                   affiliation := affiliation(),
-                  role := role()
+                  role := role(),
+                  timestamp := integer()
        }.
 -export_type([room_event_data/0]).
 

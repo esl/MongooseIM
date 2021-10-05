@@ -65,7 +65,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [generate_message_id/0,
+        [generate_message_id/1,
          decode_compact_uuid/1]).
 
 %% XML
@@ -186,9 +186,9 @@ filter_room_packet(Packet, HostType, EventData = #{}) ->
     case IsArchivable of
         true ->
             #{from_nick := FromNick, from_jid := FromJID, room_jid := RoomJID,
-              role := Role, affiliation := Affiliation} = EventData,
+              role := Role, affiliation := Affiliation, timestamp := TS} = EventData,
             archive_room_packet(HostType, Packet, FromNick, FromJID,
-                                RoomJID, Role, Affiliation);
+                                RoomJID, Role, Affiliation, TS);
         false -> Packet
     end.
 
@@ -196,9 +196,10 @@ filter_room_packet(Packet, HostType, EventData = #{}) ->
 -spec archive_room_packet(HostType :: host_type(),
                           Packet :: packet(), FromNick :: jid:user(),
                           FromJID :: jid:jid(), RoomJID :: jid:jid(),
-                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
-archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
-                    RoomJID=#jid{}, Role, Affiliation) ->
+                          Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation(),
+                          TS :: integer()) -> packet().
+archive_room_packet(HostType, Packet, FromNick, FromJID = #jid{},
+                    RoomJID = #jid{}, Role, Affiliation, TS) ->
     ArcID = archive_id_int(HostType, RoomJID),
     %% Occupant JID <room@service/nick>
     SrcJID = jid:replace_resource(RoomJID, FromNick),
@@ -210,7 +211,7 @@ archive_room_packet(HostType, Packet, FromNick, FromJID=#jid{},
         end,
     case IsInteresting of
         true ->
-            MessID = generate_message_id(),
+            MessID = generate_message_id(TS),
             Packet1 = replace_x_user_element(FromJID, Role, Affiliation, Packet),
             OriginID = mod_mam_utils:get_origin_id(Packet),
             Params = #{message_id => MessID,

@@ -10,6 +10,7 @@
 
 %% UID
 -export([generate_message_id/0,
+         generate_message_id/1,
          encode_compact_uuid/2,
          decode_compact_uuid/1,
          mess_id_to_external_binary/1,
@@ -98,7 +99,8 @@
 
 -ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
-              maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
+              maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0,
+              generate_message_id/0]).
 
 %-define(MAM_INLINE_UTILS, true).
 
@@ -172,6 +174,11 @@ generate_message_id() ->
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
     encode_compact_uuid(UniqueStamp, NodeId).
 
+-spec generate_message_id(integer()) -> integer().
+generate_message_id(CandidateStamp) ->
+    {ok, NodeId} = ejabberd_node_id:node_id(),
+    UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
+    encode_compact_uuid(UniqueStamp, NodeId).
 
 %% @doc Create a message ID (UID).
 %%
