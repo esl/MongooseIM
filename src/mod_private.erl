@@ -43,12 +43,6 @@
 
 -define(MOD_PRIVATE_BACKEND, mod_private_backend).
 -ignore_xref([
-    {?MOD_PRIVATE_BACKEND, get_all_nss, 3},
-    {?MOD_PRIVATE_BACKEND, multi_get_data, 4},
-    {?MOD_PRIVATE_BACKEND, multi_set_data, 4},
-    {?MOD_PRIVATE_BACKEND, remove_user, 3},
-    {?MOD_PRIVATE_BACKEND, remove_domain, 2},
-    {?MOD_PRIVATE_BACKEND, init, 2},
     behaviour_info/1, get_personal_data/3, remove_user/3, remove_domain/3
 ]).
 
