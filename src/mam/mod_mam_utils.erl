@@ -9,8 +9,7 @@
 -export([maybe_microseconds/1]).
 
 %% UID
--export([generate_message_id/0,
-         generate_message_id/1,
+-export([generate_message_id/1,
          encode_compact_uuid/2,
          decode_compact_uuid/1,
          mess_id_to_external_binary/1,
@@ -99,8 +98,7 @@
 
 -ignore_xref([behaviour_info/1, append_arcid_elem/4, delete_arcid_elem/3, form_field_value/2,
               get_one_of_path/3, is_arcid_elem_for/3, maybe_encode_compact_uuid/2,
-              maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0,
-              generate_message_id/0]).
+              maybe_last/1, result_query/2, send_message/4, wrap_message/7, wrapper_id/0]).
 
 %-define(MAM_INLINE_UTILS, true).
 
@@ -166,13 +164,6 @@ maybe_microseconds(ISODateTime) ->
 
 %% -----------------------------------------------------------------------
 %% UID
-
--spec generate_message_id() -> integer().
-generate_message_id() ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
-    CandidateStamp = erlang:system_time(microsecond),
-    UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
-    encode_compact_uuid(UniqueStamp, NodeId).
 
 -spec generate_message_id(integer()) -> integer().
 generate_message_id(CandidateStamp) ->
