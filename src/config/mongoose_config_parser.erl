@@ -35,10 +35,10 @@
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
--type key() :: atom()
-             | {key(), jid:server() | atom() | list()}
-             | {atom(), atom(), atom()}
-             | binary(). % TODO: binary is questionable here
+-type key() :: atom() | host_type_key() | host_type_or_global_key().
+-type s2s_domain_key() :: {atom(), jid:lserver()}.
+-type host_type_key() :: {atom() | s2s_domain_key(), mongooseim:host_type() | global}.
+-type host_type_or_global_key() :: {shaper | access, atom(), mongooseim:host_type() | global}.
 
 -type value() :: atom()
                | binary()

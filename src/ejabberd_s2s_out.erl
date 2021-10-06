@@ -1275,8 +1275,7 @@ get_acc_with_new_tls(_, _, Acc) ->
 
 get_tls_opts_with_certfile(StateData) ->
     case ejabberd_config:get_local_option(
-           {domain_certfile,
-            binary_to_list(StateData#state.myname)}) of
+           {domain_certfile, StateData#state.myname}) of
         undefined ->
             StateData#state.tls_options;
         CertFile ->
