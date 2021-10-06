@@ -1,3 +1,152 @@
+# [MongooseIM 5.0.0](https://github.com/esl/MongooseIM/releases/tag/5.0.0) - 2021-10-07
+
+## Highlights
+
+- Support for dynamic domains
+- Documentation improvements and reorganization 
+
+## All changes
+
+### Added
+- Support multi tenancy initializations or related (#3095, #3158, #3220, #3226, #3239)
+  - Multi tenancy prepare iq handlers (#3118)
+  - Multi tenancy prepate tests (#3108, #3109, #3235)
+
+- Add host_type to hook calls in core modules (#3097)
+- Prepare queries in `mongoose_cluster_id` (#3098)
+- Enable mim2 node to allow running more tests for dynamic domains (#3264)
+
+[//]: # (Dynamic domains add tests)
+- Enable `mod_offline_stub` for dynamic domains (#3142)
+- Test domain removal in `mod_cache_users` (#3302)
+- Test mongooseimctl with dynamic domains (#3273, #3274)
+- Test roster metrics with dynamic domains (#3286)
+- Test `mod_commands` with dynamic domains (#3241)
+- Test `muc_light_http_api` (MUC Light commands) for dynamic domains (#3246)
+- Fix anonymous login and test it for dynamic domains (#3254)
+- Test clustering and domain management with dynamic domains (#3266)
+- Enable `websockets_SUITE` for dynamic domains (#3268)
+- Enable `sasl_SUITE` and `sasl_external_SUITE` for dynamic domains (#3269)
+- Enable `users_api_SUITE` for dynamic domains (#3271)
+- Enable `connect_SUITE` for dynamic domains (#3272)
+- Enable `metrics_register_SUITE` for dynamic domains (#3275, #3285)
+- Enable `metrics_session_SUITE` for dynamic domains (#3276)
+- Enable `metrics_c2s_SUITE` for dynamic domains (#3277)
+- Enable `login_SUITE` for dynamic domains (#3278)
+- Enable `mam_send_message_SUITE` for dynamic domains (#3279)
+- Enable `metrics_api_SUITE` for dynamic domains (#3280) 
+- Enable `service_mongoose_system_metrics_SUITE` for dynamic domains (#3281)
+- Enable `race_conditions_SUITE` for dynamic domains (#3283)
+- Enable `gdpr_SUITE` for dynamic domains (#3284)
+- Enable `rdbms_SUITE` and `persistent_cluster_id_SUITE` for dynamic domains (#3287)
+
+[//]: # (Remove domain)
+- Call remove domain hook (#3237)
+
+[Test commands with dynamic domains #3241//]: # (General support for dynamic domain in module)
+- Dynamic domains support to `mod_ping` (#3136)
+- Multitenancy for `ejabberd_users`(module renamed to `mongoose_users`) (#3135, #3161)
+- Multitenancy for `mod_inbox` (#3132, #3141, #3103, #3165, #3228)
+- Multitenancy for MAM/MUC (#3123, #3143, #3155, #3157, #3107, #3231, #3305)
+  - Multitenancy for the Client REST API for MAM and MUC-light(#3147)
+  - Handle remove domain in `mod_mam` (#3092)
+- Support dynamic domains in `mod_http_upload` (#3267)
+- Support dynamic domains in `mod_sic` (#3258)
+- Support dynamic domains in  `mod_auth_token` and `mod_keystore` (#3262)
+- Support dynamic domains in `mod_csi` (#3260)
+- Support dynamic domains in `mod_amp` (#3261)
+- Support dynamic domains in `mod_time` (#3255)
+- Support dynamic domains in `mod_version` (#3256)
+- Support dynamic domains in `mod_bosh` (#3253)
+- Support dynamic domains in `mod_adhoc` (#3252)
+- Support dynamic domains in `mod_register` (#3247)
+- Support dynamic domains in `mod_muc_commands` (#3248)
+- Support dynamic domains in `mod_smart_markers` (#3243)
+- Support dynamic domains in `mod_blocking` (#3196)
+- Support dynamic domains in `mod_vcard` (#3221, #3304)
+- Support dynamic domains in `mod_privacy` (#3189)
+- Support dynamic domains in `mod_last` (#3188, #3309) 
+- Support dynamic domains in `mod_private` (#3175)
+- Support dynamic domains in `mod_roster` (#3159, #3291)
+- Support dynamic domains in `mod_caps` (#3156)
+- Support dynamic domains in `mod_offline` (#3164, #3263, #3299)
+- Multitenancy support for `mod_stream_management` (#3149)
+- Multitenancy support for `mod_carboncopy` (#3130, #3144)
+- Support dynamic domains in auth backends (#3106, #3295)
+- Prepare `mod_disco` to support dynamic domains (#3128, #3146, #3151)
+
+[//]: # (Others)
+- Support OTP 24.X (#3186)
+- GDPR get data takes host type as a parameter (#3140)
+- Initial implementation of subdomains management subsystem (#3116)
+- Support XEP-0201 in client api for message (#3236)
+- Support PostgreSQL 14 (#3316, #3319)
+
+
+### Removed
+- Remove all occurences of ?MYNAME except stream errors and the initial value in `ejabberd_c2s` (#3039)
+- Remove `local_send_to_resource` hook (#3139)
+- Unused files/modules (#3121, #3122, #3207, #3214, #3310)
+- Unused dependencies (#3199, #3200, #3201)
+- Unused code fragments(#3311, #3313, #3322)
+- Support OTP 22 (#3289)
+
+### Changed
+[//]: # (Maybe should be this in added?)
+- Use host_types instead hosts in metrics (#3120)
+- Specs improvements and use host_types in wpool(#3170)
+
+- Make vcard processing parallel (#3315)
+- Make pool_name configurable for service_domain_db (#3205)
+- Allow to add subelements to the mam iq-fin element (#3191, #3195)
+- Use map for `mod_mam:message_row()` (#3093)
+- Rework of the `gen_mod` module (#3104)
+- Change Room EventData type to map (#3111)
+- Format stacktrace args properly (#3124)
+- Make dummy auth delays configurable (#3131)
+- REST Api better error reporting (#3137)
+- REST Use auth for `mongoose_domain_handler`(#3160)
+- Reimplement `mod_cache_users` using persistent_terms (#3169)
+- Hooks framework rework(#3174)
+- Refactor async writer for `mod_mam` (#3216)
+- More consistent accumulator use(#3314, #3240, #3249, #3314, )
+- Use more full jids and avoid to_lus conversions in `mod_muc_light` (#3250)
+- Minor changes (#3100, #3324, #3317)
+
+### Fixed
+- Start only used metrics (#3096)
+- Prevent infinite loop when domain isolation is on on both domains (#3110)
+- Prepared query in `mongoose_cluster_id` causes errors on startup (#3112)
+- Tag should be an atom in ldap types (#3178)
+- Missing and not working xref (#3179)
+- Occuring `mongoose_metric_hooks` error (#3184)
+- Inconsistent values in `mongoose_domain_core` (#3212)
+- FTBFS on implicit declaration of function 'erts_exit' (#3222)
+- Ensure that check_for_updates_tref is set (#3225)
+
+### Other
+- Docker images update (#3166)
+- Dependencies update (#3117, #3125, #3193, #3194, #3197, #3198, #3203, #3206, #3211, #3215, #3292)
+- CI improvements (#3173, #3176, #3183, #3190, #3307)
+- Tests improvements (#3133, #3134, #3181, #3208, #3213, #3217, #3218, #3219, #3227, #3230, #3232, #3127, #3238, #3257, #3297, #3312)
+[//]: # (Documentation)
+- Document dynamic domains (#3242, #3245)
+- Restructure the documentation (#3259, #3288)
+- Update migration guide with multi-tenancy changes (#3234)
+- Small documentation improvements (#3105, #3162, #3102, #3180, #3114, #3290, #3300, #3303, #3306, #3308, #3312)
+
+## Commits, merged PRs and closed issues
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A5.0.0)
+
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?q=is%3Aissue+is%3Aclosed+closed%3A2021-04-21..2021-10-07)
+
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2021-04-21&to=2021-10-07&type=c)
+
+[List of merged PRs based on merge date]: # (https://github.com/esl/MongooseIM/pulls?q=is%3Apr+base%3Amaster+merged%3A%222021-04-21..2021-10-07%22+sort%3Acreated-asc+)
+
+## Special thanks to our contributors:
+- [@imcyee](https://github.com/imcyee) Add thread and thread parent to client api messages (#3236)
+
 # [MongooseIM 4.2.0](https://github.com/esl/MongooseIM/releases/tag/4.2.0) - 2021-04-20
 
 ## Highlights
