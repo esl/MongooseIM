@@ -21,7 +21,7 @@
 - Call remove domain hook from `mongoose_domain_api` (#3237)
 - Use host_types instead of host in modules and hooks (#3120, #3170, #3097)
 - Enable mim2 node to allow running more tests for dynamic domains (#3264)
-[//]: # (Dynamic domains add tests)
+
 - Test modules with dynamic domains:
   - Enable `mod_offline_stub` for dynamic domains (#3142)
   - Test domain removal in `mod_cache_users` (#3302)
@@ -40,12 +40,12 @@
   - Enable `metrics_c2s_SUITE` for dynamic domains (#3277)
   - Enable `login_SUITE` for dynamic domains (#3278)
   - Enable `mam_send_message_SUITE` for dynamic domains (#3279)
-  - Enable `metrics_api_SUITE` for dynamic domains (#3280) 
+  - Enable `metrics_api_SUITE` for dynamic domains (#3280)
   - Enable `service_mongoose_system_metrics_SUITE` for dynamic domains (#3281)
   - Enable `race_conditions_SUITE` for dynamic domains (#3283)
   - Enable `gdpr_SUITE` for dynamic domains (#3284)
   - Enable `rdbms_SUITE` and `persistent_cluster_id_SUITE` for dynamic domains (#3287)
-[//]: # (General support for dynamic domain in module)
+
 - General support for dynamic domains in modules:
    - Dynamic domains support to `mod_ping` (#3136)
    - Multitenancy for `ejabberd_users`(module renamed to `mongoose_users`) (#3135, #3161)
@@ -75,7 +75,7 @@
    - Multitenancy support for `mod_carboncopy` (#3130, #3144)
    - Support dynamic domains in auth backends (#3106, #3295)
    - Prepare `mod_disco` to support dynamic domains (#3128, #3146, #3151)
-[//]: # (Others)
+
 - Others:
    - Support OTP 24.X (#3186)
    - GDPR get data takes host type as a parameter (#3140)
@@ -127,7 +127,6 @@
 - Dependencies update (#3117, #3125, #3193, #3194, #3197, #3198, #3203, #3206, #3211, #3215, #3292)
 - CI improvements (#3173, #3176, #3183, #3190, #3307)
 - Tests improvements (#3133, #3134, #3181, #3208, #3213, #3217, #3218, #3219, #3227, #3230, #3232, #3127, #3238, #3257, #3297, #3312)
-[//]: # (Documentation)
 - Document dynamic domains (#3242, #3245)
 - Restructure the documentation (#3259, #3288)
 - Update migration guide with multi-tenancy changes (#3234)
