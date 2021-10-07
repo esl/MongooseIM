@@ -4,6 +4,7 @@
 
 - Support for dynamic domains
 - Documentation improvements and reorganization 
+- Miscellaneous enhancements & improvements
 
 ## All changes
 
@@ -19,7 +20,7 @@
 - Multitenancy prepare iq handlers (#3118)
 - Multitenancy prepate tests (#3108, #3109, #3235)
 - Call remove domain hook from `mongoose_domain_api` (#3237)
-- Use host_types instead of host in modules and hooks (#3120, #3170, #3097)
+- Use `host_types` instead of host in modules and hooks (#3120, #3170, #3097)
 - Enable mim2 node to allow running more tests for dynamic domains (#3264)
 
 - Support for dynamic domains in modules:
@@ -53,28 +54,11 @@
    - `mod_disco` (#3128, #3146, #3151)
 
 - Test modules with dynamic domains:
-  - Enable `mod_offline_stub` for dynamic domains (#3142)
-  - Test domain removal in `mod_cache_users` (#3302)
+  - Enable test suites for dynamic domains(#3268, #3269, #3271, #3272, #3275, #3285, #3276, #3277, #3278, #3279, #3280, #3281, #3283, #3284, #3287, #3142, #3302, #3241, #3246)
   - Test mongooseimctl with dynamic domains (#3273, #3274)
   - Test roster metrics with dynamic domains (#3286)
-  - Test `mod_commands` with dynamic domains (#3241)
-  - Test `muc_light_http_api` (MUC Light commands) for dynamic domains (#3246)
   - Fix anonymous login and test it for dynamic domains (#3254)
   - Test clustering and domain management with dynamic domains (#3266)
-  - Enable `websockets_SUITE` for dynamic domains (#3268)
-  - Enable `sasl_SUITE` and `sasl_external_SUITE` for dynamic domains (#3269)
-  - Enable `users_api_SUITE` for dynamic domains (#3271)
-  - Enable `connect_SUITE` for dynamic domains (#3272)
-  - Enable `metrics_register_SUITE` for dynamic domains (#3275, #3285)
-  - Enable `metrics_session_SUITE` for dynamic domains (#3276)
-  - Enable `metrics_c2s_SUITE` for dynamic domains (#3277)
-  - Enable `login_SUITE` for dynamic domains (#3278)
-  - Enable `mam_send_message_SUITE` for dynamic domains (#3279)
-  - Enable `metrics_api_SUITE` for dynamic domains (#3280)
-  - Enable `service_mongoose_system_metrics_SUITE` for dynamic domains (#3281)
-  - Enable `race_conditions_SUITE` for dynamic domains (#3283)
-  - Enable `gdpr_SUITE` for dynamic domains (#3284)
-  - Enable `rdbms_SUITE` and `persistent_cluster_id_SUITE` for dynamic domains (#3287)
 
 - Others:
    - Support OTP 24.X (#3186)
@@ -95,7 +79,7 @@
 ### Changed
 - Prepare queries in `mongoose_cluster_id` (#3098)
 - Make vcard processing parallel (#3315)
-- Make pool_name configurable for service_domain_db (#3205)
+- Make `pool_name` configurable for `service_domain_db` (#3205)
 - Allow to add subelements to the mam iq-fin element (#3191, #3195)
 - Use map for `mod_mam:message_row()` (#3093)
 - Rework of the `gen_mod` module (#3104)
@@ -109,6 +93,7 @@
 - Refactor async writer for `mod_mam` (#3216)
 - More consistent accumulator use(#3314, #3240, #3249, #3314)
 - Use more full jids and avoid to_lus conversions in `mod_muc_light` (#3250)
+- Tests improvements (#3133, #3134, #3181, #3208, #3213, #3217, #3218, #3219, #3227, #3230, #3232, #3127, #3238, #3257, #3297, #3312)
 - Minor changes (#3100, #3324, #3317)
 
 ### Fixed
@@ -116,17 +101,16 @@
 - Prevent infinite loop when domain isolation is on on both domains (#3110)
 - Prepared query in `mongoose_cluster_id` causes errors on startup (#3112)
 - Tag should be an atom in ldap types (#3178)
-- Missing and not working xref (#3179)
+- Missing or not working xref (#3179)
 - Occuring `mongoose_metric_hooks` error (#3184)
 - Inconsistent values in `mongoose_domain_core` (#3212)
-- FTBFS on implicit declaration of function 'erts_exit' (#3222)
-- Ensure that check_for_updates_tref is set (#3225)
+- FTBFS on implicit declaration of function `erts_exit` (#3222)
+- Ensure that `check_for_updates_tref` is set (#3225)
 
 ### Other
 - Docker images update (#3166)
 - Dependencies update (#3117, #3125, #3193, #3194, #3197, #3198, #3203, #3206, #3211, #3215, #3292)
 - CI improvements (#3173, #3176, #3183, #3190, #3307)
-- Tests improvements (#3133, #3134, #3181, #3208, #3213, #3217, #3218, #3219, #3227, #3230, #3232, #3127, #3238, #3257, #3297, #3312)
 - Document dynamic domains (#3242, #3245)
 - Restructure the documentation (#3259, #3288)
 - Update migration guide with multi-tenancy changes (#3234)
