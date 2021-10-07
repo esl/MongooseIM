@@ -9,19 +9,18 @@
 ## All changes
 
 ### Added
-- Support multitenancy in (#3095, #3158, #3220, #3226, #3239)
+- Support dynamic domains in (#3095, #3158, #3220, #3226, #3239, #3225, #3212)
   - Config (#3053)
   - Service for database domain management (#3052)
   - REST and CLI API for domains (#3058)
   - Init (#3061)
   - Auth (#3063)
   - PM (#3075)
-  - Hooks #(#3089)
-- Multitenancy prepare iq handlers (#3118)
-- Multitenancy prepate tests (#3108, #3109, #3235)
+  - Hooks (#3089)
+  - IQ handlers (#3118)
+  - Tests (#3108, #3109, #3235)
 - Call remove domain hook from `mongoose_domain_api` (#3237)
 - Use `host_types` instead of host in modules and hooks (#3120, #3170, #3097)
-- Enable mim2 node to allow running more tests for dynamic domains (#3264)
 
 - Support for dynamic domains in modules:
    - `mod_ping` (#3136)
@@ -53,27 +52,27 @@
    - `mod_carboncopy` (#3130, #3144)
    - `mod_disco` (#3128, #3146, #3151)
 
-- Test modules with dynamic domains:
-  - Enable test suites for dynamic domains(#3268, #3269, #3271, #3272, #3275, #3285, #3276, #3277, #3278, #3279, #3280, #3281, #3283, #3284, #3287, #3142, #3302, #3241, #3246)
+- Tests for dynamic domains:
+  - Enable mim2 node to allow running more tests for dynamic domains (#3264)
+  - Enable test suites for dynamic domains (#3268, #3269, #3271, #3272, #3275, #3285, #3276, #3277, #3278, #3279, #3280, #3281, #3283, #3284, #3287, #3142, #3302, #3241, #3246)
   - Test mongooseimctl with dynamic domains (#3273, #3274)
   - Test roster metrics with dynamic domains (#3286)
   - Fix anonymous login and test it for dynamic domains (#3254)
   - Test clustering and domain management with dynamic domains (#3266)
 
-- Others:
+- Other:
    - Support OTP 24.X (#3186)
    - GDPR get data takes host type as a parameter (#3140)
    - Initial implementation of subdomains management subsystem (#3116)
    - Support XEP-0201 in client api for message (#3236)
    - Support PostgreSQL 14 (#3316, #3319)
 
-
 ### Removed
 - Remove all occurences of ?MYNAME except stream errors and the initial value in `ejabberd_c2s` (#3039)
 - Remove `local_send_to_resource` hook (#3139)
 - Unused files/modules (#3121, #3122, #3207, #3214, #3310)
 - Unused dependencies (#3199, #3200, #3201)
-- Unused code fragments(#3311, #3313, #3322)
+- Unused code fragments (#3311, #3313, #3322)
 - Support OTP 22 (#3289)
 
 ### Changed
@@ -86,12 +85,12 @@
 - Change Room EventData type to map (#3111)
 - Format stacktrace args properly (#3124)
 - Make dummy auth delays configurable (#3131)
-- REST Api better error reporting (#3137)
+- REST API better error reporting (#3137)
 - Use auth for `mongoose_domain_handler` from REST (#3160)
 - Reimplement `mod_cache_users` using persistent_terms (#3169)
-- Hooks framework rework(#3174)
+- Hooks framework rework (#3174)
 - Refactor async writer for `mod_mam` (#3216)
-- More consistent accumulator use(#3314, #3240, #3249, #3314)
+- More consistent accumulator use (#3314, #3240, #3249, #3314)
 - Use more full jids and avoid to_lus conversions in `mod_muc_light` (#3250)
 - Tests improvements (#3133, #3134, #3181, #3208, #3213, #3217, #3218, #3219, #3227, #3230, #3232, #3127, #3238, #3257, #3297, #3312)
 - Minor changes (#3100, #3324, #3317)
@@ -103,9 +102,7 @@
 - Tag should be an atom in ldap types (#3178)
 - Missing or not working xref (#3179)
 - Occuring `mongoose_metric_hooks` error (#3184)
-- Inconsistent values in `mongoose_domain_core` (#3212)
 - FTBFS on implicit declaration of function `erts_exit` (#3222)
-- Ensure that `check_for_updates_tref` is set (#3225)
 
 ### Other
 - Docker images update (#3166)
@@ -113,7 +110,7 @@
 - CI improvements (#3173, #3176, #3183, #3190, #3307)
 - Document dynamic domains (#3242, #3245)
 - Restructure the documentation (#3259, #3288)
-- Update migration guide with multi-tenancy changes (#3234)
+- Update migration guide with dynamic domains changes (#3234)
 - Small documentation improvements (#3105, #3162, #3102, #3180, #3114, #3290, #3300, #3303, #3306, #3308, #3312)
 
 ## Commits, merged PRs and closed issues
