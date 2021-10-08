@@ -3,6 +3,7 @@
 -module(mongoose_domain_api).
 
 -export([init/0,
+         info/0,
          get_host_type/1]).
 
 %% domain API
@@ -23,6 +24,8 @@
 
 -ignore_xref([get_all_static/0]).
 
+-include("mongoose.hrl").
+
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
 -type pair() :: {domain(), host_type()}.
@@ -32,10 +35,16 @@
 -spec init() -> ok | {error, term()}.
 init() ->
     Pairs = get_static_pairs(),
-    AllowedHostTypes = ejabberd_config:get_global_option_or_default(host_types, []),
+    AllowedHostTypes = get_dynamic_host_types(),
     mongoose_domain_core:start(Pairs, AllowedHostTypes),
     mongoose_subdomain_core:start(),
     mongoose_lazy_routing:start().
+
+info() ->
+    [{static_pairs, get_static_pairs()},
+     {dynamic_host_types, get_dynamic_host_types()},
+     {all_host_types, ?ALL_HOST_TYPES},
+     {service_domain_db_enabled, service_domain_db:enabled()}].
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->
@@ -167,6 +176,10 @@ check_domain(Domain, HostType) ->
 -spec get_static_pairs() -> [pair()].
 get_static_pairs() ->
     [{H, H} || H <- ejabberd_config:get_global_option_or_default(hosts, [])].
+
+-spec get_dynamic_host_types() -> [host_type()].
+get_dynamic_host_types() ->
+    ejabberd_config:get_global_option_or_default(host_types, []).
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->
