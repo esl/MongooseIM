@@ -91,7 +91,7 @@ Please refer to the [RDBMS options](outgoing-connections.md#rdbms-options) for m
 **Version notice**
 
 The required minimum version of MySQL is `5.7.9`.
-This is mainly to benefit from the JSON data type and the default settings which works out of the box with MongooseIM.
+This is mainly to benefit from the JSON data type, and the default settings which work out of the box with MongooseIM.
 
 #### MySQL 8
 
@@ -192,7 +192,7 @@ MongooseIM is built with ODBC support by default.
 
 If muc_light's backend is set to ODBC and there are many rooms created in parallel in your system,
 there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
-In this case we recommend to set this database property to `ON`, this will enable row level locking which significantly reduces
+In this case we recommend setting this database property to `ON`, this will enable row level locking which significantly reduces
 deadlock chances around muc_light operations.
 
 This property can be set by the following `ALTER DATABASE` query:
