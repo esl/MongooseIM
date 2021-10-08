@@ -9,7 +9,7 @@
 -export([maybe_microseconds/1]).
 
 %% UID
--export([generate_message_id/0,
+-export([generate_message_id/1,
          encode_compact_uuid/2,
          decode_compact_uuid/1,
          mess_id_to_external_binary/1,
@@ -165,13 +165,11 @@ maybe_microseconds(ISODateTime) ->
 %% -----------------------------------------------------------------------
 %% UID
 
--spec generate_message_id() -> integer().
-generate_message_id() ->
+-spec generate_message_id(integer()) -> integer().
+generate_message_id(CandidateStamp) ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
-    CandidateStamp = erlang:system_time(microsecond),
     UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
     encode_compact_uuid(UniqueStamp, NodeId).
-
 
 %% @doc Create a message ID (UID).
 %%

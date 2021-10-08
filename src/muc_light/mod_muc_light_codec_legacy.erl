@@ -58,11 +58,13 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
+    TS = mongoose_acc:timestamp(Acc),
     EventData = #{from_nick => FromNick,
                   from_jid => Sender,
                   room_jid => RoomBareJid,
                   affiliation => Aff,
-                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff),
+                  timestamp => TS},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     Packet1 = #xmlel{ children = Children }
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),

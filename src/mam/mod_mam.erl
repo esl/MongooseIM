@@ -75,7 +75,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [generate_message_id/0,
+        [generate_message_id/1,
          decode_compact_uuid/1]).
 
 %% XML
@@ -515,7 +515,8 @@ handle_package(Dir, ReturnMessID,
             OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
-                    MessID = generate_message_id(),
+                    TS = mongoose_acc:timestamp(Acc),
+                    MessID = generate_message_id(TS),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,

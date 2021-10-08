@@ -62,11 +62,13 @@ encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
              {<<"from">>, RoomBin}
             ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs, children = Msg#msg.children },
-    EventData = #{from_nick =>FromNick,
+    TS = mongoose_acc:timestamp(Acc),
+    EventData = #{from_nick => FromNick,
                   from_jid => Sender,
                   room_jid => RoomBareJid,
                   affiliation => Aff,
-                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff)},
+                  role => mod_muc_light_utils:light_aff_to_muc_role(Aff),
+                  timestamp => TS},
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     Packet1 = #xmlel{ children = Children }
                      = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
@@ -316,7 +318,7 @@ encode_iq({set, #affiliations{} = Affs, OldAffUsers, NewAffUsers},
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
                                                  NotifForCurrentNoPrevVersion) },
-    EventData = room_event(RoomJID),
+    EventData = room_event(Acc, RoomJID),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     #xmlel{children = FinalChildrenForCurrentNoPrevVersion}
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
@@ -347,7 +349,7 @@ encode_iq({set, #create{} = Create, UniqueRequested},
     AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- Create#create.aff_users ],
     MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
                          children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS, AllAffsEls) },
-    EventData = room_event(RoomJID),
+    EventData = room_event(Acc, RoomJID),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
 
@@ -382,7 +384,7 @@ encode_iq({set, #destroy{ id = ID }, AffUsers},
 encode_iq({set, #config{} = Config, AffUsers},
           _Sender, RoomJID, RoomBin, HandleFun, Acc) ->
     MsgForArch = encode_set_config(Config, RoomBin),
-    EventData = room_event(RoomJID),
+    EventData = room_event(Acc, RoomJID),
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     #xmlel{ children = FinalConfigNotif }
         = mongoose_hooks:filter_room_packet(HostType, MsgForArch, EventData),
@@ -535,10 +537,12 @@ b2what(<<"room">>) -> room.
 what2b(user) -> <<"user">>;
 what2b(room) -> <<"room">>.
 
--spec room_event(jid:jid()) -> mod_muc:room_event_data().
-room_event(RoomJID) ->
+-spec room_event(mongoose_acc:t(), jid:jid()) -> mod_muc:room_event_data().
+room_event(Acc, RoomJID) ->
+    TS = mongoose_acc:timestamp(Acc),
     #{from_nick => <<>>,
       from_jid => RoomJID,
       room_jid => RoomJID,
+      affiliation => owner,
       role => moderator,
-      affiliation => owner}.
+      timestamp => TS}.
