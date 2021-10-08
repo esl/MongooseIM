@@ -211,11 +211,16 @@ match_acl(ACL, JID, Host) ->
     Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Host) end,
     lists:any(Pred, AllSpecs).
 
--spec is_server_valid(host(), jid:server()) -> boolean().
+-spec is_server_valid(host(), jid:lserver()) -> boolean().
 is_server_valid(Host, Host) ->
     true;
 is_server_valid(global, JIDServer) ->
-    lists:member(JIDServer, ?MYHOSTS);
+    case mongoose_domain_api:get_domain_host_type(JIDServer) of
+        {ok, _HostType} ->
+            true;
+        _ ->
+            false
+    end;
 is_server_valid(_Host, _JIDServer) ->
     false.
 

@@ -3,6 +3,7 @@
 -module(mongoose_domain_api).
 
 -export([init/0,
+         stop/0,
          get_host_type/1]).
 
 %% domain API
@@ -36,6 +37,15 @@ init() ->
     mongoose_domain_core:start(Pairs, AllowedHostTypes),
     mongoose_subdomain_core:start(),
     mongoose_lazy_routing:start().
+
+%% Stops gen_servers, that are started from init/0
+%% Does not fail, even if servers are already stopped
+-spec stop() -> ok.
+stop() ->
+    catch mongoose_domain_core:stop(),
+    catch mongoose_subdomain_core:stop(),
+    catch mongoose_lazy_routing:stop(),
+    ok.
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->

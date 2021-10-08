@@ -7,12 +7,20 @@
 
 
 all() ->
+    [{group, dynamic_domains},
+     {group, static_domains}].
+
+groups() ->
+    [{dynamic_domains, [], test_cases()},
+     {static_domains, [], test_cases()}].
+
+test_cases() ->
     [
      all_rule_returns_allow,
      none_rule_returns_deny,
      basic_access_rules,
      compound_access_rules,
-     host_sepcific_access_rules,
+     host_specific_access_rules,
      global_host_priority,
      all_and_none_specs,
      invalid_spec,
@@ -27,10 +35,19 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    mongoose_domain_api:stop(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     meck:unload(),
     ok.
+
+init_per_group(dynamic_domains, Config) ->
+    [{dynamic_domains, true}|Config];
+init_per_group(_Group, Config) ->
+    Config.
+
+end_per_group(_Group, Config) ->
+    Config.
 
 init_per_testcase(_TC, Config) ->
     mnesia:clear_table(acl),
@@ -77,8 +94,8 @@ basic_access_rules(_Config) ->
     ?assertEqual(deny, (acl:match_rule(global, single_rule, JID))),
     ok.
 
-host_sepcific_access_rules(_Config) ->
-    given_registered_domains([<<"poznan">>, <<"wroclaw">>]),
+host_specific_access_rules(Config) ->
+    given_registered_domains(Config, [<<"poznan">>, <<"wroclaw">>]),
 
     PozAdmin = jid:make(<<"gawel">>, <<"poznan">>, <<"test">>),
     Pawel = jid:make(<<"pawel">>, <<"wroclaw">>, <<"test">>),
@@ -95,8 +112,8 @@ host_sepcific_access_rules(_Config) ->
     ?assertEqual(allow, acl:match_rule(<<"wroclaw">>, only_poz_admin, Pawel)),
     ok.
 
-compound_access_rules(_Config) ->
-    given_registered_domains([<<"krakow">>]),
+compound_access_rules(Config) ->
+    given_registered_domains(Config, [<<"krakow">>]),
 
     KrkAdmin = jid:make(<<"gawel">>, <<"krakow">>, <<"test">>),
     KrkNormal = jid:make(<<"pawel">>, <<"krakow">>, <<"test">>),
@@ -115,8 +132,8 @@ compound_access_rules(_Config) ->
     ?assertEqual(deny,  acl:match_rule(global, only_wawa_admin, KrkAdmin)),
     ok.
 
-global_host_priority(_Config) ->
-    given_registered_domains([<<"rzeszow">>, <<"lublin">>]),
+global_host_priority(Config) ->
+    given_registered_domains(Config, [<<"rzeszow">>, <<"lublin">>]),
 
     RzeAdmin = jid:make(<<"pawel">>, <<"rzeszow">>, <<"test">>),
 
@@ -140,8 +157,8 @@ global_host_priority(_Config) ->
     ?assertEqual(deny, acl:match_rule(<<"rzeszow">>, ban_admin, RzeAdmin)),
     ok.
 
-all_and_none_specs(_Config) ->
-    given_registered_domains([<<"zakopane">>]),
+all_and_none_specs(Config) ->
+    given_registered_domains(Config, [<<"zakopane">>]),
 
     User = jid:make(<<"pawel">>, <<"zakopane">>, <<"test">>),
     acl:add(global, a_users, all),
@@ -154,8 +171,8 @@ all_and_none_specs(_Config) ->
     ?assertEqual(deny, acl:match_rule(global, none_users, User)),
     ok.
 
-invalid_spec(_Config) ->
-    given_registered_domains([<<"bialystok">>]),
+invalid_spec(Config) ->
+    given_registered_domains(Config, [<<"bialystok">>]),
 
     User = jid:make(<<"pawel">>, <<"bialystok">>, <<"test">>),
     acl:add(global, invalid, {non_existing_spec, "lalala"}),
@@ -164,8 +181,8 @@ invalid_spec(_Config) ->
     ?assertEqual(deny, acl:match_rule(global, invalid, User)),
     ok.
 
-different_specs_matching_the_same_user(_Config) ->
-    given_registered_domains([<<"gdansk">>, <<"koszalin">>]),
+different_specs_matching_the_same_user(Config) ->
+    given_registered_domains(Config, [<<"gdansk">>, <<"koszalin">>]),
 
     UserGd = jid:make(<<"pawel">>, <<"gdansk">>,  <<"res">>),
     UserKo = jid:make(<<"pawel">>, <<"koszalin">>,<<"res1">>),
@@ -269,8 +286,26 @@ given_clean_config() ->
     mnesia:clear_table(local_config),
     ok.
 
-given_registered_domains(DomainsList) ->
-    ejabberd_config:add_global_option(hosts, DomainsList).
+given_registered_domains(Config, DomainsList) ->
+    case proplists:get_value(dynamic_domains, Config, false) of
+        true ->
+            register_dynamic_domains(DomainsList);
+        false ->
+            register_static_domains(DomainsList)
+    end.
+
+register_static_domains(DomainsList) ->
+    ejabberd_config:add_global_option(hosts, DomainsList),
+    ejabberd_config:add_global_option(host_types, []),
+    mongoose_domain_api:stop(),
+    mongoose_domain_api:init().
+
+register_dynamic_domains(DomainsList) ->
+    ejabberd_config:add_global_option(hosts, []),
+    ejabberd_config:add_global_option(host_types, [<<"test type">>]),
+    mongoose_domain_api:stop(),
+    mongoose_domain_api:init(),
+    [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].
 
 %% ACLs might be an empty list
 set_host_rule(Rule, Host, ACLs) ->
