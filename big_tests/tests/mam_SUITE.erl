@@ -810,13 +810,6 @@ init_modules(elasticsearch, C, Config) ->
     init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     Config;
-init_modules(rdbms_async, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
 init_modules(rdbms_async_pool, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
