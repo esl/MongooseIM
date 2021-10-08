@@ -28,7 +28,7 @@
 
 -export([get_mam_muc_gdpr_data/3]).
 
-%% Called from mod_mam_rdbms_async_writer
+%% Called from mod_mam_muc_rdbms_async_pool_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 -export([extend_params_with_sender_id/2]).
 
