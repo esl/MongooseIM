@@ -1,11 +1,17 @@
 ## Module Description
 
-`mod_cache_users` is a module that caches whether a user exists. This is useful for example to decide if a message should be stored in [MAM] or [Inbox] — for example, the receiver might not exist, so no message should be stored in his archive nor his inbox.
+`mod_cache_users` is a module that caches whether a user exists, and possibly stores metadata assigned to them. This is useful for example to decide if a message should be stored in [MAM] or [Inbox] — for example, the receiver might not exist, so no message should be stored in his archive nor his inbox.
 
-This cache has a coarse-grained FIFO strategy, that is, it keeps a set of ETS tables that are periodically rotated, and on rotation, the last table is cleared. Records are simply inserted in the first table and aren't moved afterwards, only the table order is.
-
+This cache uses [segmented cache](https://github.com/esl/segmented_cache) under the hood, for more details, read the library documentation.
 
 ## Options
+
+### `modules.mod_cache_users.strategy`
+* **Syntax:** string, one of `fifo` or `lru`
+* **Default:** `fifo`
+* **Example:** `strategy = "lru"`
+
+Eviction strategy for the cache. FIFO is simply a queue, that ensures records will eventually be evicted and require reloading; LRU ensures queried records keep moving to the front of the queue, possibly keeping them alive forever.
 
 ### `modules.mod_cache_users.time_to_live`
 * **Syntax:** integer, in minutes, or the string `"infinity"`
@@ -25,6 +31,7 @@ Number of segments the cache has. The more segments there are, the more fine-gra
 
 ```toml
 [modules.mod_cache_users]
+  strategy = "lru"
   time_to_live = 60
   number_of_segments = 1
 ```
