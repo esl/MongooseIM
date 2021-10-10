@@ -4,13 +4,7 @@
 -behaviour(gen_mod).
 
 %% cache backend sharing
--export([cache_name/1]).
--export([is_member/2]).
--export([get_entry/2]).
--export([put_entry/3]).
--export([merge_entry/3]).
--export([delete_entry/2]).
--export([delete_pattern/2]).
+-export([start_new_cache/2]).
 
 %% gen_mod API
 -export([start/2]).
@@ -30,7 +24,7 @@
 -include("mongoose_config_spec.hrl").
 
 %%====================================================================
-%% API
+%% gen_mod callbacks
 %%====================================================================
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -74,33 +68,24 @@ hooks(HostType) ->
      {remove_domain, HostType, ?MODULE, remove_domain, 20}
     ].
 
+%%====================================================================
+%% Cache sharing
+%%====================================================================
 -spec cache_name(mongooseim:host_type()) -> atom().
 cache_name(HostType) ->
     gen_mod:get_module_proc(HostType, ?MODULE).
 
--spec is_member(atom(), jid:jid()) -> boolean().
-is_member(Name, Jid) ->
-    segmented_cache:is_member(Name, key(Jid)).
-
--spec get_entry(atom(), jid:jid()) -> term() | not_found.
-get_entry(Name, Jid) ->
-    segmented_cache:get_entry(Name, key(Jid)).
-
--spec put_entry(atom(), jid:jid(), term()) -> boolean().
-put_entry(Name, Jid, Value) ->
-    segmented_cache:put_entry(Name, key(Jid), Value).
-
--spec merge_entry(atom(), jid:jid(), term()) -> boolean().
-merge_entry(Name, Jid, Value) ->
-    segmented_cache:merge_entry(Name, key(Jid), Value).
-
--spec delete_entry(atom(), jid:jid()) -> true.
-delete_entry(Name, Jid) ->
-    segmented_cache:delete_entry(Name, key(Jid)).
-
--spec delete_pattern(atom(), jid:jid()) -> true.
-delete_pattern(Name, Pattern) ->
-    segmented_cache:delete_pattern(Name, Pattern).
+-spec start_new_cache(atom(), gen_mod:module_opts()) -> any().
+start_new_cache(CacheName, Opts) ->
+    CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
+                  segment_num => gen_mod:get_opt(segment_num, Opts, 3),
+                  strategy => gen_mod:get_opt(strategy, Opts, fifo),
+                  ttl => gen_mod:get_opt(ttl, Opts, {hours, 8})
+                 },
+    Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
+             restart => permanent, shutdown => 5000,
+             type => worker, modules => [segmented_cache]},
+    {ok, _} = ejabberd_sup:start_child(Spec).
 
 %%====================================================================
 %% Hooks
@@ -163,16 +148,8 @@ key(LUser, LServer) ->
 
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
-                  segment_num => gen_mod:get_opt(segment_num, Opts, 3),
-                  strategy => gen_mod:get_opt(strategy, Opts, fifo),
-                  ttl => gen_mod:get_opt(ttl, Opts, {hours, 8})
-                 },
     CacheName = cache_name(HostType),
-    Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
-             restart => permanent, shutdown => 5000,
-             type => worker, modules => [segmented_cache]},
-    {ok, _} = ejabberd_sup:start_child(Spec).
+    start_new_cache(CacheName, Opts).
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
