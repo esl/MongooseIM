@@ -5,6 +5,7 @@
 
 %% spec parts used by modules and services
 -export([wpool_items/0,
+         user_cache/0,
          iqdisc/0,
          ldap_uids/0]).
 
@@ -919,6 +920,21 @@ configurable_modules() ->
      mod_vcard,
      mod_version,
      mod_domain_isolation].
+
+%% path: (host_config[].)modules.*.cache
+user_cache() ->
+    #section{
+       items = #{<<"cache_module">> => #option{type = atom,
+                                               validate = {enum, [mod_cache_users, internal]}},
+                 <<"strategy">> => #option{type = atom,
+                                           validate = {enum, [fifo, lru]}},
+                 <<"time_to_live">> => #option{type = int_or_infinity,
+                                               validate = positive,
+                                               format = {kv, ttl}},
+                 <<"number_of_segments">> => #option{type = integer,
+                                                     validate = positive,
+                                                     format = {kv, segment_num}}
+                }}.
 
 %% path: (host_config[].)modules.*.iqdisc
 iqdisc() ->

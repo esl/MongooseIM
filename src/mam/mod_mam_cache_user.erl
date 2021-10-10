@@ -111,16 +111,34 @@ remove_archive(Acc, HostType, _UserID, ArcJid) ->
 %%====================================================================
 -spec cache_name(mongooseim:host_type()) -> atom().
 cache_name(HostType) ->
-    gen_mod:get_module_proc(HostType, ?MODULE).
+    case gen_mod:get_module_opt(HostType, ?MODULE, cache_module, internal) of
+        internal -> cache_name(HostType, ?MODULE);
+        CacheMod -> cache_name(HostType, CacheMod)
+    end.
+
+-spec cache_name(mongooseim:host_type(), module()) -> atom().
+cache_name(HostType, Module) ->
+    gen_mod:get_module_proc(HostType, Module).
 
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    CacheName = cache_name(HostType),
-    mod_cache_users:start_new_cache(CacheName, Opts).
+    case gen_mod:get_opt(cache_module, Opts, internal) of
+        internal ->
+            CacheName = cache_name(HostType, ?MODULE),
+            mod_cache_users:start_new_cache(CacheName, Opts);
+        mod_cache_users ->
+            case gen_mod:is_loaded(HostType, mod_cache_users) of
+                true -> ok;
+                false -> error({dependency, mod_cache_users})
+            end
+    end.
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
-    ok = ejabberd_sup:stop_child(cache_name(HostType)).
+    case gen_mod:get_module_opt(HostType, ?MODULE, cache_module, internal) of
+        internal -> ejabberd_sup:stop_child(cache_name(HostType, ?MODULE));
+        _Other -> ok
+    end.
 
 -compile({inline, [key/1]}).
 -spec key(jid:jid()) -> jid:simple_bare_jid().

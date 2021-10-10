@@ -21,8 +21,6 @@
 -ignore_xref([does_cached_user_exist/4, maybe_put_user_into_cache/4,
               remove_domain/3, remove_user/3]).
 
--include("mongoose_config_spec.hrl").
-
 %%====================================================================
 %% gen_mod callbacks
 %%====================================================================
@@ -41,17 +39,7 @@ stop(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{
-                       <<"cache_name">> => #option{type = string},
-                       <<"strategy">> => #option{type = string,
-                                                 validate = {enum, [fifo, lru]}},
-                       <<"time_to_live">> => #option{type = int_or_infinity,
-                                                     validate = positive,
-                                                     format = {kv, ttl}},
-                       <<"number_of_segments">> => #option{type = integer,
-                                                           validate = positive,
-                                                           format = {kv, segment_num}}
-                      }}.
+    mongoose_config_spec:user_cache().
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -133,7 +121,7 @@ does_cached_user_exist(Status, _, _, _) ->
     boolean().
 maybe_put_user_into_cache(true, HostType, Jid, stored) ->
     CacheName = cache_name(HostType),
-    segmented_cache:put_entry(CacheName, key(Jid), #{});
+    segmented_cache:merge_entry(CacheName, key(Jid), #{});
 maybe_put_user_into_cache(Status, _, _, _) ->
     Status.
 

@@ -71,6 +71,7 @@ config_items() ->
 
       %% RDBMS-specific options
       <<"cache_users">> => #option{type = boolean},
+      <<"cache_config">> => mongoose_config_spec:user_cache(),
       <<"rdbms_message_format">> => #option{type = atom,
                                             validate = {enum, [simple, internal]}},
       <<"async_writer">> => #option{type = boolean},
