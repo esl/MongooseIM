@@ -735,7 +735,7 @@ init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
     init_module(host_type(), mod_mam_muc_rdbms_arch, []),
     init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc_cache_user, [muc]),
+    init_module(host_type(), mod_mam_cache_user, [muc]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
     Config;
@@ -872,7 +872,6 @@ mam_modules() ->
      mod_mam_mnesia_prefs,
      mod_mam_rdbms_user,
      mod_mam_cache_user,
-     mod_mam_muc_cache_user,
      mod_mam_riak_timed_arch_yz].
 
 init_state(_, muc_all, Config) ->
