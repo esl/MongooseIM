@@ -7,6 +7,7 @@
          remove_domain/2]).
 
 -define(MAIN_MODULE, mod_private).
+-include("backend_module.hrl").
 
 -type ns() :: binary().
 
@@ -95,30 +96,24 @@
 %% ----------------------------------------------------------------------
 %% Functions
 
-init(HostType, Opts) ->
-    backend_module:ensure_backend_metrics(?MAIN_MODULE, tracked_funs()),
-    Args = [HostType, Opts],
-    backend_module:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
-
 tracked_funs() ->
     [multi_get_data, multi_set_data].
 
+init(HostType, Opts) ->
+    backend_module:ensure_backend_metrics(?MAIN_MODULE, tracked_funs()),
+    ?CALL(HostType, (HostType, Opts)).
+
 multi_set_data(HostType, LUser, LServer, NS2XML) ->
-    Args = [HostType, LUser, LServer, NS2XML],
-    backend_module:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    ?CALL_TRACKED(HostType, (HostType, LUser, LServer, NS2XML)).
 
 multi_get_data(HostType, LUser, LServer, NS2Def) ->
-    Args = [HostType, LUser, LServer, NS2Def],
-    backend_module:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    ?CALL_TRACKED(HostType, (HostType, LUser, LServer, NS2Def)).
 
 get_all_nss(HostType, LUser, LServer) ->
-    Args = [HostType, LUser, LServer],
-    backend_module:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    ?CALL(HostType, (HostType, LUser, LServer)).
 
 remove_user(HostType, LUser, LServer) ->
-    Args = [HostType, LUser, LServer],
-    backend_module:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    ?CALL(HostType, (HostType, LUser, LServer)).
 
 remove_domain(HostType, LServer) ->
-    Args = [HostType, LServer],
-    backend_module:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    ?CALL(HostType, (HostType, LServer)).
