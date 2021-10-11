@@ -7,6 +7,7 @@
          remove_domain/2]).
 
 -define(MAIN_MODULE, mod_private).
+-define(DEFAULT_BACKEND_MODULE, mod_private_mnesia).
 -include("backend_module.hrl").
 
 -type ns() :: binary().
@@ -100,6 +101,7 @@ tracked_funs() ->
     [multi_get_data, multi_set_data].
 
 init(HostType, Opts) ->
+    backend_module:init_per_host_type(HostType, ?MAIN_MODULE, ?DEFAULT_BACKEND_MODULE),
     backend_module:ensure_backend_metrics(?MAIN_MODULE, tracked_funs()),
     ?CALL(HostType, (HostType, Opts)).
 

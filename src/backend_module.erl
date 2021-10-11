@@ -30,10 +30,13 @@
 
 -ignore_xref([create/2, backend_module/2, behaviour_info/1]).
 
--export([ensure_backend_metrics/2]).
+-export([ensure_backend_metrics/2,
+         init_per_host_type/3,
+         get_backend_module/3]).
 
 %% Callback implemented by proxy modules.
 -callback backend() -> module().
+-compile({inline, [backend_key/2]}).
 
 %% API
 
@@ -136,3 +139,29 @@ ensure_backend_metrics(Module, Ops) ->
                 end,
     lists:foreach(EnsureFun, Ops).
 
+backend_key(HostType, Module) ->
+    {backend_module, HostType, Module}.
+
+-spec init_per_host_type(mongooseim:host_type(), module(), module()) -> ok.
+init_per_host_type(HostType, Module, DefaultBackend) ->
+    Backend = gen_mod:get_backend_module(HostType, Module),
+    persist_backend_name(HostType, Module, Backend, DefaultBackend),
+    ok.
+
+persist_backend_name(HostType, Module, Backend, DefaultBackend) ->
+    Key = backend_key(HostType, Module),
+    case Backend of
+        DefaultBackend ->
+            %% Ensure, no value is set.
+            %% We don't store the backend name, if it is the default name.
+            %% Motivation: getting a missing value is slightly faster.
+            persistent_term:erase(Key);
+        _ ->
+            persistent_term:put(Key, Backend)
+    end.
+
+%% Get a backend name, stored in init_per_host_type/2
+-spec get_backend_module(mongooseim:host_type(), module(), module()) -> Backend :: module().
+get_backend_module(HostType, Module, DefaultBackend) ->
+    Key = backend_key(HostType, Module),
+    persistent_term:get(Key, DefaultBackend).
