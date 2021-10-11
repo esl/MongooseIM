@@ -97,12 +97,11 @@
 %% ----------------------------------------------------------------------
 %% Functions
 
-tracked_funs() ->
-    [multi_get_data, multi_set_data].
-
 init(HostType, Opts) ->
-    backend_module:init_per_host_type(HostType, ?MAIN_MODULE, ?DEFAULT_BACKEND_MODULE),
-    backend_module:ensure_backend_metrics(?MAIN_MODULE, tracked_funs()),
+    TrackedFuns = [multi_get_data, multi_set_data],
+    backend_module:init_per_host_type(HostType, ?MAIN_MODULE,
+                                      ?DEFAULT_BACKEND_MODULE,
+                                      TrackedFuns),
     ?CALL(HostType, (HostType, Opts)).
 
 multi_set_data(HostType, LUser, LServer, NS2XML) ->
