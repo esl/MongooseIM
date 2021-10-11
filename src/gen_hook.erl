@@ -195,13 +195,13 @@ run_hook([], Acc, _Params) ->
     {ok, Acc};
 run_hook([Handler | Ls], Acc, Params) ->
     case apply_hook_function(Handler, Acc, Params) of
-        {'EXIT', Reason} ->
-            ?MODULE:error_running_hook(Reason, Handler, Acc, Params),
-            run_hook(Ls, Acc, Params);
+        {ok, NewAcc} ->
+            run_hook(Ls, NewAcc, Params);
         {stop, NewAcc} ->
             {stop, NewAcc};
-        {ok, NewAcc} ->
-            run_hook(Ls, NewAcc, Params)
+        Other ->
+            ?MODULE:error_running_hook(Other, Handler, Acc, Params),
+            run_hook(Ls, Acc, Params)
     end.
 
 -spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
@@ -210,13 +210,19 @@ apply_hook_function(#hook_handler{module = Module, function = Function, extra = 
                     Acc, Params) ->
     safely:apply(Module, Function, [Acc, Params, Extra]).
 
-error_running_hook(Reason, Handler, Acc, Params) ->
-    ?LOG_ERROR(#{what => hook_failed,
-                 text => <<"Error running hook">>,
-                 handler => Handler,
-                 acc => Acc,
-                 params => Params,
-                 reason => Reason}).
+error_running_hook({Class, Reason}, Handler, Acc, Params) ->
+    Extra = #{class => Class, reason => Reason},
+    log_error_running_hook(Extra, Handler, Acc, Params);
+error_running_hook(Other, Handler, Acc, Params) ->
+    Extra = #{error => Other},
+    log_error_running_hook(Extra, Handler, Acc, Params).
+
+log_error_running_hook(Extra, Handler, Acc, Params) ->
+    ?LOG_ERROR(Extra#{what => hook_failed,
+                      text => <<"Error running hook">>,
+                      handler => Handler,
+                      acc => Acc,
+                      params => Params}).
 
 -spec make_hook_handler(hook_tuple()) -> #hook_handler{}.
 make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
