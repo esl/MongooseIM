@@ -53,47 +53,6 @@
 
 -type ns() :: binary().
 
-%% ------------------------------------------------------------------
-%% Backend callbacks
-
--callback init(HostType, Opts) -> ok when
-    HostType :: mongooseim:host_type(),
-    Opts     :: list().
-
--callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NS2XML  :: [{NS, XML}],
-    NS      :: ns(),
-    XML     :: #xmlel{},
-    Reason  :: term(),
-    Result  :: ok | {aborted, Reason} | {error, Reason}.
-
--callback multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NS2Def  :: [{NS, Default}],
-    NS      :: ns(),
-    Default :: term(),
-    XML     :: #xmlel{}.
-
--callback remove_user(HostType, LUser, LServer) -> any() when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver().
-
--callback remove_domain(HostType, LServer) -> any() when
-    HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver().
-
--callback get_all_nss(HostType, LUser, LServer) -> NSs when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NSs     :: [ns()].
-
 %%--------------------------------------------------------------------
 %% gdpr callback
 %%--------------------------------------------------------------------

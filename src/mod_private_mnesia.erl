@@ -28,7 +28,7 @@
 -module(mod_private_mnesia).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
--behaviour(mod_private).
+-behaviour(mod_private_backend).
 
 -export([init/2,
          multi_set_data/4,
