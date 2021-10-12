@@ -41,31 +41,22 @@
 %% <p><tt>hostPubsub</tt> is the name of the PubSub service. For example, it can be
 %% <tt>"pubsub.localhost"</tt>.</p>
 
--type(hostPEP() :: {binary(), binary(), <<>>}).
-%% @type hostPEP() = {User, Server, Resource}
-%%     User     = string()
-%%     Server   = string()
-%%     Resource = [].
+-type(hostPEP() :: {User :: binary(), Server :: binary(), Resource :: <<>>}).
 %% <p>For example, it can be :
 %% ```{"bob", "example.org", []}'''.</p>
 
 -type(host() :: hostPubsub() | hostPEP()).
-%% @type host() = hostPubsub() | hostPEP().
 
 -type(nodeId() :: binary()).
-%% @type nodeId() = binary().
 %% <p>A node is defined by a list of its ancestors. The last element is the name
 %% of the current node. For example:
 %% ```<<"/home/localhost/user">>'''</p>
 
 -type(nodeIdx() :: pos_integer()).
-%% @type nodeIdx() = integer() | binary().
 
 -type(itemId() :: binary()).
-%% @type itemId() = string().
 
 -type(subId() :: binary()).
-%% @type subId() = string().
 
 -type(nodeOption() ::
     {Option::atom(),
@@ -74,20 +65,12 @@
 
 -type(nodeOptions() :: [mod_pubsub:nodeOption(),...]).
 
-%% @type nodeOption() = {Option, Value}
-%%    Option = atom()
-%%    Value = term().
-%% Example:
-%% ```{deliver_payloads, true}'''
-
 -type(subOption() ::
     {Option::atom(),
      Value::binary() | [binary()] | boolean()
 }).
 
 -type(subOptions() :: [mod_pubsub:subOption()]).
-
-
 
 -type(affiliation() :: 'none'
                      | 'owner'
@@ -96,13 +79,11 @@
                      | 'member'
                      | 'outcast'
 ).
-%% @type affiliation() = 'none' | 'owner' | 'publisher' | 'publish-only' | 'member' | 'outcast'.
 
 -type(subscription() :: 'none'
                       | 'pending'
                       | 'subscribed'
 ).
-%% @type subscription() = 'none' | 'pending' | 'unconfigured' | 'subscribed'.
 
 -type(accessModel() :: 'open'
                      | 'presence'
@@ -110,13 +91,11 @@
                      | 'authorize'
                      | 'whitelist'
 ).
-%% @type accessModel() = 'open' | 'presence' | 'roster' | 'authorize' | 'whitelist'.
 
 -type(publishModel() :: 'publishers'
                       | 'subscribers'
                       | 'open'
 ).
-%% @type publishModel() = 'publishers' | 'subscribers' | 'open'
 
 -record(pubsub_index,
 {

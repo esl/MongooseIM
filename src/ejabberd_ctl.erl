@@ -791,7 +791,7 @@ print_usage_help(MaxC, ShCode) ->
 %% Print usage command
 %%-----------------------------
 
-%% @spec (CmdSubString::string(), MaxC::integer(), ShCode::boolean()) -> ok
+-spec print_usage_commands(CmdSubString :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_usage_commands(CmdSubString, MaxC, ShCode) ->
     %% Get which command names match this substring
     AllCommandsNames = [atom_to_list(Name) || {Name, _, _} <- ejabberd_commands:list_commands()],
@@ -838,7 +838,7 @@ filter_commands_regexp(All, Glob) ->
       All).
 
 
-%% @spec (Cmd::string(), MaxC::integer(), ShCode::boolean()) -> ok
+-spec print_usage_command(Cmd :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_usage_command(Cmd, MaxC, ShCode) ->
     Name = list_to_atom(Cmd),
     case ejabberd_commands:get_command_definition(Name) of
