@@ -1,11 +1,11 @@
 %%%===================================================================
 %%% @doc Common listener/router for modules that use Cowboy.
 %%%
-%%% The 'modules' configuration option should be a list of
+%%% The `modules' configuration option should be a list of
 %%% {Host, BasePath, Module} or {Host, BasePath, Module, Opts} tuples,
 %%% where a Host of "_" will match any host.
 %%%
-%%% A 'middlewares' configuration option may be specified to configure
+%%% A `middlewares' configuration option may be specified to configure
 %%% Cowboy middlewares.
 %%%
 %%% Modules may export the following function to configure Cowboy
@@ -290,9 +290,9 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% -------------------------------------------------------------------
 %% @private
 %% @doc
-%% Store trails, this need for generate swagger documentation
-%% Add to Trails each of modules where used trails behaviour
-%% The modules must be added into `mongooseim.toml` in `swagger` section
+%% Store trails, this is needed to generate swagger documentation.
+%% Add to Trails each of modules where the trails behaviour is used.
+%% The modules must be added into `mongooseim.toml' in the `swagger' section.
 %% @end
 %% -------------------------------------------------------------------
 trails_store(Modules) ->

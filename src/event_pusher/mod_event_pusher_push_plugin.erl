@@ -26,21 +26,15 @@
 
 -ignore_xref([behaviour_info/1]).
 
-%% @doc used for filtering push notifications. A push notification is triggered for a given
-%% message only if this callback returns `true`.
 -callback should_publish(Acc :: mongooseim_acc:t(),
                          Event :: mod_event_pusher:event(),
                          Services :: [mod_event_pusher_push:publish_service()]) ->
     [mod_event_pusher_push:publish_service()].
 
-%% @doc a separate interface for rejecting the event publishing (e.g. when
-%% message doesn't have a body) or creating push notification payload.
 -callback prepare_notification(Acc :: mongooseim_acc:t(),
                                Event :: mod_event_pusher:event()) ->
     push_payload() | skip.
 
-%% @doc does the actual push. By default it pushes to the registered pubsub
-%% nodes (or executes the internal hook in case of a publish to a virtual domain).
 -callback publish_notification(Acc :: mongooseim_acc:t(),
                                Event :: mod_event_pusher:event(),
                                Payload :: push_payload(),
@@ -60,6 +54,8 @@ init(Host) ->
     ensure_loaded(PluginModule),
     ok.
 
+%% @doc used for filtering push notifications. A push notification is triggered for a given
+%% message only if this callback returns `true'.
 -spec should_publish(Host :: jid:server(), Acc :: mongooseim_acc:t(),
                      Event :: mod_event_pusher:event(),
                      [mod_event_pusher_push:publish_service()]) -> [mod_event_pusher_push:publish_service()].
@@ -67,12 +63,16 @@ should_publish(Host, From, To, Packet) ->
     PluginModule = plugin_module(Host, should_publish, 3),
     PluginModule:should_publish(From, To, Packet).
 
+%% @doc a separate interface for rejecting the event publishing (e.g. when
+%% message doesn't have a body) or creating push notification payload.
 -spec prepare_notification(Host :: jid:server(), Acc :: mongooseim_acc:t(),
                            Event :: mod_event_pusher:event()) -> push_payload() | skip.
 prepare_notification(Host, Acc, Event) ->
     PluginModule = plugin_module(Host, prepare_notification, 2),
     PluginModule:prepare_notification(Acc, Event).
 
+%% @doc does the actual push. By default it pushes to the registered pubsub
+%% nodes (or executes the internal hook in case of a publish to a virtual domain).
 -spec publish_notification(Host :: jid:server(), Acc :: mongooseim_acc:t(),
                            Event :: mod_event_pusher:event(), Payload :: push_payload(),
                            Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
