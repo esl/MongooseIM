@@ -1,3 +1,5 @@
+%% Just a proxy interface module between the main mod_private module and
+%% the backend modules (i.e. mod_private_rdbms, mod_private_mnesia...).
 -module(mod_private_backend).
 -export([init/2,
          multi_set_data/4,
@@ -7,40 +9,38 @@
          remove_domain/2]).
 
 -define(MAIN_MODULE, mod_private).
--define(DEFAULT_BACKEND_MODULE, mod_private_mnesia).
--include("backend_module.hrl").
 
 -type ns() :: binary().
+-type ns_xml() :: {ns(), exml:element()}.
 
 %% ----------------------------------------------------------------------
 %% Callbacks
+%% (exactly the same as specs in this module)
 
 -callback init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts     :: list().
+    Opts :: list().
 
 -callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NS2XML  :: [{NS, XML}],
-    NS      :: ns(),
-    XML     :: exml:element(),
-    Reason  :: term(),
-    Result  :: ok | {aborted, Reason} | {error, Reason}.
+    NS2XML :: [ns_xml()],
+    Reason :: term(),
+    Result :: ok | {aborted, Reason} | {error, Reason}.
 
 -callback multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NS2Def  :: [{NS, Default}],
-    NS      :: ns(),
+    NS2Def :: [{NS, Default}],
+    NS :: ns(),
     Default :: term(),
-    XML     :: exml:element().
+    XML :: exml:element().
 
 -callback remove_user(HostType, LUser, LServer) -> any() when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver().
 
 -callback remove_domain(HostType, LServer) -> any() when
@@ -49,72 +49,65 @@
 
 -callback get_all_nss(HostType, LUser, LServer) -> NSs when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NSs     :: [ns()].
+    NSs :: [ns()].
 
 %% ----------------------------------------------------------------------
-%% specs
+%% API Functions
 
 -spec init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts     :: list().
+    Opts :: list().
+init(HostType, Opts) ->
+    TrackedFuns = [multi_get_data, multi_set_data],
+    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns),
+    Args = [HostType, Opts],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NS2XML  :: [{NS, XML}],
-    NS      :: ns(),
-    XML     :: exml:element(),
-    Reason  :: term(),
-    Result  :: ok | {aborted, Reason} | {error, Reason}.
+    NS2XML :: [ns_xml()],
+    Reason :: term(),
+    Result :: ok | {aborted, Reason} | {error, Reason}.
+multi_set_data(HostType, LUser, LServer, NS2XML) ->
+    Args = [HostType, LUser, LServer, NS2XML],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NS2Def  :: [{NS, Default}],
-    NS      :: ns(),
+    NS2Def :: [{NS, Default}],
+    NS :: ns(),
     Default :: term(),
-    XML     :: exml:element().
+    XML :: exml:element().
+multi_get_data(HostType, LUser, LServer, NS2Def) ->
+    Args = [HostType, LUser, LServer, NS2Def],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec remove_user(HostType, LUser, LServer) -> any() when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver().
+remove_user(HostType, LUser, LServer) ->
+    Args = [HostType, LUser, LServer],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec remove_domain(HostType, LServer) -> any() when
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver().
+remove_domain(HostType, LServer) ->
+    Args = [HostType, LServer],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_all_nss(HostType, LUser, LServer) -> NSs when
     HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
+    LUser :: jid:luser(),
     LServer :: jid:lserver(),
-    NSs     :: [ns()].
-
-%% ----------------------------------------------------------------------
-%% Functions
-
-init(HostType, Opts) ->
-    TrackedFuns = [multi_get_data, multi_set_data],
-    backend_module:init_per_host_type(HostType, ?MAIN_MODULE,
-                                      ?DEFAULT_BACKEND_MODULE,
-                                      TrackedFuns),
-    ?CALL(HostType, (HostType, Opts)).
-
-multi_set_data(HostType, LUser, LServer, NS2XML) ->
-    ?CALL_TRACKED(HostType, (HostType, LUser, LServer, NS2XML)).
-
-multi_get_data(HostType, LUser, LServer, NS2Def) ->
-    ?CALL_TRACKED(HostType, (HostType, LUser, LServer, NS2Def)).
-
+    NSs :: [ns()].
 get_all_nss(HostType, LUser, LServer) ->
-    ?CALL(HostType, (HostType, LUser, LServer)).
-
-remove_user(HostType, LUser, LServer) ->
-    ?CALL(HostType, (HostType, LUser, LServer)).
-
-remove_domain(HostType, LServer) ->
-    ?CALL(HostType, (HostType, LServer)).
+    Args = [HostType, LUser, LServer],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).

@@ -30,12 +30,8 @@
 
 -ignore_xref([create/2, backend_module/2, behaviour_info/1]).
 
--export([init_per_host_type/4,
-         get_backend_module/3]).
-
 %% Callback implemented by proxy modules.
 -callback backend() -> module().
--compile({inline, [backend_key/2]}).
 
 %% API
 
@@ -49,7 +45,7 @@ create(For, Name) ->
 create(Module, Backend, TrackedFuns) ->
     ProxyModule = proxy_module(Module),
     BackendModule = backend_module(Module, Backend),
-    ensure_backend_metrics(Module, TrackedFuns),
+    mongoose_backend:ensure_backend_metrics(Module, TrackedFuns),
     case catch ProxyModule:backend() of
         BackendModule ->
             {error, already_loaded};
@@ -130,38 +126,3 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
      "    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]), \n",
      "    mongoose_metrics:update(global, ", TimeMetric, ", Time), \n",
      "    Result.\n"].
-
-ensure_backend_metrics(Module, Ops) ->
-    EnsureFun = fun(Op) ->
-                        mongoose_metrics:ensure_metric(global, calls_metric(Module, Op), spiral),
-                        mongoose_metrics:ensure_metric(global, time_metric(Module, Op), histogram)
-                end,
-    lists:foreach(EnsureFun, Ops).
-
-backend_key(HostType, Module) ->
-    {backend_module, HostType, Module}.
-
--spec init_per_host_type(mongooseim:host_type(), module(), module(), [atom()]) -> ok.
-init_per_host_type(HostType, Module, DefaultBackend, TrackedFuns) ->
-    ensure_backend_metrics(Module, TrackedFuns),
-    Backend = gen_mod:get_backend_module(HostType, Module),
-    persist_backend_name(HostType, Module, Backend, DefaultBackend),
-    ok.
-
-persist_backend_name(HostType, Module, Backend, DefaultBackend) ->
-    Key = backend_key(HostType, Module),
-    case Backend of
-        DefaultBackend ->
-            %% Ensure that no value is set.
-            %% We don't store the backend name, if it is the default name.
-            %% Motivation: getting a missing value is slightly faster.
-            persistent_term:erase(Key);
-        _ ->
-            persistent_term:put(Key, Backend)
-    end.
-
-%% Get a backend name, stored in init_per_host_type
--spec get_backend_module(mongooseim:host_type(), module(), module()) -> Backend :: module().
-get_backend_module(HostType, Module, DefaultBackend) ->
-    Key = backend_key(HostType, Module),
-    persistent_term:get(Key, DefaultBackend).
