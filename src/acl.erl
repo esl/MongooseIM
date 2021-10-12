@@ -39,11 +39,12 @@
 
 -include("mongoose.hrl").
 
--export_type([rule/0, host/0]).
+-export_type([rule/0, domain/0]).
 
 -type rule() :: 'all' | 'none' | atom().
--type host() :: jid:server() | 'global'.
--type acl_name() :: {atom(), host()}.
+-type domain() :: jid:lserver() | global.
+-type host_type() :: mongooseim:host_type() | global.
+-type acl_name() :: {atom(), host_type()}.
 -type regexp() :: iolist() | binary().
 -type aclspec() :: all
                 | none
@@ -76,28 +77,28 @@ start() ->
     mnesia:add_table_copy(acl, node(), ram_copies),
     ok.
 
--spec to_record(Host :: host(),
+-spec to_record(HostType :: host_type(),
                 ACLName :: atom(),
                 ACLSpec :: aclspec()) -> acl().
-to_record(Host, ACLName, ACLSpec) ->
-    #acl{aclname = {ACLName, Host}, aclspec = normalize_spec(ACLSpec)}.
+to_record(HostType, ACLName, ACLSpec) ->
+    #acl{aclname = {ACLName, HostType}, aclspec = normalize_spec(ACLSpec)}.
 
--spec add(Host :: host(),
+-spec add(HostType :: host_type(),
           ACLName :: atom(),
           ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
-add(Host, ACLName, ACLSpec) ->
+add(HostType, ACLName, ACLSpec) ->
     F = fun() ->
-                ACLRecord = to_record(Host, ACLName, ACLSpec),
+                ACLRecord = to_record(HostType, ACLName, ACLSpec),
                 mnesia:write(ACLRecord)
         end,
     mnesia:transaction(F).
 
--spec delete(Host :: host(),
-          ACLName :: atom(),
-          ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
-delete(Host, ACLName, ACLSpec) ->
+-spec delete(HostType :: host_type(),
+             ACLName :: atom(),
+             ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
+delete(HostType, ACLName, ACLSpec) ->
     F = fun() ->
-                ACLRecord = to_record(Host, ACLName, ACLSpec),
+                ACLRecord = to_record(HostType, ACLName, ACLSpec),
                 mnesia:delete_object(ACLRecord)
         end,
     mnesia:transaction(F).
@@ -123,31 +124,37 @@ normalize_spec(none) ->
 
 
 %% legacy API, use match_rule_for_host_type instead
--spec match_rule(Host :: host(),
+-spec match_rule(Domain :: domain(),
                  Rule :: rule(),
                  JID :: jid:jid()) -> acl_result().
-match_rule(Host, Rule, JID) ->
-    match_rule(Host, Rule, JID, deny).
+match_rule(Domain, Rule, JID) ->
+    match_rule(Domain, Rule, JID, deny).
 
--spec match_rule_for_host_type(HostType :: mongooseim:host_type() | global,
-                               Host :: host(),
+-spec match_rule_for_host_type(HostType :: host_type(),
+                               Domain :: domain(),
                                Rule :: rule(),
                                JID :: jid:jid()) -> acl_result().
-match_rule_for_host_type(HostType, Host, Rule, JID) ->
-    match_rule_for_host_type(HostType, Host, Rule, JID, deny).
+match_rule_for_host_type(HostType, Domain, Rule, JID) ->
+    match_rule_for_host_type(HostType, Domain, Rule, JID, deny).
 
 %% legacy API, use match_rule_for_host_type instead
--spec match_rule(Host :: host(),
+-spec match_rule(Domain :: domain(),
                  Rule :: rule(),
                  JID :: jid:jid(),
                  Default :: acl_result()) -> acl_result().
-match_rule(Host, Rule, JID, Default) ->
-    %% We don't want to cast Host to HostType here.
+match_rule(Domain, Rule, JID, Default) ->
+    %% We don't want to cast Domain to HostType here.
     %% Developers should start using match_rule_for_host_type explicetly.
-    match_rule_for_host_type(Host, Host, Rule, JID, Default).
+    match_rule_for_host_type(Domain, Domain, Rule, JID, Default).
 
--spec match_rule_for_host_type(HostType :: mongooseim:host_type() | global,
-                               Host :: host(),
+%% HostType determines which rules and ACLs are checked:
+%%   - 'global' - only global ones
+%%   - a specific host type - both global and per-host-type ones
+%% Domain is only used for validating the user's domain name in the {user, U} pattern:
+%%   - 'global' - any domain is accepted
+%%   - a specific domain name - only the provided name is accepted
+-spec match_rule_for_host_type(HostType :: host_type(),
+                               Domain :: domain(),
                                Rule :: rule(),
                                JID :: jid:jid(),
                                Default :: acl_result()) -> acl_result().
@@ -155,25 +162,25 @@ match_rule_for_host_type(_HostType, _, all, _, _Default) ->
     allow;
 match_rule_for_host_type(_HostType, _, none, _, _Default) ->
     deny;
-match_rule_for_host_type(_HostType, global, Rule, JID, Default) ->
+match_rule_for_host_type(global, Domain, Rule, JID, Default) ->
     case ejabberd_config:get_global_option({access, Rule, global}) of
         undefined ->
             Default;
         GACLs ->
-            match_acls(GACLs, JID, global)
+            match_acls(GACLs, JID, global, Domain)
     end;
-match_rule_for_host_type(HostType, Host, Rule, JID, Default) ->
+match_rule_for_host_type(HostType, Domain, Rule, JID, Default) ->
     GlobalACLs = ejabberd_config:get_global_option({access, Rule, global}),
     HostACLs = ejabberd_config:get_global_option({access, Rule, HostType}),
     case {GlobalACLs, HostACLs} of
         {undefined, undefined} ->
             Default;
         {undefined, HostACLs} ->
-            match_acls(HostACLs, JID, Host);
+            match_acls(HostACLs, JID, HostType, Domain);
         {GlobalACLs, undefined} ->
-            match_acls(GlobalACLs, JID, Host);
+            match_acls(GlobalACLs, JID, HostType, Domain);
         {GlobalACLs, HostACLs} ->
-            match_acls(merge_acls(GlobalACLs, HostACLs), JID, Host)
+            match_acls(merge_acls(GlobalACLs, HostACLs), JID, HostType, Domain)
     end.
 
 -spec merge_acls([{any(), rule()}], [{any(), rule()}]) -> [{any(), rule()}].
@@ -187,32 +194,40 @@ merge_acls(Global, HostLocal) ->
 
 -spec match_acls(ACLs :: [{any(), rule()}],
                  JID :: jid:jid(),
-                 Host :: host()) -> deny | term().
-match_acls([], _, _Host) ->
+                 HostType :: host_type(),
+                 Domain :: domain()) -> deny | term().
+match_acls([], _, _HostType, _Domain) ->
     deny;
-match_acls([{Value, ACL} | ACLs], JID, Host) ->
-    case match_acl(ACL, JID, Host) of
+match_acls([{Value, ACL} | ACLs], JID, HostType, Domain) ->
+    case match_acl(ACL, JID, HostType, Domain) of
         true ->
             Value;
         _ ->
-            match_acls(ACLs, JID, Host)
+            match_acls(ACLs, JID, HostType, Domain)
     end.
 
 -spec match_acl(ACL :: rule(),
                 JID :: jid:jid(),
-                Host :: host()) -> boolean().
-match_acl(all, _JID, _Host) ->
+                HostType :: host_type(),
+                Domain :: domain()) -> boolean().
+match_acl(all, _JID, _HostType, _Domain) ->
     true;
-match_acl(none, _JID, _Host) ->
+match_acl(none, _JID, _HostType, _Domain) ->
     false;
-match_acl(ACL, JID, Host) ->
+match_acl(ACL, JID, HostType, Domain) ->
     LJID = jid:to_lower(JID),
-    AllSpecs = ets:lookup(acl, {ACL, global}) ++ ets:lookup(acl, {ACL, Host}),
-    Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Host) end,
+    AllSpecs = lookup_acl(ACL, HostType),
+    Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Domain) end,
     lists:any(Pred, AllSpecs).
 
--spec is_server_valid(host(), jid:lserver()) -> boolean().
-is_server_valid(Host, Host) ->
+-spec lookup_acl(rule(), host_type()) -> [aclspec()].
+lookup_acl(ACL, global) ->
+    ets:lookup(acl, {ACL, global});
+lookup_acl(ACL, HostType) ->
+    ets:lookup(acl, {ACL, global}) ++ ets:lookup(acl, {ACL, HostType}).
+
+-spec is_server_valid(domain(), jid:lserver()) -> boolean().
+is_server_valid(Domain, Domain) ->
     true;
 is_server_valid(global, JIDServer) ->
     case mongoose_domain_api:get_domain_host_type(JIDServer) of
@@ -221,42 +236,42 @@ is_server_valid(global, JIDServer) ->
         _ ->
             false
     end;
-is_server_valid(_Host, _JIDServer) ->
+is_server_valid(_Domain, _JIDServer) ->
     false.
 
--spec match(aclspec(), jid:simple_jid(), host()) -> boolean().
-match(all, _LJID, _Host) ->
+-spec match(aclspec(), jid:simple_jid(), domain()) -> boolean().
+match(all, _LJID, _Domain) ->
     true;
-match({user, U}, {User, Server, _Resource}, Host) ->
-    U == User andalso is_server_valid(Host, Server);
-match({user, U, S}, {User, Server, _Resource}, _Host) ->
+match({user, U}, {User, Server, _Resource}, Domain) ->
+    U == User andalso is_server_valid(Domain, Server);
+match({user, U, S}, {User, Server, _Resource}, _Domain) ->
     U == User andalso S == Server;
-match({server, S}, {_User, Server, _Resource}, _Host) ->
+match({server, S}, {_User, Server, _Resource}, _Domain) ->
     S == Server;
-match({resource, Res}, {_User, _Server, Resource}, _Host) ->
+match({resource, Res}, {_User, _Server, Resource}, _Domain) ->
     Resource == Res;
-match({user_regexp, UserReg}, {User, Server, _Resource}, Host) ->
-    is_server_valid(Host, Server) andalso is_regexp_match(User, UserReg);
-match({user_regexp, UserReg, MServer}, {User, Server, _Resource}, _Host) ->
+match({user_regexp, UserReg}, {User, Server, _Resource}, Domain) ->
+    is_server_valid(Domain, Server) andalso is_regexp_match(User, UserReg);
+match({user_regexp, UserReg, MServer}, {User, Server, _Resource}, _Domain) ->
     MServer == Server andalso is_regexp_match(User, UserReg);
-match({server_regexp, ServerReg}, {_User, Server, _Resource}, _Host) ->
+match({server_regexp, ServerReg}, {_User, Server, _Resource}, _Domain) ->
     is_regexp_match(Server, ServerReg);
-match({resource_regexp, ResourceReg}, {_User, _Server, Resource}, _Host) ->
+match({resource_regexp, ResourceReg}, {_User, _Server, Resource}, _Domain) ->
     is_regexp_match(Resource, ResourceReg);
-match({node_regexp, UserReg, ServerReg}, {User, Server, _Resource}, _Host) ->
+match({node_regexp, UserReg, ServerReg}, {User, Server, _Resource}, _Domain) ->
     is_regexp_match(Server, ServerReg) andalso
     is_regexp_match(User, UserReg);
-match({user_glob, UserGlob}, {User, Server, _Resource}, Host) ->
-    is_server_valid(Host, Server) andalso is_glob_match(User, UserGlob);
-match({user_glob, UserGlob, MServer}, {User, Server, _Resource}, _Host) ->
+match({user_glob, UserGlob}, {User, Server, _Resource}, Domain) ->
+    is_server_valid(Domain, Server) andalso is_glob_match(User, UserGlob);
+match({user_glob, UserGlob, MServer}, {User, Server, _Resource}, _Domain) ->
     MServer == Server andalso is_glob_match(User, UserGlob);
-match({server_glob, ServerGlob}, {_User, Server, _Resource}, _Host) ->
+match({server_glob, ServerGlob}, {_User, Server, _Resource}, _Domain) ->
     is_glob_match(Server, ServerGlob);
-match({resource_glob, ResourceGlob}, {_User, _Server, Resource}, _Host) ->
+match({resource_glob, ResourceGlob}, {_User, _Server, Resource}, _Domain) ->
     is_glob_match(Resource, ResourceGlob);
-match({node_glob, UserGlob, ServerGlob}, {User, Server, _Resource}, _Host) ->
+match({node_glob, UserGlob, ServerGlob}, {User, Server, _Resource}, _Domain) ->
     is_glob_match(Server, ServerGlob) andalso is_glob_match(User, UserGlob);
-match(WrongSpec, _LJID, _Host) ->
+match(WrongSpec, _LJID, _Domain) ->
     ?LOG_ERROR(#{what => wrong_acl_expression,
                  text => <<"Wrong ACL expression in the configuration file">>,
                  wrong_spec => WrongSpec}),
