@@ -11,10 +11,10 @@ all() ->
      {group, static_domains}].
 
 groups() ->
-    [{dynamic_domains, [], test_cases()},
-     {static_domains, [], test_cases()}].
+    [{dynamic_domains, [], basic_test_cases() ++ host_type_test_cases()},
+     {static_domains, [], basic_test_cases()}].
 
-test_cases() ->
+basic_test_cases() ->
     [
      all_rule_returns_allow,
      none_rule_returns_deny,
@@ -25,6 +25,12 @@ test_cases() ->
      all_and_none_specs,
      invalid_spec,
      different_specs_matching_the_same_user
+    ].
+
+host_type_test_cases() ->
+    [
+     match_host_specific_rule_for_host_type,
+     match_global_rule_for_host_type
     ].
 
 init_per_suite(Config) ->
@@ -181,6 +187,59 @@ invalid_spec(Config) ->
     ?assertEqual(deny, acl:match_rule(global, invalid, User)),
     ok.
 
+match_host_specific_rule_for_host_type(Config) ->
+    given_registered_domains(Config, [<<"gdansk">>, <<"koszalin">>]),
+
+    UserGd = jid:make(<<"pawel">>, <<"gdansk">>,  <<"res">>),
+
+    set_host_rule(allow_admin, <<"test type">>, [{allow, admin}, {deny, all}]),
+    mnesia:clear_table(acl),
+    acl:add(<<"test type">>, admin, {user, <<"pawel">>}),
+
+    %% Check for host type for a specific domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(<<"test type">>, <<"gdansk">>,
+                                                     allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(<<"test type">>, <<"koszalin">>,
+                                                    allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(<<"empty type">>, <<"gdansk">>,
+                                                    allow_admin, UserGd)),
+
+    %% Check for host type for any domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(<<"test type">>, global, allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(<<"empty type">>, global, allow_admin, UserGd)),
+
+    %% Check globally for a specific domain
+    ?assertEqual(deny, acl:match_rule_for_host_type(global, <<"gdansk">>, allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(global, <<"koszalin">>, allow_admin, UserGd)),
+
+    %% Check globally for any domain
+    ?assertEqual(deny, acl:match_rule_for_host_type(global, global, allow_admin, UserGd)).
+
+match_global_rule_for_host_type(Config) ->
+    given_registered_domains(Config, [<<"gdansk">>, <<"koszalin">>]),
+
+    UserGd = jid:make(<<"pawel">>, <<"gdansk">>,  <<"res">>),
+
+    set_global_rule(allow_admin, [{allow, admin}, {deny, all}]),
+    mnesia:clear_table(acl),
+    acl:add(global, admin, {user, <<"pawel">>}),
+
+    %% Check for host type for a specific domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(<<"test type">>, <<"gdansk">>,
+                                                     allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(<<"test type">>, <<"koszalin">>,
+                                                    allow_admin, UserGd)),
+
+    %% Check for host type for any domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(<<"test type">>, global, allow_admin, UserGd)),
+
+    %% Check globally for a specific domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(global, <<"gdansk">>, allow_admin, UserGd)),
+    ?assertEqual(deny, acl:match_rule_for_host_type(global, <<"koszalin">>, allow_admin, UserGd)),
+
+    %% Check globally for any domain
+    ?assertEqual(allow, acl:match_rule_for_host_type(global, global, allow_admin, UserGd)).
+
 different_specs_matching_the_same_user(Config) ->
     given_registered_domains(Config, [<<"gdansk">>, <<"koszalin">>]),
 
@@ -302,7 +361,7 @@ register_static_domains(DomainsList) ->
 
 register_dynamic_domains(DomainsList) ->
     ejabberd_config:add_global_option(hosts, []),
-    ejabberd_config:add_global_option(host_types, [<<"test type">>]),
+    ejabberd_config:add_global_option(host_types, [<<"test type">>, <<"empty type">>]),
     mongoose_domain_api:stop(),
     mongoose_domain_api:init(),
     [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].
