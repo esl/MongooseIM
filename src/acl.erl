@@ -39,12 +39,12 @@
 
 -include("mongoose.hrl").
 
--export_type([rule/0, domain/0]).
+-export_type([rule/0, domain_or_global/0, host_type_or_global/0]).
 
 -type rule() :: 'all' | 'none' | atom().
--type domain() :: jid:lserver() | global.
--type host_type() :: mongooseim:host_type() | global.
--type acl_name() :: {atom(), host_type()}.
+-type domain_or_global() :: jid:lserver() | global.
+-type host_type_or_global() :: mongooseim:host_type() | global.
+-type acl_name() :: {atom(), host_type_or_global()}.
 -type regexp() :: iolist() | binary().
 -type aclspec() :: all
                 | none
@@ -77,13 +77,13 @@ start() ->
     mnesia:add_table_copy(acl, node(), ram_copies),
     ok.
 
--spec to_record(HostType :: host_type(),
+-spec to_record(HostType :: host_type_or_global(),
                 ACLName :: atom(),
                 ACLSpec :: aclspec()) -> acl().
 to_record(HostType, ACLName, ACLSpec) ->
     #acl{aclname = {ACLName, HostType}, aclspec = normalize_spec(ACLSpec)}.
 
--spec add(HostType :: host_type(),
+-spec add(HostType :: host_type_or_global(),
           ACLName :: atom(),
           ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
 add(HostType, ACLName, ACLSpec) ->
@@ -93,7 +93,7 @@ add(HostType, ACLName, ACLSpec) ->
         end,
     mnesia:transaction(F).
 
--spec delete(HostType :: host_type(),
+-spec delete(HostType :: host_type_or_global(),
              ACLName :: atom(),
              ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
 delete(HostType, ACLName, ACLSpec) ->
@@ -124,21 +124,21 @@ normalize_spec(none) ->
 
 
 %% legacy API, use match_rule_for_host_type instead
--spec match_rule(Domain :: domain(),
+-spec match_rule(Domain :: domain_or_global(),
                  Rule :: rule(),
                  JID :: jid:jid()) -> acl_result().
 match_rule(Domain, Rule, JID) ->
     match_rule(Domain, Rule, JID, deny).
 
--spec match_rule_for_host_type(HostType :: host_type(),
-                               Domain :: domain(),
+-spec match_rule_for_host_type(HostType :: host_type_or_global(),
+                               Domain :: domain_or_global(),
                                Rule :: rule(),
                                JID :: jid:jid()) -> acl_result().
 match_rule_for_host_type(HostType, Domain, Rule, JID) ->
     match_rule_for_host_type(HostType, Domain, Rule, JID, deny).
 
 %% legacy API, use match_rule_for_host_type instead
--spec match_rule(Domain :: domain(),
+-spec match_rule(Domain :: domain_or_global(),
                  Rule :: rule(),
                  JID :: jid:jid(),
                  Default :: acl_result()) -> acl_result().
@@ -153,8 +153,8 @@ match_rule(Domain, Rule, JID, Default) ->
 %% Domain is only used for validating the user's domain name in the {user, U} pattern:
 %%   - 'global' - any domain is accepted
 %%   - a specific domain name - only the provided name is accepted
--spec match_rule_for_host_type(HostType :: host_type(),
-                               Domain :: domain(),
+-spec match_rule_for_host_type(HostType :: host_type_or_global(),
+                               Domain :: domain_or_global(),
                                Rule :: rule(),
                                JID :: jid:jid(),
                                Default :: acl_result()) -> acl_result().
@@ -194,8 +194,8 @@ merge_acls(Global, HostLocal) ->
 
 -spec match_acls(ACLs :: [{any(), rule()}],
                  JID :: jid:jid(),
-                 HostType :: host_type(),
-                 Domain :: domain()) -> deny | term().
+                 HostType :: host_type_or_global(),
+                 Domain :: domain_or_global()) -> deny | term().
 match_acls([], _, _HostType, _Domain) ->
     deny;
 match_acls([{Value, ACL} | ACLs], JID, HostType, Domain) ->
@@ -208,8 +208,8 @@ match_acls([{Value, ACL} | ACLs], JID, HostType, Domain) ->
 
 -spec match_acl(ACL :: rule(),
                 JID :: jid:jid(),
-                HostType :: host_type(),
-                Domain :: domain()) -> boolean().
+                HostType :: host_type_or_global(),
+                Domain :: domain_or_global()) -> boolean().
 match_acl(all, _JID, _HostType, _Domain) ->
     true;
 match_acl(none, _JID, _HostType, _Domain) ->
@@ -220,13 +220,13 @@ match_acl(ACL, JID, HostType, Domain) ->
     Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Domain) end,
     lists:any(Pred, AllSpecs).
 
--spec lookup_acl(rule(), host_type()) -> [aclspec()].
+-spec lookup_acl(rule(), host_type_or_global()) -> [aclspec()].
 lookup_acl(ACL, global) ->
     ets:lookup(acl, {ACL, global});
 lookup_acl(ACL, HostType) ->
     ets:lookup(acl, {ACL, global}) ++ ets:lookup(acl, {ACL, HostType}).
 
--spec is_server_valid(domain(), jid:lserver()) -> boolean().
+-spec is_server_valid(domain_or_global(), jid:lserver()) -> boolean().
 is_server_valid(Domain, Domain) ->
     true;
 is_server_valid(global, JIDServer) ->
@@ -239,7 +239,7 @@ is_server_valid(global, JIDServer) ->
 is_server_valid(_Domain, _JIDServer) ->
     false.
 
--spec match(aclspec(), jid:simple_jid(), domain()) -> boolean().
+-spec match(aclspec(), jid:simple_jid(), domain_or_global()) -> boolean().
 match(all, _LJID, _Domain) ->
     true;
 match({user, U}, {User, Server, _Resource}, Domain) ->
