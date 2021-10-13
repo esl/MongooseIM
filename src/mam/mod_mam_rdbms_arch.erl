@@ -28,7 +28,7 @@
 
 -export([get_mam_pm_gdpr_data/3]).
 
-%% Called from mod_mam_rdbms_async_writer
+%% Called from mod_mam_rdbms_async_pool_writer
 -export([prepare_message/2, retract_message/2, prepare_insert/2]).
 
 -ignore_xref([behaviour_info/1, remove_archive/4, remove_domain/3]).

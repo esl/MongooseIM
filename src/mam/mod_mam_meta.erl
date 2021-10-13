@@ -67,6 +67,11 @@ config_items() ->
       <<"archive_chat_markers">> => #option{type = boolean},
       <<"message_retraction">> => #option{type = boolean},
 
+      %% Common backend options
+      <<"user_prefs_store">> => #option{type = atom,
+                                        validate = {enum, [rdbms, cassandra, mnesia]}},
+      <<"full_text_search">> => #option{type = boolean},
+
       %% RDBMS-specific options
       <<"cache_users">> => #option{type = boolean},
       <<"rdbms_message_format">> => #option{type = atom,
@@ -77,12 +82,7 @@ config_items() ->
       <<"max_batch_size">> => #option{type = integer,
                                       validate = non_negative},
 
-      %% Common backend options
-      <<"user_prefs_store">> => #option{type = atom,
-                                        validate = {enum, [rdbms, cassandra, mnesia]}},
-      <<"full_text_search">> => #option{type = boolean},
-
-      %% Undocumented low-level options
+      %% Low-level options
       <<"default_result_limit">> => #option{type = integer,
                                             validate = non_negative},
       <<"max_result_limit">> => #option{type = integer,
