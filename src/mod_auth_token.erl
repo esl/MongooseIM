@@ -85,7 +85,6 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, backend, maybe_default_backend(Opts)),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     mod_auth_token_backend:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
@@ -135,9 +134,6 @@ process_validity_period(KVs) ->
     {[[{token, Token}], [{value, Value}], [{unit, Unit}]], []} =
         proplists:split(KVs, [token, value, unit]),
     {{validity_period, Token}, {Value, Unit}}.
-
-maybe_default_backend(Opts) ->
-    proplists:get_value(backend, Opts, rdbms).
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->

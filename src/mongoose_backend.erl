@@ -2,6 +2,7 @@
 
 %% API
 -export([init_per_host_type/3,
+         init_per_host_type/4,
          call/4,
          call_tracked/4]).
 
@@ -20,8 +21,15 @@
                          MainModule :: main_module(),
                          TrackedFuns :: [function_name()]) -> ok.
 init_per_host_type(HostType, MainModule, TrackedFuns) ->
+    init_per_host_type(HostType, MainModule, TrackedFuns, mnesia).
+
+-spec init_per_host_type(HostType :: mongooseim:host_type(),
+                         MainModule :: main_module(),
+                         TrackedFuns :: [function_name()],
+                         DefaultBackend :: atom()) -> ok.
+init_per_host_type(HostType, MainModule, TrackedFuns, DefaultBackend) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
-    Backend = gen_mod:get_backend_module(HostType, MainModule),
+    Backend = gen_mod:get_backend_module(HostType, MainModule, DefaultBackend),
     persist_backend_name(HostType, MainModule, Backend),
     ok.
 
