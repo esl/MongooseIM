@@ -49,6 +49,8 @@ ggo({access, experts_only, _}) ->
     [{allow, coder}, {allow, manager}, {deny, all}];
 ggo({access, _, _}) ->
     [];
+ggo({acl, coder, _}) ->
+    [{user, <<"zenek">>}];
 ggo(Any) ->
     ?PRT("global what do you want", Any),
     none.
@@ -56,8 +58,6 @@ ggo(Any) ->
 init_per_suite(C) ->
     application:ensure_all_started(jid),
     ok = mnesia:start(),
-    ok = acl:start(),
-    acl:add(global, coder, {user, <<"zenek">>}),
     C.
 
 end_per_suite(_) ->
@@ -86,9 +86,9 @@ stop_helper_proc(C) ->
     Pid ! stop.
 
 init_per_testcase(_, C) ->
-    meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option, fun glo/1),
     meck:expect(ejabberd_config, get_global_option, fun ggo/1),
+    meck:expect(ejabberd_config, get_global_option_or_default, fun(K, _) -> ggo(K) end),
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     meck:new(mongoose_domain_api),
