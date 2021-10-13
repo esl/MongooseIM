@@ -533,6 +533,18 @@ jobs:
           name: Run Xref
           command: |
             SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p xref_only -s false
+  edoc:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Edoc
+          command: |
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p edoc_only -s false
 
   package:
     parallelism: 1
@@ -606,6 +618,14 @@ workflows:
       # ============= XREF =============
       - xref:
           name: xref
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= EDOC =============
+      - edoc:
+          name: edoc
           executor: otp_24
           context: mongooseim-org
           requires:
@@ -788,4 +808,5 @@ workflows:
 
             - dialyzer
             - xref
+            - edoc
           filters: *all_tags
