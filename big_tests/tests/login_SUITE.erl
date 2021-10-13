@@ -356,7 +356,7 @@ blocked_user(_Config) ->
         error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
     after
-        unset_acl_for_blocking(Spec)
+        unset_acl_for_blocking()
     end,
     ok.
 
@@ -453,17 +453,13 @@ do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
 
 set_acl_for_blocking(Spec) ->
-    modify_acl_for_blocking(add, Spec).
-
-unset_acl_for_blocking(Spec) ->
-    modify_acl_for_blocking(delete, Spec).
-
-modify_acl_for_blocking(Method, Spec) ->
-    ct:print("Spec: ~p", [Spec]),
-    Domain = domain(),
     User = proplists:get_value(username, Spec),
-    Lower = escalus_utils:jid_to_lower(User),
-    rpc(mim(), acl, Method, [Domain, blocked, {user, Lower}]).
+    LUser = jid:nodeprep(User),
+    rpc(mim(), ejabberd_config, add_global_option, [{acl, blocked, host_type()}, [{user, LUser}]]).
+
+unset_acl_for_blocking() ->
+    %% There is no del_global_option
+    rpc(mim(), mnesia, dirty_delete, [config, {acl, blocked, host_type()}]).
 
 configure_and_log_scram(Config, Sha, Mech) ->
     mongoose_helper:set_store_password({scram, [Sha]}),
