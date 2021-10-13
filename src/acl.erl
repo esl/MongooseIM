@@ -26,11 +26,7 @@
 -module(acl).
 -author('alexey@process-one.net').
 
--export([start/0,
-         to_record/3,
-         add/3,
-         delete/3,
-         match_rule/3,
+-export([match_rule/3,
          match_rule/4,
          match_rule_for_host_type/4,
          match_rule_for_host_type/5]).
@@ -44,7 +40,6 @@
 -type rule() :: 'all' | 'none' | atom().
 -type domain_or_global() :: jid:lserver() | global.
 -type host_type_or_global() :: mongooseim:host_type() | global.
--type acl_name() :: {atom(), host_type_or_global()}.
 -type regexp() :: iolist() | binary().
 -type aclspec() :: all
                 | none
@@ -63,65 +58,7 @@
                 | {resource_glob, regexp()}
                 | {node_glob, regexp(), regexp()}.
 
--record(acl, {aclname :: acl_name(),
-              aclspec :: aclspec()
-             }).
--type acl() :: #acl{}.
 -type acl_result() :: allow | deny | term().
-
-start() ->
-    mnesia:create_table(acl,
-                        [{ram_copies, [node()]},
-                         {type, bag},
-                         {attributes, record_info(fields, acl)}]),
-    mnesia:add_table_copy(acl, node(), ram_copies),
-    ok.
-
--spec to_record(HostType :: host_type_or_global(),
-                ACLName :: atom(),
-                ACLSpec :: aclspec()) -> acl().
-to_record(HostType, ACLName, ACLSpec) ->
-    #acl{aclname = {ACLName, HostType}, aclspec = normalize_spec(ACLSpec)}.
-
--spec add(HostType :: host_type_or_global(),
-          ACLName :: atom(),
-          ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
-add(HostType, ACLName, ACLSpec) ->
-    F = fun() ->
-                ACLRecord = to_record(HostType, ACLName, ACLSpec),
-                mnesia:write(ACLRecord)
-        end,
-    mnesia:transaction(F).
-
--spec delete(HostType :: host_type_or_global(),
-             ACLName :: atom(),
-             ACLSpec :: aclspec()) -> {atomic, term()} | {aborted, term()}.
-delete(HostType, ACLName, ACLSpec) ->
-    F = fun() ->
-                ACLRecord = to_record(HostType, ACLName, ACLSpec),
-                mnesia:delete_object(ACLRecord)
-        end,
-    mnesia:transaction(F).
-
--spec normalize(_) -> 'error' | binary() | tuple().
-normalize(A) when is_list(A) ->
-    normalize(list_to_binary(A));
-normalize(A) ->
-    jid:nodeprep(A).
-
--spec normalize_spec(aclspec())
-      -> aclspec()
-         | {_, 'error' | binary() | tuple()}
-         | {_, 'error' | binary() | tuple(), 'error' | binary() | tuple()}.
-normalize_spec({A, B}) ->
-    {A, normalize(B)};
-normalize_spec({A, B, C}) ->
-    {A, normalize(B), normalize(C)};
-normalize_spec(all) ->
-    all;
-normalize_spec(none) ->
-    none.
-
 
 %% legacy API, use match_rule_for_host_type instead
 -spec match_rule(Domain :: domain_or_global(),
@@ -144,7 +81,7 @@ match_rule_for_host_type(HostType, Domain, Rule, JID) ->
                  Default :: acl_result()) -> acl_result().
 match_rule(Domain, Rule, JID, Default) ->
     %% We don't want to cast Domain to HostType here.
-    %% Developers should start using match_rule_for_host_type explicetly.
+    %% Developers should start using match_rule_for_host_type explicitly.
     match_rule_for_host_type(Domain, Domain, Rule, JID, Default).
 
 %% HostType determines which rules and ACLs are checked:
@@ -198,15 +135,15 @@ merge_acls(Global, HostLocal) ->
                  Domain :: domain_or_global()) -> deny | term().
 match_acls([], _, _HostType, _Domain) ->
     deny;
-match_acls([{Value, ACL} | ACLs], JID, HostType, Domain) ->
-    case match_acl(ACL, JID, HostType, Domain) of
+match_acls([{Value, Rule} | ACLs], JID, HostType, Domain) ->
+    case match_acl(Rule, JID, HostType, Domain) of
         true ->
             Value;
         _ ->
             match_acls(ACLs, JID, HostType, Domain)
     end.
 
--spec match_acl(ACL :: rule(),
+-spec match_acl(Rule :: rule(),
                 JID :: jid:jid(),
                 HostType :: host_type_or_global(),
                 Domain :: domain_or_global()) -> boolean().
@@ -214,17 +151,18 @@ match_acl(all, _JID, _HostType, _Domain) ->
     true;
 match_acl(none, _JID, _HostType, _Domain) ->
     false;
-match_acl(ACL, JID, HostType, Domain) ->
+match_acl(Rule, JID, HostType, Domain) ->
     LJID = jid:to_lower(JID),
-    AllSpecs = lookup_acl(ACL, HostType),
-    Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Domain) end,
+    AllSpecs = case HostType of
+                   global -> get_acl_specs(Rule, global);
+                   _ -> get_acl_specs(Rule, HostType) ++ get_acl_specs(Rule, global)
+               end,
+    Pred = fun(ACLSpec) -> match(ACLSpec, LJID, Domain) end,
     lists:any(Pred, AllSpecs).
 
--spec lookup_acl(rule(), host_type_or_global()) -> [aclspec()].
-lookup_acl(ACL, global) ->
-    ets:lookup(acl, {ACL, global});
-lookup_acl(ACL, HostType) ->
-    ets:lookup(acl, {ACL, global}) ++ ets:lookup(acl, {ACL, HostType}).
+-spec get_acl_specs(rule(), host_type_or_global()) -> [aclspec()].
+get_acl_specs(Rule, HostType) ->
+    ejabberd_config:get_global_option_or_default({acl, Rule, HostType}, []).
 
 -spec is_server_valid(domain_or_global(), jid:lserver()) -> boolean().
 is_server_valid(Domain, Domain) ->
@@ -293,4 +231,3 @@ is_regexp_match(String, RegExp) ->
 -spec is_glob_match(binary(), Glob :: regexp()) -> boolean().
 is_glob_match(String, Glob) ->
     is_regexp_match(String, xmerl_regexp:sh_to_awk(binary_to_list(Glob))).
-
