@@ -1,4 +1,4 @@
-{acl,{local,global},{user_regexp,<<>>}}.
+{config,{acl,local,global},[{user_regexp,<<>>}]}.
 {config,default_server_domain,<<"localhost">>}.
 {config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
 {config,language,<<"en">>}.
