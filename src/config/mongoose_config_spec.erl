@@ -74,10 +74,7 @@
 
       % #config{} with either key = {Tag, Key, Host} - inside host_config
       %                or key = {Tag, Key, global} - at the top level
-      | {host_or_global_config, Tag :: term()}
-
-      % Like above, but for an acl record
-      | host_or_global_acl.
+      | {host_or_global_config, Tag :: term()}.
 
 %% The value becomes a top-level config record: #config{} or #local_config{}
 -type config_record_format() ::
@@ -160,7 +157,6 @@ host_config() ->
                  %% but only options with these formats are accepted:
                  %%  - host_local_config
                  %%  - host_or_global_config
-                 %%  - host_or_global_acl
                  %% Any other options would be caught by
                  %%   mongoose_config_parser_toml:format/3
                  <<"general">> => general(),
@@ -968,7 +964,7 @@ shaper() ->
 acl() ->
     #section{
        items = #{default => #list{items = acl_item(),
-                                  format = none}
+                                  format = {host_or_global_config, acl}}
                 },
        format = none
       }.
@@ -989,8 +985,7 @@ acl_item() ->
                  <<"resource_glob">> => #option{type = string}
                 },
        validate_keys = non_empty,
-       process = fun ?MODULE:process_acl_item/1,
-       format = host_or_global_acl
+       process = fun ?MODULE:process_acl_item/1
       }.
 
 %% path: (host_config[].)access

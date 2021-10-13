@@ -25,7 +25,7 @@
 %% Output: list of config records, containing key-value pairs
 -type option_value() :: atom() | binary() | string() | float(). % parsed leaf value
 -type config_part() :: term(). % any part of a top-level option value, may contain config errors
--type top_level_config() :: #config{} | #local_config{} | acl:acl().
+-type top_level_config() :: #config{} | #local_config{}.
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type override() :: {override, atom()}.
 -type config() :: top_level_config() | config_error() | override().
@@ -227,8 +227,6 @@ format(Path, V, {local_config, Key}) ->
     [#local_config{key = Key, value = V}];
 format([Key|_] = Path, V, {host_or_global_config, Tag}) ->
     [#config{key = {Tag, b2a(Key), get_host(Path)}, value = V}];
-format([item, Key|_] = Path, V, host_or_global_acl) ->
-    [acl:to_record(get_host(Path), b2a(Key), V)];
 format(Path, V, {config, Key}) ->
     global = get_host(Path),
     [#config{key = Key, value = V}];
