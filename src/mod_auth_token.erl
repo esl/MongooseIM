@@ -74,14 +74,6 @@
                            | {ok, module(), jid:user(), binary()}
                            | error().
 
--callback start(mongooseim:host_type()) -> ok.
-
--callback revoke(mongooseim:host_type(), jid:jid()) -> ok | not_found.
-
--callback get_valid_sequence_number(mongooseim:host_type(), jid:jid()) -> integer().
-
--callback clean_tokens(mongooseim:host_type(), jid:jid()) -> ok.
-
 -define(A2B(A), atom_to_binary(A, utf8)).
 
 -define(I2B(I), integer_to_binary(I)).
@@ -93,8 +85,8 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
+    gen_mod:set_module_opt(HostType, ?MODULE, backend, maybe_default_backend(Opts)),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
     mod_auth_token_backend:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
@@ -144,8 +136,8 @@ process_validity_period(KVs) ->
         proplists:split(KVs, [token, value, unit]),
     {{validity_period, Token}, {Value, Unit}}.
 
-default_opts(Opts) ->
-    [{backend, rdbms} || not proplists:is_defined(backend, Opts)] ++ Opts.
+maybe_default_backend(Opts) ->
+    proplists:get_value(backend, Opts, rdbms).
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->

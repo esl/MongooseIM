@@ -1,5 +1,5 @@
 -module(mod_auth_token_rdbms).
--behaviour(mod_auth_token).
+-behaviour(mod_auth_token_backend).
 
 -export([start/1,
          get_valid_sequence_number/2,
