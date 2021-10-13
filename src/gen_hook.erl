@@ -52,8 +52,7 @@
 
 -export_type([hook_fn/0, hook_list/0]).
 
--record(hook_handler, {key :: key(),
-                       %% 'prio' field must go right after the 'key',
+-record(hook_handler, {%% 'prio' field must be the first
                        %% this is required for the proper sorting.
                        prio :: pos_integer(),
                        module :: module(),
@@ -83,9 +82,10 @@ add_handlers(List) ->
     ok.
 
 -spec add_handler(hook_tuple()) -> ok.
-add_handler(HookTuple) ->
+add_handler({HookName, Tag, _, _, _} = HookTuple) ->
     Handler = make_hook_handler(HookTuple),
-    gen_server:call(?MODULE, {add_handler, Handler}).
+    Key = hook_key(HookName, Tag),
+    gen_server:call(?MODULE, {add_handler, Key, Handler}).
 
 %% @doc Delete a hook handler.
 %% It is important to indicate exactly the same information than when the call was added.
@@ -103,9 +103,10 @@ delete_handlers(List) ->
     ok.
 
 -spec delete_handler(hook_tuple()) -> ok.
-delete_handler(HookTuple) ->
+delete_handler({HookName, Tag, _, _, _} = HookTuple) ->
     Handler = make_hook_handler(HookTuple),
-    gen_server:call(?MODULE, {delete_handler, Handler}).
+    Key = hook_key(HookName, Tag),
+    gen_server:call(?MODULE, {delete_handler, Key, Handler}).
 
 %% @doc Run hook handlers in order of priority (lower number means higher priority).
 %%  * if a hook handler returns {ok, NewAcc}, the NewAcc value is used
@@ -139,7 +140,7 @@ init([]) ->
     ets:new(?TABLE, [named_table, {read_concurrency, true}]),
     {ok, no_state}.
 
-handle_call({add_handler, #hook_handler{key = Key} = HookHandler}, _From, State) ->
+handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
                     case lists:member(HookHandler, Ls) of
@@ -158,7 +159,7 @@ handle_call({add_handler, #hook_handler{key = Key} = HookHandler}, _From, State)
                     ok
             end,
     {reply, Reply, State};
-handle_call({delete_handler, #hook_handler{key = Key} = HookHandler}, _From, State) ->
+handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
                     NewLs = lists:delete(HookHandler, Ls),
@@ -231,8 +232,7 @@ make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
              is_integer(Priority), Priority > 0 ->
     NewExtra = extend_extra(HookTuple),
     {Module, FunctionName} = check_hook_function(Function),
-    #hook_handler{key = hook_key(HookName, Tag),
-                  prio = Priority,
+    #hook_handler{prio = Priority,
                   module = Module,
                   function = FunctionName,
                   extra = NewExtra}.
