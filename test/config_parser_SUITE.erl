@@ -1358,17 +1358,19 @@ shaper(_Config) ->
 
 acl(_Config) ->
     eq_host_or_global(
-      fun(Host) -> [{acl, {local, Host}, all}] end,
+      fun(Host) -> [#config{key = {acl, local, Host}, value = [all]}] end,
       #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
     eq_host_or_global(
-      fun(Host) -> [{acl, {local, Host}, {user_regexp, <<>>}}] end,
+      fun(Host) -> [#config{key = {acl, local, Host}, value = [{user_regexp, <<>>}]}] end,
       #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
     eq_host_or_global(
-      fun(Host) -> [{acl, {alice, Host}, {node_regexp, <<"ali.*">>, <<".*host">>}}] end,
+      fun(Host) -> [#config{key = {acl, alice, Host},
+                            value = [{node_regexp, <<"ali.*">>, <<".*host">>}]}] end,
       #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
                                          <<"server_regexp">> => <<".*host">>}]}}),
     eq_host_or_global(
-      fun(Host) -> [{acl, {alice, Host}, {user, <<"alice">>, <<"localhost">>}}] end,
+      fun(Host) -> [#config{key = {acl, alice, Host},
+                            value = [{user, <<"alice">>, <<"localhost">>}]}] end,
       #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
                                          <<"server">> => <<"localhost">>}]}}),
     err_host_or_global(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
