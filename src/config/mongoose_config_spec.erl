@@ -974,15 +974,15 @@ acl_item() ->
     #section{
        items = #{<<"match">> => #option{type = atom,
                                         validate = {enum, [all, none]}},
-                 <<"user">> => #option{type = string},
-                 <<"server">> => #option{type = string},
-                 <<"resource">> => #option{type = string},
-                 <<"user_regexp">> => #option{type = string},
-                 <<"server_regexp">> => #option{type = string},
-                 <<"resource_regexp">> => #option{type = string},
-                 <<"user_glob">> => #option{type = string},
-                 <<"server_glob">> => #option{type = string},
-                 <<"resource_glob">> => #option{type = string}
+                 <<"user">> => #option{type = binary},
+                 <<"server">> => #option{type = binary},
+                 <<"resource">> => #option{type = binary},
+                 <<"user_regexp">> => #option{type = binary},
+                 <<"server_regexp">> => #option{type = binary},
+                 <<"resource_regexp">> => #option{type = binary},
+                 <<"user_glob">> => #option{type = binary},
+                 <<"server_glob">> => #option{type = binary},
+                 <<"resource_glob">> => #option{type = binary}
                 },
        validate_keys = non_empty,
        process = fun ?MODULE:process_acl_item/1
@@ -1373,7 +1373,9 @@ process_shaper([MaxRate]) ->
 process_acl_item([{match, V}]) -> V;
 process_acl_item(KVs) ->
     {AclName, AclKeys} = find_acl(KVs, lists:sort(proplists:get_keys(KVs)), acl_keys()),
-    list_to_tuple([AclName | lists:map(fun(K) -> proplists:get_value(K, KVs) end, AclKeys)]).
+    list_to_tuple([AclName | lists:map(fun(K) ->
+                                               prepare_acl_value(proplists:get_value(K, KVs))
+                                       end, AclKeys)]).
 
 find_acl(KVs, SortedKeys, [{AclName, AclKeys}|Rest]) ->
     case lists:sort(AclKeys) of
@@ -1397,6 +1399,11 @@ acl_keys() ->
      {server_glob, [server_glob]},
      {resource_glob, [resource_glob]}
     ].
+
+prepare_acl_value(Value) ->
+    Node = jid:nodeprep(Value),
+    true = Node =/= error,
+    Node.
 
 process_access_rule_item(KVs) ->
     {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),
