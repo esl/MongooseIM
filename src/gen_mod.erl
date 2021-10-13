@@ -49,6 +49,7 @@
          start_module/3,
          start_backend_module/2,
          start_backend_module/3,
+         get_backend_module/2,
          stop_module/2,
          stop_module_keep_config/2,
          reload_module/3,
@@ -223,6 +224,13 @@ start_backend_module(Module, Opts) ->
 start_backend_module(Module, Opts, TrackedFuncs) ->
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     backend_module:create(Module, Backend, TrackedFuncs).
+
+get_backend_module(HostType, Module) ->
+    Backend = get_module_opt(HostType, Module, backend, mnesia),
+    backend_module(Module, Backend).
+
+backend_module(Module, Backend) ->
+    list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->
