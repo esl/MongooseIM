@@ -51,12 +51,7 @@
               token/0,
               token_type/0]).
 
--define(MOD_AUTH_TOKEN_BACKEND, mod_auth_token_backend).
 -ignore_xref([
-    {?MOD_AUTH_TOKEN_BACKEND, start, 1},
-    {?MOD_AUTH_TOKEN_BACKEND, revoke, 2},
-    {?MOD_AUTH_TOKEN_BACKEND, get_valid_sequence_number, 2},
-    {?MOD_AUTH_TOKEN_BACKEND, clean_tokens, 2},
     behaviour_info/1, clean_tokens/3, datetime_to_seconds/1, deserialize/1,
     disco_local_features/1, expiry_datetime/3, get_key_for_host_type/2, process_iq/5,
     revoke/2, revoke_token_command/1, seconds_to_datetime/1, serialize/1, token/3,

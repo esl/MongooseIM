@@ -49,7 +49,6 @@
          start_module/3,
          start_backend_module/2,
          start_backend_module/3,
-         get_backend_module/2,
          get_backend_module/3,
          stop_module/2,
          stop_module_keep_config/2,
@@ -225,10 +224,6 @@ start_backend_module(Module, Opts) ->
 start_backend_module(Module, Opts, TrackedFuncs) ->
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     backend_module:create(Module, Backend, TrackedFuncs).
-
--spec get_backend_module(host_type(), module()) -> module().
-get_backend_module(HostType, Module) ->
-    get_backend_module(HostType, Module, mnesia).
 
 -spec get_backend_module(host_type(), module(), atom()) -> module().
 get_backend_module(HostType, Module, DefaultBackend) ->
