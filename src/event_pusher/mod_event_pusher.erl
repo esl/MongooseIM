@@ -91,7 +91,7 @@ get_backends(Opts) ->
     lists:foldr(fun add_backend/2, [], Backends0).
 
 add_backend({http, Opts}, BackendList) ->
-    % http backend is treated somewhat differently - we allow configuration settins as if there
+    % http backend is treated somewhat differently - we allow configuration settings as if there
     % were many modules, while here we put together a single list of settings for the http event
     % pusher module. Thus, you can configure event pusher like:
     %{mod_event_pusher,

@@ -24,8 +24,6 @@
          prepare_notification/3,
          publish_notification/5]).
 
--ignore_xref([behaviour_info/1]).
-
 %% @doc used for filtering push notifications. A push notification is triggered for a given
 %% message only if this callback returns `true`.
 -callback should_publish(Acc :: mongooseim_acc:t(),
