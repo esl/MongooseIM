@@ -290,7 +290,7 @@ errors_in_handlers_are_reported_but_ignored(_) ->
                                    [{error, {some_error, '_'}},
                                     {hook_handler, 3, mod1, error,
                                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1}},
-                                    6, #{n => 2}])),
+                                    6, #{n => 2}, {calculate, ?HOOK_TAG1}])),
     %% check hook handlers execution sequence
     Self = self(),
     ?assertMatch([{Self,
