@@ -43,7 +43,7 @@ setup() ->
                 fun default_local_option/1),
     meck:expect(ejabberd_config, get_global_option,
                 fun default_global_option/1),
-    meck:expect(acl, match_rule, fun(_, _, _) -> allow end),
+    meck:expect(acl, match_rule_for_host_type, fun(_, _, _, _) -> allow end),
 
     meck:new(mongoose_bin, [passthrough]),
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
@@ -64,7 +64,7 @@ teardown() ->
 default_local_option(max_fsm_queue) -> 100.
 
 default_global_option(default_server_domain) ->  <<"localhost">>;
-default_global_option({access, c2s_shaper, global}) ->  [];
+default_global_option({access, c2s_shaper, _}) ->  [];
 default_global_option(language) ->  <<"en">>.
 
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
