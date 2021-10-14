@@ -174,9 +174,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 for_each_selected_domain('$end_of_table', _) -> ok;
 for_each_selected_domain({MatchList, Continuation}, Func) ->
-    [safely:apply(Func, Args) || Args <- MatchList],
+    [safely:apply_and_log(Func, Args, log_context(Args)) || Args <- MatchList],
     Selection = ets:select(Continuation),
     for_each_selected_domain(Selection, Func).
+
+log_context(Args) ->
+    #{what => domain_operation_failed,
+      args => Args}.
 
 insert_initial(Tab, Pairs) ->
     lists:foreach(fun({Domain, HostType}) ->
