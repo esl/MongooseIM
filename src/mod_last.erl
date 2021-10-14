@@ -54,6 +54,10 @@
 -export([config_metrics/1]).
 
 -define(MOD_LAST_BACKEND, mod_last_backend).
+-ignore_xref([
+    behaviour_info/1, on_presence_update/5, process_local_iq/4,
+    process_sm_iq/4, remove_user/3, session_cleanup/5, remove_domain/3
+]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
