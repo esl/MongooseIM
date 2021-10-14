@@ -12,7 +12,7 @@
 
 -module(mod_last_mnesia).
 
--behaviour(mod_last).
+-behaviour(mod_last_backend).
 
 -include("mod_last.hrl").
 -include("mongoose.hrl").

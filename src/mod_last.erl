@@ -54,16 +54,6 @@
 -export([config_metrics/1]).
 
 -define(MOD_LAST_BACKEND, mod_last_backend).
--ignore_xref([
-    {?MOD_LAST_BACKEND, init, 2},
-    {?MOD_LAST_BACKEND, get_last, 3},
-    {?MOD_LAST_BACKEND, count_active_users, 3},
-    {?MOD_LAST_BACKEND, set_last_info, 5},
-    {?MOD_LAST_BACKEND, remove_user, 3},
-    {?MOD_LAST_BACKEND, remove_domain, 2},
-    behaviour_info/1, on_presence_update/5, process_local_iq/4,
-    process_sm_iq/4, remove_user/3, session_cleanup/5, remove_domain/3
-]).
 
 -include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
@@ -73,34 +63,15 @@
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
+-export_type([host_type/0, timestamp/0, status/0]).
+
 -type host_type() :: mongooseim:host_type().
 -type timestamp() :: non_neg_integer().
 -type status() :: binary().
 
--export_type([host_type/0, timestamp/0, status/0]).
-
--callback init(host_type(), gen_mod:module_opts()) -> ok.
-
--callback get_last(host_type(), jid:luser(), jid:lserver()) ->
-    {ok, timestamp(), status()} | {error, term()} | not_found.
-
--callback count_active_users(host_type(), jid:lserver(), timestamp()) ->
-    non_neg_integer().
-
--callback set_last_info(host_type(), jid:luser(), jid:lserver(), timestamp(), status()) ->
-    ok | {error, term()}.
-
--callback remove_user(host_type(), jid:luser(), jid:lserver()) ->
-    ok | {error, term()}.
-
--callback remove_domain(host_type(), jid:lserver()) ->
-    ok | {error, term()}.
-
--spec start(mongooseim:host_type(), list()) -> 'ok'.
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
-    gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
     mod_last_backend:init(HostType, Opts),
 
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||

@@ -12,7 +12,7 @@
 
 -module(mod_last_rdbms).
 
--behaviour(mod_last).
+-behaviour(mod_last_backend).
 
 -include("mongoose.hrl").
 
