@@ -19,7 +19,7 @@
          terminate/2]).
 
 %% exported for unit tests only
--export([error_running_hook/4]).
+-export([error_running_hook/5]).
 
 -ignore_xref([start_link/0, add_handlers/1, delete_handlers/1]).
 
@@ -127,7 +127,7 @@ run_fold(HookName, Tag, Acc, Params) ->
     case ets:lookup(?TABLE, Key) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Tag, HookName),
-            run_hook(Ls, Acc, Params);
+            run_hook(Ls, Acc, Params, Key);
         [] ->
             {ok, Acc}
     end.
@@ -191,18 +191,18 @@ code_change(_OldVsn, State, _Extra) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
--spec run_hook([#hook_handler{}], hook_acc(), hook_params()) -> hook_fn_ret_value().
-run_hook([], Acc, _Params) ->
+-spec run_hook([#hook_handler{}], hook_acc(), hook_params(), key()) -> hook_fn_ret_value().
+run_hook([], Acc, _Params, _Key) ->
     {ok, Acc};
-run_hook([Handler | Ls], Acc, Params) ->
+run_hook([Handler | Ls], Acc, Params, Key) ->
     case apply_hook_function(Handler, Acc, Params) of
         {ok, NewAcc} ->
-            run_hook(Ls, NewAcc, Params);
+            run_hook(Ls, NewAcc, Params, Key);
         {stop, NewAcc} ->
             {stop, NewAcc};
         Other ->
-            ?MODULE:error_running_hook(Other, Handler, Acc, Params),
-            run_hook(Ls, Acc, Params)
+            ?MODULE:error_running_hook(Other, Handler, Acc, Params, Key),
+            run_hook(Ls, Acc, Params, Key)
     end.
 
 -spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
@@ -211,16 +211,17 @@ apply_hook_function(#hook_handler{module = Module, function = Function, extra = 
                     Acc, Params) ->
     safely:apply(Module, Function, [Acc, Params, Extra]).
 
-error_running_hook({Class, Reason}, Handler, Acc, Params) ->
+error_running_hook({Class, Reason}, Handler, Acc, Params, Key) ->
     Extra = #{class => Class, reason => Reason},
-    log_error_running_hook(Extra, Handler, Acc, Params);
-error_running_hook(Other, Handler, Acc, Params) ->
+    log_error_running_hook(Extra, Handler, Acc, Params, Key);
+error_running_hook(Other, Handler, Acc, Params, Key) ->
     Extra = #{error => Other},
-    log_error_running_hook(Extra, Handler, Acc, Params).
+    log_error_running_hook(Extra, Handler, Acc, Params, Key).
 
-log_error_running_hook(Extra, Handler, Acc, Params) ->
+log_error_running_hook(Extra, Handler, Acc, Params, Key) ->
     ?LOG_ERROR(Extra#{what => hook_failed,
                       text => <<"Error running hook">>,
+                      key => Key,
                       handler => Handler,
                       acc => Acc,
                       params => Params}).
