@@ -68,7 +68,7 @@ mnesia_or_rdbms_backend() ->
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
-    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
+    Hosts = rpc(mim(), ejabberd_config, get_local_option, [hosts]),
     lists:flatmap(
         fun(Host) ->
             rpc(mim(), ejabberd_auth, auth_modules, [Host])

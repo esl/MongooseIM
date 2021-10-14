@@ -455,11 +455,10 @@ do_verify_format(_, Password, SPassword) ->
 set_acl_for_blocking(Spec) ->
     User = proplists:get_value(username, Spec),
     LUser = jid:nodeprep(User),
-    rpc(mim(), ejabberd_config, add_global_option, [{acl, blocked, host_type()}, [{user, LUser}]]).
+    rpc(mim(), ejabberd_config, add_local_option, [{acl, blocked, host_type()}, [{user, LUser}]]).
 
 unset_acl_for_blocking() ->
-    %% There is no del_global_option
-    rpc(mim(), mnesia, dirty_delete, [config, {acl, blocked, host_type()}]).
+    rpc(mim(), ejabberd_config, del_local_option, [{acl, blocked, host_type()}]).
 
 configure_and_log_scram(Config, Sha, Mech) ->
     mongoose_helper:set_store_password({scram, [Sha]}),

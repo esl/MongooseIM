@@ -554,15 +554,15 @@ restore_shaping(Config) ->
     Config.
 
 get_shaper() ->
-    Mam = rpc_apply(ejabberd_config, get_global_option, [{shaper, mam_shaper, global}]),
-    Norm = rpc_apply(ejabberd_config, get_global_option, [{shaper, normal, global}]),
-    Fast = rpc_apply(ejabberd_config, get_global_option, [{shaper, fast, global}]),
+    Mam = rpc_apply(ejabberd_config, get_local_option, [{shaper, mam_shaper, global}]),
+    Norm = rpc_apply(ejabberd_config, get_local_option, [{shaper, normal, global}]),
+    Fast = rpc_apply(ejabberd_config, get_local_option, [{shaper, fast, global}]),
     {Mam, Norm, Fast}.
 
 set_shaper({Mam, Norm, Fast}) ->
-    rpc_apply(ejabberd_config, add_global_option, [{shaper, mam_shaper, global}, Mam]),
-    rpc_apply(ejabberd_config, add_global_option, [{shaper, normal, global}, Norm]),
-    rpc_apply(ejabberd_config, add_global_option, [{shaper, fast, global}, Fast]),
+    rpc_apply(ejabberd_config, add_local_option, [{shaper, mam_shaper, global}, Mam]),
+    rpc_apply(ejabberd_config, add_local_option, [{shaper, normal, global}, Norm]),
+    rpc_apply(ejabberd_config, add_local_option, [{shaper, fast, global}, Fast]),
     rpc_apply(shaper_srv, reset_all_shapers, [host_type()]).
 
 disable_sessions_limit(Config) ->
@@ -576,10 +576,10 @@ restore_sessions_limit(Config) ->
     Config.
 
 get_sessions_limit() ->
-    rpc_apply(ejabberd_config, get_global_option, [{access, max_user_sessions, global}]).
+    rpc_apply(ejabberd_config, get_local_option, [{access, max_user_sessions, global}]).
 
 set_sessions_limit(NewLimit) ->
-    rpc_apply(ejabberd_config, add_global_option,
+    rpc_apply(ejabberd_config, add_local_option,
               [{access, max_user_sessions, global}, NewLimit]).
 
 init_per_group(mam04, Config) ->
