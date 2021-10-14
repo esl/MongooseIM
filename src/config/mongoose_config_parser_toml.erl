@@ -25,7 +25,7 @@
 %% Output: list of config records, containing key-value pairs
 -type option_value() :: atom() | binary() | string() | float(). % parsed leaf value
 -type config_part() :: term(). % any part of a top-level option value, may contain config errors
--type top_level_config() :: #config{} | #local_config{}.
+-type top_level_config() :: #local_config{}.
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type config() :: top_level_config() | config_error().
 -type config_list() :: [config() | fun((jid:server()) -> [config()])]. % see HOST_F
@@ -206,8 +206,6 @@ format([Key|_] = Path, V, host_local_config) ->
     format(Path, V, {host_local_config, b2a(Key)});
 format([Key|_] = Path, V, local_config) ->
     format(Path, V, {local_config, b2a(Key)});
-format([Key|_] = Path, V, config) ->
-    format(Path, V, {config, b2a(Key)});
 format(Path, V, {host_local_config, Key}) ->
     case get_host(Path) of
         global -> ?HOST_F([#local_config{key = {Key, Host}, value = V}]);
@@ -217,10 +215,7 @@ format(Path, V, {local_config, Key}) ->
     global = get_host(Path),
     [#local_config{key = Key, value = V}];
 format([Key|_] = Path, V, {host_or_global_config, Tag}) ->
-    [#config{key = {Tag, b2a(Key), get_host(Path)}, value = V}];
-format(Path, V, {config, Key}) ->
-    global = get_host(Path),
-    [#config{key = Key, value = V}];
+    [#local_config{key = {Tag, b2a(Key), get_host(Path)}, value = V}];
 format([item|_] = Path, V, default) ->
     format(Path, V, item);
 format([Key|_] = Path, V, default) ->
@@ -289,12 +284,12 @@ item_key(_, _) -> item.
 -spec get_key(config_list(), mongoose_config_parser:key()) ->
     [mongoose_config_parser:value()].
 get_key(Config, Key) ->
-    FilterFn = fun(#config{key = K}) when K =:= Key -> true;
+    FilterFn = fun(#local_config{key = K}) when K =:= Key -> true;
                   (_) -> false
                end,
     case lists:filter(FilterFn, Config) of
         [] -> [];
-        [#config{value = Value}] -> Value
+        [#local_config{value = Value}] -> Value
     end.
 
 -spec build_state([jid:server()], [jid:server()], [top_level_config()]) ->
