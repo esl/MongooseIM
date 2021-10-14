@@ -150,7 +150,7 @@ set_auth_opts(SecretSource, Secret, Algorithm, Key) ->
 meck_config(_Config) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
-                fun(Key, _Host) -> [{_, Data}] = ets:lookup(jwt_meck, Key), Data end),
+                fun({Key, ?HOST_TYPE}) -> [{_, Data}] = ets:lookup(jwt_meck, Key), Data end),
     meck:expect(ejabberd_config, add_local_option,
                 fun({Key, _}, Val) -> ets:insert(jwt_meck, {Key, Val}) end).
 

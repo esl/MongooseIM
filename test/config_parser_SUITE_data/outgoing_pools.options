@@ -1,5 +1,5 @@
-{config,default_server_domain,<<"localhost">>}.
-{config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
 {local_config,outgoing_pools,
     [{cassandra,global,default,[],
          [{keyspace,"big_mongooseim"},

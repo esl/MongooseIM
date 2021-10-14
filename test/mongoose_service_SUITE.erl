@@ -64,8 +64,11 @@ init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [<<"localhost">>] end),
+    % This fun needs the second clause because it overwrites the previous mock
+    meck:expect(ejabberd_config, get_local_option_or_default,
+                fun(hosts, _) -> [<<"localhost">>];
+                   (services, _) -> [{Serv, []} || Serv <- services()]
+                end),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
     meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),

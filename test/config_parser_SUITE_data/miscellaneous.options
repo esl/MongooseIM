@@ -1,5 +1,5 @@
-{config,default_server_domain,<<"localhost">>}.
-{config,hosts,[<<"localhost">>,<<"anonymous.localhost">>]}.
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,hosts,[<<"localhost">>,<<"anonymous.localhost">>]}.
 {local_config,cowboy_server_name,"Apache"}.
 {local_config,hide_service_name,true}.
 {local_config,listen,

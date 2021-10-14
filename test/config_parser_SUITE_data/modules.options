@@ -1,5 +1,5 @@
-{config,default_server_domain,<<"localhost">>}.
-{config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
 {local_config,
     {modules,<<"dummy_host">>},
     [{mod_jingle_sip,
