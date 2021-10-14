@@ -1,6 +1,7 @@
 -module(mongoose_helper).
 
 -include_lib("kernel/include/logger.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 %% API
 
@@ -46,6 +47,7 @@
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
 -export([print_debug_info_for_module/1]).
+-export([backup_and_set_config_option/3, restore_config_option/2]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -514,3 +516,15 @@ print_debug_info_for_module(Module) ->
     ct:pal("hosts_and_opts=~p~n iq_handlers=~p~n",
            [ModConfig, IqConfig]).
 
+backup_and_set_config_option(Config, Option, NewValue) ->
+    OriginalValue = rpc(mim(), ejabberd_config, get_local_option, [Option]),
+    rpc(mim(), ejabberd_config, add_local_option, [Option, NewValue]),
+    [{{config_backup, Option}, OriginalValue} | Config].
+
+restore_config_option(Config, Option) ->
+    case ?config({config_backup, Option}, Config) of
+        undefined ->
+            rpc(mim(), ejabberd_config, del_local_option, [Option]);
+        Value ->
+            rpc(mim(), ejabberd_config, add_local_option, [Option, Value])
+    end.
