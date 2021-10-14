@@ -31,7 +31,7 @@
 
 -spec new(atom()) -> shaper().
 new(Name) ->
-    case ejabberd_config:get_global_option({shaper, Name, global}) of
+    case ejabberd_config:get_local_option({shaper, Name, global}) of
         {maxrate, MaxRatePerSecond} ->
             #shaper{max_rate = MaxRatePerSecond,
                     tokens = MaxRatePerSecond,

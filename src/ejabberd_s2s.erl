@@ -592,7 +592,7 @@ get_s2s_state(S2sPid)->
     [{s2s_pid, S2sPid} | Infos].
 
 get_or_generate_secret() ->
-    case ejabberd_config:get_global_option(s2s_shared) of
+    case ejabberd_config:get_local_option(s2s_shared) of
         undefined ->
             generate_and_store_secret();
         Secret ->
@@ -601,5 +601,5 @@ get_or_generate_secret() ->
 
 generate_and_store_secret() ->
     Secret = base16:encode(crypto:strong_rand_bytes(10)),
-    ejabberd_config:add_global_option(s2s_shared, Secret),
+    ejabberd_config:add_local_option(s2s_shared, Secret),
     Secret.

@@ -100,15 +100,15 @@ match_rule_for_host_type(_HostType, _, all, _, _Default) ->
 match_rule_for_host_type(_HostType, _, none, _, _Default) ->
     deny;
 match_rule_for_host_type(global, Domain, Rule, JID, Default) ->
-    case ejabberd_config:get_global_option({access, Rule, global}) of
+    case ejabberd_config:get_local_option({access, Rule, global}) of
         undefined ->
             Default;
         GACLs ->
             match_acls(GACLs, JID, global, Domain)
     end;
 match_rule_for_host_type(HostType, Domain, Rule, JID, Default) ->
-    GlobalACLs = ejabberd_config:get_global_option({access, Rule, global}),
-    HostACLs = ejabberd_config:get_global_option({access, Rule, HostType}),
+    GlobalACLs = ejabberd_config:get_local_option({access, Rule, global}),
+    HostACLs = ejabberd_config:get_local_option({access, Rule, HostType}),
     case {GlobalACLs, HostACLs} of
         {undefined, undefined} ->
             Default;
@@ -162,7 +162,7 @@ match_acl(Rule, JID, HostType, Domain) ->
 
 -spec get_acl_specs(rule(), host_type_or_global()) -> [aclspec()].
 get_acl_specs(Rule, HostType) ->
-    ejabberd_config:get_global_option_or_default({acl, Rule, HostType}, []).
+    ejabberd_config:get_local_option_or_default({acl, Rule, HostType}, []).
 
 -spec is_server_valid(domain_or_global(), jid:lserver()) -> boolean().
 is_server_valid(Domain, Domain) ->

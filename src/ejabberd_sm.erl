@@ -491,7 +491,7 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 -spec init(_) -> {ok, state()}.
 init([]) ->
-    {Backend, Opts} = case ejabberd_config:get_global_option(sm_backend) of
+    {Backend, Opts} = case ejabberd_config:get_local_option(sm_backend) of
                           undefined -> {mnesia, []};
                           Value -> Value
                       end,

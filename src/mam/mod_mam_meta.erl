@@ -144,7 +144,7 @@ get_mam_module_configuration(Host, MamModule, DefaultValue) ->
     %% gen_mod interfaces and also (theoretically) modules can be stopped
     %% using gen_mod:stop_module_keep_config/2 interface, so local_config
     %% mnesia table is more preferable source of the configuration.
-    Modules = ejabberd_config:get_local_option(modules, Host),
+    Modules = ejabberd_config:get_local_option({modules, Host}),
     case proplists:get_value(MamModule, Modules) of
         undefined ->
             case proplists:get_value(?MODULE, Modules) of

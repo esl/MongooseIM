@@ -521,7 +521,7 @@ unregister_routes(StateData) ->
     ejabberd_router:unregister_components(Routes).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
-    Hosts = ejabberd_config:get_global_option(hosts),
+    Hosts = ejabberd_config:get_local_option(hosts),
     component_routes(Subdomain, Hosts);
 get_routes(#state{host=Host}) ->
     [Host].
