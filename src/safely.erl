@@ -45,12 +45,12 @@ apply(Function, Args) when is_function(Function), is_list(Args) ->
 apply(Module, Function, Args) when is_atom(Function), is_list(Args) ->
     ?MATCH_EXCEPTIONS(erlang:apply(Module, Function, Args)).
 
-% -spec apply_and_log(fun((...) -> A), [term()], map()) -> catch_result(A).
+-spec apply_and_log(fun((...) -> A), [term()], map()) -> catch_result(A).
 apply_and_log(Function, Args, Context)
   when is_function(Function), is_list(Args), is_map(Context) ->
     ?MATCH_EXCEPTIONS_DO_LOG(erlang:apply(Function, Args), Context).
 
-% -spec apply_and_log(atom(), atom(), [term()], map()) -> catch_result(any()).
+-spec apply_and_log(atom(), atom(), [term()], map()) -> catch_result(any()).
 apply_and_log(Module, Function, Args, Context)
   when is_atom(Function), is_list(Args), is_map(Context) ->
     ?MATCH_EXCEPTIONS_DO_LOG(erlang:apply(Module, Function, Args), Context).
