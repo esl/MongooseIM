@@ -174,7 +174,7 @@ handle_publish_response(Host, Recipient, PubsubJID, Node, #iq{type = error, sub_
     case exml_query:attr(Error, <<"type">>) of
         <<"cancel">> ->
             %% We disable the push node in case the error type is cancel
-            mod_event_pusher_push:disable_node(Host, Recipient,PubsubJID, Node);
+            mod_event_pusher_push:disable_node(Host, Recipient, PubsubJID, Node);
         _ ->
             ok
     end.
