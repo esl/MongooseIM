@@ -51,7 +51,8 @@ make_request(Host, PoolTag, Path, Method, Headers, Query) ->
     end.
 
 make_request(Host, PoolTag, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
-    FullPath = <<PathPrefix/binary, "/", Path/binary>>,
+    FixedPath = fix_path(Path),
+    FullPath = <<PathPrefix/binary, FixedPath/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
     try mongoose_wpool:call(http, Host, PoolTag, Req) of
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
@@ -70,3 +71,8 @@ make_request(Host, PoolTag, PathPrefix, RequestTimeout, Path, Method, Headers, Q
         Type:Error ->
             {error, {Type, Error}}
     end.
+
+fix_path(<<"/", _/binary>> = Path) ->
+    Path;
+fix_path(R) ->
+    <<"/", R/binary>>.
