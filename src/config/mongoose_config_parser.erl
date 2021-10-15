@@ -29,19 +29,7 @@
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
--type key() :: atom() | host_type_key() | host_type_or_global_key().
--type s2s_domain_key() :: {atom(), jid:lserver()}.
--type host_type_key() :: {atom() | s2s_domain_key(), mongooseim:host_type()}.
--type host_type_or_global_key() :: {shaper | access | acl, atom(), mongooseim:host_type() | global}.
-
--type value() :: atom()
-               | binary()
-               | integer()
-               | string()
-               | [value()]
-               | tuple().
-
--export_type([state/0, key/0, value/0]).
+-export_type([state/0]).
 
 -record(state, {opts = [] :: list(),
                 hosts = [] :: [domain_name()],

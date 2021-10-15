@@ -38,15 +38,15 @@ send_reports(ReportsList) ->
         end, ReportsList).
 
 get_url() ->
-    ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
+    mongoose_config:get_opt(google_analytics_url, ?BASE_URL).
 
 get_tracking_ids() ->
-    DevTrackingId = ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID),
-    ExtraTrackingId = ejabberd_config:get_local_option(extra_google_analytics_tracking_id),
-    case ExtraTrackingId of
-        undefined -> [DevTrackingId];
-        ExtraTrackingId -> [DevTrackingId, ExtraTrackingId]
+    DevTrackingId = mongoose_config:get_opt(google_analytics_tracking_id, ?TRACKING_ID),
+    case mongoose_config:lookup_opt(extra_google_analytics_tracking_id) of
+        {error, not_found}  -> [DevTrackingId];
+        {ok, ExtraTrackingId} -> [DevTrackingId, ExtraTrackingId]
     end.
+
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
 -spec flush_reports(url(), [google_analytics_report()]) -> {ok, term()} | {error, term()}.

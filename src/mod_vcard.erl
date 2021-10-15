@@ -78,8 +78,6 @@
 -export([get_default_reported_fields/1]).
 -export([default_host/0]).
 
--export([config_change/4]).
-
 %% GDPR related
 -export([get_personal_data/3]).
 
@@ -245,7 +243,6 @@ hooks2() ->
     [{remove_user, remove_user, 50},
      {anonymous_purge_hook, remove_user, 50},
      {remove_domain, remove_domain, 50},
-     {host_config_update, config_change, 50},
      {set_vcard, set_vcard, 50},
      {get_personal_data, get_personal_data, 50}].
 
@@ -560,22 +557,6 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
     mod_vcard_backend:remove_user(HostType, LUser, LServer),
-    Acc.
-
-%% react to "global" config change
-config_change(Acc, Host, ldap, _NewConfig) ->
-    case mod_vcard_backend:backend() of
-        mod_vcard_ldap ->
-            Mods = ejabberd_config:get_local_option({modules, Host}),
-            Opts = proplists:get_value(?MODULE, Mods, []),
-            gen_mod:stop_module(Host, ?MODULE),
-            gen_mod:start_module(Host, ?MODULE, Opts);
-        _ ->
-            ok
-    end,
-    %ok = gen_server:call(Proc, {new_config, Host, Opts}),
-    Acc;
-config_change(Acc, _, _, _) ->
     Acc.
 
 %% ------------------------------------------------------------------

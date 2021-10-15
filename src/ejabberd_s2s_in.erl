@@ -136,12 +136,12 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, S}} -> S;
                  _ -> none
              end,
-    UseTLS = ejabberd_config:get_local_option(s2s_use_starttls),
+    UseTLS = mongoose_config:get_opt(s2s_use_starttls, false),
     {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
-    TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
-                  undefined ->
+    TLSOpts1 = case mongoose_config:lookup_opt(s2s_certfile) of
+                  {error, not_found} ->
                       [];
-                  CertFile ->
+                  {ok, CertFile} ->
                       [{certfile, CertFile}]
               end,
     TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
@@ -251,16 +251,11 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                    SockMod == gen_tcp ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
             Socket = StateData#state.socket,
-            TLSOpts = case ejabberd_config:get_local_option(
-                             {domain_certfile,
-                              StateData#state.server}) of
-                          undefined ->
+            TLSOpts = case mongoose_config:lookup_opt({domain_certfile, StateData#state.server}) of
+                          {error, not_found} ->
                               StateData#state.tls_options;
-                          CertFile ->
-                              [{certfile, CertFile} |
-                               lists:keydelete(
-                                 certfile, 1,
-                                 StateData#state.tls_options)]
+                          {ok, CertFile} ->
+                              lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
                       end,
             TLSSocket = (StateData#state.sockmod):starttls(
                           Socket, TLSOpts,
@@ -718,8 +713,6 @@ handle_auth_res(_, _, StateData) ->
     {stop, normal, StateData}.
 
 
-get_tls_params(undefined) ->
-    {false, false, false};
 get_tls_params(false) ->
     {false, false, false};
 get_tls_params(true) ->

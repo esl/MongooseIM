@@ -406,9 +406,9 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 -spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Server) ->
     {ok, EndpointsToResolve} =
-    case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
-        undefined -> mod_global_distrib_mapping:endpoints(Server);
-        Endpoints -> {ok, Endpoints}
+    case mongoose_config:lookup_opt({global_distrib_addr, Server}) of
+        {error, not_found} -> mod_global_distrib_mapping:endpoints(Server);
+        {ok, Endpoints} -> {ok, Endpoints}
     end,
     Resolved = mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve),
     {ok, Resolved}.

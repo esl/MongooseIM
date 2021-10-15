@@ -140,7 +140,7 @@ start_module(HostType, Module, Opts) ->
 start_module_for_host_type(HostType, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = proplists:unfold(Opts0),
-    set_module_opts_mnesia(HostType, Module, Opts),
+    set_module_opts_in_config(HostType, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host_type = {Module, HostType},
                                                   opts = Opts}),
     try
@@ -169,7 +169,7 @@ start_module_for_host_type(HostType, Module, Opts0) ->
         end
     catch
         Class:Reason:StackTrace ->
-            del_module_mnesia(HostType, Module),
+            del_module_from_config(HostType, Module),
             ets:delete(ejabberd_modules, {Module, HostType}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
                                       "host_type ~p~n options: ~p~n ~p: ~p~n~p",
@@ -243,10 +243,8 @@ stop_module(HostType, Module) ->
 stop_module_for_host_type(HostType, Module) ->
     case stop_module_keep_config(HostType, Module) of
         {ok, Opts} ->
-            case del_module_mnesia(HostType, Module) of
-                {atomic, _} -> {ok, Opts};
-                E -> {error, E}
-            end;
+            del_module_from_config(HostType, Module),
+            {ok, Opts};
         {error, E} ->
             {error, E}
     end.
@@ -467,37 +465,22 @@ hosts_and_opts_with_module(Module) ->
                                   opts = '$2'},
                  [], [{{'$1', '$2'}}]}]).
 
--spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
-    {'aborted', _} | {'atomic', _}.
-set_module_opts_mnesia(HostType, Module, Opts0) ->
+-spec set_module_opts_in_config(host_type(), module(), [any()]) -> ok.
+set_module_opts_in_config(HostType, Module, Opts0) ->
     %% this function is not atomic!
     Opts = proplists:unfold(Opts0),
-    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
-        undefined ->
-            [];
-        Ls ->
-            Ls
-    end,
+    Modules = mongoose_config:get_opt({modules, HostType}, []),
     Modules1 = lists:keydelete(Module, 1, Modules),
     Modules2 = [{Module, Opts} | Modules1],
-    ejabberd_config:add_local_option({modules, HostType}, Modules2).
+    mongoose_config:set_opt({modules, HostType}, Modules2).
 
 
--spec del_module_mnesia(host_type(), module()) -> {'aborted', _} | {'atomic', _}.
-del_module_mnesia(HostType, Module) ->
+-spec del_module_from_config(host_type(), module()) -> ok.
+del_module_from_config(HostType, Module) ->
     %% this function is not atomic!
-    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
-                  undefined ->
-                      [];
-                  Ls ->
-                      Ls
-              end,
-    case lists:keydelete(Module, 1, Modules) of
-        [] ->
-            ejabberd_config:del_local_option({modules, HostType});
-        OtherModules ->
-            ejabberd_config:add_local_option({modules, HostType}, OtherModules)
-    end.
+    Modules = mongoose_config:get_opt({modules, HostType}, []),
+    OtherModules = lists:keydelete(Module, 1, Modules),
+    mongoose_config:set_opt({modules, HostType}, OtherModules).
 
 -spec get_module_proc(binary() | string(), module()) -> atom().
 %% TODO:

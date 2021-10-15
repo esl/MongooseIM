@@ -34,7 +34,7 @@
 -spec init() -> ok | {error, term()}.
 init() ->
     Pairs = get_static_pairs(),
-    AllowedHostTypes = ejabberd_config:get_local_option_or_default(host_types, []),
+    AllowedHostTypes = mongoose_config:get_opt(host_types, []),
     mongoose_domain_core:start(Pairs, AllowedHostTypes),
     mongoose_subdomain_core:start(),
     mongoose_lazy_routing:start().
@@ -177,7 +177,7 @@ check_domain(Domain, HostType) ->
 %% Domains should be nameprepped using `jid:nameprep'
 -spec get_static_pairs() -> [pair()].
 get_static_pairs() ->
-    [{H, H} || H <- ejabberd_config:get_local_option_or_default(hosts, [])].
+    [{H, H} || H <- mongoose_config:get_opt(hosts, [])].
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->

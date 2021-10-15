@@ -59,8 +59,8 @@ parse_file(FileName) ->
 -spec process(toml_section()) -> mongoose_config_parser:state().
 process(Content) ->
     Config = parse(Content),
-    Hosts = get_key(Config, hosts),
-    HostTypes = get_key(Config, host_types),
+    Hosts = get_value(Config, hosts),
+    HostTypes = get_value(Config, host_types),
     {FOpts, Opts} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
     HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
     HostTypesOpts = lists:flatmap(fun(F) -> lists:flatmap(F, HostTypes) end, FOpts),
@@ -281,9 +281,8 @@ item_key(_, _) -> item.
 
 %% Processing of the parsed options
 
--spec get_key(config_list(), mongoose_config_parser:key()) ->
-    [mongoose_config_parser:value()].
-get_key(Config, Key) ->
+-spec get_value(config_list(), mongoose_config:key()) -> [mongoose_config:value()].
+get_value(Config, Key) ->
     FilterFn = fun(#local_config{key = K}) when K =:= Key -> true;
                   (_) -> false
                end,

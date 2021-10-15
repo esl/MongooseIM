@@ -134,7 +134,7 @@ get_mam_module_configuration(Host, MamModule, DefaultValue) ->
     %%     initialised on module startup but can be changed runtime via
     %%     gen_mod interfaces. removed when module is stopped.
     %%
-    %%   * local_config mnesia table  - managed by ejabberd_config, but
+    %%   * mongoose_config, but
     %%     it's only gen_mod changing stored configuration of the modules.
     %%     changes are done in the next way: configuration is stored when
     %%     module is started, removed - when stopped, updated on module
@@ -144,7 +144,7 @@ get_mam_module_configuration(Host, MamModule, DefaultValue) ->
     %% gen_mod interfaces and also (theoretically) modules can be stopped
     %% using gen_mod:stop_module_keep_config/2 interface, so local_config
     %% mnesia table is more preferable source of the configuration.
-    Modules = ejabberd_config:get_local_option({modules, Host}),
+    Modules = mongoose_config:get_opt({modules, Host}),
     case proplists:get_value(MamModule, Modules) of
         undefined ->
             case proplists:get_value(?MODULE, Modules) of

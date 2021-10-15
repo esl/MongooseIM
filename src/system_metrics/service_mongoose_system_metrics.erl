@@ -40,7 +40,7 @@
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
-    Services = ejabberd_config:get_local_option_or_default(services, []),
+    Services = mongoose_config:get_opt(services, []),
     case proplists:is_defined(?MODULE, Services) of
         false ->
             %% Technically, notice level.
@@ -139,17 +139,22 @@ get_client_id() ->
 -spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer()}.
 metrics_module_config(Args) ->
     {InitialReport, ReportAfter} = get_timeouts(Args, os:getenv("CI")),
-    ExtraTrackingID = proplists:get_value(tracking_id, Args, undefined),
-    ejabberd_config:add_local_option(extra_google_analytics_tracking_id, ExtraTrackingID),
+    case proplists:lookup(tracking_id, Args) of
+        none ->
+            % There might be a leftover option
+            mongoose_config:unset_opt(extra_google_analytics_tracking_id);
+        {_, ExtraTrackingID} ->
+            mongoose_config:set_opt(extra_google_analytics_tracking_id, ExtraTrackingID)
+    end,
     {InitialReport, ReportAfter}.
 
 get_timeouts(Args, "true") ->
-    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
+    mongoose_config:set_opt(google_analytics_tracking_id, ?TRACKING_ID_CI),
     I = proplists:get_value(initial_report, Args, timer:seconds(20)),
     R = proplists:get_value(periodic_report, Args, timer:minutes(5)),
     {I, R};
 get_timeouts(Args, _) ->
-    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
+    mongoose_config:set_opt(google_analytics_tracking_id, ?TRACKING_ID),
     I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     R = proplists:get_value(periodic_report, Args, ?DEFAULT_REPORT_AFTER),
     {I, R}.

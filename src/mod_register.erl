@@ -412,10 +412,7 @@ send_registration_notification(JIDBin, Domain, Body) ->
 check_timeout(undefined) ->
     true;
 check_timeout(Source) ->
-    Timeout = case ejabberd_config:get_local_option(registration_timeout) of
-                  undefined -> 600;
-                  TO -> TO
-              end,
+    Timeout = mongoose_config:get_opt(registration_timeout, 600),
     case is_integer(Timeout) of
         true ->
             Priority = -(erlang:system_time(second)),

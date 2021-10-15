@@ -64,10 +64,10 @@ init(_) ->
 
 -spec start_listeners() -> 'ignore' | {'ok', {{_, _, _}, [any()]}}.
 start_listeners() ->
-    case ejabberd_config:get_local_option(listen) of
-        undefined ->
+    case mongoose_config:lookup_opt(listen) of
+        {error, not_found} ->
             ignore;
-        Ls ->
+        {ok, Ls} ->
             Ls2 = lists:map(
                 fun({Port, Module, Opts}) ->
                         case start_listener(Port, Module, Opts) of
@@ -258,7 +258,7 @@ opts_to_listener_args(PortIPProto, RawOpts) ->
 
 -spec stop_listeners() -> 'ok'.
 stop_listeners() ->
-    Ports = ejabberd_config:get_local_option(listen),
+    Ports = mongoose_config:get_opt(listen, []),
     lists:foreach(
       fun({PortIpNetp, Module, _Opts}) ->
               stop_listener(PortIpNetp, Module)
@@ -283,15 +283,10 @@ add_listener(PortIPProto, Module, Opts) ->
     PortIP1 = {Port, IPT, Proto},
     case start_listener(PortIP1, Module, Opts) of
         {ok, _Pid} ->
-            Ports = case ejabberd_config:get_local_option(listen) of
-                        undefined ->
-                            [];
-                        Ls ->
-                            Ls
-                    end,
+            Ports = mongoose_config:get_opt(listen, []),
             Ports1 = lists:keydelete(PortIP1, 1, Ports),
             Ports2 = [{PortIP1, Module, Opts} | Ports1],
-            ejabberd_config:add_local_option(listen, Ports2),
+            mongoose_config:set_opt(listen, Ports2),
             ok;
         {error, Error} ->
             {error, Error}
@@ -311,14 +306,9 @@ delete_listener(PortIPProto, Module, Opts) ->
 %%    this one stops a listener and deletes it from configuration, used while reloading config
     {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
     PortIP1 = {Port, IPT, Proto},
-    Ports = case ejabberd_config:get_local_option(listen) of
-                undefined ->
-                    [];
-                Ls ->
-                    Ls
-            end,
+    Ports = mongoose_config:get_opt(listen, []),
     Ports1 = lists:keydelete(PortIP1, 1, Ports),
-    ejabberd_config:add_local_option(listen, Ports1),
+    mongoose_config:set_opt(listen, Ports1),
     stop_listener(PortIP1, Module).
 
 %%%

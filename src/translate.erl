@@ -119,7 +119,7 @@ insert_translation(Lang, Msg, Trans) ->
 
 -spec get_default_server_lang_translation(binary()) ->  binary().
 get_default_server_lang_translation(Msg) ->
-    case get_translation(default_server_lang(), Msg) of
+    case get_translation(?MYLANG, Msg) of
         {ok, DefaultTrans} -> DefaultTrans;
         {error, not_found} -> Msg
     end.
@@ -147,14 +147,6 @@ short_lang(LLang) ->
     case string:tokens(binary_to_list(LLang), "-") of
         [] -> LLang;
         [ShortLang | _] -> list_to_binary(ShortLang)
-    end.
-
--spec default_server_lang() -> ejabberd:lang().
-default_server_lang() ->
-    case ?MYLANG of
-        undefined -> <<"en">>;
-        <<"en">> ->  <<"en">>;
-        Lang -> Lang
     end.
 
 -spec to_lower(binary()) -> binary().
