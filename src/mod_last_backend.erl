@@ -35,7 +35,7 @@
 -spec init(mod_last:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
     TrackedFuns = [get_last, set_last_info],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns),
+    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
