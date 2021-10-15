@@ -1,5 +1,5 @@
-{config,default_server_domain,<<"localhost">>}.
-{config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
 {local_config,outgoing_s2s_families,[ipv4,ipv6]}.
 {local_config,outgoing_s2s_port,5299}.
 {local_config,outgoing_s2s_timeout,10000}.

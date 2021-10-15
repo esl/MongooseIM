@@ -318,7 +318,7 @@ different_specs_matching_the_same_user(Config) ->
     ok.
 
 set_acl(HostType, ACLName, ACLSpec) ->
-    ejabberd_config:add_global_option({acl, ACLName, HostType}, [ACLSpec]).
+    ejabberd_config:add_local_option({acl, ACLName, HostType}, [ACLSpec]).
 
 given_clean_config() ->
     meck:unload(),
@@ -339,24 +339,24 @@ given_registered_domains(Config, DomainsList) ->
     end.
 
 register_static_domains(DomainsList) ->
-    ejabberd_config:add_global_option(hosts, DomainsList),
-    ejabberd_config:add_global_option(host_types, []),
+    ejabberd_config:add_local_option(hosts, DomainsList),
+    ejabberd_config:add_local_option(host_types, []),
     mongoose_domain_api:stop(),
     mongoose_domain_api:init().
 
 register_dynamic_domains(DomainsList) ->
-    ejabberd_config:add_global_option(hosts, []),
-    ejabberd_config:add_global_option(host_types, [<<"test type">>, <<"empty type">>]),
+    ejabberd_config:add_local_option(hosts, []),
+    ejabberd_config:add_local_option(host_types, [<<"test type">>, <<"empty type">>]),
     mongoose_domain_api:stop(),
     mongoose_domain_api:init(),
     [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].
 
 %% ACLs might be an empty list
 set_host_rule(Rule, Host, ACLs) ->
-    ejabberd_config:add_global_option({access, Rule, Host}, ACLs),
+    ejabberd_config:add_local_option({access, Rule, Host}, ACLs),
     ok.
 
 %% ACLs might be an empty list
 set_global_rule(Rule, ACLs) ->
-    ejabberd_config:add_global_option({access, Rule, global}, ACLs),
+    ejabberd_config:add_local_option({access, Rule, global}, ACLs),
     ok.

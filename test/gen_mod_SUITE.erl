@@ -30,7 +30,7 @@ all() ->
 
 init_per_testcase(_, Config) ->
     meck:new(ejabberd_config, [passthrough]),
-    meck:expect(ejabberd_config, get_global_option_or_default,
+    meck:expect(ejabberd_config, get_local_option_or_default,
                 fun(hosts, _) -> [<<"localhost">>, <<"localhost.bis">>] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> {atomic, ok} end),

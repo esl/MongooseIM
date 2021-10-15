@@ -74,5 +74,5 @@ given_loaded_translations() ->
 given_default_language(Lang) ->
     (catch meck:unload()),
     meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_global_option, fun(language) -> Lang end),
+    meck:expect(ejabberd_config, get_local_option, fun(language) -> Lang end),
     ok.

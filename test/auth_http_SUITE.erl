@@ -191,7 +191,7 @@ try_register(_Config) ->
 
 % get_password + get_password_s
 get_password(_Config) ->
-    case mongoose_scram:enabled(?DOMAIN) of
+    case mongoose_scram:enabled(?HOST_TYPE) of
         false ->
             <<"makota">> = ejabberd_auth_http:get_password(?HOST_TYPE, <<"alice">>, ?DOMAIN),
             <<"makota">> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"alice">>, ?DOMAIN);
@@ -222,7 +222,7 @@ supported_sasl_mechanisms(Config) ->
                           _ -> true
                       end,
     [true, DigestSupported, false, true, true, true, true, true] =
-        [ejabberd_auth_http:supports_sasl_module(?DOMAIN, Mod) || Mod <- Modules].
+        [ejabberd_auth_http:supports_sasl_module(?HOST_TYPE, Mod) || Mod <- Modules].
 
 cert_auth_fail(Config) ->
     Creds = creds_with_cert(Config, <<"cert_user">>),
@@ -253,7 +253,7 @@ meck_config(Config) ->
                 end,
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
-                fun(auth_opts, _Host) ->
+                fun({auth_opts, ?HOST_TYPE}) ->
                         [
                          {host, ?AUTH_HOST},
                          {path_prefix, "/auth/"},

@@ -424,7 +424,7 @@ allow_everyone_registration() ->
 
 change_registration_settings_for_everyone(Rule)
   when allow =:= Rule; deny =:= Rule ->
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option,
+    {atomic,ok} = rpc(mim(), ejabberd_config, add_local_option,
                       [{access, register, global}, [{Rule, all}]]),
     ok.
 

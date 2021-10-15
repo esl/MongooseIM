@@ -20,9 +20,6 @@
 -ifndef(MONGOOSEIM_EJABBERD_CONFIG_HRL).
 -define(MONGOOSEIM_EJABBERD_CONFIG_HRL, true).
 
--record(config, {key   :: mongoose_config_parser:key(),
-                 value :: mongoose_config_parser:value()
-                }).
 -record(local_config, {key   :: mongoose_config_parser:key(),
                        value :: mongoose_config_parser:value()
                       }).

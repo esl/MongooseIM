@@ -124,7 +124,7 @@ hooks(HostType) ->
 -spec set_opts(HostType :: mongooseim:host_type(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
 set_opts(HostType, KVs) ->
-    OldOpts = ejabberd_config:get_local_option(auth_opts, HostType),
+    OldOpts = ejabberd_config:get_local_option({auth_opts, HostType}),
     AccFunc = fun({K, V}, Acc) ->
                   lists:keystore(K, 1, Acc, {K, V})
               end,
@@ -135,7 +135,7 @@ set_opts(HostType, KVs) ->
               Opt :: atom(),
               Default :: ejabberd:value()) -> undefined | ejabberd:value().
 get_opt(HostType, Opt, Default) ->
-    case ejabberd_config:get_local_option(auth_opts, HostType) of
+    case ejabberd_config:get_local_option({auth_opts, HostType}) of
         undefined ->
             Default;
         Opts ->

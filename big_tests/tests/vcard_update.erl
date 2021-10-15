@@ -85,7 +85,7 @@ is_mongooseim() ->
 
 -spec try_ejabberd_v2() -> no_return().
 try_ejabberd_v2() ->
-    [{config, hosts, [XMPPDomain | _]}] = rpc(mim(), ets, lookup, [config, hosts]),
+    [{local_config, hosts, [XMPPDomain | _]}] = rpc(mim(), ets, lookup, [local_config, hosts]),
     case XMPPDomain of
         BString when is_binary(BString) ->
             throw(binary);

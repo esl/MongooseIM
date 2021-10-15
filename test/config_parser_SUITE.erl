@@ -346,12 +346,12 @@ loglevel(_Config) ->
     ?err(parse_host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
-    ?eq([#config{key = hosts, value = [<<"host1">>]}],
+    ?eq([#local_config{key = hosts, value = [<<"host1">>]}],
         parse(#{<<"general">> => #{<<"hosts">> => [<<"host1">>]}})),
     GenM = #{<<"default_server_domain">> => <<"some.host">>},
-    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
-                    #config{key = host_types, value = []},
-                    #config{key = default_server_domain, value = <<"some.host">>}],
+    compare_config([#local_config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #local_config{key = host_types, value = []},
+                    #local_config{key = default_server_domain, value = <<"some.host">>}],
                    mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
                        <<"hosts">> => [<<"host1">>, <<"host2">>],
                        <<"host_types">> => []}})),
@@ -367,10 +367,10 @@ hosts(_Config) ->
     ?err(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host_types">> => []}})).
 
 host_types(_Config) ->
-    ?eq([#config{key = host_types, value = [<<"type 1">>]}],
+    ?eq([#local_config{key = host_types, value = [<<"type 1">>]}],
         parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}})),
-    compare_config([#config{key = host_types, value = [<<"type 1">>, <<"type 2">>]},
-                    #config{key = hosts, value = []}],
+    compare_config([#local_config{key = host_types, value = [<<"type 1">>, <<"type 2">>]},
+                    #local_config{key = hosts, value = []}],
                    parse(#{<<"general">> => #{<<"host_types">> => [<<"type 1">>, <<"type 2">>],
                                               <<"hosts">> => []}})),
     ?err(parse(#{<<"general">> => #{<<"host_types">> => [<<>>]}})),
@@ -380,11 +380,11 @@ host_types(_Config) ->
                                     <<"hosts">> => [<<"type1">>]}})).
 
 default_server_domain(_Config) ->
-    ?eq([#config{key = default_server_domain, value = <<"host1">>}],
+    ?eq([#local_config{key = default_server_domain, value = <<"host1">>}],
         parse(#{<<"general">> => #{<<"default_server_domain">> => <<"host1">>}})),
     GenM = #{<<"hosts">> => [<<"host1">>, <<"host2">>]},
-    compare_config([#config{key = hosts, value = [<<"host1">>, <<"host2">>]},
-                    #config{key = default_server_domain, value = <<"some.host">>}],
+    compare_config([#local_config{key = hosts, value = [<<"host1">>, <<"host2">>]},
+                    #local_config{key = default_server_domain, value = <<"some.host">>}],
                    mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{
                        <<"default_server_domain">> => <<"some.host">>}})),
     ?err(parse(#{<<"general">> => #{<<"default_server_domain">> => <<"what is this?">>}})),
@@ -400,7 +400,7 @@ registration_timeout(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"registration_timeout">> => 0}})).
 
 language(_Config) ->
-    ?eq([#config{key = language, value = <<"en">>}],
+    ?eq([#local_config{key = language, value = <<"en">>}],
         parse(#{<<"general">> => #{<<"language">> => <<"en">>}})),
     ?err(parse(#{<<"general">> => #{<<"language">> => <<>>}})).
 
@@ -410,9 +410,9 @@ all_metrics_are_global(_Config) ->
     ?err(parse(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}})).
 
 sm_backend(_Config) ->
-    ?eq([#config{key = sm_backend, value = {mnesia, []}}],
+    ?eq([#local_config{key = sm_backend, value = {mnesia, []}}],
         parse(#{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}})),
-    ?eq([#config{key = sm_backend, value = {redis, []}}],
+    ?eq([#local_config{key = sm_backend, value = {redis, []}}],
         parse(#{<<"general">> => #{<<"sm_backend">> => <<"redis">>}})),
     ?err(parse(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}})).
 
@@ -1343,7 +1343,7 @@ pool_ldap_tls(_Config) ->
 %% tests: shaper, acl, access
 shaper(_Config) ->
     eq_host_or_global(
-      fun(Host) -> [#config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
+      fun(Host) -> [#local_config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
       #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
     err_host_or_global(#{<<"shaper">> => #{<<"unlimited">> =>
                                                #{<<"max_rate">> => <<"infinity">>}}}),
@@ -1351,19 +1351,19 @@ shaper(_Config) ->
 
 acl(_Config) ->
     eq_host_or_global(
-      fun(Host) -> [#config{key = {acl, local, Host}, value = [all]}] end,
+      fun(Host) -> [#local_config{key = {acl, local, Host}, value = [all]}] end,
       #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
     eq_host_or_global(
-      fun(Host) -> [#config{key = {acl, local, Host}, value = [{user_regexp, <<>>}]}] end,
+      fun(Host) -> [#local_config{key = {acl, local, Host}, value = [{user_regexp, <<>>}]}] end,
       #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
     eq_host_or_global(
-      fun(Host) -> [#config{key = {acl, alice, Host},
-                            value = [{node_regexp, <<"ali.*">>, <<".*host">>}]}] end,
+      fun(Host) -> [#local_config{key = {acl, alice, Host},
+                                  value = [{node_regexp, <<"ali.*">>, <<".*host">>}]}] end,
       #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
                                          <<"server_regexp">> => <<".*host">>}]}}),
     eq_host_or_global(
-      fun(Host) -> [#config{key = {acl, alice, Host},
-                            value = [{user, <<"alice">>, <<"localhost">>}]}] end,
+      fun(Host) -> [#local_config{key = {acl, alice, Host},
+                                  value = [{user, <<"alice">>, <<"localhost">>}]}] end,
       #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
                                          <<"server">> => <<"localhost">>}]}}),
     err_host_or_global(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
@@ -1372,15 +1372,16 @@ acl(_Config) ->
 
 access(_Config) ->
     eq_host_or_global(
-      fun(Host) -> [#config{key = {access, c2s, Host}, value = [{deny, blocked},
-                                                                {allow, all}]}]
+      fun(Host) -> [#local_config{key = {access, c2s, Host}, value = [{deny, blocked},
+                                                                      {allow, all}]}]
       end,
       #{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
                                           <<"value">> => <<"deny">>},
                                         #{<<"acl">> => <<"all">>,
                                           <<"value">> => <<"allow">>}]}}),
     eq_host_or_global(
-      fun(Host) -> [#config{key = {access, max_user_sessions, Host}, value = [{10, all}]}] end,
+      fun(Host) -> [#local_config{key = {access, max_user_sessions, Host},
+                                  value = [{10, all}]}] end,
       #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
                                                         <<"value">> => 10}]}}),
     err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
@@ -3082,8 +3083,8 @@ maybe_insert_dummy_domain(M, DomainName) ->
 maybe_filter_out_dummy_domain(Config, DomainName) ->
     lists:filter(
         fun
-            (#config{key = default_server_domain, value = V}) when V =:= DomainName -> false;
-            (#config{key = hosts, value = [V]}) when V =:= DomainName -> false;
+            (#local_config{key = default_server_domain, value = V}) when V =:= DomainName -> false;
+            (#local_config{key = hosts, value = [V]}) when V =:= DomainName -> false;
             (_) -> true
         end, Config).
 
@@ -3110,10 +3111,6 @@ save_opts(Path, Opts) ->
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
 
-handle_config_option(#config{key = K1, value = V1},
-                     #config{key = K2, value = V2}) ->
-    ?eq(K1, K2),
-    compare_values(K1, V1, V2);
 handle_config_option(#local_config{key = K1, value = V1},
                      #local_config{key = K2, value = V2}) ->
     ?eq(K1, K2),

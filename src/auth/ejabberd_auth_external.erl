@@ -199,7 +199,7 @@ remove_user(HostType, LUser, LServer) ->
     case extauth:remove_user(HostType, LUser, LServer) of
         false -> {error, not_allowed};
         true ->
-            case get_cache_option(LServer) of
+            case get_cache_option(HostType) of
                 false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(HostType, LUser, LServer)

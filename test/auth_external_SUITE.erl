@@ -4,6 +4,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-define(HOST_TYPE, <<"test host type">>).
+
 all() ->
     [{group, no_cache}].
 
@@ -75,26 +77,17 @@ given_user_registered() ->
     ok = ejabberd_auth_external:try_register(host_type(), U, domain(), P),
     UP.
 
-
-domain() ->
-    <<"mim1.esl.com">>.
-
-host_type() ->
-    <<"test host type">>.
-
 setup_meck(_G, Config) ->
     DataDir = ?config(data_dir, Config),
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
-                fun(auth_opts, _Host) ->
-                        [{extauth_program, DataDir ++ "sample_external_auth.py"}]
-                end),
-    meck:expect(ejabberd_config, get_local_option,
-                fun({extauth_instances, _Host}) -> undefined;
-                   ({extauth_cache, _Host}) -> undefined
+                fun({auth_opts, ?HOST_TYPE}) ->
+                        [{extauth_program, DataDir ++ "sample_external_auth.py"}];
+                   ({extauth_instances, ?HOST_TYPE}) ->
+                        undefined;
+                   ({extauth_cache, ?HOST_TYPE}) ->
+                        undefined
                 end).
-
-
 
 unload_meck(_G) ->
     meck:unload(ejabberd_config).
@@ -106,3 +99,9 @@ gen_user() ->
 
 random_binary(S) ->
     base16:encode(crypto:strong_rand_bytes(S)).
+
+domain() ->
+    <<"mim1.esl.com">>.
+
+host_type() ->
+    ?HOST_TYPE.

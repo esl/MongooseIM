@@ -182,14 +182,14 @@ get_mam_module_configuration(_Config) ->
 meck_config() ->
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
-                fun(modules, <<"no_config">>) ->
+                fun({modules, <<"no_config">>}) ->
                        [];
-                   (modules, <<"mod_mam_config">>) ->
+                   ({modules, <<"mod_mam_config">>}) ->
                        [{mod_mam, [here, is, some, config]}];
-                   (modules, <<"meta_no_mod_mam_config">>) ->
+                   ({modules, <<"meta_no_mod_mam_config">>}) ->
                        [{mod_mam_meta, [{backend, rdbms},
                                         {muc, []}]}];
-                   (modules, <<"meta_valid_mod_mam_config">>) ->
+                   ({modules, <<"meta_valid_mod_mam_config">>}) ->
                        [{mod_mam_meta, [{backend, rdbms},
                                         cache_users,
                                         {pm, [archive_groupchats]}]}]

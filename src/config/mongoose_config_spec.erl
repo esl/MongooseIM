@@ -58,7 +58,7 @@
 %% are packed into the resulting list of configuration options.
 -type format() :: top_level_config_format() | config_part_format().
 
-%% The value becomes a top-level config record, acl record or 'override' tuple
+%% The value becomes a top-level config record or 'override' tuple
 -type top_level_config_format() ::
       % {override, Value}
         override
@@ -72,14 +72,13 @@
       % Config record, the key is replaced with NewKey
       | {config_record_format(), NewKey :: term()}
 
-      % #config{} with either key = {Tag, Key, Host} - inside host_config
-      %                or key = {Tag, Key, global} - at the top level
+      % #local_config{} with either key = {Tag, Key, Host} - inside host_config
+      %                      or key = {Tag, Key, global} - at the top level
       | {host_or_global_config, Tag :: term()}.
 
-%% The value becomes a top-level config record: #config{} or #local_config{}
+%% The value becomes a top-level config record
 -type config_record_format() ::
-        config % #config{}
-      | local_config % #local_config{}
+        local_config % #local_config{}
       | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
                            % Otherwise: one such record for each configured host
 
@@ -180,27 +179,27 @@ general() ->
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
                                       validate = unique,
-                                      format = config},
+                                      format = local_config},
                  <<"host_types">> => #list{items = #option{type = binary,
                                                            validate = non_empty},
                                            validate = unique,
-                                           format = config},
+                                           format = local_config},
                  <<"default_server_domain">> => #option{type = binary,
                                                         validate = non_empty,
                                                         process = fun ?MODULE:process_host/1,
-                                                        format = config},
+                                                        format = local_config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
                  <<"language">> => #option{type = binary,
                                            validate = non_empty,
-                                           format = config},
+                                           format = local_config},
                  <<"all_metrics_are_global">> => #option{type = boolean,
                                                          format = local_config},
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
                                              process = fun ?MODULE:process_sm_backend/1,
-                                             format = config},
+                                             format = local_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
                                                 format = local_config},
@@ -1128,9 +1127,9 @@ hosts_and_host_types_are_unique_and_non_empty(General) ->
 
 get_all_hosts_and_host_types(General) ->
     FoldFN = fun
-                 (#config{key = K} = C, Acc) when K =:= hosts;
-                                                  K =:= host_types ->
-                     Acc ++ C#config.value;
+                 (#local_config{key = K} = C, Acc) when K =:= hosts;
+                                                        K =:= host_types ->
+                     Acc ++ C#local_config.value;
                  (_, Acc) ->
                      Acc
              end,
@@ -1226,7 +1225,7 @@ process_http_handler_opts(<<"mongoose_domain_handler">>, Opts) ->
     {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
     case {UserOpts, PassOpts} of
         {[], []} -> ok;
-        {[{username, User}], [{password, Pass}]} -> ok;
+        {[{username, _User}], [{password, _Pass}]} -> ok;
         _ -> error(#{what => both_username_and_password_required,
                      handler => mongoose_domain_handler, opts => Opts})
     end,

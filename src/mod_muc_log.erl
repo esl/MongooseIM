@@ -210,7 +210,7 @@ init([Host, Opts]) ->
     NoFollow = gen_mod:get_opt(spam_prevention, Opts, true),
     Lang = case ejabberd_config:get_local_option({language, Host}) of
                undefined ->
-                       case ejabberd_config:get_global_option(language) of
+                       case ejabberd_config:get_local_option(language) of
                            undefined -> <<"en">>;
                            L -> L
                        end;

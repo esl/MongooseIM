@@ -39,22 +39,6 @@ groups() ->
      }
     ].
 
-glo({auth_method, _}) ->
-    dummy;
-glo(Any) ->
-    ?PRT("what do you want", Any),
-    none.
-
-ggo({access, experts_only, _}) ->
-    [{allow, coder}, {allow, manager}, {deny, all}];
-ggo({access, _, _}) ->
-    [];
-ggo({acl, coder, _}) ->
-    [{user, <<"zenek">>}];
-ggo(Any) ->
-    ?PRT("global what do you want", Any),
-    none.
-
 init_per_suite(C) ->
     application:ensure_all_started(jid),
     ok = mnesia:start(),
@@ -87,9 +71,8 @@ stop_helper_proc(C) ->
 
 init_per_testcase(_, C) ->
     meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun glo/1),
-    meck:expect(ejabberd_config, get_global_option, fun ggo/1),
-    meck:expect(ejabberd_config, get_global_option_or_default, fun(K, _) -> ggo(K) end),
+    meck:expect(ejabberd_config, get_local_option, fun get_opt/1),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(K, _) -> get_opt(K) end),
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     meck:new(mongoose_domain_api),
@@ -99,6 +82,15 @@ init_per_testcase(_, C) ->
 end_per_testcase(_, C) ->
     meck:unload(),
     C.
+
+get_opt({auth_method, _}) ->
+    dummy;
+get_opt({access, experts_only, _}) ->
+    [{allow, coder}, {allow, manager}, {deny, all}];
+get_opt({access, _, _}) ->
+    [];
+get_opt({acl, coder, _}) ->
+    [{user, <<"zenek">>}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods

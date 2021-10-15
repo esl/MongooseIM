@@ -28,12 +28,8 @@
 
 -export([start/0,
          load_file/1,
-         add_global_option/2,
-         get_global_option/1,
-         get_global_option_or_default/2,
          add_local_option/2,
          get_local_option/1,
-         get_local_option/2,
          del_local_option/1,
          get_local_option_or_default/2]).
 
@@ -56,23 +52,15 @@
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
--type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config_parser:state().
 -type key() :: mongoose_config_parser:key().
 -type value() :: mongoose_config_parser:value().
 
--type categorized_options() :: #{global_config => list(),
-                                 local_config => list(),
+-type categorized_options() :: #{local_config => list(),
                                  host_config => list()}.
 
 -spec start() -> ok.
 start() ->
-    mnesia:create_table(config,
-                        [{ram_copies, [node()]},
-                         {storage_properties,
-                          [{ets, [{read_concurrency, true}]}]},
-                         {attributes, record_info(fields, config)}]),
-    mnesia:add_table_copy(config, node(), ram_copies),
     mnesia:create_table(local_config,
                         [{ram_copies, [node()]},
                          {storage_properties,
@@ -126,14 +114,6 @@ do_set_opts(State) ->
     Opts = mongoose_config_parser:state_to_opts(State),
     lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
 
--spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
-add_global_option(Opt, Val) ->
-    mnesia:transaction(fun() ->
-                           mnesia:write(#config{key   = Opt,
-                                                value = Val})
-                       end).
-
-
 -spec add_local_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_local_option(Opt, Val) ->
     mnesia:transaction(fun() ->
@@ -145,24 +125,6 @@ add_local_option(Opt, Val) ->
 del_local_option(Opt) ->
     mnesia:transaction(fun mnesia:delete/1, [{local_config, Opt}]).
 
--spec get_global_option(key()) -> value() | undefined.
-get_global_option(Opt) ->
-    case ets:lookup(config, Opt) of
-        [#config{value = Val}] ->
-            Val;
-        _ ->
-            undefined
-    end.
-
--spec get_global_option_or_default(key(), value()) -> value().
-get_global_option_or_default(Opt, DefaultValue) ->
-    case ets:lookup(config, Opt) of
-        [#config{value = Val}] ->
-            Val;
-        _ ->
-            DefaultValue
-    end.
-
 -spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
     case ets:lookup(local_config, Opt) of
@@ -170,13 +132,6 @@ get_local_option(Opt) ->
             Val;
         _ ->
             undefined
-    end.
-
--spec get_local_option(key(), host()) -> value() | undefined.
-get_local_option(Opt, Host) ->
-    case get_local_option({Opt, Host}) of
-        undefined -> get_global_option(Opt);
-        Val -> Val
     end.
 
 -spec get_local_option_or_default(key(), value()) -> value().
@@ -225,15 +180,10 @@ is_not_host_specific({Key, PoolType, PoolName})
   when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
     true.
 
--spec get_global_config() -> [{config, term(), term()}].
-get_global_config() ->
-    mnesia:dirty_match_object(config, {config, '_', '_'}).
-
 %% @doc Returns current all options in memory, grouped by category.
 -spec get_categorized_options() -> categorized_options().
 get_categorized_options() ->
-    #{global_config => get_global_config(),
-      local_config => get_local_config(),
+    #{local_config => get_local_config(),
       host_config => get_host_local_config()}.
 
 %% @doc Returns configs on disc and in memory for this node for inspection.

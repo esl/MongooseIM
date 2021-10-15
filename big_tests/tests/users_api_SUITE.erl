@@ -22,8 +22,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 -import(rest_helper, [assert_status/2, simple_request/2, simple_request/3, simple_request/4]).
-
 -import(domain_helper, [domain/0]).
+-import(mongoose_helper, [auth_modules/0]).
 
 -define(DOMAIN, (domain())).
 -define(PORT, (ct:get_config({hosts, mim, metrics_rest_port}))).
@@ -139,13 +139,6 @@ is_external_auth() ->
 
 is_riak_auth() ->
     lists:member(ejabberd_auth_riak, auth_modules()).
-
-auth_modules() ->
-    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
-    lists:flatmap(
-      fun(Host) ->
-              rpc(mim(), ejabberd_auth, auth_modules, [Host])
-      end, Hosts).
 
 wait_for_user_removal(false) ->
     ok;
