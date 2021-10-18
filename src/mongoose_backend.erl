@@ -3,7 +3,8 @@
 %% API
 -export([init_per_host_type/4,
          call/4,
-         call_tracked/4]).
+         call_tracked/4,
+         get_backend_name/2]).
 
 %% Legacy call from backend_module
 -export([ensure_backend_metrics/2]).
@@ -24,7 +25,7 @@ init_per_host_type(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
-    persist_backend_name(HostType, MainModule, BackendModule),
+    persist_backend_name(HostType, MainModule, Backend, BackendModule),
     ok.
 
 backend_module(Module, Backend) ->
@@ -50,18 +51,28 @@ ensure_backend_metrics(MainModule, FunNames) ->
                 end,
     lists:foreach(EnsureFun, FunNames).
 
-persist_backend_name(HostType, MainModule, Backend) ->
+persist_backend_name(HostType, MainModule, Backend, BackendModule) ->
     Key = backend_key(HostType, MainModule),
-    persistent_term:put(Key, Backend).
+    persistent_term:put(Key, {Backend, BackendModule}).
 
-%% Get a backend name, stored in init_per_host_type
+%% @doc Get a backend module, stored in init_per_host_type.
 -spec get_backend_module(HostType :: mongooseim:host_type(),
                          MainModule :: main_module()) ->
     BackendModule :: backend_module().
 get_backend_module(HostType, MainModule) ->
     Key = backend_key(HostType, MainModule),
     %% Would crash, if the key is missing
-    persistent_term:get(Key).
+    {_BackendName, BackendModule} = persistent_term:get(Key),
+    BackendModule.
+
+%% @doc Get a backend name, like `pgsql', stored in init_per_host_type.
+-spec get_backend_name(HostType :: mongooseim:host_type(),
+                       MainModule :: main_module()) -> BackendName :: atom().
+get_backend_name(HostType, MainModule) ->
+    Key = backend_key(HostType, MainModule),
+    %% Would crash, if the key is missing
+    {BackendName, _BackendModule} = persistent_term:get(Key),
+    BackendName.
 
 -spec call(HostType :: mongooseim:host_type(),
            MainModule :: main_module(),
