@@ -81,7 +81,7 @@
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    mod_auth_token_backend:start(HostType),
+    mod_auth_token_backend:start(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,

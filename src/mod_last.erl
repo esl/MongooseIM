@@ -53,14 +53,7 @@
 
 -export([config_metrics/1]).
 
--define(MOD_LAST_BACKEND, mod_last_backend).
 -ignore_xref([
-    {?MOD_LAST_BACKEND, init, 2},
-    {?MOD_LAST_BACKEND, get_last, 3},
-    {?MOD_LAST_BACKEND, count_active_users, 3},
-    {?MOD_LAST_BACKEND, set_last_info, 5},
-    {?MOD_LAST_BACKEND, remove_user, 3},
-    {?MOD_LAST_BACKEND, remove_domain, 2},
     behaviour_info/1, on_presence_update/5, process_local_iq/4,
     process_sm_iq/4, remove_user/3, session_cleanup/5, remove_domain/3
 ]).
@@ -73,34 +66,15 @@
 %% ------------------------------------------------------------------
 %% Backend callbacks
 
--type host_type() :: mongooseim:host_type().
+-export_type([timestamp/0, status/0]).
+
 -type timestamp() :: non_neg_integer().
 -type status() :: binary().
-
--export_type([host_type/0, timestamp/0, status/0]).
-
--callback init(host_type(), gen_mod:module_opts()) -> ok.
-
--callback get_last(host_type(), jid:luser(), jid:lserver()) ->
-    {ok, timestamp(), status()} | {error, term()} | not_found.
-
--callback count_active_users(host_type(), jid:lserver(), timestamp()) ->
-    non_neg_integer().
-
--callback set_last_info(host_type(), jid:luser(), jid:lserver(), timestamp(), status()) ->
-    ok | {error, term()}.
-
--callback remove_user(host_type(), jid:luser(), jid:lserver()) ->
-    ok | {error, term()}.
-
--callback remove_domain(host_type(), jid:lserver()) ->
-    ok | {error, term()}.
 
 -spec start(mongooseim:host_type(), list()) -> 'ok'.
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
-    gen_mod:start_backend_module(?MODULE, Opts, [get_last, set_last_info]),
     mod_last_backend:init(HostType, Opts),
 
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
@@ -203,7 +177,7 @@ process_sm_iq(Acc, From, To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
             {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}}
     end.
 
--spec make_response(host_type(), jlib:iq(), SubEl :: 'undefined' | [exml:element()],
+-spec make_response(mongooseim:host_type(), jlib:iq(), SubEl :: 'undefined' | [exml:element()],
                     jid:jid(), allow | deny) -> jlib:iq().
 make_response(_HostType, IQ, SubEl, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
@@ -240,7 +214,7 @@ make_response(HostType, IQ, SubEl, JID, allow) ->
                     children = []}]}
     end.
 
--spec get_last_info(host_type(), jid:luser(), jid:lserver())
+-spec get_last_info(mongooseim:host_type(), jid:luser(), jid:lserver())
         -> 'not_found' | {'ok', integer(), binary()}.
 get_last_info(HostType, LUser, LServer) ->
     case get_last(HostType, LUser, LServer) of
@@ -280,7 +254,7 @@ store_last_info(Acc, LUser, LServer, Status) ->
     store_last_info(HostType, LUser, LServer, TimeStamp, Status),
     Acc.
 
--spec store_last_info(host_type(), jid:luser(), jid:lserver(), timestamp(), status()) -> ok.
+-spec store_last_info(mongooseim:host_type(), jid:luser(), jid:lserver(), timestamp(), status()) -> ok.
 store_last_info(HostType, LUser, LServer, TimeStamp, Status) ->
     case mod_last_backend:set_last_info(HostType, LUser, LServer, TimeStamp, Status) of
         {error, Reason} ->
@@ -293,12 +267,12 @@ store_last_info(HostType, LUser, LServer, TimeStamp, Status) ->
             ok
     end.
 
--spec get_last(host_type(), jid:luser(), jid:lserver()) ->
+-spec get_last(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
     {ok, timestamp(), status()} | {error, term()} | not_found.
 get_last(HostType, LUser, LServer) ->
     mod_last_backend:get_last(HostType, LUser, LServer).
 
--spec count_active_users(host_type(), jid:lserver(), timestamp()) -> non_neg_integer().
+-spec count_active_users(mongooseim:host_type(), jid:lserver(), timestamp()) -> non_neg_integer().
 count_active_users(HostType, LServer, Timestamp) ->
     mod_last_backend:count_active_users(HostType, LServer, Timestamp).
 

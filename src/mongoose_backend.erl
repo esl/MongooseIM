@@ -1,8 +1,7 @@
 -module(mongoose_backend).
 
 %% API
--export([init_per_host_type/3,
-         init_per_host_type/4,
+-export([init_per_host_type/4,
          call/4,
          call_tracked/4]).
 
@@ -19,19 +18,17 @@
 
 -spec init_per_host_type(HostType :: mongooseim:host_type(),
                          MainModule :: main_module(),
-                         TrackedFuns :: [function_name()]) -> ok.
-init_per_host_type(HostType, MainModule, TrackedFuns) ->
-    init_per_host_type(HostType, MainModule, TrackedFuns, mnesia).
-
--spec init_per_host_type(HostType :: mongooseim:host_type(),
-                         MainModule :: main_module(),
                          TrackedFuns :: [function_name()],
-                         DefaultBackend :: atom()) -> ok.
-init_per_host_type(HostType, MainModule, TrackedFuns, DefaultBackend) ->
+                         Opts :: gen_mod:module_opts()) -> ok.
+init_per_host_type(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
-    Backend = gen_mod:get_backend_module(HostType, MainModule, DefaultBackend),
-    persist_backend_name(HostType, MainModule, Backend),
+    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    BackendModule = backend_module(MainModule, Backend),
+    persist_backend_name(HostType, MainModule, BackendModule),
     ok.
+
+backend_module(Module, Backend) ->
+    list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
 
 call_metric(MainModule, FunName) ->
     [backends, MainModule, calls, FunName].
