@@ -40,16 +40,10 @@
 %% Plugin utils
 -export([cast/3]).
 -export([is_virtual_pubsub_host/3]).
--export([disable_node/3]).
+-export([disable_node/4]).
 
--define(MOD_EVENT_PUSHER_PUSH_BACKEND, mod_event_pusher_push_backend).
 -ignore_xref([
-    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 3},
-    {?MOD_EVENT_PUSHER_PUSH_BACKEND, get_publish_services, 1},
-    {?MOD_EVENT_PUSHER_PUSH_BACKEND, enable, 4},
-    {?MOD_EVENT_PUSHER_PUSH_BACKEND, disable, 1},
-    {?MOD_EVENT_PUSHER_PUSH_BACKEND, init, 2},
-    behaviour_info/1, iq_handler/4, remove_user/3
+    iq_handler/4, remove_user/3
 ]).
 
 %% Types
@@ -62,33 +56,12 @@
 -export_type([publish_service/0]).
 
 %%--------------------------------------------------------------------
-%% DB backend behaviour definition
-%%--------------------------------------------------------------------
-
--callback init(Host :: jid:server(), Opts :: list()) -> ok.
-
--callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
-                 Node :: pubsub_node(), Form :: form()) ->
-    ok | {error, Reason :: term()}.
-
--callback disable(UserJID :: jid:jid()) ->
-    ok | {error, Reason :: term()}.
-
--callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
-                  Node :: pubsub_node() | undefined) ->
-    ok | {error, Reason :: term()}.
-
--callback get_publish_services(User :: jid:jid()) ->
-    {ok, [publish_service()]} | {error, Reason :: term()}.
-
-%%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
 start(Host, Opts) ->
     ?LOG_INFO(#{what => event_pusher_starting, server => Host}),
     start_pool(Host, Opts),
-    gen_mod:start_backend_module(?MODULE, Opts, [enable, disable, get_publish_services]),
     mod_event_pusher_push_backend:init(Host, Opts),
     mod_event_pusher_push_plugin:init(Host),
     init_iq_handlers(Host, Opts),
@@ -148,10 +121,10 @@ push_event(Acc, _, _) ->
 %%--------------------------------------------------------------------
 %% Hooks and IQ handlers
 %%--------------------------------------------------------------------
--spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
+-spec remove_user(Acc :: mongoose_acc:t(), LUser :: jid:luser(), LServer :: jid:lserver()) ->
     mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
-    R = mod_event_pusher_push_backend:disable(jid:make_noprep(LUser, LServer, <<>>)),
+    R = mod_event_pusher_push_backend:disable(LServer, jid:make_noprep(LUser, LServer, <<>>)),
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
@@ -161,13 +134,14 @@ remove_user(Acc, LUser, LServer) ->
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
+    Host = mongoose_acc:lserver(Acc),
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
-                  ok = enable_node(From, BarePubSubJID, Node, FormFields, IQ),
+                  ok = enable_node(Host, From, BarePubSubJID, Node, FormFields),
                   store_session_info(From, {BarePubSubJID, Node, FormFields}),
                   IQ#iq{type = result, sub_el = []};
               {disable, BarePubsubJID, Node} ->
-                  ok = disable_node(From, BarePubsubJID, Node),
+                  ok = disable_node(Host, From, BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
@@ -177,12 +151,12 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
 %%--------------------------------------------------------------------
 %% Plugin utils API
 %%--------------------------------------------------------------------
--spec disable_node(UserJID :: jid:jid(), BarePubSubJID :: jid:jid(),
+-spec disable_node(Host :: jid:lserver(), UserJID :: jid:jid(), BarePubSubJID :: jid:jid(),
                    Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
-disable_node(UserJID, BarePubSubJID, Node) ->
+disable_node(Host, UserJID, BarePubSubJID, Node) ->
     BareUserJID = jid:to_bare(UserJID),
     maybe_remove_push_node_from_sessions_info(BareUserJID, BarePubSubJID, Node),
-    mod_event_pusher_push_backend:disable(BareUserJID, BarePubSubJID, Node).
+    mod_event_pusher_push_backend:disable(Host, BareUserJID, BarePubSubJID, Node).
 
 -spec cast(Host :: jid:server(), F :: function(), A :: [any()]) -> any().
 cast(Host, F, A) ->
@@ -209,7 +183,7 @@ do_push_event(Acc, Host, Event, BareRecipient) ->
     case mod_event_pusher_push_plugin:prepare_notification(Host, Acc, Event) of
         skip -> Acc;
         Payload ->
-            {ok, Services} = mod_event_pusher_push_backend:get_publish_services(BareRecipient),
+            {ok, Services} = mod_event_pusher_push_backend:get_publish_services(Host, BareRecipient),
             FilteredService = mod_event_pusher_push_plugin:should_publish(Host, Acc, Event,
                                                                           Services),
             mod_event_pusher_push_plugin:publish_notification(Host, Acc, Event,
@@ -270,10 +244,10 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec enable_node(jid:jid(), jid:jid(), pubsub_node(), form(), jlib:iq()) ->
+-spec enable_node(jid:lserver(), jid:jid(), jid:jid(), pubsub_node(), form()) ->
     ok | {error, Reason :: term()}.
-enable_node(From, BarePubSubJID, Node, FormFields, IQ) ->
-    mod_event_pusher_push_backend:enable(jid:to_bare(From), BarePubSubJID, Node, FormFields).
+enable_node(Host, From, BarePubSubJID, Node, FormFields) ->
+    mod_event_pusher_push_backend:enable(Host, jid:to_bare(From), BarePubSubJID, Node, FormFields).
 
 -spec store_session_info(jid:jid(), publish_service()) -> any().
 store_session_info(Jid, Service) ->
