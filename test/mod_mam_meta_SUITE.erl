@@ -22,12 +22,12 @@ all() -> [
 %% Tests
 
 init_per_testcase(get_mam_module_configuration, Config) ->
-    meck_config(),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     Config;
 init_per_testcase(_, Config) -> Config.
 
 end_per_testcase(get_mam_module_configuration, Config) ->
-    meck_cleanup(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     Config;
 end_per_testcase(_CaseName, Config) -> Config.
 
@@ -179,25 +179,15 @@ get_mam_module_configuration(_Config) ->
 
 %% Helpers
 
-meck_config() ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-                fun({modules, <<"no_config">>}) ->
-                       [];
-                   ({modules, <<"mod_mam_config">>}) ->
-                       [{mod_mam, [here, is, some, config]}];
-                   ({modules, <<"meta_no_mod_mam_config">>}) ->
-                       [{mod_mam_meta, [{backend, rdbms},
-                                        {muc, []}]}];
-                   ({modules, <<"meta_valid_mod_mam_config">>}) ->
-                       [{mod_mam_meta, [{backend, rdbms},
-                                        cache_users,
-                                        {pm, [archive_groupchats]}]}]
-                end).
-
-meck_cleanup() ->
-    meck:validate(ejabberd_config),
-    meck:unload(ejabberd_config).
+opts() ->
+    [{{modules, <<"no_config">>}, []},
+     {{modules, <<"mod_mam_config">>}, [{mod_mam, [here, is, some, config]}]},
+     {{modules, <<"meta_no_mod_mam_config">>}, [{mod_mam_meta, [{backend, rdbms},
+                                                                {muc, []}]}]},
+     {{modules, <<"meta_valid_mod_mam_config">>}, [{mod_mam_meta, [{backend, rdbms},
+                                                                   cache_users,
+                                                                   {pm, [archive_groupchats]}]}]}
+    ].
 
 check_equal_deps(A, B) ->
     ?assertEqual(sort_deps(A), sort_deps(B)).

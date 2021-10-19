@@ -29,14 +29,14 @@ init_per_suite(C) ->
 end_per_suite(C) ->
     C.
 
-init_per_group(G, Config) ->
-    setup_meck(G, Config),
+init_per_group(_G, Config) ->
+    set_opts(Config),
     ejabberd_auth_external:start(host_type()),
     Config.
 
-end_per_group(G, Config) ->
+end_per_group(_G, Config) ->
     ejabberd_auth_external:stop(host_type()),
-    unload_meck(G),
+    unset_opts(),
     Config.
 
 try_register_ok(_C) ->
@@ -77,20 +77,13 @@ given_user_registered() ->
     ok = ejabberd_auth_external:try_register(host_type(), U, domain(), P),
     UP.
 
-setup_meck(_G, Config) ->
+set_opts(Config) ->
     DataDir = ?config(data_dir, Config),
-    meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_local_option,
-                fun({auth_opts, ?HOST_TYPE}) ->
-                        [{extauth_program, DataDir ++ "sample_external_auth.py"}];
-                   ({extauth_instances, ?HOST_TYPE}) ->
-                        undefined;
-                   ({extauth_cache, ?HOST_TYPE}) ->
-                        undefined
-                end).
+    mongoose_config:set_opt({auth_opts, ?HOST_TYPE},
+                            [{extauth_program, DataDir ++ "sample_external_auth.py"}]).
 
-unload_meck(_G) ->
-    meck:unload(ejabberd_config).
+unset_opts() ->
+    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
 
 gen_user() ->
     U = random_binary(5),

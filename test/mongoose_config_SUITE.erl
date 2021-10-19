@@ -1,4 +1,4 @@
--module(ejabberd_config_SUITE).
+-module(mongoose_config_SUITE).
 -compile([export_all, nowarn_export_all]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -63,7 +63,7 @@ cluster_smoke(C) ->
     {ok, _} = start_ejabberd_with_config(C, "mongooseim.toml"),
     {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim.toml"),
     maybe_join_cluster(SlaveNode),
-    [_, _] = ejabberd_config:config_states(),
+    [State, State] = mongoose_config:config_states(),
     % cleanup
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),

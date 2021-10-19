@@ -41,13 +41,7 @@ end_per_suite(_C) ->
     ok.
 
 init_per_group(routing, Config) ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-        fun(routing_modules) ->
-            [xmpp_router_a, xmpp_router_b, xmpp_router_c];
-           (_) ->
-            undefined
-        end),
+    mongoose_config:set_opt(routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config;
@@ -55,7 +49,9 @@ init_per_group(schema, Config) ->
     remove_component_tables(),
     Config.
 
-end_per_group(_GroupName, _Config) ->
+end_per_group(routing, _Config) ->
+    mongoose_config:unset_opt(routing_modules);
+end_per_group(schema, _Config) ->
     ok.
 
 init_per_testcase(_CaseName, Config) ->
