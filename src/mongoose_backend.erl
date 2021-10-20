@@ -3,12 +3,16 @@
 %% API
 -export([init_per_host_type/4,
          call/4,
-         call_tracked/4]).
+         call_tracked/4,
+         get_backend_name/2]).
+
+%% remove after mongoose_rdbms is refactored not to use dynamically compiled backend
+-ignore_xref([get_backend_name/2]).
 
 %% Legacy call from backend_module
 -export([ensure_backend_metrics/2]).
 
-%% For debugging
+%% For debugging and tests
 -export([get_backend_module/2]).
 -ignore_xref([get_backend_module/2]).
 
@@ -24,7 +28,7 @@ init_per_host_type(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
-    persist_backend_name(HostType, MainModule, BackendModule),
+    persist_backend_name(HostType, MainModule, Backend, BackendModule),
     ok.
 
 backend_module(Module, Backend) ->
@@ -39,6 +43,9 @@ time_metric(MainModule, FunName) ->
 backend_key(HostType, MainModule) ->
     {backend_module, HostType, MainModule}.
 
+backend_name_key(HostType, MainModule) ->
+    {backend_name, HostType, MainModule}.
+
 -spec ensure_backend_metrics(MainModule :: main_module(),
                              FunNames :: [function_name()]) -> ok.
 ensure_backend_metrics(MainModule, FunNames) ->
@@ -50,17 +57,25 @@ ensure_backend_metrics(MainModule, FunNames) ->
                 end,
     lists:foreach(EnsureFun, FunNames).
 
-persist_backend_name(HostType, MainModule, Backend) ->
-    Key = backend_key(HostType, MainModule),
-    persistent_term:put(Key, Backend).
+persist_backend_name(HostType, MainModule, Backend, BackendModule) ->
+    ModuleKey = backend_key(HostType, MainModule),
+    persistent_term:put(ModuleKey, BackendModule),
+    NameKey = backend_name_key(HostType, MainModule),
+    persistent_term:put(NameKey, Backend).
 
-%% Get a backend name, stored in init_per_host_type
+%% @doc Get a backend module, stored in init_per_host_type.
 -spec get_backend_module(HostType :: mongooseim:host_type(),
                          MainModule :: main_module()) ->
     BackendModule :: backend_module().
 get_backend_module(HostType, MainModule) ->
-    Key = backend_key(HostType, MainModule),
-    %% Would crash, if the key is missing
+    ModuleKey = backend_key(HostType, MainModule),
+    persistent_term:get(ModuleKey).
+
+%% @doc Get a backend name, like `pgsql', stored in init_per_host_type.
+-spec get_backend_name(HostType :: mongooseim:host_type(),
+                       MainModule :: main_module()) -> BackendName :: atom().
+get_backend_name(HostType, MainModule) ->
+    Key = backend_name_key(HostType, MainModule),
     persistent_term:get(Key).
 
 -spec call(HostType :: mongooseim:host_type(),
