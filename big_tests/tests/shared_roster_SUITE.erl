@@ -165,7 +165,7 @@ stop_roster_module(_) ->
 
 get_auth_method() ->
     XMPPDomain = domain(),
-    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
+    case rpc(mim(), mongoose_config, get_opt, [{auth_method, XMPPDomain}]) of
         [Method|_] ->
             Method;
         _ ->
