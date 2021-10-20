@@ -45,8 +45,6 @@
          fresh_room_name/1,
          disco_features_story/2,
          has_features/2,
-         room_address/2,
-         room_address/1,
          disco_service_story/1,
          story_with_room/4,
          stanza_form/2,
@@ -363,7 +361,7 @@ init_per_group(disco_rsm_with_offline, Config) ->
     mongoose_helper:ensure_muc_clean(),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
-    ok = rpc(mim(), mod_muc, store_room, [domain(), muc_host(), <<"persistentroom">>, []]),
+    ok = rpc(mim(), mod_muc, store_room, [host_type(), muc_host(), <<"persistentroom">>, []]),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
@@ -2906,7 +2904,7 @@ disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"persistentroom">>,
         Host = muc_host(),
-        ok = rpc(mim(), mod_muc, store_room, [domain(), Host, Room, []]),
+        ok = rpc(mim(), mod_muc, store_room, [host_type(), Host, Room, []]),
 
         escalus:send(Alice, stanza_get_rooms()),
         %% we should have room room_address(<<"aliceroom">>), created in init
@@ -2914,7 +2912,7 @@ disco_rooms(Config) ->
         true = has_room(room_address(<<"alicesroom">>), Stanza),
         true = has_room(room_address(<<"persistentroom">>), Stanza),
         escalus:assert(is_stanza_from, [muc_host()], Stanza),
-        ok = rpc(mim(), mod_muc, forget_room, [domain(), Host, Room])
+        ok = rpc(mim(), mod_muc, forget_room, [host_type(), Host, Room])
     end).
 
 disco_info(Config) ->
@@ -4152,7 +4150,7 @@ hibernated_room_is_stopped(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 hibernated_room_is_stopped_and_restored_by_presence(Config) ->
     RoomName = fresh_room_name(),
@@ -4178,7 +4176,7 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 stopped_rooms_history_is_available(Config) ->
     RoomName = fresh_room_name(),
@@ -4199,7 +4197,7 @@ stopped_rooms_history_is_available(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 stopped_members_only_room_process_invitations_correctly(Config) ->
     RoomName = fresh_room_name(),
@@ -4226,7 +4224,7 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 room_with_participants_is_not_stopped(Config) ->
     RoomName = fresh_room_name(),
@@ -4237,7 +4235,7 @@ room_with_participants_is_not_stopped(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 room_with_only_owner_is_stopped(Config) ->
     RoomName = fresh_room_name(),
@@ -4251,7 +4249,7 @@ room_with_only_owner_is_stopped(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 can_found_in_db_when_stopped(Config) ->
     RoomName = fresh_room_name(),
@@ -4263,7 +4261,7 @@ can_found_in_db_when_stopped(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 deep_hibernation_metrics_are_updated(Config) ->
     RoomName = fresh_room_name(),
@@ -4286,7 +4284,7 @@ deep_hibernation_metrics_are_updated(Config) ->
     end),
 
     destroy_room(muc_host(), RoomName),
-    forget_room(domain(), muc_host(), RoomName).
+    forget_room(host_type(), muc_host(), RoomName).
 
 get_spiral_metric_count(Host, MetricName) ->
     Result = rpc(mim(), mongoose_metrics, get_metric_value, [Host, MetricName]),
@@ -4365,8 +4363,8 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     wait_for_hibernation(Pid),
     {MessageBin, Result}.
 
-forget_room(ServerHost, MUCHost, RoomName) ->
-    ok = rpc(mim(), mod_muc, forget_room, [ServerHost, MUCHost, RoomName]).
+forget_room(HostType, MUCHost, RoomName) ->
+    ok = rpc(mim(), mod_muc, forget_room, [HostType, MUCHost, RoomName]).
 
 wait_for_room_to_be_stopped(Pid, Timeout) ->
     Ref = erlang:monitor(process, Pid),
@@ -4535,7 +4533,7 @@ check_message_route_to_offline_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"testroom4">>,
         Host = muc_host(),
-        ok = rpc(mim(), mod_muc, store_room, [domain(), Host, Room, []]),
+        ok = rpc(mim(), mod_muc, store_room, [host_type(), Host, Room, []]),
 
         %% Send a message to an offline permanent room
         escalus:send(Alice, stanza_room_subject(Room, <<"Subject line">>)),
