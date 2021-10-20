@@ -25,7 +25,7 @@
 
 -module(mod_privacy_riak).
 -author('guillaume@bour.cc').
--behaviour(mod_privacy).
+-behaviour(mod_privacy_backend).
 
 -export([init/2,
          get_default_list/3,
