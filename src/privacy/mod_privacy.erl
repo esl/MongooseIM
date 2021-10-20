@@ -49,21 +49,10 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    {mod_privacy_backend, init, 2},
-    {mod_privacy_backend, get_default_list, 3},
-    {mod_privacy_backend, get_list_names, 3},
-    {mod_privacy_backend, get_privacy_list, 4},
-    {mod_privacy_backend, set_default_list, 4},
-    {mod_privacy_backend, forget_default_list, 3},
-    {mod_privacy_backend, remove_privacy_list, 4},
-    {mod_privacy_backend, replace_privacy_list, 5},
-    {mod_privacy_backend, remove_user, 3},
-    {mod_privacy_backend, remove_domain, 2},
     behaviour_info/1, check_packet/5, get_user_list/3, process_iq_get/5,
     process_iq_set/4, remove_user/3, updated_list/3,
     remove_user/3, remove_domain/3, disco_local_features/1]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 -include("mongoose_config_spec.hrl").
@@ -77,90 +66,10 @@
 -type privacy_item_type() :: none | jid | group | subscription.
 
 %% ------------------------------------------------------------------
-%% Backend callbacks
-%% ------------------------------------------------------------------
-
--callback init(HostType, Opts) -> ok when
-      HostType :: mongooseim:host_type(),
-      Opts     :: gen_mod:module_opts().
-
--callback remove_user(HostType, LUser, LServer) -> any() when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver().
-
--callback remove_domain(HostType, LServer) -> any() when
-      HostType :: mongooseim:host_type(),
-      LServer :: jid:lserver().
-
--callback get_list_names(HostType, LUser, LServer) ->
-    {ok, {Default, Names}} | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Default :: list_name(),
-      Names   :: list(list_name()),
-      Reason  :: not_found | term().
-
--callback get_privacy_list(HostType, LUser, LServer, Name) ->
-    {ok, Items} | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Name    :: list_name(),
-      Items   :: list(list_item()),
-      Reason  :: not_found | term().
-
--callback set_default_list(HostType, LUser, LServer, Name) ->
-    ok | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Name    :: list_name(),
-      Reason  :: not_found | term().
-
--callback forget_default_list(HostType, LUser, LServer) ->
-    ok | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Reason  :: not_found | term().
-
--callback remove_privacy_list(HostType, LUser, LServer, Name) ->
-    ok | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Name    :: list_name(),
-      Reason  :: conflict | term().
-
--callback replace_privacy_list(HostType, LUser, LServer, Name, Items) ->
-    ok | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Name    :: list_name(),
-      Items   :: list(list_item()),
-      Reason  :: conflict | term().
-
--callback get_default_list(HostType, LUser, LServer) ->
-    {ok, {Default, Items}} | {error, Reason} when
-      HostType :: mongooseim:host_type(),
-      LUser   :: jid:luser(),
-      LServer :: jid:lserver(),
-      Default :: list_name(),
-      Items   :: list(list_item()),
-      Reason  :: not_found | term().
-
-%% ------------------------------------------------------------------
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [get_privacy_list, get_list_names,
-                                                 set_default_list, forget_default_list,
-                                                 remove_privacy_list, replace_privacy_list,
-                                                 get_default_list]),
     mod_privacy_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)).
 
