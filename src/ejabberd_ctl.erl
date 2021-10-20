@@ -797,7 +797,7 @@ print_usage_commands(CmdSubString, MaxC, ShCode) ->
     AllCommandsNames = [atom_to_list(Name) || {Name, _, _} <- ejabberd_commands:list_commands()],
     Cmds = filter_commands(AllCommandsNames, CmdSubString),
     case Cmds of
-        [] -> io:format("Error: not command found that match: ~p~n", [CmdSubString]);
+        [] -> io:format("Error: no command found that match: ~p~n", [CmdSubString]);
         _ -> print_usage_commands2(lists:sort(Cmds), MaxC, ShCode)
     end.
 
