@@ -5,7 +5,7 @@
 %%% Created : 29 Sep 2015 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%----------------------------------------------------------------------
 
--module(mod_muc_light_codec).
+-module(mod_muc_light_codec_backend).
 -author('piotr.nosek@erlang-solutions.com').
 
 -include("mod_muc_light.hrl").
