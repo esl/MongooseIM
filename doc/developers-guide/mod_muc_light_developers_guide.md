@@ -37,7 +37,7 @@ All source files can be found in `src/muc_light/`.
   MUC Light-related commands.
   They are registered in the `mongoose_commands` module, so they are available via the REST API.
 
-* `mod_muc_light_db.erl`
+* `mod_muc_light_db_backend.erl`
 
   A behaviour implemented by database backends for the MUC Light extension.
 
