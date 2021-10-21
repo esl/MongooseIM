@@ -4,6 +4,7 @@
 -export([init_per_host_type/4,
          call/4,
          call_tracked/4,
+         is_exported/4,
          get_backend_name/2]).
 
 %% remove after mongoose_rdbms is refactored not to use dynamically compiled backend
@@ -98,3 +99,11 @@ call_tracked(HostType, MainModule, FunName, Args) ->
     {Time, Result} = timer:tc(BackendModule, FunName, Args),
     mongoose_metrics:update(global, TM, Time),
     Result.
+
+-spec is_exported(HostType :: mongooseim:host_type(),
+                  MainModule :: main_module(),
+                  FunName :: function_name(),
+                  Arity :: integer()) -> boolean().
+is_exported(HostType, MainModule, Function, Arity) ->
+    BackendModule = get_backend_module(HostType, MainModule),
+    erlang:function_exported(BackendModule, Function, Arity).
