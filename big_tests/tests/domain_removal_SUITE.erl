@@ -412,10 +412,10 @@ get_vcard_search_query_count(Element) ->
                               cdata]).
 
 get_muc_registered(MucHost, UserJid) ->
-    rpc(mim(), mod_muc_db_rdbms, get_nick, [host_type(), MucHost, UserJid]).
+    rpc(mim(), mod_muc_rdbms, get_nick, [host_type(), MucHost, UserJid]).
 
 get_muc_rooms(MucHost) ->
-    {ok, Rooms} = rpc(mim(), mod_muc_db_rdbms, get_rooms, [host_type(), MucHost]),
+    {ok, Rooms} = rpc(mim(), mod_muc_rdbms, get_rooms, [host_type(), MucHost]),
     Rooms.
 
 get_muc_room_aff(Domain) ->
