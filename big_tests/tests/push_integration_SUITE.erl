@@ -162,7 +162,7 @@ init_per_group(G, Config) ->
     ReqMods = proplists:get_value(required_modules, C, []),
     case lists:keymember(mod_muc_light, 1, ReqMods) of
         true ->
-            muc_light_helper:clear_db();
+            muc_light_helper:clear_db(domain_helper:host_type());
         false ->
             ct:log("Skip muc_light_helper:clear_db()", [])
     end,

@@ -35,7 +35,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     assert_no_aff_duplicates(AffUsers),
     AffUsersSort = lists:sort(AffUsers),
     {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
-                        [RoomUS, DefaultConfig, AffUsersSort, Version]).
+                        [domain_helper:host_type(), RoomUS, DefaultConfig, AffUsersSort, Version]).
 
 -spec default_config() -> list().
 default_config() -> assert_list(rpc(mim(), mod_muc_light, default_config, [muc_host()])).
@@ -256,9 +256,9 @@ stanza_aff_set(Room, AffUsers) ->
              || {UserBin, AffBin} <- bin_aff_users(AffUsers)],
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
-clear_db() ->
+clear_db(HostType) ->
     Node = mim(),
-    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light, force_clear_from_ct, []).
+    rpc(Node#{timeout => timer:seconds(15)}, mod_muc_light, force_clear_from_ct, [HostType]).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->

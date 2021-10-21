@@ -120,6 +120,7 @@
                                   | {set, #destroy{}, AffUsers :: aff_users()}
                                   | {set, #config{}, AffUsers :: aff_users()}
                                   | {#msg{}, AffUsers :: aff_users()}
+                                  | muc_light_disco()
                                   | {error, bad_request}.
 
 -type msg() :: #msg{}.

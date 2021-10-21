@@ -15,7 +15,7 @@ All source files can be found in `src/muc_light/`.
   All operations that take place outside the room (including the room creation) are implemented here.
   Last but not least - this module prevents `service-unavailable` errors being sent when an offline user receives a groupchat message.
 
-* `mod_muc_light_codec.erl`
+* `mod_muc_light_codec_backend.erl`
 
   A behaviour implemented by modules that translate the MUC Light internal data format to stanzas for clients and vice versa.
   Besides specifying callbacks, it implements generic error encoder function.
@@ -37,7 +37,7 @@ All source files can be found in `src/muc_light/`.
   MUC Light-related commands.
   They are registered in the `mongoose_commands` module, so they are available via the REST API.
 
-* `mod_muc_light_db.erl`
+* `mod_muc_light_db_backend.erl`
 
   A behaviour implemented by database backends for the MUC Light extension.
 
