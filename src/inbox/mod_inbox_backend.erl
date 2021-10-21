@@ -144,14 +144,14 @@ set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     InboxEntryKey :: mod_inbox:entry_key(),
     MsgId :: binary() | undefined.
 reset_unread(HostType, InboxEntryKey, MsgId) ->
-	Args = [HostType, InboxEntryKey, MsgId],
+    Args = [HostType, InboxEntryKey, MsgId],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 get_inbox_unread(HostType, InboxEntryKey) ->
-	Args = [HostType, InboxEntryKey],
+    Args = [HostType, InboxEntryKey],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_entry_properties(HostType, InboxEntryKey) -> Ret when
@@ -159,7 +159,7 @@ get_inbox_unread(HostType, InboxEntryKey) ->
     InboxEntryKey :: mod_inbox:entry_key(),
     Ret :: mod_index:entry_properties().
 get_entry_properties(HostType, InboxEntryKey) ->
-	Args = [HostType, InboxEntryKey],
+    Args = [HostType, InboxEntryKey],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec set_entry_properties(HostType, InboxEntryKey, Params) -> Ret when
@@ -168,9 +168,8 @@ get_entry_properties(HostType, InboxEntryKey) ->
     Params :: mod_index:entry_properties(),
     Ret :: mod_index:entry_properties() | {error, binary()}.
 set_entry_properties(HostType, InboxEntryKey, Params) ->
-	Args = [HostType, InboxEntryKey, Params],
+    Args = [HostType, InboxEntryKey, Params],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
-
 
 callback_funs() ->
   [get_inbox, set_inbox, set_inbox_incr_unread,
