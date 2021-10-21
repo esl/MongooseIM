@@ -5,18 +5,21 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -import(ejabberd_helper, [start_ejabberd/1,
+                          start_ejabberd_with_config/2,
                           stop_ejabberd/0,
                           use_config_file/2,
                           copy/2,
                           data/2]).
 
 all() ->
-    [smoke,
+    [get_opt,
+     lookup_opt,
+     load_from_file,
      {group, cluster}].
 
 groups() ->
     [
-     {cluster, [], [cluster_smoke]}
+     {cluster, [], [cluster_load_from_file]}
     ].
 
 init_per_suite(Config) ->
@@ -24,6 +27,8 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    [persistent_term:erase(Key) || {Key = {mongoose_config, _}, _Value} <- persistent_term:get()],
+    persistent_term:erase(mongoose_config_state),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     ok.
@@ -49,33 +54,70 @@ end_per_group(_GroupName, _Config) ->
 %% Tests
 %%
 
-smoke(Config) ->
-    % when
-    start_ejabberd_with_config(Config, "mongooseim.minimal.toml"),
-    % then
-    ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
-    % cleanup
-    ok = stop_ejabberd().
+get_opt(_Config) ->
+    ?assertError(badarg, mongoose_config:get_opt(get_me)),
+    ?assertEqual(default_value, mongoose_config:get_opt(get_me, default_value)),
+    mongoose_config:set_opt(get_me, you_got_me),
+    ?assertEqual(you_got_me, mongoose_config:get_opt(get_me)),
+    mongoose_config:set_opt(get_me, you_got_me_again),
+    ?assertEqual(you_got_me_again, mongoose_config:get_opt(get_me)),
+    ?assertEqual(you_got_me_again, mongoose_config:get_opt(get_me, default_value)),
+    mongoose_config:unset_opt(get_me),
+    ?assertError(badarg, mongoose_config:get_opt(get_me)),
+    ?assertEqual(default_value, mongoose_config:get_opt(get_me, default_value)).
 
-cluster_smoke(C) ->
-    SlaveNode = slave_node(C),
-    copy(data(C, "mongooseim.minimal.toml"), data(C, "mongooseim.toml")),
-    {ok, _} = start_ejabberd_with_config(C, "mongooseim.toml"),
-    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "mongooseim.toml"),
+lookup_opt(_Config) ->
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt(look_me_up)),
+    mongoose_config:set_opt(look_me_up, here_i_am),
+    ?assertEqual({ok, here_i_am}, mongoose_config:lookup_opt(look_me_up)),
+    mongoose_config:unset_opt(look_me_up),
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt(look_me_up)).
+
+load_from_file(Config) ->
+    use_config_file(Config, "mongooseim.minimal.toml"),
+    ok = mongoose_config:start(),
+    State = mongoose_config:config_state(),
+    check_loaded_config(State),
+
+    ok = mongoose_config:stop(),
+    check_removed_config(),
+
+    %% Try to stop it again
+    {error, not_started} = mongoose_config:stop().
+
+cluster_load_from_file(Config) ->
+    SlaveNode = slave_node(Config),
+    copy(data(Config, "mongooseim.minimal.toml"), data(Config, "mongooseim.toml")),
+
+    %% Start clustered MongooseIM and check the loaded config
+    {ok, _} = start_ejabberd_with_config(Config, "mongooseim.toml"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, Config, "mongooseim.toml"),
     maybe_join_cluster(SlaveNode),
     [State, State] = mongoose_config:config_states(),
-    % cleanup
+    check_loaded_config(State),
+
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),
-    ok.
+    check_removed_config().
 
 %%
 %% Helpers
 %%
 
-start_ejabberd_with_config(Config, ConfigFile) ->
-    use_config_file(Config, ConfigFile),
-    {ok, _} = start_ejabberd(Config).
+check_loaded_config(State) ->
+    Opts = lists:sort(mongoose_config_parser:state_to_opts(State)),
+    ExpectedOpts = minimal_config_opts(),
+    ?assertEqual(ExpectedOpts, Opts),
+    [?assertEqual(Val, mongoose_config:get_opt(Key)) || {{_, Key}, Val} <- ExpectedOpts].
+
+check_removed_config() ->
+    Opts = minimal_config_opts(),
+    ?assertError(badarg, mongoose_config:config_state()),
+    [?assertError(badarg, mongoose_config:get_opt(Key)) || {{_, Key}, _} <- Opts].
+
+minimal_config_opts() ->
+    [{local_config, default_server_domain, <<"localhost">>},
+     {local_config, hosts, [<<"localhost">>]}].
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),
@@ -120,7 +162,7 @@ slave_name() ->
     'mim_slave'.
 
 start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
-    rpc:call(RemoteNode, ?MODULE, start_ejabberd_with_config, [C, ConfigFile]).
+    rpc:call(RemoteNode, ejabberd_helper, start_ejabberd_with_config, [C, ConfigFile]).
 
 stop_remote_ejabberd(SlaveNode) ->
     rpc:call(SlaveNode, ejabberd_helper, stop_ejabberd, []).
@@ -137,3 +179,4 @@ maybe_join_cluster(SlaveNode) ->
         {already_joined, _} ->
             ok
     end.
+
