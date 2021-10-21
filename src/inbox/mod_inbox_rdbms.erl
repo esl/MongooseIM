@@ -13,7 +13,7 @@
 -include("mod_inbox.hrl").
 -include("mongoose_logger.hrl").
 
--behaviour(mod_inbox).
+-behaviour(mod_inbox_backend).
 
 %% API
 -export([get_inbox/4,
