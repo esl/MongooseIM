@@ -52,11 +52,8 @@
 
 -export_type([hook_fn/0, hook_list/0]).
 
--record(hook_handler, {%% 'prio' field must be the first
-                       %% this is required for the proper sorting.
-                       prio :: pos_integer(),
-                       module :: module(),
-                       function :: atom(), %% function name
+-record(hook_handler, {prio :: pos_integer(),
+                       hook_fn :: hook_fn(),
                        extra :: map()}).
 
 -define(TABLE, ?MODULE).
@@ -143,12 +140,15 @@ init([]) ->
 handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
-                    case lists:member(HookHandler, Ls) of
-                        true ->
+                    case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
+                        {value, _} ->
+                            ?LOG_WARNING(#{what => duplicated_handler,
+                                           key => Key, handler => HookHandler}),
                             ok;
                         false ->
-                            %% NB: lists:merge/2 returns sorted list!
-                            NewLs = lists:merge(Ls, [HookHandler]),
+                            %% NOTE: sort *only* on the priority,
+                            %% order of other fields is not part of the contract
+                            NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
                             ets:insert(?TABLE, {Key, NewLs}),
                             ok
                     end;
@@ -162,7 +162,12 @@ handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
 handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
-                    NewLs = lists:delete(HookHandler, Ls),
+                    %% NOTE: The straightforward handlers comparison would compare
+                    %% the function objects, which is not well-defined in OTP.
+                    %% So we do a manual comparison on the MFA of the funs,
+                    %% by using `erlang:fun_info/2`
+                    Pred = fun_is_handler_equal_to(HookHandler),
+                    {_, NewLs} = lists:partition(Pred, Ls),
                     ets:insert(?TABLE, {Key, NewLs}),
                     ok;
                 [] ->
@@ -207,9 +212,9 @@ run_hook([Handler | Ls], Acc, Params, Key) ->
 
 -spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
     hook_fn_ret_value() | {'EXIT', Reason :: any()}.
-apply_hook_function(#hook_handler{module = Module, function = Function, extra = Extra},
+apply_hook_function(#hook_handler{hook_fn = HookFn, extra = Extra},
                     Acc, Params) ->
-    safely:apply(Module, Function, [Acc, Params, Extra]).
+    safely:apply(HookFn, [Acc, Params, Extra]).
 
 error_running_hook({Class, Reason}, Handler, Acc, Params, Key) ->
     Extra = #{class => Class, reason => Reason},
@@ -232,13 +237,22 @@ make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
              is_function(Function, 3), is_map(Extra),
              is_integer(Priority), Priority > 0 ->
     NewExtra = extend_extra(HookTuple),
-    {Module, FunctionName} = check_hook_function(Function),
+    check_hook_function(Function),
     #hook_handler{prio = Priority,
-                  module = Module,
-                  function = FunctionName,
+                  hook_fn = Function,
                   extra = NewExtra}.
 
--spec check_hook_function(hook_fn()) -> {module(), atom()}.
+-spec fun_is_handler_equal_to(#hook_handler{}) -> fun((#hook_handler{}) -> boolean()).
+fun_is_handler_equal_to(#hook_handler{prio = P0, hook_fn = HookFn0, extra = Extra0}) ->
+    Mod0 = erlang:fun_info(HookFn0, module),
+    Name0 = erlang:fun_info(HookFn0, name),
+    fun(#hook_handler{prio = P1, hook_fn = HookFn1, extra = Extra1}) ->
+            P0 =:= P1 andalso Extra0 =:= Extra1 andalso
+            Mod0 =:= erlang:fun_info(HookFn1, module) andalso
+            Name0 =:= erlang:fun_info(HookFn1, name)
+    end.
+
+-spec check_hook_function(hook_fn()) -> ok.
 check_hook_function(Function) when is_function(Function, 3) ->
     case erlang:fun_info(Function, type) of
         {type, external} ->
@@ -255,8 +269,7 @@ check_hook_function(Function) when is_function(Function, 3) ->
                 false ->
                     throw_error(#{what => function_is_not_exported,
                                   function => Function})
-            end,
-            {Module, FunctionName};
+            end;
         {type, local} ->
             throw_error(#{what => only_external_function_references_allowed,
                           function => Function})
