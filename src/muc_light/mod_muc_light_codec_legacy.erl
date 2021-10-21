@@ -8,7 +8,7 @@
 -module(mod_muc_light_codec_legacy).
 -author('piotr.nosek@erlang-solutions.com').
 
--behaviour(mod_muc_light_codec).
+-behaviour(mod_muc_light_codec_backend).
 
 %% API
 -export([decode/4, encode/5, encode_error/5]).
@@ -90,15 +90,15 @@ encode(OtherCase, Sender, RoomBareJid, HandleFun, Acc) ->
 
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
-        OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) ->
+        OrigPacket :: exml:element(), Acc :: mongoose_acc:t()) ->
     mongoose_acc:t().
-encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
+encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, Acc) ->
     %% The only error case for valid presence is registration-required for room creation
     X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
     mod_muc_light_codec_backend:encode_error({error, registration_required}, [X], OrigFrom, OrigTo,
-                                     OrigPacket, HandleFun);
-encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
-    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
+                                     OrigPacket, Acc);
+encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
+    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, Acc).
 
 %%====================================================================
 %% Message decoding

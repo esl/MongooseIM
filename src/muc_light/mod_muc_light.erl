@@ -67,7 +67,6 @@
          force_clear_from_ct/1]).
 
 -ignore_xref([
-    {mod_muc_light_codec_backend, decode, 4},
     add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
     default_config/1, default_schema_definition/0, disco_local_items/1,
     force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
@@ -181,8 +180,8 @@ delete_room({_, RoomS} = RoomUS) ->
 start(HostType, Opts) ->
     set_dynamic_opts(HostType, Opts),
     Codec = host_type_to_codec(HostType),
-    gen_mod:start_backend_module(mod_muc_light_codec, [{backend, Codec}], []),
     mod_muc_light_db_backend:start(HostType, Opts),
+    mod_muc_light_codec_backend:start(HostType, [{backend, Codec}]),
     ejabberd_hooks:add(hooks(HostType)),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),
@@ -194,8 +193,9 @@ start(HostType, Opts) ->
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
-    mod_muc_light_db_backend:stop(HostType),
     ejabberd_hooks:delete(hooks(HostType)),
+    mod_muc_light_codec_backend:stop(HostType),
+    mod_muc_light_db_backend:stop(HostType),
     ok.
 
 %% Init helpers
@@ -313,7 +313,8 @@ process_packet(Acc, From, To, El, _Extra) ->
                      From :: jid:jid(), To :: jid:jid(),
                      Acc :: mongoose_acc:t(),
                      OrigPacket :: exml:element(),
-                     DecodedPacket :: mod_muc_light_codec:decode_result()) -> mongoose_acc:t().
+                     DecodedPacket :: mod_muc_light_codec_backend:decode_result()) ->
+    mongoose_acc:t().
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, {set, #create{} = Create}}) ->
     case not mod_muc_light_utils:room_limit_reached(From, HostType) of
@@ -362,8 +363,7 @@ process_decoded_packet(_HostType, From, To, Acc, El, InvalidReq) ->
     make_err(From, To, El, Acc, {error, bad_request}).
 
 make_err(From, To, El, Acc, Reason) ->
-    mod_muc_light_codec_backend:encode_error(Reason, From, To, El,
-                                             make_handler_fun(Acc)).
+    mod_muc_light_codec_backend:encode_error(Reason, From, To, El, Acc).
 
 %%====================================================================
 %% Hook handlers
@@ -443,7 +443,7 @@ make_roster_item({{RoomU, RoomS}, RoomName, RoomVersion}) ->
 -spec process_iq_get(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                      IQ :: jlib:iq(), ActiveList :: binary()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
-process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
+process_iq_get(Acc, #jid{lserver = FromS} = From, To, #iq{} = IQ, _ActiveList) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
@@ -573,8 +573,12 @@ get_affiliation(HostType, Room, User) ->
             none
     end.
 
--spec create_room(mongoose_acc:t(), jid:jid(), jid:jid(), create_req_props(), exml:element()) ->
-    exml:element().
+-spec create_room(mongoose_acc:t(),
+                  jid:jid(),
+                  jid:jid(),
+                  create_req_props(),
+                  exml:element()) ->
+    mongoose_acc:t().
 create_room(Acc, From, To, Create0, OrigPacket) ->
     case try_to_create_room(From, To, Create0) of
         {ok, FinalRoomJid, Details} ->
@@ -583,18 +587,18 @@ create_room(Acc, From, To, Create0, OrigPacket) ->
         {error, exists} ->
             mod_muc_light_codec_backend:encode_error({error, {conflict, <<"Room already exists">>}},
                                                      From, To, OrigPacket,
-                                                     make_handler_fun(Acc));
+                                                     Acc);
         {error, bad_request} ->
             mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
-                                                     make_handler_fun(Acc));
+                                                     Acc);
         {error, {_, _} = Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             mod_muc_light_codec_backend:encode_error(
-              {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc));
+              {error, bad_request, ErrorText}, From, To, OrigPacket, Acc);
         {error, Error} ->
             ErrorText = io_lib:format("~p", [Error]),
             mod_muc_light_codec_backend:encode_error(
-              {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc))
+              {error, bad_request, ErrorText}, From, To, OrigPacket, Acc)
     end.
 
 -spec process_create_aff_users_if_valid(HostType :: host_type(),
@@ -627,9 +631,11 @@ process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
 creator_aff(true) -> member;
 creator_aff(false) -> owner.
 
--spec handle_disco_info_get(From ::jid:jid(), To ::jid:jid(),
+-spec handle_disco_info_get(From ::jid:jid(),
+                            To :: jid:jid(),
                             DiscoInfo :: disco_info_req_props(),
-                            Acc :: mongoose_acc:t()) -> ok.
+                            Acc :: mongoose_acc:t()) ->
+    mongoose_acc:t().
 handle_disco_info_get(From, To, DiscoInfo, Acc) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, To,
                                        make_handler_fun(Acc), Acc).
@@ -638,7 +644,8 @@ handle_disco_info_get(From, To, DiscoInfo, Acc) ->
                              Acc :: mongoose_acc:t(),
                              From ::jid:jid(), To ::jid:jid(),
                              DiscoItems :: disco_items_req_props(),
-                             OrigPacket :: exml:element()) -> ok.
+                             OrigPacket :: exml:element()) ->
+    mongoose_acc:t().
 handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(HostType, jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->
@@ -646,7 +653,7 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
                          text => <<"Couldn't get room list for user">>,
                          from_jid => From, reason => Error}),
             mod_muc_light_codec_backend:encode_error(
-              {error, internal_server_error}, From, To, OrigPacket, make_handler_fun(Acc));
+              {error, internal_server_error}, From, To, OrigPacket, Acc);
         Rooms ->
             RoomsInfo = get_rooms_info(HostType, lists:sort(Rooms)),
             RouteFun = make_handler_fun(Acc),
@@ -660,7 +667,7 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
                                                        RouteFun, Acc);
                 {error, item_not_found} ->
                     mod_muc_light_codec_backend:encode_error({error, item_not_found},
-                                                             From, To, OrigPacket, RouteFun)
+                                                             From, To, OrigPacket, Acc)
             end
     end.
 

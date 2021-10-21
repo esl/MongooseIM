@@ -8,7 +8,7 @@
 -module(mod_muc_light_codec_modern).
 -author('piotr.nosek@erlang-solutions.com').
 
--behaviour(mod_muc_light_codec).
+-behaviour(mod_muc_light_codec_backend).
 
 %% API
 -export([decode/4, encode/5, encode_error/5]).
@@ -101,10 +101,10 @@ get_sender_aff(Users, US) ->
 
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
-        OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) ->
+        OrigPacket :: exml:element(), Acc :: mongoose_acc:t()) ->
     mongoose_acc:t().
-encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
-    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
+encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
+    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, Acc).
 
 %%====================================================================
 %% Message decoding
