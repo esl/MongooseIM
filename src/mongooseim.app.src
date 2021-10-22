@@ -23,6 +23,7 @@
                   exometer_core,
                   exometer_report_graphite,
                   exometer_report_statsd,
+                  graphql,
                   jiffy,
                   jwerl,
                   fusco,

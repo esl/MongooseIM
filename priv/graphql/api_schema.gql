@@ -1,0 +1,14 @@
+type Query {
+  domains: [Domain!]
+  domain(name: String!): Domain!
+}
+
+type Mutation {
+  addDomain(name: String!, hostType: String!): Domain!
+  removeDomain(name: String!): Bool!
+}
+
+type Domain{
+  name: String!
+  hostType: String!
+}
