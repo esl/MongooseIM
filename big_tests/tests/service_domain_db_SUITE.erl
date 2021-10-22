@@ -543,9 +543,7 @@ db_reinserted_from_one_node_while_service_disabled_on_another(_) ->
     {ok, <<"dbgroup2">>} = get_host_type(mim2(), <<"example.com">>),
     %% check deleting
     ok = delete_domain(mim2(), <<"example.com">>, <<"dbgroup2">>),
-    sync(),
-    {error, not_found} = get_host_type(mim(), <<"example.com">>),
-    {error, not_found} = get_host_type(mim2(), <<"example.com">>).
+    wait_for_domain_removed(<<"example.com">>).
 
 db_crash_on_initial_load_restarts_service(_) ->
     service_enabled(mim()),
@@ -1042,7 +1040,7 @@ sync() ->
     sync_local(mim2()).
 
 sync_local(Node) ->
-    rpc(Node, service_domain_db, sync_local, []).
+    pong = rpc(Node, service_domain_db, sync_local, []).
 
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
     rpc(Node, mongoose_service, stop_service, [service_domain_db]),
@@ -1117,3 +1115,13 @@ assert_domains_are_equal(HostType) ->
 
 dummy_auth_host_type() ->
     <<"dummy auth">>. %% specified in the TOML config file
+
+wait_for_domain_removed(Domain) ->
+    F = fun() ->
+        sync(),
+        Res1 = get_host_type(mim(), Domain),
+        Res2 = get_host_type(mim2(), Domain),
+        {Res1, Res2}
+        end,
+    mongoose_helper:wait_until(F, {{error, not_found}, {error, not_found}},
+                               #{time_left => timer:seconds(15)}).
