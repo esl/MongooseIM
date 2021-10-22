@@ -28,6 +28,7 @@
          ensure_db_pool_metric/1,
          update/3,
          ensure_metric/3,
+         ensure_subscribed_metric/3,
          get_metric_value/1,
          get_metric_values/1,
          get_metric_value/2,
@@ -54,6 +55,10 @@
 
 -type use_or_skip() :: use | skip.
 -type hook_name() :: atom().
+-type metric_name() :: atom() | list(atom() | binary()).
+-type short_metric_type() :: spiral | histogram | counter.
+-type metric_type() :: tuple() | short_metric_type().
+-type host_type_or_global() :: mongooseim:host_type() | global.
 
 %% ---------------------------------------------------------------------
 %% API
@@ -112,7 +117,7 @@ update(HostType, Name, Change) when is_list(Name) ->
 update(HostType, Name, Change) ->
     update(HostType, [Name], Change).
 
--spec ensure_metric(mongooseim:host_type() | global, atom() | list(), term()) ->
+-spec ensure_metric(host_type_or_global(), metric_name(), metric_type()) ->
     ok | {ok, already_present} | {error, any()}.
 ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
     ensure_metric(HostType, Metric, Type, element(1, Type));
@@ -394,6 +399,32 @@ ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
         ShortType -> {ok, already_present}
     end.
 
+%% @doc Creates a metric and subcribes it to the reporters
+-spec ensure_subscribed_metric(HostType :: host_type_or_global(),
+                               Metric :: metric_name(),
+                               Type :: metric_type()) -> ok | term().
+ensure_subscribed_metric(HostType, Metric, Type) ->
+    case ensure_metric(HostType, Metric, Type) of
+        ok ->
+            PrefixedMetric = name_by_all_metrics_are_global(HostType, Metric),
+            Reporters = exometer_report:list_reporters(),
+            Interval = get_report_interval(),
+            lists:foreach(
+              fun({Reporter, _Pid}) ->
+                      FullMetric = {PrefixedMetric, Type, []},
+                      subscribe_metric(Reporter, FullMetric, Interval)
+              end,
+              Reporters);
+        {ok, already_present} ->
+            ?LOG_DEBUG(#{what => metric_already_present,
+                         host_type => HostType, metric => Metric, type => Type}),
+            ok;
+        Other ->
+            ?LOG_WARNING(#{what => cannot_create_metric, reason => Other,
+                           host_type => HostType, metric => Metric,type => Type}),
+            Other
+    end.
+
 do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
     case catch exometer:new(PrefixedMetric, ExometerType, ExometerOpts) of
         {'EXIT', {exists, _}} -> {ok, already_present};
@@ -412,11 +443,21 @@ start_metrics_subscriptions(Reporter, MetricPrefix, Interval) ->
      || Metric <- exometer:find_entries(MetricPrefix)].
 
 subscribe_metric(Reporter, {Name, counter, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, [value], Interval);
+    subscribe_verbose(Reporter, Name, [value], Interval);
 subscribe_metric(Reporter, {Name, histogram, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, [min, mean, max, median, 95, 99, 999], Interval);
+    subscribe_verbose(Reporter, Name, [min, mean, max, median, 95, 99, 999], Interval);
 subscribe_metric(Reporter, {Name, _, _}, Interval) ->
-    exometer_report:subscribe(Reporter, Name, default, Interval).
+    subscribe_verbose(Reporter, Name, default, Interval).
+
+subscribe_verbose(Reporter, Name, Types, Interval) ->
+    case exometer_report:subscribe(Reporter, Name, Types, Interval) of
+        ok -> ok;
+        Other ->
+            ?LOG_ERROR(#{what => metrics_subscribe_failed,
+                         reporter => Reporter, metric_name => Name,
+                         reason => Other}),
+            Other
+    end.
 
 subscribe_to_all(Reporter, Interval) ->
     HostTypePrefixes = pick_by_all_metrics_are_global([], ?ALL_HOST_TYPES),
