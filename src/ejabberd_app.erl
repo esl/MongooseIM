@@ -135,7 +135,7 @@ stop_modules() ->
       fun(Host) ->
           StopModuleFun =
               fun({Module, _Args}) ->
-                  gen_mod:stop_module_keep_config(Host, Module)
+                  gen_mod:stop_module(Host, Module)
               end,
           case mongoose_config:lookup_opt({modules, Host}) of
               {error, not_found} ->
