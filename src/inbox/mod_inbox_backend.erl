@@ -12,22 +12,21 @@
          get_inbox_unread/2,
          get_entry_properties/2,
          set_entry_properties/3,
-         reset_unread/3
-        ]).
+         reset_unread/3]).
 
 -define(MAIN_MODULE, mod_inbox).
 
--callback init(Host, Opts) -> ok when
-    Host :: mongooseim:host_type(),
+-callback init(HostType, Opts) -> ok when
+    HostType :: mongooseim:host_type(),
     Opts :: list().
 
--callback get_inbox(HostType, LUser, LServer, Params) -> mod_index:get_inbox_res() when
+-callback get_inbox(HostType, LUser, LServer, Params) -> mod_inbox:get_inbox_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
     Params :: mod_inbox:get_inbox_params().
 
--callback clear_inbox(HostType, LUser, LServer) -> mod_index:inbox_write_res() when
+-callback clear_inbox(HostType, LUser, LServer) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver().
@@ -37,7 +36,7 @@
     LServer :: jid:lserver().
 
 -callback set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    mod_index:inbox_write_res() when
+    mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
@@ -45,7 +44,7 @@
     MsgId :: binary(),
     Timestamp :: integer().
 
--callback remove_inbox_row(HostType, InboxEntryKey) -> mod_index:inbox_write_res() when
+-callback remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 
@@ -57,7 +56,7 @@
     MsgId :: binary(),
     Timestamp :: integer().
 
--callback reset_unread(HostType, InboxEntryKey, MsgId) -> mod_index:inbox_write_res() when
+-callback reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     MsgId :: binary().
@@ -69,23 +68,23 @@
 -callback get_entry_properties(HostType, InboxEntryKey) -> Ret when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Ret :: mod_index:entry_properties().
+    Ret :: mod_inbox:entry_properties() | nil().
 
 -callback set_entry_properties(HostType, InboxEntryKey, Params) -> Ret when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Params :: mod_index:entry_properties(),
-    Ret :: mod_index:entry_properties() | {error, binary()}.
+    Params :: mod_inbox:entry_properties(),
+    Ret :: mod_inbox:entry_properties() | {error, binary()}.
 
--spec init(Host, Opts) -> ok when
-    Host :: mongooseim:host_type(),
+-spec init(HostType, Opts) -> ok when
+    HostType :: mongooseim:host_type(),
     Opts :: list().
 init(HostType, Opts) ->
     mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, callback_funs(), Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_inbox(HostType, LUser, LServer, Params) -> mod_index:get_inbox_res() when
+-spec get_inbox(HostType, LUser, LServer, Params) -> mod_inbox:get_inbox_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
@@ -94,7 +93,7 @@ get_inbox(HostType, LUser, LServer, Params) ->
     Args = [HostType, LUser, LServer, Params],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec clear_inbox(HostType, LUser, LServer) -> mod_index:inbox_write_res() when
+-spec clear_inbox(HostType, LUser, LServer) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver().
@@ -110,7 +109,7 @@ remove_domain(HostType, LServer) ->
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    mod_index:inbox_write_res() when
+    mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
@@ -121,7 +120,7 @@ set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
     Args = [HostType, InboxEntryKey, Content, Count, MsgId, Timestamp],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec remove_inbox_row(HostType, InboxEntryKey) -> mod_index:inbox_write_res() when
+-spec remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 remove_inbox_row(HostType, InboxEntryKey) ->
@@ -139,7 +138,7 @@ set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     Args = [HostType, InboxEntryKey, Content, MsgId, Timestamp],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec reset_unread(HostType, InboxEntryKey, MsgId) -> mod_index:inbox_write_res() when
+-spec reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:inbox_write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     MsgId :: binary() | undefined.
@@ -157,7 +156,7 @@ get_inbox_unread(HostType, InboxEntryKey) ->
 -spec get_entry_properties(HostType, InboxEntryKey) -> Ret when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Ret :: mod_index:entry_properties().
+    Ret :: mod_inbox:entry_properties() | nil().
 get_entry_properties(HostType, InboxEntryKey) ->
     Args = [HostType, InboxEntryKey],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
@@ -165,8 +164,8 @@ get_entry_properties(HostType, InboxEntryKey) ->
 -spec set_entry_properties(HostType, InboxEntryKey, Params) -> Ret when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Params :: mod_index:entry_properties(),
-    Ret :: mod_index:entry_properties() | {error, binary()}.
+    Params :: mod_inbox:entry_properties(),
+    Ret :: mod_inbox:entry_properties() | {error, binary()}.
 set_entry_properties(HostType, InboxEntryKey, Params) ->
     Args = [HostType, InboxEntryKey, Params],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
