@@ -29,7 +29,6 @@
 -export([start/0,
          start/1,
          stop/1,
-         set_opts/2,
          get_opt/3,
          get_opt/2,
          authorize/1,
@@ -120,16 +119,6 @@ hooks(HostType) ->
      %% It is important that this handler happens _before_ all other modules
      {remove_domain, HostType, ?MODULE, remove_domain, 10}
     ].
-
--spec set_opts(HostType :: mongooseim:host_type(),
-               KVs :: [tuple()]) -> ok.
-set_opts(HostType, KVs) ->
-    OldOpts = mongoose_config:get_opt({auth_opts, HostType}),
-    AccFunc = fun({K, V}, Acc) ->
-                  lists:keystore(K, 1, Acc, {K, V})
-              end,
-    NewOpts = lists:foldl(AccFunc, OldOpts, KVs),
-    mongoose_config:set_opt({auth_opts, HostType}, NewOpts).
 
 -spec get_opt(HostType :: mongooseim:host_type(),
               Opt :: atom(),
