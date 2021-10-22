@@ -46,33 +46,12 @@
          remove_user/3,
          pop_offline_messages/2]).
 
--define(MOD_OFFLINE_CHATMARKERS_BACKEND, mod_offline_chatmarkers_backend).
 -ignore_xref([
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, maybe_store, 5},
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, get, 2},
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, remove_user, 2},
-    {?MOD_OFFLINE_CHATMARKERS_BACKEND, init, 2},
     behaviour_info/1, inspect_packet/4, pop_offline_messages/2, remove_user/3
 ]).
 
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
-
-%% ------------------------------------------------------------------
-%% Backend callbacks
-
--callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
--callback get(mongooseim:host_type(), jid:jid()) -> {ok, [{Thread :: undefined | binary(),
-                                                           Room :: undefined | jid:jid(),
-                                                           Timestamp :: integer()}]}.
-
-%%% Jid, Thread, and Room parameters serve as a composite database key. If
-%%% key is not available in the database, then it must be added with the
-%%% corresponding timestamp. Otherwise this function does nothing, the stored
-%%% timestamp for the composite key MUST remain unchanged!
--callback maybe_store(mongooseim:host_type(), Jid :: jid:jid(), Thread :: undefined | binary(),
-                      Room :: undefined | jid:jid(), Timestamp :: integer()) -> ok.
--callback remove_user(mongooseim:host_type(), Jid :: jid:jid()) -> ok.
 
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
@@ -86,8 +65,7 @@ deps(_,_)->
     [{mod_smart_markers, hard}].
 
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts), [get, maybe_store]),
-    mod_offline_chatmarkers_backend:init(HostType, Opts),
+    mod_offline_chatmarkers_backend:init(HostType, add_default_backend(Opts)),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
