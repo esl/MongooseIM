@@ -66,9 +66,9 @@ cache_name(HostType) ->
 -spec start_new_cache(atom(), gen_mod:module_opts()) -> any().
 start_new_cache(CacheName, Opts) ->
     CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
-                  segment_num => gen_mod:get_opt(segment_num, Opts, 3),
+                  segment_num => gen_mod:get_opt(number_of_segments, Opts, 3),
                   strategy => gen_mod:get_opt(strategy, Opts, fifo),
-                  ttl => gen_mod:get_opt(ttl, Opts, {hours, 8})
+                  ttl => gen_mod:get_opt(time_to_live, Opts, {hours, 8})
                  },
     Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
              restart => permanent, shutdown => 5000,

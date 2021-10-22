@@ -46,7 +46,7 @@ stop(HostType) ->
 supported_features() ->
     [dynamic_domains].
 
--spec hooks(mongooseim:host_type()) -> any().
+-spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
     hooks(HostType, Opts).

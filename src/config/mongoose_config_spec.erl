@@ -929,11 +929,9 @@ user_cache() ->
                  <<"strategy">> => #option{type = atom,
                                            validate = {enum, [fifo, lru]}},
                  <<"time_to_live">> => #option{type = int_or_infinity,
-                                               validate = positive,
-                                               format = {kv, ttl}},
+                                               validate = positive},
                  <<"number_of_segments">> => #option{type = integer,
-                                                     validate = positive,
-                                                     format = {kv, segment_num}}
+                                                     validate = positive}
                 }}.
 
 %% path: (host_config[].)modules.*.iqdisc

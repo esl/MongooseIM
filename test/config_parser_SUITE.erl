@@ -1555,9 +1555,9 @@ mod_caps(_Config) ->
 mod_cache_users(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_cache_users">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_cache_users, [{K, V}]) end,
-    ?eqf(M(ttl, 8600), T(<<"time_to_live">>, 8600)),
-    ?eqf(M(ttl, infinity), T(<<"time_to_live">>, <<"infinity">>)),
-    ?eqf(M(segment_num, 10), T(<<"number_of_segments">>, 10)),
+    ?eqf(M(time_to_live, 8600), T(<<"time_to_live">>, 8600)),
+    ?eqf(M(time_to_live, infinity), T(<<"time_to_live">>, <<"infinity">>)),
+    ?eqf(M(number_of_segments, 10), T(<<"number_of_segments">>, 10)),
     ?eqf(M(strategy, fifo), T(<<"strategy">>, <<"fifo">>)),
     ?errf(T(<<"time_to_live">>, 0)),
     ?errf(T(<<"strategy">>, <<"lifo">>)),
