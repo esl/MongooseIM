@@ -5,6 +5,7 @@
 {incoming_s2s_port, 5269}.
 {http_port, 5280}.
 {https_port, 5285}.
+{http_graphql_api_endpoint_port, 5551}.
 
 % vm.args
 {highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.
@@ -39,6 +40,8 @@
   tls.password =  \"\""}.
 {http_api_old_endpoint, "ip_address = \"127.0.0.1\"
   port = 5288"}.
+{http_graphql_api_endpoint, "ip_address = \"0.0.0.0\"
+  port = {{http_graphql_api_endpoint_port}}"}.
 {http_api_endpoint, "ip_address = \"127.0.0.1\"
   port = 8088"}.
 {http_api_client_endpoint, "port = 8089"}.

@@ -119,6 +119,17 @@
     content_path = "swagger"
 
 [[listen.http]]
+  {{#http_graphql_api_endpoint}}
+  {{{http_graphql_api_endpoint}}}
+  {{/http_graphql_api_endpoint}}
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+    host = "_"
+    path = "/graphql-api"
+
+[[listen.http]]
   {{#http_api_old_endpoint}}
   {{{http_api_old_endpoint}}}
   {{/http_api_old_endpoint}}
