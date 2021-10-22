@@ -60,13 +60,13 @@ single_handler_can_be_added_and_removed(_) ->
                                           #{id => 1}, 1)),
     %% check that hook handlers are added
     Tag1Handlers = [%% this list must be sorted by priority
-                    {hook_handler, 1, mod1, plus,
+                    {hook_handler, 1, PlusHandlerFn,
                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1, id => 1}},
-                    {hook_handler, 2, mod2, multiply,
+                    {hook_handler, 2, MultiplyHandlerFn,
                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1, id => 2}}],
     AllHandlers = [{{calculate, ?HOOK_TAG1}, Tag1Handlers},
                    {{calculate, ?HOOK_TAG2},
-                    [{hook_handler, 1, mod1, plus,
+                    [{hook_handler, 1, PlusHandlerFn,
                       #{hook_name => calculate, hook_tag => ?HOOK_TAG2,
                         host_type =>?HOOK_TAG2, id => 1}}]}],
     ?assertEqualLists(AllHandlers, get_handlers_for_all_hooks()),
@@ -108,13 +108,13 @@ multiple_handlers_can_be_added_and_removed(_) ->
     ?assertEqual(ok, gen_hook:add_handlers(HookHandlers)),
     %% check that hook handlers are added
     Tag1Handlers = [%% this list must be sorted by priority
-                    {hook_handler, 1, mod1, plus,
+                    {hook_handler, 1, PlusHandlerFn,
                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1, id => 1}},
-                    {hook_handler, 2, mod2, multiply,
+                    {hook_handler, 2, MultiplyHandlerFn,
                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1, id => 2}}],
     AllHandlers = [{{calculate, ?HOOK_TAG1}, Tag1Handlers},
                    {{calculate, ?HOOK_TAG2},
-                    [{hook_handler, 1, mod1, plus,
+                    [{hook_handler, 1, PlusHandlerFn,
                       #{hook_name => calculate, hook_tag => ?HOOK_TAG2,
                         host_type =>?HOOK_TAG2, id => 1}}]}],
     ?assertEqualLists(AllHandlers, get_handlers_for_all_hooks()),
@@ -146,7 +146,7 @@ local_fun_references_causes_error(_) ->
                  gen_hook:add_handlers(HookHandlers)),
     %% check that handlers in the list are partially added (till error occurs)
     ?assertEqual([{{calculate, ?HOOK_TAG1},
-                   [{hook_handler, 2, mod2, multiply,
+                   [{hook_handler, 2, MultiplyHandlerFn,
                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1, id => 2}}]}],
                  get_handlers_for_all_hooks()),
     %% try to remove the same list of handlers
@@ -288,7 +288,7 @@ errors_in_handlers_are_reported_but_ignored(_) ->
     %% check that error is reported
     ?assertEqual(true, meck:called(gen_hook, error_running_hook,
                                    [{error, {some_error, '_'}},
-                                    {hook_handler, 3, mod1, error,
+                                    {hook_handler, 3, ErrorHandlerFn,
                                      #{hook_name => calculate, hook_tag => ?HOOK_TAG1}},
                                     6, #{n => 2}, {calculate, ?HOOK_TAG1}])),
     %% check hook handlers execution sequence

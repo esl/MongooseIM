@@ -12,7 +12,7 @@
 -export([apply/2, apply/3]).
 -export([apply_and_log/3, apply_and_log/4]).
 -compile({no_auto_import, [apply/2, apply/3]}).
--ignore_xref([apply/2, apply_and_log/4]).
+-ignore_xref([apply/3, apply_and_log/4]).
 
 -type error_class() :: error | exit | throw.
 -type catch_result(A) :: A | {error_class(), term()}.
