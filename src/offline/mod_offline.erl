@@ -62,21 +62,7 @@
 
 -export([config_metrics/1]).
 
--define(MOD_OFFLINE_BACKEND, mod_offline_backend).
 -ignore_xref([
-    {?MOD_OFFLINE_BACKEND, fetch_messages, 1},
-    {?MOD_OFFLINE_BACKEND, pop_messages, 1},
-    {?MOD_OFFLINE_BACKEND, count_offline_messages, 3},
-    {?MOD_OFFLINE_BACKEND, remove_expired_messages, 1},
-    {?MOD_OFFLINE_BACKEND, remove_old_messages, 2},
-    {?MOD_OFFLINE_BACKEND, remove_user, 2},
-    {?MOD_OFFLINE_BACKEND, remove_domain, 2},
-    {?MOD_OFFLINE_BACKEND, init, 2},
-    {?MOD_OFFLINE_BACKEND, write_messages, 3},
-    {?MOD_OFFLINE_BACKEND, write_messages, 4},
-    {?MOD_OFFLINE_BACKEND, count_offline_messages, 4},
-    {?MOD_OFFLINE_BACKEND, remove_expired_messages, 2},
-    {?MOD_OFFLINE_BACKEND, remove_old_messages, 3},
     amp_failed_event/1, behaviour_info/1, code_change/3, determine_amp_strategy/5,
     disco_features/1, get_personal_data/3, handle_call/3, handle_cast/2,
     handle_info/2, init/1, inspect_packet/4, pop_offline_messages/2, remove_user/2,
@@ -103,42 +89,12 @@
 
 -type poppers() :: monitored_map:t({jid:luser(), jid:lserver()}, pid()).
 
--record(state, {host_type :: host_type(),
+-record(state, {host_type :: mongooseim:host_type(),
                 access_max_user_messages :: atom(),
                 message_poppers = monitored_map:new() :: poppers()
                }).
 
 -type state() :: #state{}.
--type host_type() :: mongooseim:host_type().
-
-%% ------------------------------------------------------------------
-%% Backend callbacks
-
--callback init(host_type(), gen_mod:module_opts()) -> ok.
-
--callback pop_messages(host_type(), jid:jid()) ->
-    {ok, [msg()]} | {error, any()}.
-
--callback fetch_messages(host_type(), jid:jid()) ->
-    {ok, [msg()]} | {error, any()}.
-
--callback write_messages(host_type(), jid:luser(), jid:lserver(), [msg()]) ->
-    ok | {error, any()}.
-
--callback count_offline_messages(host_type(), jid:luser(), jid:lserver(), Limit :: msg_count()) ->
-    msg_count().
-
--callback remove_expired_messages(host_type(), jid:lserver()) ->
-    {ok, msg_count()} | {error, any()}.
-
--callback remove_old_messages(host_type(), jid:lserver(), timestamp()) ->
-    {ok, msg_count()} | {error, any()}.
-
--callback remove_user(host_type(), jid:luser(), jid:lserver()) -> ok.
-
--callback remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
-
--optional_callbacks([remove_domain/2]).
 
 %% Types used in backend callbacks
 -type msg_count() :: non_neg_integer().
@@ -152,7 +108,6 @@
 start(HostType, Opts) ->
     AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
                                            max_user_offline_messages),
-    gen_mod:start_backend_module(?MODULE, Opts, [pop_messages, write_messages]),
     mod_offline_backend:init(HostType, Opts),
     start_worker(HostType, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(hooks(HostType)),
@@ -237,7 +192,7 @@ write_messages(HostType, LUser, LServer, Msgs) ->
             discard_warn_sender(Msgs)
     end.
 
--spec is_message_count_threshold_reached(host_type(), integer() | infinity,
+-spec is_message_count_threshold_reached(mongooseim:host_type(), integer() | infinity,
                                          jid:luser(), jid:lserver(), integer()) ->
           boolean().
 is_message_count_threshold_reached(_HostType, infinity, _LUser, _LServer, _Len) ->
@@ -487,7 +442,7 @@ offline_messages(Acc, #jid{lserver = LServer} = JID) ->
             []
     end.
 
--spec pop_messages(host_type(), jid:jid()) -> {ok, [msg()]} | {error, any()}.
+-spec pop_messages(mongooseim:host_type(), jid:jid()) -> {ok, [msg()]} | {error, any()}.
 pop_messages(HostType, JID) ->
     case gen_server:call(srv_name(HostType), {pop_offline_messages, jid:to_bare(JID)}) of
         {ok, RsAll} ->
@@ -536,7 +491,7 @@ determine_amp_strategy(Strategy = #amp_strategy{deliver = [none]},
 determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
--spec get_personal_data(gdpr:personal_data(), host_type(), jid:jid()) -> gdpr:personal_data().
+-spec get_personal_data(gdpr:personal_data(), mongooseim:host_type(), jid:jid()) -> gdpr:personal_data().
 get_personal_data(Acc, HostType, #jid{} = JID) ->
     {ok, Messages} = mod_offline_backend:fetch_messages(HostType, JID),
     [ {offline, ["timestamp", "from", "to", "packet"],
@@ -581,13 +536,13 @@ timestamp_xml(LServer, Time) ->
     TS = calendar:system_time_to_rfc3339(Time, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, FromJID, <<"Offline Storage">>).
 
--spec remove_expired_messages(host_type(), jid:lserver()) -> {ok, msg_count()} | {error, any()}.
+-spec remove_expired_messages(mongooseim:host_type(), jid:lserver()) -> {ok, msg_count()} | {error, any()}.
 remove_expired_messages(HostType, LServer) ->
     Result = mod_offline_backend:remove_expired_messages(HostType, LServer),
     mongoose_lib:log_if_backend_error(Result, ?MODULE, ?LINE, [HostType]),
     Result.
 
--spec remove_old_messages(host_type(), jid:lserver(), non_neg_integer()) ->
+-spec remove_old_messages(mongooseim:host_type(), jid:lserver(), non_neg_integer()) ->
           {ok, msg_count()} | {error, any()}.
 remove_old_messages(HostType, LServer, HowManyDays) ->
     Timestamp = fallback_timestamp(HowManyDays, erlang:system_time(microsecond)),
