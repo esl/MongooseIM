@@ -24,11 +24,6 @@
          get_entry_properties/2,
          set_entry_properties/3]).
 
-%% For specific backends
--export([esc_string/1, esc_int/1]).
-
--ignore_xref([esc_int/1, esc_string/1]).
-
 -type archived() :: binary().
 -type muted_until() :: binary().
 -type msg_content() :: binary().
@@ -203,15 +198,6 @@ decode_entries({BArchive, BCount, BMutedUntil}) ->
     #{archive => Archive,
       unread_count => Count,
       muted_until => MutedUntil}.
-
--spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
-esc_string(String) ->
-    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
--spec esc_int(integer()) -> mongoose_rdbms:sql_query_part().
-esc_int(Integer) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Integer)).
-
 
 %% ----------------------------------------------------------------------
 %% Internal functions
