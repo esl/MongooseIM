@@ -128,10 +128,11 @@ maybe_remove_inbox_row(HostType, Room, Remote, true) ->
                      Sender :: jid:jid(),
                      Packet :: exml:element(),
                      Acc :: mongoose_acc:t()) -> ok.
-write_to_inbox(HostType, RoomUser, Remote, Remote, Packet, Acc) ->
-    mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
-write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
-    mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc).
+write_to_inbox(HostType, RoomUser, Remote, Sender, Packet, Acc) ->
+    case jid:are_equal(Remote, Sender) of
+        true -> mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
+        false -> mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc)
+    end.
 
 %%%%%%%
 %% Predicate funs
