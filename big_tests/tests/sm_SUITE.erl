@@ -434,12 +434,10 @@ server_requests_ack(Config, N) ->
     {Alice, _} = given_fresh_user(Config, alice),
     %% ack request after initial presence
     maybe_assert_ack_request(1, N, Alice),
-    StanzasRec = 1,
-    ct:print("discarded"),
     escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
     escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                    escalus:wait_for_stanza(Alice)),
-    maybe_assert_ack_request(StanzasRec + 1, N, Alice).
+    maybe_assert_ack_request(2, N, Alice).
 
 maybe_assert_ack_request(StanzasRec, AckRequests, Alice) ->
     ct:print("StanzasRec: ~p, AckRequests: ~p", [StanzasRec, AckRequests]),
