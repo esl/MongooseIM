@@ -18,6 +18,7 @@
          delete/1]).
 
 -export([get_all_static/0,
+         get_all_dynamic/0,
          get_all_outdated/1,
          get_domains_by_host_type/1,
          domains_count/0]).
@@ -92,6 +93,9 @@ is_host_type_allowed(HostType) ->
 get_all_static() ->
     pairs(ets:match(?TABLE, {'$1', '$2', config})).
 
+get_all_dynamic() ->
+    pairs(ets:match(?TABLE, {'$1', '$2', {dynamic, '_'}})).
+
 get_domains_by_host_type(HostType) when is_binary(HostType) ->
     heads(ets:match(?TABLE, {'$1', HostType, '_'})).
 
@@ -134,7 +138,7 @@ get_start_args() ->
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 init([Pairs, AllowedHostTypes]) ->
-    service_domain_db:reset_last_event_id(),
+    mongoose_loader_state:init(),
     ets:new(?TABLE, [set, named_table, protected, {read_concurrency, true}]),
     ets:new(?HOST_TYPE_TABLE, [set, named_table, protected, {read_concurrency, true}]),
     insert_host_types(?HOST_TYPE_TABLE, AllowedHostTypes),
@@ -235,6 +239,7 @@ handle_insert(Domain, HostType, Source) ->
                     ok;
                 [{Domain, HT, _Source}] when HT =/= HostType ->
                     ?LOG_ERROR(#{what => ignore_domain_from_db_with_different_host_type,
+                                 domain => Domain,
                                  core_host_type => HT,
                                  db_host_type => HostType}),
                     {error, bad_insert}

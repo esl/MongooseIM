@@ -24,9 +24,7 @@ all() ->
      get_domains_by_host_type,
      host_type_check,
      can_get_outdated_domains,
-     run_for_each_domain,
-     gap_gets_detected,
-     too_many_gaps_lead_to_restart].
+     run_for_each_domain].
 
 init_per_suite(Config) ->
     meck:new(mongoose_lazy_routing, [no_link]),
@@ -191,35 +189,3 @@ add_domain_mock_fn(HostType, Domain) ->
     {ok, HostType} = mongoose_domain_core:get_host_type(Domain),
     true = self() =:= whereis(mongoose_domain_core),
     ok.
-
-gap_gets_detected(_) ->
-    mongoose_domain_gaps:init(),
-    Now = -576460752,
-    MaxTime = mongoose_domain_gaps:max_time_to_wait(),
-    Rows = [
-                {1, <<"d1">>, <<"t1">>},
-                {2, <<"d2">>, <<"t1">>},
-                {4, <<"d4">>, <<"t1">>},
-                {5, <<"d5">>, <<"t1">>}
-            ],
-    %% This inserts a gap into an ETS gap table
-    wait = mongoose_domain_gaps:check_for_gaps(Rows, Now),
-    %% Still waiting
-    wait = mongoose_domain_gaps:check_for_gaps(Rows, Now + MaxTime - 1),
-    %% Can continue
-    ok = mongoose_domain_gaps:check_for_gaps(Rows, Now + MaxTime + 1),
-    ok.
-
-too_many_gaps_lead_to_restart(_) ->
-    mongoose_domain_gaps:init(),
-    Now = -576460752,
-    MaxTime = mongoose_domain_gaps:max_time_to_wait(),
-    Rows = [
-                {1, <<"d1">>, <<"t1">>},
-                {2, <<"d2">>, <<"t1">>},
-                {4 + mongoose_domain_gaps:gaps_limit_before_restart(), <<"d4">>, <<"t1">>}
-            ],
-    %% Too many gaps to expand
-    restart = mongoose_domain_gaps:check_for_gaps(Rows, Now),
-    ok.
-
