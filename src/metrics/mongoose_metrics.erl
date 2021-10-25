@@ -187,9 +187,9 @@ remove_all_metrics() ->
 %% Internal functions
 %% ---------------------------------------------------------------------
 
--spec all_metrics_are_global() -> boolean() | undefined.
+-spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->
-    ejabberd_config:get_local_option(all_metrics_are_global).
+    mongoose_config:get_opt(all_metrics_are_global, false).
 
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
     case all_metrics_are_global() of

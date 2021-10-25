@@ -113,16 +113,20 @@ init_per_group(GroupName, Config0) ->
                  commands -> ejabberd_node_utils:init(Config0);
                  _ -> Config0
              end,
-    Config1 = mongoose_helper:backup_auth_config(Config),
-    config_password_format(GroupName),
+    AuthOpts = mongoose_helper:auth_opts_with_password_format(password_format(GroupName)),
+    HostType = domain_helper:host_type(),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, HostType}, AuthOpts),
     Config2 = escalus:create_users(Config1, escalus:get_users([bob, alice])),
     assert_password_format(GroupName, Config2).
 
+password_format(login_scram) -> scram;
+password_format(_) -> plain.
+
 end_per_group(cleanup, Config) ->
-    mongoose_helper:restore_auth_config(Config),
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(_GroupName, Config) ->
-    mongoose_helper:restore_auth_config(Config),
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded, Config) ->
@@ -369,11 +373,6 @@ extract_tokens(#xmlel{name = <<"iq">>, children = [#xmlel{name = <<"items">>} = 
     ATD = exml_query:path(Items, [{element, <<"access_token">>}, cdata]),
     RTD = exml_query:path(Items, [{element, <<"refresh_token">>}, cdata]),
     {base64:decode(ATD), base64:decode(RTD)}.
-
-config_password_format(login_scram) ->
-    monggose_helper:set_store_password(scram);
-config_password_format(_) ->
-    mongoose_helper:set_store_password(plain).
 
 assert_password_format(GroupName, Config) ->
     Users = proplists:get_value(escalus_users, Config),

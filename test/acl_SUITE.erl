@@ -34,15 +34,11 @@ host_type_test_cases() ->
     ].
 
 init_per_suite(Config) ->
-    ok = mnesia:create_schema([node()]),
-    ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(_Config) ->
     mongoose_domain_api:stop(),
-    mnesia:stop(),
-    mnesia:delete_schema([node()]),
     meck:unload(),
     ok.
 
@@ -318,16 +314,10 @@ different_specs_matching_the_same_user(Config) ->
     ok.
 
 set_acl(HostType, ACLName, ACLSpec) ->
-    ejabberd_config:add_local_option({acl, ACLName, HostType}, [ACLSpec]).
+    mongoose_config:set_opt({acl, ACLName, HostType}, [ACLSpec]).
 
 given_clean_config() ->
-    meck:unload(),
-    %% skip loading part
-    meck:new(ejabberd_config, [no_link, unstick, passthrough]),
-    meck:expect(ejabberd_config, load_file, fun(_File) -> ok end),
-    ejabberd_config:start(),
-    mnesia:clear_table(config),
-    mnesia:clear_table(local_config),
+    [persistent_term:erase(Key) || {Key = {mongoose_config, _}, _Value} <- persistent_term:get()],
     ok.
 
 given_registered_domains(Config, DomainsList) ->
@@ -339,24 +329,24 @@ given_registered_domains(Config, DomainsList) ->
     end.
 
 register_static_domains(DomainsList) ->
-    ejabberd_config:add_local_option(hosts, DomainsList),
-    ejabberd_config:add_local_option(host_types, []),
+    mongoose_config:set_opt(hosts, DomainsList),
+    mongoose_config:set_opt(host_types, []),
     mongoose_domain_api:stop(),
     mongoose_domain_api:init().
 
 register_dynamic_domains(DomainsList) ->
-    ejabberd_config:add_local_option(hosts, []),
-    ejabberd_config:add_local_option(host_types, [<<"test type">>, <<"empty type">>]),
+    mongoose_config:set_opt(hosts, []),
+    mongoose_config:set_opt(host_types, [<<"test type">>, <<"empty type">>]),
     mongoose_domain_api:stop(),
     mongoose_domain_api:init(),
     [mongoose_domain_core:insert(Domain, <<"test type">>, test) || Domain <- DomainsList].
 
 %% ACLs might be an empty list
 set_host_rule(Rule, Host, ACLs) ->
-    ejabberd_config:add_local_option({access, Rule, Host}, ACLs),
+    mongoose_config:set_opt({access, Rule, Host}, ACLs),
     ok.
 
 %% ACLs might be an empty list
 set_global_rule(Rule, ACLs) ->
-    ejabberd_config:add_local_option({access, Rule, global}, ACLs),
+    mongoose_config:set_opt({access, Rule, global}, ACLs),
     ok.

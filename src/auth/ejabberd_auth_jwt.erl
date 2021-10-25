@@ -55,7 +55,7 @@ start(HostType) ->
     JWTAlgorithm = ejabberd_auth:get_opt(HostType, jwt_algorithm),
     ejabberd_auth:set_opts(HostType,
                            [{jwt_secret, JWTSecret},
-                           {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
+                            {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.

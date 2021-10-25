@@ -143,10 +143,7 @@ server_step(State, ClientIn) ->
 
 -spec get_modules(binary()) -> [sasl_module()].
 get_modules(HostType) ->
-    case ejabberd_config:get_local_option({sasl_mechanisms, HostType}) of
-        undefined -> ejabberd_config:get_local_option_or_default(sasl_mechanisms, default_modules());
-        Modules -> Modules
-    end.
+    mongoose_config:get_opt({sasl_mechanisms, HostType}, default_modules()).
 
 default_modules() ->
     [cyrsasl_scram_sha512_plus,

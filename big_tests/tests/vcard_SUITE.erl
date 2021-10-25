@@ -158,7 +158,7 @@ end_per_suite(Config) ->
 
 init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity ->
     restart_vcard_mod(Config, Group),
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, ldap_vcard_is_readonly};
         _ ->
@@ -462,7 +462,7 @@ search_wildcard(Config) ->
                 ExpectedItemTups = get_search_results(Config,
                                                       [<<"bobb@", Domain/binary>>,
                                                        <<"aliceb@", Domain/binary>>]),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         3 = length(ItemTups);
                     _ ->
@@ -498,7 +498,7 @@ search_rsm_pages(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount1;
                     false ->
@@ -526,7 +526,7 @@ search_rsm_pages(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount2;
                     false ->
@@ -538,7 +538,7 @@ search_rsm_pages(Config) ->
                                      Config,
                                      [<<"bobb@", SecDomain/binary>>,
                                       <<"aliceb@", SecDomain/binary>>]),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
@@ -575,7 +575,7 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount1;
                     false ->
@@ -604,7 +604,7 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount2;
                     false ->
@@ -617,7 +617,7 @@ search_rsm_forward(Config) ->
                                      Config,
                                      [<<"bobb@", SecDomain/binary>>,
                                       <<"aliceb@", SecDomain/binary>>]),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
@@ -645,7 +645,7 @@ search_rsm_forward(Config) ->
                 escalus:assert(is_iq_result, Res3),
 
                 RSMCount2 = get_rsm_count(Res3),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount2,
                         [_] = search_result_item_tuples(Res3);
@@ -684,7 +684,7 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res1),
 
                 RSMCount1 = get_rsm_count(Res1),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount1;
                     false ->
@@ -713,7 +713,7 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res2),
 
                 RSMCount2 = get_rsm_count(Res2),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount2;
                     false ->
@@ -726,7 +726,7 @@ search_rsm_backward(Config) ->
                                      Config,
                                      [<<"bobb@", SecDomain/binary>>,
                                       <<"aliceb@", SecDomain/binary>>]),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         ignore;
                     _ ->
@@ -754,7 +754,7 @@ search_rsm_backward(Config) ->
                 escalus:assert(is_iq_result, Res3),
 
                 RSMCount2 = get_rsm_count(Res3),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount2,
                         [_] = search_result_item_tuples(Res3);
@@ -795,7 +795,7 @@ search_rsm_count(Config) ->
                 0 = length(ItemTups),
 
                 RSMCount = get_rsm_count(Res),
-                case vcard_update:is_vcard_ldap() of
+                case vcard_helper:is_vcard_ldap() of
                     true ->
                         <<"3">> = RSMCount;
                     false ->
@@ -1417,7 +1417,7 @@ maybe_add_jabberd_id(JabberId) ->
     maybe_add([{<<"JABBERID">>, JabberId}]).
 
 maybe_add(Elems) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             [];
         _ ->
@@ -1471,7 +1471,7 @@ get_first_name_search_field() ->
     get_search_field(<<"first">>, <<"givenName">>).
 
 get_search_field(Default, LDAP) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             LDAP;
         _ ->
@@ -1520,7 +1520,7 @@ reported_fields() ->
     ] ++ maybe_add_jabberd_field().
 
 maybe_add_jabberd_field() ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             [];
         _ ->

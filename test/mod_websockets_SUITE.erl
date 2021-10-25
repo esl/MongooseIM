@@ -61,7 +61,6 @@ setup() ->
                                          infinity, worker, [_]}) -> {ok, self()};
                    (A,B) -> meck:passthrough([A,B])
                 end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     %% Start websocket cowboy listening
 
     Opts = [{num_acceptors, 10},

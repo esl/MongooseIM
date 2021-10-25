@@ -236,7 +236,7 @@ system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     all_event_have_the_same_client_id().
 
 tracking_id_is_correctly_configured(_Config) ->
-    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [google_analytics_tracking_id]),
+    TrackingId = distributed_helper:rpc(mim(), mongoose_config, get_opt, [google_analytics_tracking_id]),
     case os:getenv("CI") of
         "true" ->
             ?assertEqual(?TRACKING_ID_CI, TrackingId);
@@ -395,7 +395,7 @@ enable_system_metrics(Node) ->
 
 enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
-    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
+    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
     start_system_metrics_module(Node, Timers).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
@@ -407,7 +407,7 @@ start_system_metrics_module(Node, Args) ->
 
 disable_system_metrics(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]).
+    mongoose_helper:successful_rpc(Node, mongoose_config, unset_opt, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
     mongoose_helper:successful_rpc(Node, mnesia, delete_table, [service_mongoose_system_metrics]).
@@ -427,17 +427,16 @@ system_metrics_service_is_disabled(Node) ->
 
 configure_additional_tracking_id(Node) ->
     TrackingIdArgs = [extra_google_analytics_tracking_id, ?TRACKING_ID_EXTRA],
-    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
+    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, TrackingIdArgs).
 
 remove_additional_tracking_id(Node) ->
     mongoose_helper:successful_rpc(
-        Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
+        Node, mongoose_config, unset_opt, [ extra_google_analytics_tracking_id ]).
 
 remove_service_from_config(Service) ->
-        Services = distributed_helper:rpc(
-                       mim3(), ejabberd_config, get_local_option_or_default, [services, []]),
-        NewServices = proplists:delete(Service, Services),
-        distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
+    Services = distributed_helper:rpc(mim3(), mongoose_config, get_opt, [services]),
+    NewServices = proplists:delete(Service, Services),
+    distributed_helper:rpc(mim3(), mongoose_config, set_opt, [services, NewServices]).
 
 events_are_reported_to_additional_tracking_id() ->
     Tab = ets:tab2list(?ETS_TABLE),

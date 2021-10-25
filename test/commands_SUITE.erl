@@ -70,27 +70,21 @@ stop_helper_proc(C) ->
     Pid ! stop.
 
 init_per_testcase(_, C) ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun get_opt/1),
-    meck:expect(ejabberd_config, get_local_option_or_default, fun(K, _) -> get_opt(K) end),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     meck:new(mongoose_domain_api),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
     C.
 
-end_per_testcase(_, C) ->
-    meck:unload(),
-    C.
+end_per_testcase(_, _C) ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    meck:unload().
 
-get_opt({auth_method, _}) ->
-    dummy;
-get_opt({access, experts_only, _}) ->
-    [{allow, coder}, {allow, manager}, {deny, all}];
-get_opt({access, _, _}) ->
-    [];
-get_opt({acl, coder, _}) ->
-    [{user, <<"zenek">>}].
+opts() ->
+    [{{auth_method, <<"localhost">>}, [dummy]},
+     {{access, experts_only, <<"localhost">>}, [{allow, coder}, {allow, manager}, {deny, all}]},
+     {{acl, coder, <<"localhost">>}, [{user, <<"zenek">>}]}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods

@@ -521,9 +521,9 @@ suite() ->
 
 init_per_suite(Config) ->
     muc_helper:load_muc(),
-    disable_sessions_limit(disable_shaping(
+    increase_limits(
       delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)]))).
+                  | escalus:init_per_suite(Config)])).
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
@@ -532,7 +532,8 @@ end_per_suite(Config) ->
     %% and this function kicks them without waiting...
     mongoose_helper:kick_everyone(),
     %% so we don't have sessions anymore and other tests will not fail
-    escalus:end_per_suite(restore_sessions_limit(restore_shaping(Config))).
+    mongoose_helper:restore_config(Config),
+    escalus:end_per_suite(Config).
 
 user_names() ->
     [alice, bob, kate, carol].
@@ -543,44 +544,16 @@ create_users(Config) ->
 delete_users(Config) ->
     escalus:delete_users(Config, escalus:get_users(user_names())).
 
-disable_shaping(Config) ->
-    OldShaper = get_shaper(),
-    set_shaper({{maxrate, 10000}, {maxrate, 10000000}, {maxrate, 10000000}}),
-    [{old_mam_shaper, OldShaper}|Config].
+increase_limits(Config) ->
+    Config1 = mongoose_helper:backup_and_set_config(Config, increased_limits()),
+    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]),
+    Config1.
 
-restore_shaping(Config) ->
-    OldShaper = proplists:get_value(old_mam_shaper, Config),
-    set_shaper(OldShaper),
-    Config.
-
-get_shaper() ->
-    Mam = rpc_apply(ejabberd_config, get_local_option, [{shaper, mam_shaper, global}]),
-    Norm = rpc_apply(ejabberd_config, get_local_option, [{shaper, normal, global}]),
-    Fast = rpc_apply(ejabberd_config, get_local_option, [{shaper, fast, global}]),
-    {Mam, Norm, Fast}.
-
-set_shaper({Mam, Norm, Fast}) ->
-    rpc_apply(ejabberd_config, add_local_option, [{shaper, mam_shaper, global}, Mam]),
-    rpc_apply(ejabberd_config, add_local_option, [{shaper, normal, global}, Norm]),
-    rpc_apply(ejabberd_config, add_local_option, [{shaper, fast, global}, Fast]),
-    rpc_apply(shaper_srv, reset_all_shapers, [host_type()]).
-
-disable_sessions_limit(Config) ->
-    OldLimit = get_sessions_limit(),
-    set_sessions_limit([{10000, all}]),
-    [{old_sessions_limit, OldLimit}|Config].
-
-restore_sessions_limit(Config) ->
-    OldLimit = proplists:get_value(old_sessions_limit, Config),
-    set_sessions_limit(OldLimit),
-    Config.
-
-get_sessions_limit() ->
-    rpc_apply(ejabberd_config, get_local_option, [{access, max_user_sessions, global}]).
-
-set_sessions_limit(NewLimit) ->
-    rpc_apply(ejabberd_config, add_local_option,
-              [{access, max_user_sessions, global}, NewLimit]).
+increased_limits() ->
+    #{{shaper, mam_shaper, global} => {maxrate, 10000},
+      {shaper, normal, global} => {maxrate, 10000000},
+      {shaper, fast, global} => {maxrate, 10000000},
+      {access, max_user_sessions, global} => [{10000, all}]}.
 
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];

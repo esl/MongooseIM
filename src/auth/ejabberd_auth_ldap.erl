@@ -438,7 +438,7 @@ result_attrs(#state{uids = UIDs,
 
 -spec parse_options(HostType :: mongooseim:host_type()) -> state().
 parse_options(HostType) ->
-    Opts = ejabberd_config:get_local_option_or_default({auth_opts, HostType}, []),
+    Opts = mongoose_config:get_opt({auth_opts, HostType}, []),
     EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
                                       fun(A) when is_atom(A) -> A end, default),
     BindEldapID = eldap_utils:get_mod_opt(ldap_bind_pool_tag, Opts,

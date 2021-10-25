@@ -139,7 +139,7 @@ filter_unknown_api(ApiList) ->
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
 get_service_option(Service) ->
-    Listen = ejabberd_config:get_local_option_or_default(listen, []),
+    Listen = mongoose_config:get_opt(listen, []),
     Result = [ Option || {_, S, Option} <- Listen, S == Service],
     lists:flatten(Result).
 
@@ -193,7 +193,7 @@ check_tls_specific_option() ->
     end.
 
 get_outgoing_pools() ->
-    OutgoingPools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    OutgoingPools = mongoose_config:get_opt(outgoing_pools, []),
     [#{report_name => outgoing_pools,
        key => type,
        value => Type} || {Type, _, _, _, _} <- OutgoingPools].
@@ -225,7 +225,7 @@ calculate_stanza_rate(PrevReport, NewCount) ->
         end} || {Type, Count} <- NewCount].
 
 get_config_type() ->
-    ConfigPath = ejabberd_config:get_config_path(),
+    ConfigPath = mongoose_config:get_config_path(),
     ConfigType = case filename:extension(ConfigPath) of
         ".toml" -> toml;
         ".cfg" -> cfg;

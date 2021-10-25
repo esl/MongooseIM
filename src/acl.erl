@@ -100,23 +100,22 @@ match_rule_for_host_type(_HostType, _, all, _, _Default) ->
 match_rule_for_host_type(_HostType, _, none, _, _Default) ->
     deny;
 match_rule_for_host_type(global, Domain, Rule, JID, Default) ->
-    case ejabberd_config:get_local_option({access, Rule, global}) of
-        undefined ->
+    case mongoose_config:lookup_opt({access, Rule, global}) of
+        {error, not_found} ->
             Default;
-        GACLs ->
+        {ok, GACLs} ->
             match_acls(GACLs, JID, global, Domain)
     end;
 match_rule_for_host_type(HostType, Domain, Rule, JID, Default) ->
-    GlobalACLs = ejabberd_config:get_local_option({access, Rule, global}),
-    HostACLs = ejabberd_config:get_local_option({access, Rule, HostType}),
-    case {GlobalACLs, HostACLs} of
-        {undefined, undefined} ->
+    case {mongoose_config:lookup_opt({access, Rule, global}),
+          mongoose_config:lookup_opt({access, Rule, HostType})} of
+        {{error, not_found}, {error, not_found}} ->
             Default;
-        {undefined, HostACLs} ->
+        {{error, not_found}, {ok, HostACLs}} ->
             match_acls(HostACLs, JID, HostType, Domain);
-        {GlobalACLs, undefined} ->
+        {{ok, GlobalACLs}, {error, not_found}} ->
             match_acls(GlobalACLs, JID, HostType, Domain);
-        {GlobalACLs, HostACLs} ->
+        {{ok, GlobalACLs}, {ok, HostACLs}} ->
             match_acls(merge_acls(GlobalACLs, HostACLs), JID, HostType, Domain)
     end.
 
@@ -162,7 +161,7 @@ match_acl(Rule, JID, HostType, Domain) ->
 
 -spec get_acl_specs(rule(), host_type_or_global()) -> [aclspec()].
 get_acl_specs(Rule, HostType) ->
-    ejabberd_config:get_local_option_or_default({acl, Rule, HostType}, []).
+    mongoose_config:get_opt({acl, Rule, HostType}, []).
 
 -spec is_server_valid(domain_or_global(), jid:lserver()) -> boolean().
 is_server_valid(Domain, Domain) ->

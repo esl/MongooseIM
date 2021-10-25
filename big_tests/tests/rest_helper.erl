@@ -248,7 +248,7 @@ report_errors(Client, Path, Method, Headers, Body,
 get_port(_Role, _Node, #{port := Port}) ->
     Port;
 get_port(Role, Node, _Params) ->
-    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] =
         lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
     case PortIpNet of
@@ -259,7 +259,7 @@ get_port(Role, Node, _Params) ->
 
 -spec get_ssl_status(Role :: role(), Server :: distributed_helper:rpc_spec()) -> boolean().
 get_ssl_status(Role, Node) ->
-    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
     [{_PortIpNet, _Module, Opts}] =
         lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     lists:keymember(ssl, 1, Opts).
@@ -273,13 +273,13 @@ change_admin_creds(Creds) ->
 
 -spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_admin_listener() ->
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     rpc(mim(), ejabberd_listener, stop_listener, [PortIpNet, Module]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
     rpc(mim(), ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).

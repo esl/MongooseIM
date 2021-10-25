@@ -254,14 +254,14 @@ init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
     Config0;
 
 init_per_testcase(retrieve_vcard = CN, Config) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
         _ ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(remove_vcard = CN, Config) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
         _ ->
