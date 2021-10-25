@@ -161,8 +161,12 @@ to_json(Req, #http_api_state{command_category = Category,
                              bindings = B} = State) ->
     Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
     Arity = length(B),
-    [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
-    process_request(<<"GET">>, Command, Req, State).
+    case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+        [Command] ->
+            process_request(<<"GET">>, Command, Req, State);
+        [] ->
+            error_response(not_found, ?ARGS_LEN_ERROR, Req, State)
+    end.
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category,
