@@ -128,10 +128,11 @@ maybe_remove_inbox_row(HostType, Room, Remote, true) ->
                      Sender :: jid:jid(),
                      Packet :: exml:element(),
                      Acc :: mongoose_acc:t()) -> ok.
-write_to_inbox(HostType, RoomUser, Remote, Remote, Packet, Acc) ->
-    mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
-write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
-    mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc).
+write_to_inbox(HostType, RoomUser, Remote, Sender, Packet, Acc) ->
+    case jid:are_equal(Remote, Sender) of
+        true -> mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
+        false -> mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc)
+    end.
 
 %%%%%%%
 %% Predicate funs
@@ -158,15 +159,13 @@ is_change_aff_message(User, Packet, Role) ->
 
 -spec system_message_type(User :: jid:jid(), Packet :: exml:element()) -> invite | kick | other.
 system_message_type(User, Packet) ->
-    IsInviteMsg = is_invitation_message(User, Packet),
-    IsNewOwnerMsg = is_new_owner_message(User, Packet),
-    IsKickedMsg = is_kicked_message(User, Packet),
-    if IsInviteMsg orelse IsNewOwnerMsg ->
-        invite;
-       IsKickedMsg ->
-            kick;
-       true ->
-            other
+    case {is_invitation_message(User, Packet),
+          is_new_owner_message(User, Packet),
+          is_kicked_message(User, Packet)} of
+        {true, _, _} -> invite;
+        {_, true, _} -> invite;
+        {_, _, true} -> kick;
+        _ -> other
     end.
 
 -spec is_invitation_message(jid:jid(), exml:element()) -> boolean().
