@@ -78,6 +78,10 @@
                   fromto :: fromto(),
                   pid :: pid()
                  }.
+-record(s2s_shared, {
+                     scope = global :: global, % this might become per host type
+                     secret :: binary()
+                    }).
 -record(state, {}).
 
 %%====================================================================
@@ -177,7 +181,7 @@ node_cleanup(Acc, Node) ->
 -spec key({jid:lserver(), jid:lserver()}, binary()) ->
     binary().
 key({From, To}, StreamID) ->
-    Secret = get_or_generate_secret(),
+    Secret = get_shared_secret(),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
@@ -197,6 +201,10 @@ init([]) ->
     mnesia:create_table(s2s, [{ram_copies, [node()]}, {type, bag},
                               {attributes, record_info(fields, s2s)}]),
     mnesia:add_table_copy(s2s, node(), ram_copies),
+    mnesia:create_table(s2s_shared, [{ram_copies, [node()]},
+                                     {attributes, record_info(fields, s2s_shared)}]),
+    mnesia:add_table_copy(s2s_shared, node(), ram_copies),
+    {atomic, ok} = set_shared_secret(),
     ejabberd_commands:register_commands(commands()),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     {ok, #state{}}.
@@ -594,15 +602,18 @@ get_s2s_state(S2sPid)->
             end,
     [{s2s_pid, S2sPid} | Infos].
 
-get_or_generate_secret() ->
-    case mongoose_config:lookup_opt(s2s_shared) of
-        {error, not_found} ->
-            generate_and_store_secret();
-        {ok, Secret} ->
-            Secret
-    end.
-
-generate_and_store_secret() ->
-    Secret = base16:encode(crypto:strong_rand_bytes(10)),
-    mongoose_config:set_opt(s2s_shared, Secret),
+-spec get_shared_secret() -> binary().
+get_shared_secret() ->
+    %% Currently there is only one key, in the future there might be one key per host type
+    [#s2s_shared{secret = Secret}] = ets:lookup(s2s_shared, global),
     Secret.
+
+-spec set_shared_secret() -> mnesia:t_result(ok).
+set_shared_secret() ->
+    Secret = case mongoose_config:lookup_opt(s2s_shared) of
+                 {ok, SecretFromConfig} ->
+                     SecretFromConfig;
+                 {error, not_found} ->
+                     base16:encode(crypto:strong_rand_bytes(10))
+             end,
+    mnesia:transaction(fun() -> mnesia:write(#s2s_shared{secret = Secret}) end).
