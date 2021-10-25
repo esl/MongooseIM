@@ -8,8 +8,7 @@
          get_opt/1,
          get_opt/2]).
 
-%% Test API - currently used by some modules, such usage will be eliminated
-%% Options set here are not cleaned up by stop/0
+%% Test API, do not use outside of test suites, options set here are not cleaned up by stop/0
 -export([set_opt/2,
          unset_opt/1]).
 
@@ -17,7 +16,7 @@
 -export([config_state/0,
          config_states/0]).
 
--ignore_xref([config_state/0, config_states/0]).
+-ignore_xref([set_opt/2, unset_opt/1, config_state/0, config_states/0]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
