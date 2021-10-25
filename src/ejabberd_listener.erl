@@ -31,16 +31,13 @@
          start_listener/3,
          stop_listeners/0,
          stop_listener/2,
-         parse_listener_portip/2,
-         add_listener/3,
-         delete_listener/3,
-         delete_listener/2
+         parse_listener_portip/2
         ]).
 
 %% Internal
 -export([format_error/1, socket_error/6, opts_to_listener_args/2]).
 
--ignore_xref([add_listener/3, delete_listener/2, delete_listener/3, init/1,
+-ignore_xref([init/1,
               opts_to_listener_args/2, start_link/0, start_listener/3, stop_listener/2]).
 
 -export_type([port_ip_proto/0]).
@@ -271,45 +268,6 @@ stop_listeners() ->
 stop_listener(PortIPProto, _Module) ->
     supervisor:terminate_child(ejabberd_listeners, PortIPProto),
     supervisor:delete_child(ejabberd_listeners, PortIPProto).
-
-%% @doc Add a listener and store in config if success
--type listener_option() :: inet | inet6 | {ip, tuple()} | atom() | tuple().
--spec add_listener(PortIPProto :: port_ip_proto(),
-                   Module :: atom(),
-                   Opts :: [listener_option()]
-                   ) -> 'ok' | {'error', _}.
-add_listener(PortIPProto, Module, Opts) ->
-    {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
-    PortIP1 = {Port, IPT, Proto},
-    case start_listener(PortIP1, Module, Opts) of
-        {ok, _Pid} ->
-            Ports = mongoose_config:get_opt(listen, []),
-            Ports1 = lists:keydelete(PortIP1, 1, Ports),
-            Ports2 = [{PortIP1, Module, Opts} | Ports1],
-            mongoose_config:set_opt(listen, Ports2),
-            ok;
-        {error, Error} ->
-            {error, Error}
-    end.
-
--spec delete_listener(PortIPProto :: port_ip_proto(),
-                      Module :: atom())
-      -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-delete_listener(PortIPProto, Module) ->
-    delete_listener(PortIPProto, Module, []).
-
--spec delete_listener(PortIPProto :: port_ip_proto(),
-                      Module :: atom(),
-                      Opts :: [listener_option()])
-      -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-delete_listener(PortIPProto, Module, Opts) ->
-%%    this one stops a listener and deletes it from configuration, used while reloading config
-    {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
-    PortIP1 = {Port, IPT, Proto},
-    Ports = mongoose_config:get_opt(listen, []),
-    Ports1 = lists:keydelete(PortIP1, 1, Ports),
-    mongoose_config:set_opt(listen, Ports1),
-    stop_listener(PortIP1, Module).
 
 %%%
 %%% Check options
