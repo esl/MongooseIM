@@ -120,7 +120,7 @@
 -define(TCP_SEND_TIMEOUT, 15000).
 
 %% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in milliseconds. Default value is 5 minutes.
+%% Specified in seconds. Default value is 5 minutes.
 -define(MAX_RETRY_DELAY, 300).
 
 -define(STREAM_HEADER(From, To, Other),
