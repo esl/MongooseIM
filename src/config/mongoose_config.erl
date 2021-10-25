@@ -17,11 +17,7 @@
 -export([config_state/0,
          config_states/0]).
 
-%% General-purpose utilities
--export([all_cluster_nodes/0,
-         other_cluster_nodes/0]).
-
--ignore_xref([config_state/0, config_states/0, all_cluster_nodes/0]).
+-ignore_xref([config_state/0, config_states/0]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -115,7 +111,7 @@ config_state() ->
 
 -spec config_states() -> [mongoose_config_parser:state()].
 config_states() ->
-    config_states(all_cluster_nodes()).
+    config_states(mongoose_cluster:all_cluster_nodes()).
 
 -spec config_states([node()]) -> [mongoose_config_parser:state()].
 %% @doc Returns config states from all nodes in cluster
@@ -130,16 +126,3 @@ config_states(Nodes) ->
                            cluster_nodes => Nodes,
                            failed_nodes => FailedNodes})
     end.
-
--spec all_cluster_nodes() -> [node()].
-all_cluster_nodes() ->
-    [node() | other_cluster_nodes()].
-
--spec other_cluster_nodes() -> [node()].
-other_cluster_nodes() ->
-    lists:filter(fun is_mongooseim_node/1, nodes()).
-
--spec is_mongooseim_node(node()) -> boolean().
-is_mongooseim_node(Node) ->
-    Apps = rpc:call(Node, application, which_applications, []),
-    lists:keymember(mongooseim, 1, Apps).
