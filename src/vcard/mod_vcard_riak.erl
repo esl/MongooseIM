@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mod_vcard_riak).
--behaviour(mod_vcard).
+-behaviour(mod_vcard_backend).
 
 %% API
 -export([init/2,
