@@ -115,8 +115,7 @@ search_reported_fields(HostType, LServer, Lang) ->
 
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(HostType, LServer) ->
-    Mod = mongoose_backend:get_backend_module(HostType, ?MODULE),
-    case erlang:function_exported(Mod, ?FUNCTION_NAME, 2) of
+    case mongoose_backend:is_exported(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, 2) of
         true ->
             Args = [HostType, LServer],
             mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args);
