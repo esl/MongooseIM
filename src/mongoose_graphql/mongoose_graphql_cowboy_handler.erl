@@ -29,9 +29,7 @@
 %% -- API ---------------------------------------------------
 
 cowboy_router_paths(BasePath, _Opts) ->
-    [{["/assets/[...]"], cowboy_static, {priv_dir, mongooseim, "graphql/wsite/assets"}}, 
-     {[BasePath, "/"], ?MODULE, {priv_file, mongooseim, "graphql/wsite/index.html"}}
-    ].
+    [{[BasePath, "/"], ?MODULE, {priv_file, mongooseim, "graphql/wsite/index.html"}}].
 
 init(Req, {priv_file, _, _} = PrivFile) ->
     {cowboy_rest,
