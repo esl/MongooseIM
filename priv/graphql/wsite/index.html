@@ -96,15 +96,14 @@
       // Defines a GraphQL fetcher using the fetch API. You're not required to
       // use fetch, and could instead implement graphQLFetcher however you like,
       // as long as it returns a Promise or Observable.
-      function graphQLFetcher(graphQLParams) {
+      function graphQLFetcher(graphQLParams, opts = {headers: {}}) {
         // This example expects a GraphQL server at the path /graphql.
         // Change this to point wherever you host your GraphQL server.
         return fetch('/graphql-api/', {
           method: 'post',
-          headers: {
+          headers: Object.assign({
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'}, opts.headers),
           body: JSON.stringify(graphQLParams),
           credentials: 'include',
         }).then(function (response) {
@@ -130,6 +129,8 @@
           operationName: parameters.operationName,
           onEditQuery: onEditQuery,
           onEditVariables: onEditVariables,
+	  headerEditorEnabled: true,
+	  headers: '{\n  "Authorization": "Basic YWRtaW46c2VjcmV0"\n}',
           onEditOperationName: onEditOperationName
         }),
         document.getElementById('graphiql')

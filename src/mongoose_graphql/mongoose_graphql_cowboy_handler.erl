@@ -14,7 +14,8 @@
     resource_exists/2,
     content_types_provided/2,
     content_types_accepted/2,
-    charsets_provided/2
+    charsets_provided/2,
+    is_authorized/2
 ]).
 
 %% Data input/output callbacks
@@ -26,15 +27,19 @@
 
 -ignore_xref([cowboy_router_paths/2, from_json/2, to_html/2, to_json/2]).
 
+-include("mongoose_logger.hrl").
+
 %% -- API ---------------------------------------------------
 
-cowboy_router_paths(BasePath, _Opts) ->
-    [{[BasePath, "/"], ?MODULE, {priv_file, mongooseim, "graphql/wsite/index.html"}}].
+cowboy_router_paths(BasePath, Opts) ->
+    [{[BasePath, "/"], ?MODULE, [{priv_file, mongooseim, "graphql/wsite/index.html"} | Opts]}].
 
-init(Req, {priv_file, _, _} = PrivFile) ->
+init(Req, [{priv_file, _, _} = PrivFile | Opts]) ->
+    OptsMap = maps:from_list(Opts),
     {cowboy_rest,
      Req,
-     #{ index_location => PrivFile }}.
+     OptsMap#{index_location => PrivFile}
+    }.
 
 allowed_methods(Req, State) ->
     {[<<"GET">>, <<"POST">>], Req, State}.
@@ -52,6 +57,15 @@ content_types_provided(Req, State) ->
 
 charsets_provided(Req, State) ->
     {[<<"utf-8">>], Req, State}.
+
+is_authorized(Req, State) ->
+    HeaderDetails = cowboy_req:parse_header(<<"authorization">>, Req),
+    case check_auth(HeaderDetails, State) of
+        {ok, Role} ->
+            {true, Req, State#{role => Role}};
+        {error, wrong_credentials} ->
+            {stop, reply_auth_error(<<"Wrong credentials">>, Req), State}
+    end.
 
 resource_exists(#{ method := <<"GET">> } = Req, State) ->
     {true, Req, State};
@@ -77,6 +91,25 @@ to_json(Req, State) -> json_request(Req, State).
 
 %% -- INTERNAL FUNCTIONS ---------------------------------------
 
+reply_auth_error(Msg, Req) ->
+    ?LOG_ERROR(#{what => mongoose_graphql_failed, reason => Msg,
+                 code => 401, req => Req}),
+    Body = jiffy:encode(#{error => Msg}),
+    cowboy_req:reply(401, #{<<"content-type">> => <<"application/json">>}, Body, Req).
+
+check_auth({basic, Username, Password}, #{username := Username, password := Password}) ->
+    % NOTE Rest Api allows admin operation only from `localhost`.
+    % This one should be also restricted or should we have admin role users?
+    % Maybe we have, but I don't know :O
+    {ok, admin};
+check_auth({basic, User, Password}, _) ->
+    case mongoose_api_common:check_password(jid:from_binary(User), Password) of
+        {true, _} -> {ok, user};
+        _ ->  {error, wrong_credentials}
+    end;
+check_auth(_, _) ->
+    {ok, none}.
+
 run_request(#{ document := undefined }, Req, State) ->
     err(400, no_query_supplied, Req, State);
 run_request(#{ document := Doc} = ReqCtx, Req, State) ->
@@ -91,8 +124,8 @@ run_preprocess(#{ document := AST } = ReqCtx, Req, State) ->
     try
         {ok, #{
            fun_env := FunEnv,
-           ast := AST2 }} = graphql:type_check(AST), % <2>
-        ok = graphql:validate(AST2), % <3>
+           ast := AST2 }} = graphql:type_check(AST),
+        ok = graphql:validate(AST2),
         run_execute(ReqCtx#{ document := AST2, fun_env => FunEnv }, Req, State)
     catch
         throw:Err ->
@@ -103,13 +136,14 @@ run_execute(#{ document := AST,
                fun_env := FunEnv,
                vars := Vars,
                operation_name := OpName }, Req, State) ->
-    Coerced = graphql:type_check_params(FunEnv, OpName, Vars), % <1>
+    Coerced = graphql:type_check_params(FunEnv, OpName, Vars),
     Ctx = #{
       params => Coerced,
-      operation_name => OpName },
-    Response = graphql:execute(Ctx, AST), % <2>
-    ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response), % <3>
-    Req2 = cowboy_req:set_resp_body(ResponseBody, Req), % <4>
+      operation_name => OpName,
+      role => maps:get(role, State, none)},
+    Response = graphql:execute(Ctx, AST),
+    ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response),
+    Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
     Reply = cowboy_req:reply(200, Req2),
     {stop, Reply, State}.
 
