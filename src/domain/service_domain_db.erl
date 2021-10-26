@@ -5,6 +5,9 @@
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
 
+%% Use a separate pg scope, which is started by ejabberd_sup
+%% This prevents a bug when a default pg server is not running
+-define(SCOPE, mim_scope).
 -define(GROUP, service_domain_db_group).
 -define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
@@ -41,6 +44,8 @@ stop() ->
     mongoose_domain_db_cleaner:stop(),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(ejabberd_sup, domain_pg),
+    supervisor:delete_child(ejabberd_sup, domain_pg),
     ok.
 
 restart() ->
@@ -69,7 +74,7 @@ enabled() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case pg:get_members(?GROUP) of
+    case pg:get_members(?SCOPE, ?GROUP) of
         [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
             ok;
@@ -85,7 +90,7 @@ sync_local() ->
 
 init([]) ->
     mongoose_domain_gaps:init(),
-    pg:join(?GROUP, self()),
+    pg:join(?SCOPE, ?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.
