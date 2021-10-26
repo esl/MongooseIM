@@ -2,6 +2,7 @@ site_name: MongooseIM
 docs_dir: doc
 theme: readthedocs
 site_favicon: favicon.ico
+site_url: https://esl.github.io/MongooseDocs/latest/
 extra_templates: []
 extra_css: ["custom.css"]
 extra_javascript: []
