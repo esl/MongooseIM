@@ -248,16 +248,15 @@ send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
--spec user_send_packet(Acc :: map(), From :: jid:jid(),
-                       To :: jid:jid(),
-                       Packet :: exml:element()) -> map().
+-spec user_send_packet(Acc :: mongoose_acc:t(), From :: jid:jid(),
+                       To :: jid:jid(), Packet :: exml:element()) ->
+    mongoose_acc:t().
 user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
-    maybe_process_message(Acc, From, To, Msg, outgoing),
-    Acc;
+    maybe_process_message(Acc, From, To, Msg, outgoing);
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec inbox_unread_count(Acc :: mongooseim_acc:t(), To :: jid:jid()) -> mongooseim_acc:t().
+-spec inbox_unread_count(Acc :: mongoose_acc:t(), To :: jid:jid()) -> mongoose_acc:t().
 inbox_unread_count(Acc, To) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
     get_inbox_unread(Res, Acc, To).
@@ -267,16 +266,7 @@ inbox_unread_count(Acc, To) ->
 filter_local_packet(drop) ->
     drop;
 filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
-    %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
-    %% so we put it in accumulator here.
-    %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
-    %% (when push notification is created)
-    Acc0 = case maybe_process_message(Acc, From, To, Msg, incoming) of
-               {ok, UnreadCount} ->
-                   mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
-               _ ->
-                   Acc
-           end,
+    Acc0 = maybe_process_message(Acc, From, To, Msg, incoming),
     {From, To, Acc0, Msg};
 filter_local_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
@@ -303,15 +293,32 @@ disco_local_features(Acc) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> ok | {ok, integer()}.
+                            Dir :: outgoing | incoming) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
-    HostType = mongoose_acc:host_type(Acc),
     case should_be_stored_in_inbox(Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
         true ->
-            Type = get_message_type(Msg),
-            maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type);
+            do_maybe_process_message(Acc, From, To, Msg, Dir);
         false ->
-            ok
+            Acc
+    end.
+
+do_maybe_process_message(Acc, From, To, Msg, Dir) ->
+    %% In case of PgSQL we can update inbox and obtain unread_count in one query,
+    %% so we put it in accumulator here.
+    %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
+    %% (when push notification is created)
+    Type = get_message_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
+    case maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type) of
+        ok -> Acc;
+        {ok, UnreadCount} ->
+            mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
+        Error ->
+            HostType = mongoose_acc:host_type(Acc),
+            ?LOG_WARNING(#{what => inbox_process_message_failed,
+                           from_jid => jid:to_binary(From), to_jid => jid:to_binary(To),
+                           host_type => HostType, dir => incoming, reason => Error}),
+            Acc
     end.
 
 -spec inbox_owner_exists(Acc :: mongoose_acc:t(),
@@ -638,13 +645,11 @@ muclight_enabled(HostType) ->
     Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
--spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
-get_message_type(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"groupchat">> ->
-            groupchat;
-        _ ->
-            one2one
+-spec get_message_type(mongoose_acc:t()) -> groupchat | one2one.
+get_message_type(Acc) ->
+    case mongoose_acc:stanza_type(Acc) of
+        <<"groupchat">> -> groupchat;
+        _ -> one2one
     end.
 
 %%%%%%%%%%%%%%%%%%%
