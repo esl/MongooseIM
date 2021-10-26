@@ -540,10 +540,11 @@ auth_http() ->
 auth_jwt() ->
     #section{
        items = #{<<"secret">> => auth_jwt_secret(),
-                 <<"algorithm">> => #option{type = string,
-                                            validate = {enum, ["HS256", "RS256", "ES256",
-                                                               "HS386", "RS386", "ES386",
-                                                               "HS512", "RS512", "ES512"]},
+                 <<"algorithm">> => #option{type = binary,
+                                            validate = {enum,
+                                                        [<<"HS256">>, <<"RS256">>, <<"ES256">>,
+                                                         <<"HS386">>, <<"RS386">>, <<"ES386">>,
+                                                         <<"HS512">>, <<"RS512">>, <<"ES512">>]},
                                             format = {kv, jwt_algorithm}},
                  <<"username_key">> => #option{type = atom,
                                                validate = non_empty,

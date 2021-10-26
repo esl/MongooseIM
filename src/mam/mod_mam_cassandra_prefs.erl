@@ -264,7 +264,7 @@ decode_prefs_rows([#{remote_jid := JID, behaviour := <<"N">>} | Rows],
 ensure_params_loaded(Host) ->
       case code:is_loaded(mod_mam_cassandra_prefs_params) of
           false ->
-              Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+              Params = gen_mod:get_module_opts(Host, ?MODULE),
               compile_params_module(Params);
           _ -> ok
       end.

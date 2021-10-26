@@ -32,11 +32,16 @@
 
 -ignore_xref([start_link/1]).
 
--record(system_metrics_state, {report_after, reporter_monitor = none,
-                               reporter_pid = none, prev_report = []}).
+-record(system_metrics_state,
+        {report_after :: non_neg_integer(),
+         reporter_monitor = none :: none | reference(),
+         reporter_pid = none :: none | pid(),
+         prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
+         tracking_ids :: [tracking_id()]}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
+-type tracking_id() :: string().
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
@@ -88,22 +93,24 @@ init(Args) ->
     case report_transparency(Args) of
         skip -> ignore;
         continue ->
-            {InitialReport, ReportAfter} = metrics_module_config(Args),
+            {InitialReport, ReportAfter, TrackingIds} = metrics_module_config(Args),
             erlang:send_after(InitialReport, self(), spawn_reporter),
-            {ok, #system_metrics_state{report_after = ReportAfter}}
+            {ok, #system_metrics_state{report_after = ReportAfter,
+                                       tracking_ids = TrackingIds}}
     end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
                                                   reporter_pid = none,
-                                                  prev_report = PrevReport} = State) ->
+                                                  prev_report = PrevReport,
+                                                  tracking_ids = TrackingIds} = State) ->
     ServicePid = self(),
     case get_client_id() of
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
                     Reports = mongoose_system_metrics_collector:collect(PrevReport),
-                    mongoose_system_metrics_sender:send(ClientId, Reports),
+                    mongoose_system_metrics_sender:send(ClientId, Reports, TrackingIds),
                     mongoose_system_metrics_file:save(Reports),
                     ServicePid ! {prev_report, Reports}
                 end),
@@ -136,28 +143,23 @@ get_client_id() ->
         {ok, ID} when is_binary(ID) -> {ok, binary_to_list(ID)}
     end.
 
--spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer()}.
+-spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer(), [tracking_id()]}.
 metrics_module_config(Args) ->
-    {InitialReport, ReportAfter} = get_timeouts(Args, os:getenv("CI")),
-    case proplists:lookup(tracking_id, Args) of
-        none ->
-            % There might be a leftover option
-            mongoose_config:unset_opt(extra_google_analytics_tracking_id);
-        {_, ExtraTrackingID} ->
-            mongoose_config:set_opt(extra_google_analytics_tracking_id, ExtraTrackingID)
+    {InitialReport, ReportAfter, TrackingId} = get_config(Args, os:getenv("CI")),
+    TrackingIds = case proplists:lookup(tracking_id, Args) of
+        none -> [TrackingId];
+        {_, ExtraTrackingId} -> [TrackingId, ExtraTrackingId]
     end,
-    {InitialReport, ReportAfter}.
+    {InitialReport, ReportAfter, TrackingIds}.
 
-get_timeouts(Args, "true") ->
-    mongoose_config:set_opt(google_analytics_tracking_id, ?TRACKING_ID_CI),
+get_config(Args, "true") ->
     I = proplists:get_value(initial_report, Args, timer:seconds(20)),
     R = proplists:get_value(periodic_report, Args, timer:minutes(5)),
-    {I, R};
-get_timeouts(Args, _) ->
-    mongoose_config:set_opt(google_analytics_tracking_id, ?TRACKING_ID),
+    {I, R, ?TRACKING_ID_CI};
+get_config(Args, _) ->
     I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     R = proplists:get_value(periodic_report, Args, ?DEFAULT_REPORT_AFTER),
-    {I, R}.
+    {I, R, ?TRACKING_ID}.
 
 -spec report_transparency(proplists:proplist()) -> skip | continue.
 report_transparency(Args) ->
