@@ -111,6 +111,7 @@
          wait_for_room_archive_size/3,
          generate_msg_for_date_user/3,
          generate_msg_for_date_user/4,
+         random_text/0,
          put_msg/1
         ]).
 
@@ -890,12 +891,13 @@ generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
      || RemoteJID <- OtherUsers].
 
 generate_msg_for_date_user(Owner, Remote, DateTime) ->
-    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:strong_rand_bytes(4))).
+    generate_msg_for_date_user(Owner, Remote, DateTime, random_text()).
+
+random_text() ->
+    base16:encode(crypto:strong_rand_bytes(4)).
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
-    MicrosecDateTime = datetime_to_microseconds(DateTime),
-    NowMicro = rpc_apply(erlang, system_time, [microsecond]),
-    Microsec = min(NowMicro, MicrosecDateTime),
+    Microsec = datetime_to_microseconds(DateTime),
     MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, rand:uniform(20)]),
     MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, rand:uniform(20)]),
     Packet = escalus_stanza:chat_to(RemoteBin, Content),
