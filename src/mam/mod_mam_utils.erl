@@ -33,7 +33,7 @@
          has_message_retraction/2,
          get_retract_id/2,
          get_origin_id/1,
-         tombstone/2,
+         tombstone/3,
          wrap_message/6,
          wrap_message/7,
          result_set/4,
@@ -396,10 +396,10 @@ get_origin_id(Packet) ->
     exml_query:path(Packet, [{element_with_ns, <<"origin-id">>, ?NS_STANZAID},
                              {attr, <<"id">>}], none).
 
-tombstone(Packet, OriginID) ->
-    Packet#xmlel{children = [retracted_element(OriginID)]}.
+tombstone(Packet, RetractionInfo, LocJid) ->
+    Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
 
-retracted_element(OriginID) ->
+retracted_element({origin_id, OriginID}, _LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
     #xmlel{name = <<"retracted">>,
            attrs = [{<<"xmlns">>, ?NS_RETRACT},
@@ -407,6 +407,16 @@ retracted_element(OriginID) ->
            children = [#xmlel{name = <<"origin-id">>,
                               attrs = [{<<"xmlns">>, ?NS_STANZAID},
                                        {<<"id">>, OriginID}]}
+                      ]};
+retracted_element({stanza_id, StanzaId}, LocJid) ->
+    Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
+    #xmlel{name = <<"retracted">>,
+           attrs = [{<<"xmlns">>, ?NS_ESL_RETRACT},
+                    {<<"stamp">>, list_to_binary(Timestamp)}],
+           children = [#xmlel{name = <<"stanza-id">>,
+                              attrs = [{<<"xmlns">>, ?NS_STANZAID},
+                                       {<<"id">>, StanzaId},
+                                       {<<"by">>, jid:to_binary(jid:to_bare(LocJid))}]}
                       ]}.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
