@@ -32,8 +32,12 @@
 
 -ignore_xref([start_link/1]).
 
--record(system_metrics_state, {report_after, reporter_monitor = none,
-                               reporter_pid = none, prev_report = [], tracking_ids}).
+-record(system_metrics_state,
+        {report_after :: non_neg_integer(),
+         reporter_monitor = none :: none | reference(),
+         reporter_pid = none :: none | pid(),
+         prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
+         tracking_ids :: [tracking_id()]}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().

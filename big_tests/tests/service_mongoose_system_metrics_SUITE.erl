@@ -415,7 +415,7 @@ events_are_reported_to_both_tracking_ids() ->
 
 primary_tracking_id() ->
     case os:getenv("CI") of
-        "true" ->?TRACKING_ID_CI;
+        "true" -> ?TRACKING_ID_CI;
         _ -> ?TRACKING_ID
     end.
 
