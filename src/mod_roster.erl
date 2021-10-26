@@ -72,20 +72,7 @@
 
 -export([config_metrics/1]).
 
--define(MOD_ROSTER_BACKEND, mod_roster_backend).
 -ignore_xref([
-    {?MOD_ROSTER_BACKEND, del_roster_t, 4},
-    {?MOD_ROSTER_BACKEND, get_roster, 3},
-    {?MOD_ROSTER_BACKEND, get_roster_entry, 6},
-    {?MOD_ROSTER_BACKEND, get_subscription_lists, 3},
-    {?MOD_ROSTER_BACKEND, read_roster_version, 3},
-    {?MOD_ROSTER_BACKEND, remove_user_t, 3},
-    {?MOD_ROSTER_BACKEND, remove_domain_t, 2},
-    {?MOD_ROSTER_BACKEND, roster_subscribe_t, 2},
-    {?MOD_ROSTER_BACKEND, init, 2},
-    {?MOD_ROSTER_BACKEND, transaction, 2},
-    {?MOD_ROSTER_BACKEND, update_roster_t, 2},
-    {?MOD_ROSTER_BACKEND, write_roster_version, 5},
     behaviour_info/1, get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
     get_user_roster/2, get_user_rosters_length/2, get_versioning_feature/2,
     in_subscription/5, item_to_xml/1, out_subscription/4, process_subscription_t/6,
@@ -115,39 +102,6 @@
 -type version() :: binary().
 
 -export_type([contact/0, transaction_state/0, entry_format/0, version/0]).
-
-%% Backend API
-
--callback init(mongooseim:host_type(), list()) -> ok.
-
--callback transaction(mongooseim:host_type(), fun(() -> any())) ->
-    {aborted, any()} | {atomic, any()} | {error, any()}.
-
--callback read_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver()) ->
-    binary() | error.
-
--callback write_roster_version(mongooseim:host_type(), jid:luser(), jid:lserver(),
-                               transaction_state(), version()) -> ok.
-
--callback get_roster(mongooseim:host_type(), jid:luser(), jid:lserver()) -> [roster()].
-
--callback get_roster_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), contact(),
-                           transaction_state(), entry_format()) ->
-    roster() | does_not_exist | error.
-
--callback get_subscription_lists(mongoose_acc:t(), jid:luser(), jid:lserver()) -> [roster()].
-
--callback roster_subscribe_t(mongooseim:host_type(), roster()) -> ok.
-
--callback update_roster_t(mongooseim:host_type(), roster()) -> ok.
-
--callback del_roster_t(mongooseim:host_type(), jid:luser(), jid:lserver(), contact()) -> ok.
-
--callback remove_user_t(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
-
--callback remove_domain_t(mongooseim:host_type(), jid:lserver()) -> ok.
-
--optional_callbacks([remove_domain_t/2]).
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -182,15 +136,6 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 -spec start(mongooseim:host_type(), list()) -> any().
 start(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    TrackedFuns = [read_roster_version,
-                   write_roster_version,
-                   get_roster,
-                   get_roster_entry,
-                   get_subscription_lists,
-                   roster_subscribe_t,
-                   update_roster_t,
-                   del_roster_t],
-    gen_mod:start_backend_module(?MODULE, Opts, TrackedFuns),
     mod_roster_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm,
