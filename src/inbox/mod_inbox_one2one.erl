@@ -1,5 +1,4 @@
 %%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
 %%% @copyright (C) 2018, Erlang-Solutions
 %%% @doc
 %%%
@@ -7,7 +6,7 @@
 %%% Created : 30. Jan 2018 13:22
 %%%-------------------------------------------------------------------
 -module(mod_inbox_one2one).
--author("ludwikbukowski").
+
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 -include("mongoose_ns.hrl").

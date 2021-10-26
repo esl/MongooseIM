@@ -1,5 +1,4 @@
 %%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
 %%% @copyright (C) 2018, Erlang-Solutions
 %%% @doc
 %%%
@@ -7,7 +6,6 @@
 %%% Created : 30. Jan 2018 13:22
 %%%-------------------------------------------------------------------
 -module(mod_inbox).
--author("ludwikbukowski").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).

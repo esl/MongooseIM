@@ -1,5 +1,4 @@
 %%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
 %%% @copyright (C) 2018, Erlang Solutions Ltd.
 %%% @doc
 %%%
@@ -7,7 +6,6 @@
 %%% Created : 30. Jan 2018 16:59
 %%%-------------------------------------------------------------------
 -module(mod_inbox_rdbms).
--author("ludwikbukowski").
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_inbox.hrl").

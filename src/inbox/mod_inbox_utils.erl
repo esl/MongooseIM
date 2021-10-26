@@ -1,5 +1,4 @@
 %%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
 %%% @copyright (C) 2018, Erlang-Solutions
 %%% @doc
 %%%
@@ -10,8 +9,6 @@
 -include("mongoose_ns.hrl").
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
-
--author("ludwikbukowski").
 
 
 %%%%%%%%%%%%%%%%%%%
