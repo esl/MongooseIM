@@ -1,6 +1,6 @@
 -module(mod_pubsub_cache_rdbms).
 
--behaviour(mod_pubsub_cache).
+-behaviour(mod_pubsub_cache_backend).
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
