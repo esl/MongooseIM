@@ -6,10 +6,8 @@
 %%% Created : 30. Jan 2018 16:59
 %%%-------------------------------------------------------------------
 -module(mod_inbox_rdbms).
--include("jlib.hrl").
--include("mongoose.hrl").
+
 -include("mod_inbox.hrl").
--include("mongoose_logger.hrl").
 
 -behaviour(mod_inbox).
 

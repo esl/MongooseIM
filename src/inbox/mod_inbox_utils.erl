@@ -6,7 +6,7 @@
 %%% Created : 30. Jan 2018 13:22
 %%%-------------------------------------------------------------------
 -module(mod_inbox_utils).
--include("mongoose_ns.hrl").
+
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 

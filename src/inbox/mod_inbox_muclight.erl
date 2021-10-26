@@ -8,9 +8,7 @@
 -module(mod_inbox_muclight).
 
 -include("mod_muc_light.hrl").
--include("mod_inbox.hrl").
 -include("jlib.hrl").
--include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 
 -export([handle_outgoing_message/5, handle_incoming_message/5]).

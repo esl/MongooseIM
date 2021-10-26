@@ -7,10 +7,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_inbox_one2one).
 
--include("mod_inbox.hrl").
--include("jlib.hrl").
--include("mongoose_ns.hrl").
-
 -export([handle_outgoing_message/5, handle_incoming_message/5]).
 
 -type packet() :: exml:element().

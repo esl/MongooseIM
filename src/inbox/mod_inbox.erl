@@ -12,7 +12,6 @@
 
 -include("jlib.hrl").
 -include("mod_inbox.hrl").
--include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
