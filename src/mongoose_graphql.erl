@@ -1,8 +1,8 @@
 -module(mongoose_graphql).
 
--export([init/0, execute/1, execute/2]).
+-export([init/0, execute/1, execute/3]).
 
--ignore_xref([execute/1, execute/2]).
+-ignore_xref([execute/1, execute/3]).
 
 -define(SCHEMA_PATH, "graphql/api_schema.gql").
 
@@ -17,18 +17,29 @@ init() ->
     ok = graphql:validate_schema(),
     ok.
 
--spec execute(binary()) -> any().
+-spec execute(binary()) -> {ok, map()} | {error, term()}.
 execute(Doc) ->
-    execute(<<>>, Doc).
+    execute(<<>>, admin, Doc).
 
--spec execute(binary(), binary()) -> any().
-execute(OpName, Doc) ->
-    {ok, Ast} = graphql:parse(Doc),
-    {ok, #{ast := AST2 }} = graphql:type_check(Ast),
-    ok = graphql:validate(AST2),
-    Ctx = #{params => #{}, operation_name => OpName},
-    graphql:execute(Ctx, AST2).
+-spec execute(binary(), mongoose_graphql_permission:role(), binary()) -> {ok, map()} | {error, term()}.
+execute(OpName, Role, Doc) ->
+    case graphql:parse(Doc) of
+        {ok, Ast} ->
+            try
+                {ok, #{ast := Ast2 }} = graphql:type_check(Ast),
+                ok = graphql:validate(Ast2),
+                Ctx = #{params => #{}, operation_name => OpName,
+                                    role => Role},
+                {ok, graphql:execute(Ctx, Ast2)}
+            catch
+                throw:{error, Err} ->
+                    {error, Err}
+            end;
+        {error, Err} ->
+            {error, Err}
+    end.
 
+% Internal
 
 mapping_rules() ->
     #{objects => #{
