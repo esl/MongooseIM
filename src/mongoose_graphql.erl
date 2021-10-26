@@ -8,8 +8,7 @@
 
 -spec init() -> ok.
 init() ->
-    application:stop(graphql),
-    application:start(graphql),
+    graphql_schema:reset(),
     PrivDir = code:priv_dir(mongooseim),
     {ok, SchemaData} = file:read_file( filename:join(PrivDir, ?SCHEMA_PATH)), 
     Mapping = mapping_rules(),
