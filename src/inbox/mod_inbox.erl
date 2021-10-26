@@ -262,11 +262,8 @@ inbox_unread_count(Acc, To) ->
     Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
     get_inbox_unread(Res, Acc, To).
 
--type fpacket() :: {From :: jid:jid(),
-                    To :: jid:jid(),
-                    Acc :: mongoose_acc:t(),
-                    Packet :: exml:element()}.
--spec filter_local_packet(Value :: fpacket() | drop) -> fpacket() | drop.
+-spec filter_local_packet(mongoose_hooks:filter_packet_acc() | drop) ->
+    mongoose_hooks:filter_packet_acc() | drop.
 filter_local_packet(drop) ->
     drop;
 filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
@@ -281,7 +278,6 @@ filter_local_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
                    Acc
            end,
     {From, To, Acc0, Msg};
-
 filter_local_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
