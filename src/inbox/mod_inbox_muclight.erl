@@ -29,7 +29,7 @@
                               Packet :: packet(),
                               Acc :: mongoose_acc:t()) -> any().
 handle_outgoing_message(HostType, User, Room, Packet, _TS) ->
-    maybe_reset_unread_count(HostType, User, Room, Packet).
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
 
 -spec handle_incoming_message(HostType :: mongooseim:host_type(),
                               RoomUser :: jid:jid(),
@@ -44,9 +44,6 @@ handle_incoming_message(HostType, RoomUser, Remote, Packet, Acc) ->
         false ->
             maybe_handle_system_message(HostType, RoomUser, Remote, Packet, Acc)
     end.
-
-maybe_reset_unread_count(HostType, User, Room, Packet) ->
-    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
 
 -spec maybe_handle_system_message(HostType :: mongooseim:host_type(),
                                   RoomOrUser :: jid:jid(),
