@@ -32,7 +32,7 @@
 -type archived() :: binary().
 -type muted_until() :: binary().
 -type msg_content() :: binary().
--type db_return() :: {username(),
+-type db_return() :: {jid:luser(),
                       msg_content(),
                       count_bin(),
                       non_neg_integer() | binary(),
@@ -106,7 +106,7 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
     {ok, Val + 1}.
 
 -spec set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    inbox_write_res() when
+    mod_inbox:write_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: mod_inbox:entry_key(),
       Content :: binary(),
@@ -123,10 +123,10 @@ set_inbox(HostType, {LUser, LServer, ToBareJid}, Content, Count, MsgId, Timestam
                                        InsertParams, UpdateParams, UniqueKeyValues),
     %% MySQL returns 1 when an upsert is an insert
     %% and 2, when an upsert acts as update
-    ok = check_result(Res, [1, 2]).
+    check_result_is_expected(Res, [1, 2]).
 
 -spec remove_inbox_row(HostType :: mongooseim:host_type(),
-                       InboxEntryKey :: mod_inbox:entry_key()) -> ok.
+                       InboxEntryKey :: mod_inbox:entry_key()) -> mod_inbox:write_res().
 remove_inbox_row(HostType, {LUser, LServer, ToBareJid}) ->
     LToBareJid = jid:nameprep(ToBareJid),
     Res = execute_delete(HostType, LUser, LServer, LToBareJid),
@@ -144,7 +144,7 @@ remove_domain(HostType, LServer) ->
                             InboxEntryKey :: mod_inbox:entry_key(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: integer()) -> ok | {ok, integer()}.
+                            Timestamp :: integer()) -> mod_inbox:count_res().
 set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Timestamp) ->
     LToBareJid = jid:nameprep(ToBareJid),
     InsertParams = [LUser, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
@@ -156,7 +156,7 @@ set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Tim
 
 -spec reset_unread(HosType :: mongooseim:host_type(),
                    InboxEntryKey :: mod_inbox:entry_key(),
-                   MsgId :: binary() | undefined) -> ok.
+                   MsgId :: binary() | undefined) -> mod_inbox:write_res().
 reset_unread(HostType, {LUser, LServer, ToBareJid}, MsgId) ->
     LToBareJid = jid:nameprep(ToBareJid),
     Res = execute_reset_unread(HostType, LUser, LServer, LToBareJid, MsgId),
@@ -164,7 +164,7 @@ reset_unread(HostType, {LUser, LServer, ToBareJid}, MsgId) ->
 
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   LUser :: jid:luser(),
-                  LServer :: jid:lserver()) -> inbox_write_res().
+                  LServer :: jid:lserver()) -> mod_inbox:write_res().
 clear_inbox(HostType, LUser, LServer) ->
     Res = execute_delete(HostType, LUser, LServer),
     check_result(Res).
@@ -444,19 +444,18 @@ decode_row(HostType, {Username, Content, Count, Timestamp, Archive, MutedUntil})
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.
 
-check_result({updated, Val}, ValList) when is_list(ValList) ->
+-spec check_result_is_expected(_, list()) -> mod_inbox:write_res().
+check_result_is_expected({updated, Val}, ValList) when is_list(ValList) ->
     case lists:member(Val, ValList) of
-        true ->
-            ok;
-        _ ->
-            {error, {expected_does_not_match, Val, ValList}}
+        true -> ok;
+        _ -> {error, {expected_does_not_match, Val, ValList}}
     end;
-check_result(Result, _) ->
+check_result_is_expected(Result, _) ->
     {error, {bad_result, Result}}.
 
+-spec check_result(_) -> mod_inbox:count_res().
 check_result({selected, []}) ->
     {ok, 0};
-
 check_result({selected, [{Val}]}) ->
     parse_result(Val);
 check_result({updated, _, [{Val}]}) ->
@@ -474,4 +473,3 @@ parse_result(null) ->
     {ok, 0};
 parse_result(Value) ->
     {error, {unknown_result_value_type, Value}}.
-

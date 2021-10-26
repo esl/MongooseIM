@@ -10,6 +10,11 @@
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 
+-type inbox_fun() :: fun((mongooseim:host_type(),
+                          jid:jid(),
+                          jid:jid(),
+                          exml:element(),
+                          mongoose_acc:t()) -> mod_inbox:count_res()).
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
@@ -83,7 +88,7 @@ write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Sender, Receiver),
-    ok = mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
+    mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
 
 -spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
                               Sender :: jid:jid(),
@@ -100,7 +105,7 @@ write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
 
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   User :: jid:user(),
-                  Server :: jid:server()) -> inbox_write_res().
+                  Server :: jid:server()) -> mod_inbox:write_res().
 clear_inbox(HostType, User, Server) when is_binary(User) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -137,14 +142,15 @@ if_chat_marker_get_id(Packet, Marker) ->
 has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).
 
--spec maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) -> ok | {ok, integer()} when
+-spec maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) ->
+    mod_inbox:count_res() when
       HostType ::mongooseim:host_type(),
       User :: jid:jid(),
       Remote :: jid:jid(),
       Packet :: exml:element(),
       Acc :: mongoose_acc:t(),
       %% WriteF is write_to_receiver_inbox/5 or write_to_sender_inbox/5
-      WriteF :: fun().
+      WriteF :: inbox_fun().
 maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) ->
     case has_chat_marker(Packet) of
         true ->

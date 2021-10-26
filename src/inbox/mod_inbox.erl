@@ -58,7 +58,11 @@
         archive => boolean()
        }.
 
+-type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
+-type write_res() :: ok | {error, any()}.
+
 -export_type([entry_key/0, get_inbox_params/0]).
+-export_type([count_res/0, write_res/0]).
 
 -callback init(Host, Opts) -> ok when
       Host :: mongooseim:host_type(),
@@ -70,7 +74,7 @@
       LServer :: jid:lserver(),
       Params :: get_inbox_params().
 
--callback clear_inbox(HostType, LUser, LServer) -> inbox_write_res() when
+-callback clear_inbox(HostType, LUser, LServer) -> write_res() when
       HostType :: mongooseim:host_type(),
       LUser :: jid:luser(),
       LServer :: jid:lserver().
@@ -80,7 +84,7 @@
       LServer :: jid:lserver().
 
 -callback set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    inbox_write_res() when
+    write_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: entry_key(),
       Content :: binary(),
@@ -88,19 +92,19 @@
       MsgId :: binary(),
       Timestamp :: integer().
 
--callback remove_inbox_row(HostType, InboxEntryKey) -> inbox_write_res() when
+-callback remove_inbox_row(HostType, InboxEntryKey) -> write_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: entry_key().
 
 -callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
-    {ok, integer()} | ok when
+    count_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: entry_key(),
       Content :: binary(),
       MsgId :: binary(),
       Timestamp :: integer().
 
--callback reset_unread(HostType, InboxEntryKey, MsgId) -> inbox_write_res() when
+-callback reset_unread(HostType, InboxEntryKey, MsgId) -> write_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: entry_key(),
       MsgId :: binary().
@@ -310,7 +314,7 @@ do_maybe_process_message(Acc, From, To, Msg, Dir) ->
         ok -> Acc;
         {ok, UnreadCount} ->
             mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
-        Error ->
+        {error, Error} ->
             HostType = mongoose_acc:host_type(Acc),
             ?LOG_WARNING(#{what => inbox_process_message_failed,
                            from_jid => jid:to_binary(From), to_jid => jid:to_binary(To),
@@ -329,19 +333,23 @@ inbox_owner_exists(Acc, _From, To, incoming) ->
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, To, stored).
 
+-spec maybe_process_acceptable_message(
+        mongooseim:host_type(), jid:jid(), jid:jid(), exml:element(),
+        mongoose_acc:t(), outgoing | incoming, one2one | groupchat) ->
+    count_res().
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
             process_message(HostType, From, To, Msg, Acc, Dir, one2one);
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) ->
             muclight_enabled(HostType) andalso
             process_message(HostType, From, To, Msg, Acc, Dir, groupchat).
 
--spec process_message(HostType :: host(),
+-spec process_message(HostType :: mongooseim:host_type(),
                       From :: jid:jid(),
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Acc :: mongoose_acc:t(),
                       Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> ok | {ok, integer()}.
+                      Type :: one2one | groupchat) -> count_res().
 process_message(HostType, From, To, Message, Acc, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(HostType, From, To, Message, Acc);
 process_message(HostType, From, To, Message, Acc, incoming, one2one) ->

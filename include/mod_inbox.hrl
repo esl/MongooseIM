@@ -1,9 +1,3 @@
--type username() :: jid:luser().
-
--type host() :: jid:lserver().
-
--type sender() :: binary().
-
 -type content() :: binary().
 
 -type count_bin() :: binary().
@@ -24,7 +18,5 @@
 -type entry_properties() :: #{unread_count := integer(),
                               archive := boolean(),
                               muted_until := integer()}.
-
--type inbox_write_res() :: ok | {error, any()}.
 
 -type marker() :: binary().

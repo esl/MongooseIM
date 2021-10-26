@@ -9,13 +9,12 @@
 
 -export([handle_outgoing_message/5, handle_incoming_message/5]).
 
--type packet() :: exml:element().
-
 -spec handle_outgoing_message(HostType :: mongooseim:host_type(),
                               User :: jid:jid(),
                               Remote :: jid:jid(),
-                              Packet :: packet(),
-                              Acc :: mongoose_acc:t()) -> ok.
+                              Packet :: exml:element(),
+                              Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
 handle_outgoing_message(HostType, User, Remote, Packet, Acc) ->
     mod_inbox_utils:maybe_reset_unread_count(HostType, User, Remote, Packet),
     mod_inbox_utils:maybe_write_to_inbox(
@@ -24,8 +23,9 @@ handle_outgoing_message(HostType, User, Remote, Packet, Acc) ->
 -spec handle_incoming_message(HostType :: mongooseim:host_type(),
                               User :: jid:jid(),
                               Remote :: jid:jid(),
-                              Packet :: packet(),
-                              Acc :: mongoose_acc:t()) -> ok | {ok, integer()}.
+                              Packet :: exml:element(),
+                              Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
 handle_incoming_message(HostType, User, Remote, Packet, Acc) ->
     mod_inbox_utils:maybe_write_to_inbox(
       HostType, User, Remote, Packet, Acc, fun mod_inbox_utils:write_to_receiver_inbox/5).
