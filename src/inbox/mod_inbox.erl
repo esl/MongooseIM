@@ -338,10 +338,12 @@ inbox_owner_exists(Acc, _From, To, incoming) ->
         mongoose_acc:t(), outgoing | incoming, one2one | groupchat) ->
     count_res().
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
-            process_message(HostType, From, To, Msg, Acc, Dir, one2one);
+    process_message(HostType, From, To, Msg, Acc, Dir, one2one);
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) ->
-            muclight_enabled(HostType) andalso
-            process_message(HostType, From, To, Msg, Acc, Dir, groupchat).
+    case muclight_enabled(HostType) of
+        true -> process_message(HostType, From, To, Msg, Acc, Dir, groupchat);
+        false -> ok
+    end.
 
 -spec process_message(HostType :: mongooseim:host_type(),
                       From :: jid:jid(),
