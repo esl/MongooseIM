@@ -4,22 +4,25 @@
 
 -ignore_xref([execute/4]).
 
-execute(_Ctx, _Obj, <<"domains">>, _Args) ->
-    {ok, example_domains()};
-execute(_Ctx, _Obj, <<"domain">>, #{<<"name">> := Name}) ->
-    case lists:filter(fun({ok, #{name := Fname}}) -> Fname == Name end, example_domains()) of
-        [{ok, Film}] -> 
-            {ok, Film};
-        _ -> {error, <<"Not found">>}
-    end;
-execute(_Ctx, _Obj, _Field, _Args) ->
-    {error, <<"Not found object">>}.
+-import(mongoose_graphql_permission, [if_permitted/3]).
 
-example_domains() ->
-    [
-     {ok, #{'__schema__' => domain, id => 1, name => <<"localhost">>, host_type => <<"default">>}},
-     {ok, #{'__schema__' => domain, id => 2, name => <<"esl.com">>, host_type => <<"default">>}},
-     {ok, #{'__schema__' => domain, id => 3, name => <<"example-domain.com">>, host_type => <<"test host">>}},
-     {ok, #{'__schema__' => domain, id => 4, name => <<"example-domain2.com">>, host_type => <<"test host">>}}
-    ].
+-include("mongoose_graphql_types.hrl").
 
+execute(Ctx, _Obj, <<"domainsByHostType">>, #{<<"hostType">> := HostType}) ->
+    if_permitted(Ctx, admin,
+        fun() ->
+            Domains = mongoose_domain_api:get_domains_by_host_type(HostType),
+            Domains2 = lists:map(fun(D) -> {ok, D} end, Domains),
+            {ok, Domains2}
+        end);
+execute(Ctx, _Obj, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
+    if_permitted(Ctx, admin,
+        fun() ->
+            case mongoose_domain_sql:select_domain(Domain) of
+                {ok, #{host_type := HostType, enabled := Enabled}} ->
+                    {ok, #domain{host_type = HostType, domain = Domain,
+                                 enabled = Enabled}};
+                {error, not_found} = Err ->
+                    Err
+            end
+        end).

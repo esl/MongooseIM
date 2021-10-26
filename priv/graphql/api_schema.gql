@@ -1,14 +1,38 @@
 type Query {
-  domains: [Domain!]
-  domain(name: String!): Domain!
+  "Get all enabled domains by hostType"
+  domainsByHostType(hostType: String!): [String!]
+  "Get information about the domain"
+  domainDetails(domain: String!): Domain
 }
 
 type Mutation {
-  addDomain(name: String!, hostType: String!): Domain!
-  removeDomain(name: String!): Bool!
+  "Add new domain"
+  addDomain(domain: String!, hostType: String!): Domain
+  "Remove domain"
+  removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
+  "Enable domain"
+  enableDomain(domain: String!): Domain
+  "Disable domain"
+  disableDomain(domain: String!): Domain
 }
 
+"""
+A dynamic domain representation.
+Some operation could return not complete object i.e. some fields can be null.
+"""
 type Domain{
-  name: String!
-  hostType: String!
+  "Domain name"
+  domain: String
+  "Domain hostType"
+  hostType: String
+  "Is domain enabled?"
+  enabled: Bool
+}
+
+"A result of domain removal"
+type RemoveDomainPayload{
+  "Success message"
+  msg: String
+  "Removed domain data"
+  domain: Domain
 }

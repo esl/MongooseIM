@@ -4,7 +4,11 @@
 
 -ignore_xref([execute/4]).
 
-execute(_Ctx, #{'__schema__' := domain, host_type := HostType}, <<"hostType">>, _Args) ->
+-include("mongoose_graphql_types.hrl").
+
+execute(_Ctx, #domain{host_type = HostType}, <<"hostType">>, _Args) ->
     {ok, HostType};
-execute(_Ctx, #{'__schema__' := domain, name := Name}, <<"name">>, _Args) ->
+execute(_Ctx, #domain{enabled = Enabled}, <<"enabled">>, _Args) ->
+    {ok, Enabled};
+execute(_Ctx, #domain{domain = Name}, <<"domain">>, _Args) ->
     {ok, Name}.
