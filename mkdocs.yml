@@ -1,10 +1,11 @@
 site_name: MongooseIM
 docs_dir: doc
-theme: readthedocs
+theme:
+  name: readthedocs
+  custom_dir: doc_custom_theme/
 site_favicon: favicon.ico
 extra_templates: []
 extra_css: ["custom.css"]
 extra_javascript: []
-
 pages:
   - Home: 'index.md'
