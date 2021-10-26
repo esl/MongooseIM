@@ -25,8 +25,8 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(mod_muc_db_mnesia).
--behaviour(mod_muc_db).
+-module(mod_muc_mnesia).
+-behaviour(mod_muc_backend).
 -export([init/2,
          store_room/4,
          restore_room/3,
@@ -41,7 +41,7 @@
 -include("jlib.hrl").
 -include("mod_muc.hrl").
 
-init(_Host, _Opts) ->
+init(_HostType, _Opts) ->
     mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, muc_room)}]),
@@ -53,9 +53,9 @@ init(_Host, _Opts) ->
     mnesia:add_table_index(muc_registered, nick),
     ok.
 
--spec store_room(jid:server(), jid:server(), mod_muc:room(), list())
+-spec store_room(mongooseim:host_type(), jid:server(), mod_muc:room(), list())
             -> ok | {error, term()}.
-store_room(ServerHost, MucHost, RoomName, Opts) ->
+store_room(HostType, MucHost, RoomName, Opts) ->
     F = fun() ->
                 mnesia:write(#muc_room{name_host = {RoomName, MucHost},
                                        opts = Opts})
@@ -66,12 +66,12 @@ store_room(ServerHost, MucHost, RoomName, Opts) ->
             ok;
         _ ->
             ?LOG_ERROR(#{what => muc_store_room_failed,
-                         sub_host => MucHost, server => ServerHost,
+                         sub_host => MucHost, host_type => HostType,
                          room => RoomName, reason => Result}),
             {error, Result}
     end.
 
-restore_room(ServerHost, MucHost, RoomName) ->
+restore_room(HostType, MucHost, RoomName) ->
     try mnesia:dirty_read(muc_room, {RoomName, MucHost}) of
         [#muc_room{opts = Opts}] ->
             {ok, Opts};
@@ -81,14 +81,14 @@ restore_room(ServerHost, MucHost, RoomName) ->
             {error, Other}
     catch Class:Reason:Stacktrace ->
         ?LOG_ERROR(#{what => muc_restore_room_failed, room => RoomName,
-                     sub_host => MucHost, server => ServerHost,
+                     sub_host => MucHost, host_type => HostType,
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         {error, {Class, Reason}}
     end.
 
--spec forget_room(jid:server(), jid:server(), mod_muc:room()) ->
+-spec forget_room(mongooseim:host_type(), jid:server(), mod_muc:room()) ->
     ok | {error, term()}.
-forget_room(ServerHost, MucHost, RoomName) ->
+forget_room(HostType, MucHost, RoomName) ->
     F = fun() ->
                 mnesia:delete({muc_room, {RoomName, MucHost}})
         end,
@@ -98,12 +98,12 @@ forget_room(ServerHost, MucHost, RoomName) ->
             ok;
         _ ->
             ?LOG_ERROR(#{what => muc_forget_room_failed,
-                         sub_host => MucHost, server => ServerHost,
+                         sub_host => MucHost, host_type => HostType,
                          room => RoomName, reason => Result}),
             {error, Result}
     end.
 
-get_rooms(ServerHost, MucHost) ->
+get_rooms(HostType, MucHost) ->
     Query = [{#muc_room{name_host = {'_', MucHost}, _ = '_'},
              [],
              ['$_']}],
@@ -111,14 +111,14 @@ get_rooms(ServerHost, MucHost) ->
         {ok, mnesia:dirty_select(muc_room, Query)}
     catch Class:Reason:Stacktrace ->
         ?LOG_ERROR(#{what => muc_get_rooms_failed,
-                     sub_host => MucHost, server => ServerHost,
+                     sub_host => MucHost, host_type => HostType,
                      class => Class, reason => Reason, stacktrace => Stacktrace}),
         {error, {Class, Reason}}
     end.
 
--spec can_use_nick(jid:server(), jid:server(),
+-spec can_use_nick(mongooseim:host_type(), jid:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
-can_use_nick(_ServerHost, MucHost, JID, Nick) ->
+can_use_nick(_HostType, MucHost, JID, Nick) ->
     LUS = jid:to_lus(JID),
     can_use_nick_internal(MucHost, Nick, LUS).
 
@@ -137,7 +137,7 @@ can_use_nick_internal(MucHost, Nick, LUS) ->
         false
     end.
 
-get_nick(_ServerHost, MucHost, From) ->
+get_nick(_HostType, MucHost, From) ->
     LUS = jid:to_lus(From),
     try mnesia:dirty_read(muc_registered, {LUS, MucHost}) of
         [] ->
@@ -151,7 +151,7 @@ get_nick(_ServerHost, MucHost, From) ->
         {error, {Class, Reason}}
     end.
 
-set_nick(ServerHost, MucHost, From, Nick)
+set_nick(HostType, MucHost, From, Nick)
       when is_binary(Nick), Nick =/= <<>> ->
     LUS = jid:to_lus(From),
     F = fun () ->
@@ -169,12 +169,12 @@ set_nick(ServerHost, MucHost, From, Nick)
             Result;
         ErrorResult ->
             ?LOG_ERROR(#{what => muc_set_nick_failed, reason => ErrorResult,
-                         server => ServerHost, sub_host => MucHost,
+                         server => HostType, sub_host => MucHost,
                          from_jid => jid:to_binary(From), nick => Nick}),
             {error, ErrorResult}
     end.
 
-unset_nick(ServerHost, MucHost, From) ->
+unset_nick(HostType, MucHost, From) ->
     LUS = jid:to_lus(From),
     F = fun () ->
             mnesia:delete({muc_registered, {LUS, MucHost}})
@@ -184,7 +184,7 @@ unset_nick(ServerHost, MucHost, From) ->
             ok;
         ErrorResult ->
             ?LOG_ERROR(#{what => muc_unset_nick_failed, reason => ErrorResult,
-                         server => ServerHost, sub_host => MucHost,
+                         server => HostType, sub_host => MucHost,
                          from_jid => jid:to_binary(From)}),
             {error, ErrorResult}
     end.

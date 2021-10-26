@@ -104,7 +104,6 @@
 -define(MUCHOST, (muc_light_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
--define(BACKEND, mod_muc_light_db_backend).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -212,7 +211,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     HostType = host_type(),
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(HostType),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     dynamic_modules:stop(HostType, mod_muc_light),
     escalus:end_per_suite(Config1).
@@ -263,7 +262,7 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
                                         CaseName =:= disco_info_with_mam ->
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
@@ -271,7 +270,7 @@ end_per_testcase(CaseName, Config) ->
         true -> set_custom_config(default_schema_definition());
         _ -> ok
     end,
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -282,7 +281,7 @@ end_per_testcase(CaseName, Config) ->
 
 removing_users_from_server_triggers_room_destruction(Config) ->
     escalus:delete_users(Config, escalus:get_users([carol])),
-    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}]).
+    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}]).
 
 %% ---------------------- Disco ----------------------
 
@@ -593,7 +592,7 @@ leave_room(Config) ->
               end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate]),
 
             % Now we verify that room is removed from DB
-            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}])
+            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}])
         end).
 
 change_other_aff_deny(Config) ->

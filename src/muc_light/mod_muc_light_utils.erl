@@ -37,12 +37,6 @@
 -export([server_host_to_muc_host/2]).
 -export([run_forget_room_hook/1]).
 
--define(MOD_MUC_LIGHT_DB_BACKEND_BACKEN, mod_muc_light_db_backend).
--ignore_xref([
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_user_rooms_count, 2},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_blocking, 3}
-]).
-
 -include("jlib.hrl").
 -include("mongoose.hrl").
 -include("mod_muc_light.hrl").
@@ -135,7 +129,7 @@ filter_out_prevented(HostType, FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 check_room_limit_reached(_UserUS, _HostType, infinity) ->
     false;
 check_room_limit_reached(UserUS, HostType, RoomsPerUser) ->
-    mod_muc_light_db_backend:get_user_rooms_count(UserUS, HostType) >= RoomsPerUser.
+    mod_muc_light_db_backend:get_user_rooms_count(HostType, UserUS) >= RoomsPerUser.
 
 %% ---------------- Filter for blocking ----------------
 
@@ -149,7 +143,7 @@ filter_out_loop(HostType, FromUS, MUCServer, BlockingQuery, RoomsPerUser,
                 [{UserUS, _} = AffUser | RAffUsers]) ->
     NotBlocked = case (BlockingQuery == undefined orelse UserUS =:= FromUS) of
                      false -> mod_muc_light_db_backend:get_blocking(
-                                UserUS, MUCServer, BlockingQuery) == allow;
+                                HostType, UserUS, MUCServer, BlockingQuery) == allow;
                      true -> true
                  end,
     case NotBlocked andalso not check_room_limit_reached(FromUS, HostType, RoomsPerUser) of
@@ -329,7 +323,7 @@ run_forget_room_hook({Room, MucHost}) ->
     case mongoose_domain_api:get_subdomain_host_type(MucHost) of
         {ok, HostType} ->
             mongoose_hooks:forget_room(HostType, MucHost, Room);
-        Other ->
+        _Other ->
             %% MUC light is not started probably
             ?LOG_ERROR(#{what => run_forget_room_hook_skipped,
                          room => Room, muc_host => MucHost})

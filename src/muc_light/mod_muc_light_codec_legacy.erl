@@ -8,7 +8,7 @@
 -module(mod_muc_light_codec_legacy).
 -author('piotr.nosek@erlang-solutions.com').
 
--behaviour(mod_muc_light_codec).
+-behaviour(mod_muc_light_codec_backend).
 
 %% API
 -export([decode/4, encode/5, encode_error/5]).
@@ -23,7 +23,7 @@
 
 -spec decode(From :: jid:jid(), To :: jid:jid(),
              Stanza :: jlib:iq() | exml:element(),
-             Acc :: mongoose_acc:t()) -> mod_muc_light_codec:decode_result().
+             Acc :: mongoose_acc:t()) -> mod_muc_light_codec_backend:decode_result().
 decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza, _Acc)
   when ToU =/= <<>> ->
     case {exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
@@ -45,7 +45,7 @@ decode(_, _, _, _Acc) ->
 
 -spec encode(Request :: muc_light_encode_request(),
              OriginalSender :: jid:jid(), RoomUS :: jid:jid(),
-             HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
+             HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler(),
              Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 encode({#msg{} = Msg, AffUsers}, Sender, RoomBareJid, HandleFun, Acc) ->
     US = jid:to_lus(Sender),
@@ -90,15 +90,15 @@ encode(OtherCase, Sender, RoomBareJid, HandleFun, Acc) ->
 
 -spec encode_error(
         ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
-        OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+        OrigPacket :: exml:element(), Acc :: mongoose_acc:t()) ->
     mongoose_acc:t().
-encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
+encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, Acc) ->
     %% The only error case for valid presence is registration-required for room creation
     X = #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}] },
-    mod_muc_light_codec:encode_error({error, registration_required}, [X], OrigFrom, OrigTo,
-                                     OrigPacket, HandleFun);
-encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
-    mod_muc_light_codec:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, HandleFun).
+    mod_muc_light_codec_backend:encode_error({error, registration_required}, [X], OrigFrom, OrigTo,
+                                     OrigPacket, Acc);
+encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, Acc) ->
+    mod_muc_light_codec_backend:encode_error(ErrMsg, [], OrigFrom, OrigTo, OrigPacket, Acc).
 
 %%====================================================================
 %% Message decoding
@@ -247,7 +247,7 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
 
 -spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: jid:jid(),
                   SenderJID :: jid:jid(),
-                  HandleFun :: mod_muc_light_codec:encoded_packet_handler(),
+                  HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler(),
                   Acc :: mongoose_acc:t()) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
@@ -397,7 +397,7 @@ envelope(XMLNS, Children) ->
 -spec bcast_aff_messages(Room :: jid:jid(), OldAffUsers :: aff_users(),
                          NewAffUsers :: aff_users(), SenderJID :: jid:jid(),
                          ChangedAffUsers :: aff_users(),
-                         HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
+                         HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _) ->
     ok;
 bcast_aff_messages(Room, [{User, _} | ROldAffUsers], [], SenderJID, ChangedAffUsers, HandleFun) ->
@@ -437,7 +437,7 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
     bcast_aff_messages(Room, OldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun).
 
 -spec msg_to_leaving_user(Room :: jid:jid(), User :: jid:simple_bare_jid(),
-                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
+                          HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jid:to_binary({ToU, ToS, <<>>}),
     {From, FromBin} = jids_from_room_with_resource(Room, UserBin),
@@ -449,7 +449,7 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
 -spec send_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
                        Name :: binary(), Attrs :: [{binary(), binary()}],
                        Children :: [jlib:xmlch()],
-                       HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
+                       HandleFun :: mod_muc_light_codec_backend:encoded_packet_handler()) -> ok.
 send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
     To = jid:make_noprep(ToU, ToS, <<>>),
     ToBin = jid:to_binary({ToU, ToS, <<>>}),

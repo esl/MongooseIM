@@ -14,11 +14,7 @@
 -export([to_json/2]).
 -export([from_json/2]).
 
--define(MOD_MUC_LIGHT_DB_BACKEND, mod_muc_light_db_backend).
 -ignore_xref([
-    {?MOD_MUC_LIGHT_DB_BACKEND, get_info, 1},
-    {?MOD_MUC_LIGHT_DB_BACKEND, get_config, 1},
-    {mod_muc_light_db_backend, get_user_rooms, 2},
     from_json/2, to_json/2, trails/0
 ]).
 
@@ -74,7 +70,8 @@ set_room_id(RoomID, State = #{}) ->
     State#{room_id => RoomID}.
 
 does_room_exist(RoomS, Req, #{room_id := RoomU, jid := JID} = State) ->
-    case mod_muc_light_db_backend:get_info({RoomU, RoomS}) of
+    HostType = mod_muc_light_utils:muc_host_to_host_type(RoomS),
+    case mod_muc_light_db_backend:get_info(HostType, {RoomU, RoomS}) of
         {ok, Config, Users, Version} ->
             Room = #{config => Config,
                      users => Users,
@@ -95,12 +92,14 @@ to_json(Req, #{room := Room} = State) ->
             },
     {jiffy:encode(Resp), Req, State};
 to_json(Req, #{jid := #jid{luser = User, lserver = Server}} = State) ->
-    Rooms = mod_muc_light_db_backend:get_user_rooms({User, Server}, undefined),
+    HostType = mod_muc_light_utils:server_host_to_host_type(Server),
+    Rooms = mod_muc_light_db_backend:get_user_rooms(HostType, {User, Server}, undefined),
     RoomsMap = [get_room_details(RoomUS) || RoomUS <- Rooms],
     {jiffy:encode(lists:flatten(RoomsMap)), Req, State}.
 
-get_room_details({RoomID, _} = RoomUS) ->
-    case mod_muc_light_db_backend:get_config(RoomUS) of
+get_room_details({RoomID, RoomS} = RoomUS) ->
+    HostType = mod_muc_light_utils:muc_host_to_host_type(RoomS),
+    case mod_muc_light_db_backend:get_config(HostType, RoomUS) of
         {ok, Config, _} ->
             #{id => RoomID,
               name => proplists:get_value(roomname, Config),

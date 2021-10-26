@@ -71,11 +71,7 @@
 %% Hook handlers
 -export([user_send_packet/4]).
 
--define(MOD_SMART_MARKERS_BACKEND, mod_smart_markers_backend).
 -ignore_xref([
-    {?MOD_SMART_MARKERS_BACKEND, get_chat_markers, 4},
-    {?MOD_SMART_MARKERS_BACKEND, init, 2},
-    {?MOD_SMART_MARKERS_BACKEND, update_chat_marker, 2},
     behaviour_info/1, user_send_packet/4
 ]).
 
@@ -95,31 +91,10 @@
 -export_type([chat_marker/0]).
 
 %%--------------------------------------------------------------------
-%% DB backend behaviour definition
-%%--------------------------------------------------------------------
--callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-
-%%% 'from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
-%%% as a composite database key. If key is not available in the database,
-%%% then chat marker must be added. Otherwise this function must update
-%%% chat marker record for that composite key.
--callback update_chat_marker(mongooseim:host_type(), chat_marker()) -> ok.
-
-%%% This function must return the latest chat markers sent to the
-%%% user/room (with or w/o thread) later than provided timestamp.
--callback get_chat_markers(HostType :: mongooseim:host_type(),
-                           To :: jid:jid(),
-                           Thread :: maybe_thread(),
-                           Timestamp :: integer()) ->
-    [chat_marker()].
-
-%%--------------------------------------------------------------------
 %% gen_mod API
 %%--------------------------------------------------------------------
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, add_default_backend(Opts),
-                                 [get_chat_markers, update_chat_marker]),
     mod_smart_markers_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)).
 
@@ -223,11 +198,3 @@ get_host(one2one, _From, To) ->
                       User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(HostType, User, Room) ->
     mongoose_hooks:can_access_room(HostType, Room, User).
-
-add_default_backend(Opts) ->
-    case lists:keyfind(backend, 2, Opts) of
-        false ->
-            [{backend, rdbms} | Opts];
-        _ ->
-            Opts
-    end.

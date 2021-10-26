@@ -69,7 +69,6 @@
 -define(MUCHOST, (muc_helper:muc_host())).
 
 -define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
--define(BACKEND, mod_muc_light_db_backend).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -202,10 +201,11 @@ create_room(RoomU, MUCHost, Owner, Members, Config) ->
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
-    {ok, _RoomUS} = rpc(?BACKEND, create_room, [RoomUS, DefaultConfig, AffUsers, <<"-">>]).
+    {ok, _RoomUS} = rpc(mod_muc_light_db_backend, create_room,
+                        [host_type(), RoomUS, DefaultConfig, AffUsers, <<"-">>]).
 
 clear_db() ->
-    muc_light_helper:clear_db().
+    muc_light_helper:clear_db(host_type()).
 
 %%--------------------------------------------------------------------
 %% MUC light tests
