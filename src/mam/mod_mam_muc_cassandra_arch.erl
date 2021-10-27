@@ -75,9 +75,11 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(mongooseim:host_type(), _) -> ok.
 start(HostType, _Opts) ->
     ejabberd_hooks:add(hooks(HostType)).
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
@@ -757,7 +759,7 @@ stored_binary_to_packet(HostType, Bin) ->
     Module:decode(Bin).
 
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Params getters
 
 -spec db_message_format(HostType :: mongooseim:host_type()) -> module().
 db_message_format(HostType) ->
