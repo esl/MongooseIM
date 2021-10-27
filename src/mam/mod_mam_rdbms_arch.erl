@@ -230,7 +230,7 @@ db_jid_codec(HostType, Module) ->
 db_message_codec(HostType, Module) ->
     gen_mod:get_module_opt(HostType, Module, db_message_format, mam_message_compressed_eterm).
 
--spec get_retract_id(exml:element(), env_vars()) -> none | binary().
+-spec get_retract_id(exml:element(), env_vars()) -> none | {origin_id | stanza_id, binary()}.
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->
     mod_mam_utils:get_retract_id(Enabled, Packet).
 
@@ -276,7 +276,7 @@ retract_message(HostType, #{archive_id := ArcID, remote_jid := RemJID,
                         direction := Dir, packet := Packet}, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
-        OriginID ->
+        {_, OriginID} ->
             Info = get_retraction_info(HostType, ArcID, RemJID, OriginID, Dir, Env),
             make_tombstone(HostType, ArcID, OriginID, Info, Env)
     end.

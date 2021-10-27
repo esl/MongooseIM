@@ -369,19 +369,27 @@ has_any(Elements) ->
 has_chat_marker(Packet) ->
     mongoose_chat_markers:has_chat_markers(Packet).
 
+-spec get_retract_id(false, exml:element()) -> none;
+                    (true, exml:element()) -> none | {origin_id | stanza_id, binary()}.
 get_retract_id(true = _Enabled, Packet) ->
     get_retract_id(Packet);
 get_retract_id(false, _Packet) ->
     none.
 
+-spec get_retract_id(exml:element()) -> none | {origin_id | stanza_id, binary()}.
 get_retract_id(Packet) ->
-    case exml_query:subelement_with_name_and_ns(Packet, <<"apply-to">>, ?NS_FASTEN) of
-        El = #xmlel{} ->
-            case exml_query:subelement_with_name_and_ns(El, <<"retract">>, ?NS_RETRACT) of
-                #xmlel{} -> exml_query:attr(El, <<"id">>, none);
-                undefined -> none
-            end;
-        undefined -> none
+    case exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
+                                  {element, <<"retract">>},
+                                  {attr, <<"xmlns">>}], none) of
+        none -> none;
+        ?NS_RETRACT ->
+            OriginId = exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
+                                                {attr, <<"id">>}], none),
+            {origin_id, OriginId};
+        ?NS_ESL_RETRACT ->
+            StanzaId = exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
+                                                {attr, <<"id">>}], none),
+            {stanza_id, StanzaId}
     end.
 
 get_origin_id(Packet) ->
@@ -674,7 +682,7 @@ mam_features() ->
 
 retraction_features(Module, HostType) ->
     case has_message_retraction(Module, HostType) of
-        true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE];
+        true -> [?NS_RETRACT, ?NS_RETRACT_TOMBSTONE, ?NS_ESL_RETRACT];
         false -> [?NS_RETRACT]
     end.
 
