@@ -755,7 +755,7 @@ stored_binary_to_packet(HostType, Bin) ->
     Module:decode(Bin).
 
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Params getters
 
 -spec db_message_format(HostType :: mongooseim:host_type()) -> module().
 db_message_format(HostType) ->
@@ -764,4 +764,3 @@ db_message_format(HostType) ->
 -spec pool_name(HostType :: mongooseim:host_type()) -> term().
 pool_name(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
-
