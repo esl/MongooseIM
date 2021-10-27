@@ -124,7 +124,7 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 archive_size(Size, HostType, _RoomID, RoomJID) when is_integer(Size) ->
-    PoolName = pool_name(RoomJID),
+    PoolName = pool_name(HostType),
     Borders = Start = End = WithNick = undefined,
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     calc_count(PoolName, RoomJID, HostType, Filter).
@@ -161,11 +161,11 @@ archive_message2(#{message_id := MessID,
                  message   = BPacket,
                  with_nick = BWithNick
                 } || {BWithNick, BWithFromJID} <- [{<<>>, BFromJID}, {BNick, <<>>}]],
-    PoolName = pool_name(LocJID),
-    write_messages(PoolName, Messages).
+    PoolName = pool_name(HostType),
+    write_messages(HostType, PoolName, Messages).
 
-write_messages(RoomJID, Messages) ->
-    PoolName = pool_name(RoomJID),
+write_messages(HostType, RoomJID, Messages) ->
+    PoolName = pool_name(HostType),
     MultiParams = [message_to_params(M) || M <- Messages],
     mongoose_cassandra:cql_write_async(PoolName, RoomJID, ?MODULE, insert_query, MultiParams).
 
@@ -193,9 +193,9 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(Acc, _HostType, _RoomID, RoomJID) ->
+remove_archive(Acc, HostType, _RoomID, RoomJID) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
-    PoolName = pool_name(RoomJID),
+    PoolName = pool_name(HostType),
     Params = #{room_jid => BRoomJID},
     %% Wait until deleted
 
@@ -227,7 +227,7 @@ lookup_messages(_Result, HostType,
                   is_simple := IsSimple}) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
-        PoolName = pool_name(RoomJID),
+        PoolName = pool_name(HostType),
         lookup_messages2(PoolName, HostType,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
@@ -395,7 +395,7 @@ lookup_messages_before_id(PoolName, HostType, RoomJID,
 lookup_messages_after_id(PoolName, HostType, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
-    PoolName = pool_name(RoomJID),
+    PoolName = pool_name(HostType),
     TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
     Offset = calc_offset(PoolName, RoomJID, HostType, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(PoolName, RoomJID, HostType, from_id(ID, Filter),
@@ -765,6 +765,6 @@ stored_binary_to_packet(HostType, Bin) ->
 db_message_format(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
 
--spec pool_name(HostType :: mongooseim:host_type()) -> term().
+-spec pool_name(HostType :: mongooseim:host_type()) -> mongoose_wpool:pool_name().
 pool_name(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
