@@ -65,7 +65,7 @@ meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 %% -----------------------------------------------------
 
 cleaner_runs_hook_on_nodedown(_Config) ->
-    meck:expect(gen_hook, error_running_hook, fun(_, _, _, _) -> ok end),
+    meck:expect(gen_hook, error_running_hook, fun(_, _, _, _, _) -> ok end),
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     gen_hook:add_handler(node_cleanup, global,
                          fun ?MODULE:notify_self_hook/3,
@@ -80,7 +80,7 @@ cleaner_runs_hook_on_nodedown(_Config) ->
         ct:fail({timeout, got_nodedown})
     end,
     ?assertEqual(false, meck:called(gen_hook, error_running_hook,
-                                    ['_', '_', '_', '_'])).
+                                    ['_', '_', '_', '_', '_'])).
 
 notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     Self ! {got_nodedown, Node},

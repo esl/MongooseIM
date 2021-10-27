@@ -525,7 +525,9 @@ get_room_messages(Caller, RoomID) ->
 messages_can_be_paginated_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
-        [GenMsgs1, GenMsgs2 | _] = rest_helper:fill_room_archive(RoomID, [Alice, Bob]),
+        %% GenMsgs1 is older than GenMsgs2
+        %% One message is already in the archive
+        [GenMsgs1, GenMsgs2 | _] = rest_helper:fill_room_archive(RoomID, [Alice, Bob], 1),
         mam_helper:maybe_wait_for_archive(Config),
         Msgs10 = get_room_messages({alice, Alice}, RoomID, 10),
         Msgs10Len = length(Msgs10),
