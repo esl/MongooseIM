@@ -90,4 +90,9 @@ remove_user(HostType, LUser, LServer) ->
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> ok.
 remove_domain(HostType, LServer) ->
     Args = [HostType, LServer],
-    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+    case mongoose_backend:is_exported(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, 2) of
+        true ->
+            mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args);
+        false -> 
+            ok
+    end.
