@@ -28,16 +28,17 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(mongooseim:host_type(), _) -> ok.
+-spec start(host_type(), _) -> ok.
 start(HostType, _Opts) ->
     ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(mongooseim:host_type()) -> ok.
+-spec stop(host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
@@ -87,7 +88,7 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-                    HostType :: mongooseim:host_type(), ArchiveID :: mod_mam:archive_id(),
+                    HostType :: host_type(), ArchiveID :: mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
@@ -108,7 +109,7 @@ get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
     end.
 
 
--spec set_prefs(Result :: any(), HostType :: mongooseim:host_type(),
+-spec set_prefs(Result :: any(), HostType :: host_type(),
                 ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
                 DefaultMode :: mod_mam:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
@@ -148,7 +149,7 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
       behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
--spec get_prefs(mod_mam:preference(), _HostType :: mongooseim:host_type(),
+-spec get_prefs(mod_mam:preference(), _HostType :: host_type(),
                 ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
                -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
@@ -159,7 +160,7 @@ get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(mongoose_acc:t(), mongooseim:host_type(), mod_mam:archive_id(), jid:jid()) ->
+-spec remove_archive(mongoose_acc:t(), host_type(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().
 remove_archive(Acc, HostType, _UserID, UserJID) ->
     remove_archive(HostType, UserJID),
@@ -172,7 +173,7 @@ remove_archive(HostType, UserJID) ->
     mongoose_cassandra:cql_write(pool_name(HostType), UserJID,
                                  ?MODULE, del_prefs_ts_query, [Params]).
 
--spec query_behaviour(mongooseim:host_type(), UserJID :: jid:jid(), BUserJID :: binary() | string(),
+-spec query_behaviour(host_type(), UserJID :: jid:jid(), BUserJID :: binary() | string(),
                       BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
 query_behaviour(HostType, UserJID, BUserJID, BRemJID, BRemBareJID)
   when BRemJID == BRemBareJID ->
@@ -220,6 +221,6 @@ decode_prefs_rows([#{remote_jid := JID, behaviour := <<"N">>} | Rows],
 %% ----------------------------------------------------------------------
 %% Params getters
 
--spec pool_name(HostType :: mongooseim:host_type()) -> term().
+-spec pool_name(HostType :: host_type()) -> term().
 pool_name(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).

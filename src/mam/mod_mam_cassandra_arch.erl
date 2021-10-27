@@ -28,7 +28,6 @@
 %gdpr
 -export([get_mam_pm_gdpr_data/3]).
 
--define(MOD_MAM_CASSANDRA_ARCH_PARAMS, mod_mam_cassandra_arch_params).
 -ignore_xref([
     behaviour_info/1, remove_archive/4
 ]).
@@ -74,8 +73,7 @@
 
 -type filter() :: #mam_ca_filter{}.
 -type message_id() :: non_neg_integer().
--type server_hostname() :: binary().
-
+-type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -229,7 +227,7 @@ remove_archive(HostType, UserJID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), HostType :: mongooseim:host_type(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
   {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
     Result;
@@ -436,7 +434,7 @@ row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),
-                           mongooseim:host_type(), jid:jid()) ->
+                           host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, HostType, JID) ->
     BinJID = jid:to_binary(jid:to_lower(JID)),
@@ -456,7 +454,7 @@ rows_to_gdpr_mam_message(HostType, #{message := Data, id:= Id, from_jid:=FromJid
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
       UserJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       IMax :: pos_integer(),
       ReverseLimit :: boolean(),
@@ -489,7 +487,7 @@ fetch_user_messages(PoolName, UserJID, FilterMap) ->
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
       UserJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
@@ -504,7 +502,7 @@ calc_index(PoolName, UserJID, HostType, Filter, MessID) ->
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
       UserJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
@@ -518,7 +516,7 @@ calc_before(PoolName, UserJID, HostType, Filter, MessID) ->
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
       UserJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       Count :: non_neg_integer().
 calc_count(PoolName, UserJID, _HostType, Filter) ->
@@ -672,7 +670,7 @@ filter_to_cql() ->
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
       UserJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
@@ -757,10 +755,10 @@ stored_binary_to_packet(HostType, Bin) ->
 %% ----------------------------------------------------------------------
 %% Params getters
 
--spec db_message_format(HostType :: mongooseim:host_type()) -> module().
+-spec db_message_format(HostType :: host_type()) -> module().
 db_message_format(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
 
--spec pool_name(HostType :: mongooseim:host_type()) -> term().
+-spec pool_name(HostType :: host_type()) -> term().
 pool_name(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).

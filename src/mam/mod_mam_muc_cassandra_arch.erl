@@ -68,18 +68,17 @@
 
 -type filter() :: #mam_muc_ca_filter{}.
 -type message_id() :: non_neg_integer().
--type server_hostname() :: binary().
-
+-type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(mongooseim:host_type(), _) -> ok.
+-spec start(host_type(), _) -> ok.
 start(HostType, _Opts) ->
     ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(mongooseim:host_type()) -> ok.
+-spec stop(host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
@@ -214,7 +213,7 @@ remove_archive(Acc, HostType, _RoomID, RoomJID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), HostType :: mongooseim:host_type(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
   {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
     Result;
@@ -431,7 +430,7 @@ row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-                            mongooseim:host_type(), jid:jid()) ->
+                            host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(Acc, HostType, Jid) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),
@@ -450,7 +449,7 @@ get_mam_muc_gdpr_data(Acc, HostType, Jid) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       IMax :: pos_integer(),
       ReverseLimit :: boolean(),
@@ -483,7 +482,7 @@ fetch_user_messages(PoolName, UserJID, FilterMap) ->
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
@@ -498,7 +497,7 @@ calc_index(PoolName, RoomJID, HostType, Filter, MessID) ->
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
@@ -512,7 +511,7 @@ calc_before(PoolName, RoomJID, HostType, Filter, MessID) ->
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       Count :: non_neg_integer().
 calc_count(PoolName, RoomJID, _HostType, Filter) ->
@@ -672,7 +671,7 @@ filter_to_cql() ->
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      HostType :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
@@ -761,10 +760,10 @@ stored_binary_to_packet(HostType, Bin) ->
 %% ----------------------------------------------------------------------
 %% Params getters
 
--spec db_message_format(HostType :: mongooseim:host_type()) -> module().
+-spec db_message_format(HostType :: host_type()) -> module().
 db_message_format(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
 
--spec pool_name(HostType :: mongooseim:host_type()) -> mongoose_wpool:pool_name().
+-spec pool_name(HostType :: host_type()) -> mongoose_wpool:pool_name().
 pool_name(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
