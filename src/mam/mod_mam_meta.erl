@@ -25,7 +25,7 @@
 
 -export([config_metrics/1]).
 
--ignore_xref([get_mam_module_opt/4]).
+-ignore_xref([get_mam_module_opt/4, get_mam_module_configuration/3]).
 
 -include("mongoose_config_spec.hrl").
 

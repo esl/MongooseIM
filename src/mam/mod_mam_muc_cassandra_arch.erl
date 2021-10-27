@@ -20,10 +20,7 @@
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0, get_mam_muc_gdpr_data/3]).
 
--define(MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, mod_mam_muc_cassandra_arch_params).
 -ignore_xref([
-    {?MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, pool_name, 0},
-    {?MOD_MAM_MUC_CASSANDRA_ARCH_PARAMS, db_message_format, 0},
     behaviour_info/1, remove_archive/4, start/2, stop/1
 ]).
 
@@ -71,48 +68,35 @@
 
 -type filter() :: #mam_muc_ca_filter{}.
 -type message_id() :: non_neg_integer().
--type server_hostname() :: binary().
-
+-type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
-start(Host, Opts) ->
-    compile_params_module(Opts),
-    start_muc(Host, Opts).
+-spec start(host_type(), _) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
-stop(Host) ->
-    stop_muc(Host).
+-spec stop(host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
-start_muc(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
+hooks(HostType) ->
+    NoWriter = gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false),
+    case NoWriter of
         true ->
-            ok;
+            [];
         false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
-    ok.
-
-stop_muc(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
-    ok.
+            [{mam_muc_archive_message, HostType, ?MODULE, archive_message, 50}]
+    end ++
+    [{mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
+     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50},
+     {get_mam_muc_gdpr_data, HostType, ?MODULE, get_mam_muc_gdpr_data, 50}].
 
 %% ----------------------------------------------------------------------
 %% mongoose_cassandra_worker callbacks
@@ -138,11 +122,11 @@ prepared_queries() ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
-archive_size(Size, Host, _RoomID, RoomJID) when is_integer(Size) ->
-    PoolName = pool_name(RoomJID),
+archive_size(Size, HostType, _RoomID, RoomJID) when is_integer(Size) ->
+    PoolName = pool_name(HostType),
     Borders = Start = End = WithNick = undefined,
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    calc_count(PoolName, RoomJID, Host, Filter).
+    calc_count(PoolName, RoomJID, HostType, Filter).
 
 
 %% ----------------------------------------------------------------------
@@ -153,9 +137,9 @@ insert_query_cql() ->
         "(id, room_jid, from_jid, nick_name, with_nick, message) "
         "VALUES (?, ?, ?, ?, ?, ?)".
 
-archive_message(_Result, _Host, Params) ->
+archive_message(_Result, HostType, Params) ->
     try
-        archive_message2(Params)
+        archive_message2(Params, HostType)
     catch _Type:Reason ->
             {error, Reason}
     end.
@@ -164,10 +148,10 @@ archive_message2(#{message_id := MessID,
                    local_jid := LocJID = #jid{},
                    remote_jid := FromJID = #jid{},
                    source_jid := #jid{lresource = BNick},
-                   packet := Packet}) ->
+                   packet := Packet}, HostType) ->
     BLocJID = mod_mam_utils:bare_jid(LocJID),
     BFromJID = mod_mam_utils:bare_jid(FromJID),
-    BPacket = packet_to_stored_binary(Packet),
+    BPacket = packet_to_stored_binary(HostType, Packet),
     Messages = [#mam_muc_message{
                  id        = MessID,
                  room_jid  = BLocJID,
@@ -176,11 +160,11 @@ archive_message2(#{message_id := MessID,
                  message   = BPacket,
                  with_nick = BWithNick
                 } || {BWithNick, BWithFromJID} <- [{<<>>, BFromJID}, {BNick, <<>>}]],
-    PoolName = pool_name(LocJID),
-    write_messages(PoolName, Messages).
+    PoolName = pool_name(HostType),
+    write_messages(HostType, PoolName, Messages).
 
-write_messages(RoomJID, Messages) ->
-    PoolName = pool_name(RoomJID),
+write_messages(HostType, RoomJID, Messages) ->
+    PoolName = pool_name(HostType),
     MultiParams = [message_to_params(M) || M <- Messages],
     mongoose_cassandra:cql_write_async(PoolName, RoomJID, ?MODULE, insert_query, MultiParams).
 
@@ -208,9 +192,9 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT room_jid, with_nick FROM mam_muc_message WHERE room_jid = ?".
 
-remove_archive(Acc, _Host, _RoomID, RoomJID) ->
+remove_archive(Acc, HostType, _RoomID, RoomJID) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
-    PoolName = pool_name(RoomJID),
+    PoolName = pool_name(HostType),
     Params = #{room_jid => BRoomJID},
     %% Wait until deleted
 
@@ -229,21 +213,21 @@ remove_archive(Acc, _Host, _RoomID, RoomJID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), HostType :: host_type(), Params :: map()) ->
   {ok, mod_mam:lookup_result()}.
-lookup_messages({error, _Reason} = Result, _Host, _Params) ->
+lookup_messages({error, _Reason} = Result, _HostType, _Params) ->
     Result;
-lookup_messages(_Result, _Host, #{search_text := <<_/binary>>}) ->
+lookup_messages(_Result, _HostType, #{search_text := <<_/binary>>}) ->
     {error, 'not-supported'};
-lookup_messages(_Result, Host,
+lookup_messages(_Result, HostType,
                 #{owner_jid := RoomJID, rsm := RSM, borders := Borders,
                   start_ts := Start, end_ts := End, with_jid := WithJID,
                   search_text := undefined, page_size := PageSize,
                   is_simple := IsSimple}) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
-        PoolName = pool_name(RoomJID),
-        lookup_messages2(PoolName, Host,
+        PoolName = pool_name(HostType),
+        lookup_messages2(PoolName, HostType,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
                          PageSize, IsSimple)
@@ -255,14 +239,14 @@ maybe_jid_to_nick(#jid{lresource = BNick}) -> BNick;
 maybe_jid_to_nick(undefined) -> undefined.
 
 
-lookup_messages2(PoolName, Host,
+lookup_messages2(PoolName, HostType,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
                  PageSize, _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    lookup_messages_simple(PoolName, Host, RoomJID, RSM, PageSize, Filter);
-lookup_messages2(PoolName, Host,
+    lookup_messages_simple(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
+lookup_messages2(PoolName, HostType,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
                  PageSize, _IsSimple) ->
@@ -274,15 +258,15 @@ lookup_messages2(PoolName, Host,
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     case Strategy of
         last_page ->
-            lookup_messages_last_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+            lookup_messages_last_page(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
         by_offset ->
-            lookup_messages_by_offset(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+            lookup_messages_by_offset(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
         first_page ->
-            lookup_messages_first_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+            lookup_messages_first_page(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
         before_id ->
-            lookup_messages_before_id(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+            lookup_messages_before_id(PoolName, HostType, RoomJID, RSM, PageSize, Filter);
         after_id ->
-            lookup_messages_after_id(PoolName, Host, RoomJID, RSM, PageSize, Filter)
+            lookup_messages_after_id(PoolName, HostType, RoomJID, RSM, PageSize, Filter)
     end.
 
 rsm_to_strategy(#rsm_in{direction = before, id = undefined}) ->
@@ -300,122 +284,122 @@ rsm_to_strategy(#rsm_in{}) ->
 rsm_to_strategy(undefined) ->
     first_page.
 
-lookup_messages_simple(PoolName, Host, RoomJID,
+lookup_messages_simple(PoolName, HostType, RoomJID,
                        #rsm_in{direction = aft, id = ID},
                        PageSize, Filter) ->
     %% Get last rows from result set
-    MessageRows = extract_messages(PoolName, RoomJID, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
-lookup_messages_simple(PoolName, Host, RoomJID,
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, after_id(ID, Filter), PageSize, false),
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
+lookup_messages_simple(PoolName, HostType, RoomJID,
                        #rsm_in{direction = before, id = ID},
                        PageSize, Filter) ->
-    MessageRows = extract_messages(PoolName, RoomJID, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
-lookup_messages_simple(PoolName, Host, RoomJID,
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, before_id(ID, Filter), PageSize, true),
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
+lookup_messages_simple(PoolName, HostType, RoomJID,
                        #rsm_in{direction = undefined, index = Offset},
                        PageSize, Filter) ->
     %% Apply offset
     StartId = offset_to_start_id(PoolName, RoomJID, Filter,
                                  Offset), %% POTENTIALLY SLOW AND NOT SIMPLE :)
-    MessageRows = extract_messages(PoolName, RoomJID, Host, from_id(StartId, Filter), PageSize,
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, from_id(StartId, Filter), PageSize,
                                    false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}};
-lookup_messages_simple(PoolName, Host, RoomJID,
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
+lookup_messages_simple(PoolName, HostType, RoomJID,
                        _,
                        PageSize, Filter) ->
-    MessageRows = extract_messages(PoolName, RoomJID, Host, Filter, PageSize, false),
-    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, RoomJID)}}.
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, Filter, PageSize, false),
+    {ok, {undefined, undefined, rows_to_uniform_format(MessageRows, HostType, RoomJID)}}.
 
-lookup_messages_last_page(PoolName, Host, RoomJID,
+lookup_messages_last_page(PoolName, HostType, RoomJID,
                           #rsm_in{direction = before, id = undefined},
                           0, Filter) ->
     %% Last page
-    TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
+    TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
     {ok, {TotalCount, TotalCount, []}};
-lookup_messages_last_page(PoolName, Host, RoomJID,
+lookup_messages_last_page(PoolName, HostType, RoomJID,
                           #rsm_in{direction = before, id = undefined},
                           PageSize, Filter) ->
     %% Last page
-    MessageRows = extract_messages(PoolName, RoomJID, Host, Filter, PageSize, true),
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, Filter, PageSize, true),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(MessageRows, RoomJID)}};
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
         false ->
             FirstID = row_to_message_id(hd(MessageRows)),
-            Offset = calc_count(PoolName, RoomJID, Host, before_id(FirstID, Filter)),
+            Offset = calc_count(PoolName, RoomJID, HostType, before_id(FirstID, Filter)),
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(MessageRows, RoomJID)}}
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}}
     end.
 
-lookup_messages_by_offset(PoolName, Host, RoomJID,
+lookup_messages_by_offset(PoolName, HostType, RoomJID,
                           #rsm_in{direction = undefined, index = Offset},
                           0, Filter) when is_integer(Offset) ->
     %% By offset
-    TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
+    TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
     {ok, {TotalCount, Offset, []}};
-lookup_messages_by_offset(PoolName, Host, RoomJID,
+lookup_messages_by_offset(PoolName, HostType, RoomJID,
                           #rsm_in{direction = undefined, index = Offset},
                           PageSize, Filter) when is_integer(Offset) ->
     %% By offset
     StartId = offset_to_start_id(PoolName, RoomJID, Filter, Offset), %% POTENTIALLY SLOW
-    MessageRows = extract_messages(PoolName, RoomJID, Host, from_id(StartId, Filter), PageSize,
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, from_id(StartId, Filter), PageSize,
                                    false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
             {ok, {Offset + MessageRowsCount, Offset,
-                  rows_to_uniform_format(MessageRows, RoomJID)}};
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(PoolName, RoomJID, Host, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(PoolName, RoomJID, HostType, after_id(LastID, Filter)),
             {ok, {Offset + MessageRowsCount + CountAfterLastID, Offset,
-                  rows_to_uniform_format(MessageRows, RoomJID)}}
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}}
     end.
 
-lookup_messages_first_page(PoolName, Host, RoomJID,
+lookup_messages_first_page(PoolName, HostType, RoomJID,
                            _,
                            0, Filter) ->
     %% First page, just count
-    TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
+    TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
     {ok, {TotalCount, 0, []}};
-lookup_messages_first_page(PoolName, Host, RoomJID,
+lookup_messages_first_page(PoolName, HostType, RoomJID,
                            _,
                            PageSize, Filter) ->
     %% First page
-    MessageRows = extract_messages(PoolName, RoomJID, Host, Filter, PageSize, false),
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, Filter, PageSize, false),
     MessageRowsCount = length(MessageRows),
     case MessageRowsCount < PageSize of
         true ->
             {ok, {MessageRowsCount, 0,
-                  rows_to_uniform_format(MessageRows, RoomJID)}};
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}};
         false ->
             LastID = row_to_message_id(lists:last(MessageRows)),
-            CountAfterLastID = calc_count(PoolName, RoomJID, Host, after_id(LastID, Filter)),
+            CountAfterLastID = calc_count(PoolName, RoomJID, HostType, after_id(LastID, Filter)),
             {ok, {MessageRowsCount + CountAfterLastID, 0,
-                  rows_to_uniform_format(MessageRows, RoomJID)}}
+                  rows_to_uniform_format(MessageRows, HostType, RoomJID)}}
     end.
 
-lookup_messages_before_id(PoolName, Host, RoomJID,
+lookup_messages_before_id(PoolName, HostType, RoomJID,
                           RSM = #rsm_in{direction = before, id = ID},
                           PageSize, Filter) ->
-    TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
-    Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, RoomJID, Host, to_id(ID, Filter),
+    TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
+    Offset = calc_offset(PoolName, RoomJID, HostType, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, to_id(ID, Filter),
                                    PageSize + 1, true),
-    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, HostType, RoomJID)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
-lookup_messages_after_id(PoolName, Host, RoomJID,
+lookup_messages_after_id(PoolName, HostType, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
-    PoolName = pool_name(RoomJID),
-    TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
-    Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, RoomJID, Host, from_id(ID, Filter),
+    PoolName = pool_name(HostType),
+    TotalCount = calc_count(PoolName, RoomJID, HostType, Filter),
+    Offset = calc_offset(PoolName, RoomJID, HostType, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(PoolName, RoomJID, HostType, from_id(ID, Filter),
                                    PageSize + 1, false),
-    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, HostType, RoomJID)},
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 
@@ -433,27 +417,27 @@ to_id(ID, Filter = #mam_muc_ca_filter{end_id = BeforeID}) ->
 from_id(ID, Filter = #mam_muc_ca_filter{start_id = AfterID}) ->
     Filter#mam_muc_ca_filter{start_id = maybe_max(ID, AfterID)}.
 
+rows_to_uniform_format(MessageRows, HostType, RoomJID) ->
+    [row_to_uniform_format(Row, HostType, RoomJID) || Row <- MessageRows].
 
-rows_to_uniform_format(MessageRows, RoomJID) ->
-    [row_to_uniform_format(Row, RoomJID) || Row <- MessageRows].
-
-row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID}, RoomJID) ->
+row_to_uniform_format(#{nick_name := BNick, message := Data, id := MessID},
+                      HostType, RoomJID) ->
     SrcJID = jid:replace_resource(RoomJID, BNick),
-    Packet = stored_binary_to_packet(Data),
+    Packet = stored_binary_to_packet(HostType, Data),
     #{id => MessID, jid => SrcJID, packet => Packet}.
 
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(),
-                            mongooseim:host_type(), jid:jid()) ->
+                            host_type(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
-get_mam_muc_gdpr_data(Acc, _HostType, Jid) ->
+get_mam_muc_gdpr_data(Acc, HostType, Jid) ->
     BinJid = jid:to_binary(jid:to_lower(Jid)),
-    PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
+    PoolName = pool_name(HostType),
     FilterMap = #{from_jid  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
-    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))}
+    Messages = [{Id, exml:to_binary(stored_binary_to_packet(HostType, Data))}
                 || #{message := Data, id:= Id} <- Rows],
     Messages ++ Acc.
 
@@ -461,23 +445,23 @@ get_mam_muc_gdpr_data(Acc, _HostType, Jid) ->
 %% Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<"res1">>, <<binary>>}'.
 %% Columns are `["id", "nick_name", "message"]'.
--spec extract_messages(PoolName, RoomJID, Host, Filter, IMax, ReverseLimit) ->
+-spec extract_messages(PoolName, RoomJID, HostType, Filter, IMax, ReverseLimit) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      Host :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       IMax :: pos_integer(),
       ReverseLimit :: boolean(),
       Row :: mongoose_cassandra:row().
-extract_messages(_Worker, _RoomJID, _Host, _Filter, 0, _) ->
+extract_messages(_Worker, _RoomJID, _HostType, _Filter, 0, _) ->
     [];
-extract_messages(PoolName, RoomJID, _Host, Filter, IMax, false) ->
+extract_messages(PoolName, RoomJID, _HostType, Filter, IMax, false) ->
     QueryName = {extract_messages_query, select_filter(Filter)},
     Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
     Rows;
-extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
+extract_messages(PoolName, RoomJID, _HostType, Filter, IMax, true) ->
     QueryName = {extract_messages_r_query, select_filter(Filter)},
     Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
@@ -494,43 +478,43 @@ fetch_user_messages(PoolName, UserJID, FilterMap) ->
 %% If the element does not exists, the ID of the next element will
 %% be returned instead.
 %% @end
--spec calc_index(PoolName, RoomJID, Host, Filter, MessID) -> Count
+-spec calc_index(PoolName, RoomJID, HostType, Filter, MessID) -> Count
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      Host :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
-calc_index(PoolName, RoomJID, Host, Filter, MessID) ->
-    calc_count(PoolName, RoomJID, Host, to_id(MessID, Filter)).
+calc_index(PoolName, RoomJID, HostType, Filter, MessID) ->
+    calc_count(PoolName, RoomJID, HostType, to_id(MessID, Filter)).
 
 %% @doc Count of elements in RSet before the passed element.
 %%
 %% The element with the passed UID can be already deleted.
 %% @end
--spec calc_before(PoolName, RoomJID, Host, Filter, MessID) -> Count
+-spec calc_before(PoolName, RoomJID, HostType, Filter, MessID) -> Count
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      Host :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       MessID :: message_id(),
       Count :: non_neg_integer().
-calc_before(PoolName, RoomJID, Host, Filter, MessID) ->
-    calc_count(PoolName, RoomJID, Host, before_id(MessID, Filter)).
+calc_before(PoolName, RoomJID, HostType, Filter, MessID) ->
+    calc_count(PoolName, RoomJID, HostType, before_id(MessID, Filter)).
 
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_muc_message WHERE "
--spec calc_count(PoolName, RoomJID, Host, Filter) -> Count
+-spec calc_count(PoolName, RoomJID, HostType, Filter) -> Count
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      Host :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       Count :: non_neg_integer().
-calc_count(PoolName, RoomJID, _Host, Filter) ->
+calc_count(PoolName, RoomJID, _HostType, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
     {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName,
@@ -683,11 +667,11 @@ filter_to_cql() ->
      || StartID <- [undefined, 0],
         EndID <- [undefined, 0]].
 
--spec calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
+-spec calc_offset(PoolName, RoomJID, HostType, Filter, PageSize, TotalCount, RSM) -> Offset
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
       RoomJID :: jid:jid(),
-      Host :: server_hostname(),
+      HostType :: host_type(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
@@ -696,12 +680,12 @@ filter_to_cql() ->
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
     max(0, TC - PS);
-calc_offset(PoolName, RoomJID, Host, F, PS, _TC, #rsm_in{direction = before, id = ID})
+calc_offset(PoolName, RoomJID, HostType, F, PS, _TC, #rsm_in{direction = before, id = ID})
   when is_integer(ID) ->
-    max(0, calc_before(PoolName, RoomJID, Host, F, ID) - PS);
-calc_offset(PoolName, RoomJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
+    max(0, calc_before(PoolName, RoomJID, HostType, F, ID) - PS);
+calc_offset(PoolName, RoomJID, HostType, F, _PS, _TC, #rsm_in{direction = aft, id = ID})
   when is_integer(ID) ->
-    calc_index(PoolName, RoomJID, Host, F, ID);
+    calc_index(PoolName, RoomJID, HostType, F, ID);
 calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
 
@@ -763,51 +747,23 @@ list_message_ids_cql(Filter) ->
 %% ----------------------------------------------------------------------
 %% Optimizations
 
-packet_to_stored_binary(Packet) ->
+packet_to_stored_binary(HostType, Packet) ->
     %% Module implementing mam_muc_message behaviour
-    Module = db_message_format(),
+    Module = db_message_format(HostType),
     Module:encode(Packet).
 
-stored_binary_to_packet(Bin) ->
+stored_binary_to_packet(HostType, Bin) ->
     %% Module implementing mam_muc_message behaviour
-    Module = db_message_format(),
+    Module = db_message_format(HostType),
     Module:decode(Bin).
 
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Params getters
 
-%% compile_params_module([
-%%      {db_message_format, module()}
-%%      ])
-compile_params_module(Params) ->
-    CodeStr = params_helper(expand_simple_param(Params)),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_muc_cassandra_arch_params.erl", Code).
+-spec db_message_format(HostType :: host_type()) -> module().
+db_message_format(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
 
-expand_simple_param(Params) ->
-    lists:flatmap(fun(simple) -> simple_params();
-                     ({simple, true}) -> simple_params();
-                     (Param) -> [Param]
-                  end, Params).
-
-simple_params() ->
-    [{db_message_format, mam_message_xml}].
-
-params_helper(Params) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-                                      "-module(mod_mam_muc_cassandra_arch_params).~n"
-                                      "-compile([export_all, nowarn_export_all]).~n"
-                                      "db_message_format() -> ~p.~n"
-                                      "pool_name() -> ~p.~n",
-                                      [proplists:get_value(db_message_format, Params,
-                                                           mam_message_compressed_eterm),
-                                       proplists:get_value(pool_name, Params, default)
-                                      ]))).
-
--spec db_message_format() -> module().
-db_message_format() ->
-    mod_mam_muc_cassandra_arch_params:db_message_format().
-
--spec pool_name(jid:jid()) -> term().
-pool_name(_UserJid) ->
-    mod_mam_muc_cassandra_arch_params:pool_name().
+-spec pool_name(HostType :: host_type()) -> mongoose_wpool:pool_name().
+pool_name(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
