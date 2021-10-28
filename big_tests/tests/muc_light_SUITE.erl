@@ -338,12 +338,10 @@ check_features(Stanza, HasMAM) ->
                                                {attr, <<"var">>}]),
     ?assertEqual(ExpectedFeatures, ActualFeatures).
 
-expected_features(HasMAM) ->
-    MamFeatures = case HasMAM of
-                      true -> mam_helper:namespaces();
-                      false -> []
-                  end,
-    lists:sort([?NS_MUC_LIGHT | MamFeatures]).
+expected_features(true) ->
+    lists:sort([?NS_MUC_LIGHT | mam_helper:namespaces()]);
+expected_features(false) ->
+    [?NS_MUC_LIGHT].
 
 %% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->
