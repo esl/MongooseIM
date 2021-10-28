@@ -2076,7 +2076,10 @@ mod_mam_meta_pm(_Config) ->
     test_mod_mam_meta(T, M),
     ?eqf(M([{archive_groupchats, true}]),
          T(#{<<"archive_groupchats">> => true})),
-    ?errf(T(#{<<"archive_groupchats">> => <<"not really">>})).
+    ?eqf(M([{same_mam_id_for_peers, true}]),
+         T(#{<<"same_mam_id_for_peers">> => true})),
+    ?errf(T(#{<<"archive_groupchats">> => <<"not really">>})),
+    ?errf(T(#{<<"same_mam_id_for_peers">> => <<"not really">>})).
 
 mod_mam_meta_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
@@ -2088,7 +2091,9 @@ mod_mam_meta_muc(_Config) ->
          T(#{<<"host">> => <<"muc.test">>})),
     ?errf(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errf(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
-    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})).
+    ?errf(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
+    ?errf(T(#{<<"archive_groupchats">> => true})),
+    ?errf(T(#{<<"same_mam_id_for_peers">> => true})).
 
 test_mod_mam_meta(T, M) ->
     ?eqf(M([{backend, rdbms}]),
