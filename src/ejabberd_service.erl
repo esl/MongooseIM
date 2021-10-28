@@ -447,10 +447,10 @@ fsm_limit_opts(Opts) ->
         {value, {_, N}} when is_integer(N) ->
             [{max_queue, N}];
         _ ->
-            case ejabberd_config:get_local_option(max_fsm_queue) of
-                N when is_integer(N) ->
+            case mongoose_config:lookup_opt(max_fsm_queue) of
+                {ok, N} ->
                     [{max_queue, N}];
-                _ ->
+                {error, not_found} ->
                     []
             end
     end.
@@ -521,7 +521,7 @@ unregister_routes(StateData) ->
     ejabberd_router:unregister_components(Routes).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
-    Hosts = ejabberd_config:get_global_option(hosts),
+    Hosts = mongoose_config:get_opt(hosts, []),
     component_routes(Subdomain, Hosts);
 get_routes(#state{host=Host}) ->
     [Host].

@@ -86,7 +86,7 @@ stop(HostType) ->
 %% defaults to false
 -spec allow_multiple_connections(mongooseim:host_type()) -> boolean().
 allow_multiple_connections(HostType) ->
-    ejabberd_config:get_local_option({allow_multiple_connections, HostType}) =:= true.
+    mongoose_config:get_opt({allow_multiple_connections, HostType}, false).
 
 does_user_exist(_, LUser, LServer) ->
     does_anonymous_user_exist(LUser, LServer).
@@ -274,7 +274,7 @@ is_protocol_enabled(HostType, Protocol) ->
 %% @doc Returns the anonymous protocol to use, defaults to sasl_anon
 -spec anonymous_protocol(mongooseim:host_type()) -> sasl_anon | login_anon | both.
 anonymous_protocol(HostType) ->
-    ejabberd_config:get_local_option_or_default({anonymous_protocol, HostType}, sasl_anon).
+    mongoose_config:get_opt({anonymous_protocol, HostType}, sasl_anon).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

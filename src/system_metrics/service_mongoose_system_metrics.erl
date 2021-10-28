@@ -32,15 +32,20 @@
 
 -ignore_xref([start_link/1]).
 
--record(system_metrics_state, {report_after, reporter_monitor = none,
-                               reporter_pid = none, prev_report = []}).
+-record(system_metrics_state,
+        {report_after :: non_neg_integer(),
+         reporter_monitor = none :: none | reference(),
+         reporter_pid = none :: none | pid(),
+         prev_report = [] :: [mongoose_system_metrics_collector:report_struct()],
+         tracking_ids :: [tracking_id()]}).
 
 -type system_metrics_state() :: #system_metrics_state{}.
 -type client_id() :: string().
+-type tracking_id() :: string().
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
-    Services = ejabberd_config:get_local_option_or_default(services, []),
+    Services = mongoose_config:get_opt(services, []),
     case proplists:is_defined(?MODULE, Services) of
         false ->
             %% Technically, notice level.
@@ -88,22 +93,24 @@ init(Args) ->
     case report_transparency(Args) of
         skip -> ignore;
         continue ->
-            {InitialReport, ReportAfter} = metrics_module_config(Args),
+            {InitialReport, ReportAfter, TrackingIds} = metrics_module_config(Args),
             erlang:send_after(InitialReport, self(), spawn_reporter),
-            {ok, #system_metrics_state{report_after = ReportAfter}}
+            {ok, #system_metrics_state{report_after = ReportAfter,
+                                       tracking_ids = TrackingIds}}
     end.
 
 handle_info(spawn_reporter, #system_metrics_state{report_after = ReportAfter,
                                                   reporter_monitor = none,
                                                   reporter_pid = none,
-                                                  prev_report = PrevReport} = State) ->
+                                                  prev_report = PrevReport,
+                                                  tracking_ids = TrackingIds} = State) ->
     ServicePid = self(),
     case get_client_id() of
         {ok, ClientId} ->
             {Pid, Monitor} = spawn_monitor(
                 fun() ->
                     Reports = mongoose_system_metrics_collector:collect(PrevReport),
-                    mongoose_system_metrics_sender:send(ClientId, Reports),
+                    mongoose_system_metrics_sender:send(ClientId, Reports, TrackingIds),
                     mongoose_system_metrics_file:save(Reports),
                     ServicePid ! {prev_report, Reports}
                 end),
@@ -136,23 +143,23 @@ get_client_id() ->
         {ok, ID} when is_binary(ID) -> {ok, binary_to_list(ID)}
     end.
 
--spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer()}.
+-spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer(), [tracking_id()]}.
 metrics_module_config(Args) ->
-    {InitialReport, ReportAfter} = get_timeouts(Args, os:getenv("CI")),
-    ExtraTrackingID = proplists:get_value(tracking_id, Args, undefined),
-    ejabberd_config:add_local_option(extra_google_analytics_tracking_id, ExtraTrackingID),
-    {InitialReport, ReportAfter}.
+    {InitialReport, ReportAfter, TrackingId} = get_config(Args, os:getenv("CI")),
+    TrackingIds = case proplists:lookup(tracking_id, Args) of
+        none -> [TrackingId];
+        {_, ExtraTrackingId} -> [TrackingId, ExtraTrackingId]
+    end,
+    {InitialReport, ReportAfter, TrackingIds}.
 
-get_timeouts(Args, "true") ->
-    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID_CI),
+get_config(Args, "true") ->
     I = proplists:get_value(initial_report, Args, timer:seconds(20)),
     R = proplists:get_value(periodic_report, Args, timer:minutes(5)),
-    {I, R};
-get_timeouts(Args, _) ->
-    ejabberd_config:add_local_option(google_analytics_tracking_id, ?TRACKING_ID),
+    {I, R, ?TRACKING_ID_CI};
+get_config(Args, _) ->
     I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
     R = proplists:get_value(periodic_report, Args, ?DEFAULT_REPORT_AFTER),
-    {I, R}.
+    {I, R, ?TRACKING_ID}.
 
 -spec report_transparency(proplists:proplist()) -> skip | continue.
 report_transparency(Args) ->

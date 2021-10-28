@@ -48,18 +48,13 @@
 
 -spec start(HostType :: mongooseim:host_type()) -> ok.
 start(HostType) ->
-    UsernameKey = ejabberd_auth:get_opt(HostType, jwt_username_key),
-    true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
-
     JWTSecret = get_jwt_secret(HostType),
-    JWTAlgorithm = ejabberd_auth:get_opt(HostType, jwt_algorithm),
-    ejabberd_auth:set_opts(HostType,
-                           [{jwt_secret, JWTSecret},
-                           {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
+    persistent_term:put({?MODULE, HostType, jwt_secret}, JWTSecret),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
+    persistent_term:erase(jwt_secret),
     ok.
 
 -spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
@@ -75,7 +70,7 @@ authorize(Creds) ->
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(HostType, LUser, LServer, Password) ->
-    Key = case ejabberd_auth:get_opt(HostType, jwt_secret) of
+    Key = case persistent_term:get({?MODULE, HostType, jwt_secret}) of
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,

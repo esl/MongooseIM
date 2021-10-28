@@ -172,8 +172,7 @@ remove_user(HostType, LUser, LServer) ->
 
 -spec bucket_type(mongooseim:host_type(), jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(HostType, LServer) ->
-    Opts = ejabberd_config:get_local_option_or_default({auth_opts, HostType}, []),
-    BucketType = proplists:get_value(bucket_type, Opts, <<"users">>),
+    BucketType = ejabberd_auth:get_opt(HostType, bucket_type, <<"users">>),
     {BucketType, LServer}.
 
 %% -----------------------------------------------------------------------------

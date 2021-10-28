@@ -1,29 +1,33 @@
 -module(mongoose_system_metrics_sender).
 
 -define(BASE_URL, "https://www.google-analytics.com/batch").
--define(TRACKING_ID, "UA-151671255-2").
 
--export([send/2]).
+-export([send/3]).
 
 -type google_analytics_report() :: string().
 -type url() :: string().
 -type report_struct() :: mongoose_system_metrics_collector:report_struct().
 
--spec send(string(), [report_struct()]) -> ok.
-send(ClientId, ReportStructs) ->
-    TrackingIds = get_tracking_ids(),
+-spec send(service_mongoose_system_metrics:client_id(),
+           [report_struct()],
+           [service_mongoose_system_metrics:tracking_id()]) -> ok.
+send(ClientId, ReportStructs, TrackingIds) ->
     Reports = build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs),
     send_reports(Reports),
     ok.
 
--spec build_reports_for_each_tracking_id(string(), string(), [report_struct()]) -> [google_analytics_report()].
+-spec build_reports_for_each_tracking_id(service_mongoose_system_metrics:client_id(),
+                                         [service_mongoose_system_metrics:tracking_id()],
+                                         [report_struct()]) -> [google_analytics_report()].
 build_reports_for_each_tracking_id(ClientId, TrackingIds, ReportStructs) ->
     lists:map(
         fun(Tid) ->
             build_reports(ClientId, Tid, ReportStructs)
         end, TrackingIds).
 
--spec build_reports(string(), string(), [report_struct()]) -> [google_analytics_report()].
+-spec build_reports(service_mongoose_system_metrics:client_id(),
+                    service_mongoose_system_metrics:tracking_id(),
+                    [report_struct()]) -> [google_analytics_report()].
 build_reports(ClientId, TrackingId, ReportStructs) ->
     lists:map(
         fun(Report) ->
@@ -38,15 +42,8 @@ send_reports(ReportsList) ->
         end, ReportsList).
 
 get_url() ->
-    ejabberd_config:get_local_option_or_default(google_analytics_url, ?BASE_URL).
+    mongoose_config:get_opt(google_analytics_url, ?BASE_URL).
 
-get_tracking_ids() ->
-    DevTrackingId = ejabberd_config:get_local_option_or_default(google_analytics_tracking_id, ?TRACKING_ID),
-    ExtraTrackingId = ejabberd_config:get_local_option(extra_google_analytics_tracking_id),
-    case ExtraTrackingId of
-        undefined -> [DevTrackingId];
-        ExtraTrackingId -> [DevTrackingId, ExtraTrackingId]
-    end.
 % % https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide#batch-limitations
 % % A maximum of 20 hits can be specified per request.
 -spec flush_reports(url(), [google_analytics_report()]) -> {ok, term()} | {error, term()}.

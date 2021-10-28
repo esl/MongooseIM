@@ -36,10 +36,8 @@
          periodic_report_available/1,
          all_clustered_mongooses_report_the_same_client_id/1,
          system_metrics_are_reported_to_google_analytics_when_mim_starts/1,
-         system_metrics_are_reported_to_additional_google_analytics/1,
          system_metrics_are_reported_to_configurable_google_analytics/1,
          system_metrics_are_reported_to_a_json_file/1,
-         tracking_id_is_correctly_configured/1,
          module_backend_is_reported/1,
          mongoose_version_is_reported/1,
          cluster_uptime_is_reported/1,
@@ -78,10 +76,8 @@ all() ->
      periodic_report_available,
      all_clustered_mongooses_report_the_same_client_id,
      system_metrics_are_reported_to_google_analytics_when_mim_starts,
-     system_metrics_are_reported_to_additional_google_analytics,
      system_metrics_are_reported_to_configurable_google_analytics,
      system_metrics_are_reported_to_a_json_file,
-     tracking_id_is_correctly_configured,
      module_backend_is_reported,
      mongoose_version_is_reported,
      cluster_uptime_is_reported,
@@ -154,11 +150,6 @@ init_per_testcase(all_clustered_mongooses_report_the_same_client_id, Config) ->
     enable_system_metrics(mim()),
     enable_system_metrics(mim2()),
     Config;
-init_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
-    create_events_collection(),
-    enable_system_metrics(mim()),
-    configure_additional_tracking_id(mim()),
-    Config;
 init_per_testcase(system_metrics_are_reported_to_configurable_google_analytics, Config) ->
     create_events_collection(),
     enable_system_metrics_with_configurable_tracking_id(mim()),
@@ -194,11 +185,6 @@ end_per_testcase(all_clustered_mongooses_report_the_same_client_id , Config) ->
     [ begin delete_prev_client_id(Node), disable_system_metrics(Node) end || Node <- Nodes ],
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     Config;
-end_per_testcase(system_metrics_are_reported_to_additional_google_analytics, Config) ->
-    clear_events_collection(),
-    remove_additional_tracking_id(mim()),
-    disable_system_metrics(mim()),
-    Config;
 end_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
     clear_events_collection(),
     disable_system_metrics(mim()),
@@ -233,23 +219,14 @@ all_clustered_mongooses_report_the_same_client_id(_Config) ->
 system_metrics_are_reported_to_google_analytics_when_mim_starts(_Config) ->
     mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
     mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    events_are_reported_to_primary_tracking_id(),
     all_event_have_the_same_client_id().
 
-tracking_id_is_correctly_configured(_Config) ->
-    TrackingId = distributed_helper:rpc(mim(), ejabberd_config, get_local_option, [google_analytics_tracking_id]),
-    case os:getenv("CI") of
-        "true" ->
-            ?assertEqual(?TRACKING_ID_CI, TrackingId);
-        _ ->
-            ?assertEqual(?TRACKING_ID, TrackingId)
-    end.
-
-system_metrics_are_reported_to_additional_google_analytics(_Config) ->
-    mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true).
-
 system_metrics_are_reported_to_configurable_google_analytics(_Config) ->
-    mongoose_helper:wait_until(fun events_are_reported_to_additional_tracking_id/0, true),
-    mongoose_helper:wait_until(fun events_are_reported_to_configurable_tracking_id/0, true).
+    mongoose_helper:wait_until(fun hosts_count_is_reported/0, true),
+    mongoose_helper:wait_until(fun modules_are_reported/0, true),
+    events_are_reported_to_both_tracking_ids(),
+    all_event_have_the_same_client_id().
 
 system_metrics_are_reported_to_a_json_file(_Config) ->
     ReportFilePath = distributed_helper:rpc(mim(), mongoose_system_metrics_file, location, []),
@@ -395,7 +372,7 @@ enable_system_metrics(Node) ->
 
 enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
-    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, UrlArgs),
+    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
     start_system_metrics_module(Node, Timers).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
@@ -407,7 +384,7 @@ start_system_metrics_module(Node, Args) ->
 
 disable_system_metrics(Node) ->
     distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
-    mongoose_helper:successful_rpc(Node, ejabberd_config, del_local_option, [ google_analytics_url ]).
+    mongoose_helper:successful_rpc(Node, mongoose_config, unset_opt, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
     mongoose_helper:successful_rpc(Node, mnesia, delete_table, [service_mongoose_system_metrics]).
@@ -425,32 +402,28 @@ system_metrics_service_is_enabled(Node) ->
 system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
 
-configure_additional_tracking_id(Node) ->
-    TrackingIdArgs = [extra_google_analytics_tracking_id, ?TRACKING_ID_EXTRA],
-    {atomic, ok} = mongoose_helper:successful_rpc(Node, ejabberd_config, add_local_option, TrackingIdArgs).
-
-remove_additional_tracking_id(Node) ->
-    mongoose_helper:successful_rpc(
-        Node, ejabberd_config, del_local_option, [ extra_google_analytics_tracking_id ]).
-
 remove_service_from_config(Service) ->
-        Services = distributed_helper:rpc(
-                       mim3(), ejabberd_config, get_local_option_or_default, [services, []]),
-        NewServices = proplists:delete(Service, Services),
-        distributed_helper:rpc(mim3(), ejabberd_config, add_local_option, [services, NewServices]).
+    Services = distributed_helper:rpc(mim3(), mongoose_config, get_opt, [services]),
+    NewServices = proplists:delete(Service, Services),
+    distributed_helper:rpc(mim3(), mongoose_config, set_opt, [services, NewServices]).
 
-events_are_reported_to_additional_tracking_id() ->
-    Tab = ets:tab2list(?ETS_TABLE),
-    SetTab = sets:from_list([Tid || #event{tid = Tid} <- Tab]),
-    2 >= sets:size(SetTab).
+events_are_reported_to_primary_tracking_id() ->
+    events_are_reported_to_tracking_ids([primary_tracking_id()]).
 
-events_are_reported_to_configurable_tracking_id() ->
-    ConfigurableTrackingId = <<?TRACKING_ID_EXTRA>>,
+events_are_reported_to_both_tracking_ids() ->
+    events_are_reported_to_tracking_ids([primary_tracking_id(), ?TRACKING_ID_EXTRA]).
+
+primary_tracking_id() ->
+    case os:getenv("CI") of
+        "true" -> ?TRACKING_ID_CI;
+        _ -> ?TRACKING_ID
+    end.
+
+events_are_reported_to_tracking_ids(ConfiguredTrackingIds) ->
     Tab = ets:tab2list(?ETS_TABLE),
-    lists:any(
-        fun(#event{tid = TrackingId}) ->
-            TrackingId == ConfigurableTrackingId
-        end, Tab).
+    ActualTrackingIds = lists:usort([Tid || #event{tid = Tid} <- Tab]),
+    ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || Tid <- ConfiguredTrackingIds]),
+    ?assertEqual(ExpectedTrackingIds, ActualTrackingIds).
 
 maybe_start_module(Module) ->
     Options = [],

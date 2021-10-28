@@ -131,10 +131,7 @@ random_instance(MaxNum) ->
 
 -spec get_instances(mongooseim:host_type()) -> integer().
 get_instances(HostType) ->
-    case ejabberd_config:get_local_option({extauth_instances, HostType}) of
-        Num when is_integer(Num) -> Num;
-        _ -> 1
-    end.
+    mongoose_config:get_opt({extauth_instances, HostType}, 1).
 
 
 -spec loop(port(), integer(), atom(), any()) -> no_return().

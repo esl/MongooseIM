@@ -121,7 +121,7 @@ start_running(Config) ->
 stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
     HostType = domain_helper:host_type(mim),
-    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, HostType}]),
+    Modules = rpc(mim(), mongoose_config, get_opt, [{modules, HostType}]),
     Filtered = lists:filter(fun({Module, _}) ->
                     ModuleL = atom_to_list(Module),
                     case lists:sublist(ModuleL, 1, length(ModL)) of

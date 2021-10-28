@@ -31,9 +31,6 @@ end_per_suite(Config) ->
     Config.
 
 init_per_testcase(_, Config) ->
-    Fun = fun(all_metrics_are_global) -> false end,
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, Fun),
     gen_hook:start_link(),
     Config.
 

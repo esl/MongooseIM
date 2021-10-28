@@ -20,12 +20,9 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, config_spec/0, supported_features/0,
-         deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
+-export([start/2, stop/1, config_spec/0, supported_features/0, deps/2]).
 
 -export([config_metrics/1]).
-
--ignore_xref([get_mam_module_opt/4]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -127,44 +124,6 @@ deps(_Host, Opts0) ->
     DepsWithPmAndMuc = handle_nested_opts(muc, Opts, false, DepsWithPm),
 
     [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].
-
-get_mam_module_configuration(Host, MamModule, DefaultValue) ->
-    %% Modules' configuration is stored in 2 different places:
-    %%
-    %%   * ejabberd_modules ETS table - managed by the gen_mod module.
-    %%     initialised on module startup but can be changed runtime via
-    %%     gen_mod interfaces. removed when module is stopped.
-    %%
-    %%   * local_config mnesia table  - managed by ejabberd_config, but
-    %%     it's only gen_mod changing stored configuration of the modules.
-    %%     changes are done in the next way: configuration is stored when
-    %%     module is started, removed - when stopped, updated on module
-    %%     restart.
-    %%
-    %% None of the MAM modules changes its configuration dynamically via
-    %% gen_mod interfaces and also (theoretically) modules can be stopped
-    %% using gen_mod:stop_module_keep_config/2 interface, so local_config
-    %% mnesia table is more preferable source of the configuration.
-    Modules = ejabberd_config:get_local_option(modules, Host),
-    case proplists:get_value(MamModule, Modules) of
-        undefined ->
-            case proplists:get_value(?MODULE, Modules) of
-                undefined -> DefaultValue;
-                MamMetaParams ->
-                    Deps = deps(Host, MamMetaParams),
-                    case lists:keyfind(MamModule, 1, Deps) of
-                        {MamModule, Params, _} -> Params;
-                        _ -> DefaultValue
-                    end
-            end;
-        Params -> Params
-    end.
-
-get_mam_module_opt(Host, MamModule, Opt, DefaultValue) ->
-    case get_mam_module_configuration(Host, MamModule, undefined) of
-        undefined -> DefaultValue;
-        Configuration -> proplists:get_value(Opt, Configuration, DefaultValue)
-    end.
 
 %%--------------------------------------------------------------------
 %% Helpers

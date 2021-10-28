@@ -13,13 +13,7 @@ init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-        fun(routing_modules) ->
-                [xmpp_router_a, xmpp_router_b, xmpp_router_c];
-           (_) ->
-                undefined
-        end),
+    mongoose_config:set_opt(routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]),
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_host_type,
                 fun(_) -> {error, not_found} end),
@@ -36,6 +30,7 @@ end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     meck:unload(),
+    mongoose_config:unset_opt(routing_modules),
     ok.
 
 registering(_C) ->

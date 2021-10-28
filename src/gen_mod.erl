@@ -50,7 +50,6 @@
          start_backend_module/2,
          start_backend_module/3,
          stop_module/2,
-         stop_module_keep_config/2,
          reload_module/3,
          does_module_support/2,
          config_spec/1,
@@ -140,7 +139,6 @@ start_module(HostType, Module, Opts) ->
 start_module_for_host_type(HostType, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = proplists:unfold(Opts0),
-    set_module_opts_mnesia(HostType, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host_type = {Module, HostType},
                                                   opts = Opts}),
     try
@@ -169,7 +167,6 @@ start_module_for_host_type(HostType, Module, Opts0) ->
         end
     catch
         Class:Reason:StackTrace ->
-            del_module_mnesia(HostType, Module),
             ets:delete(ejabberd_modules, {Module, HostType}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
                                       "host_type ~p~n options: ~p~n ~p: ~p~n~p",
@@ -230,8 +227,7 @@ is_app_running(AppName) ->
     Timeout = 15000,
     lists:keymember(AppName, 1, application:which_applications(Timeout)).
 
-
-%% @doc Stop the module for host type, and forget its configuration.
+%% @doc Stop the module, and remove it from 'ejabberd_modules'
 -spec stop_module(host_type(), module()) ->
     {ok, list()} | {error, not_loaded} | {error, term()}.
 stop_module(HostType, Module) ->
@@ -240,23 +236,8 @@ stop_module(HostType, Module) ->
         true -> stop_module_for_host_type(HostType, Module)
     end.
 
+-spec stop_module_for_host_type(host_type(), module()) -> {error, term()} | {ok, list()}.
 stop_module_for_host_type(HostType, Module) ->
-    case stop_module_keep_config(HostType, Module) of
-        {ok, Opts} ->
-            case del_module_mnesia(HostType, Module) of
-                {atomic, _} -> {ok, Opts};
-                E -> {error, E}
-            end;
-        {error, E} ->
-            {error, E}
-    end.
-
-%% @doc Stop the module for a host type, but keep its configuration. As the module
-%% configuration is kept in the Mnesia local_config table, when ejabberd is
-%% restarted the module will be started again. This function is useful when
-%% ejabberd is being stopped and it stops all modules.
--spec stop_module_keep_config(host_type(), module()) -> {error, term()} | {ok, list()}.
-stop_module_keep_config(HostType, Module) ->
     Opts = get_module_opts(HostType, Module),
     try Module:stop(HostType) of
         {wait, ProcList} when is_list(ProcList) ->
@@ -280,7 +261,7 @@ stop_module_keep_config(HostType, Module) ->
 -spec reload_module(host_type(), module(), [any()]) ->
     {ok, term()} | {error, already_started}.
 reload_module(HostType, Module, Opts) ->
-    stop_module_keep_config(HostType, Module),
+    stop_module(HostType, Module),
     start_module(HostType, Module, Opts).
 
 -spec does_module_support(module(), module_feature()) -> boolean().
@@ -466,38 +447,6 @@ hosts_and_opts_with_module(Module) ->
                [{#ejabberd_module{_ = '_', module_host_type = {Module, '$1'},
                                   opts = '$2'},
                  [], [{{'$1', '$2'}}]}]).
-
--spec set_module_opts_mnesia(host_type(), module(), [any()]) ->
-    {'aborted', _} | {'atomic', _}.
-set_module_opts_mnesia(HostType, Module, Opts0) ->
-    %% this function is not atomic!
-    Opts = proplists:unfold(Opts0),
-    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
-        undefined ->
-            [];
-        Ls ->
-            Ls
-    end,
-    Modules1 = lists:keydelete(Module, 1, Modules),
-    Modules2 = [{Module, Opts} | Modules1],
-    ejabberd_config:add_local_option({modules, HostType}, Modules2).
-
-
--spec del_module_mnesia(host_type(), module()) -> {'aborted', _} | {'atomic', _}.
-del_module_mnesia(HostType, Module) ->
-    %% this function is not atomic!
-    Modules = case ejabberd_config:get_local_option({modules, HostType}) of
-                  undefined ->
-                      [];
-                  Ls ->
-                      Ls
-              end,
-    case lists:keydelete(Module, 1, Modules) of
-        [] ->
-            ejabberd_config:del_local_option({modules, HostType});
-        OtherModules ->
-            ejabberd_config:add_local_option({modules, HostType}, OtherModules)
-    end.
 
 -spec get_module_proc(binary() | string(), module()) -> atom().
 %% TODO:

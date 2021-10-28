@@ -12,12 +12,11 @@ all() ->
 
 
 end_per_testcase(_, C) ->
-    catch meck:unload(ejabberd_config),
+    mongoose_config:unset_opt(language),
     C.
 
 test_undefined_translation(_Config) ->
-    %% given - if undefined it should be english(pass through)
-    given_default_language(undefined),
+    %% given - no language set, defaults to English
     given_loaded_translations(),
     %% then
     ?assertEqual(<<"undef">>, translate:translate(<<"en">>, <<"undef">>)),
@@ -71,8 +70,5 @@ test_portuguese_translation(_Config)->
 given_loaded_translations() ->
     translate:start().
 
-given_default_language(Lang) ->
-    (catch meck:unload()),
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_global_option, fun(language) -> Lang end),
-    ok.
+given_default_language(Language) ->
+    mongoose_config:set_opt(language, Language).

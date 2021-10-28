@@ -247,10 +247,7 @@ process2(Args, Auth, AccessCommands) ->
 
 -spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
-    case ejabberd_config:get_local_option(mongooseimctl_access_commands) of
-        ACs when is_list(ACs) -> ACs;
-        _ -> []
-    end.
+    mongoose_config:get_opt(mongooseimctl_access_commands, []).
 
 
 %%-----------------------------

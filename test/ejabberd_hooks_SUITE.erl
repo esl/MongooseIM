@@ -237,8 +237,6 @@ exit_in_run_fold_is_ignored(_) ->
 const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
-    Fun = fun(all_metrics_are_global) -> false end,
-    given_module(ejabberd_config, get_local_option, Fun),
     gen_hook:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->

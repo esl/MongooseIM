@@ -29,7 +29,6 @@
 -export([start/0,
          start/1,
          stop/1,
-         set_opts/2,
          get_opt/3,
          get_opt/2,
          authorize/1,
@@ -121,24 +120,14 @@ hooks(HostType) ->
      {remove_domain, HostType, ?MODULE, remove_domain, 10}
     ].
 
--spec set_opts(HostType :: mongooseim:host_type(),
-               KVs :: [tuple()]) ->  {atomic|aborted, _}.
-set_opts(HostType, KVs) ->
-    OldOpts = ejabberd_config:get_local_option(auth_opts, HostType),
-    AccFunc = fun({K, V}, Acc) ->
-                  lists:keystore(K, 1, Acc, {K, V})
-              end,
-    NewOpts = lists:foldl(AccFunc, OldOpts, KVs),
-    ejabberd_config:add_local_option({auth_opts, HostType}, NewOpts).
-
 -spec get_opt(HostType :: mongooseim:host_type(),
               Opt :: atom(),
               Default :: ejabberd:value()) -> undefined | ejabberd:value().
 get_opt(HostType, Opt, Default) ->
-    case ejabberd_config:get_local_option(auth_opts, HostType) of
-        undefined ->
+    case mongoose_config:lookup_opt({auth_opts, HostType}) of
+        {error, not_found} ->
             Default;
-        Opts ->
+        {ok, Opts} ->
             case lists:keyfind(Opt, 1, Opts) of
                 {Opt, Value} ->
                     Value;
@@ -444,16 +433,11 @@ auth_modules_for_host_type(HostType) ->
 
 -spec auth_methods(mongooseim:host_type()) -> [atom()].
 auth_methods(HostType) ->
-    Method = ejabberd_config:get_local_option({auth_method, HostType}),
-    get_auth_method_as_a_list(Method).
+    mongoose_config:get_opt({auth_method, HostType}, []).
 
 -spec auth_method_to_module(atom()) -> authmodule().
 auth_method_to_module(Method) ->
     list_to_atom("ejabberd_auth_" ++ atom_to_list(Method)).
-
-get_auth_method_as_a_list(undefined) -> [];
-get_auth_method_as_a_list(AuthMethod) when is_list(AuthMethod) -> AuthMethod;
-get_auth_method_as_a_list(AuthMethod) when is_atom(AuthMethod) -> [AuthMethod].
 
 -spec remove_domain(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver()) ->
           mongoose_hooks:simple_acc().

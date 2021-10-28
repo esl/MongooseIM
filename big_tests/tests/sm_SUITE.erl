@@ -13,9 +13,6 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--import(vcard_update, [discard_vcard_update/1,
-                       server_string/1]).
-
 -import(escalus_stanza, [setattr/3]).
 
 -import(domain_helper, [host_type/0]).
@@ -364,7 +361,6 @@ h_ok_after_a_chat(ConfigIn) ->
     Config = escalus_users:update_userspec(ConfigIn, alice,
                                            stream_management, true),
     escalus:fresh_story(Config, [{alice,1}, {bob,1}], fun(Alice, Bob) ->
-        NDiscarded = discard_vcard_update(Alice),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi, Bob!">>)),
         escalus:assert(is_chat_message, [<<"Hi, Bob!">>],
                        escalus:wait_for_stanza(Bob)),
@@ -380,7 +376,7 @@ h_ok_after_a_chat(ConfigIn) ->
         escalus:send(Alice, escalus_stanza:sm_request()),
         escalus:assert(is_sm_ack, [3], escalus:wait_for_stanza(Alice)),
         %% Ack, so that unacked messages don't go into offline store.
-        escalus:send(Alice, escalus_stanza:sm_ack(3 + NDiscarded))
+        escalus:send(Alice, escalus_stanza:sm_ack(3))
     end).
 
 h_non_given_closes_stream_gracefully(ConfigIn) ->
@@ -438,12 +434,10 @@ server_requests_ack(Config, N) ->
     {Alice, _} = given_fresh_user(Config, alice),
     %% ack request after initial presence
     maybe_assert_ack_request(1, N, Alice),
-    StanzasRec = maybe_discard_vcard_update(1, N, Alice),
-    ct:print("discarded"),
     escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>)),
     escalus:assert(is_chat_message, [<<"Hi, Alice!">>],
                    escalus:wait_for_stanza(Alice)),
-    maybe_assert_ack_request(StanzasRec + 1, N, Alice).
+    maybe_assert_ack_request(2, N, Alice).
 
 maybe_assert_ack_request(StanzasRec, AckRequests, Alice) ->
     ct:print("StanzasRec: ~p, AckRequests: ~p", [StanzasRec, AckRequests]),
@@ -454,14 +448,6 @@ maybe_assert_ack_request(StanzasRec, AckRequests, Alice) ->
             ok
     end,
     StanzasRec.
-
-maybe_discard_vcard_update(StanzasRec, AckFreq, Alice) ->
-    case discard_vcard_update(Alice) of
-        0 ->
-            StanzasRec;
-        1 ->
-            maybe_assert_ack_request(StanzasRec + 1, AckFreq, Alice)
-    end.
 
 server_requests_ack_freq_2(Config) ->
     Config1 = escalus_users:update_userspec(Config, alice, manual_ack, true),
@@ -514,7 +500,6 @@ resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {Bob, _} = given_fresh_user(Config, bob),
     {Alice, AliceSpec0} = given_fresh_user(Config, alice),
-    discard_vcard_update(Alice),
     %% Bob sends some messages to Alice.
     [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
      || Msg <- Messages],
@@ -796,7 +781,7 @@ session_established(Config) ->
     AliceSpec = [{manual_ack, true}
                  | escalus_fresh:create_fresh_user(Config, alice)],
     {Alice, _} = given_fresh_user_with_spec(AliceSpec),
-    {ok, C2SPid} = get_session_pid(AliceSpec, server_string("escalus-default-resource")),
+    {ok, C2SPid} = get_session_pid(AliceSpec, <<"escalus-default-resource">>),
     assert_no_offline_msgs(AliceSpec),
     assert_c2s_state(C2SPid, session_established),
     escalus_connection:stop(Alice).
@@ -924,7 +909,6 @@ resume_session(Config) ->
         %% Resume the session.
         Steps = connection_steps_to_stream_resumption(SMID, 2),
         {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
-        NDiscarded = discard_vcard_update(Alice),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
         Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
@@ -932,7 +916,7 @@ resume_session(Config) ->
         [escalus:assert(is_chat_message, [Msg], Stanza)
          || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice acks the received messages.
-        escalus_connection:send(Alice, escalus_stanza:sm_ack(5 + NDiscarded)),
+        escalus_connection:send(Alice, escalus_stanza:sm_ack(5)),
         escalus_connection:stop(Alice)
     end).
 
@@ -997,7 +981,6 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     escalus_connection:send(Alice, InitialPresence),
     Presence = escalus_connection:get_stanza(Alice, presence1),
     escalus:assert(is_presence, Presence),
-    discard_vcard_update(Alice),
 
     %% Monitor the C2S process and disconnect Alice.
     MonitorRef = erlang:monitor(process, C2SPid),
@@ -1066,11 +1049,10 @@ buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages) ->
     escalus_connection:send(Alice, InitialPresence),
     Presence = escalus_connection:get_stanza(Alice, presence1),
     escalus:assert(is_presence, Presence),
-    Res = server_string("escalus-default-resource"),
+    Res = <<"escalus-default-resource">>,
     {ok, C2SPid} = get_session_pid(AliceSpec, Res),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     _Presence = escalus_connection:get_stanza(Alice, presence2),
-    discard_vcard_update(Alice),
     %% Bobs sends some messages to Alice.
     [escalus:send(Bob, escalus_stanza:chat_to(JID, Msg))
      || Msg <- Messages],
@@ -1220,7 +1202,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus:assert(is_presence, Presence),
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
-        {ok, C2SPid} = get_session_pid(AliceSpec, server_string("escalus-default-resource")),
+        {ok, C2SPid} = get_session_pid(AliceSpec, <<"escalus-default-resource">>),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         % WHEN new session requests resumption
@@ -1266,7 +1248,7 @@ messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
         escalus:assert(is_presence, Presence),
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
-        {ok, C2SPid} = get_session_pid(AliceSpec, server_string("escalus-default-resource")),
+        {ok, C2SPid} = get_session_pid(AliceSpec, <<"escalus-default-resource">>),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         %% send some dummy event. ignored by c2s but ensures that
@@ -1495,9 +1477,8 @@ get_sid_by_stream_id(SMID) ->
     rpc(mim(), ?MOD_SM, get_sid, [SMID]).
 
 get_us_from_spec(UserSpec) ->
-    ConfigUS = [proplists:get_value(username, UserSpec),
-                proplists:get_value(server, UserSpec)],
-    [U, S] = [server_string(V) || V <- ConfigUS],
+    U = proplists:get_value(username, UserSpec),
+    S = proplists:get_value(server, UserSpec),
     {U, S}.
 
 clear_session_table() ->

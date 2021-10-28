@@ -29,7 +29,7 @@
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
 -define(EL_CD(Element, Name), exml_query:path(Element, [{element, Name}, cdata])).
 
--import(vcard_update, [is_vcard_ldap/0]).
+-import(vcard_helper, [is_vcard_ldap/0]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,

@@ -91,8 +91,8 @@ init_per_group(bad_cancelation, Config) ->
 init_per_group(change_account_details, Config) ->
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config];
 init_per_group(change_account_details_store_plain, Config) ->
-    Config1 = mongoose_helper:backup_auth_config(Config),
-    mongoose_helper:set_store_password(plain),
+    AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, auth_opts, AuthOpts),
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config1];
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
@@ -102,8 +102,7 @@ init_per_group(users_number_estimate, Config) ->
     AuthOpts = get_auth_opts(),
     Key = rdbms_users_number_estimate,
     NewAuthOpts = lists:keystore(Key, 1, AuthOpts, {Key, true}),
-    set_auth_opts(NewAuthOpts),
-    [{auth_opts, AuthOpts} | Config];
+    set_auth_opts(Config, NewAuthOpts);
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -112,7 +111,7 @@ end_per_group(change_account_details, Config) ->
     [{escalus_user_db, xmpp} | Config];
 end_per_group(change_account_details_store_plain, Config) ->
     escalus_fresh:clean(),
-    mongoose_helper:restore_auth_config(Config),
+    mongoose_helper:restore_config(Config),
     [{escalus_user_db, xmpp} | Config];
 end_per_group(bad_cancelation, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
@@ -121,18 +120,19 @@ end_per_group(registration_timeout, Config) ->
 end_per_group(utilities, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(users_number_estimate, Config) ->
-    StoredAuthOpts = ?config(auth_opts, Config),
-    set_auth_opts(StoredAuthOpts);
+    mongoose_helper:restore_config(Config);
 end_per_group(_GroupName, Config) ->
     Config.
 
 get_auth_opts() ->
-    rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, host_type()}]).
+    rpc(mim(), mongoose_config, get_opt, [{auth_opts, host_type()}]).
 
-set_auth_opts(AuthOpts) ->
+set_auth_opts(Config, AuthOpts) ->
     rpc(mim(), ejabberd_auth, stop, [host_type()]),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, host_type()}, AuthOpts]),
-    rpc(mim(), ejabberd_auth, start, [host_type()]).
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, host_type()},
+                                                           AuthOpts),
+    rpc(mim(), ejabberd_auth, start, [host_type()]),
+    Config1.
 
 init_per_testcase(admin_notify, Config) ->
     [{_, AdminSpec}] = escalus_users:get_users([admin]),
@@ -145,8 +145,8 @@ init_per_testcase(not_allowed_registration_cancelation, Config) ->
     reload_mod_register_option(Config, access, {access, none}),
     escalus:init_per_testcase(not_allowed_registration_cancelation, Config);
 init_per_testcase(registration_failure_timeout, Config) ->
-    ok = deny_everyone_registration(),
-    escalus:init_per_testcase(registration_failure_timeout, Config);
+    Config1 = deny_everyone_registration(Config),
+    escalus:init_per_testcase(registration_failure_timeout, Config1);
 init_per_testcase(CaseName, Config) when CaseName =:= list_selected_users;
                                          CaseName =:= count_selected_users ->
     case mongoose_helper:auth_modules() of
@@ -175,7 +175,7 @@ end_per_testcase(registration_timeout, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_testcase(registration_timeout, Config);
 end_per_testcase(registration_failure_timeout, Config) ->
-    ok = allow_everyone_registration(),
+    mongoose_helper:restore_config_option(Config, {access, register, global}),
     escalus:end_per_testcase(registration_failure_timeout, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -405,28 +405,14 @@ strong_pwd() ->
     <<"Sup3r","c4li","fr4g1","l1571c","3xp1","4l1","d0c10u5">>.
 
 set_registration_timeout(Config) ->
-    Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
-    OldTimeout = rpc(mim(), ejabberd_config, get_local_option, [registration_timeout]),
-    true = rpc(mim(), ets, insert, [local_config, Record]),
-    [ {old_timeout, OldTimeout} | Config ].
+    mongoose_helper:backup_and_set_config_option(Config, registration_timeout,
+                                                 ?REGISTRATION_TIMEOUT).
 
 restore_registration_timeout(Config) ->
-    {old_timeout, OldTimeout} = proplists:lookup(old_timeout, Config),
-    Record = {local_config, registration_timeout, OldTimeout},
-    true = rpc(mim(), ets, insert, [local_config, Record]),
-    proplists:delete(old_timeout, Config).
+    mongoose_helper:restore_config_option(Config, registration_timeout).
 
-deny_everyone_registration() ->
-    ok = change_registration_settings_for_everyone(deny).
-
-allow_everyone_registration() ->
-    ok = change_registration_settings_for_everyone(allow).
-
-change_registration_settings_for_everyone(Rule)
-  when allow =:= Rule; deny =:= Rule ->
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option,
-                      [{access, register, global}, [{Rule, all}]]),
-    ok.
+deny_everyone_registration(Config) ->
+    mongoose_helper:backup_and_set_config_option(Config, {access, register, global}, [{deny, all}]).
 
 has_registered_element(Stanza) ->
         [#xmlel{name = <<"registered">>}] =:= exml_query:paths(Stanza,

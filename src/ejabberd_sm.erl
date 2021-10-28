@@ -491,10 +491,7 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 -spec init(_) -> {ok, state()}.
 init([]) ->
-    {Backend, Opts} = case ejabberd_config:get_global_option(sm_backend) of
-                          undefined -> {mnesia, []};
-                          Value -> Value
-                      end,
+    {Backend, Opts} = mongoose_config:get_opt(sm_backend, {mnesia, []}),
     {Mod, Code} = dynamic_compile:from_string(sm_backend(Backend)),
     code:load_binary(Mod, "ejabberd_sm_backend.erl", Code),
 

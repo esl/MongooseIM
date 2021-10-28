@@ -48,10 +48,7 @@ all() ->
 init_per_suite(Config) ->
     ok = meck:new(wpool, [no_link, passthrough]),
     ok = meck:new(mongoose_wpool, [no_link, passthrough]),
-    ok = meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [<<"a.com">>, <<"b.com">>, <<"c.eu">>];
-                   (host_types, _) -> [] end),
+    mongoose_config:set_opt(hosts, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
     Self = self(),
     spawn(fun() ->
                   register(test_helper, self()),
@@ -64,8 +61,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     meck:unload(wpool),
-    meck:unload(ejabberd_config),
     whereis(test_helper) ! stop,
+    mongoose_config:unset_opt(hosts),
     Config.
 
 init_per_testcase(_Case, Config) ->

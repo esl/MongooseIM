@@ -515,10 +515,7 @@ routing_modules_list() ->
     mod_routing_machine:get_routing_module_list().
 
 compile_routing_module() ->
-    Mods = case ejabberd_config:get_local_option(routing_modules) of
-               undefined -> default_routing_modules();
-               Defined -> Defined
-           end,
+    Mods = mongoose_config:get_opt(routing_modules, default_routing_modules()),
     CodeStr = make_routing_module_source(Mods),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
     code:load_binary(Mod, "mod_routing_machine.erl", Code).

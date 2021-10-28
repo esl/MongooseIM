@@ -36,7 +36,7 @@ start() ->
 
 compile_rdbms_type_helper() ->
     %% TODO This parameter should not be global, but pool-name parameterized
-    Type = ejabberd_config:get_local_option(rdbms_server_type),
+    Type = mongoose_config:get_opt(rdbms_server_type, generic),
     CodeStr = rdbms_type_helper(Type),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
     code:load_binary(Mod, "mongoose_rdbms_type.erl", Code).
