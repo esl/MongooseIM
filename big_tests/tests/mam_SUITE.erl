@@ -1,5 +1,4 @@
 %%==============================================================================
-
 %% Copyright 2012 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,6 +43,7 @@
          text_search_is_available/1,
          muc_message_with_stanzaid/1,
          retract_muc_message/1,
+         retract_muc_message_on_stanza_id/1,
          retract_wrong_muc_message/1,
          muc_text_search_request/1,
          muc_archive_request/1,
@@ -95,6 +95,7 @@
          archived/1,
          message_with_stanzaid/1,
          retract_message/1,
+         retract_message_on_stanza_id/1,
          retract_wrong_message/1,
          filter_forwarded/1,
          offline_message/1,
@@ -435,6 +436,7 @@ muc_stanzaid_cases() ->
 
 muc_retract_cases() ->
     [retract_muc_message,
+     retract_muc_message_on_stanza_id,
      retract_wrong_muc_message].
 
 disabled_muc_retract_cases() ->
@@ -449,7 +451,8 @@ muc_configurable_archiveid_cases() ->
 configurable_archiveid_cases() ->
     [no_elements,
      only_stanzaid,
-     same_stanza_id
+     same_stanza_id,
+     retract_message_on_stanza_id
     ].
 
 muc_light_cases() ->
@@ -938,6 +941,13 @@ init_per_testcase(C=archived, Config) ->
 init_per_testcase(C, Config) when C =:= retract_message;
                                   C =:= retract_wrong_message ->
     skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+init_per_testcase(C=retract_message_on_stanza_id, Config) ->
+    Init = fun() ->
+                   OrigVal = rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, false]),
+                   true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, true]),
+                   escalus:init_per_testcase(C, [{same_mam_id_for_peers, OrigVal} | Config])
+        end,
+    skip_if_retraction_not_supported(Config, Init);
 init_per_testcase(C=offline_message, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}, {carol, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -986,6 +996,7 @@ init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C, Config) when C =:= retract_muc_message;
+                                  C =:= retract_muc_message_on_stanza_id;
                                   C =:= retract_wrong_muc_message ->
     Init = fun() ->
                    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
@@ -1119,7 +1130,9 @@ end_per_testcase(C=muc_querying_for_all_messages_with_jid, Config) ->
 end_per_testcase(C=muc_message_with_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C=retract_muc_message, Config) ->
+end_per_testcase(C, Config) when C =:= retract_muc_message;
+                                 C =:= retract_muc_message_on_stanza_id;
+                                 C =:= retract_wrong_muc_message ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
@@ -1131,6 +1144,10 @@ end_per_testcase(C=muc_only_stanzaid, Config) ->
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
     true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, archive_groupchats, OrigVal]),
+    escalus:end_per_testcase(C, Config1);
+end_per_testcase(C = retract_message_on_stanza_id, Config0) ->
+    {value, {_, OrigVal}, Config1} = lists:keytake(same_mam_id_for_peers, 1, Config0),
+    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, OrigVal]),
     escalus:end_per_testcase(C, Config1);
 end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
     restore_module_opts(mod_mam_muc, Config),
@@ -1851,6 +1868,9 @@ message_with_stanzaid(Config) ->
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retract_message_on_stanza_id(Config) ->
+    retract_message([{retract_on, stanza_id} | Config]).
+
 retract_wrong_message(Config) ->
     retract_message([{origin_id, <<"wrong-id">>} | Config]).
 
@@ -1863,12 +1883,17 @@ retract_message(Config) ->
         Msg = #xmlel{children = Children} = escalus_stanza:chat_to(Bob, Body),
         escalus:send(Alice, Msg#xmlel{children = Children ++ [OriginIdElement]}),
 
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Result = wait_archive_respond(Alice),
+        [AliceCopyOfMessage] = respond_messages(Result),
+
         %% ... and Bob receives the message
         RecvMsg = escalus:wait_for_stanza(Bob),
         ?assert_equal(OriginIdElement, exml_query:subelement(RecvMsg, <<"origin-id">>)),
 
         %% WHEN Alice retracts the message
-        ApplyToElement = apply_to_element(origin_id_to_retract(Config)),
+        ApplyToElement = apply_to_element(Config, AliceCopyOfMessage),
         RetractMsg = retraction_message(<<"chat">>, escalus_utils:get_jid(Bob), ApplyToElement),
         escalus:send(Alice, RetractMsg),
 
@@ -1990,6 +2015,9 @@ muc_message_with_stanzaid(Config) ->
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retract_muc_message_on_stanza_id(Config) ->
+    retract_muc_message([{retract_on, stanza_id} | Config]).
+
 retract_wrong_muc_message(Config) ->
     retract_muc_message([{origin_id, <<"wrong-id">>} | Config]).
 
@@ -2000,12 +2028,12 @@ retract_muc_message(Config) ->
         RoomAddr = room_address(Room),
         escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
         escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-
         %% Bob received presences.
         escalus:wait_for_stanzas(Bob, 2),
-
         %% Bob received the room's subject.
         escalus:wait_for_stanzas(Bob, 1),
+        %% Alice receives all the messages Bob did as well
+        escalus:wait_for_stanzas(Alice, 3),
 
         %% GIVEN Alice sends a message with 'origin-id' to the chat room ...
         Body = <<"Hi, Bob!">>,
@@ -2013,12 +2041,14 @@ retract_muc_message(Config) ->
         Msg = #xmlel{children = Children} = escalus_stanza:groupchat_to(RoomAddr, Body),
         escalus:send(Alice, Msg#xmlel{children = Children ++ [OriginIdElement]}),
 
+        AliceCopyOfMessage = escalus:wait_for_stanza(Alice),
+
         %% ... and Bob receives the message
         RecvMsg = escalus:wait_for_stanza(Bob),
         ?assert_equal(OriginIdElement, exml_query:subelement(RecvMsg, <<"origin-id">>)),
 
         %% WHEN Alice retracts the message
-        ApplyToElement = apply_to_element(origin_id_to_retract(Config)),
+        ApplyToElement = apply_to_element(Config, AliceCopyOfMessage),
         RetractMsg = retraction_message(<<"groupchat">>, RoomAddr, ApplyToElement),
         escalus:send(Alice, RetractMsg),
 
@@ -3158,7 +3188,11 @@ check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
     end.
 
 message_should_be_retracted(Config) ->
-    message_retraction_is_enabled(Config) andalso origin_id_to_retract(Config) =:= origin_id().
+    message_retraction_is_enabled(Config) andalso
+    (retract_on_stanza_id(Config) orelse origin_id_to_retract(Config) =:= origin_id()).
+
+retract_on_stanza_id(Config) ->
+    stanza_id =:= ?config(retract_on, Config).
 
 message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
@@ -3188,16 +3222,29 @@ origin_id_element(OriginId) ->
            attrs = [{<<"xmlns">>, <<"urn:xmpp:sid:0">>},
                     {<<"id">>, OriginId}]}.
 
-apply_to_element(OriginId) ->
+apply_to_element(Config, Copy) ->
+    {RetractOn, Id} = case ?config(retract_on, Config) of
+                    stanza_id -> {stanza_id, stanza_id_from_msg(Copy)};
+                    _ -> {origin_id, origin_id_to_retract(Config)}
+                end,
     #xmlel{name = <<"apply-to">>,
-           attrs = [{<<"id">>, OriginId},
+           attrs = [{<<"id">>, Id},
                     {<<"xmlns">>, <<"urn:xmpp:fasten:0">>}],
-           children = [retract_element()]
+           children = [retract_element(RetractOn)]
           }.
 
-retract_element() ->
+stanza_id_from_msg(Msg) ->
+    case exml_query:path(Msg, [{element, <<"stanza-id">>}, {attr, <<"id">>}]) of
+        undefined -> exml_query:path(Msg, [{element, <<"result">>}, {attr, <<"id">>}]);
+        Id -> Id
+    end.
+
+retract_element(origin_id) ->
     #xmlel{name = <<"retract">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:message-retract:0">>}]}.
+           attrs = [{<<"xmlns">>, <<"urn:xmpp:message-retract:0">>}]};
+retract_element(stanza_id) ->
+    #xmlel{name = <<"retract">>,
+           attrs = [{<<"xmlns">>, <<"urn:esl:message-retract:0">>}]}.
 
 origin_id_to_retract(Config) ->
     proplists:get_value(origin_id, Config, origin_id()).
