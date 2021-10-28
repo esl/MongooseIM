@@ -9,7 +9,8 @@
 -export([maybe_microseconds/1]).
 
 %% UID
--export([generate_message_id/1,
+-export([get_or_generate_mam_id/1,
+         generate_message_id/1,
          encode_compact_uuid/2,
          decode_compact_uuid/1,
          mess_id_to_external_binary/1,
@@ -164,6 +165,16 @@ maybe_microseconds(ISODateTime) ->
 
 %% -----------------------------------------------------------------------
 %% UID
+
+-spec get_or_generate_mam_id(mongoose_acc:t()) -> integer().
+get_or_generate_mam_id(Acc) ->
+    case mongoose_acc:get(mam, mam_id, undefined, Acc) of
+        undefined ->
+            CandidateStamp = mongoose_acc:timestamp(Acc),
+            generate_message_id(CandidateStamp);
+        ExtMessId ->
+            mod_mam_utils:external_binary_to_mess_id(ExtMessId)
+    end.
 
 -spec generate_message_id(integer()) -> integer().
 generate_message_id(CandidateStamp) ->

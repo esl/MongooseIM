@@ -75,7 +75,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [generate_message_id/1,
+        [get_or_generate_mam_id/1,
          decode_compact_uuid/1]).
 
 %% XML
@@ -515,8 +515,7 @@ handle_package(Dir, ReturnMessID,
             OriginID = mod_mam_utils:get_origin_id(Packet),
             case is_interesting(HostType, LocJID, RemJID, ArcID) of
                 true ->
-                    TS = mongoose_acc:timestamp(Acc),
-                    MessID = generate_message_id(TS),
+                    MessID = get_or_generate_mam_id(Acc),
                     Params = #{message_id => MessID,
                                archive_id => ArcID,
                                local_jid => LocJID,
@@ -527,7 +526,7 @@ handle_package(Dir, ReturnMessID,
                                packet => Packet},
                     Result = archive_message(HostType, Params),
                     ExtMessId = return_external_message_id_if_ok(ReturnMessID, Result, MessID),
-                    {ExtMessId, mongoose_acc:set(mam, mam_id, ExtMessId, Acc)};
+                    {ExtMessId, return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc)};
                 false ->
                     {undefined, Acc}
             end;
@@ -545,6 +544,14 @@ should_archive_if_groupchat(_, _) ->
                                        MessID :: integer()) -> binary() | undefined.
 return_external_message_id_if_ok(true, ok, MessID) -> mess_id_to_external_binary(MessID);
 return_external_message_id_if_ok(_, _, _MessID) -> undefined.
+
+return_acc_with_mam_id_if_configured(undefined, _, Acc) ->
+    Acc;
+return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, same_mam_id_for_peers, false) of
+        false -> mongoose_acc:set(mam, mam_id, ExtMessId, Acc);
+        true -> mongoose_acc:set_permanent(mam, mam_id, ExtMessId, Acc)
+    end.
 
 is_interesting(LocJID, RemJID) ->
     HostType = jid_to_host_type(LocJID),

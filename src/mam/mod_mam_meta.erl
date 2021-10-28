@@ -101,7 +101,8 @@ config_items() ->
      }.
 
 pm_config_items() ->
-    #{<<"archive_groupchats">> => #option{type = boolean}}.
+    #{<<"archive_groupchats">> => #option{type = boolean},
+      <<"same_mam_id_for_peers">> => #option{type = boolean}}.
 
 muc_config_items() ->
     #{<<"host">> => #option{type = string,
@@ -207,7 +208,7 @@ filter_opts(Opts, ValidOpts) ->
 %% the root section is enough.
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
-    [no_stanzaid_element, archive_groupchats] ++ common_opts();
+    [no_stanzaid_element, archive_groupchats, same_mam_id_for_peers] ++ common_opts();
 valid_core_mod_opts(mod_mam_muc) ->
     [host] ++ common_opts().
 
