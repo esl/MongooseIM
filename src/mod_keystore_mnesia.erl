@@ -1,4 +1,5 @@
 -module(mod_keystore_mnesia).
+-behaviour(mod_keystore_backend).
 
 -export([init/2,
          init_ram_key/1,
