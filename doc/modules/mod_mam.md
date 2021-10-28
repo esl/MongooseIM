@@ -127,6 +127,13 @@ To disable archive for one-to-one messages please remove PM section or any PM re
 
 When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 
+#### `modules.mod_mam_meta.pm.same_mam_id_for_peers`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.pm.same_mam_id_for_peers = true`
+
+When enabled, MAM will set the same MAM ID for both sender and recipient. Note that this might not work with clients across federation, as the recipient might not implement the same retraction, nor the same IDs.
+
 ### Enable MUC message archive
 
 Archive for MUC messages can be enabled in one of two ways:
