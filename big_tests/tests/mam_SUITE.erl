@@ -30,6 +30,7 @@
 %% Tests
 -export([no_elements/1,
          only_stanzaid/1,
+         same_stanza_id/1,
          muc_no_elements/1,
          muc_only_stanzaid/1,
          mam_service_discovery/1,
@@ -447,7 +448,8 @@ muc_configurable_archiveid_cases() ->
 
 configurable_archiveid_cases() ->
     [no_elements,
-     only_stanzaid
+     only_stanzaid,
+     same_stanza_id
     ].
 
 muc_light_cases() ->
@@ -976,6 +978,10 @@ init_per_testcase(C=only_stanzaid, Config) ->
     rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, []]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
+init_per_testcase(C=same_stanza_id, Config) ->
+    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, [same_mam_id_for_peers]]),
+    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
+    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -1294,6 +1300,24 @@ no_elements(Config) ->
 
 only_stanzaid(Config) ->
     send_and_check_archive_elements(Config, false, true).
+
+same_stanza_id(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Body = <<"OH, HAI!">>,
+        Msg = escalus_stanza:chat_to(Bob, Body),
+        escalus:send(Alice, Msg),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Result = wait_archive_respond(Alice),
+        [AliceCopyOfMessage] = respond_messages(Result),
+        AliceId = exml_query:path(AliceCopyOfMessage, [{element, <<"result">>}, {attr, <<"id">>}]),
+        %% ... and Bob receives the message
+        RecvMsg = escalus:wait_for_stanza(Bob),
+        BobId = exml_query:path(RecvMsg, [{element, <<"stanza-id">>}, {attr, <<"id">>}]),
+        ?assert_equal(AliceId, BobId)
+    end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 %% Querying the archive for messages
 simple_archive_request(Config) ->
