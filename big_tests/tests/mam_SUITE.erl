@@ -642,7 +642,7 @@ init_per_group(Group, ConfigIn) ->
    end.
 
 backup_module_opts(Module) ->
-    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host_type(), mod_mam_muc])}.
+    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host_type(), Module])}.
 
 restore_module_opts(Module, Config) ->
     ParamsB = proplists:get_value({params_backup, Module}, Config),
@@ -690,14 +690,14 @@ init_modules(rdbms, muc_light, Config) ->
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     dynamic_modules:start(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
     init_modules(BT, generic, [{muc_domain, muc_light_helper:muc_host_pattern()} | Config]);
-init_modules(BT = cassandra, muc_light, config) ->
-    init_modules_for_muc_light(BT, config);
+init_modules(BT = cassandra, muc_light, Config) ->
+    init_modules_for_muc_light(BT, Config);
 init_modules(cassandra, muc_all, Config) ->
     init_module(host_type(), mod_mam_muc_cassandra_arch, []),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
     Config;
-init_modules(BT = elasticsearch, muc_light, config) ->
-    init_modules_for_muc_light(BT, config);
+init_modules(BT = elasticsearch, muc_light, Config) ->
+    init_modules_for_muc_light(BT, Config);
 init_modules(elasticsearch, muc_all, Config) ->
     init_module(host_type(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
