@@ -1,11 +1,34 @@
 type Query {
+  "Contains all admin available queries"
+  admin: AdminQuery
+  "Contains all user available queries"
+  user: UserQuery
+}
+
+type Mutation {
+  "Contains all user available mutations"
+  admin: AdminMutation
+  "Contains all user available mutations"
+  user: UserMutation
+}
+
+
+"""
+Contains all admin available queries.
+Only authenticated admin can execute this queries.
+"""
+type AdminQuery{
   "Get all enabled domains by hostType"
   domainsByHostType(hostType: String!): [String!]
   "Get information about the domain"
   domainDetails(domain: String!): Domain
 }
 
-type Mutation {
+"""
+Contains all admin available mutations
+Only authenticated admin can execute this mutations.
+"""
+type AdminMutation{
   "Add new domain"
   addDomain(domain: String!, hostType: String!): Domain
   "Remove domain"
@@ -14,6 +37,21 @@ type Mutation {
   enableDomain(domain: String!): Domain
   "Disable domain"
   disableDomain(domain: String!): Domain
+}
+
+
+"""
+Contains all user available queries.
+Only authenticated user can execute this queries.
+"""
+type UserQuery{
+}
+
+"""
+Contains all user available mutations.
+Only authenticated user can execute this mutations.
+"""
+type UserMutation{
 }
 
 """

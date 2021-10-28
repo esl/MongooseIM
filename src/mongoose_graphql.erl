@@ -45,6 +45,10 @@ mapping_rules() ->
     #{objects => #{
         'Query' => mongoose_graphql_query,
         'Mutation' => mongoose_graphql_mutation,
+        'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminMutation' => mongoose_graphql_admin_mutation,
+        'UserQuery' => mongoose_graphql_user_query,
+        'UserMutation' => mongoose_graphql_user_mutation,
         'Domain' => mongoose_graphql_domain,
         'default' => mongoose_graphql_default
         }

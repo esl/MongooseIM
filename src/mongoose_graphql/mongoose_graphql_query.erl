@@ -6,23 +6,13 @@
 
 -import(mongoose_graphql_permission, [if_permitted/3]).
 
--include("mongoose_graphql_types.hrl").
-
-execute(Ctx, _Obj, <<"domainsByHostType">>, #{<<"hostType">> := HostType}) ->
+execute(Ctx, _Obj, <<"admin">>, #{}) ->
     if_permitted(Ctx, admin,
         fun() ->
-            Domains = mongoose_domain_api:get_domains_by_host_type(HostType),
-            Domains2 = lists:map(fun(D) -> {ok, D} end, Domains),
-            {ok, Domains2}
+            {ok, admin}
         end);
-execute(Ctx, _Obj, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
-    if_permitted(Ctx, admin,
+execute(Ctx, _Obj, <<"user">>, #{}) ->
+    if_permitted(Ctx, user,
         fun() ->
-            case mongoose_domain_sql:select_domain(Domain) of
-                {ok, #{host_type := HostType, enabled := Enabled}} ->
-                    {ok, #domain{host_type = HostType, domain = Domain,
-                                 enabled = Enabled}};
-                {error, not_found} = Err ->
-                    Err
-            end
+            {ok, user}
         end).
