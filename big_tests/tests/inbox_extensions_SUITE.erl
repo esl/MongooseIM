@@ -83,18 +83,21 @@
 
 
 all() ->
-    inbox_helper:skip_or_run_inbox_tests([{group, inbox_extensions}]).
+    inbox_helper:skip_or_run_inbox_tests(tests()).
+
+tests() ->
+    [
+     {group, generic},
+     {group, one_to_one},
+     {group, muclight}
+    ].
 
 suite() ->
     escalus:suite().
 
 groups() ->
-    G = [{inbox_extensions, [], inbox_extensions_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
-
-inbox_extensions_tests() ->
-    [
-     {generic, [parallel], [
+    Gs = [
+     {generic, [], [
         % General errors
         returns_error_when_no_jid_provided,
         returns_error_when_invalid_jid_provided,
@@ -113,7 +116,7 @@ inbox_extensions_tests() ->
         returns_error_when_archive_field_is_invalid,
         returns_error_when_max_is_not_a_number
       ]},
-     {one_to_one, [parallel], [
+     {one_to_one, [], [
         % read
         read_unread_entry_set_to_read,
         read_read_entry_set_to_unread,
@@ -138,10 +141,11 @@ inbox_extensions_tests() ->
         max_queries_can_fetch_ahead,
         timestamp_is_not_reset_with_setting_properties
       ]},
-     {muclight, [sequence], [
+     {muclight, [], [
         groupchat_setunread_stanza_sets_inbox
       ]}
-    ].
+    ],
+    inbox_helper:maybe_run_in_parallel(Gs).
 
 init_per_suite(Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
