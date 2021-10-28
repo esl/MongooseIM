@@ -148,7 +148,7 @@ groups() ->
        check_total_unread_count_when_there_are_no_active_conversations,
        total_unread_count_and_active_convs_are_zero_at_no_activity
       ]},
-     {muclight, [parallel],
+     {muclight, [], %% These could be parallel but it seems like mssql CI can't handle the load
       [
        simple_groupchat_stored_in_all_inbox,
        advanced_groupchat_stored_in_all_inbox,
