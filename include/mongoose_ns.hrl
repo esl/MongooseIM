@@ -106,7 +106,7 @@
 -define(JINGLE_NS, <<"urn:xmpp:jingle:1">>).
 
 %% Custom extension to accept stanza-ids as retraction IDs
--define(NS_ESL_RETRACT,         <<"urn:esl:message-retract:0">>).
+-define(NS_ESL_RETRACT,         <<"urn:esl:message-retract-by-stanza-id:0">>).
 
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH,      <<"erlang-solutions.com:xmpp:token-auth:0">>).

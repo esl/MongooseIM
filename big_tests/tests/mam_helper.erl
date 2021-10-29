@@ -239,7 +239,7 @@ mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
-retract_esl_ns() -> <<"urn:esl:message-retract:0">>.
+retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 
 skip_undefined(Xs) ->

@@ -3244,7 +3244,7 @@ retract_element(origin_id) ->
            attrs = [{<<"xmlns">>, <<"urn:xmpp:message-retract:0">>}]};
 retract_element(stanza_id) ->
     #xmlel{name = <<"retract">>,
-           attrs = [{<<"xmlns">>, <<"urn:esl:message-retract:0">>}]}.
+           attrs = [{<<"xmlns">>, <<"urn:esl:message-retract-by-stanza-id:0">>}]}.
 
 origin_id_to_retract(Config) ->
     proplists:get_value(origin_id, Config, origin_id()).

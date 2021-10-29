@@ -2,7 +2,7 @@
 -export([decode_row/2]).
 -export([decode_muc_row/2]).
 -export([decode_muc_gdpr_row/2]).
--export([decode_retraction_info/2]).
+-export([decode_retraction_info/3]).
 
 -type ext_mess_id() :: non_neg_integer() | binary().
 -type env_vars() :: mod_mam_rdbms_arch:env_vars().
@@ -10,7 +10,10 @@
 -type db_muc_row() :: {ext_mess_id(), Nick :: binary(), ExtData :: binary()}.
 -type db_muc_gdpr_row() :: {ext_mess_id(), ExtData :: binary()}.
 -type decoded_muc_gdpr_row() :: {ext_mess_id(), exml:element()}.
--type retraction_info() :: #{packet := exml:element(), message_id := mod_mam:message_id()}.
+-type retraction_info() :: #{retract_on := origin_id | stanza_id,
+                             packet := exml:element(),
+                             message_id := mod_mam:message_id(),
+                             origin_id := binary()}.
 
 -spec decode_row(db_row(), env_vars()) -> mod_mam:message_row().
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
@@ -31,13 +34,20 @@ decode_muc_gdpr_row({ExtMessID, ExtData}, Env) ->
     Packet = decode_packet(ExtData, Env),
     {ExtMessID, Packet}.
 
--spec decode_retraction_info(env_vars(), [] | [{mod_mam:message_id(), binary()}]) ->
+-spec decode_retraction_info(env_vars(),
+                             [{binary(), mod_mam:message_id(), binary()}],
+                             mod_mam_utils:retraction_id()) ->
     skip | retraction_info().
-decode_retraction_info(_Env, []) -> skip;
-decode_retraction_info(Env, [{ResMessID, Data}]) ->
+decode_retraction_info(_Env, [], _) -> skip;
+decode_retraction_info(Env, [{ResMessID, Data}], {origin_id, OriginID}) ->
     Packet = decode_packet(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
-    #{packet => Packet, message_id => MessID}.
+    #{retract_on => origin_id, packet => Packet, message_id => MessID, origin_id => OriginID};
+decode_retraction_info(Env, [{ResOriginID, Data}], {stanza_id, StanzaID}) ->
+    Packet = decode_packet(Data, Env),
+    OriginID = unescape_binary(ResOriginID, Env),
+    MessID = mod_mam_utils:external_binary_to_mess_id(StanzaID),
+    #{retract_on => stanza_id, packet => Packet, message_id => MessID, origin_id => OriginID}.
 
 -spec decode_jid(binary(), env_vars()) -> jid:jid().
 decode_jid(ExtJID, #{db_jid_codec := Codec, archive_jid := ArcJID}) ->
