@@ -12,7 +12,7 @@ fi
 
 function make_body
 {
-    echo "[Build]($CIRCLE_BUILD_URL) on $CIRCLE_BRANCH"
+    echo "[Build]($CIRCLE_BUILD_URL) on $CIRCLE_BRANCH / $PRESET"
     if [ ! -z "$CIRCLE_PULL_REQUEST" ]; then
         echo "PR $CIRCLE_PULL_REQUEST"
     fi
