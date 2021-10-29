@@ -43,9 +43,8 @@ decode_retraction_info(Env, [{ResMessID, Data}], {origin_id, OriginID}) ->
     Packet = decode_packet(Data, Env),
     MessID = mongoose_rdbms:result_to_integer(ResMessID),
     #{retract_on => origin_id, packet => Packet, message_id => MessID, origin_id => OriginID};
-decode_retraction_info(Env, [{ResOriginID, Data}], {stanza_id, StanzaID}) ->
+decode_retraction_info(Env, [{OriginID, Data}], {stanza_id, StanzaID}) ->
     Packet = decode_packet(Data, Env),
-    OriginID = unescape_binary(ResOriginID, Env),
     MessID = mod_mam_utils:external_binary_to_mess_id(StanzaID),
     #{retract_on => stanza_id, packet => Packet, message_id => MessID, origin_id => OriginID}.
 
