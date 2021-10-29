@@ -2902,11 +2902,8 @@ disco_features_with_mam(Config) ->
                                   ?NS_MUC_UNIQUE,
                                   <<"jabber:iq:register">>,
                                   ?NS_RSM,
-                                  <<"vcard-temp">>,
-                                  mam_helper:mam_ns_binary_v04(),
-                                  mam_helper:mam_ns_binary_v06(),
-                                  mam_helper:retract_ns(),
-                                  mam_helper:retract_tombstone_ns()]).
+                                  <<"vcard-temp">> |
+                                  mam_helper:namespaces()]).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
