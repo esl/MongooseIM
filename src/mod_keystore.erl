@@ -44,7 +44,7 @@
 %% A key ID is used to uniquely identify a key for storage backends.
 %% It's used to maintain separate instances of a key with the same name
 %% for different virtual hosts.
--type key_id() :: {key_name(), jid:server()}.
+-type key_id() :: {key_name(), mongooseim:host_type()}.
 -type raw_key() :: binary().
 -type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.

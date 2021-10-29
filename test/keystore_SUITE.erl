@@ -177,12 +177,12 @@ mock_mongoose_metrics() ->
     ok.
 
 %% Use a function like this in your module which is a client of mod_keystore.
--spec get_key(Domain, KeyName) -> Result when
-      Domain :: jid:server(),
+-spec get_key(HostType, KeyName) -> Result when
+      HostType :: mongooseim:host_type(),
       KeyName :: mod_keystore:key_name(),
       Result :: mod_keystore:key_list().
-get_key(Domain, KeyName) ->
-    mongoose_hooks:get_key(Domain, KeyName).
+get_key(HostType, KeyName) ->
+    mongoose_hooks:get_key(HostType, KeyName).
 
 %%{mod_keystore, [{keys, [{asdqwe_access_secret, ram},
 %%                        {asdqwe_access_psk,    {file, "priv/asdqwe_access_psk"}},
