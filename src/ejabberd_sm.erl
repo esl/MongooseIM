@@ -65,7 +65,8 @@
          is_offline/1,
          get_user_present_pids/2,
          sync/0,
-         run_session_cleanup_hook/1
+         run_session_cleanup_hook/1,
+         sm_backend/0
         ]).
 
 %% Hook handlers
@@ -79,10 +80,10 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([{ejabberd_sm_backend, backend, 0},
-              bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
+-ignore_xref([bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
               do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
-              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2]).
+              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2,
+              sm_backend/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -1075,7 +1076,7 @@ get_cached_unique_count() ->
 sm_backend() ->
     persistent_term:get(sm_backend_module, ejabberd_sm_mnesia).
 
--spec store_backend(backend_type()) -> backend().
+-spec store_backend(backend_type()) -> ok.
 store_backend(Backend) ->
     BackendModule = list_to_atom("ejabberd_sm_" ++ atom_to_list(Backend)),
     persistent_term:put(sm_backend_module, BackendModule).
