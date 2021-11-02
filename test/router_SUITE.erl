@@ -42,11 +42,11 @@ end_per_suite(_C) ->
 
 init_per_group(routing, Config) ->
     meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-        fun(routing_modules) ->
+    meck:expect(ejabberd_config, get_local_option_or_default,
+        fun(routing_modules, _Def) ->
             [xmpp_router_a, xmpp_router_b, xmpp_router_c];
-           (_) ->
-            undefined
+           (_OptName, Default) ->
+            Default
         end),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
