@@ -304,4 +304,4 @@ mongoose_metrics(ConfigIn, Metrics) ->
     [{mongoose_metrics, MongooseMetrics} | ConfigIn].
 
 roster_rdbms_precondition() ->
-    mod_roster_rdbms == rpc(mim(), mod_roster_backend, backend, []).
+    mod_roster_rdbms == rpc(mim(), mongoose_backend, get_backend_name, [domain_helper:host_type(), mod_roster]).
