@@ -78,27 +78,14 @@
 -export([get_default_reported_fields/1]).
 -export([default_host/0]).
 
--export([config_change/4]).
-
 %% GDPR related
 -export([get_personal_data/3]).
 
 -export([config_metrics/1]).
 
--define(MOD_VCARD_BACKEND, mod_vcard_backend).
 -ignore_xref([
-    {?MOD_VCARD_BACKEND, backend, 0},
-    {?MOD_VCARD_BACKEND, search_fields, 2},
-    {?MOD_VCARD_BACKEND, get_vcard, 3},
-    {?MOD_VCARD_BACKEND, init, 2},
-    {?MOD_VCARD_BACKEND, remove_user, 3},
-    {?MOD_VCARD_BACKEND, remove_domain, 2},
-    {?MOD_VCARD_BACKEND, search, 3},
-    {?MOD_VCARD_BACKEND, search_reported_fields, 3},
-    {?MOD_VCARD_BACKEND, tear_down, 1},
-    {?MOD_VCARD_BACKEND, set_vcard, 5},
-    behaviour_info/1, config_change/4, get_personal_data/3, process_local_iq/4,
-    process_packet/5, remove_user/3, remove_domain/3, set_vcard/4, start_link/2
+    behaviour_info/1, process_packet/5,
+    get_personal_data/3, remove_user/3, remove_domain/3, set_vcard/4, start_link/2
 ]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
@@ -107,55 +94,6 @@
                 host_type :: mongooseim:host_type()}).
 
 -type error() :: error | {error, any()}.
-
--callback init(HostType, Opts) -> ok when
-    HostType :: mongooseim:host_type(),
-    Opts :: gen_mod:module_opts().
-
--callback remove_user(HostType, LUser, LServer) -> any() when
-    HostType :: mongooseim:host_type(),
-    LUser :: jid:luser(),
-    LServer :: jid:lserver().
-
--callback remove_domain(HostType, Domain) -> ok when
-    HostType :: mongooseim:host_type(),
-    Domain :: jid:lserver().
-
--callback set_vcard(HostType, LUser, LServer, VCard, VCardSearch) ->
-    ok | {error, Reason :: term()} when
-    HostType :: mongooseim:host_type(),
-    LUser :: jid:luser(),
-    LServer :: jid:lserver(),
-    VCard :: term(),
-    VCardSearch :: term().
-
--callback get_vcard(HostType, LUser, LServer) ->
-    {ok, Vcard :: term()} | {error, Reason :: term()} when
-    HostType :: mongooseim:host_type(),
-    LUser :: jid:luser(),
-    LServer :: jid:lserver().
-
--callback search(HostType, LServer, Data) ->
-    Res :: term() when
-    HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver(),
-    Data :: term().
-
--callback search_fields(HostType, LServer) ->
-    Res :: list() when
-    HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver().
-
--callback search_reported_fields(HostType, LServer, Lang) ->
-    Res :: term() when
-    HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver(),
-    Lang :: binary().
-
--callback tear_down(HostType) -> ok when
-    HostType :: mongooseim:host_type().
-
--optional_callbacks([tear_down/1, remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -210,7 +148,6 @@ default_host() ->
 %%--------------------------------------------------------------------
 
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     mod_vcard_backend:init(HostType, Opts),
     start_hooks(HostType),
     start_iq_handlers(HostType, Opts),
@@ -245,7 +182,6 @@ hooks2() ->
     [{remove_user, remove_user, 50},
      {anonymous_purge_hook, remove_user, 50},
      {remove_domain, remove_domain, 50},
-     {host_config_update, config_change, 50},
      {set_vcard, set_vcard, 50},
      {get_personal_data, get_personal_data, 50}].
 
@@ -261,13 +197,7 @@ stop_iq_handlers(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm).
 
 stop_backend(HostType) ->
-    try
-      mod_vcard_backend:tear_down(HostType)
-    catch
-      error:undef ->
-        %% This is expected for other backends than ldap
-        ok
-    end.
+    mod_vcard_backend:tear_down(HostType).
 
 %% Domain registration
 maybe_register_search(false, _HostType, _Opts) ->
@@ -546,12 +476,7 @@ set_vcard({error, _} = E, _HostType, _From, _VCARD) -> E.
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    case backend_module:is_exported(mod_vcard_backend, remove_domain, 2) of
-        true ->
-            mod_vcard_backend:remove_domain(HostType, Domain);
-        false ->
-            ok
-    end,
+    mod_vcard_backend:remove_domain(HostType, Domain),
     Acc.
 
 %% #rh
@@ -560,22 +485,6 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
     mod_vcard_backend:remove_user(HostType, LUser, LServer),
-    Acc.
-
-%% react to "global" config change
-config_change(Acc, Host, ldap, _NewConfig) ->
-    case mod_vcard_backend:backend() of
-        mod_vcard_ldap ->
-            Mods = ejabberd_config:get_local_option({modules, Host}),
-            Opts = proplists:get_value(?MODULE, Mods, []),
-            gen_mod:stop_module(Host, ?MODULE),
-            gen_mod:start_module(Host, ?MODULE, Opts);
-        _ ->
-            ok
-    end,
-    %ok = gen_server:call(Proc, {new_config, Host, Opts}),
-    Acc;
-config_change(Acc, _, _, _) ->
     Acc.
 
 %% ------------------------------------------------------------------

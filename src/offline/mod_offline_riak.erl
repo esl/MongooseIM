@@ -25,7 +25,7 @@
 %%% @end
 -module(mod_offline_riak).
 
--behaviour(mod_offline).
+-behaviour(mod_offline_backend).
 
 -export([init/2]).
 -export([pop_messages/2]).

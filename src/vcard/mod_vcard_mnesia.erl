@@ -1,6 +1,6 @@
 -module(mod_vcard_mnesia).
 
--behaviour(mod_vcard).
+-behaviour(mod_vcard_backend).
 
 %% mod_vcards callbacks
 -export([init/2,

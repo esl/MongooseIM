@@ -375,7 +375,7 @@ set_test_case_meck(MaxUserSessions) ->
     meck:new(ejabberd_config, []),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:new(acl, []),
-    meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
+    meck:expect(acl, match_rule_for_host_type, fun(_, _, _, _) -> MaxUserSessions end),
     meck:new(gen_hook, []),
     meck:expect(gen_hook, run_fold, fun(_, _, Acc, _) -> {ok, Acc} end),
     meck:new(mongoose_domain_api, []),
