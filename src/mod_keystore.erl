@@ -25,11 +25,7 @@
               key_name/0,
               raw_key/0]).
 
--define(MOD_KEYSTORE_BACKEND, mod_keystore_backend).
 -ignore_xref([
-    {?MOD_KEYSTORE_BACKEND, get_key, 1},
-    {?MOD_KEYSTORE_BACKEND, init_ram_key, 1},
-    {?MOD_KEYSTORE_BACKEND, init, 2},
     behaviour_info/1, get_key/2, validate_opts/1
 ]).
 
@@ -48,24 +44,12 @@
 %% A key ID is used to uniquely identify a key for storage backends.
 %% It's used to maintain separate instances of a key with the same name
 %% for different virtual hosts.
--type key_id() :: {key_name(), jid:server()}.
+-type key_id() :: {key_name(), mongooseim:host_type()}.
 -type raw_key() :: binary().
 -type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.
 
 -type key() :: #key{id :: key_id(), key :: raw_key()}.
-
--callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-
-%% Cluster members race to decide whose key gets stored in the distributed database.
-%% That's why ProposedKey (the key this cluster member tries to propagate to other nodes)
-%% might not be the same as ActualKey (key of the member who will have won the race).
--callback init_ram_key(ProposedKey) -> Result when
-      ProposedKey :: key(),
-      Result :: {ok, ActualKey} | {error, any()},
-      ActualKey :: key().
-
--callback get_key(ID :: key_id()) -> key_list().
 
 %%
 %% gen_mod callbacks
@@ -75,7 +59,6 @@
 start(HostType, Opts) ->
     validate_opts(Opts),
     create_keystore_ets(),
-    gen_mod:start_backend_module(?MODULE, Opts),
     mod_keystore_backend:init(HostType, Opts),
     init_keys(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
@@ -195,7 +178,7 @@ init_key({KeyName, ram}, HostType, Opts) ->
     ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
     KeyRecord = #key{id = {KeyName, HostType},
                      key = ProposedKey},
-    {ok, _ActualKey} = mod_keystore_backend:init_ram_key(KeyRecord),
+    {ok, _ActualKey} = mod_keystore_backend:init_ram_key(HostType, KeyRecord),
     ok.
 
 %% It's easier to trace these than ets:{insert, lookup} - much less noise.
