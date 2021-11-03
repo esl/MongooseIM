@@ -15,7 +15,7 @@
 -include("mongoose.hrl").
 -include("mongoose_logger.hrl").
 
--behaviour(mod_roster).
+-behaviour(mod_roster_backend).
 
 %% API
 -export([init/2,
