@@ -277,7 +277,7 @@ jobs:
       - run:
           name: Run Small Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 REBAR_CT_EXTRA_ARGS=" -c " ./tools/test.sh -p small_tests -s true -e true
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
@@ -462,7 +462,7 @@ jobs:
       - run:
           name: Run Small Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
+            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 REBAR_CT_EXTRA_ARGS=" -c " ./tools/test.sh -p small_tests -s true -e true
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
