@@ -38,7 +38,7 @@ In this case, to use such functionality,
 turns into
 ```xml
 <apply-to id="stanza-id-1" xmlns="urn:xmpp:fasten:0">
-  <retract xmlns='urn:esl:message-retract:0'/>
+  <retract xmlns='urn:esl:message-retract-by-stanza-id:0'/>
 </apply-to>
 ```
 and likewise, the answer would be tagged by the mentioned `esl` namespace.
