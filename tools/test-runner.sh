@@ -602,10 +602,6 @@ if [[ -f "auto_small_tests.spec" ]]; then
     REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" $REBAR_CT_EXTRA_ARGS"
 fi
 
-if [ "$COVER_ENABLED" = true ]; then
-    REBAR_CT_EXTRA_ARGS=" -c "
-fi
-
 # Allow user to pass PRESET and DB as an env variable
 # (or use default value)
 # "${parameter-word}" means:
