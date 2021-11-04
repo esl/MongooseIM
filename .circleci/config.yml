@@ -265,7 +265,6 @@ jobs:
     environment:
       PRESET: small_tests
       SKIP_AUTO_COMPILE: true
-      KEEP_COVER_RUNNING: 1
     steps:
       - checkout
       - fetch_packages
@@ -460,7 +459,6 @@ jobs:
     environment:
       PRESET: small_tests
       SKIP_AUTO_COMPILE: true
-      KEEP_COVER_RUNNING: 1
     steps:
       - restore_workspace
       - install_dockerize
