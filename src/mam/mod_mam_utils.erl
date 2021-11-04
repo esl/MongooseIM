@@ -133,7 +133,7 @@
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
--export_type([retraction_id/0]).
+-export_type([retraction_id/0, retraction_info/0]).
 
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
@@ -150,6 +150,10 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
 -type retraction_id() :: {origin_id | stanza_id, binary()}.
+-type retraction_info() :: #{retract_on := origin_id | stanza_id,
+                             packet := exml:element(),
+                             message_id := mod_mam:message_id(),
+                             origin_id := null | binary()}.
 
 %% -----------------------------------------------------------------------
 %% Time
@@ -402,6 +406,7 @@ get_origin_id(Packet) ->
 tombstone(RetractionInfo = #{packet := Packet}, LocJid) ->
     Packet#xmlel{children = [retracted_element(RetractionInfo, LocJid)]}.
 
+-spec retracted_element(retraction_info(), jid:jid()) -> exml:element().
 retracted_element(#{retract_on := origin_id,
                     origin_id := OriginID}, _LocJid) ->
     Timestamp = calendar:system_time_to_rfc3339(erlang:system_time(second), [{offset, "Z"}]),
@@ -427,6 +432,7 @@ retracted_element(#{retract_on := stanza_id,
                        MaybeOriginId
                       ]}.
 
+-spec maybe_append_origin_id(retraction_info()) -> [exml:element()].
 maybe_append_origin_id(#{origin_id := OriginID}) when is_binary(OriginID), <<>> =/= OriginID ->
     [#xmlel{name = <<"origin-id">>, attrs = [{<<"xmlns">>, ?NS_STANZAID}, {<<"id">>, OriginID}]}];
 maybe_append_origin_id(_) ->
