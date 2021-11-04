@@ -1,3 +1,6 @@
+%% Generic module to access SM backend modules
+%% Pass HostType to the functions as an argument, if you can
+%% Pass global, when you cannot
 -module(ejabberd_gen_sm).
 
 -callback start(list()) ->
@@ -32,78 +35,76 @@
          get_sessions/4, create_session/5, update_session/5, delete_session/5, cleanup/2,
          total_count/1, unique_count/1]).
 
--ignore_xref([behaviour_info/1, cleanup/2]).
+-ignore_xref([cleanup/2, behaviour_info/1]).
 
--spec start(module(), list()) -> any().
-start(Mod, Opts) ->
-    Mod:start(Opts).
+-define(MAIN_MODULE, ejabberd_sm).
+-type host_type() :: mongooseim:host_type() | global.
 
--spec get_sessions(module()) -> [ejabberd_sm:sessions()].
-get_sessions(Mod) ->
-    Mod:get_sessions().
+-spec start(host_type(), list()) -> any().
+start(_HostType, Opts) ->
+    Args = [Opts],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_sessions(module(), jid:server()) -> [ejabberd_sm:sessions()].
-get_sessions(Mod, Server) ->
-    Mod:get_sessions(Server).
+-spec get_sessions(host_type()) -> [ejabberd_sm:sessions()].
+get_sessions(_HostType) ->
+    Args = [],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_sessions(module(), jid:user(), jid:server()) ->
+-spec get_sessions(host_type(), jid:server()) -> [ejabberd_sm:sessions()].
+get_sessions(_HostType, Server) ->
+    Args = [Server],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec get_sessions(host_type(), jid:user(), jid:server()) ->
     [ejabberd_sm:session()].
-get_sessions(Mod, User, Server) ->
-    Mod:get_sessions(User, Server).
+get_sessions(_HostType, User, Server) ->
+    Args = [User, Server],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_sessions(module(),
+-spec get_sessions(host_type(),
                    jid:user(),
                    jid:server(),
                    jid:resource()) ->
     [ejabberd_sm:session()].
-get_sessions(Mod, User, Server, Resource) ->
-    Mod:get_sessions(User, Server, Resource).
+get_sessions(_HostType, User, Server, Resource) ->
+    Args = [User, Server, Resource],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec create_session(Mod :: module(), User :: jid:user(),
+-spec create_session(HostType :: host_type(), User :: jid:user(),
                      Server :: jid:server(),
                      Resource :: jid:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-create_session(Mod, User, Server, Resource, Session) ->
-    Mod:create_session(User, Server, Resource, Session).
+create_session(_HostType, User, Server, Resource, Session) ->
+    Args = [User, Server, Resource, Session],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec update_session(Mod :: module(), User :: jid:luser(),
+-spec update_session(HostType :: host_type(), User :: jid:luser(),
                      Server :: jid:lserver(),
                      Resource :: jid:lresource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
-update_session(Mod, User, Server, Resource, Session) ->
-    Mod:update_session(User, Server, Resource, Session).
+update_session(_HostType, User, Server, Resource, Session) ->
+    Args = [User, Server, Resource, Session],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec delete_session(Mod :: module(), Sid :: ejabberd_sm:sid(),
+-spec delete_session(HostType :: host_type(), Sid :: ejabberd_sm:sid(),
                      User :: jid:user(),
                      Server :: jid:server(),
                      Resource :: jid:resource()) -> ok.
-delete_session(Mod, Sid, User, Server, Resource) ->
-    Mod:delete_session(Sid, User, Server, Resource).
+delete_session(_HostType, Sid, User, Server, Resource) ->
+    Args = [Sid, User, Server, Resource],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec cleanup(Mod :: module(), Node :: atom()) -> any().
-cleanup(Mod, Node) ->
-    Mod:cleanup(Node).
+-spec cleanup(HostType :: host_type(), Node :: atom()) -> any().
+cleanup(_HostType, Node) ->
+    Args = [Node],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec total_count(module()) -> integer().
-total_count(Mod) ->
-    Mod:total_count().
+-spec total_count(host_type()) -> integer().
+total_count(_HostType) ->
+    Args = [],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec unique_count(module()) -> integer().
-unique_count(Mod) ->
-    Mod:unique_count().
-
-%% -export([behaviour_info/1]).
-%% -spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
-%% behaviour_info(callbacks) ->
-%%     [{start, 1},
-%%      {get_sessions, 0},
-%%      {get_sessions, 1},
-%%      {get_sessions, 2},
-%%      {get_sessions, 3},
-%%      {create_session, 4},
-%%      {delete_session, 4},
-%%      {cleanup, 1},
-%%      {total_count, 0},
-%%      {unique_count, 0}];
-%% behaviour_info(_Other) ->
-%%     undefined.
+-spec unique_count(host_type()) -> integer().
+unique_count(_HostType) ->
+    Args = [],
+    mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
