@@ -427,10 +427,10 @@ retracted_element(#{retract_on := stanza_id,
                        MaybeOriginId
                       ]}.
 
-maybe_append_origin_id(#{origin_id := <<>>}) ->
-    [];
-maybe_append_origin_id(#{origin_id := OriginID}) ->
-    [#xmlel{name = <<"origin-id">>, attrs = [{<<"xmlns">>, ?NS_STANZAID}, {<<"id">>, OriginID}]}].
+maybe_append_origin_id(#{origin_id := OriginID}) when is_binary(OriginID), <<>> =/= OriginID ->
+    [#xmlel{name = <<"origin-id">>, attrs = [{<<"xmlns">>, ?NS_STANZAID}, {<<"id">>, OriginID}]}];
+maybe_append_origin_id(_) ->
+    [].
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
 -spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
