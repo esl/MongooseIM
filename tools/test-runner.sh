@@ -598,6 +598,7 @@ TEST_HOSTS_DEFAULT="${TEST_HOSTS_ARRAY[@]}"
 
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile
+REBAR_CT_EXTRA_ARGS=""
 if [[ -f "auto_small_tests.spec" ]]; then
     REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" $REBAR_CT_EXTRA_ARGS"
 fi
