@@ -13,7 +13,7 @@
 -type retraction_info() :: #{retract_on := origin_id | stanza_id,
                              packet := exml:element(),
                              message_id := mod_mam:message_id(),
-                             origin_id := binary()}.
+                             origin_id := null | binary()}.
 
 -spec decode_row(db_row(), env_vars()) -> mod_mam:message_row().
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
