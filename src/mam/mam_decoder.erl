@@ -10,10 +10,6 @@
 -type db_muc_row() :: {ext_mess_id(), Nick :: binary(), ExtData :: binary()}.
 -type db_muc_gdpr_row() :: {ext_mess_id(), ExtData :: binary()}.
 -type decoded_muc_gdpr_row() :: {ext_mess_id(), exml:element()}.
--type retraction_info() :: #{retract_on := origin_id | stanza_id,
-                             packet := exml:element(),
-                             message_id := mod_mam:message_id(),
-                             origin_id := binary()}.
 
 -spec decode_row(db_row(), env_vars()) -> mod_mam:message_row().
 decode_row({ExtMessID, ExtSrcJID, ExtData}, Env) ->
@@ -37,7 +33,7 @@ decode_muc_gdpr_row({ExtMessID, ExtData}, Env) ->
 -spec decode_retraction_info(env_vars(),
                              [{binary(), mod_mam:message_id(), binary()}],
                              mod_mam_utils:retraction_id()) ->
-    skip | retraction_info().
+    skip | mod_mam_utils:retraction_info().
 decode_retraction_info(_Env, [], _) -> skip;
 decode_retraction_info(Env, [{ResMessID, Data}], {origin_id, OriginID}) ->
     Packet = decode_packet(Data, Env),

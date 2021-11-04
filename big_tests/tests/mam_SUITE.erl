@@ -1842,7 +1842,41 @@ message_with_stanzaid(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retract_message_on_stanza_id(Config) ->
-    retract_message([{retract_on, stanza_id} | Config]).
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        %% GIVEN Alice sends a message to Bob
+        Body = <<"OH, HAI!">>,
+        Msg = escalus_stanza:chat_to(Bob, Body),
+        escalus:send(Alice, Msg),
+
+        mam_helper:wait_for_archive_size(Alice, 1),
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        Result = wait_archive_respond(Alice),
+        [AliceCopyOfMessage] = respond_messages(Result),
+
+        %% ... and Bob receives the message
+        _RecvMsg = escalus:wait_for_stanza(Bob),
+
+        %% WHEN Alice retracts the message
+        ApplyToElement = apply_to_element([{retract_on, stanza_id}], AliceCopyOfMessage),
+        RetractMsg = retraction_message(<<"chat">>, escalus_utils:get_jid(Bob), ApplyToElement),
+        escalus:send(Alice, RetractMsg),
+
+        %% THEN Bob receives the message with 'retract' ...
+        RecvRetract = escalus:wait_for_stanza(Bob),
+        ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
+
+        maybe_wait_for_archive(Config),
+
+        %% ... and Alice and Bob have both messages in their archives
+        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
+        check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
+        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
+        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
+
+        ok
+    end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retract_wrong_message(Config) ->
     retract_message([{origin_id, <<"wrong-id">>} | Config]).
