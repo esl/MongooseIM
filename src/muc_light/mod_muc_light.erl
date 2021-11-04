@@ -269,7 +269,7 @@ config_spec() ->
 
 config_schema_spec() ->
     #section{
-       items = #{<<"field">> => #option{type = string,
+       items = #{<<"field">> => #option{type = binary,
                                         validate = non_empty},
                  <<"string_value">> => #option{type = binary},
                  <<"integer_value">> => #option{type = integer},
@@ -285,7 +285,7 @@ process_config_schema(KVs) ->
     {[[{field, FieldName}], InternalKeyOpts], ValueOpts} =
         proplists:split(KVs, [field, internal_key]),
     {Value, Type} = process_config_schema_value(ValueOpts),
-    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, list_to_atom(FieldName)),
+    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, binary_to_atom(FieldName)),
     {FieldName, Value, InternalKey, Type}.
 
 process_config_schema_value([{string_value, Val}]) -> {Val, binary};

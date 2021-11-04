@@ -65,9 +65,8 @@
 -type binary_kv() :: [{Key :: binary(), Value :: binary()}].
 
 %% User definition processing
--type user_defined_schema_item() :: {FieldName :: string(), DefaultValue :: string()}
-                                    | {FieldName :: string(), DefaultValue :: value() | string(),
-                                       key(), value_type()}.
+-type user_defined_schema_item() :: {FieldName :: binary(), DefaultValue :: value(),
+                                     key(), value_type()}.
 -type user_defined_schema() :: [user_defined_schema_item()].
 
 %%====================================================================
@@ -127,36 +126,13 @@ schema_reverse_index(#schema{ reverse_index = RevIndex }) -> RevIndex.
 -spec add_config_schema_field(UserDefinedSchemaItem :: user_defined_schema_item(),
                               SchemaAcc :: schema()) ->
     schema().
-add_config_schema_field({FieldName, DefaultValue}, SchemaAcc) ->
-    add_config_schema_field({FieldName, DefaultValue, list_to_atom(FieldName), binary}, SchemaAcc);
-add_config_schema_field({FieldName, DefaultValue, Key, ValueType} = Definition, SchemaAcc) ->
-    case validate_schema_definition(Definition) of
-        true ->
-            #schema{ fields = Fields0, reverse_index = RevIndex0 } = SchemaAcc,
+add_config_schema_field({FieldName, DefaultValue, Key, ValueType}, SchemaAcc) ->
+    #schema{ fields = Fields0, reverse_index = RevIndex0 } = SchemaAcc,
 
-            FieldNameBin = unicode:characters_to_binary(FieldName),
-            NormalizedValue = normalize_value(DefaultValue, ValueType),
+    NFields = Fields0#{ FieldName => { DefaultValue, Key, ValueType } },
+    NRevIndex = RevIndex0#{ Key => FieldName },
 
-            NFields = Fields0#{ FieldNameBin => { NormalizedValue, Key, ValueType } },
-            NRevIndex = RevIndex0#{ Key => FieldNameBin },
-
-            SchemaAcc#schema{ fields = NFields, reverse_index = NRevIndex };
-        false ->
-            error({invalid_schema_definition, Definition})
-    end.
-
--spec validate_schema_definition(user_defined_schema_item()) -> boolean().
-validate_schema_definition({FieldName, DefaultValue, Key, ValueType})
-  when is_list(FieldName), is_atom(Key) ->
-    validate_schema_default_and_type(DefaultValue, ValueType);
-validate_schema_definition(_Definition) ->
-    false.
-
--spec validate_schema_default_and_type(value(), value_type()) -> boolean().
-validate_schema_default_and_type(Val, binary) -> is_binary(Val) orelse is_list(Val);
-validate_schema_default_and_type(Val, integer) -> is_integer(Val);
-validate_schema_default_and_type(Val, float) -> is_float(Val);
-validate_schema_default_and_type(_Val, _Type) -> false.
+    SchemaAcc#schema{ fields = NFields, reverse_index = NRevIndex }.
 
 -spec from_kv_tuple(KeyBin :: binary(), ValBin :: binary(), ConfigSchema :: schema()) ->
     {ok, Key :: atom(), Val :: any()} | validation_error().
@@ -165,10 +141,6 @@ from_kv_tuple(KeyBin, ValBin, ConfigSchema) ->
         {ok, {_Def, Key, Type}} -> {ok, Key, b2value(ValBin, Type)};
         _ -> {error, {KeyBin, unknown}}
     end.
-
--spec normalize_value(Value :: value() | string(), value_type()) -> value().
-normalize_value(Val, binary) when is_list(Val) -> unicode:characters_to_binary(Val);
-normalize_value(Val, _) -> Val.
 
 -spec b2value(ValBin :: binary(), Type :: value_type()) -> Converted :: value().
 b2value(ValBin, binary) -> ValBin;
