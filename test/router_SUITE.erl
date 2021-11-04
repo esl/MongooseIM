@@ -35,19 +35,26 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_C) ->
+    meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
     ok.
 
 init_per_group(routing, Config) ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-        fun(routing_modules) ->
-            [xmpp_router_a, xmpp_router_b, xmpp_router_c];
-           (_) ->
-            undefined
+    %% The self() process could be dead in testcases, so we use no_link
+    meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option_or_default,
+        fun(OptName, Default) ->
+                case OptName of
+                    routing_modules ->
+                        [xmpp_router_a, xmpp_router_b, xmpp_router_c];
+                    _ ->
+                        Default
+                end
         end),
+    meck:expect(ejabberd_config, get_local_option,
+        fun(_OptName) -> undefined end),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config;
