@@ -497,7 +497,7 @@ init([]) ->
                           undefined -> {mnesia, []};
                           Value -> Value
                       end,
-    mongoose_backend:init_per_host_type(global, ?MODULE, [], [{backend, Backend}]),
+    mongoose_backend:init(global, ?MODULE, [], [{backend, Backend}]),
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
 

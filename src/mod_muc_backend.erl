@@ -67,7 +67,7 @@
 init(HostType, Opts) ->
     TrackedFuns = [store_room, restore_room, forget_room, get_rooms,
                      can_use_nick, get_nick, set_nick, unset_nick],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

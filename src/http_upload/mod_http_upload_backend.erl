@@ -16,7 +16,7 @@
 
 -spec init(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, [create_slot], Opts).
+    mongoose_backend:init(HostType, ?MAIN_MODULE, [create_slot], Opts).
 
 -spec create_slot(HostType::mongooseim:host_type(),
                   UTCDateTime :: calendar:datetime(),

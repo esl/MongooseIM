@@ -61,7 +61,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, [], Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, [], Opts),
     ok.
 
 -spec stop(mongooseim:host_type()) -> ok.

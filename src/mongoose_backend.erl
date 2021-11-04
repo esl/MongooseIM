@@ -1,7 +1,7 @@
 -module(mongoose_backend).
 
 %% API
--export([init_per_host_type/4,
+-export([init/4,
          call/4,
          call_tracked/4,
          is_exported/4,
@@ -22,11 +22,11 @@
 -type backend_module() :: module().
 -type host_type_or_global() :: host_type_or_global() | global.
 
--spec init_per_host_type(HostType :: host_type_or_global(),
+-spec init(HostType :: host_type_or_global(),
                          MainModule :: main_module(),
                          TrackedFuns :: [function_name()],
                          Opts :: gen_mod:module_opts()) -> ok.
-init_per_host_type(HostType, MainModule, TrackedFuns, Opts) ->
+init(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
@@ -65,7 +65,7 @@ persist_backend_name(HostType, MainModule, Backend, BackendModule) ->
     NameKey = backend_name_key(HostType, MainModule),
     persistent_term:put(NameKey, Backend).
 
-%% @doc Get a backend module, stored in init_per_host_type.
+%% @doc Get a backend module, stored in init.
 -spec get_backend_module(HostType :: host_type_or_global(),
                          MainModule :: main_module()) ->
     BackendModule :: backend_module().
@@ -73,7 +73,7 @@ get_backend_module(HostType, MainModule) ->
     ModuleKey = backend_key(HostType, MainModule),
     persistent_term:get(ModuleKey).
 
-%% @doc Get a backend name, like `pgsql', stored in init_per_host_type.
+%% @doc Get a backend name, like `pgsql', stored in init.
 -spec get_backend_name(HostType :: host_type_or_global(),
                        MainModule :: main_module()) -> BackendName :: atom().
 get_backend_name(HostType, MainModule) ->

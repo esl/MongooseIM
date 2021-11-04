@@ -28,7 +28,7 @@
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, [], [{backend, rdbms} | Opts]),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, [], [{backend, rdbms} | Opts]),
     Args = [HostType],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
