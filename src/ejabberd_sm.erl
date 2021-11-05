@@ -496,13 +496,12 @@ init([]) ->
                           undefined -> {mnesia, []};
                           Value -> Value
                       end,
-    mongoose_backend:init(global, ?MODULE, [], [{backend, Backend}]),
+    ejabberd_sm_backend:init([{backend, Backend}|Opts]),
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
     ejabberd_commands:register_commands(commands()),
-    ejabberd_sm_backend:start(Opts),
     {ok, #state{}}.
 
 hooks(HostType) ->
