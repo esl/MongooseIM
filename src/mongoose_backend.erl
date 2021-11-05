@@ -20,7 +20,7 @@
 -type function_name() :: atom().
 -type main_module() :: module().
 -type backend_module() :: module().
--type host_type_or_global() :: host_type_or_global() | global.
+-type host_type_or_global() :: mongooseim:host_type_or_global().
 
 -spec init(HostType :: host_type_or_global(),
                          MainModule :: main_module(),

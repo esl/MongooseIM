@@ -48,7 +48,7 @@
 
 %% Config scope
 -type scope() :: global | host | mongooseim:host_type().
--type host_type_or_global() :: mongooseim:host_type() | global.
+-type host_type_or_global() :: mongooseim:host_type_or_global().
 
 -type tag() :: atom().
 %% Name of a process
@@ -86,7 +86,6 @@
 -export_type([proc_name/0]).
 -export_type([pool_opts/0]).
 -export_type([conn_opts/0]).
--export_type([host_type_or_global/0]).
 
 -type callback_fun() :: init | start | default_opts | is_supported_strategy | stop.
 

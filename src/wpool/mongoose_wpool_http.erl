@@ -51,7 +51,7 @@ stop(HostType, Tag) ->
 
 %% --------------------------------------------------------------
 %% Other API functions
--spec get_params(HostType :: mongoose_wpool:host_type_or_global(),
+-spec get_params(HostType :: mongooseim:host_type_or_global(),
                  Tag :: mongoose_wpool:tag()) ->
     {ok, PathPrefix :: path_prefix(), RequestTimeout :: request_timeout()}
     | {error, pool_not_started}.
