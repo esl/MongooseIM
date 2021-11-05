@@ -1,7 +1,7 @@
 %% Generic module to access SM backend modules
 %% Pass HostType to the functions as an argument, if you can
 %% Pass global, when you cannot
--module(ejabberd_gen_sm).
+-module(ejabberd_sm_backend).
 
 -callback start(list()) ->
     any().

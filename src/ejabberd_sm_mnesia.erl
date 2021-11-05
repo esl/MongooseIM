@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_mnesia).
 
--behavior(ejabberd_gen_sm).
+-behavior(ejabberd_sm_backend).
 
 -include("mongoose.hrl").
 -include("session.hrl").
