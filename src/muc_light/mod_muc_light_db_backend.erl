@@ -150,7 +150,7 @@ start(HostType, Opts) ->
                    get_config, set_config,
                    get_blocking, set_blocking,
                    get_aff_users, modify_aff_users],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

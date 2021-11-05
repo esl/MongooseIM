@@ -40,7 +40,7 @@
 -spec init(Host :: jid:server(), Opts :: list()) -> ok.
 init(Host, Opts) ->
     TrackedFuns = [enable, disable, get_publish_services],
-    mongoose_backend:init_per_host_type(Host, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(Host, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [Host, Opts],
     mongoose_backend:call(Host, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

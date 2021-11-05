@@ -97,7 +97,7 @@
 init(HostType, Opts) ->
     TrackedFuns = [get_privacy_list, get_list_names, set_default_list, forget_default_list,
                    remove_privacy_list, replace_privacy_list, get_default_list],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

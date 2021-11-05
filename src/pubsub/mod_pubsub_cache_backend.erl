@@ -36,7 +36,7 @@
 -spec start(jid:lserver(), gen_mod:module_opts()) -> ok.
 start(ServerHost, Opts) ->
     TrackedFuns = [upsert_last_item, delete_last_item, get_last_item],
-    mongoose_backend:init_per_host_type(ServerHost, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(ServerHost, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [ServerHost],
     mongoose_backend:call(ServerHost, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

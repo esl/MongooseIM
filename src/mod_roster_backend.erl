@@ -61,7 +61,7 @@ init(HostType, Opts) ->
                    roster_subscribe_t,
                    update_roster_t,
                    del_roster_t],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

@@ -11,8 +11,8 @@
 -include("mongoose.hrl").
 -include("session.hrl").
 
--behavior(ejabberd_gen_sm).
--export([start/1,
+-behavior(ejabberd_sm_backend).
+-export([init/1,
          get_sessions/0,
          get_sessions/1,
          get_sessions/2,
@@ -27,8 +27,8 @@
 
 -ignore_xref([maybe_initial_cleanup/2]).
 
--spec start(list()) -> any().
-start(_Opts) ->
+-spec init(list()) -> any().
+init(_Opts) ->
     %% Clean current node's sessions from previous life
     {Elapsed, RetVal} = timer:tc(?MODULE, maybe_initial_cleanup, [node(), true]),
     ?LOG_NOTICE(#{what => sm_cleanup_initial,

@@ -8,12 +8,12 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_sm_mnesia).
 
--behavior(ejabberd_gen_sm).
+-behavior(ejabberd_sm_backend).
 
 -include("mongoose.hrl").
 -include("session.hrl").
 
--export([start/1,
+-export([init/1,
          get_sessions/0,
          get_sessions/1,
          get_sessions/2,
@@ -25,8 +25,8 @@
          total_count/0,
          unique_count/0]).
 
--spec start(list()) -> any().
-start(_Opts) ->
+-spec init(list()) -> any().
+init(_Opts) ->
     mnesia:create_table(session,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, session)}]),

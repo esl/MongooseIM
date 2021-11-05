@@ -30,7 +30,7 @@
 init(HostType, Opts) ->
     FOpts = add_default_backend(Opts),
     TrackedFuns = [get_chat_markers, update_chat_marker],
-    mongoose_backend:init_per_host_type(HostType, ?MAIN_MODULE, TrackedFuns, FOpts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, FOpts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

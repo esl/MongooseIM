@@ -1,7 +1,7 @@
 -module(mongoose_backend).
 
 %% API
--export([init_per_host_type/4,
+-export([init/4,
          call/4,
          call_tracked/4,
          is_exported/4,
@@ -20,12 +20,13 @@
 -type function_name() :: atom().
 -type main_module() :: module().
 -type backend_module() :: module().
+-type host_type_or_global() :: mongooseim:host_type_or_global().
 
--spec init_per_host_type(HostType :: mongooseim:host_type(),
-                         MainModule :: main_module(),
-                         TrackedFuns :: [function_name()],
-                         Opts :: gen_mod:module_opts()) -> ok.
-init_per_host_type(HostType, MainModule, TrackedFuns, Opts) ->
+-spec init(HostType :: host_type_or_global(),
+           MainModule :: main_module(),
+           TrackedFuns :: [function_name()],
+           Opts :: gen_mod:module_opts()) -> ok.
+init(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
@@ -64,22 +65,22 @@ persist_backend_name(HostType, MainModule, Backend, BackendModule) ->
     NameKey = backend_name_key(HostType, MainModule),
     persistent_term:put(NameKey, Backend).
 
-%% @doc Get a backend module, stored in init_per_host_type.
--spec get_backend_module(HostType :: mongooseim:host_type(),
+%% @doc Get a backend module, stored in init.
+-spec get_backend_module(HostType :: host_type_or_global(),
                          MainModule :: main_module()) ->
     BackendModule :: backend_module().
 get_backend_module(HostType, MainModule) ->
     ModuleKey = backend_key(HostType, MainModule),
     persistent_term:get(ModuleKey).
 
-%% @doc Get a backend name, like `pgsql', stored in init_per_host_type.
--spec get_backend_name(HostType :: mongooseim:host_type(),
+%% @doc Get a backend name, like `pgsql', stored in init.
+-spec get_backend_name(HostType :: host_type_or_global(),
                        MainModule :: main_module()) -> BackendName :: atom().
 get_backend_name(HostType, MainModule) ->
     Key = backend_name_key(HostType, MainModule),
     persistent_term:get(Key).
 
--spec call(HostType :: mongooseim:host_type(),
+-spec call(HostType :: host_type_or_global(),
            MainModule :: main_module(),
            FunName :: function_name(),
            Args :: [term()]) -> term().
@@ -87,7 +88,7 @@ call(HostType, MainModule, FunName, Args) ->
     BackendModule = get_backend_module(HostType, MainModule),
     erlang:apply(BackendModule, FunName, Args).
 
--spec call_tracked(HostType :: mongooseim:host_type(),
+-spec call_tracked(HostType :: host_type_or_global(),
                    MainModule :: main_module(),
                    FunName :: function_name(),
                    Args :: [term()]) -> term().
@@ -100,7 +101,7 @@ call_tracked(HostType, MainModule, FunName, Args) ->
     mongoose_metrics:update(global, TM, Time),
     Result.
 
--spec is_exported(HostType :: mongooseim:host_type(),
+-spec is_exported(HostType :: host_type_or_global(),
                   MainModule :: main_module(),
                   FunName :: function_name(),
                   Arity :: integer()) -> boolean().
