@@ -23,9 +23,9 @@
 -type host_type_or_global() :: mongooseim:host_type_or_global().
 
 -spec init(HostType :: host_type_or_global(),
-                         MainModule :: main_module(),
-                         TrackedFuns :: [function_name()],
-                         Opts :: gen_mod:module_opts()) -> ok.
+           MainModule :: main_module(),
+           TrackedFuns :: [function_name()],
+           Opts :: gen_mod:module_opts()) -> ok.
 init(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
