@@ -185,8 +185,8 @@ process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, Roo
 process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
 process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
-    case mod_muc_light_room_config:apply_binary_kv(
-           ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
+    case mod_muc_light_room_config:from_binary_kv_diff(
+           ConfigReq#config.raw_config, mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mongoose_bin:gen_from_timestamp(),
             {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS, Config, NewVersion),
