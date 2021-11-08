@@ -28,15 +28,16 @@
 all() ->
     [{group, parallel},
      {group, parallel_manual_ack_freq_1},
+     {group, manual_ack_freq_2},
      {group, stale_h},
      {group, stream_mgmt_disabled},
-     server_requests_ack_freq_2,
      {group, unacknowledged_message_hook}
      ].
 
 groups() ->
     G = [{parallel, [parallel], parallel_test_cases()},
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+         {manual_ack_freq_2, [], [server_requests_ack_freq_2]},
          {stale_h, [], stale_h_test_cases()},
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
@@ -123,16 +124,14 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-
 init_per_group(Group, Config) when Group =:= unacknowledged_message_hook;
                                    Group =:= manual_ack_freq_long_session_timeout;
-                                   Group =:= parallel_manual_ack_freq_1 ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
-    escalus_users:update_userspec(Config, alice, manual_ack, true);
-init_per_group(parallel_manual_ack_freq_1 = Group, Config) ->
+                                   Group =:= parallel_manual_ack_freq_1;
+                                   Group =:= manual_ack_freq_2 ->
     dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stale_h, Config) ->
+    %% All tests in this group set up modules in init_per_testcase
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stream_mgmt_disabled, Config) ->
     dynamic_modules:stop(host_type(), ?MOD_SM),
@@ -142,46 +141,8 @@ init_per_group(Group, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     Config.
 
-required_modules(Scope, Name) ->
-    [{mod_stream_management, required_sm_opts(Scope, Name) ++ common_required_sm_opts()}].
-
-required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
-    [{ack_freq, 1},
-     {resume_timeout, ?SHORT_TIMEOUT} | stale_h(?LONG_TIMEOUT, ?LONG_TIMEOUT)];
-required_sm_opts(testcase, gc_repeat_after_never_means_no_cleaning) ->
-    stale_h(?LONG_TIMEOUT, ?SHORT_TIMEOUT);
-required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
-    stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT);
-required_sm_opts(testcase, server_requests_ack_freq_2) ->
-    [{ack_freq, 2}];
-required_sm_opts(group, Group) when Group =:= unacknowledged_message_hook;
-                                    Group =:= manual_ack_freq_long_session_timeout ->
-    [{ack_freq, 1}];
-required_sm_opts(group, parallel_manual_ack_freq_1) ->
-    [{ack_freq, 1},
-     {resume_timeout, ?SHORT_TIMEOUT}];
-required_sm_opts(group, parallel) ->
-    [{ack_freq, never}].
-
-common_required_sm_opts() ->
-    [{buffer_max, ?SMALL_SM_BUFFER}].
-
-stale_h(RepeatAfter, Geriatric) ->
-    [{stale_h, [{enabled, true},
-                {stale_h_repeat_after, RepeatAfter},
-                {stale_h_geriatric, Geriatric}]}].
-
 end_per_group(_Group, _Config) ->
     ok.
-
-register_smid(IntSmidId) ->
-    S = {SMID = make_smid(), IntSmidId},
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [host_type(), SMID, IntSmidId]),
-    S.
-
-register_some_smid_h(Config) ->
-    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
-    [{smid_test, TestSmids} | Config].
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
@@ -192,7 +153,6 @@ init_per_testcase(CN, Config) when CN =:= gc_repeat_after_never_means_no_cleanin
     Config2 = register_some_smid_h(Config),
     escalus:init_per_testcase(CN, Config2);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     register_handler(),
@@ -210,6 +170,52 @@ end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%% Module configuration per group (in case of stale_h group it is per testcase)
+
+required_modules(Scope, Name) ->
+    SMConfig = case required_sm_opts(Scope, Name) of
+                   stopped -> stopped;
+                   ExtraOpts -> common_sm_opts() ++ ExtraOpts
+               end,
+    [{mod_stream_management, SMConfig}].
+
+required_sm_opts(group, parallel) ->
+    [{ack_freq, never}];
+required_sm_opts(group, parallel_manual_ack_freq_1) ->
+    [{ack_freq, 1},
+     {resume_timeout, ?SHORT_TIMEOUT}];
+required_sm_opts(group, manual_ack_freq_2) ->
+    [{ack_freq, 2}];
+required_sm_opts(group, stream_mgmt_disabled) ->
+    stopped;
+required_sm_opts(group, Group) when Group =:= unacknowledged_message_hook;
+                                    Group =:= manual_ack_freq_long_session_timeout ->
+    [{ack_freq, 1}];
+required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
+    [{ack_freq, 1},
+     {resume_timeout, ?SHORT_TIMEOUT} | stale_h(?LONG_TIMEOUT, ?LONG_TIMEOUT)];
+required_sm_opts(testcase, gc_repeat_after_never_means_no_cleaning) ->
+    stale_h(?LONG_TIMEOUT, ?SHORT_TIMEOUT);
+required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
+    stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT).
+
+common_sm_opts() ->
+    [{buffer_max, ?SMALL_SM_BUFFER}].
+
+stale_h(RepeatAfter, Geriatric) ->
+    [{stale_h, [{enabled, true},
+                {stale_h_repeat_after, RepeatAfter},
+                {stale_h_geriatric, Geriatric}]}].
+
+register_smid(IntSmidId) ->
+    S = {SMID = make_smid(), IntSmidId},
+    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [host_type(), SMID, IntSmidId]),
+    S.
+
+register_some_smid_h(Config) ->
+    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
+    [{smid_test, TestSmids} | Config].
 
 %%--------------------------------------------------------------------
 %% Tests
