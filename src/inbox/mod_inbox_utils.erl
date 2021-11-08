@@ -31,7 +31,6 @@
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
-         reset_marker_to_bin/1,
          extract_attr_jid/1,
          maybe_binary_to_positive_integer/1,
          maybe_muted_until/2,
@@ -185,12 +184,6 @@ get_option_write_aff_changes(HostType) ->
 -spec get_option_remove_on_kicked(HostType :: mongooseim:host_type()) -> boolean().
 get_option_remove_on_kicked(HostType) ->
     gen_mod:get_module_opt(HostType, mod_inbox, remove_on_kicked, true).
-
--spec reset_marker_to_bin(atom()) -> marker().
-reset_marker_to_bin(displayed) -> <<"displayed">>;
-reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
-reset_marker_to_bin(received) -> <<"received">>;
-reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
 
 extract_attr_jid(ResetStanza) ->
     case exml_query:attr(ResetStanza, <<"jid">>) of
