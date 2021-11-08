@@ -495,8 +495,8 @@ get_config({RoomU, RoomS} = RoomUS) ->
             {ok, [], Version};
         [{Version, _, _} | _] ->
             RawConfig = [{Key, Val} || {_, Key, Val} <- Result],
-            {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
-                             RawConfig, [], mod_muc_light:config_schema(RoomS)),
+            {ok, Config} = mod_muc_light_room_config:from_binary_kv(
+                             RawConfig, mod_muc_light:config_schema(RoomS)),
             {ok, Config, Version}
     end.
 
@@ -596,8 +596,8 @@ get_info({RoomU, RoomS} = RoomUS) ->
             {selected, AffUsersDB} = select_affs_by_room_id(HostType, RoomID),
             AffUsers = decode_affs(AffUsersDB),
             {selected, ConfigDB} = select_config_by_room_id(HostType, RoomID),
-            {ok, Config} = mod_muc_light_room_config:apply_binary_kv(
-                             ConfigDB, [], mod_muc_light:config_schema(RoomS)),
+            {ok, Config} = mod_muc_light_room_config:from_binary_kv(
+                             ConfigDB, mod_muc_light:config_schema(RoomS)),
 
             {ok, Config, AffUsers, Version};
         {selected, []} ->
