@@ -38,15 +38,9 @@ stop(_, _) ->
 %% Helper functions
 do_start(HostType, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(RdbmsOpts) ->
     BackendName = backend_name(RdbmsOpts),
-    try mongoose_rdbms_backend:backend_name() of
-        BackendName -> ok;
-        OtherBackend ->
-            throw(#{reason => "Cannot start an RDBMS connection pool: only one RDBMS backend can be used",
-                    opts => RdbmsOpts, new_backend => BackendName, existing_backend => OtherBackend})
-    catch
-        error:undef ->
-            backend_module:create(mongoose_rdbms, BackendName, [query, execute])
-    end,
+    BackendOpts = RdbmsOpts ++ [{backend, BackendName}],
+    mongoose_backend:init(global, mongoose_rdbms, [query, execute], BackendOpts),
+
     mongoose_metrics:ensure_db_pool_metric({rdbms, HostType, Tag}),
     WpoolOpts = make_wpool_opts(WpoolOpts0, RdbmsOpts),
     ProcName = mongoose_wpool:make_pool_name(rdbms, HostType, Tag),

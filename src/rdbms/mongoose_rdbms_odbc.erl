@@ -16,7 +16,7 @@
 
 -module(mongoose_rdbms_odbc).
 -author('konrad.zemek@erlang-solutions.com').
--behaviour(mongoose_rdbms).
+-behaviour(mongoose_rdbms_backend).
 -include("mongoose_logger.hrl").
 
 -export([escape_binary/1, escape_string/1,

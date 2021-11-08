@@ -21,12 +21,7 @@
 
 -ignore_xref([remove_archive/4, start/2, stop/1, supported_features/0]).
 
--import(mongoose_rdbms,
-        [prepare/4,
-         escape_string/1,
-         escape_integer/1,
-         use_escaped_string/1,
-         use_escaped_integer/1]).
+-import(mongoose_rdbms, [prepare/4]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
