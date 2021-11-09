@@ -56,24 +56,6 @@
                sql_query/0,
                sql_query_part/0]).
 
--callback escape_binary(binary()) -> sql_query_part().
--callback escape_string(binary()|list()) -> sql_query_part().
-
--callback unescape_binary(binary()) -> binary().
--callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
-    {ok, Connection :: term()} | {error, Reason :: any()}.
--callback disconnect(Connection :: term()) -> any().
--callback query(Connection :: term(), Query :: any(), Timeout :: infinity | non_neg_integer()) ->
-    query_result().
--callback prepare(Connection :: term(), Name :: atom(),
-                  Table :: binary(), Fields :: [binary()], Statement :: iodata()) ->
-    {ok, Ref :: term()} | {error, Reason :: any()}.
--callback execute(Connection :: term(), Ref :: term(), Parameters :: [term()],
-                  Timeout :: infinity | non_neg_integer()) -> query_result().
-
-%% If not defined, generic escaping is used
--optional_callbacks([escape_string/1]).
-
 %% External exports
 -export([prepare/4,
          prepared/1,
@@ -135,20 +117,6 @@
               escape_like_prefix/1, escape_null/0, print_state/1, sql_query_t/1,
               use_escaped/1, use_escaped_binary/1, use_escaped_boolean/1,
               use_escaped_like/1, use_escaped_null/1]).
-
--define(MONGOOSE_RDBMS_BACKEND, mongoose_rdbms_backend).
--ignore_xref([
-    {?MONGOOSE_RDBMS_BACKEND, unescape_binary, 1},
-    {?MONGOOSE_RDBMS_BACKEND, disconnect, 1},
-    {?MONGOOSE_RDBMS_BACKEND, query, 3},
-    {?MONGOOSE_RDBMS_BACKEND, execute, 4},
-    {?MONGOOSE_RDBMS_BACKEND, prepare, 5},
-    {?MONGOOSE_RDBMS_BACKEND, escape_string, 1},
-    {?MONGOOSE_RDBMS_BACKEND, backend, 0},
-    {?MONGOOSE_RDBMS_BACKEND, escape_binary, 1},
-    {?MONGOOSE_RDBMS_BACKEND, backend_name, 0},
-    {?MONGOOSE_RDBMS_BACKEND, connect, 2}
-]).
 
 %% internal usage
 -export([get_db_info/1]).
@@ -226,7 +194,7 @@ execute_successfully(HostType, Name, Parameters) ->
         {updated, _} = Result ->
             Result;
         Other ->
-            Log = #{what => sql_execute_failed, host => HostType,statement_name => Name,
+            Log = #{what => sql_execute_failed, host => HostType, statement_name => Name,
                     statement_query => query_name_to_string(Name),
                     statement_params => Parameters, reason => Other},
             ?LOG_ERROR(Log),
@@ -468,7 +436,7 @@ escape_like_internal(S) when is_list(S) ->
     [escape_like_character(C) || C <- S].
 
 escape_string_internal(S) ->
-    case erlang:function_exported(mongoose_rdbms_backend:backend(), escape_string, 1) of
+    case mongoose_backend:is_exported(global, ?MODULE, escape_string, 1) of
         true ->
             mongoose_rdbms_backend:escape_string(S);
         false ->
@@ -763,9 +731,8 @@ abort_on_driver_error({Reply, State}) ->
 
 -spec db_engine(HostType :: server()) -> odbc | mysql | pgsql | undefined.
 db_engine(_HostType) ->
-    try mongoose_rdbms_backend:backend_name()
-    catch error:undef -> undefined end.
-
+    try mongoose_backend:get_backend_name(global, ?MODULE)
+    catch error:badarg -> undefined end.
 
 -spec connect(Settings :: term(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
@@ -777,7 +744,7 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
             Error;
         Error ->
             SleepFor = rand:uniform(RetryAfter),
-            Backend = mongoose_rdbms_backend:backend_name(),
+            Backend = mongoose_backend:get_backend_name(global, ?MODULE),
             ?LOG_ERROR(#{what => rdbms_connection_attempt_error, backend => Backend,
                 error => Error, sleep_for => SleepFor}),
             timer:sleep(timer:seconds(SleepFor)),
