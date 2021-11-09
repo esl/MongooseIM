@@ -410,9 +410,17 @@ registered_commands() ->
     [#{name => mongoose_commands:name(C),
        category => mongoose_commands:category(C),
        action => mongoose_commands:action(C),
-       desc => mongoose_commands:desc(C)
+       desc => mongoose_commands:desc(C),
+       args => format_args(mongoose_commands:args(C)),
+       path => mongoose_api_common:create_admin_url_path(C)
       } || C <- mongoose_commands:list(admin)].
 
+format_args(Args) ->
+    maps:from_list([{term_as_binary(Name), term_as_binary(Type)}
+                    || {Name, Type} <- Args]).
+
+term_as_binary(X) ->
+    iolist_to_binary(io_lib:format("~p", [X])).
 
 get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).

@@ -95,11 +95,17 @@ reload_dispatches(_Command) ->
 
 -spec create_admin_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_admin_url_path(Command) ->
+    iolist_to_binary(create_admin_url_path_iodata(Command)).
+
+create_admin_url_path_iodata(Command) ->
     ["/", mongoose_commands:category(Command),
           maybe_add_bindings(Command, admin), maybe_add_subcategory(Command)].
 
 -spec create_user_url_path(mongoose_commands:t()) -> ejabberd_cowboy:path().
 create_user_url_path(Command) ->
+    iolist_to_binary(create_user_url_path_iodata(Command)).
+
+create_user_url_path_iodata(Command) ->
     ["/", mongoose_commands:category(Command), maybe_add_bindings(Command, user)].
 
 -spec process_request(Method :: method(),
