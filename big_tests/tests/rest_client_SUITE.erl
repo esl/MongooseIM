@@ -15,7 +15,6 @@
          delete/4]
          ).
 
--import(muc_light_helper, [set_mod_config/3]).
 -import(domain_helper, [host_type/0]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
@@ -129,21 +128,14 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    HostType = host_type(),
-    dynamic_modules:restore_modules(HostType, Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
-
-modules() ->
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    MucLight = {mod_muc_light, [{host, MucPattern},
-                                {rooms_in_rosters, true}]},
-    [MucLight].
 
 init_modules(Config) ->
     HostType = host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config),
     Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), HostType, Config1),
-    dynamic_modules:ensure_modules(HostType, modules()),
+    dynamic_modules:ensure_modules(HostType, required_modules(suite)),
     Config2.
 
 init_per_group(_GN, C) ->
@@ -152,11 +144,11 @@ init_per_group(_GN, C) ->
 end_per_group(_GN, C) ->
     C.
 
-init_per_testcase(config_can_be_changed_by_all, Config) ->
-    DefaultConfig = dynamic_modules:save_modules(host_type(), Config),
-    set_mod_config(all_can_configure, true, config_to_muc_host(Config)),
+init_per_testcase(config_can_be_changed_by_all = TC, Config) ->
+    HostType = host_type(),
+    DefaultConfig = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_modules(HostType, required_modules(TC)),
     escalus:init_per_testcase(config_can_be_changed_by_all, DefaultConfig);
-
 init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
                     messages_with_user_are_archived,
@@ -181,14 +173,26 @@ init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(config_can_be_changed_by_all, Config) ->
-    set_mod_config(all_can_configure, false, config_to_muc_host(Config)),
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(config_can_be_changed_by_all, Config);
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
 
-config_to_muc_host(Config) ->
-    ?config(muc_light_host, Config).
+%% Module configuration - set up per suite and for special test cases
+%% TODO: include MAM configuration here
+
+required_modules(SuiteOrTC) ->
+    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(SuiteOrTC)}].
+
+muc_light_opts(config_can_be_changed_by_all) ->
+    [{all_can_configure, true}];
+muc_light_opts(suite) ->
+    [].
+
+common_muc_light_opts() ->
+    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
+    [{host, MucPattern},
+     {rooms_in_rosters, true}].
 
 %% --------------------------------------------------------------------
 %% Test cases
@@ -1360,3 +1364,5 @@ verify_server_name_in_header(Server, ExpectedName) ->
     % THEN expected server name is returned
     ExpectedName = proplists:get_value(<<"server">>, Headers2).
 
+config_to_muc_host(Config) ->
+    ?config(muc_light_host, Config).
