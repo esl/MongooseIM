@@ -15,34 +15,22 @@
          remove_smid/5,
          session_cleanup/5]).
 
-%% `mongooseim.toml' options (don't use outside of tests)
--export([get_buffer_max/2,
-         set_buffer_max/2,
-         get_ack_freq/2,
-         set_ack_freq/2,
-         get_resume_timeout/2,
-         set_resume_timeout/2,
-         get_stale_h_repeat_after/2,
-         set_stale_h_repeat_after/2,
-         get_stale_h_geriatric/2,
-         set_stale_h_geriatric/2
-        ]).
-
 %% API for `ejabberd_c2s'
--export([
-         make_smid/0,
+-export([make_smid/0,
          get_session_from_smid/2,
-         get_sid/1,
-         get_stale_h/2,
-         register_smid/2,
-         register_stale_smid_h/3,
-         remove_stale_smid_h/2
-        ]).
+         get_buffer_max/2,
+         get_ack_freq/2,
+         get_resume_timeout/2,
+         register_smid/2]).
 
--ignore_xref([c2s_stream_features/3, get_sid/1, get_stale_h/2, get_stale_h_geriatric/2,
-              get_stale_h_repeat_after/2, register_stale_smid_h/3, remove_smid/5,
-              remove_stale_smid_h/2, session_cleanup/5, set_buffer_max/2,
-              set_resume_timeout/2, set_stale_h_geriatric/2, set_ack_freq/2, set_stale_h_repeat_after/2]).
+%% API for inspection and tests
+-export([get_sid/1,
+         get_stale_h/2,
+         register_stale_smid_h/3,
+         remove_stale_smid_h/2]).
+
+-ignore_xref([c2s_stream_features/3, get_sid/1, get_stale_h/2, remove_smid/5,
+              register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5]).
 
 -type smid() :: base64:ascii_binary().
 
@@ -173,78 +161,6 @@ do_remove_smid(Acc, HostType, SID) ->
     mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
 %%
-%% `mongooseim.toml' options (don't use outside of tests)
-%%
-
--spec get_buffer_max(mongooseim:host_type(), buffer_max()) -> buffer_max().
-get_buffer_max(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, buffer_max, Default).
-
-%% Return true if succeeded, false otherwise.
--spec set_buffer_max(mongooseim:host_type(), buffer_max() | undefined) -> boolean().
-set_buffer_max(HostType, undefined) ->
-    del_module_opt(HostType, ?MODULE, buffer_max);
-set_buffer_max(HostType, infinity) ->
-    set_module_opt(HostType, ?MODULE, buffer_max, infinity);
-set_buffer_max(HostType, no_buffer) ->
-    set_module_opt(HostType, ?MODULE, buffer_max, no_buffer);
-set_buffer_max(HostType, Seconds) when is_integer(Seconds), Seconds > 0 ->
-    set_module_opt(HostType, ?MODULE, buffer_max, Seconds).
-
--spec get_ack_freq(mongooseim:host_type(), ack_freq()) -> ack_freq().
-get_ack_freq(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, ack_freq, Default).
-
-%% Return true if succeeded, false otherwise.
--spec set_ack_freq(mongooseim:host_type(), ack_freq() | undefined) -> boolean().
-set_ack_freq(HostType, undefined) ->
-    del_module_opt(HostType, ?MODULE, ack_freq);
-set_ack_freq(HostType, never) ->
-    set_module_opt(HostType, ?MODULE, ack_freq, never);
-set_ack_freq(HostType, Freq) when is_integer(Freq), Freq > 0 ->
-    set_module_opt(HostType, ?MODULE, ack_freq, Freq).
-
--spec get_resume_timeout(mongooseim:host_type(), pos_integer()) -> pos_integer().
-get_resume_timeout(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout, Default).
-
--spec set_resume_timeout(mongooseim:host_type(), pos_integer()) -> boolean().
-set_resume_timeout(HostType, ResumeTimeout) ->
-    set_module_opt(HostType, ?MODULE, resume_timeout, ResumeTimeout).
-
-
--spec get_stale_h_opt(mongooseim:host_type(), atom(), pos_integer()) -> pos_integer().
-get_stale_h_opt(HostType, Option, Default) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    proplists:get_value(Option, MaybeModOpts, Default).
-
--spec get_stale_h_repeat_after(mongooseim:host_type(), pos_integer()) -> pos_integer().
-get_stale_h_repeat_after(HostType, Default) ->
-    get_stale_h_opt(HostType, stale_h_repeat_after, Default).
-
--spec get_stale_h_geriatric(mongooseim:host_type(), pos_integer()) -> pos_integer().
-get_stale_h_geriatric(HostType, Default) ->
-    get_stale_h_opt(HostType, stale_h_geriatric, Default).
-
--spec set_stale_h_opt(mongooseim:host_type(), atom(), pos_integer()) -> boolean().
-set_stale_h_opt(HostType, Option, Value) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case MaybeModOpts of
-        [] -> false;
-        GCOpts ->
-            NewGCOpts = lists:keystore(Option, 1, GCOpts, {Option, Value}),
-            set_module_opt(HostType, ?MODULE, stale_h, NewGCOpts)
-    end.
-
--spec set_stale_h_repeat_after(mongooseim:host_type(), pos_integer()) -> boolean().
-set_stale_h_repeat_after(HostType, ResumeTimeout) ->
-    set_stale_h_opt(HostType, stale_h_repeat_after, ResumeTimeout).
-
--spec set_stale_h_geriatric(mongooseim:host_type(), pos_integer()) -> boolean().
-set_stale_h_geriatric(HostType, GeriatricAge) ->
-    set_stale_h_opt(HostType, stale_h_geriatric, GeriatricAge).
-
-%%
 %% API for `ejabberd_c2s'
 %%
 
@@ -278,6 +194,18 @@ get_stale_h(HostType, SMID) ->
         true -> stream_management_stale_h:read_stale_h(SMID)
     end.
 
+-spec get_buffer_max(mongooseim:host_type(), buffer_max()) -> buffer_max().
+get_buffer_max(HostType, Default) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, buffer_max, Default).
+
+-spec get_ack_freq(mongooseim:host_type(), ack_freq()) -> ack_freq().
+get_ack_freq(HostType, Default) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, ack_freq, Default).
+
+-spec get_resume_timeout(mongooseim:host_type(), pos_integer()) -> pos_integer().
+get_resume_timeout(HostType, Default) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout, Default).
+
 %% Setters
 register_smid(SMID, SID) ->
     try
@@ -301,30 +229,3 @@ remove_stale_smid_h(HostType, SMID) ->
         false -> ok;
         true -> stream_management_stale_h:delete_stale_h(SMID)
     end.
-
-%% copy-n-paste from gen_mod.erl
--record(ejabberd_module, {module_host, opts}).
-
-set_module_opt(Host, Module, Opt, Value) ->
-    mod_module_opt(Host, Module, Opt, Value, fun set_opt/3).
-
-del_module_opt(HostType, Module, Opt) ->
-    mod_module_opt(HostType, Module, Opt, undefined, fun del_opt/3).
-
-mod_module_opt(HostType, Module, Opt, Value, Modify) ->
-    Key = {Module, HostType},
-    OptsList = ets:lookup(ejabberd_modules, Key),
-    case OptsList of
-        [] ->
-            false;
-        [#ejabberd_module{opts = Opts}] ->
-            Updated = Modify(Opt, Opts, Value),
-            ets:update_element(ejabberd_modules, Key,
-                               {#ejabberd_module.opts, Updated})
-    end.
-
-set_opt(Opt, Opts, Value) ->
-    lists:keystore(Opt, 1, Opts, {Opt, Value}).
-
-del_opt(Opt, Opts, _) ->
-    lists:keydelete(Opt, 1, Opts).

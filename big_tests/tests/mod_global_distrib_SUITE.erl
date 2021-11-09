@@ -195,26 +195,19 @@ init_per_group_generic(Config0) ->
 
                   %% To reduce load when sending many messages
                   VirtHosts = virtual_hosts(),
-                  ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last],
+                  ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last,
+                                   mod_stream_management],
 
                   OldMods = save_modules(NodeName, VirtHosts),
-
-                  rpc(NodeName, gen_mod_deps, start_modules,
-                      [domain(), [{mod_global_distrib, Opts}]]),
 
                   [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod])
                    || Mod <- ModulesToStop, VirtHost <- VirtHosts],
 
-                  ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout,
-                                      [domain(), 1]),
-                  true = rpc(NodeName, mod_stream_management, set_resume_timeout,
-                             [domain(), 1]),
+                  rpc(NodeName, gen_mod_deps, start_modules,
+                      [domain(), [{mod_global_distrib, Opts},
+                                  {mod_stream_management, [{resume_timeout, 1}]}]]),
 
-                  OldMods ++
-                  [
-                   {{resume_timeout, NodeName}, ResumeTimeout} |
-                   Config1
-                  ]
+                  OldMods ++ Config1
           end,
           Config0,
           get_hosts()),
@@ -244,10 +237,7 @@ end_per_group_generic(Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
               VirtHosts = virtual_hosts(),
-              [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts],
-
-              rpc(NodeName, mod_stream_management, set_resume_timeout,
-                  [domain(), ?config({resume_timeout, NodeName}, Config)])
+              [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts]
       end,
       get_hosts()).
 

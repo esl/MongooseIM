@@ -98,7 +98,6 @@ start(HostType, Opts) ->
     mod_inbox_backend:init(HostType, FullOpts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
-    store_bin_reset_markers(HostType, FullOpts),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
@@ -120,11 +119,10 @@ supported_features() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
+    Markers = mongoose_chat_markers:chat_marker_names(),
     #section{
-        items = #{<<"reset_markers">> => #list{items = #option{type = atom,
-                                                               validate = {enum, [displayed,
-                                                                                  received,
-                                                                                  acknowledged]}}},
+        items = #{<<"reset_markers">> => #list{items = #option{type = binary,
+                                                               validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
                                                            validate = {enum, [muc, muclight]}}},
                   <<"aff_changes">> => #option{type = boolean},
@@ -549,12 +547,6 @@ get_groupchat_types(HostType) ->
 config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
-
--spec store_bin_reset_markers(HostType :: mongooseim:host_type(), Opts :: list()) -> boolean().
-store_bin_reset_markers(HostType, Opts) ->
-    ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
-    ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
-    gen_mod:set_module_opt(HostType, ?MODULE, reset_markers, ResetMarkersBin).
 
 groupchat_deps(Opts) ->
     case lists:keyfind(groupchat, 1, Opts) of

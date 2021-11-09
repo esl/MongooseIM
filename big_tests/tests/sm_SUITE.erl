@@ -17,8 +17,8 @@
 
 -import(domain_helper, [host_type/0]).
 
--define(BIG_BIG_BIG_TIMEOUT, 3600).
--define(SHORT_RESUME_TIMEOUT, 3).
+-define(LONG_TIMEOUT, 3600).
+-define(SHORT_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
 
 %%--------------------------------------------------------------------
@@ -28,15 +28,16 @@
 all() ->
     [{group, parallel},
      {group, parallel_manual_ack_freq_1},
+     {group, manual_ack_freq_2},
      {group, stale_h},
      {group, stream_mgmt_disabled},
-     server_requests_ack_freq_2,
      {group, unacknowledged_message_hook}
      ].
 
 groups() ->
     G = [{parallel, [parallel], parallel_test_cases()},
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+         {manual_ack_freq_2, [], [server_requests_ack_freq_2]},
          {stale_h, [], stale_h_test_cases()},
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
@@ -108,95 +109,50 @@ unacknowledged_message_hook() ->
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
-stream_management_with_stale_h(RepeatAfter, Geriatric) ->
-  [{mod_stream_management,
-    [
-     {ack_freq, 1},
-     {resume_timeout, ?SHORT_RESUME_TIMEOUT},
-     {stale_h, [{enabled, true},
-                {stale_h_repeat_after, RepeatAfter},
-                {stale_h_geriatric, Geriatric}]}]}].
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    NewConfig1 = escalus_ejabberd:setup_option(ack_freq(never), Config),
-    NewConfig = escalus_ejabberd:setup_option(buffer_max(?SMALL_SM_BUFFER), NewConfig1),
+    NewConfig = dynamic_modules:save_modules(host_type(), Config),
     NewConfigWithSM = escalus_users:update_userspec(NewConfig, alice, stream_management, true),
     mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(NewConfigWithSM).
 
 end_per_suite(Config) ->
-    NewConfig = escalus_ejabberd:reset_option(ack_freq(never), Config),
-    NewConfig1 = escalus_ejabberd:reset_option(buffer_max(?SMALL_SM_BUFFER), NewConfig),
+    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
-    escalus:end_per_suite(NewConfig1).
+    escalus:end_per_suite(Config).
 
-
-init_per_group(G, Config) when G =:= unacknowledged_message_hook;
-                               G =:= manual_ack_freq_long_session_timeout ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), 1]),
-    escalus_users:update_userspec(Config, alice, manual_ack, true);
-init_per_group(parallel_manual_ack_freq_1, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), 1]),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [host_type(), ?SHORT_RESUME_TIMEOUT]),
+init_per_group(Group, Config) when Group =:= unacknowledged_message_hook;
+                                   Group =:= manual_ack_freq_long_session_timeout;
+                                   Group =:= parallel_manual_ack_freq_1;
+                                   Group =:= manual_ack_freq_2 ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stale_h, Config) ->
+    %% All tests in this group set up modules in init_per_testcase
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stream_mgmt_disabled, Config) ->
-    Config2 = dynamic_modules:save_modules(host_type(), Config),
     dynamic_modules:stop(host_type(), ?MOD_SM),
     rpc(mim(), mnesia, delete_table, [sm_session]),
-    escalus_users:update_userspec(Config2, alice, manual_ack, true);
-init_per_group(_GroupName, Config) ->
+    escalus_users:update_userspec(Config, alice, manual_ack, true);
+init_per_group(Group, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     Config.
 
-end_per_group(stream_mgmt_disabled, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config);
-end_per_group(G, Config) when G =:= unacknowledged_message_hook;
-                              G =:= manual_ack_freq_long_session_timeout ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), never]),
-    Config;
-end_per_group(parallel_manual_ack_freq_1, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), never]),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [host_type(), 600]),
-    Config;
-end_per_group(_GroupName, Config) ->
-    Config.
-
-
-set_gc_parameters(RepeatAfter, Geriatric, Config) ->
-    Config2 = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(
-      host_type(), stream_management_with_stale_h(RepeatAfter, Geriatric)),
-    Config2.
-
-register_smid(IntSmidId) ->
-    S = {SMID = make_smid(), IntSmidId},
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [host_type(), SMID, IntSmidId]),
-    S.
-
-register_some_smid_h(Config) ->
-    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
-    [{smid_test, TestSmids} | Config].
+end_per_group(_Group, _Config) ->
+    ok.
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
-    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
-    rpc(mim(), ?MOD_SM, set_resume_timeout, [host_type(), ?SHORT_RESUME_TIMEOUT]),
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), 1]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
+    escalus:init_per_testcase(CN, Config);
+init_per_testcase(CN, Config) when CN =:= gc_repeat_after_never_means_no_cleaning;
+                                   CN =:= gc_repeat_after_timeout_does_clean ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
+    Config2 = register_some_smid_h(Config),
     escalus:init_per_testcase(CN, Config2);
-init_per_testcase(gc_repeat_after_never_means_no_cleaning = CN, Config) ->
-    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
-    Config3 = register_some_smid_h(Config2),
-    escalus:init_per_testcase(CN, Config3);
-init_per_testcase(gc_repeat_after_timeout_does_clean = CN, Config) ->
-    Config2 = set_gc_parameters(?SHORT_RESUME_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
-    Config3 = register_some_smid_h(Config2),
-    escalus:init_per_testcase(CN, Config3);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), 2]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     register_handler(),
@@ -206,20 +162,60 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_h;
                                   CN =:= gc_repeat_after_never_means_no_cleaning;
-                                  CN =:= gc_repeat_after_timeout_does_clean
-                                   ->
-    dynamic_modules:stop(host_type(), ?MOD_SM),
+                                  CN =:= gc_repeat_after_timeout_does_clean ->
     rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
-    dynamic_modules:restore_modules(host_type(), Config),
-    escalus:end_per_testcase(CN, Config);
-end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
-    true = rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), never]),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     unregister_handler(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%% Module configuration per group (in case of stale_h group it is per testcase)
+
+required_modules(Scope, Name) ->
+    SMConfig = case required_sm_opts(Scope, Name) of
+                   stopped -> stopped;
+                   ExtraOpts -> common_sm_opts() ++ ExtraOpts
+               end,
+    [{mod_stream_management, SMConfig}].
+
+required_sm_opts(group, parallel) ->
+    [{ack_freq, never}];
+required_sm_opts(group, parallel_manual_ack_freq_1) ->
+    [{ack_freq, 1},
+     {resume_timeout, ?SHORT_TIMEOUT}];
+required_sm_opts(group, manual_ack_freq_2) ->
+    [{ack_freq, 2}];
+required_sm_opts(group, stream_mgmt_disabled) ->
+    stopped;
+required_sm_opts(group, Group) when Group =:= unacknowledged_message_hook;
+                                    Group =:= manual_ack_freq_long_session_timeout ->
+    [{ack_freq, 1}];
+required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
+    [{ack_freq, 1},
+     {resume_timeout, ?SHORT_TIMEOUT} | stale_h(?LONG_TIMEOUT, ?LONG_TIMEOUT)];
+required_sm_opts(testcase, gc_repeat_after_never_means_no_cleaning) ->
+    stale_h(?LONG_TIMEOUT, ?SHORT_TIMEOUT);
+required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
+    stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT).
+
+common_sm_opts() ->
+    [{buffer_max, ?SMALL_SM_BUFFER}].
+
+stale_h(RepeatAfter, Geriatric) ->
+    [{stale_h, [{enabled, true},
+                {stale_h_repeat_after, RepeatAfter},
+                {stale_h_geriatric, Geriatric}]}].
+
+register_smid(IntSmidId) ->
+    S = {SMID = make_smid(), IntSmidId},
+    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [host_type(), SMID, IntSmidId]),
+    S.
+
+register_some_smid_h(Config) ->
+    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
+    [{smid_test, TestSmids} | Config].
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -660,11 +656,11 @@ resume_expired_session_returns_correct_h(Config) ->
     escalus_connection:stop(NewAlice).
 
 gc_repeat_after_never_means_no_cleaning(Config) ->
-    true = rpc(mim(), ?MOD_SM, set_stale_h_repeat_after, [host_type(), ?BIG_BIG_BIG_TIMEOUT]),
     [{SMID1, _}, {SMID2, _}, {SMID3, _}] = ?config(smid_test, Config),
     {stale_h, 1} = rpc(mim(), ?MOD_SM, get_session_from_smid, [host_type(), SMID1]),
     {stale_h, 2} = rpc(mim(), ?MOD_SM, get_session_from_smid, [host_type(), SMID2]),
     {stale_h, 3} = rpc(mim(), ?MOD_SM, get_session_from_smid, [host_type(), SMID3]).
+
 gc_repeat_after_timeout_does_clean(Config) ->
     [{SMID1, _} | _ ] = ?config(smid_test, Config),
     mongoose_helper:wait_until(fun() ->
@@ -1374,32 +1370,6 @@ discard_offline_messages(Config, User, H) ->
         false ->
             discard_offline_messages(Config, User, H+1)
     end.
-
-buffer_max(BufferMax) ->
-    {buffer_max,
-     fun () ->
-             rpc(mim(), ?MOD_SM, get_buffer_max, [host_type(), unset])
-     end,
-     fun (unset) ->
-             ct:pal("buffer_max was not set - setting to 'undefined'"),
-             rpc(mim(), ?MOD_SM, set_buffer_max, [host_type(), undefined]);
-         (V) ->
-             rpc(mim(), ?MOD_SM, set_buffer_max, [host_type(), V])
-     end,
-     BufferMax}.
-
-ack_freq(AckFreq) ->
-    {ack_freq,
-     fun () ->
-             rpc(mim(), ?MOD_SM, get_ack_freq, [host_type(), unset])
-     end,
-     fun (unset) ->
-             ct:pal("ack_freq was not set - setting to 'undefined'"),
-             rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), undefined]);
-         (V) ->
-             rpc(mim(), ?MOD_SM, set_ack_freq, [host_type(), V])
-     end,
-     AckFreq}.
 
 assert_no_offline_msgs(Spec) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Spec)),

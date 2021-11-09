@@ -64,7 +64,6 @@
 
 %% For tests
 -export([default_schema/0,
-         set_module_opt_from_ct/3,
          force_clear_from_ct/1]).
 
 -ignore_xref([
@@ -72,7 +71,7 @@
     default_schema/0, disco_local_items/1,
     force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
     process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
-    set_module_opt_from_ct/3, server_host_to_muc_host/2
+    server_host_to_muc_host/2
 ]).
 
 -type muc_server() :: jid:lserver().
@@ -106,9 +105,6 @@ config_schema(MUCServer) ->
 -spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
 config_schema_for_host_type(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, config_schema, default_schema()).
-
-set_module_opt_from_ct(HostType, K, V) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, K, V).
 
 force_clear_from_ct(HostType) ->
     mod_muc_light_db_backend:force_clear(HostType).
