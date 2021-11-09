@@ -68,6 +68,7 @@
          sql_dirty/2,
          to_bool/1,
          db_engine/1,
+         db_type/0,
          print_state/1,
          use_escaped/1]).
 
@@ -733,6 +734,16 @@ abort_on_driver_error({Reply, State}) ->
 db_engine(_HostType) ->
     try mongoose_backend:get_backend_name(global, ?MODULE)
     catch error:badarg -> undefined end.
+
+%% @doc Used to optimise queries for different databases.
+%% @todo Should be refactored to use host types with this module.
+%% Also, this parameter should not be global, but pool-name parameterized
+-spec db_type() -> mssql | generic.
+db_type() ->
+    case ejabberd_config:get_local_option(rdbms_server_type) of
+        mssql -> mssql;
+        _ -> generic
+    end.
 
 -spec connect(Settings :: term(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
