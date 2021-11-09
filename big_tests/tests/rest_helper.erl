@@ -24,7 +24,7 @@
     maybe_disable_mam/2,
     maybe_skip_mam_test_cases/3,
     fill_archive/2,
-    fill_room_archive/2,
+    fill_room_archive/3,
     make_timestamp/2,
     change_admin_creds/1,
     make_msg_stanza_with_props/2,
@@ -248,7 +248,7 @@ report_errors(Client, Path, Method, Headers, Body,
 get_port(_Role, _Node, #{port := Port}) ->
     Port;
 get_port(Role, Node, _Params) ->
-    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
     [{PortIpNet, ejabberd_cowboy, _Opts}] =
         lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
     case PortIpNet of
@@ -259,7 +259,7 @@ get_port(Role, Node, _Params) ->
 
 -spec get_ssl_status(Role :: role(), Server :: distributed_helper:rpc_spec()) -> boolean().
 get_ssl_status(Role, Node) ->
-    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
     [{_PortIpNet, _Module, Opts}] =
         lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
     lists:keymember(ssl, 1, Opts).
@@ -273,13 +273,13 @@ change_admin_creds(Creds) ->
 
 -spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_admin_listener() ->
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     rpc(mim(), ejabberd_listener, stop_listener, [PortIpNet, Module]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
-    Listeners = rpc(mim(), ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
     rpc(mim(), ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
@@ -419,10 +419,12 @@ make_arc_id(Client) ->
     Jid = mongoose_helper:make_jid(User, Server, <<>>),
     {Bin, Jid, mam_helper:rpc_apply(mod_mam, archive_id, [Server, User])}.
 
-fill_room_archive(RoomID, Users) ->
+fill_room_archive(RoomID, Users, AlreadyArchivedCount) ->
     {TodayDate, _} = calendar:local_time(),
     Today = calendar:date_to_gregorian_days(TodayDate),
-    Days = [Today - I || I <- lists:seq(0, 3)],
+    DayOffsets = [I || I <- lists:seq(0, 3)],
+    %% Days = [Today, Yesterday, ...]
+    Days = [Today - I || I <- DayOffsets],
     HostType = host_type(),
     MUCLight = ct:get_config({hosts, mim, muc_light_service}),
     RoomJID = mongoose_helper:make_jid(RoomID, MUCLight, <<>>),
@@ -430,15 +432,45 @@ fill_room_archive(RoomID, Users) ->
     RoomArcID = mam_helper:rpc_apply(mod_mam_muc, archive_id_int, [HostType, RoomJID]),
     Room = {RoomBinJID, RoomJID, RoomArcID},
     UserArcIDs = [make_room_arc_id(Room, User) || User <- Users],
-    [put_room_msgs_in_day(Room, UserArcIDs, Day) || Day <- lists:reverse(Days)].
+    %% Returns tuples the oldest first
+    %% We add numbering for day_offset and user_num here for simple debugging
+    %% We check, that we didn't archived several messages under the same message id
+    Result = [put_room_msgs_in_day(Room, UserArcIDs, Day, DayOffset) ||
+         {Day, DayOffset} <- lists:zip(lists:reverse(Days), lists:reverse(DayOffsets))],
+    assert_unique_ids(Result),
+    mam_helper:wait_for_room_archive_size(MUCLight, RoomID,
+                                          length(result_to_ids(Result)) + AlreadyArchivedCount),
+    Result.
 
-put_room_msgs_in_day(RoomJID, Users, Day) ->
-    [put_room_msg_in_day(RoomJID, User, Day) || User <- Users].
+%% To avoid duplicates errors
+%% This check is explicit to avoid strange bugs, when one message is missing
+assert_unique_ids(Result) ->
+    assert_unique_list(result_to_ids(Result)).
 
-put_room_msg_in_day(RoomArcID, FromArcID, Day) ->
+assert_unique_list(List) ->
+    ?assertEqual(lists:usort(List), lists:sort(List)).
+
+result_to_ids(Result) ->
+    [MsgID || PerDay <- Result, {MsgID, _, _} <- PerDay].
+
+put_room_msgs_in_day(RoomJID, Users, Day, DayOffset) ->
     {_, Time} = calendar:local_time(),
-    DateTime = {calendar:gregorian_days_to_date(Day), Time},
-    Msg = mam_helper:generate_msg_for_date_user(FromArcID, RoomArcID, DateTime),
+    [put_room_msg_in_day(RoomJID, User, UserNum, Day, DayOffset, Time)
+     || {User, UserNum} <- lists:zip(Users, lists:seq(1, length(Users)))].
+
+offset_time(Time, Offset) ->
+    calendar:seconds_to_time(calendar:time_to_seconds(Time) + Offset).
+
+put_room_msg_in_day(RoomArcID, FromArcID, UserNum, Day, DayOffset, Time) ->
+    %% Make sure messages are sorted and with unique ids by making predictable
+    %% datetime.
+    %% So, first user sends first message, second user sends second message...
+    Time2 = offset_time(Time, UserNum),
+    DateTime = {calendar:gregorian_days_to_date(Day), Time2},
+    Content = <<(mam_helper:random_text())/binary,
+                 " day_offset=", (integer_to_binary(DayOffset))/binary,
+                 " user_num=", (integer_to_binary(UserNum))/binary>>,
+    Msg = mam_helper:generate_msg_for_date_user(FromArcID, RoomArcID, DateTime, Content),
     put_room_msg(Msg).
 
 put_room_msg({{_, MsgID},

@@ -211,7 +211,7 @@ handle_register(HostType, SubdomainPattern, PacketHandler, From) ->
                     Fn = fun(_HostType, Subdomain) ->
                              add_subdomain(RegItem, Subdomain)
                          end,
-                    %% mongoose_domain_core:for_each_domain/2 can take quite a long,
+                    %% mongoose_domain_core:for_each_domain/2 can take quite long,
                     %% reply before running it.
                     gen_server:reply(From, ok),
                     mongoose_domain_core:for_each_domain(HostType, Fn);

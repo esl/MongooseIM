@@ -254,14 +254,14 @@ init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
     Config0;
 
 init_per_testcase(retrieve_vcard = CN, Config) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
         _ ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(remove_vcard = CN, Config) ->
-    case vcard_update:is_vcard_ldap() of
+    case vcard_helper:is_vcard_ldap() of
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
         _ ->
@@ -842,7 +842,7 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
 
             [mam_helper:wait_for_archive_size(User, 2) || User <- [Alice, Bob]],
 
-            false = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
+            false = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
                                                    [host_type(), mod_mam, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
@@ -890,7 +890,7 @@ retrieve_mam_pm_and_muc_light_interfere(Config) ->
             [mam_helper:wait_for_archive_size(User, 5) || User <- [Alice, Bob]],
             mam_helper:wait_for_archive_size(Kate, 3),
 
-            true = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
+            true = mongoose_helper:successful_rpc(gen_mod, get_module_opt,
                                                    [host_type(), mod_mam, archive_groupchats, undefined]),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),

@@ -120,7 +120,7 @@ ensure_started() ->
     end.
 
 start_configured_pools() ->
-    Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    Pools = mongoose_config:get_opt(outgoing_pools, []),
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
@@ -230,7 +230,7 @@ stop(PoolType, HostType, Tag) ->
 
 -spec is_configured(pool_type()) -> boolean().
 is_configured(PoolType) ->
-    Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    Pools = mongoose_config:get_opt(outgoing_pools, []),
     lists:keymember(PoolType, 1, Pools).
 
 -spec get_worker(pool_type()) -> worker_result().

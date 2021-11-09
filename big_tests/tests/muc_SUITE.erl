@@ -55,7 +55,8 @@
 
 -import(domain_helper, [host_type/0, domain/0]).
 
--define(MUC_CLIENT_HOST, <<"localhost/res1">>).
+-import(mongoose_helper, [backup_and_set_config_option/3, restore_config_option/2]).
+
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
 -define(WAIT_TIME, 1500).
@@ -396,6 +397,9 @@ init_per_group(register_over_s2s, Config) ->
     [{_,AliceSpec2}|Others] = escalus:get_users([alice2, bob, kate]),
     Users = [{alice,AliceSpec2}|Others],
     escalus:create_users(Config2, Users);
+init_per_group(owner_no_parallel, Config) ->
+    Config1 = backup_and_set_config_option(Config, {access, muc_create, global}, [{deny, all}]),
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate]));
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -459,6 +463,8 @@ end_per_group(hibernation, Config) ->
 end_per_group(register_over_s2s, Config) ->
     s2s_helper:end_s2s(Config),
     escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
+end_per_group(owner_no_parallel, Config) ->
+    restore_config_option(Config, {access, muc_create, global});
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 
@@ -2894,11 +2900,8 @@ disco_features_with_mam(Config) ->
                                   ?NS_MUC_UNIQUE,
                                   <<"jabber:iq:register">>,
                                   ?NS_RSM,
-                                  <<"vcard-temp">>,
-                                  mam_helper:mam_ns_binary_v04(),
-                                  mam_helper:mam_ns_binary_v06(),
-                                  mam_helper:retract_ns(),
-                                  mam_helper:retract_tombstone_ns()]).
+                                  <<"vcard-temp">> |
+                                  mam_helper:namespaces()]).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -2994,13 +2997,9 @@ create_and_destroy_room_multiple_x_elements(Config) ->
 %% ejabberd returns 'forbidden' while it ought to return 'not-allowed'.
 room_creation_not_allowed(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus_ejabberd:with_global_option({access,muc_create,global},
-                                            [{deny,all}], fun() ->
-            escalus:send(Alice, stanza_enter_room(<<"room1">>, <<"nick1">>)),
-            escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
-                           escalus:wait_for_stanza(Alice))
-
-        end)
+        escalus:send(Alice, stanza_enter_room(<<"room1">>, <<"nick1">>)),
+        escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
+                       escalus:wait_for_stanza(Alice))
     end).
 
 %%  Fails.

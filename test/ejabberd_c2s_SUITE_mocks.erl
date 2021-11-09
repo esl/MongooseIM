@@ -38,12 +38,9 @@ setup() ->
     meck:new(gen_hook),
     meck:expect(gen_hook, run_fold, fun hookfold/4),
 
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-                fun default_local_option/1),
-    meck:expect(ejabberd_config, get_global_option,
-                fun default_global_option/1),
-    meck:expect(acl, match_rule, fun(_, _, _) -> allow end),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+
+    meck:expect(acl, match_rule_for_host_type, fun(_, _, _, _) -> allow end),
 
     meck:new(mongoose_bin, [passthrough]),
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
@@ -59,13 +56,12 @@ setup() ->
 
 
 teardown() ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     meck:unload().
 
-default_local_option(max_fsm_queue) -> 100.
-
-default_global_option(default_server_domain) ->  <<"localhost">>;
-default_global_option({access, c2s_shaper, global}) ->  [];
-default_global_option(language) ->  <<"en">>.
+opts() ->
+    [{max_fsm_queue, 100},
+     {default_server_domain, <<"localhost">>}].
 
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
 mcred_get(dummy_creds, auth_module) -> auuuthmodule.

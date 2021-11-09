@@ -120,8 +120,8 @@
 -define(TCP_SEND_TIMEOUT, 15000).
 
 %% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in milliseconds. Default value is 5 minutes.
--define(MAX_RETRY_DELAY, 300000).
+%% Specified in seconds. Default value is 5 minutes.
+-define(MAX_RETRY_DELAY, 300).
 
 -define(STREAM_HEADER(From, To, Other),
         <<"<?xml version='1.0'?>",
@@ -187,8 +187,8 @@ init([From, Server, Type]) ->
     ?LOG_DEBUG(#{what => s2s_out_started,
                  text => <<"New outgoing s2s connection">>,
                  from => From, server => Server, type => Type}),
-    {TLS, TLSRequired} = case ejabberd_config:get_local_option(s2s_use_starttls) of
-              UseTls when (UseTls==undefined) or (UseTls==false) ->
+    {TLS, TLSRequired} = case mongoose_config:get_opt(s2s_use_starttls, false) of
+              UseTls when (UseTls==false) ->
                   {false, false};
               UseTls when (UseTls==true) or (UseTls==optional) ->
                   {true, false};
@@ -196,17 +196,17 @@ init([From, Server, Type]) ->
                   {true, true}
           end,
     UseV10 = TLS,
-    TLSOpts = case ejabberd_config:get_local_option(s2s_certfile) of
-                  undefined ->
+    TLSOpts = case mongoose_config:lookup_opt(s2s_certfile) of
+                  {error, not_found} ->
                       [connect];
-                  CertFile ->
+                  {ok, CertFile} ->
                       [{certfile, CertFile}, connect]
               end,
-    TLSOpts2 = case ejabberd_config:get_local_option(s2s_ciphers) of
-                       undefined ->
-                               TLSOpts;
-                       Ciphers ->
-                               [{ciphers, Ciphers} | TLSOpts]
+    TLSOpts2 = case mongoose_config:lookup_opt(s2s_ciphers) of
+                   {error, not_found} ->
+                       TLSOpts;
+                   {ok, Ciphers} ->
+                       [{ciphers, Ciphers} | TLSOpts]
                end,
     {New, Verify} = case Type of
                         new ->
@@ -998,10 +998,7 @@ get_addr_port(Server) ->
 
 -spec srv_lookup(jid:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
-    Options = case ejabberd_config:get_local_option(s2s_dns_options) of
-                  L when is_list(L) -> L;
-                  _ -> []
-              end,
+    Options = mongoose_config:get_opt(s2s_dns_options, []),
     TimeoutMs = timer:seconds(proplists:get_value(timeout, Options, 10)),
     Retries = proplists:get_value(retries, Options, 2),
     srv_lookup(Server, TimeoutMs, Retries).
@@ -1073,47 +1070,27 @@ get_addrs(Host, Family) ->
 
 -spec outgoing_s2s_port() -> integer().
 outgoing_s2s_port() ->
-    case ejabberd_config:get_local_option(outgoing_s2s_port) of
-        Port when is_integer(Port) ->
-            Port;
-        undefined ->
-            5269
-    end.
+    mongoose_config:get_opt(outgoing_s2s_port, 5269).
 
 
 -spec outgoing_s2s_families() -> ['ipv4' | 'ipv6', ...].
 outgoing_s2s_families() ->
-    case ejabberd_config:get_local_option(outgoing_s2s_families) of
-        Families when is_list(Families) ->
-            Families;
-        undefined ->
-            %% DISCUSSION: Why prefer IPv4 first?
-            %%
-            %% IPv4 connectivity will be available for everyone for
-            %% many years to come. So, there's absolutely no benefit
-            %% in preferring IPv6 connections which are flaky at best
-            %% nowadays.
-            %%
-            %% On the other hand content providers hesitate putting up
-            %% AAAA records for their sites due to the mentioned
-            %% quality of current IPv6 connectivity. Making IPv6 the a
-            %% `fallback' may avoid these problems elegantly.
-            [ipv4, ipv6]
-    end.
-
+    %% DISCUSSION: Why prefer IPv4 first?
+    %%
+    %% IPv4 connectivity will be available for everyone for
+    %% many years to come. So, there's absolutely no benefit
+    %% in preferring IPv6 connections which are flaky at best
+    %% nowadays.
+    %%
+    %% On the other hand content providers hesitate putting up
+    %% AAAA records for their sites due to the mentioned
+    %% quality of current IPv6 connectivity. Making IPv6 the a
+    %% `fallback' may avoid these problems elegantly.
+    mongoose_config:get_opt(outgoing_s2s_families, [ipv4, ipv6]).
 
 -spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
 outgoing_s2s_timeout() ->
-    case ejabberd_config:get_local_option(outgoing_s2s_timeout) of
-        Timeout when is_integer(Timeout) ->
-            Timeout;
-        infinity ->
-            infinity;
-        undefined ->
-            %% 10 seconds
-            10000
-    end.
-
+    mongoose_config:get_opt(outgoing_s2s_timeout, 10000).
 
 %% @doc Human readable S2S logging: Log only new outgoing connections as INFO
 %% Do not log dialback
@@ -1170,12 +1147,7 @@ wait_before_reconnect(StateData) ->
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
 get_max_retry_delay() ->
-    case ejabberd_config:get_local_option(s2s_max_retry_delay) of
-        Seconds when is_integer(Seconds) ->
-            Seconds*1000;
-        _ ->
-            ?MAX_RETRY_DELAY
-    end.
+    mongoose_config:get_opt(s2s_max_retry_delay, ?MAX_RETRY_DELAY) * 1000.
 
 
 %% @doc Terminate s2s_out connections that are in state wait_before_retry
@@ -1191,10 +1163,10 @@ terminate_if_waiting_delay(From, To) ->
 
 -spec fsm_limit_opts() -> [{'max_queue', integer()}].
 fsm_limit_opts() ->
-    case ejabberd_config:get_local_option(max_fsm_queue) of
-        N when is_integer(N) ->
+    case mongoose_config:lookup_opt(max_fsm_queue) of
+        {ok, N} ->
             [{max_queue, N}];
-        _ ->
+        {error, not_found} ->
             []
     end.
 
@@ -1216,14 +1188,14 @@ get_addr_list(Server) ->
 %% @doc Get IPs predefined for a given s2s domain in the configuration
 -spec get_predefined_addresses(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
-    S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
-    do_get_predefined_addresses(S2SAddr).
+    case mongoose_config:lookup_opt({s2s_addr, Server}) of
+        {error, not_found} -> [];
+        {ok, S2SAddr} -> do_get_predefined_addresses(S2SAddr)
+    end.
 
--spec do_get_predefined_addresses(undefined | string() | inet:ip_address() |
+-spec do_get_predefined_addresses(string() | inet:ip_address() |
                                   {string() | inet:ip_address(), non_neg_integer()}) ->
                                          [{inet:ip_address(), non_neg_integer()}].
-do_get_predefined_addresses(undefined) ->
-    [];
 do_get_predefined_addresses({{_, _, _, _}, Port} = IP4Port) when is_integer(Port) ->
     [IP4Port];
 do_get_predefined_addresses({{_, _, _, _, _, _, _, _}, Port} = IP6Port) when is_integer(Port) ->
@@ -1274,22 +1246,18 @@ get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
 get_tls_opts_with_certfile(StateData) ->
-    case ejabberd_config:get_local_option(
-           {domain_certfile, StateData#state.myname}) of
-        undefined ->
+    case mongoose_config:lookup_opt({domain_certfile, StateData#state.myname}) of
+        {error, not_found} ->
             StateData#state.tls_options;
-        CertFile ->
-            [{certfile, CertFile} |
-             lists:keydelete(
-               certfile, 1,
-               StateData#state.tls_options)]
+        {ok, CertFile} ->
+            lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
     end.
 
 get_tls_opts_with_ciphers(TLSOpts) ->
-    case ejabberd_config:get_local_option(s2s_ciphers) of
-        undefined ->
+    case mongoose_config:lookup_opt(s2s_ciphers) of
+        {error, not_found} ->
             TLSOpts;
-        Ciphers ->
+        {ok, Ciphers} ->
             [{ciphers, Ciphers} | TLSOpts]
     end.
 

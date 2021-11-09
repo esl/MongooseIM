@@ -165,6 +165,14 @@ commands:
           when: always
           command: |
               tools/circle-publish-github-comment.sh
+  publish_github_summary_comment:
+    steps:
+      - run:
+          name: Publish a summary comment to GitHub
+          when: on_fail
+          command: |
+              tools/circle-publish-github-summary-comment.sh
+
   maybe_prepare_minio:
     steps:
       - run:
@@ -256,6 +264,7 @@ jobs:
         description: Version of the Erlang package to install
     environment:
       PRESET: small_tests
+      SKIP_AUTO_COMPILE: true
     steps:
       - checkout
       - fetch_packages
@@ -269,7 +278,7 @@ jobs:
       - run:
           name: Run Small Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
+            ./tools/test.sh -p small_tests -s true -e true
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
@@ -310,6 +319,8 @@ jobs:
       CASSANDRA_VERSION: 3.9
       TESTSPEC: <<parameters.spec>>
       REDIS_VERSION: 3.2.10
+      SKIP_AUTO_COMPILE: true
+      KEEP_COVER_RUNNING: 1
     steps:
       - checkout
       - fetch_packages
@@ -330,7 +341,7 @@ jobs:
       - run:
           name: Run Big Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p $PRESET -s false
+            ./tools/test.sh -p $PRESET -s false
           no_output_timeout: 40m
       - run_coverage_analysis
       - run:
@@ -344,6 +355,7 @@ jobs:
             tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
       - upload_results_to_aws
       - publish_github_comment
+      - publish_github_summary_comment
 
   # #########################
   # jobs in docker containers
@@ -446,6 +458,7 @@ jobs:
     parallelism: 1
     environment:
       PRESET: small_tests
+      SKIP_AUTO_COMPILE: true
     steps:
       - restore_workspace
       - install_dockerize
@@ -453,7 +466,7 @@ jobs:
       - run:
           name: Run Small Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p small_tests -s true -e true
+            ./tools/test.sh -p small_tests -s true -e true
       - run_coverage_analysis
       - upload_results_to_aws
       - publish_github_comment
@@ -485,6 +498,8 @@ jobs:
       ELASTICSEARCH_VERSION: 5.6.9
       CASSANDRA_VERSION: 3.9
       REDIS_VERSION: 3.2.10
+      SKIP_AUTO_COMPILE: true
+      KEEP_COVER_RUNNING: 1
     steps:
       - restore_workspace
       - install_dockerize
@@ -495,7 +510,7 @@ jobs:
       - run:
           name: Run Big Tests
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p $PRESET -s false
+            ./tools/test.sh -p $PRESET -s false
           no_output_timeout: 40m
       - run_coverage_analysis
       - run:
@@ -519,7 +534,7 @@ jobs:
       - run:
           name: Run Dialyzer
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p dialyzer_only -s false
+            ./tools/test.sh -p dialyzer_only -s false
 
   xref:
     executor: << parameters.executor >>
@@ -532,7 +547,19 @@ jobs:
       - run:
           name: Run Xref
           command: |
-            SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/test.sh -p xref_only -s false
+            ./tools/test.sh -p xref_only -s false
+  edoc:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Edoc
+          command: |
+            ./tools/test.sh -p edoc_only -s false
 
   package:
     parallelism: 1
@@ -557,7 +584,7 @@ jobs:
       - run:
           name: Build package
           command: |
-            KEEP_COVER_RUNNING=1 ./tools/test.sh -p pkg -s false
+            ./tools/test.sh -p pkg -s false
 
 filters: &all_tags
   tags:
@@ -606,6 +633,14 @@ workflows:
       # ============= XREF =============
       - xref:
           name: xref
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= EDOC =============
+      - edoc:
+          name: edoc
           executor: otp_24
           context: mongooseim-org
           requires:
@@ -788,4 +823,5 @@ workflows:
 
             - dialyzer
             - xref
+            - edoc
           filters: *all_tags

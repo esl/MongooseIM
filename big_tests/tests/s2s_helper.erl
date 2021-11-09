@@ -25,13 +25,13 @@ suite(Config) ->
     require_rpc_nodes([mim, fed]) ++ Config.
 
 init_s2s(Config) ->
-    Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
-    Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
+    Node1S2SCertfile = rpc(mim(), mongoose_config, get_opt, [s2s_certfile, undefined]),
+    Node1S2SUseStartTLS = rpc(mim(), mongoose_config, get_opt, [s2s_use_starttls, undefined]),
     Node1S2SPort = ct:get_config({hosts, mim, incoming_s2s_port}),
     [Node1S2SListener] = mongoose_helper:get_listener_opts(mim(), Node1S2SPort),
 
-    Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
-    Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
+    Node2S2SCertfile = rpc(fed(), mongoose_config, get_opt, [s2s_certfile, undefined]),
+    Node2S2SUseStartTLS = rpc(fed(), mongoose_config, get_opt, [s2s_use_starttls, undefined]),
     Node2S2SPort = ct:get_config({hosts, fed, incoming_s2s_port}),
     [Node2S2SListener] = mongoose_helper:get_listener_opts(fed(), Node2S2SPort),
     S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
@@ -115,8 +115,13 @@ configure_s2s(#s2s_opts{node1_s2s_certfile = Certfile1,
     restart_s2s(S2SOpts).
 
 configure_s2s(#{} = Spec, Certfile, StartTLS) ->
-    rpc(Spec, ejabberd_config, add_local_option, [s2s_certfile, Certfile]),
-    rpc(Spec, ejabberd_config, add_local_option, [s2s_use_starttls, StartTLS]).
+    set_or_unset_opt(Spec, s2s_certfile, Certfile),
+    set_or_unset_opt(Spec, s2s_use_starttls, StartTLS).
+
+set_or_unset_opt(Spec, Opt, undefined) ->
+    rpc(Spec, mongoose_config, unset_opt, [Opt]);
+set_or_unset_opt(Spec, Opt, Value) ->
+    rpc(Spec, mongoose_config, set_opt, [Opt, Value]).
 
 restart_s2s(#s2s_opts{node1_s2s_listener = Node1S2SListener,
                       node2_s2s_listener = Node2S2SListener}) ->

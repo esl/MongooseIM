@@ -8,7 +8,6 @@
                           data/2]).
 
 -define(DEFAULT_PORTS, [5222, 5280, 5269]).
--define(ALT_PORTS, [5222, 5280, 5296]). %% yes it is different
 
 all() ->
     [tcp_socket_is_started_with_default_backlog,
@@ -167,14 +166,6 @@ tcp_start_stop_reload(C) ->
     {ok, Sock2} = gen_tcp:connect("localhost", ChgPort,[{active, false}, {packet, 2}]),
     assert_connected(Sock2, ChgPort),
 
-    %% stop listening on 5269, start on 5296
-    ejabberd_listener:delete_listener(5269, ejabberd_c2s),
-    ejabberd_listener:add_listener(5296, ejabberd_c2s, []),
-
-    lists:map(fun assert_open/1, ?ALT_PORTS),
-    assert_closed(5269),
-    assert_connected(Sock, UnchPort),
-    assert_connected(Sock2, ChgPort),
     ok = ejabberd_helper:stop_ejabberd(),
     ok.
 

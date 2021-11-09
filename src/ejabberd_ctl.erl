@@ -247,10 +247,7 @@ process2(Args, Auth, AccessCommands) ->
 
 -spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
-    case ejabberd_config:get_local_option(mongooseimctl_access_commands) of
-        ACs when is_list(ACs) -> ACs;
-        _ -> []
-    end.
+    mongoose_config:get_opt(mongooseimctl_access_commands, []).
 
 
 %%-----------------------------
@@ -791,13 +788,13 @@ print_usage_help(MaxC, ShCode) ->
 %% Print usage command
 %%-----------------------------
 
-%% @spec (CmdSubString::string(), MaxC::integer(), ShCode::boolean()) -> ok
+-spec print_usage_commands(CmdSubString :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_usage_commands(CmdSubString, MaxC, ShCode) ->
     %% Get which command names match this substring
     AllCommandsNames = [atom_to_list(Name) || {Name, _, _} <- ejabberd_commands:list_commands()],
     Cmds = filter_commands(AllCommandsNames, CmdSubString),
     case Cmds of
-        [] -> io:format("Error: not command found that match: ~p~n", [CmdSubString]);
+        [] -> io:format("Error: no command found that match: ~p~n", [CmdSubString]);
         _ -> print_usage_commands2(lists:sort(Cmds), MaxC, ShCode)
     end.
 
@@ -838,7 +835,7 @@ filter_commands_regexp(All, Glob) ->
       All).
 
 
-%% @spec (Cmd::string(), MaxC::integer(), ShCode::boolean()) -> ok
+-spec print_usage_command(Cmd :: string(), MaxC :: integer(), ShCode :: boolean()) -> ok.
 print_usage_command(Cmd, MaxC, ShCode) ->
     Name = list_to_atom(Cmd),
     case ejabberd_commands:get_command_definition(Name) of

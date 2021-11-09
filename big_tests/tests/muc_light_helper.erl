@@ -15,7 +15,12 @@
 -type ct_aff_users() :: [ct_aff_user()].
 -type ct_block_item() :: {What :: atom(), Action :: atom(), Who :: binary()}.
 
--export_type([ct_block_item/0]).
+%% The tests use only binary config fields
+-type schema_item() :: {binary(), binary(), atom(), binary}.
+-type config_item() :: {binary(), binary()}.
+-type internal_config_item() :: {atom(), binary()}.
+
+-export_type([ct_block_item/0, schema_item/0, config_item/0, internal_config_item/0]).
 
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
@@ -28,7 +33,7 @@ muc_host_pattern() ->
     ct:get_config({hosts, mim, muc_light_service_pattern}).
 
 create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
-    DefaultConfig = default_config(),
+    DefaultConfig = default_internal_config(MUCHost),
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
@@ -37,10 +42,23 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
                         [domain_helper:host_type(), RoomUS, DefaultConfig, AffUsersSort, Version]).
 
--spec default_config() -> list().
-default_config() -> assert_list(rpc(mim(), mod_muc_light, default_config, [muc_host()])).
+-spec default_internal_config(jid:lserver()) -> [internal_config_item()].
+default_internal_config(MUCHost) ->
+    Schema = rpc(mim(), mod_muc_light, config_schema, [MUCHost]),
+    {ok, Config} = rpc(mim(), mod_muc_light_room_config, from_binary_kv, [[], Schema]),
+    Config.
 
-assert_list(X) when is_list(X) -> X.
+-spec default_schema() -> [schema_item()].
+default_schema() ->
+    rpc(mim(), mod_muc_light, default_schema, []).
+
+-spec default_config([schema_item()]) -> [config_item()].
+default_config(Schema) ->
+    [config_item(SchemaItem) || SchemaItem <- Schema].
+
+-spec config_item(schema_item()) -> config_item().
+config_item({BinKey, BinValue, _Key, binary}) when is_binary(BinKey), is_binary(BinValue) ->
+    {BinKey, BinValue}.
 
 -spec ns_muc_light_affiliations() -> binary().
 ns_muc_light_affiliations() ->
@@ -207,7 +225,7 @@ verify_aff_users(Items, BinAffUsers) ->
                      Aff :: binary(), AffAcc :: list()) -> list().
 verify_keytake({value, {_, Aff}, NewAffAcc}, _JID, Aff, _AffAcc) -> NewAffAcc.
 
--spec stanza_create_room(RoomNode :: binary() | undefined, InitConfig :: [{binary(), binary()}],
+-spec stanza_create_room(RoomNode :: binary() | undefined, InitConfig :: [config_item()],
                          InitOccupants :: ct_aff_users()) -> exml:element().
 stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
     Host = muc_host(),

@@ -159,8 +159,13 @@
 %% Just a map, used by some hooks as a first argument.
 %% Not mongoose_acc:t().
 -type simple_acc() :: #{}.
-
 -export_type([simple_acc/0]).
+
+-type filter_packet_acc() :: {From :: jid:jid(),
+                              To :: jid:jid(),
+                              Acc :: mongoose_acc:t(),
+                              Packet :: exml:element()}.
+-export_type([filter_packet_acc/0]).
 
 -spec c2s_remote_hook(HostType, Tag, Args, HandlerState, C2SState) -> Result when
     HostType :: binary(),
@@ -249,10 +254,6 @@ failed_to_store_message(Acc) ->
 
 %%% @doc The `filter_local_packet' hook is called to filter out
 %%% stanzas routed with `mongoose_local_delivery'.
--type filter_packet_acc() :: {From :: jid:jid(),
-                              To :: jid:jid(),
-                              Acc :: mongoose_acc:t(),
-                              Packet :: exml:element()}.
 -spec filter_local_packet(FilterAcc) -> Result when
     FilterAcc :: filter_packet_acc(),
     Result :: drop | filter_packet_acc().

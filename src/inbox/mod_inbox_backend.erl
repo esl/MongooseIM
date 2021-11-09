@@ -26,7 +26,7 @@
     LServer :: jid:lserver(),
     Params :: mod_inbox:get_inbox_params().
 
--callback clear_inbox(HostType, LUser, LServer) -> mod_inbox:inbox_write_res() when
+-callback clear_inbox(HostType, LUser, LServer) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver().
@@ -36,7 +36,7 @@
     LServer :: jid:lserver().
 
 -callback set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    mod_inbox:inbox_write_res() when
+    mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
@@ -44,19 +44,19 @@
     MsgId :: binary(),
     Timestamp :: integer().
 
--callback remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:inbox_write_res() when
+-callback remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 
 -callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
-    {ok, integer()} | ok when
+    mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
     MsgId :: binary(),
     Timestamp :: integer().
 
--callback reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:inbox_write_res() when
+-callback reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     MsgId :: binary().
@@ -93,7 +93,7 @@ get_inbox(HostType, LUser, LServer, Params) ->
     Args = [HostType, LUser, LServer, Params],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec clear_inbox(HostType, LUser, LServer) -> mod_inbox:inbox_write_res() when
+-spec clear_inbox(HostType, LUser, LServer) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver().
@@ -109,7 +109,7 @@ remove_domain(HostType, LServer) ->
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    mod_inbox:inbox_write_res() when
+    mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
@@ -120,7 +120,7 @@ set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
     Args = [HostType, InboxEntryKey, Content, Count, MsgId, Timestamp],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:inbox_write_res() when
+-spec remove_inbox_row(HostType, InboxEntryKey) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 remove_inbox_row(HostType, InboxEntryKey) ->
@@ -128,7 +128,7 @@ remove_inbox_row(HostType, InboxEntryKey) ->
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
-    {ok, integer()} | ok when
+    mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     Content :: binary(),
@@ -138,7 +138,7 @@ set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     Args = [HostType, InboxEntryKey, Content, MsgId, Timestamp],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:inbox_write_res() when
+-spec reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
     MsgId :: binary() | undefined.

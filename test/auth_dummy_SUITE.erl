@@ -35,18 +35,14 @@ all() -> [
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
-    meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_local_option,
-                fun({auth_method, ?HOST_TYPE}) -> dummy end),
-    meck:expect(ejabberd_config, get_local_option,
-                fun(auth_opts, _Host) ->
-                        [{dummy_base_timeout, 5}, {dummy_variance, 10}]
-                end),
+    mongoose_config:set_opt({auth_method, ?HOST_TYPE}, [dummy]),
+    mongoose_config:set_opt({auth_opts, ?HOST_TYPE}, [{dummy_base_timeout, 5},
+                                                      {dummy_variance, 10}]),
     C.
 
-end_per_suite(C) ->
-    meck:unload(),
-    C.
+end_per_suite(_C) ->
+    mongoose_config:unset_opt({auth_method, ?HOST_TYPE}),
+    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
 
 %%--------------------------------------------------------------------
 %% Authentication tests

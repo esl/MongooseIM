@@ -1,8 +1,8 @@
-{config,default_server_domain,<<"localhost">>}.
-{config,host_types,
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,host_types,
         [<<"this is host type">>,<<"some host type">>,<<"another host type">>,
          <<"yet another host type">>]}.
-{config,hosts,[<<"localhost">>]}.
+{local_config,hosts,[<<"localhost">>]}.
 {local_config,{auth_method,<<"another host type">>},[]}.
 {local_config,{auth_method,<<"localhost">>},[test3]}.
 {local_config,{auth_method,<<"some host type">>},[test2]}.

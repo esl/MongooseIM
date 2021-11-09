@@ -42,19 +42,7 @@ end_per_suite(_C) ->
     ok.
 
 init_per_group(routing, Config) ->
-    %% The self() process could be dead in testcases, so we use no_link
-    meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_local_option_or_default,
-        fun(OptName, Default) ->
-                case OptName of
-                    routing_modules ->
-                        [xmpp_router_a, xmpp_router_b, xmpp_router_c];
-                    _ ->
-                        Default
-                end
-        end),
-    meck:expect(ejabberd_config, get_local_option,
-        fun(_OptName) -> undefined end),
+    mongoose_config:set_opt(routing_modules, [xmpp_router_a, xmpp_router_b, xmpp_router_c]),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     Config;
@@ -62,7 +50,9 @@ init_per_group(schema, Config) ->
     remove_component_tables(),
     Config.
 
-end_per_group(_GroupName, _Config) ->
+end_per_group(routing, _Config) ->
+    mongoose_config:unset_opt(routing_modules);
+end_per_group(schema, _Config) ->
     ok.
 
 init_per_testcase(_CaseName, Config) ->

@@ -47,16 +47,14 @@ start(normal, _Args) ->
     application:start(cache_tab),
 
     translate:start(),
-    acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_service:start(),
     gen_mod:start(),
-    ejabberd_config:start(),
-    mongoose_logs:set_global_loglevel(ejabberd_config:get_local_option_or_default(loglevel, warning)),
-    connect_nodes(),
+    mongoose_config:start(),
+    mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel, warning)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     mongoose_domain_api:init(),
@@ -90,6 +88,7 @@ prep_stop(State) ->
     broadcast_c2s_shutdown(),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
+    mongoose_config:stop(),
     State.
 
 %% All the processes were killed when this function is called
@@ -120,10 +119,10 @@ db_init() ->
 start_modules() ->
     lists:foreach(
       fun(Host) ->
-              case ejabberd_config:get_local_option({modules, Host}) of
-                  undefined ->
+              case mongoose_config:lookup_opt({modules, Host}) of
+                  {error, not_found} ->
                       ok;
-                  Modules ->
+                  {ok, Modules} ->
                       gen_mod_deps:start_modules(Host, Modules)
               end
       end, ?ALL_HOST_TYPES).
@@ -135,12 +134,12 @@ stop_modules() ->
       fun(Host) ->
           StopModuleFun =
               fun({Module, _Args}) ->
-                  gen_mod:stop_module_keep_config(Host, Module)
+                  gen_mod:stop_module(Host, Module)
               end,
-          case ejabberd_config:get_local_option({modules, Host}) of
-              undefined ->
+          case mongoose_config:lookup_opt({modules, Host}) of
+              {error, not_found} ->
                   ok;
-              Modules ->
+              {ok, Modules} ->
                   lists:foreach(StopModuleFun, Modules)
           end
       end, ?ALL_HOST_TYPES).
@@ -149,7 +148,7 @@ stop_modules() ->
 start_services() ->
     lists:foreach(
         fun({Service, Opts}) -> mongoose_service:ensure_loaded(Service, Opts) end,
-        ejabberd_config:get_local_option_or_default(services, [])
+        mongoose_config:get_opt(services, [])
     ).
 
 -spec stop_services() -> ok.
@@ -158,17 +157,6 @@ stop_services() ->
         fun({Service, _Options}) -> mongoose_service:stop_service(Service) end,
         mongoose_service:loaded_services_with_opts()
     ).
-
--spec connect_nodes() -> 'ok'.
-connect_nodes() ->
-    case ejabberd_config:get_local_option(cluster_nodes) of
-        undefined ->
-            ok;
-        Nodes when is_list(Nodes) ->
-            lists:foreach(fun(Node) ->
-                              net_kernel:connect_node(Node)
-                          end, Nodes)
-    end.
 
 -spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->

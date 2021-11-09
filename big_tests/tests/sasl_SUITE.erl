@@ -35,12 +35,10 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, domain_config},
-     {group, node_config}].
+    [{group, host_type_config}].
 
 groups() ->
-    [{domain_config, [sequence], all_tests()},
-     {node_config, [sequence], all_tests()}].
+    [{host_type_config, [sequence], all_tests()}].
 
 all_tests() ->
     [text_response].
@@ -88,11 +86,9 @@ text_response(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-mech_option_key(domain_config) ->
+mech_option_key(host_type_config) ->
     HostType = domain_helper:host_type(),
-    {sasl_mechanisms, HostType};
-mech_option_key(node_config) ->
-    sasl_mechanisms.
+    {sasl_mechanisms, HostType}.
 
 set_sasl_mechanisms(Key, Config) ->
     %% pretend that an auth module is set for this mechanism
@@ -101,15 +97,10 @@ set_sasl_mechanisms(Key, Config) ->
                               fun(_, M) -> M =:= ?MODULE end]),
 
     %% configure the mechanism
-    Mechs = rpc(mim(), ejabberd_config, get_local_option, [Key]),
-    rpc(mim(), ejabberd_config, add_local_option, [Key, [?MODULE]]),
-    [{mechs, Mechs} | Config].
+    mongoose_helper:backup_and_set_config_option(Config, Key, [?MODULE]).
 
 reset_sasl_mechanisms(Key, Config) ->
-    case ?config(mechs, Config) of
-        undefined -> rpc(mim(), ejabberd_config, del_local_option, [Key]);
-        Mechs -> rpc(mim(), ejabberd_config, add_local_option, [Key, Mechs])
-    end,
+    mongoose_helper:restore_config_option(Config, Key),
     rpc(mim(), meck, unload, [ejabberd_auth]).
 
 assert_is_failure_with_text(#xmlel{name = <<"failure">>,

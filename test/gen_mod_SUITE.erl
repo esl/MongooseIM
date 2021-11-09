@@ -29,19 +29,14 @@ all() ->
     [start_and_stop].
 
 init_per_testcase(_, Config) ->
-    meck:new(ejabberd_config, [passthrough]),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [<<"localhost">>, <<"localhost.bis">>] end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-    meck:expect(ejabberd_config, add_local_option, fun(_, _) -> {atomic, ok} end),
-    meck:expect(ejabberd_config, del_local_option, fun(_) -> {atomic, ok} end),
+    mongoose_config:set_opt(hosts, [<<"localhost">>, <<"localhost.bis">>]),
     meck:new(a_module, [non_strict]),
     meck:expect(a_module, start, fun(_, _) -> ok end),
     meck:expect(a_module, stop, fun(_) -> ok end),
     Config.
 
 end_per_testcase(_, Config) ->
-    meck:unload(ejabberd_config),
+    mongoose_config:unset_opt(hosts),
     meck:unload(a_module),
     Config.
 

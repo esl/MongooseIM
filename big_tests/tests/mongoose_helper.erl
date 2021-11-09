@@ -1,6 +1,7 @@
 -module(mongoose_helper).
 
 -include_lib("kernel/include/logger.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 %% API
 
@@ -37,15 +38,14 @@
 -export([wait_for_route_message_count/2]).
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
--export([backup_auth_config/1, restore_auth_config/1]).
--export([backup_sasl_mechanisms_config/1, restore_sasl_mechanisms_config/1]).
--export([set_sasl_mechanisms/2]).
--export([set_store_password/1]).
+-export([auth_opts_with_password_format/1]).
 -export([get_listener_opts/2]).
 -export([restart_listener_with_opts/3]).
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
 -export([print_debug_info_for_module/1]).
+-export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
+-export([restore_config/1, restore_config_option/2]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -66,7 +66,7 @@ mnesia_or_rdbms_backend() ->
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
-    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
+    Hosts = rpc(mim(), mongoose_config, get_opt, [hosts]),
     lists:flatmap(
         fun(Host) ->
             rpc(mim(), ejabberd_auth, auth_modules, [Host])
@@ -458,47 +458,19 @@ supports_sasl_module(Module) ->
     HostType = domain_helper:host_type(),
     rpc(mim(), ejabberd_auth, supports_sasl_module, [HostType, Module]).
 
-backup_auth_config(Config) ->
-    HostType = domain_helper:host_type(),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, HostType}]),
-    [{auth_opts, AuthOpts} | Config].
-
-backup_sasl_mechanisms_config(Config) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
-    GlobalSASLMechanisms = rpc(mim(), ejabberd_config, get_local_option, [sasl_mechanisms]),
-    HostSASLMechanisms = rpc(mim(), ejabberd_config, get_local_option, [{sasl_mechanisms, XMPPDomain}]),
-    [{global_sasl_mechanisms, GlobalSASLMechanisms},
-     {host_sasl_mechanisms, HostSASLMechanisms} | Config].
-
-restore_auth_config(Config) ->
-    HostType = domain_helper:host_type(),
-    AuthOpts = proplists:get_value(auth_opts, Config),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, HostType}, AuthOpts]).
-
-restore_sasl_mechanisms_config(Config) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
-    GlobalSASLMechanisms = proplists:get_value(global_sasl_mechanisms, Config),
-    HostSASLMechanisms = proplists:get_value(host_sasl_mechanisms, Config),
-    rpc(mim(), ejabberd_config, add_local_option, [sasl_mechanisms, GlobalSASLMechanisms]),
-    rpc(mim(), ejabberd_config, add_local_option, [{sasl_mechanisms, XMPPDomain}, HostSASLMechanisms]).
-
-set_sasl_mechanisms(GlobalOrHostSASLMechanisms, Mechanisms) ->
-    rpc(mim(), ejabberd_config, add_local_option, [GlobalOrHostSASLMechanisms, Mechanisms]).
-
-set_store_password(Type) ->
+auth_opts_with_password_format(Type) ->
     HostType = domain_helper:host_type(mim),
-    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, HostType}]),
-    NewAuthOpts = build_new_auth_opts(Type, AuthOpts),
-    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, HostType}, NewAuthOpts]).
+    AuthOpts = rpc(mim(), mongoose_config, get_opt, [{auth_opts, HostType}]),
+    build_new_auth_opts(Type, AuthOpts).
 
 build_new_auth_opts(scram, AuthOpts) ->
     NewAuthOpts0 = lists:keystore(password_format, 1, AuthOpts, {password_format, scram}),
-    lists:keystore(password_format, 1, NewAuthOpts0, {scram_iterations, 64});
+    lists:keystore(scram_iterations, 1, NewAuthOpts0, {scram_iterations, 64});
 build_new_auth_opts(Type, AuthOpts) ->
     lists:keystore(password_format, 1, AuthOpts, {password_format, Type}).
 
 get_listener_opts(#{} = Spec, Port) ->
-    Listeners = rpc(Spec, ejabberd_config, get_local_option, [listen]),
+    Listeners = rpc(Spec, mongoose_config, get_opt, [listen]),
     [Item || {{ListenerPort, _, _}, _, _} = Item <- Listeners, ListenerPort =:= Port].
 
 restart_listener_with_opts(Spec, Listener, NewOpts) ->
@@ -522,3 +494,54 @@ print_debug_info_for_module(Module) ->
     ct:pal("hosts_and_opts=~p~n iq_handlers=~p~n",
            [ModConfig, IqConfig]).
 
+%% Backing up and changing configuration options - API
+
+backup_and_set_config(Config, Options) ->
+    Backup = get_config_backup(Config),
+    NewBackup = maps:fold(fun(K, V, Bkp) ->
+                                  do_backup_and_set_config_option(Bkp, K, V)
+                          end, Backup, Options),
+    set_config_backup(Config, NewBackup).
+
+backup_and_set_config_option(Config, Option, NewValue) ->
+    Backup = get_config_backup(Config),
+    NewBackup = do_backup_and_set_config_option(Backup, Option, NewValue),
+    set_config_backup(Config, NewBackup).
+
+%% @doc Change a config option that is already backed up
+change_config_option(Config, Option, NewValue) ->
+    case maps:is_key(Option, get_config_backup(Config)) of
+        true ->
+            rpc(mim(), mongoose_config, set_opt, [Option, NewValue]);
+        false ->
+            error({"Cannot change an option that is not backed up", Option, NewValue})
+    end.
+
+restore_config(Config) ->
+    Options = get_config_backup(Config),
+    %% TODO replace with maps:foreach when dropping OTP 23
+    maps:map(fun do_restore_config_option/2, Options),
+    ok.
+
+restore_config_option(Config, Option) ->
+    Options = get_config_backup(Config),
+    do_restore_config_option(Option, maps:get(Option, Options)).
+
+%% Backing up and changing configuration options - helpers
+
+get_config_backup(Config) ->
+    proplists:get_value(config_backup, Config, #{}).
+
+set_config_backup(Config, Backup) ->
+    lists:keystore(config_backup, 1, Config, {config_backup, Backup}).
+
+do_backup_and_set_config_option(ConfigBackup, Option, NewValue) ->
+    OriginalValue = rpc(mim(), mongoose_config, lookup_opt, [Option]),
+    rpc(mim(), mongoose_config, set_opt, [Option, NewValue]),
+    %% If Option has already been backed up, keep the original value
+    maps:merge(#{Option => OriginalValue}, ConfigBackup).
+
+do_restore_config_option(Option, {ok, Value}) ->
+    rpc(mim(), mongoose_config, set_opt, [Option, Value]);
+do_restore_config_option(Option, {error, not_found}) ->
+    rpc(mim(), mongoose_config, unset_opt, [Option]).

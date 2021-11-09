@@ -35,7 +35,7 @@
 -include("jlib.hrl").
 
 -record(state, {flush_interval      :: non_neg_integer(), %% milliseconds
-                max_batch_size     :: non_neg_integer(),
+                max_batch_size      :: non_neg_integer(),
                 host_type           :: mongooseim:host_type(),
                 acc=[]              :: list(),
                 flush_interval_tref :: reference() | undefined

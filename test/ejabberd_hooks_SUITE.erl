@@ -38,10 +38,10 @@ a_module_fun_can_be_added(_) ->
     % when
     ejabberd_hooks:add(test_run_hook, ?HOST, hook_mod, fun_a, 1),
 
+    FunEjabberdHooksWrapper = fun ejabberd_hooks:gen_hook_fn_wrapper/3,
     % then
-    [{{test_run_hook,<<"localhost">>},
-      [{hook_handler, {test_run_hook,<<"localhost">>}, 1,
-        ejabberd_hooks, gen_hook_fn_wrapper,
+    [{{test_run_hook, <<"localhost">>},
+      [{hook_handler, 1, FunEjabberdHooksWrapper,
         #{function := fun_a, module := hook_mod}}]}] = get_hooks().
 
 a_module_fun_can_be_removed(_) ->
@@ -237,8 +237,6 @@ exit_in_run_fold_is_ignored(_) ->
 const(N) -> fun(_) -> N end.
 
 given_hooks_started() ->
-    Fun = fun(all_metrics_are_global) -> false end,
-    given_module(ejabberd_config, get_local_option, Fun),
     gen_hook:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->

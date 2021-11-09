@@ -53,19 +53,14 @@ service_deps() ->
 
 init_per_testcase(misconfigured, C) ->
     mongoose_service:start(),
-    meck:new(ejabberd_config, [passthrough]),
-    meck:expect(ejabberd_config, get_local_option_or_default,
-                fun(services, _) -> [{service_a, []}] end),
+    mongoose_config:set_opt(services, [{service_a, []}]),
     meck:new(service_a, [non_strict]),
     meck:expect(service_a, deps, fun() -> [service_b] end),
     C;
 
 init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-    meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [<<"localhost">>] end),
+    mongoose_config:set_opt(hosts, [<<"localhost">>]),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
     meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),
@@ -82,9 +77,7 @@ init_per_testcase(_, C) ->
     lists:map(fun(S) ->
                   meck:expect(S, stop, fun() -> decrement(S) end)
               end, services()),
-    meck:new(ejabberd_config, [passthrough]),
-    meck:expect(ejabberd_config, get_local_option_or_default,
-                fun(services, _) -> [{Serv, []} || Serv <- services()] end),
+    mongoose_config:set_opt(services, [{Serv, []} || Serv <- services()]),
     lists:map(fun(Serv) ->
                   meck:expect(Serv, deps, fun() -> proplists:get_value(Serv, service_deps()) end)
               end,
@@ -92,16 +85,17 @@ init_per_testcase(_, C) ->
     C.
 
 end_per_testcase(misconfigured, C) ->
+    mongoose_config:unset_opt(services),
     meck:unload(service_a),
-    meck:unload(ejabberd_config),
     C;
 
 end_per_testcase(module_deps, C) ->
+    mongoose_config:unset_opt(hosts),
     meck:unload(module_a),
     end_per_testcase(generic, C);
 end_per_testcase(_, C) ->
+    mongoose_config:unset_opt(services),
     meck:unload(services()),
-    meck:unload(ejabberd_config),
     lists:foreach(fun mongoose_service:stop_service/1, services()),
     mongoose_service:stop(),
     C.

@@ -276,8 +276,9 @@ init_per_testcase(check_password_hash, Config) ->
         true ->
             {skip, not_fully_supported_with_ldap};
         false ->
-            Config1 = mongoose_helper:backup_auth_config(Config),
-            mongoose_helper:set_store_password(plain),
+            AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, host_type()},
+                                                                   AuthOpts),
             Config2 = escalus:create_users(Config1, escalus:get_users([carol])),
             escalus:init_per_testcase(check_password_hash, Config2)
     end;
@@ -305,7 +306,7 @@ end_per_testcase(delete_old_users, Config) ->
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(check_password_hash, Config) ->
-    mongoose_helper:restore_auth_config(Config),
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([carol]));
 end_per_testcase(CaseName, Config) ->
     %% Because kick_session fails with unexpected stanza received:

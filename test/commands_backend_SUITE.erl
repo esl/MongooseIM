@@ -102,7 +102,6 @@ setup(Module) ->
     %% you have to meck some stuff to get it working....
     meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
     meck:expect(gen_hook, run_fold, fun(_, _, _, _) -> {ok, ok} end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,
         fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
@@ -118,7 +117,6 @@ setup(Module) ->
 teardown() ->
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     mongoose_commands:unregister(commands_new()),
-    meck:unload(ejabberd_config),
     meck:unload(ejabberd_auth),
     meck:unload(gen_hook),
     meck:unload(supervisor),

@@ -353,8 +353,6 @@ build_list_users(Group, [{User, Server}|Users], Res) ->
     build_list_users(Group, Users, [{User, Server, Group, User}|Res]).
 
 
-%% @spec(LocalJID, RemoteJID, Action) -> ok
-%%       Action = {add, Nick, Subs, Group} | remove
 %% @doc Push to the roster of account LU@LS the contact U@S.
 %% The specific action to perform is defined in Action.
 -spec push_roster_item(jid:jid(), jid:jid(), Action :: push_action()) -> 'ok'.

@@ -57,7 +57,10 @@
                            bin_aff_users/1,
                            to_lus/2,
                            lbin/1,
-                           set_mod_config/3
+                           create_room/6,
+                           set_mod_config/3,
+                           default_config/1,
+                           default_schema/0
                           ]).
 
 -define(ROOM, <<"testroom">>).
@@ -67,8 +70,6 @@
 -define(NS_MUC_ROOMCONFIG, <<"http://jabber.org/protocol/muc#roomconfig">>).
 
 -define(MUCHOST, (muc_helper:muc_host())).
-
--define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -197,12 +198,7 @@ end_per_testcase(CaseName, Config) ->
 %% ---------------------- Helpers ----------------------
 
 create_room(RoomU, MUCHost, Owner, Members, Config) ->
-    DefaultConfig = default_config(),
-    RoomUS = {RoomU, MUCHost},
-    AffUsers = [{to_lus(Owner, Config), owner}
-                | [ {to_lus(Member, Config), member} || Member <- Members ]],
-    {ok, _RoomUS} = rpc(mod_muc_light_db_backend, create_room,
-                        [host_type(), RoomUS, DefaultConfig, AffUsers, <<"-">>]).
+    create_room(RoomU, MUCHost, Owner, Members, Config, <<"-">>).
 
 clear_db() ->
     muc_light_helper:clear_db(host_type()).
@@ -336,9 +332,8 @@ set_config_deny(Config) ->
 get_room_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM),
-            ConfigKV = default_config(),
-            ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
-            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKVBin))
+            ConfigKV = default_config(default_schema()),
+            foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKV))
         end).
 
 get_room_occupants(Config) ->
@@ -629,7 +624,7 @@ stanza_destroy_room(Room) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_OWNER, [#xmlel{ name = <<"destroy">> }]),
                       room_bin_jid(Room)).
 
--spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> xmlel().
+-spec stanza_config_set(Room :: binary(), ConfigChanges :: [muc_light_helper:config_item()]) -> xmlel().
 stanza_config_set(Room, ConfigChanges) ->
     IQ = escalus_stanza:iq_set(?NS_MUC_OWNER, [form_x_el(ConfigChanges)]),
     escalus_stanza:to(IQ, room_bin_jid(Room)).
@@ -726,7 +721,7 @@ verify_no_stanzas(Users) ->
               {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
 
--spec verify_config(ConfigFields :: [xmlel()], Config :: [{binary(), binary()}]) -> ok.
+-spec verify_config(ConfigFields :: [xmlel()], Config :: [muc_light_helper:config_item()]) -> ok.
 verify_config(ConfigFields, Config) ->
     [] = lists:foldl(
            fun(Field, ConfigAcc) ->
@@ -787,7 +782,7 @@ config_msg_verify_fun() ->
             <<"104">> = exml_query:path(X, [{element, <<"status">>}, {attr, <<"code">>}])
     end.
 
--spec config_iq_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
+-spec config_iq_verify_fun(RoomConfig :: [muc_light_helper:config_item()]) -> verify_fun().
 config_iq_verify_fun(RoomConfig) ->
     fun(Incoming) ->
             Fields = exml_query:paths(Incoming, [{element, <<"query">>}, {element, <<"x">>},
@@ -858,10 +853,6 @@ presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
 %%--------------------------------------------------------------------
 %% Other helpers
 %%--------------------------------------------------------------------
-
--spec default_config() -> list().
-default_config() ->
-    rpc(mod_muc_light, default_config, [?MUCHOST]).
 
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->

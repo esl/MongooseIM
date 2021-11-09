@@ -45,9 +45,6 @@ init_per_suite(C) ->
     meck:expect(gen_iq_handler, remove_iq_handler_for_domain, fun(_, _, _) -> ok end),
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(_) -> {ok, host_type()} end),
-    meck:new(ejabberd_config, [no_link, passthrough]),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, Default) -> Default end),
     C.
 
 end_per_suite(C) ->

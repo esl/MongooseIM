@@ -199,7 +199,7 @@ remove_user(HostType, LUser, LServer) ->
     case extauth:remove_user(HostType, LUser, LServer) of
         false -> {error, not_allowed};
         true ->
-            case get_cache_option(LServer) of
+            case get_cache_option(HostType) of
                 false -> ok;
                 {true, _CacheTime} ->
                     ejabberd_auth_internal:remove_user(HostType, LUser, LServer)
@@ -214,11 +214,12 @@ supported_features() -> [dynamic_domains].
 %%% Extauth cache management
 %%%
 
+%% FIXME there is no such option in config spec
 -spec get_cache_option(mongooseim:host_type()) -> false | {true, CacheTime::integer()}.
 get_cache_option(HostType) ->
-    case ejabberd_config:get_local_option({extauth_cache, HostType}) of
-        CacheTime when is_integer(CacheTime) -> {true, CacheTime};
-        _ -> false
+    case mongoose_config:lookup_opt({extauth_cache, HostType}) of
+        {ok, CacheTime} -> {true, CacheTime};
+        {error, not_found} -> false
     end.
 
 -spec check_password_extauth(HostType :: mongooseim:host_type(),
@@ -385,4 +386,4 @@ get_mod_last_configured(HostType) ->
     end.
 
 is_configured(HostType, Module) ->
-    lists:keymember(Module, 1, ejabberd_config:get_local_option({modules, HostType})).
+    lists:keymember(Module, 1, mongoose_config:get_opt({modules, HostType})).

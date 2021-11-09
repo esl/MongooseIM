@@ -55,14 +55,14 @@ end_per_group(_, Config) ->
 
 init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     DbType = ?config(db_type, Config),
-    meck_config(),
+    set_opts(),
     meck_db(DbType),
     meck_connection_error(DbType),
     meck_rand(),
     [{db_opts, [{server, server(DbType)}, {keepalive_interval, 2}, {start_interval, 10}]} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
-    meck_config(),
+    set_opts(),
     meck_db(DbType),
     [{db_opts, [{server, server(DbType)}, {keepalive_interval, ?KEEPALIVE_INTERVAL},
                 {start_interval, ?MAX_INTERVAL}]} | Config].
@@ -71,9 +71,11 @@ end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_unload_rand(),
     Db = ?config(db_type, Config),
     meck_config_and_db_unload(Db),
+    unset_opts(),
     Config;
 end_per_testcase(_, Config) ->
     meck_config_and_db_unload(?config(db_type, Config)),
+    unset_opts(),
     Config.
 
 %% Test cases
@@ -130,12 +132,11 @@ meck_rand() ->
 meck_unload_rand() ->
     meck:unload(rand).
 
-meck_config() ->
-    meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_local_option,
-                fun(max_fsm_queue) -> 1024;
-                   (all_metrics_are_global) -> false
-                end).
+set_opts() ->
+    mongoose_config:set_opt(max_fsm_queue, 1024).
+
+unset_opts() ->
+    mongoose_config:unset_opt(max_fsm_queue).
 
 meck_db(odbc) ->
     meck:new(eodbc, [no_link]),
@@ -177,7 +178,6 @@ meck_error(pgsql) ->
                 fun(_Ref, _Query) -> {error, {error, 2, 3, 4, <<"connection broken">>, 5}} end).
 
 meck_config_and_db_unload(DbType) ->
-    meck:unload(ejabberd_config),
     do_meck_unload(DbType).
 
 do_meck_unload(odbc) ->

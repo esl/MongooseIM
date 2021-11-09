@@ -509,7 +509,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 routing_modules_list() ->
-    ejabberd_config:get_local_option_or_default(routing_modules, default_routing_modules()).
+    mongoose_config:get_opt(routing_modules, default_routing_modules()).
 
 default_routing_modules() ->
     [mongoose_router_global,

@@ -114,10 +114,14 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([behaviour_info/1, escape_binary/2, escape_boolean/1, escape_like/1,
-              escape_like_prefix/1, escape_null/0, print_state/1, sql_query_t/1,
-              use_escaped/1, use_escaped_binary/1, use_escaped_boolean/1,
-              use_escaped_like/1, use_escaped_null/1]).
+-ignore_xref([behaviour_info/1, print_state/1, sql_query_t/1, use_escaped/1,
+              escape_like/1, escape_like_prefix/1, use_escaped_like/1,
+              escape_binary/2, use_escaped_binary/1,
+              escape_integer/1, use_escaped_integer/1,
+              escape_string/1, use_escaped_string/1,
+              escape_boolean/1, use_escaped_boolean/1,
+              escape_null/0, use_escaped_null/1
+             ]).
 
 %% internal usage
 -export([get_db_info/1]).

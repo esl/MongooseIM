@@ -55,17 +55,17 @@ end_per_testcase(T, Config) ->
     unload_meck(meck_mods(T)),
     Config.
 
-meck_mods(bosh) -> [exometer, mod_bosh_socket, ejabberd_config];
-meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin, ejabberd_config];
-meck_mods(local) -> [exometer, ejabberd_config];
-meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
+meck_mods(bosh) -> [exometer, mod_bosh_socket];
+meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
+meck_mods(local) -> [exometer];
+meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 
 %% -----------------------------------------------------
 %% Tests
 %% -----------------------------------------------------
 
 cleaner_runs_hook_on_nodedown(_Config) ->
-    meck:expect(gen_hook, error_running_hook, fun(_, _, _, _) -> ok end),
+    meck:expect(gen_hook, error_running_hook, fun(_, _, _, _, _) -> ok end),
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     gen_hook:add_handler(node_cleanup, global,
                          fun ?MODULE:notify_self_hook/3,
@@ -80,7 +80,7 @@ cleaner_runs_hook_on_nodedown(_Config) ->
         ct:fail({timeout, got_nodedown})
     end,
     ?assertEqual(false, meck:called(gen_hook, error_running_hook,
-                                    ['_', '_', '_', '_'])).
+                                    ['_', '_', '_', '_', '_'])).
 
 notify_self_hook(Acc, #{node := Node}, #{self := Self}) ->
     Self ! {got_nodedown, Node},
@@ -179,17 +179,6 @@ setup_meck([ejabberd_local | R]) ->
     meck:new(ejabberd_local),
     meck:expect(ejabberd_local, register_iq_handler,
                 fun(_A1, _A2, _A3) -> ok end),
-    setup_meck(R);
-setup_meck([ejabberd_config | R]) ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(_, Default) -> Default end),
-    meck:expect(ejabberd_config, get_global_option,
-                fun
-                    (hosts) -> [];
-                    (_) -> undefined
-                end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     setup_meck(R);
 setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),

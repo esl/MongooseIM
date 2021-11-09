@@ -145,10 +145,10 @@ process_local_iq(Acc, _From, _To, #iq{type = Type, sub_el = SubEl} = IQ, _Extra)
 
 -spec get_node_uptime() -> non_neg_integer().
 get_node_uptime() ->
-    case ejabberd_config:get_local_option(node_start) of
-        {node_start, Seconds} when is_integer(Seconds) ->
+    case mongoose_config:lookup_opt(node_start) of
+        {ok, {node_start, Seconds}} ->
             erlang:system_time(second) - Seconds;
-        _Undefined ->
+        {error, not_found} ->
             trunc(element(1, erlang:statistics(wall_clock))/1000)
     end.
 

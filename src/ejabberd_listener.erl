@@ -31,16 +31,13 @@
          start_listener/3,
          stop_listeners/0,
          stop_listener/2,
-         parse_listener_portip/2,
-         add_listener/3,
-         delete_listener/3,
-         delete_listener/2
+         parse_listener_portip/2
         ]).
 
 %% Internal
 -export([format_error/1, socket_error/6, opts_to_listener_args/2]).
 
--ignore_xref([add_listener/3, delete_listener/2, delete_listener/3, init/1,
+-ignore_xref([init/1,
               opts_to_listener_args/2, start_link/0, start_listener/3, stop_listener/2]).
 
 -export_type([port_ip_proto/0]).
@@ -64,10 +61,10 @@ init(_) ->
 
 -spec start_listeners() -> 'ignore' | {'ok', {{_, _, _}, [any()]}}.
 start_listeners() ->
-    case ejabberd_config:get_local_option(listen) of
-        undefined ->
+    case mongoose_config:lookup_opt(listen) of
+        {error, not_found} ->
             ignore;
-        Ls ->
+        {ok, Ls} ->
             Ls2 = lists:map(
                 fun({Port, Module, Opts}) ->
                         case start_listener(Port, Module, Opts) of
@@ -258,7 +255,7 @@ opts_to_listener_args(PortIPProto, RawOpts) ->
 
 -spec stop_listeners() -> 'ok'.
 stop_listeners() ->
-    Ports = ejabberd_config:get_local_option(listen),
+    Ports = mongoose_config:get_opt(listen, []),
     lists:foreach(
       fun({PortIpNetp, Module, _Opts}) ->
               stop_listener(PortIpNetp, Module)
@@ -271,55 +268,6 @@ stop_listeners() ->
 stop_listener(PortIPProto, _Module) ->
     supervisor:terminate_child(ejabberd_listeners, PortIPProto),
     supervisor:delete_child(ejabberd_listeners, PortIPProto).
-
-%% @doc Add a listener and store in config if success
--type listener_option() :: inet | inet6 | {ip, tuple()} | atom() | tuple().
--spec add_listener(PortIPProto :: port_ip_proto(),
-                   Module :: atom(),
-                   Opts :: [listener_option()]
-                   ) -> 'ok' | {'error', _}.
-add_listener(PortIPProto, Module, Opts) ->
-    {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
-    PortIP1 = {Port, IPT, Proto},
-    case start_listener(PortIP1, Module, Opts) of
-        {ok, _Pid} ->
-            Ports = case ejabberd_config:get_local_option(listen) of
-                        undefined ->
-                            [];
-                        Ls ->
-                            Ls
-                    end,
-            Ports1 = lists:keydelete(PortIP1, 1, Ports),
-            Ports2 = [{PortIP1, Module, Opts} | Ports1],
-            ejabberd_config:add_local_option(listen, Ports2),
-            ok;
-        {error, Error} ->
-            {error, Error}
-    end.
-
--spec delete_listener(PortIPProto :: port_ip_proto(),
-                      Module :: atom())
-      -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-delete_listener(PortIPProto, Module) ->
-    delete_listener(PortIPProto, Module, []).
-
--spec delete_listener(PortIPProto :: port_ip_proto(),
-                      Module :: atom(),
-                      Opts :: [listener_option()])
-      -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
-delete_listener(PortIPProto, Module, Opts) ->
-%%    this one stops a listener and deletes it from configuration, used while reloading config
-    {Port, IPT, _, _, Proto, _} = parse_listener_portip(PortIPProto, Opts),
-    PortIP1 = {Port, IPT, Proto},
-    Ports = case ejabberd_config:get_local_option(listen) of
-                undefined ->
-                    [];
-                Ls ->
-                    Ls
-            end,
-    Ports1 = lists:keydelete(PortIP1, 1, Ports),
-    ejabberd_config:add_local_option(listen, Ports1),
-    stop_listener(PortIP1, Module).
 
 %%%
 %%% Check options

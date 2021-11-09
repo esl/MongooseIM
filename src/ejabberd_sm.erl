@@ -492,11 +492,9 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 -spec init(_) -> {ok, state()}.
 init([]) ->
-    {Backend, Opts} = case ejabberd_config:get_global_option(sm_backend) of
-                          undefined -> {mnesia, []};
-                          Value -> Value
-                      end,
+    {Backend, Opts} = mongoose_config:get_opt(sm_backend, {mnesia, []}),
     ejabberd_sm_backend:init([{backend, Backend}|Opts]),
+
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,

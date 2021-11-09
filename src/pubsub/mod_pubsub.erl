@@ -1927,7 +1927,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 %%<li>The requested Node already exists.</li>
 %%<li>The request did not include a Node and "instant nodes" are not supported.</li>
 %%</ul>
-%%<p>ote: node creation is a particular case, error return code is evaluated at many places:</p>
+%%<p>Note: node creation is a particular case, error return code is evaluated at many places:</p>
 %%<ul>
 %%<li>iq_pubsub checks if service supports node creation (type exists)</li>
 %%<li>create_node checks if instant nodes are supported</li>
@@ -3048,14 +3048,14 @@ set_options_helper(Host, {ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
             end
     end.
 
-%% @spec (Host, Node, JID, Plugins) -> {error, Reason} | {result, Response}
-%%         Host = host()
-%%         Node = pubsubNode()
-%%         JID =jid:jid()
-%%         Plugins = [Plugin::string()]
-%%         Reason = stanzaError()
-%%         Response = [pubsubIQResponse()]
 %% @doc <p>Return the list of subscriptions as an XMPP response.</p>
+-spec get_subscriptions(Host, Node, JID, Plugins) -> {error, Reason} | {result, Response} when
+    Host :: host(),
+    Node :: pubsubNode(),
+    JID :: jid:jid(),
+    Plugins :: map(),
+    Reason :: any(),
+    Response :: [exml:element()].
 get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(fun (Type, {Status, Acc}) ->
                                  Features = plugin_features(Host, Type),
@@ -3320,14 +3320,14 @@ service_jid(Host) ->
         _ -> {jid, <<>>, Host, <<>>, <<>>, Host, <<>>}
     end.
 
-%% @spec (LJID, NotifyType, Depth, NodeOptions, SubOptions) -> boolean()
-%%        LJID =jid:jid()
-%%        NotifyType = items | nodes
-%%        Depth = integer()
-%%        NodeOptions = [{atom(), term()}]
-%%        SubOptions = [{atom(), term()}]
 %% @doc <p>Check if a notification must be delivered or not based on
 %% node and subscription options.</p>
+-spec is_to_deliver(LJID, NotifyType, Depth, NodeOptions, SubOptions) -> boolean() when
+    LJID :: jid:ljid(),
+    NotifyType :: items | nodes,
+    Depth :: integer(),
+    NodeOptions :: [{atom(), term()}],
+    SubOptions :: [{atom(), term()}].
 is_to_deliver(LJID, NotifyType, Depth, NodeOptions, SubOptions) ->
     sub_to_deliver(LJID, NotifyType, Depth, SubOptions)
         andalso node_to_deliver(LJID, NodeOptions).
@@ -3858,17 +3858,17 @@ node_owners_action(_Host, _Type, _Nidx, Owners) ->
 node_owners_call(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
-%% @spec (Host, Options) -> MaxItems
-%%         Host = host()
-%%         Options = [Option]
-%%         Option = {Key::atom(), Value::term()}
-%%         MaxItems = integer() | unlimited
 %% @doc <p>Return the maximum number of items for a given node.</p>
 %% <p>Unlimited means that there is no limit in the number of items that can
 %% be stored.</p>
 %% @todo In practice, the current data structure means that we cannot manage
 %% millions of items on a given node. This should be addressed in a new
 %% version.
+-spec max_items(Host, Options) -> MaxItems when
+    Host :: host(),
+    Options :: [Option],
+    Option :: {Key :: atom(), Value :: term()},
+    MaxItems :: integer() | unlimited.
 max_items(Host, Options) ->
     case get_option(Options, persist_items) of
         true ->

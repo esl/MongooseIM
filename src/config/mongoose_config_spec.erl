@@ -58,7 +58,7 @@
 %% are packed into the resulting list of configuration options.
 -type format() :: top_level_config_format() | config_part_format().
 
-%% The value becomes a top-level config record, acl record or 'override' tuple
+%% The value becomes a top-level config record or 'override' tuple
 -type top_level_config_format() ::
       % {override, Value}
         override
@@ -72,17 +72,13 @@
       % Config record, the key is replaced with NewKey
       | {config_record_format(), NewKey :: term()}
 
-      % #config{} with either key = {Tag, Key, Host} - inside host_config
-      %                or key = {Tag, Key, global} - at the top level
-      | {host_or_global_config, Tag :: term()}
+      % #local_config{} with either key = {Tag, Key, Host} - inside host_config
+      %                      or key = {Tag, Key, global} - at the top level
+      | {host_or_global_config, Tag :: term()}.
 
-      % Like above, but for an acl record
-      | host_or_global_acl.
-
-%% The value becomes a top-level config record: #config{} or #local_config{}
+%% The value becomes a top-level config record
 -type config_record_format() ::
-        config % #config{}
-      | local_config % #local_config{}
+        local_config % #local_config{}
       | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
                            % Otherwise: one such record for each configured host
 
@@ -160,7 +156,6 @@ host_config() ->
                  %% but only options with these formats are accepted:
                  %%  - host_local_config
                  %%  - host_or_global_config
-                 %%  - host_or_global_acl
                  %% Any other options would be caught by
                  %%   mongoose_config_parser_toml:format/3
                  <<"general">> => general(),
@@ -184,27 +179,27 @@ general() ->
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
                                       validate = unique,
-                                      format = config},
+                                      format = local_config},
                  <<"host_types">> => #list{items = #option{type = binary,
                                                            validate = non_empty},
                                            validate = unique,
-                                           format = config},
+                                           format = local_config},
                  <<"default_server_domain">> => #option{type = binary,
                                                         validate = non_empty,
                                                         process = fun ?MODULE:process_host/1,
-                                                        format = config},
+                                                        format = local_config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
                                                        format = local_config},
                  <<"language">> => #option{type = binary,
                                            validate = non_empty,
-                                           format = config},
+                                           format = local_config},
                  <<"all_metrics_are_global">> => #option{type = boolean,
                                                          format = local_config},
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
                                              process = fun ?MODULE:process_sm_backend/1,
-                                             format = config},
+                                             format = local_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
                                                 format = local_config},
@@ -213,11 +208,6 @@ general() ->
                  <<"rdbms_server_type">> => #option{type = atom,
                                                     validate = {enum, [mssql, pgsql]},
                                                     format = local_config},
-                 <<"override">> => #list{items = #option{type = atom,
-                                                         validate = {enum, [local, global, acls]},
-                                                         format = override},
-                                         validate = unique_non_empty,
-                                         format = none},
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
                                                    format = host_local_config},
@@ -550,10 +540,11 @@ auth_http() ->
 auth_jwt() ->
     #section{
        items = #{<<"secret">> => auth_jwt_secret(),
-                 <<"algorithm">> => #option{type = string,
-                                            validate = {enum, ["HS256", "RS256", "ES256",
-                                                               "HS386", "RS386", "ES386",
-                                                               "HS512", "RS512", "ES512"]},
+                 <<"algorithm">> => #option{type = binary,
+                                            validate = {enum,
+                                                        [<<"HS256">>, <<"RS256">>, <<"ES256">>,
+                                                         <<"HS386">>, <<"RS386">>, <<"ES386">>,
+                                                         <<"HS512">>, <<"RS512">>, <<"ES512">>]},
                                             format = {kv, jwt_algorithm}},
                  <<"username_key">> => #option{type = atom,
                                                validate = non_empty,
@@ -968,7 +959,7 @@ shaper() ->
 acl() ->
     #section{
        items = #{default => #list{items = acl_item(),
-                                  format = none}
+                                  format = {host_or_global_config, acl}}
                 },
        format = none
       }.
@@ -978,19 +969,18 @@ acl_item() ->
     #section{
        items = #{<<"match">> => #option{type = atom,
                                         validate = {enum, [all, none]}},
-                 <<"user">> => #option{type = string},
-                 <<"server">> => #option{type = string},
-                 <<"resource">> => #option{type = string},
-                 <<"user_regexp">> => #option{type = string},
-                 <<"server_regexp">> => #option{type = string},
-                 <<"resource_regexp">> => #option{type = string},
-                 <<"user_glob">> => #option{type = string},
-                 <<"server_glob">> => #option{type = string},
-                 <<"resource_glob">> => #option{type = string}
+                 <<"user">> => #option{type = binary},
+                 <<"server">> => #option{type = binary},
+                 <<"resource">> => #option{type = binary},
+                 <<"user_regexp">> => #option{type = binary},
+                 <<"server_regexp">> => #option{type = binary},
+                 <<"resource_regexp">> => #option{type = binary},
+                 <<"user_glob">> => #option{type = binary},
+                 <<"server_glob">> => #option{type = binary},
+                 <<"resource_glob">> => #option{type = binary}
                 },
        validate_keys = non_empty,
-       process = fun ?MODULE:process_acl_item/1,
-       format = host_or_global_acl
+       process = fun ?MODULE:process_acl_item/1
       }.
 
 %% path: (host_config[].)access
@@ -1138,9 +1128,9 @@ hosts_and_host_types_are_unique_and_non_empty(General) ->
 
 get_all_hosts_and_host_types(General) ->
     FoldFN = fun
-                 (#config{key = K} = C, Acc) when K =:= hosts;
-                                                  K =:= host_types ->
-                     Acc ++ C#config.value;
+                 (#local_config{key = K} = C, Acc) when K =:= hosts;
+                                                        K =:= host_types ->
+                     Acc ++ C#local_config.value;
                  (_, Acc) ->
                      Acc
              end,
@@ -1236,7 +1226,7 @@ process_http_handler_opts(<<"mongoose_domain_handler">>, Opts) ->
     {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
     case {UserOpts, PassOpts} of
         {[], []} -> ok;
-        {[{username, User}], [{password, Pass}]} -> ok;
+        {[{username, _User}], [{password, _Pass}]} -> ok;
         _ -> error(#{what => both_username_and_password_required,
                      handler => mongoose_domain_handler, opts => Opts})
     end,
@@ -1378,7 +1368,9 @@ process_shaper([MaxRate]) ->
 process_acl_item([{match, V}]) -> V;
 process_acl_item(KVs) ->
     {AclName, AclKeys} = find_acl(KVs, lists:sort(proplists:get_keys(KVs)), acl_keys()),
-    list_to_tuple([AclName | lists:map(fun(K) -> proplists:get_value(K, KVs) end, AclKeys)]).
+    list_to_tuple([AclName | lists:map(fun(K) ->
+                                               prepare_acl_value(proplists:get_value(K, KVs))
+                                       end, AclKeys)]).
 
 find_acl(KVs, SortedKeys, [{AclName, AclKeys}|Rest]) ->
     case lists:sort(AclKeys) of
@@ -1402,6 +1394,11 @@ acl_keys() ->
      {server_glob, [server_glob]},
      {resource_glob, [resource_glob]}
     ].
+
+prepare_acl_value(Value) ->
+    Node = jid:nodeprep(Value),
+    true = Node =/= error,
+    Node.
 
 process_access_rule_item(KVs) ->
     {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),

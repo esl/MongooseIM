@@ -185,26 +185,18 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
-    OptName = hide_service_name,
-    mongoose_helper:successful_rpc(ejabberd_config, add_local_option, [OptName, true]),
-    escalus:init_per_testcase(CN, Config);
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, hide_service_name, true),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     S = escalus_users:get_server(Config, alice),
     OptKey = {replaced_wait_timeout, S},
-    {atomic, _} = rpc(mim(), ejabberd_config, add_local_option, [OptKey, 1]),
-    escalus:init_per_testcase(CN, [{opt_to_del, OptKey} | Config]);
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, OptKey, 1),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(close_connection_if_service_type_is_hidden = CN, Config) ->
-    OptName = hide_service_name,
-    mongoose_helper:successful_rpc(ejabberd_config, del_local_option, [OptName]),
-    escalus:end_per_testcase(CN, Config);
-end_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
-    {_, OptKey} = lists:keyfind(opt_to_del, 1, Config),
-    {atomic, _} = rpc(mim(), ejabberd_config, del_local_option, [OptKey]),
-    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
+    mongoose_helper:restore_config(Config),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------

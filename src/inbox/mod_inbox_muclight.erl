@@ -1,5 +1,4 @@
 %%%-------------------------------------------------------------------
-%%% @author ludwikbukowski
 %%% @copyright (C) 2018, Erlang-Solutions
 %%% @doc
 %%%
@@ -7,18 +6,15 @@
 %%% Created : 30. Jan 2018 13:22
 %%%-------------------------------------------------------------------
 -module(mod_inbox_muclight).
--author("ludwikbukowski").
+
 -include("mod_muc_light.hrl").
--include("mod_inbox.hrl").
 -include("jlib.hrl").
--include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 
 -export([handle_outgoing_message/5, handle_incoming_message/5]).
 
 -ignore_xref([{mod_inbox_backend, remove_inbox_row, 2}]).
 
--type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
 -type r_owner() :: binary().
@@ -27,16 +23,18 @@
 -spec handle_outgoing_message(HostType :: mongooseim:host_type(),
                               User :: jid:jid(),
                               Room :: jid:jid(),
-                              Packet :: packet(),
-                              Acc :: mongoose_acc:t()) -> any().
+                              Packet :: exml:element(),
+                              Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
 handle_outgoing_message(HostType, User, Room, Packet, _TS) ->
-    maybe_reset_unread_count(HostType, User, Room, Packet).
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
 
 -spec handle_incoming_message(HostType :: mongooseim:host_type(),
                               RoomUser :: jid:jid(),
                               Remote :: jid:jid(),
-                              Packet :: packet(),
-                              Acc :: mongoose_acc:t()) -> any().
+                              Packet :: exml:element(),
+                              Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
 handle_incoming_message(HostType, RoomUser, Remote, Packet, Acc) ->
     case mod_inbox_utils:has_chat_marker(Packet) of
         true ->
@@ -46,14 +44,12 @@ handle_incoming_message(HostType, RoomUser, Remote, Packet, Acc) ->
             maybe_handle_system_message(HostType, RoomUser, Remote, Packet, Acc)
     end.
 
-maybe_reset_unread_count(HostType, User, Room, Packet) ->
-    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
-
 -spec maybe_handle_system_message(HostType :: mongooseim:host_type(),
                                   RoomOrUser :: jid:jid(),
                                   Receiver :: jid:jid(),
                                   Packet :: exml:element(),
-                                  Acc :: mongoose_acc:t()) -> ok.
+                                  Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
 maybe_handle_system_message(HostType, RoomOrUser, Receiver, Packet, Acc) ->
     case is_system_message(HostType, RoomOrUser, Receiver, Packet) of
         true ->
@@ -127,11 +123,13 @@ maybe_remove_inbox_row(HostType, Room, Remote, true) ->
                      Remote :: jid:jid(),
                      Sender :: jid:jid(),
                      Packet :: exml:element(),
-                     Acc :: mongoose_acc:t()) -> ok.
-write_to_inbox(HostType, RoomUser, Remote, Remote, Packet, Acc) ->
-    mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
-write_to_inbox(HostType, RoomUser, Remote, _Sender, Packet, Acc) ->
-    mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc).
+                     Acc :: mongoose_acc:t()) ->
+    mod_inbox:count_res().
+write_to_inbox(HostType, RoomUser, Remote, Sender, Packet, Acc) ->
+    case jid:are_equal(Remote, Sender) of
+        true -> mod_inbox_utils:write_to_sender_inbox(HostType, Remote, RoomUser, Packet, Acc);
+        false -> mod_inbox_utils:write_to_receiver_inbox(HostType, RoomUser, Remote, Packet, Acc)
+    end.
 
 %%%%%%%
 %% Predicate funs
@@ -158,15 +156,13 @@ is_change_aff_message(User, Packet, Role) ->
 
 -spec system_message_type(User :: jid:jid(), Packet :: exml:element()) -> invite | kick | other.
 system_message_type(User, Packet) ->
-    IsInviteMsg = is_invitation_message(User, Packet),
-    IsNewOwnerMsg = is_new_owner_message(User, Packet),
-    IsKickedMsg = is_kicked_message(User, Packet),
-    if IsInviteMsg orelse IsNewOwnerMsg ->
-        invite;
-       IsKickedMsg ->
-            kick;
-       true ->
-            other
+    case {is_invitation_message(User, Packet),
+          is_new_owner_message(User, Packet),
+          is_kicked_message(User, Packet)} of
+        {true, _, _} -> invite;
+        {_, true, _} -> invite;
+        {_, _, true} -> kick;
+        _ -> other
     end.
 
 -spec is_invitation_message(jid:jid(), exml:element()) -> boolean().

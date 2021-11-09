@@ -112,8 +112,8 @@ tests() ->
     ].
 
 groups() ->
-    [
-     {generic, [parallel],
+    Gs = [
+     {generic, [],
       [
        disco_service,
        returns_valid_form,
@@ -126,7 +126,7 @@ groups() ->
        returns_error_when_no_reset_field_jid,
        returns_error_when_unknown_field_sent
       ]},
-     {one_to_one, [parallel],
+     {one_to_one, [],
       [
        user_has_empty_inbox,
        msg_sent_stored_in_inbox,
@@ -148,7 +148,7 @@ groups() ->
        check_total_unread_count_when_there_are_no_active_conversations,
        total_unread_count_and_active_convs_are_zero_at_no_activity
       ]},
-     {muclight, [parallel],
+     {muclight, [],
       [
        simple_groupchat_stored_in_all_inbox,
        advanced_groupchat_stored_in_all_inbox,
@@ -168,7 +168,7 @@ groups() ->
        no_stored_and_remain_after_kicked,
        system_message_is_correctly_avoided
       ]},
-     {muc, [parallel],
+     {muc, [],
       [
        simple_groupchat_stored_in_all_inbox_muc,
        simple_groupchat_stored_in_offline_users_inbox_muc,
@@ -178,7 +178,7 @@ groups() ->
        unread_count_is_reset_after_sending_reset_stanza,
        private_messages_are_handled_as_one2one
       ]},
-     {timestamps, [parallel],
+     {timestamps, [],
       [
        timestamp_is_updated_on_new_message,
        order_by_timestamp_ascending,
@@ -186,7 +186,8 @@ groups() ->
        get_with_start_timestamp,
        get_with_end_timestamp
       ]}
-    ].
+    ],
+    inbox_helper:maybe_run_in_parallel(Gs).
 
 suite() ->
     escalus:suite().

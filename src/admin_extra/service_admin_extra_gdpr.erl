@@ -121,7 +121,7 @@ retrieve_logs(Username, Domain) ->
 
 -spec get_all_logs(gdpr:username(), gdpr:domain(), file:name()) -> [file:name()].
 get_all_logs(Username, Domain, TmpDir) ->
-    OtherNodes = ejabberd_config:other_cluster_nodes(),
+    OtherNodes = mongoose_cluster:other_cluster_nodes(),
     LogFile = get_logs(Username, Domain, TmpDir),
     LogFilesFromOtherNodes = [get_logs_from_node(Node, Username, Domain, TmpDir) || Node <- OtherNodes],
     [LogFile | LogFilesFromOtherNodes].

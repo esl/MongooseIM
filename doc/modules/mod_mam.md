@@ -17,13 +17,31 @@ Configure MAM with different storage backends:
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
 ### Message retraction
-This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone. The following criteria are used to find the original message:
+This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone.
 
-* The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` element of the original message.
+The following criteria are used to find the original message:
+* The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` (or `stanza-id` when configured, see [below](#retraction-on-the-stanza-id)) element of the original message.
 * Both messages need to originate from the same user.
 * Both messages need to be addressed to the same user.
 
 If more than one message matches the criteria, only the most recent one is retracted. To avoid this case, it is recommended to use a unique identifier (UUID) as the origin ID.
+
+#### Retraction on the stanza-id
+This module also implements an extension to the XEP, where it allows to specify the [`stanza-id`](https://xmpp.org/extensions/xep-0359.html#stanza-id) as [created by](https://xmpp.org/extensions/xep-0313.html#archives_id) the server's MAM, instead of the `origin-id` that the original [XEP-0424](https://xmpp.org/extensions/xep-0424.html) specifies. It announces this capability under the namespace `urn:esl:message-retract-by-stanza-id:0`. This is specially useful in groupchats where the `stanza-id` of a message is shared and known for all participants.
+
+In this case, to use such functionality,
+```xml
+<apply-to id="origin-id-1" xmlns="urn:xmpp:fasten:0">
+  <retract xmlns='urn:xmpp:message-retract:0'/>
+</apply-to>
+```
+turns into
+```xml
+<apply-to id="stanza-id-1" xmlns="urn:xmpp:fasten:0">
+  <retract xmlns='urn:esl:message-retract-by-stanza-id:0'/>
+</apply-to>
+```
+and likewise, the answer would be tagged by the mentioned `esl` namespace.
 
 ### Full Text Search
 This module allows message filtering by their text body (if enabled, see *Common backend options*).
@@ -127,7 +145,14 @@ To disable archive for one-to-one messages please remove PM section or any PM re
 
 When enabled, MAM will store groupchat messages in recipients' individual archives. **USE WITH CAUTION!** May increase archive size significantly. Disabling this option for existing installation will neither remove such messages from MAM storage, nor will filter out them from search results.
 
-#### Enable MUC message archive
+#### `modules.mod_mam_meta.pm.same_mam_id_for_peers`
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.pm.same_mam_id_for_peers = true`
+
+When enabled, MAM will set the same MAM ID for both sender and recipient. This can be useful in combination with [retraction on the stanza-id](#retraction-on-the-stanza-id). Note that this might not work with clients across federation, as the recipient might not implement the same retraction, nor the same IDs.
+
+### Enable MUC message archive
 
 Archive for MUC messages can be enabled in one of two ways:
 
@@ -145,7 +170,7 @@ Archive for MUC messages can be enabled in one of two ways:
   muc.backend = "rdbms" # enables MUC support and overrides its backend
 ```
 
-#### Disable MUC message archive
+### Disable MUC message archive
 
 To disable archive for MUC messages please remove MUC section or any MUC related option from the config file.
 
@@ -296,6 +321,71 @@ By default, `mod_mam` Cassandra backend requires `global` pool with `default` ta
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
 Please consult [Outgoing connections](../configuration/outgoing-connections.md#elasticsearch-options) page to learn how to properly configure ElasticSearch connection pool.
+
+### Low-level options
+
+These options allow for fine-grained control over MAM behaviour.
+
+#### `modules.mod_mam_meta.default_result_limit`
+* **Syntax:** non-negative integer
+* **Default:** `50`
+* **Example:** `modules.mod_mam_meta.default_result_limit = 100`
+
+This sets the default page size of returned results.
+
+#### `modules.mod_mam_meta.max_result_limit`
+* **Syntax:** non-negative integer
+* **Default:** `50`
+* **Example:** `modules.mod_mam_meta.max_result_limit = 100`
+
+This sets the maximum page size of returned results.
+
+#### `modules.mod_mam_meta.db_jid_format`
+
+* **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
+* **Default:** `"mam_jid_rfc"` for `mod_mam_muc_rdbms_arch`, `"mam_jid_mini"` for `mod_mam_rdbms_arch`
+* **Example:** `modules.mod_mam_meta.db_jid_format = "mam_jid_mini"`
+
+Sets the internal MAM jid encoder/decoder module for RDBMS.
+It is set to `"mam_jid_rfc"` when [`rdbms_message_format`](#modulesmod_mam_metardbms_message_format) is set to `"simple"`.
+
+#### `modules.mod_mam_meta.db_message_format`
+
+* **Syntax:** string, one of `"mam_message_xml"`, `"mam_message_eterm"`, `"mam_message_compressed_eterm"` or a module implementing `mam_message` behaviour
+* **Default:** different values for different backends, described below.
+* **Example:** `modules.mod_mam_meta.db_message_format = "mam_message_compressed_eterm"`
+
+Sets the internal MAM message encoder/decoder module.
+Default values for:
+
+* RDBMS: `"mam_message_compressed_eterm"` by default, and `"mam_message_xml"` when [`rdbms_message_format`](#modulesmod_mam_metardbms_message_format) is set to `"simple"`
+* Riak: `"mam_message_xml"`
+* Cassandra: `"mam_message_compressed_eterm"`  by default, and `"mam_message_xml"` when [`simple`](#modulesmod_mam_metasimple) is set to `true`
+
+#### `modules.mod_mam_meta.simple`
+
+* **Syntax:** boolean
+* **Default:** `false`
+* **Example:** `modules.mod_mam_meta.simple = true`
+
+Sets `db_message_format` to `"mam_message_xml"` for Cassandra.
+
+#### `modules.mod_mam_meta.extra_fin_element`
+
+* **Syntax:** string, a module implementing the `extra_fin_element/3` callback
+* **Default:** none
+* **Example:** `modules.mod_mam_meta.extra_fin_element = "example_mod"`
+
+This module can be used to add subelements to the `<fin>` element of the MAM lookup query response.
+It can be useful to be able to add information to a mam query, that doesn't belong to any specific message but to all of them.
+
+#### `modules.mod_mam_meta.extra_lookup_params`
+
+* **Syntax:** string, a module implementing the `extra_lookup_params/2` callback
+* **Default:** none
+* **Example:** `modules.mod_mam_meta.extra_lookup_params = "example_mod"`
+
+This module can be used to add extra lookup parameters to MAM lookup queries.
 
 ## Example configuration
 

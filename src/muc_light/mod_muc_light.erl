@@ -24,9 +24,9 @@
 -behaviour(mongoose_module_metrics).
 
 %% API
--export([default_schema_definition/0, default_host/0]).
+-export([default_host/0]).
 -export([server_host_to_muc_host/2]).
--export([config_schema/1, default_config/1]).
+-export([config_schema/1]).
 
 %% For Administration API
 -export([try_to_create_room/3,
@@ -63,12 +63,13 @@
 -export([subdomain_pattern/1]).
 
 %% For tests
--export([set_module_opt_from_ct/3,
+-export([default_schema/0,
+         set_module_opt_from_ct/3,
          force_clear_from_ct/1]).
 
 -ignore_xref([
     add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
-    default_config/1, default_schema_definition/0, disco_local_items/1,
+    default_schema/0, disco_local_items/1,
     force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
     process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
     set_module_opt_from_ct/3, server_host_to_muc_host/2
@@ -85,19 +86,15 @@
 supported_features() ->
     [dynamic_domains].
 
--spec default_schema_definition() -> mod_muc_light_room_config:user_defined_schema().
-default_schema_definition() ->
-    [{"roomname", "Untitled"},
-     {"subject", ""}].
+-spec default_schema() -> mod_muc_light_room_config:schema().
+default_schema() ->
+    % This list needs to be sorted
+    [{<<"roomname">>, <<"Untitled">>, roomname, binary},
+     {<<"subject">>, <<>>, subject, binary}].
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
 default_host() ->
     mongoose_subdomain_utils:make_subdomain_pattern(<<"muclight.@HOST@">>).
-
--spec default_config(MUCServer :: muc_server()) -> mod_muc_light_room_config:kv().
-default_config(MUCServer) ->
-    HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
-    default_config_for_host_type(HostType).
 
 -spec config_schema(MUCServer :: muc_server()) -> mod_muc_light_room_config:schema().
 config_schema(MUCServer) ->
@@ -105,18 +102,13 @@ config_schema(MUCServer) ->
     config_schema_for_host_type(HostType).
 
 %% Internals
--spec default_config_for_host_type(host_type()) -> mod_muc_light_room_config:kv().
-default_config_for_host_type(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, computed_default_config, []).
 
 -spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
 config_schema_for_host_type(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, computed_config_schema, undefined).
+    gen_mod:get_module_opt(HostType, ?MODULE, config_schema, default_schema()).
 
 set_module_opt_from_ct(HostType, K, V) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, K, V),
-    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
-    set_dynamic_opts(HostType, Opts).
+    gen_mod:set_module_opt(HostType, ?MODULE, K, V).
 
 force_clear_from_ct(HostType) ->
     mod_muc_light_db_backend:force_clear(HostType).
@@ -178,7 +170,6 @@ delete_room({_, RoomS} = RoomUS) ->
 
 -spec start(HostType :: host_type(), Opts :: list()) -> ok.
 start(HostType, Opts) ->
-    set_dynamic_opts(HostType, Opts),
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
     mod_muc_light_codec_backend:start(HostType, [{backend, Codec}]),
@@ -213,16 +204,6 @@ host_type_to_codec(HostType) ->
             modern
     end.
 
-set_dynamic_opts(HostType, Opts) ->
-    %% Prepare config schema
-    Def = gen_mod:get_opt(config_schema, Opts, default_schema_definition()),
-    ConfigSchema = mod_muc_light_room_config:schema_from_definition(Def),
-    %% XXX That is a bad style
-    gen_mod:set_module_opt(HostType, ?MODULE, computed_config_schema, ConfigSchema),
-    %% Prepare default config
-    DefaultConfig = mod_muc_light_room_config:default_from_schema(ConfigSchema),
-    gen_mod:set_module_opt(HostType, ?MODULE, computed_default_config, DefaultConfig).
-
 %% Config callbacks
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -244,13 +225,14 @@ config_spec() ->
                  <<"rooms_per_page">> => #option{type = int_or_infinity,
                                                  validate = positive},
                  <<"rooms_in_rosters">> => #option{type = boolean},
-                 <<"config_schema">> => #list{items = config_schema_spec()}
+                 <<"config_schema">> => #list{items = config_schema_spec(),
+                                              process = fun ?MODULE:process_config_schema/1}
                 }
       }.
 
 config_schema_spec() ->
     #section{
-       items = #{<<"field">> => #option{type = string,
+       items = #{<<"field">> => #option{type = binary,
                                         validate = non_empty},
                  <<"string_value">> => #option{type = binary},
                  <<"integer_value">> => #option{type = integer},
@@ -258,15 +240,17 @@ config_schema_spec() ->
                  <<"internal_key">> => #option{type = atom,
                                                validate = non_empty}
                 },
-       required = [<<"field">>],
-       process = fun ?MODULE:process_config_schema/1
+       required = [<<"field">>]
       }.
 
-process_config_schema(KVs) ->
+process_config_schema(Items) ->
+    lists:ukeysort(1, lists:map(fun process_config_schema_item/1, Items)).
+
+process_config_schema_item(KVs) ->
     {[[{field, FieldName}], InternalKeyOpts], ValueOpts} =
         proplists:split(KVs, [field, internal_key]),
     {Value, Type} = process_config_schema_value(ValueOpts),
-    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, list_to_atom(FieldName)),
+    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, binary_to_atom(FieldName)),
     {FieldName, Value, InternalKey, Type}.
 
 process_config_schema_value([{string_value, Val}]) -> {Val, binary};
@@ -542,9 +526,8 @@ can_access_identity(_Acc, _HostType, _Room, _User) ->
 %%====================================================================
 
 prepare_config(HostType, RawConfig) ->
-    DefConfig = default_config_for_host_type(HostType),
     Schema = config_schema_for_host_type(HostType),
-    mod_muc_light_room_config:apply_binary_kv(RawConfig, DefConfig, Schema).
+    mod_muc_light_room_config:from_binary_kv(RawConfig, Schema).
 
 prepare_affs(HostType, CreatorJid, RoomUS, #create{aff_users = AffUsers}) ->
     CreatorUS = jid:to_lus(CreatorJid),

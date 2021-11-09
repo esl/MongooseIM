@@ -19,7 +19,7 @@
          terminate/2]).
 
 %% exported for unit tests only
--export([error_running_hook/4]).
+-export([error_running_hook/5]).
 
 -ignore_xref([start_link/0, add_handlers/1, delete_handlers/1]).
 
@@ -52,12 +52,8 @@
 
 -export_type([hook_fn/0, hook_list/0]).
 
--record(hook_handler, {key :: key(),
-                       %% 'prio' field must go right after the 'key',
-                       %% this is required for the proper sorting.
-                       prio :: pos_integer(),
-                       module :: module(),
-                       function :: atom(), %% function name
+-record(hook_handler, {prio :: pos_integer(),
+                       hook_fn :: hook_fn(),
                        extra :: map()}).
 
 -define(TABLE, ?MODULE).
@@ -83,9 +79,10 @@ add_handlers(List) ->
     ok.
 
 -spec add_handler(hook_tuple()) -> ok.
-add_handler(HookTuple) ->
+add_handler({HookName, Tag, _, _, _} = HookTuple) ->
     Handler = make_hook_handler(HookTuple),
-    gen_server:call(?MODULE, {add_handler, Handler}).
+    Key = hook_key(HookName, Tag),
+    gen_server:call(?MODULE, {add_handler, Key, Handler}).
 
 %% @doc Delete a hook handler.
 %% It is important to indicate exactly the same information than when the call was added.
@@ -103,9 +100,10 @@ delete_handlers(List) ->
     ok.
 
 -spec delete_handler(hook_tuple()) -> ok.
-delete_handler(HookTuple) ->
+delete_handler({HookName, Tag, _, _, _} = HookTuple) ->
     Handler = make_hook_handler(HookTuple),
-    gen_server:call(?MODULE, {delete_handler, Handler}).
+    Key = hook_key(HookName, Tag),
+    gen_server:call(?MODULE, {delete_handler, Key, Handler}).
 
 %% @doc Run hook handlers in order of priority (lower number means higher priority).
 %%  * if a hook handler returns {ok, NewAcc}, the NewAcc value is used
@@ -126,7 +124,7 @@ run_fold(HookName, Tag, Acc, Params) ->
     case ets:lookup(?TABLE, Key) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Tag, HookName),
-            run_hook(Ls, Acc, Params);
+            run_hook(Ls, Acc, Params, Key);
         [] ->
             {ok, Acc}
     end.
@@ -139,15 +137,18 @@ init([]) ->
     ets:new(?TABLE, [named_table, {read_concurrency, true}]),
     {ok, no_state}.
 
-handle_call({add_handler, #hook_handler{key = Key} = HookHandler}, _From, State) ->
+handle_call({add_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
-                    case lists:member(HookHandler, Ls) of
-                        true ->
+                    case lists:search(fun_is_handler_equal_to(HookHandler), Ls) of
+                        {value, _} ->
+                            ?LOG_WARNING(#{what => duplicated_handler,
+                                           key => Key, handler => HookHandler}),
                             ok;
                         false ->
-                            %% NB: lists:merge/2 returns sorted list!
-                            NewLs = lists:merge(Ls, [HookHandler]),
+                            %% NOTE: sort *only* on the priority,
+                            %% order of other fields is not part of the contract
+                            NewLs = lists:keymerge(#hook_handler.prio, Ls, [HookHandler]),
                             ets:insert(?TABLE, {Key, NewLs}),
                             ok
                     end;
@@ -158,10 +159,15 @@ handle_call({add_handler, #hook_handler{key = Key} = HookHandler}, _From, State)
                     ok
             end,
     {reply, Reply, State};
-handle_call({delete_handler, #hook_handler{key = Key} = HookHandler}, _From, State) ->
+handle_call({delete_handler, Key, #hook_handler{} = HookHandler}, _From, State) ->
     Reply = case ets:lookup(?TABLE, Key) of
                 [{_, Ls}] ->
-                    NewLs = lists:delete(HookHandler, Ls),
+                    %% NOTE: The straightforward handlers comparison would compare
+                    %% the function objects, which is not well-defined in OTP.
+                    %% So we do a manual comparison on the MFA of the funs,
+                    %% by using `erlang:fun_info/2`
+                    Pred = fun_is_handler_equal_to(HookHandler),
+                    {_, NewLs} = lists:partition(Pred, Ls),
                     ets:insert(?TABLE, {Key, NewLs}),
                     ok;
                 [] ->
@@ -190,33 +196,40 @@ code_change(_OldVsn, State, _Extra) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
--spec run_hook([#hook_handler{}], hook_acc(), hook_params()) -> hook_fn_ret_value().
-run_hook([], Acc, _Params) ->
+-spec run_hook([#hook_handler{}], hook_acc(), hook_params(), key()) -> hook_fn_ret_value().
+run_hook([], Acc, _Params, _Key) ->
     {ok, Acc};
-run_hook([Handler | Ls], Acc, Params) ->
+run_hook([Handler | Ls], Acc, Params, Key) ->
     case apply_hook_function(Handler, Acc, Params) of
-        {'EXIT', Reason} ->
-            ?MODULE:error_running_hook(Reason, Handler, Acc, Params),
-            run_hook(Ls, Acc, Params);
+        {ok, NewAcc} ->
+            run_hook(Ls, NewAcc, Params, Key);
         {stop, NewAcc} ->
             {stop, NewAcc};
-        {ok, NewAcc} ->
-            run_hook(Ls, NewAcc, Params)
+        Other ->
+            ?MODULE:error_running_hook(Other, Handler, Acc, Params, Key),
+            run_hook(Ls, Acc, Params, Key)
     end.
 
 -spec apply_hook_function(#hook_handler{}, hook_acc(), hook_params()) ->
     hook_fn_ret_value() | {'EXIT', Reason :: any()}.
-apply_hook_function(#hook_handler{module = Module, function = Function, extra = Extra},
+apply_hook_function(#hook_handler{hook_fn = HookFn, extra = Extra},
                     Acc, Params) ->
-    safely:apply(Module, Function, [Acc, Params, Extra]).
+    safely:apply(HookFn, [Acc, Params, Extra]).
 
-error_running_hook(Reason, Handler, Acc, Params) ->
-    ?LOG_ERROR(#{what => hook_failed,
-                 text => <<"Error running hook">>,
-                 handler => Handler,
-                 acc => Acc,
-                 params => Params,
-                 reason => Reason}).
+error_running_hook({Class, Reason}, Handler, Acc, Params, Key) ->
+    Extra = #{class => Class, reason => Reason},
+    log_error_running_hook(Extra, Handler, Acc, Params, Key);
+error_running_hook(Other, Handler, Acc, Params, Key) ->
+    Extra = #{error => Other},
+    log_error_running_hook(Extra, Handler, Acc, Params, Key).
+
+log_error_running_hook(Extra, Handler, Acc, Params, Key) ->
+    ?LOG_ERROR(Extra#{what => hook_failed,
+                      text => <<"Error running hook">>,
+                      key => Key,
+                      handler => Handler,
+                      acc => Acc,
+                      params => Params}).
 
 -spec make_hook_handler(hook_tuple()) -> #hook_handler{}.
 make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
@@ -224,14 +237,22 @@ make_hook_handler({HookName, Tag, Function, Extra, Priority} = HookTuple)
              is_function(Function, 3), is_map(Extra),
              is_integer(Priority), Priority > 0 ->
     NewExtra = extend_extra(HookTuple),
-    {Module, FunctionName} = check_hook_function(Function),
-    #hook_handler{key = hook_key(HookName, Tag),
-                  prio = Priority,
-                  module = Module,
-                  function = FunctionName,
+    check_hook_function(Function),
+    #hook_handler{prio = Priority,
+                  hook_fn = Function,
                   extra = NewExtra}.
 
--spec check_hook_function(hook_fn()) -> {module(), atom()}.
+-spec fun_is_handler_equal_to(#hook_handler{}) -> fun((#hook_handler{}) -> boolean()).
+fun_is_handler_equal_to(#hook_handler{prio = P0, hook_fn = HookFn0, extra = Extra0}) ->
+    Mod0 = erlang:fun_info(HookFn0, module),
+    Name0 = erlang:fun_info(HookFn0, name),
+    fun(#hook_handler{prio = P1, hook_fn = HookFn1, extra = Extra1}) ->
+            P0 =:= P1 andalso Extra0 =:= Extra1 andalso
+            Mod0 =:= erlang:fun_info(HookFn1, module) andalso
+            Name0 =:= erlang:fun_info(HookFn1, name)
+    end.
+
+-spec check_hook_function(hook_fn()) -> ok.
 check_hook_function(Function) when is_function(Function, 3) ->
     case erlang:fun_info(Function, type) of
         {type, external} ->
@@ -248,8 +269,7 @@ check_hook_function(Function) when is_function(Function, 3) ->
                 false ->
                     throw_error(#{what => function_is_not_exported,
                                   function => Function})
-            end,
-            {Module, FunctionName};
+            end;
         {type, local} ->
             throw_error(#{what => only_external_function_references_allowed,
                           function => Function})

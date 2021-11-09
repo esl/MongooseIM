@@ -90,10 +90,11 @@
                            stanza_create_room/3,
                            create_room/6,
                            stanza_aff_set/2,
-                           default_config/0,
                            user_leave/3,
                            set_mod_config/3,
-                           stanza_blocking_set/1
+                           stanza_blocking_set/1,
+                           default_config/1,
+                           default_schema/0
 ]).
 
 -include("muc_light.hrl").
@@ -102,8 +103,6 @@
 -define(ROOM2, <<"testroom2">>).
 
 -define(MUCHOST, (muc_light_helper:muc_host())).
-
--define(CHECK_FUN, fun mod_muc_light_room:participant_limit_check/2).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -251,7 +250,7 @@ init_per_testcase(disco_rooms_rsm, Config) ->
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
-        true -> set_custom_config(common_custom_config());
+        true -> set_config_schema(custom_schema());
         _ -> ok
     end,
     case lists:member(CaseName, ?ROOM_LESS_CASES) of
@@ -267,7 +266,7 @@ end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
-        true -> set_custom_config(default_schema_definition());
+        true -> set_config_schema(default_schema());
         _ -> ok
     end,
     muc_light_helper:clear_db(host_type()),
@@ -337,12 +336,10 @@ check_features(Stanza, HasMAM) ->
                                                {attr, <<"var">>}]),
     ?assertEqual(ExpectedFeatures, ActualFeatures).
 
-expected_features(HasMAM) ->
-    MamFeatures = case HasMAM of
-                      true -> mam_helper:namespaces();
-                      false -> []
-                  end,
-    lists:sort([?NS_MUC_LIGHT | MamFeatures]).
+expected_features(true) ->
+    lists:sort([?NS_MUC_LIGHT | mam_helper:namespaces()]);
+expected_features(false) ->
+    [?NS_MUC_LIGHT].
 
 %% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->
@@ -438,7 +435,7 @@ rooms_in_rosters(Config) ->
                        RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
             ProperJID = room_bin_jid(?ROOM),
             ProperJID = exml_query:attr(Item, <<"jid">>),
-            ProperName = proplists:get_value(roomname, default_config()),
+            ProperName = proplists:get_value(<<"roomname">>, default_config(default_schema())),
             ProperName = exml_query:attr(Item, <<"name">>),
             ProperVer = ver(1),
             ProperVer = exml_query:path(Item, [{element, <<"version">>}, cdata])
@@ -536,7 +533,7 @@ set_config_deny(Config) ->
 get_room_config(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
-            ConfigKV = [{"version", binary_to_list(ver(1))} | standard_default_config()],
+            ConfigKV = [{<<"version">>, ver(1)} | default_config(default_schema())],
             foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKV)),
 
             %% Empty result when user has most recent version
@@ -549,7 +546,7 @@ get_room_config(Config) ->
 custom_default_config_works(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_config_get(?ROOM, <<"oldver">>),
-            ConfigKV = [{"version", binary_to_list(ver(1))} | common_custom_config()],
+            ConfigKV = [{<<"version">>, ver(1)} | default_config(custom_schema())],
             foreach_occupant([Alice, Bob, Kate], Stanza, config_iq_verify_fun(ConfigKV))
         end).
 
@@ -569,10 +566,9 @@ get_room_occupants(Config) ->
 get_room_info(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             Stanza = stanza_info_get(?ROOM, <<"oldver">>),
-            ConfigKV = default_config(),
-            ConfigKVBin = [{list_to_binary(atom_to_list(Key)), Val} || {Key, Val} <- ConfigKV],
+            ConfigKV = default_config(default_schema()),
             foreach_occupant([Alice, Bob, Kate], Stanza,
-                             info_iq_verify_fun(?DEFAULT_AFF_USERS, ver(1), ConfigKVBin)),
+                             info_iq_verify_fun(?DEFAULT_AFF_USERS, ver(1), ConfigKV)),
 
             escalus:send(Bob, stanza_aff_get(?ROOM, ver(1))),
             IQRes = escalus:wait_for_stanza(Bob),
@@ -967,7 +963,7 @@ stanza_aff_get(Room, Ver) ->
 stanza_destroy_room(Room) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), room_bin_jid(Room)).
 
--spec stanza_config_set(Room :: binary(), ConfigChanges :: [{binary(), binary()}]) -> xmlel().
+-spec stanza_config_set(Room :: binary(), ConfigChanges :: [muc_light_helper:config_item()]) -> xmlel().
 stanza_config_set(Room, ConfigChanges) ->
     Items = [ kv_el(Key, Value) || {Key, Value} <- ConfigChanges],
     escalus_stanza:to(
@@ -1009,7 +1005,7 @@ verify_no_stanzas(Users) ->
               {false, _} = {escalus_client:has_stanzas(User), User}
       end, Users).
 
--spec verify_config(ConfigRoot :: xmlel(), Config :: [{binary(), binary()}]) -> ok.
+-spec verify_config(ConfigRoot :: xmlel(), Config :: [muc_light_helper:config_item()]) -> ok.
 verify_config(ConfigRoot, Config) ->
     lists:foreach(
       fun({Key, Val}) ->
@@ -1020,7 +1016,7 @@ verify_config(ConfigRoot, Config) ->
 %% Verification funs generators
 %%--------------------------------------------------------------------
 
--spec config_msg_verify_fun(RoomConfig :: [{binary(), binary()}]) -> verify_fun().
+-spec config_msg_verify_fun(RoomConfig :: [muc_light_helper:config_item()]) -> verify_fun().
 config_msg_verify_fun(RoomConfig) ->
     fun(Incoming) ->
             escalus:assert(is_groupchat_message, Incoming),
@@ -1037,14 +1033,12 @@ config_msg_verify_fun(RoomConfig) ->
               end, RoomConfig)
     end.
 
--spec config_iq_verify_fun(RoomConfig :: [{string(), string()}]) -> verify_fun().
+-spec config_iq_verify_fun(RoomConfig :: [muc_light_helper:config_item()]) -> verify_fun().
 config_iq_verify_fun(RoomConfig) ->
     fun(Incoming) ->
             [Query] = exml_query:subelements(Incoming, <<"query">>),
             ?NS_MUC_LIGHT_CONFIGURATION = exml_query:attr(Query, <<"xmlns">>),
-            BinaryRoomConfig = [{list_to_binary(K), list_to_binary(V)}
-                                || {K, V} <- RoomConfig],
-            verify_config(Query, BinaryRoomConfig)
+            verify_config(Query, RoomConfig)
     end.
 
 -spec aff_iq_verify_fun(AffUsers :: ct_aff_users(), Version :: binary()) -> verify_fun().
@@ -1059,8 +1053,8 @@ aff_iq_verify_fun(AffUsers, Version) ->
     end.
 
 -spec info_iq_verify_fun(AffUsers :: ct_aff_users(), Version :: binary(),
-                         ConfigKVBin :: [{binary(), binary()}]) -> verify_fun().
-info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
+                         ConfigKV :: [muc_light_helper:config_item()]) -> verify_fun().
+info_iq_verify_fun(AffUsers, Version, ConfigKV) ->
     BinAffUsers = bin_aff_users(AffUsers),
     fun(Incoming) ->
             [Query] = exml_query:subelements(Incoming, <<"query">>),
@@ -1070,7 +1064,7 @@ info_iq_verify_fun(AffUsers, Version, ConfigKVBin) ->
                                           {element, <<"user">>}]),
             verify_aff_users(UsersItems, BinAffUsers),
             ConfigurationEl = exml_query:subelement(Query, <<"configuration">>),
-            verify_config(ConfigurationEl, ConfigKVBin)
+            verify_config(ConfigurationEl, ConfigKV)
     end.
 
 -spec verify_user_has_one_room(User :: escalus:client()) -> any().
@@ -1107,20 +1101,11 @@ assert_process_memory_not_growing(Pid, OldMemory, Counter) ->
                  end,
   assert_process_memory_not_growing(Pid, Memory, NewCounter).
 
--spec common_custom_config() -> list().
-common_custom_config() -> [{"background", "builtin:hell"}, {"music", "builtin:screams"}].
-
--spec default_schema_definition() -> list().
-default_schema_definition() ->
-    rpc(mod_muc_light, default_schema_definition, []).
-
--spec standard_default_config() -> list().
-standard_default_config() ->
-    % Default schema definition is actually a proplist with the option name as a key
-    % and the default as a value, but we verify it to avoid strange errors.
-    DefaultConfig = default_schema_definition(),
-    lists:foreach(fun({K, V}) when is_list(K), is_list(V) -> ok end, DefaultConfig),
-    DefaultConfig.
+-spec custom_schema() -> [muc_light_helper:schema_item()].
+custom_schema() ->
+    % This list needs to be sorted
+    [{<<"background">>, <<"builtin:hell">>, background, binary},
+     {<<"music">>, <<"builtin:screams">>, music, binary}].
 
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->
@@ -1136,6 +1121,6 @@ set_default_mod_config() ->
        {rooms_per_page, infinity}
       ]).
 
--spec set_custom_config(UserDefSchema :: list()) -> any().
-set_custom_config(UserDefSchema) when is_list(UserDefSchema) ->
-    set_mod_config(config_schema, UserDefSchema, ?MUCHOST).
+-spec set_config_schema(Schema :: list()) -> any().
+set_config_schema(Schema) when is_list(Schema) ->
+    set_mod_config(config_schema, Schema, ?MUCHOST).

@@ -808,7 +808,7 @@ send_unsubscription_to_rosteritems(Acc, JID) ->
                   end, RosterItems),
     Acc1.
 
-%% @spec (From::jid(), Item::roster()) -> any()
+-spec send_unsubscribing_presence(From :: jid:jid(), Item :: roster()) -> ok | mongoose_acc:t().
 send_unsubscribing_presence(From, #roster{ subscription = Subscription } = Item) ->
     BareFrom = jid:to_bare(From),
     ContactJID = jid:make_noprep(Item#roster.jid),

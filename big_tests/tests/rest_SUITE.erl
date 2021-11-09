@@ -80,6 +80,7 @@ blank_auth_testcases() ->
 test_cases() ->
     [commands_are_listed,
      non_existent_command_returns404,
+     existent_command_with_missing_arguments_returns404,
      user_can_be_registered_and_removed,
      sessions_are_listed,
      session_can_be_kicked,
@@ -205,6 +206,9 @@ commands_are_listed(_C) ->
 
 non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/isitthereornot">>).
+
+existent_command_with_missing_arguments_returns404(_C) ->
+    {?NOT_FOUND, _} = gett(admin, <<"/contacts/">>).
 
 user_can_be_registered_and_removed(_Config) ->
     % list users

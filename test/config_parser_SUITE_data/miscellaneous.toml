@@ -6,7 +6,6 @@
   default_server_domain = "localhost"
   http_server_name = "Apache"
   rdbms_server_type = "mssql"
-  override = ["local", "global", "acls"]
   route_subdomains = "s2s"
   routing_modules = [
       "mongoose_router_global",

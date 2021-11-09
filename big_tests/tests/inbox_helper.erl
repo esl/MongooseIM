@@ -10,6 +10,7 @@
 % Generic inbox
 -export([
          skip_or_run_inbox_tests/1,
+         maybe_run_in_parallel/1,
          inbox_opts/0,
          inbox_modules/0,
          muclight_modules/0,
@@ -133,6 +134,22 @@ skip_or_run_inbox_tests(TestCases) ->
         true -> TestCases;
         false -> {skip, require_rdbms}
     end.
+
+maybe_run_in_parallel(Gs) ->
+    %% These could be parallel but it seems like mssql CI can't handle the load
+    case distributed_helper:rpc(
+           distributed_helper:mim(), mongoose_rdbms, db_engine, [domain_helper:host_type()]) of
+        odbc -> Gs;
+        _ -> insert_parallels(Gs)
+    end.
+
+insert_parallels(Gs) ->
+    Fun = fun({muclight_config, Conf, Tests}) ->
+                  {muclight_config, Conf, Tests};
+             ({Group, Conf, Tests}) ->
+                  {Group, [parallel | Conf], Tests}
+          end,
+    lists:map(Fun, Gs).
 
 inbox_modules() ->
     [

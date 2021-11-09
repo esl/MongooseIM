@@ -14,6 +14,7 @@ PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
 EUNIT_TESTS="${EUNIT_TESTS:-false}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
+REBAR_CT_EXTRA_ARGS="${REBAR_CT_EXTRA_ARGS:-}"
 
 while getopts ":p:s:e:c:" opt; do
   case $opt in
@@ -81,6 +82,10 @@ choose_newest_directory() {
 run_small_tests() {
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
+  if [ "$COVER_ENABLED" = true ]; then
+    REBAR_CT_EXTRA_ARGS=" -c $REBAR_CT_EXTRA_ARGS "
+  fi
+  export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
   make ct
   tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
@@ -312,6 +317,13 @@ elif [ "$PRESET" == "xref_only" ]; then
   tools/print-dots.sh start
   tools/print-dots.sh monitor $$
   ./rebar3 xref
+  RESULT=$?
+  tools/print-dots.sh stop
+  exit ${RESULT}
+elif [ "$PRESET" == "edoc_only" ]; then
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
+  ./rebar3 edoc
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}

@@ -62,6 +62,7 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(_CaseName, Config) ->
+    mongoose_config:set_opt(hosts, [global_host(), local_host()]),
     set_meck(),
     fake_start(),
     Config.
@@ -69,6 +70,7 @@ init_per_testcase(_CaseName, Config) ->
 end_per_testcase(_CaseName, Config) ->
     fake_stop(),
     unset_meck(),
+    mongoose_config:unset_opt(hosts),
     Config.
 
 %%--------------------------------------------------------------------
@@ -129,11 +131,6 @@ fake_acc_to_component(From) ->
 %%--------------------------------------------------------------------
 
 set_meck() ->
-    meck:new(ejabberd_config, []),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun(hosts, _) -> [global_host(), local_host()] end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-
     meck:new(mongoose_metrics, []),
     meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),
 
@@ -145,7 +142,6 @@ set_meck() ->
     meck:expect(mod_global_distrib_mapping_backend, put_domain, fun(_) -> ok end).
 
 unset_meck() ->
-    meck:unload(ejabberd_config),
     meck:unload(mod_global_distrib_mapping_backend),
     meck:unload(mongoose_metrics).
 

@@ -1,11 +1,11 @@
 %%%===================================================================
 %%% @doc Common listener/router for modules that use Cowboy.
 %%%
-%%% The 'modules' configuration option should be a list of
+%%% The `modules' configuration option should be a list of
 %%% {Host, BasePath, Module} or {Host, BasePath, Module, Opts} tuples,
 %%% where a Host of "_" will match any host.
 %%%
-%%% A 'middlewares' configuration option may be specified to configure
+%%% A `middlewares' configuration option may be specified to configure
 %%% Cowboy middlewares.
 %%%
 %%% Modules may export the following function to configure Cowboy
@@ -120,10 +120,10 @@ handler({Port, IP, tcp}) ->
 -spec execute(cowboy_req:req(), cowboy_middleware:env()) ->
     {ok, cowboy_req:req(), cowboy_middleware:env()}.
 execute(Req, Env) ->
-    case ejabberd_config:get_local_option(cowboy_server_name) of
-        undefined ->
+    case mongoose_config:lookup_opt(cowboy_server_name) of
+        {error, not_found} ->
             {ok, Req, Env};
-        ServerName ->
+        {ok, ServerName} ->
             {ok, cowboy_req:set_resp_header(<<"server">>, ServerName, Req), Env}
     end.
 
@@ -226,8 +226,7 @@ get_routes([], Routes) ->
 get_routes([{Host, BasePath, Module} | Tail], Routes) ->
     get_routes([{Host, BasePath, Module, []} | Tail], Routes);
 get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
-    %% ejabberd_config tries to expand the atom '_' as a Macro, which fails.
-    %% To work around that, use "_" instead and translate it to '_' here.
+    %% "_" is used in TOML and translated to '_' here.
     CowboyHost = case Host of
         "_" -> '_';
         _ -> Host
@@ -290,9 +289,9 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
 %% -------------------------------------------------------------------
 %% @private
 %% @doc
-%% Store trails, this need for generate swagger documentation
-%% Add to Trails each of modules where used trails behaviour
-%% The modules must be added into `mongooseim.toml` in `swagger` section
+%% Store trails, this is needed to generate swagger documentation.
+%% Add to Trails each of modules where the trails behaviour is used.
+%% The modules must be added into `mongooseim.toml' in the `swagger' section.
 %% @end
 %% -------------------------------------------------------------------
 trails_store(Modules) ->

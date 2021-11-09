@@ -81,7 +81,7 @@ config_spec(Service) ->
 
 -spec ensure_loaded(service()) -> ok.
 ensure_loaded(Service) ->
-    Options = ejabberd_config:get_local_option_or_default(services, []),
+    Options = mongoose_config:get_opt(services, []),
     start_service(Service, proplists:get_value(Service, Options)),
     ok.
 

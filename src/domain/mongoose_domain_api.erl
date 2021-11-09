@@ -3,6 +3,7 @@
 -module(mongoose_domain_api).
 
 -export([init/0,
+         stop/0,
          get_host_type/1]).
 
 %% domain API
@@ -22,6 +23,7 @@
          get_all_subdomains_for_domain/1]).
 
 -ignore_xref([get_all_static/0]).
+-ignore_xref([stop/0]).
 
 -type domain() :: jid:lserver().
 -type host_type() :: mongooseim:host_type().
@@ -32,10 +34,19 @@
 -spec init() -> ok | {error, term()}.
 init() ->
     Pairs = get_static_pairs(),
-    AllowedHostTypes = ejabberd_config:get_global_option_or_default(host_types, []),
+    AllowedHostTypes = mongoose_config:get_opt(host_types, []),
     mongoose_domain_core:start(Pairs, AllowedHostTypes),
     mongoose_subdomain_core:start(),
     mongoose_lazy_routing:start().
+
+%% Stops gen_servers, that are started from init/0
+%% Does not fail, even if servers are already stopped
+-spec stop() -> ok.
+stop() ->
+    catch mongoose_domain_core:stop(),
+    catch mongoose_subdomain_core:stop(),
+    catch mongoose_lazy_routing:stop(),
+    ok.
 
 %% Domain should be nameprepped using `jid:nameprep'.
 -spec insert_domain(domain(), host_type()) ->
@@ -166,7 +177,7 @@ check_domain(Domain, HostType) ->
 %% Domains should be nameprepped using `jid:nameprep'
 -spec get_static_pairs() -> [pair()].
 get_static_pairs() ->
-    [{H, H} || H <- ejabberd_config:get_global_option_or_default(hosts, [])].
+    [{H, H} || H <- mongoose_config:get_opt(hosts, [])].
 
 -spec register_subdomain(host_type(), subdomain_pattern(),
                          mongoose_packet_handler:t()) ->

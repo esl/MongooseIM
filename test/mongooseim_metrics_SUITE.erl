@@ -76,14 +76,14 @@ end_per_suite(C) ->
     C.
 
 init_per_group(Group, C) ->
-    setup_meck(Group),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(Group)],
     mongoose_metrics:init(),
     C.
 
-end_per_group(_Name, C) ->
+end_per_group(Group, C) ->
     mongoose_metrics:remove_host_type_metrics(<<"localhost">>),
     mongoose_metrics:remove_host_type_metrics(global),
-    meck:unload(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts(Group)],
     C.
 
 init_per_testcase(CN, C) when tcp_connections_detected =:= CN;
@@ -157,18 +157,9 @@ wait_for_update({ok, [{count,0}]}, N) ->
     timer:sleep(1000),
     wait_for_update(exometer:get_value([carbon, packets], count), N-1).
 
-setup_meck(Group) ->
-    meck:new(ejabberd_config, [no_link]),
-    meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun (hosts, _Def) -> [<<"localhost">>];
-                    (_, _) -> []
-                end),
-    meck:expect(ejabberd_config, get_local_option,
-                fun (all_metrics_are_global) -> Group =:= all_metrics_are_global;
-                    (_) -> undefined
-                end),
-    ok.
+opts(Group) ->
+    [{hosts, [<<"localhost">>]},
+     {all_metrics_are_global, Group =:= all_metrics_are_global}].
 
 get_reporters_cfg(Port) ->
     [{reporters, [

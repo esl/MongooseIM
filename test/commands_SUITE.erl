@@ -34,30 +34,15 @@ groups() ->
        new_failedreg,
        new_list,
        new_execute,
-       different_types
+       different_types,
+       errors_are_readable
       ]
      }
     ].
 
-glo({auth_method, _}) ->
-    dummy;
-glo(Any) ->
-    ?PRT("what do you want", Any),
-    none.
-
-ggo({access, experts_only, _}) ->
-    [{allow, coder}, {allow, manager}, {deny, all}];
-ggo({access, _, _}) ->
-    [];
-ggo(Any) ->
-    ?PRT("global what do you want", Any),
-    none.
-
 init_per_suite(C) ->
     application:ensure_all_started(jid),
     ok = mnesia:start(),
-    ok = acl:start(),
-    acl:add(global, coder, {user, <<"zenek">>}),
     C.
 
 end_per_suite(_) ->
@@ -86,18 +71,21 @@ stop_helper_proc(C) ->
     Pid ! stop.
 
 init_per_testcase(_, C) ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun glo/1),
-    meck:expect(ejabberd_config, get_global_option, fun ggo/1),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     meck:new(ejabberd_auth_dummy, [non_strict]),
     meck:expect(ejabberd_auth_dummy, get_password_s, fun(_, _) -> <<"">> end),
     meck:new(mongoose_domain_api),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(H) -> {ok, H} end),
     C.
 
-end_per_testcase(_, C) ->
-    meck:unload(),
-    C.
+end_per_testcase(_, _C) ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
+    meck:unload().
+
+opts() ->
+    [{{auth_method, <<"localhost">>}, [dummy]},
+     {{access, experts_only, <<"localhost">>}, [{allow, coder}, {allow, manager}, {deny, all}]},
+     {{acl, coder, <<"localhost">>}, [{user, <<"zenek">>}]}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods
@@ -285,6 +273,18 @@ different_types(_C) ->
     mongoose_commands:unregister(commands_new_temp2()),
     ok.
 
+errors_are_readable(_C) ->
+    {error, internal, TextBin} = mongoose_commands:execute(admin, make_error, [<<"oops">>]),
+    Map = parse_binary_term(TextBin),
+    [<<"oops">>] = maps:get(args, Map),
+    admin = maps:get(caller, Map),
+    error = maps:get(class, Map),
+    make_error = maps:get(command_name, Map),
+    <<"oops">> = maps:get(reason, Map),
+    [_|_] = maps:get(stacktrace, Map),
+    command_failed = maps:get(what, Map),
+    ok.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -344,6 +344,16 @@ commands_new() ->
             {security_policy, [user]},
             {args, [{caller, binary}, {msg, binary}]},
             {result, {msg, binary}}
+        ],
+        [
+            {name, make_error},
+            {category, <<"testing">>},
+            {desc, <<"Just to test an error">>},
+            {module, erlang},
+            {function, error},
+            {action, read},
+            {args, [{error, binary}]},
+            {result, []}
         ]
     ].
 
@@ -602,3 +612,9 @@ ujid() ->
     <<"zenek@localhost/k">>.
 %%    #jid{user = <<"zenek">>, server = <<"localhost">>, resource = "k",
 %%         luser = <<"zenek">>, lserver = <<"localhost">>, lresource = "k"}.
+
+parse_binary_term(TextBin) ->
+    {ok, Tokens, _} = erl_scan:string(binary_to_list(TextBin) ++ "."),
+    {ok, Abstract} = erl_parse:parse_exprs(Tokens),
+    {value, Value, _} = erl_eval:exprs(Abstract, erl_eval:new_bindings()),
+    Value.

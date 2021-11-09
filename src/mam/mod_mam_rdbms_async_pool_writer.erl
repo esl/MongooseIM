@@ -174,7 +174,7 @@ worker_spec(WriterProc, N, HostType, MaxSize) ->
      permanent,
      5000,
      worker,
-     [mod_mam_rdbms_async_writer]}.
+     [mod_mam_rdbms_async_pool_writer]}.
 
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),

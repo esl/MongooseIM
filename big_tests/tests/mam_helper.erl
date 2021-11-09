@@ -94,6 +94,7 @@
          mam_ns_binary_v04/0,
          mam_ns_binary_v06/0,
          retract_ns/0,
+         retract_esl_ns/0,
          retract_tombstone_ns/0,
          make_alice_and_bob_friends/2,
          run_prefs_case/6,
@@ -111,6 +112,7 @@
          wait_for_room_archive_size/3,
          generate_msg_for_date_user/3,
          generate_msg_for_date_user/4,
+         random_text/0,
          put_msg/1
         ]).
 
@@ -230,12 +232,14 @@ namespaces() ->
     [mam_ns_binary_v04(),
      mam_ns_binary_v06(),
      retract_ns(),
+     retract_esl_ns(),
      retract_tombstone_ns()].
 
 mam_ns_binary() -> mam_ns_binary_v04().
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 retract_ns() -> <<"urn:xmpp:message-retract:0">>.
+retract_esl_ns() -> <<"urn:esl:message-retract-by-stanza-id:0">>.
 retract_tombstone_ns() -> <<"urn:xmpp:message-retract:0#tombstone">>.
 
 skip_undefined(Xs) ->
@@ -890,12 +894,13 @@ generate_msgs_for_day(Day, OwnerJID, OtherUsers) ->
      || RemoteJID <- OtherUsers].
 
 generate_msg_for_date_user(Owner, Remote, DateTime) ->
-    generate_msg_for_date_user(Owner, Remote, DateTime, base16:encode(crypto:strong_rand_bytes(4))).
+    generate_msg_for_date_user(Owner, Remote, DateTime, random_text()).
+
+random_text() ->
+    base16:encode(crypto:strong_rand_bytes(4)).
 
 generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content) ->
-    MicrosecDateTime = datetime_to_microseconds(DateTime),
-    NowMicro = rpc_apply(erlang, system_time, [microsecond]),
-    Microsec = min(NowMicro, MicrosecDateTime),
+    Microsec = datetime_to_microseconds(DateTime),
     MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, rand:uniform(20)]),
     MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, rand:uniform(20)]),
     Packet = escalus_stanza:chat_to(RemoteBin, Content),

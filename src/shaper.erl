@@ -31,12 +31,12 @@
 
 -spec new(atom()) -> shaper().
 new(Name) ->
-    case ejabberd_config:get_global_option({shaper, Name, global}) of
-        {maxrate, MaxRatePerSecond} ->
+    case mongoose_config:lookup_opt({shaper, Name, global}) of
+        {ok, {maxrate, MaxRatePerSecond}} ->
             #shaper{max_rate = MaxRatePerSecond,
                     tokens = MaxRatePerSecond,
                     last_update = erlang:monotonic_time(millisecond)};
-        _ -> none
+        {error, not_found} -> none
     end.
 
 %% @doc Update shaper.

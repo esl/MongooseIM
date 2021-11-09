@@ -6,6 +6,10 @@
 
 -export([join/1, leave/0, remove_from_cluster/1, is_node_alive/1]).
 
+-export([all_cluster_nodes/0, other_cluster_nodes/0]).
+
+-ignore_xref([all_cluster_nodes/0]).
+
 -include("mongoose.hrl").
 
 -dialyzer({[no_match, no_return], set_extra_db_nodes/1}).
@@ -63,6 +67,14 @@ do_remove_from_cluster(Node) ->
     NodeAlive andalso error({node_is_alive, Node}),
     remove_dead_from_cluster(Node).
 
+-spec all_cluster_nodes() -> [node()].
+all_cluster_nodes() ->
+    [node() | other_cluster_nodes()].
+
+-spec other_cluster_nodes() -> [node()].
+other_cluster_nodes() ->
+    lists:filter(fun is_mongooseim_node/1, nodes()).
+
 %%
 %% Helpers
 %%
@@ -86,6 +98,11 @@ is_node_alive(Node) ->
         error:_ ->
             false
     end.
+
+-spec is_mongooseim_node(node()) -> boolean().
+is_mongooseim_node(Node) ->
+    Apps = rpc:call(Node, application, which_applications, []),
+    lists:keymember(mongooseim, 1, Apps).
 
 is_app_running(App) ->
     lists:keymember(App, 1, application:which_applications()).

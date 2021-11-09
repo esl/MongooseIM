@@ -73,7 +73,6 @@ get_password_s(_HostType, _User, _Server) ->
 does_user_exist(_HostType, _User, _Server) ->
     true.
 
-%% @spec (User, Server) -> ok
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.

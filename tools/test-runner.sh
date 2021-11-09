@@ -596,6 +596,13 @@ TEST_HOSTS_DEFAULT="${TEST_HOSTS_ARRAY[@]}"
 
 ./tools/configure with-all
 
+# Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
+# to rebar3 in Makefile
+REBAR_CT_EXTRA_ARGS=""
+if [[ -f "auto_small_tests.spec" ]]; then
+    REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" $REBAR_CT_EXTRA_ARGS"
+fi
+
 # Allow user to pass PRESET and DB as an env variable
 # (or use default value)
 # "${parameter-word}" means:
@@ -612,13 +619,7 @@ export TEST_HOSTS="${TEST_HOSTS-$TEST_HOSTS_DEFAULT}"
 export BUILD_TESTS="$BUILD_TESTS"
 export BUILD_MIM="$BUILD_MIM"
 export TLS_DIST="$TLS_DIST"
-# Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
-# to rebar3 in Makefile
-if [[ -f "auto_small_tests.spec" ]]; then
-    export REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" "
-else
-    export REBAR_CT_EXTRA_ARGS=""
-fi
+export REBAR_CT_EXTRA_ARGS="$REBAR_CT_EXTRA_ARGS"
 export SRC_TESTSPEC="$SRC_TESTSPEC"
 export TESTSPEC="auto_big_tests.spec"
 export START_NODES="$START_NODES"

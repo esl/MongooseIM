@@ -253,7 +253,7 @@ init([{SockMod, Socket}, Opts]) ->
                                          access         = Access,
                                          shaper         = Shaper,
                                          ip             = IP,
-                                         lang           = default_language(),
+                                         lang           = ?MYLANG,
                                          hibernate_after= HibernateAfter
                                         },
              ?C2S_OPEN_TIMEOUT}
@@ -276,10 +276,10 @@ wait_for_stream(timeout, StateData) ->
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData};
 wait_for_stream(_UnexpectedItem, #state{server = Server} = StateData) ->
-    case ejabberd_config:get_local_option(hide_service_name) of
+    case mongoose_config:get_opt(hide_service_name, false) of
         true ->
             {stop, normal, StateData};
-        _ ->
+        false ->
             send_header(StateData, Server, << "1.0">>, <<"">>),
             c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData)
     end.
@@ -306,7 +306,7 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     end.
 
 stream_start_error(Error, StateData) ->
-    send_header(StateData, ?MYNAME, <<"">>, default_language()),
+    send_header(StateData, ?MYNAME, <<"">>, ?MYLANG),
     c2s_stream_error(Error, StateData).
 
 -spec c2s_stream_error(Error, State) -> Result when
@@ -332,7 +332,7 @@ stream_start_by_protocol_version(_Pre1_0, S) ->
     stream_start_error(mongoose_xmpp_errors:unsupported_version(), S).
 
 stream_start_negotiate_features(#state{} = S) ->
-    send_header(S, S#state.server, <<"1.0">>, default_language()),
+    send_header(S, S#state.server, <<"1.0">>, ?MYLANG),
     case {S#state.authenticated, S#state.resource} of
         {false, _} ->
             stream_start_features_before_auth(S);
@@ -475,12 +475,6 @@ get_xml_lang(Attrs) ->
            <<>>
     end.
 
-default_language() ->
-    case ?MYLANG of
-        undefined -> <<"en">>;
-        DL -> DL
-    end.
-
 verify_opts(verify_none) -> [verify_none];
 verify_opts(verify_peer) -> [].
 
@@ -524,14 +518,11 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
         {?NS_TLS, <<"starttls">>} when TLS == true,
                                        TLSEnabled == false,
                                        SockMod == gen_tcp ->
-            TLSOpts = case ejabberd_config:get_local_option(
-                             {domain_certfile, StateData#state.host_type}) of
-                          undefined ->
+            TLSOpts = case mongoose_config:lookup_opt({domain_certfile, StateData#state.host_type}) of
+                          {error, not_found} ->
                               StateData#state.tls_options;
-                          CertFile ->
-                              [{certfile, CertFile} |
-                               lists:keydelete(
-                                 certfile, 1, StateData#state.tls_options)]
+                          {ok, CertFile} ->
+                              lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
                       end,
             TLSSocket = mongoose_transport:starttls(StateData#state.sockmod,
                                                     StateData#state.socket,
@@ -815,8 +806,7 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     {established, Acc1, NewStateData}.
 
 get_replaced_wait_timeout(HostType) ->
-    ejabberd_config:get_local_option_or_default({replaced_wait_timeout, HostType},
-                                                default_replaced_wait_timeout()).
+    mongoose_config:get_opt({replaced_wait_timeout, HostType}, default_replaced_wait_timeout()).
 
 default_replaced_wait_timeout() ->
     2000.
@@ -2499,10 +2489,10 @@ fsm_limit_opts(Opts) ->
         {_, N} when is_integer(N) ->
             [{max_queue, N}];
         _ ->
-            case ejabberd_config:get_local_option(max_fsm_queue) of
-                N when is_integer(N) ->
+            case mongoose_config:lookup_opt(max_fsm_queue) of
+                {ok, N} ->
                     [{max_queue, N}];
-                _ ->
+                {error, not_found} ->
                     []
             end
     end.
@@ -3291,7 +3281,7 @@ handle_sasl_step(#state{host_type = HostType, server = Server, socket = Sock} = 
     end.
 
 user_allowed(JID, #state{host_type = HostType, server = Server, access = Access}) ->
-    case acl:match_rule(Server, Access, JID)  of
+    case acl:match_rule_for_host_type(HostType, Server, Access, JID)  of
         allow ->
             open_session_allowed_hook(HostType, JID);
         deny ->

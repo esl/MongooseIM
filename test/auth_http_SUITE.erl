@@ -66,7 +66,7 @@ suite() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
-    meck_config(Config),
+    set_opts(Config),
     mim_ct_rest:start(?BASIC_AUTH, Config),
     % Separate process needs to do this, because this one will terminate
     % so will supervisor and children and ETS tables
@@ -83,12 +83,12 @@ init_per_suite(Config) ->
               mongoose_wpool_http:init(),
               ejabberd_auth_http:start(?HOST_TYPE)
       end),
-    meck_cleanup(),
     Config.
 
 end_per_suite(Config) ->
     ejabberd_auth_http:stop(?HOST_TYPE),
     ok = mim_ct_rest:stop(),
+    unset_opts(),
     Config.
 
 init_per_group(cert_auth, Config) ->
@@ -106,10 +106,9 @@ init_per_group(cert_auth, Config) ->
 init_per_group(GroupName, Config) ->
     Config2 = lists:keystore(scram_group, 1, Config,
                              {scram_group, GroupName == auth_requests_scram}),
-    meck_config(Config2),
+    set_opts(Config2),
     mim_ct_rest:register(<<"alice">>, ?DOMAIN, do_scram(<<"makota">>, Config2)),
     mim_ct_rest:register(<<"bob">>, ?DOMAIN, do_scram(<<"niema5klepki">>, Config2)),
-    meck_cleanup(),
     Config2.
 
 end_per_group(cert_auth, Config) ->
@@ -120,45 +119,36 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(remove_user, Config) ->
-    meck_config(Config),
     mim_ct_rest:register(<<"toremove1">>, ?DOMAIN, do_scram(<<"pass">>, Config)),
     mim_ct_rest:register(<<"toremove2">>, ?DOMAIN, do_scram(<<"pass">>, Config)),
     Config;
 init_per_testcase(cert_auth_fail, Config) ->
-    meck_config(Config),
     Cert = proplists:get_value(pem_cert1, Config),
     mim_ct_rest:register(<<"cert_user">>, ?DOMAIN, Cert),
     Config;
 init_per_testcase(cert_auth_success, Config) ->
-    meck_config(Config),
     Cert1 = proplists:get_value(pem_cert1, Config),
     Cert2 = proplists:get_value(pem_cert2, Config),
     SeveralCerts = <<Cert1/bitstring, Cert2/bitstring>>,
     mim_ct_rest:register(<<"cert_user">>, ?DOMAIN, SeveralCerts),
     Config;
 init_per_testcase(_CaseName, Config) ->
-    meck_config(Config),
     Config.
 
 end_per_testcase(try_register, Config) ->
     mim_ct_rest:remove_user(<<"nonexistent">>, ?DOMAIN),
-    meck_cleanup(),
     Config;
 end_per_testcase(remove_user, Config) ->
     mim_ct_rest:remove_user(<<"toremove1">>, ?DOMAIN),
     mim_ct_rest:remove_user(<<"toremove2">>, ?DOMAIN),
-    meck_cleanup(),
     Config;
 end_per_testcase(cert_auth_fail, Config) ->
     mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN),
-    meck_cleanup(),
     Config;
 end_per_testcase(cert_auth_success, Config) ->
     mim_ct_rest:remove_user(<<"cert_user">>, ?DOMAIN),
-    meck_cleanup(),
     Config;
 end_per_testcase(_CaseName, Config) ->
-    meck_cleanup(),
     Config.
 
 %%--------------------------------------------------------------------
@@ -191,7 +181,7 @@ try_register(_Config) ->
 
 % get_password + get_password_s
 get_password(_Config) ->
-    case mongoose_scram:enabled(?DOMAIN) of
+    case mongoose_scram:enabled(?HOST_TYPE) of
         false ->
             <<"makota">> = ejabberd_auth_http:get_password(?HOST_TYPE, <<"alice">>, ?DOMAIN),
             <<"makota">> = ejabberd_auth_http:get_password_s(?HOST_TYPE, <<"alice">>, ?DOMAIN);
@@ -222,7 +212,7 @@ supported_sasl_mechanisms(Config) ->
                           _ -> true
                       end,
     [true, DigestSupported, false, true, true, true, true, true] =
-        [ejabberd_auth_http:supports_sasl_module(?DOMAIN, Mod) || Mod <- Modules].
+        [ejabberd_auth_http:supports_sasl_module(?HOST_TYPE, Mod) || Mod <- Modules].
 
 cert_auth_fail(Config) ->
     Creds = creds_with_cert(Config, <<"cert_user">>),
@@ -245,25 +235,18 @@ creds_with_cert(Config, Username) ->
     mongoose_credentials:extend(NewCreds, [{der_cert, Cert},
                                            {username, Username}]).
 
-meck_config(Config) ->
-    meck:unload(),
+set_opts(Config) ->
     ScramOpts = case lists:keyfind(scram_group, 1, Config) of
                     {_, false} -> [{password_format, plain}];
                     _ -> []
                 end,
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option,
-                fun(auth_opts, _Host) ->
-                        [
-                         {host, ?AUTH_HOST},
-                         {path_prefix, "/auth/"},
-                         {basic_auth, ?BASIC_AUTH}
-                        ] ++ ScramOpts
-                end).
+    mongoose_config:set_opt({auth_opts, ?HOST_TYPE},
+                            [{host, ?AUTH_HOST},
+                             {path_prefix, "/auth/"},
+                             {basic_auth, ?BASIC_AUTH}] ++ ScramOpts).
 
-meck_cleanup() ->
-    meck:validate(ejabberd_config),
-    meck:unload(ejabberd_config).
+unset_opts() ->
+    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
 
 do_scram(Pass, Config) ->
     case lists:keyfind(scram_group, 1, Config) of

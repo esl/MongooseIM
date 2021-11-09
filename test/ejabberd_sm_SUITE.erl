@@ -107,7 +107,7 @@ end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
     unload_meck(),
-    Config.
+    unset_opts().
 
 open_session(C) ->
     {Sid, USR} = generate_random_user(<<"localhost">>),
@@ -366,14 +366,11 @@ unique_count_while_removing_entries(C) ->
 
 unload_meck() ->
     meck:unload(acl),
-    meck:unload(ejabberd_config),
     meck:unload(gen_hook),
     meck:unload(ejabberd_commands),
     meck:unload(mongoose_domain_api).
 
 set_test_case_meck(MaxUserSessions) ->
-    meck:new(ejabberd_config, []),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:new(acl, []),
     meck:expect(acl, match_rule_for_host_type, fun(_, _, _, _) -> MaxUserSessions end),
     meck:new(gen_hook, []),
@@ -585,30 +582,35 @@ try_to_reproduce_race_condition(Config) ->
     end.
 
 setup_sm(Config) ->
-    case proplists:get_value(backend, Config) of
+    set_opts(Config),
+    set_meck(),
+    ejabberd_sm:start_link(),
+    case ?config(backend, Config) of
         ejabberd_sm_redis ->
-            set_meck({redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]}),
-            ejabberd_sm:start_link(),
             mongoose_redis:cmd(["FLUSHALL"]);
         ejabberd_sm_mnesia ->
-            set_meck({mnesia, []}),
-            ejabberd_sm:start_link()
+            ok
     end.
 
 terminate_sm() ->
     gen_server:stop(ejabberd_sm).
 
-set_meck(SMBackend) ->
-    meck:expect(ejabberd_config, get_global_option, fun(sm_backend) -> SMBackend end),
-    meck:expect(ejabberd_config, get_global_option_or_default,
-                fun
-                    (hosts, _Default) -> [<<"localhost">>];
-                    (host_types, Default) -> Default
-                end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-    meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
+set_opts(Config) ->
+    mongoose_config:set_opt(hosts, [<<"localhost">>]),
+    mongoose_config:set_opt(sm_backend, sm_backend(?config(backend, Config))).
 
+sm_backend(ejabberd_sm_redis) ->
+    {redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]};
+sm_backend(ejabberd_sm_mnesia) ->
+    {mnesia, []}.
+
+set_meck() ->
+    meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     meck:expect(ejabberd_commands, unregister_commands, fun(_) -> ok end),
     ok.
+
+unset_opts() ->
+    mongoose_config:unset_opt(hosts),
+    mongoose_config:unset_opt(sm_backend).

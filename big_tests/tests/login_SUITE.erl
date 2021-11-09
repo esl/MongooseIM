@@ -113,70 +113,82 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config0 = mongoose_helper:backup_auth_config(Config),
-    Config1 = mongoose_helper:backup_sasl_mechanisms_config(Config0),
-    mongoose_helper:set_store_password(scram),
-    escalus:init_per_suite(Config1).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    mongoose_helper:restore_auth_config(Config),
-    mongoose_helper:restore_sasl_mechanisms_config(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(login_digest, ConfigIn) ->
-    Config = mongoose_helper:backup_sasl_mechanisms_config(ConfigIn),
-    mongoose_helper:set_store_password(plain),
+init_per_group(login_digest = GroupName, ConfigIn) ->
+    Config = backup_and_set_options(GroupName, ConfigIn),
     case mongoose_helper:supports_sasl_module(cyrsasl_digest) of
         false ->
-            mongoose_helper:set_store_password(scram),
+            mongoose_helper:restore_config(Config),
             {skip, "digest password type not supported"};
         true ->
-            Config1 = configure_digest(Config),
-            escalus:create_users(Config1, escalus:get_users([alice, bob]))
+            escalus:create_users(Config, escalus:get_users([alice, bob]))
     end;
-init_per_group(GroupName, Config) when
-      GroupName == login_scram; GroupName == login_scram_store_plain ->
+init_per_group(GroupName, ConfigIn)
+  when GroupName == login_scram;
+       GroupName == login_scram_store_plain ->
+    Config = backup_and_set_options(GroupName, ConfigIn),
     case are_sasl_scram_modules_supported() of
         false ->
+            mongoose_helper:restore_config(Config),
             {skip, "scram password type not supported"};
         true ->
-            config_password_format(GroupName),
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus])),
             assert_password_format(GroupName, Config2)
     end;
-init_per_group(login_scram_tls, Config) ->
+init_per_group(login_scram_tls = GroupName, ConfigIn) ->
+    Config = backup_and_set_options(GroupName, ConfigIn),
     case are_sasl_scram_modules_supported() of
         false ->
+            mongoose_helper:restore_config(Config),
             {skip, "scram password type not supported"};
         true ->
             Config1 = config_ejabberd_node_tls(Config),
-            config_password_format(login_scram_tls),
             Config2 = create_tls_users(Config1),
             assert_password_format(scram, Config2)
     end;
-init_per_group(login_specific_scram, Config) ->
+init_per_group(login_specific_scram = GroupName, ConfigIn) ->
+    Config = backup_and_set_options(GroupName, ConfigIn),
     case are_sasl_scram_modules_supported() of
         false ->
+            mongoose_helper:restore_config(Config),
             {skip, "scram password type not supported"};
         true ->
             escalus:create_users(Config, escalus:get_users([alice, bob, neustradamus]))
     end;
-init_per_group(_GroupName, Config) ->
+init_per_group(GroupName, ConfigIn) ->
+    Config = backup_and_set_options(GroupName, ConfigIn),
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
+backup_and_set_options(GroupName, Config) ->
+    Options = config_options(GroupName),
+    mongoose_helper:backup_and_set_config(Config, Options).
+
+config_options(login_digest) ->
+    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(plain),
+      {sasl_mechanisms, host_type()} => [cyrsasl_digest]};
+config_options(login_scram_store_plain) ->
+    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(plain)};
+config_options(_GroupName) ->
+    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(scram)}.
+
 end_per_group(login_digest, Config) ->
-    mongoose_helper:set_store_password(scram),
-    mongoose_helper:restore_sasl_mechanisms_config(Config),
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(GroupName, Config) when
     GroupName == login_scram; GroupName == login_specific_scram ->
-    mongoose_helper:set_store_password(scram),
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob, neustradamus]));
 end_per_group(login_scram_tls, Config) ->
+    mongoose_helper:restore_config(Config),
     restore_c2s(Config),
     delete_tls_users(Config);
 end_per_group(_GroupName, Config) ->
+    mongoose_helper:restore_config(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) when
@@ -189,7 +201,7 @@ init_per_testcase(CaseName, Config) when
     end;
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
-                 || {Listener, _, _} <- rpc(mim(), ejabberd_config, get_local_option, [listen])],
+                 || {Listener, _, _} <- rpc(mim(), mongoose_config, get_opt, [listen])],
     [{_U, Props}] = escalus_users:get_users([hacker]),
     Port = proplists:get_value(port, Props),
     case lists:keymember(Port, 1, Listeners) of
@@ -346,9 +358,9 @@ log_non_existent(Config) ->
     {error, {connection_step_failed, _, R}} = escalus_client:start(Config, UserSpec, <<"res">>),
     R.
 
-blocked_user(_Config) ->
+blocked_user(Config) ->
     [{_, Spec}] = escalus_users:get_users([alice]),
-    set_acl_for_blocking(Spec),
+    Config1 = set_acl_for_blocking(Config, Spec),
     try
         {ok, _Alice, _Spec2, _Features} = escalus_connection:start(Spec),
         ct:fail("Alice authenticated but shouldn't")
@@ -356,7 +368,7 @@ blocked_user(_Config) ->
         error:{assertion_failed, assert, is_iq_result, Stanza, _Bin} ->
             <<"cancel">> = exml_query:path(Stanza, [{element, <<"error">>}, {attr, <<"type">>}])
     after
-        unset_acl_for_blocking(Spec)
+        unset_acl_for_blocking(Config1)
     end,
     ok.
 
@@ -398,11 +410,6 @@ config_ejabberd_node_tls(Config) ->
     mongoose_helper:restart_listener_with_opts(mim(), C2SListener, NewOpts),
     [{c2s_listener, C2SListener} | Config].
 
-configure_digest(Config) ->
-    mongoose_helper:set_sasl_mechanisms(sasl_mechanisms, [cyrsasl_digest]),
-    mongoose_helper:set_store_password(plain),
-    Config.
-
 create_tls_users(Config) ->
    Config1 = escalus:create_users(Config, escalus:get_users([alice, neustradamus])),
    Users = proplists:get_value(escalus_users, Config1, []),
@@ -416,11 +423,6 @@ create_tls_users(Config) ->
 
 delete_tls_users(Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, neustradamus])).
-
-config_password_format(GN) when GN == login_scram; GN == login_scram_tls ->
-    mongoose_helper:set_store_password(scram);
-config_password_format(_) ->
-    mongoose_helper:set_store_password(plain).
 
 assert_password_format(GroupName, Config) ->
     Users = proplists:get_value(escalus_users, Config),
@@ -452,38 +454,35 @@ do_verify_format(login_scram, _Password, SPassword) ->
 do_verify_format(_, Password, SPassword) ->
     Password = SPassword.
 
-set_acl_for_blocking(Spec) ->
-    modify_acl_for_blocking(add, Spec).
-
-unset_acl_for_blocking(Spec) ->
-    modify_acl_for_blocking(delete, Spec).
-
-modify_acl_for_blocking(Method, Spec) ->
-    ct:print("Spec: ~p", [Spec]),
-    Domain = domain(),
+set_acl_for_blocking(Config, Spec) ->
     User = proplists:get_value(username, Spec),
-    Lower = escalus_utils:jid_to_lower(User),
-    rpc(mim(), acl, Method, [Domain, blocked, {user, Lower}]).
+    LUser = jid:nodeprep(User),
+    mongoose_helper:backup_and_set_config_option(Config, {acl, blocked, host_type()},
+                                                 [{user, LUser}]).
+
+unset_acl_for_blocking(Config) ->
+    mongoose_helper:restore_config_option(Config, {acl, blocked, host_type()}).
 
 configure_and_log_scram(Config, Sha, Mech) ->
-    mongoose_helper:set_store_password({scram, [Sha]}),
-    assert_password_format({scram, Sha}, Config),
+    set_scram_sha(Config, Sha),
     log_one([{escalus_auth_method, Mech} | Config]).
 
 configure_and_log_scram_plus(Config, Sha, Mech) ->
-    mongoose_helper:set_store_password({scram, [Sha]}),
-    assert_password_format({scram, Sha}, Config),
+    set_scram_sha(Config, Sha),
     log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
 
 configure_and_fail_log_scram(Config, Sha, Mech) ->
-    mongoose_helper:set_store_password({scram, [Sha]}),
-    assert_password_format({scram, Sha}, Config),
+    set_scram_sha(Config, Sha),
     {expected_challenge, _, _} = fail_log_one([{escalus_auth_method, Mech} | Config]).
 
 configure_scram_plus_and_fail_log_scram(Config, Sha, Mech) ->
-    mongoose_helper:set_store_password({scram, [Sha]}),
-    assert_password_format({scram, Sha}, Config),
+    set_scram_sha(Config, Sha),
     {expected_challenge, _, _} = fail_log_one_scram_plus([{escalus_auth_method, Mech} | Config]).
+
+set_scram_sha(Config, Sha) ->
+    NewAuthOpts = mongoose_helper:auth_opts_with_password_format({scram, [Sha]}),
+    mongoose_helper:change_config_option(Config, {auth_opts, host_type()}, NewAuthOpts),
+    assert_password_format({scram, Sha}, Config).
 
 fail_log_one(Config) ->
     [{alice, UserSpec}] = escalus_users:get_users([alice]),
