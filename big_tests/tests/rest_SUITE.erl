@@ -34,7 +34,7 @@
     ).
 -import(domain_helper, [host_type/0, domain/0]).
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
+-define(PRT(X, Y), ct:log("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
 -define(NOCONTENT, {<<"204">>, <<"No Content">>}).
@@ -202,7 +202,20 @@ auth_always_passes_blank_creds(_Config) ->
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(admin, <<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    assert_inlist(#{name => <<"list_methods">>}, DecCmds).
+    ListCmd = #{action => <<"read">>, args => #{},
+                category => <<"commands">>,
+                desc => <<"List commands">>,
+                name => <<"list_methods">>,
+                path => <<"/commands">>},
+    %% Check that path and args are listed using a command with args
+    RosterCmd = #{action => <<"read">>,
+                  args => #{caller => <<"binary">>},
+                  category => <<"contacts">>,
+                  desc => <<"Get roster">>,
+                  name => <<"list_contacts">>,
+                  path => <<"/contacts/:caller">>},
+    ?assertEqual([ListCmd], assert_inlist(#{name => <<"list_methods">>}, DecCmds)),
+    ?assertEqual([RosterCmd], assert_inlist(#{name => <<"list_contacts">>}, DecCmds)).
 
 non_existent_command_returns404(_C) ->
     {?NOT_FOUND, _} = gett(admin, <<"/isitthereornot">>).
@@ -494,14 +507,14 @@ befriend_and_alienate_auto(Config) ->
             check_roster_empty(BobPath),
             APushes = lists:filter(fun escalus_pred:is_roster_set/1,
                                    escalus:wait_for_stanzas(Alice, 20)),
-            ct:pal("APushes: ~p", [APushes]),
+            ct:log("APushes: ~p", [APushes]),
             AExp = [{none, none},
                     {both, none},
                     {remove, none}],
             check_pushlist(AExp, APushes),
             BPushes = lists:filter(fun escalus_pred:is_roster_set/1,
                                    escalus:wait_for_stanzas(Bob, 20)),
-            ct:pal("BPushes: ~p", [BPushes]),
+            ct:log("BPushes: ~p", [BPushes]),
             BExp = [{none, none},
                     {both, none},
                     {remove, none}],
@@ -613,7 +626,7 @@ send_flawed_stanza(missing_attribute, From, _To) ->
                                   children = [#xmlcdata{content = <<"inside the sibling">>}]}
                ]
     },
-    ct:pal("M: ~p", [M]),
+    ct:log("M: ~p", [M]),
     M1 = #{stanza => exml:to_binary(M)},
     post(admin, <<"/stanzas">>, M1);
 send_flawed_stanza(malformed_xml, _From, _To) ->

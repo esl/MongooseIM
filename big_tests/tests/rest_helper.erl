@@ -68,7 +68,7 @@ assert_inlist(Pattern, L) ->
         [] ->
             ct:fail(io_lib:format("Fail: ~p not in [~p...]", [Pattern, H]));
         _ ->
-            ok
+            Fl
     end.
 
 assert_notinlist(Pattern, L) when is_map(Pattern) ->
@@ -87,7 +87,7 @@ assert_inmaplist([], Map, L, [H|_]) ->
         [] ->
             ct:fail(io_lib:format("Fail: ~p not in [~p...]", [Map, H]));
         _ ->
-            ok
+            L
     end;
 assert_inmaplist([K|Keys], Map, L, Orig) ->
     V = maps:get(K, Map),
@@ -316,9 +316,9 @@ is_roles_config(_, _) -> false.
 
 mapfromlist(L) ->
     Nl = lists:map(fun({K, {V}}) when is_list(V) ->
-                           {binary_to_existing_atom(K, utf8), mapfromlist(V)};
+                           {binary_to_atom(K, utf8), mapfromlist(V)};
                       ({K, V}) ->
-                           {binary_to_existing_atom(K, utf8), V}
+                           {binary_to_atom(K, utf8), V}
                    end, L),
     maps:from_list(Nl).
 
