@@ -252,11 +252,11 @@ required_modules(CaseName) ->
      {mod_mam_muc, mam_muc_config(CaseName)}].
 
 muc_light_opts(CaseName) when CaseName =:= disco_rooms_rsm;
-                        CaseName =:= disco_rooms_empty_page_1;
-                        CaseName =:= rooms_created_page_1 ->
+                              CaseName =:= disco_rooms_empty_page_1;
+                              CaseName =:= rooms_created_page_1 ->
     [{rooms_per_page, 1}];
 muc_light_opts(CaseName) when CaseName =:= disco_rooms_empty_page_infinity;
-                        CaseName =:= disco_rooms_created_page_infinity ->
+                              CaseName =:= disco_rooms_created_page_infinity ->
     [{rooms_per_page, infinity}];
 muc_light_opts(all_can_configure) ->
     [{all_can_configure, true}];

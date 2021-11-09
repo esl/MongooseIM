@@ -158,8 +158,8 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config) when CaseName =:= disco_rooms_rsm;
-                                   CaseName =:= block_room;
-                                   CaseName =:= block_user ->
+                                         CaseName =:= block_room;
+                                         CaseName =:= block_user ->
     dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
     create_room(?ROOM2, ?MUCHOST, alice, [kate], Config),
