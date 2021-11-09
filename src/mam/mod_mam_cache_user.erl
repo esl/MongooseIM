@@ -15,6 +15,7 @@
 
 %% gen_mod handlers
 -export([start/2]).
+-export([deps/2]).
 -export([stop/1]).
 -export([supported_features/0]).
 
@@ -23,7 +24,7 @@
          store_archive_id/3,
          remove_archive/4]).
 
--ignore_xref([start/2, stop/1, supported_features/0,
+-ignore_xref([start/2, stop/1, deps/2, supported_features/0,
               cached_archive_id/3, store_archive_id/3, remove_archive/4]).
 
 %%====================================================================
@@ -35,6 +36,13 @@ start(HostType, Opts) ->
     start_cache(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType, Opts)),
     ok.
+
+-spec deps(mongooseim:host_type(), proplists:proplist()) -> gen_mod:deps_list().
+deps(_, Opts) ->
+    case gen_mod:get_opt(cache_module, Opts, internal) of
+        internal -> [];
+        mod_cache_users -> [{mod_cache_users, hard}]
+    end.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -123,21 +131,15 @@ cache_name(HostType, Module) ->
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
     case gen_mod:get_opt(cache_module, Opts, internal) of
-        internal ->
-            CacheName = cache_name(HostType, ?MODULE),
-            mod_cache_users:start_new_cache(CacheName, Opts);
-        mod_cache_users ->
-            case gen_mod:is_loaded(HostType, mod_cache_users) of
-                true -> ok;
-                false -> error({dependency, mod_cache_users})
-            end
+        internal -> mod_cache_users:start_new_cache(HostType, ?MODULE, Opts);
+        mod_cache_users -> ok
     end.
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
     case gen_mod:get_module_opt(HostType, ?MODULE, cache_module, internal) of
         internal -> ejabberd_sup:stop_child(cache_name(HostType, ?MODULE));
-        _Other -> ok
+        mod_cache_users -> ok
     end.
 
 -compile({inline, [key/1]}).

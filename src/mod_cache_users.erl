@@ -4,7 +4,7 @@
 -behaviour(gen_mod).
 
 %% cache backend sharing
--export([start_new_cache/2]).
+-export([start_new_cache/3]).
 
 %% gen_mod API
 -export([start/2]).
@@ -27,7 +27,7 @@
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    start_cache(HostType, Opts),
+    start_new_cache(HostType, ?MODULE, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
@@ -63,8 +63,9 @@ hooks(HostType) ->
 cache_name(HostType) ->
     gen_mod:get_module_proc(HostType, ?MODULE).
 
--spec start_new_cache(atom(), gen_mod:module_opts()) -> any().
-start_new_cache(CacheName, Opts) ->
+-spec start_new_cache(mongooseim:host_type(), module(), gen_mod:module_opts()) -> any().
+start_new_cache(HostType, Module, Opts) ->
+    CacheName = gen_mod:get_module_proc(HostType, Module),
     CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
                   segment_num => gen_mod:get_opt(number_of_segments, Opts, 3),
                   strategy => gen_mod:get_opt(strategy, Opts, fifo),
@@ -133,11 +134,6 @@ key(Jid) ->
 -spec key(jid:luser(), jid:lserver()) -> jid:simple_bare_jid().
 key(LUser, LServer) ->
     {LUser, LServer}.
-
--spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start_cache(HostType, Opts) ->
-    CacheName = cache_name(HostType),
-    start_new_cache(CacheName, Opts).
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
