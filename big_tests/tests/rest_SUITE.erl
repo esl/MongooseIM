@@ -202,13 +202,13 @@ auth_always_passes_blank_creds(_Config) ->
 commands_are_listed(_C) ->
     {?OK, Lcmds} = gett(admin, <<"/commands">>),
     DecCmds = decode_maplist(Lcmds),
-    ListCmd = #{action => <<"read">>, args => #{},
+    ListCmd = #{action => <<"read">>, method => <<"GET">>, args => #{},
                 category => <<"commands">>,
                 desc => <<"List commands">>,
                 name => <<"list_methods">>,
                 path => <<"/commands">>},
     %% Check that path and args are listed using a command with args
-    RosterCmd = #{action => <<"read">>,
+    RosterCmd = #{action => <<"read">>, method => <<"GET">>,
                   args => #{caller => <<"binary">>},
                   category => <<"contacts">>,
                   desc => <<"Get roster">>,

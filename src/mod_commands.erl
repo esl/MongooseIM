@@ -355,7 +355,7 @@ list_contacts(Caller) ->
     Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
     Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
     Res = mongoose_acc:get(roster, items, Acc2),
-    [roster_info(mod_roster:item_to_map(I)) || I <- Res].
+   [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
 roster_info(M) ->
     Jid = jid:to_binary(maps:get(jid, M)),
@@ -407,9 +407,22 @@ delete_contact(Caller, Other) ->
     end.
 
 registered_commands() ->
+    Items = collect_commands(),
+    sort_commands(Items).
+
+sort_commands(Items) ->
+    WithKey = [{get_sorting_key(Item), Item} || Item <- Items],
+    Sorted = lists:keysort(1, WithKey),
+    [Item || {_Key, Item} <- Sorted].
+
+get_sorting_key(Item) ->
+    maps:get(path, Item).
+
+collect_commands() ->
     [#{name => mongoose_commands:name(C),
        category => mongoose_commands:category(C),
        action => mongoose_commands:action(C),
+       method => mongoose_api_common:action_to_method(mongoose_commands:action(C)),
        desc => mongoose_commands:desc(C),
        args => format_args(mongoose_commands:args(C)),
        path => mongoose_api_common:create_admin_url_path(C)
