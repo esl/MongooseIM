@@ -37,13 +37,12 @@
 all() ->
     [
      {group, essential},
-
+     {group, essential_https},
      {group, chat},
+     {group, chat_https},
      {group, time},
      {group, acks},
-
-     {group, essential_https},
-     {group, chat_https},
+     {group, server_acks},
      {group, interleave_requests_statem}
     ].
 
@@ -55,6 +54,7 @@ groups() ->
      {chat_https, [shuffle], chat_test_cases()},
      {time, [parallel], time_test_cases()},
      {acks, [shuffle], acks_test_cases()},
+     {server_acks, [], [server_acks]},
      {interleave_requests_statem, [parallel], [interleave_requests_statem]}
     ].
 
@@ -94,7 +94,6 @@ time_test_cases() ->
 
 acks_test_cases() ->
     [
-     server_acks,
      force_report,
      force_retransmission,
      force_cache_trimming
@@ -105,49 +104,58 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config]).
 
 end_per_suite(Config) ->
+    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(time, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(max_wait(), Config),
-    escalus_ejabberd:setup_option(inactivity(), NewConfig);
+    dynamic_modules:ensure_modules(host_type(), required_modules(time)),
+    Config;
 init_per_group(essential, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(essential)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
     [{user, carol_s} | Config];
 init_per_group(chat_https, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(chat_https)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol_s} | Config1];
-init_per_group(_GroupName, Config) ->
+init_per_group(GroupName, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
     Config1 = escalus:create_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
     [{user, carol} | Config1].
 
-end_per_group(time, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(max_wait(), Config),
-    escalus_ejabberd:reset_option(inactivity(), NewConfig);
-end_per_group(GroupName, Config)
-    when GroupName =:= essential; GroupName =:= essential_https ->
-    Config;
+end_per_group(GroupName, _Config) when GroupName =:= time;
+                                       GroupName =:= essential;
+                                       GroupName =:= essential_https ->
+    ok;
 end_per_group(_GroupName, Config) ->
-    R = escalus:delete_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
-    mongoose_helper:clear_last_activity(Config, carol),
-    Config,
-    R.
+    escalus:delete_users(Config, escalus:get_users([carol, carol_s, geralt, alice])),
+    mongoose_helper:clear_last_activity(Config, carol).
 
-init_per_testcase(server_acks = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:setup_option(server_acks_opt(), Config),
-    escalus:init_per_testcase(CaseName, NewConfig);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(server_acks = CaseName, Config) ->
-    NewConfig = escalus_ejabberd:reset_option(server_acks_opt(), Config),
-    escalus:end_per_testcase(CaseName, NewConfig);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%% Module configuration per group
+
+required_modules(GroupName) ->
+    [{mod_bosh, required_bosh_opts(GroupName)}].
+
+required_bosh_opts(time) ->
+    [{max_wait, ?MAX_WAIT},
+     {inactivity, ?INACTIVITY}];
+required_bosh_opts(server_acks) ->
+    [{server_acks, true}];
+required_bosh_opts(_Group) ->
+    [].
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -843,30 +851,6 @@ set_client_acks(SessionPid, Enabled) ->
 
 get_cached_responses(SessionPid) ->
     rpc(mim(), mod_bosh_socket, get_cached_responses, [SessionPid]).
-
-inactivity() ->
-    inactivity(?INACTIVITY).
-
-inactivity(Value) ->
-    {inactivity,
-     fun() -> rpc(mim(), mod_bosh, get_inactivity, [host_type()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [host_type(), V]) end,
-     Value}.
-
-max_wait() ->
-    max_wait(?MAX_WAIT).
-
-max_wait(Value) ->
-    {max_wait,
-     fun() -> rpc(mim(), mod_bosh, get_max_wait, [host_type()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [host_type(), V]) end,
-     Value}.
-
-server_acks_opt() ->
-    {server_acks,
-     fun() -> rpc(mim(), mod_bosh, get_server_acks, [host_type()]) end,
-     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [host_type(), V]) end,
-     true}.
 
 is_session_alive(Sid) ->
     BoshSessions = get_bosh_sessions(),

@@ -13,11 +13,8 @@
 -xep([{xep, 124}, {version, "1.11"}]).
 %% API
 -export([get_inactivity/1,
-         set_inactivity/2,
          get_max_wait/1,
-         set_max_wait/2,
-         get_server_acks/1,
-         set_server_acks/2]).
+         get_server_acks/1]).
 
 %% gen_mod callbacks
 -export([start/2,
@@ -44,8 +41,7 @@
     {?MOD_BOSH_BACKEND, node_cleanup, 1},
     {?MOD_BOSH_BACKEND, start, 1},
     {?MOD_BOSH_BACKEND, create_session, 1},
-    behaviour_info/1, get_session_socket/1, node_cleanup/2, set_inactivity/2,
-    set_max_wait/2, set_server_acks/2, store_session/2
+    behaviour_info/1, get_session_socket/1, node_cleanup/2, store_session/2
 ]).
 
 -include("mongoose.hrl").
@@ -111,36 +107,13 @@
 get_inactivity(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
 
-
-%% @doc Return true if succeeded, false otherwise.
--spec set_inactivity(mongooseim:host_type(), Seconds :: pos_integer() | infinity) -> boolean().
-set_inactivity(HostType, infinity) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, inactivity, infinity);
-set_inactivity(HostType, Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(HostType, ?MODULE, inactivity, Seconds).
-
-
 -spec get_max_wait(mongooseim:host_type()) -> pos_integer() | infinity.
 get_max_wait(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
 
-
-%% @doc Return true if succeeded, false otherwise.
--spec set_max_wait(mongooseim:host_type(), Seconds :: pos_integer() | infinity) -> boolean().
-set_max_wait(HostType, infinity) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, max_wait, infinity);
-set_max_wait(HostType, Seconds) when is_integer(Seconds), Seconds > 0 ->
-    gen_mod:set_module_opt(HostType, ?MODULE, max_wait, Seconds).
-
-
 -spec get_server_acks(mongooseim:host_type()) -> boolean().
 get_server_acks(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
-
-
--spec set_server_acks(mongooseim:host_type(), EnableServerAcks :: boolean()) -> boolean().
-set_server_acks(HostType, EnableServerAcks) ->
-    gen_mod:set_module_opt(HostType, ?MODULE, server_acks, EnableServerAcks).
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks

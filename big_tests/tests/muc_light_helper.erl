@@ -282,12 +282,6 @@ clear_db() ->
 ver(Int) ->
   <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
--spec set_mod_config(K :: atom(), V :: any(), SubHost :: binary()) -> ok.
-set_mod_config(K, V, SubHost) ->
-    {ok, HostType} = rpc(mim(), mongoose_domain_api,
-                         get_subdomain_host_type, [SubHost]),
-    true = rpc(mim(), mod_muc_light, set_module_opt_from_ct, [HostType, K, V]).
-
 assert_no_aff_duplicates(AffUsers) ->
     Users = [US || {US, _} <- AffUsers],
     case lists:sort(Users) =:= lists:usort(Users) of

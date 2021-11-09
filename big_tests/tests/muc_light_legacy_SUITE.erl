@@ -58,7 +58,6 @@
                            to_lus/2,
                            lbin/1,
                            create_room/6,
-                           set_mod_config/3,
                            default_config/1,
                            default_schema/0
                           ]).
@@ -142,18 +141,14 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    HostType = host_type(),
-    dynamic_modules:restart(HostType, mod_muc_light,
-                          [{host, subhost_pattern(muc_helper:muc_host_pattern())},
-                           {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                           {legacy_mode, true}]),
-    Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    Config2 = escalus:init_per_suite(Config1),
+    escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
     clear_db(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    dynamic_modules:stop(host_type(), mod_muc_light),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config1).
 
 init_per_group(_GroupName, Config) ->
@@ -162,38 +157,56 @@ init_per_group(_GroupName, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(N, Config) when N == disco_rooms_rsm orelse
-                                  N == block_room orelse
-                                  N == block_user ->
-    set_default_mod_config(),
-    set_mod_config(rooms_per_page, 1, ?MUCHOST),
+init_per_testcase(CaseName, Config) when CaseName =:= disco_rooms_rsm;
+                                         CaseName =:= block_room;
+                                         CaseName =:= block_user ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
     create_room(?ROOM2, ?MUCHOST, alice, [kate], Config),
-    escalus:init_per_testcase(N, Config);
-init_per_testcase(create_existing_room_deny = N, Config) ->
-    set_default_mod_config(),
+    escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(create_existing_room_deny = CaseName, Config) ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [], Config),
-    escalus:init_per_testcase(N, Config);
-init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
-                                         CaseName =:= disco_info_with_mam ->
-    set_default_mod_config(),
-    dynamic_modules:restart(host_type(), mod_mam_muc,
-                          [{backend, rdbms},
-                           {host, subhost_pattern(?MUCHOST)}]),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
-    set_default_mod_config(),
+    dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
-                                        CaseName =:= disco_info_with_mam ->
-    clear_db(),
-    dynamic_modules:stop(host_type(), mod_mam_muc),
-    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     clear_db(),
     escalus:end_per_testcase(CaseName, Config).
+
+%% Module configuration per test case
+
+required_modules(CaseName) ->
+    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName)},
+     {mod_mam_muc, mam_muc_config(CaseName)}].
+
+muc_light_opts(disco_rooms_rsm) ->
+    [{rooms_per_page, 1}];
+muc_light_opts(all_can_configure) ->
+    [{all_can_configure, true}];
+muc_light_opts(create_room_with_equal_occupants) ->
+    [{equal_occupants, true}];
+muc_light_opts(block_user) ->
+    [{all_can_invite, true}];
+muc_light_opts(blocking_disabled) ->
+    [{blocking, false}];
+muc_light_opts(_) ->
+    [].
+
+common_muc_light_opts() ->
+    [{host, subhost_pattern(muc_helper:muc_host_pattern())},
+     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+     {legacy_mode, true}].
+
+mam_muc_config(CaseName) when CaseName =:= disco_features_with_mam;
+                              CaseName =:= disco_info_with_mam ->
+    [{backend, rdbms},
+     {host, subhost_pattern(?MUCHOST)}];
+mam_muc_config(_CaseName) ->
+    stopped.
 
 %% ---------------------- Helpers ----------------------
 
@@ -313,7 +326,6 @@ change_subject(Config) ->
 
 all_can_configure(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            set_mod_config(all_can_configure, true, ?MUCHOST),
             ConfigChange = [{<<"roomname">>, <<"new subject">>}],
             Stanza = stanza_config_set(?ROOM, ConfigChange),
             foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun())
@@ -367,7 +379,6 @@ change_other_aff_deny(Config) ->
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
                            escalus:wait_for_stanza(Kate)),
 
-            set_mod_config(all_can_invite, false, ?MUCHOST),
             AffUsersChanges3 = [{Mike, member}],
             escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges3)),
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
@@ -387,7 +398,6 @@ create_room(Config) ->
 
 create_room_with_equal_occupants(Config) ->
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-            set_mod_config(equal_occupants, true, ?MUCHOST),
             escalus:send(Bob, stanza_create_room(<<"bobroom">>, Bob)),
             Result = escalus:wait_for_stanza(Bob),
             presence_verify(Bob, member, Result)
@@ -544,7 +554,6 @@ block_user(Config) ->
             verify_no_stanzas([Alice, Bob, Kate]),
 
             % But Kate can add Bob to the room!
-            set_mod_config(all_can_invite, true, ?MUCHOST),
             escalus:send(Kate, stanza_aff_set(?ROOM2, BobAdd)),
             verify_aff_bcast([Alice, Bob, Kate], BobAdd, [Bob], Kate),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Kate)),
@@ -553,7 +562,6 @@ block_user(Config) ->
 
 blocking_disabled(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            set_mod_config(blocking, false, ?MUCHOST),
             escalus:send(Alice, stanza_blocking_get()),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
@@ -853,20 +861,6 @@ presence_verify(User, UserAff, #xmlel{ name = <<"presence">> } = Incoming) ->
 %%--------------------------------------------------------------------
 %% Other helpers
 %%--------------------------------------------------------------------
-
--spec set_default_mod_config() -> ok.
-set_default_mod_config() ->
-    lists:foreach(
-      fun({K, V}) -> set_mod_config(K, V, ?MUCHOST) end,
-      [
-       {equal_occupants, false},
-       {rooms_per_user, infinity},
-       {blocking, true},
-       {all_can_configure, false},
-       {all_can_invite, false},
-       {max_occupants, infinity},
-       {rooms_per_page, infinity}
-      ]).
 
 -spec room_bin_jid(Room :: binary()) -> binary().
 room_bin_jid(Room) ->
