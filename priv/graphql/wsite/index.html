@@ -99,7 +99,7 @@
       function graphQLFetcher(graphQLParams, opts = {headers: {}}) {
         // This example expects a GraphQL server at the path /graphql.
         // Change this to point wherever you host your GraphQL server.
-        return fetch('/graphql-api/', {
+        return fetch('/api/graphql/', {
           method: 'post',
           headers: Object.assign({
             'Accept': 'application/json',

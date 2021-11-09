@@ -12,7 +12,6 @@ type Mutation {
   user: UserMutation
 }
 
-
 """
 Contains all admin available queries.
 Only authenticated admin can execute this queries.
@@ -39,12 +38,13 @@ type AdminMutation{
   disableDomain(domain: String!): Domain
 }
 
-
 """
 Contains all user available queries.
 Only authenticated user can execute this queries.
 """
 type UserQuery{
+  "Something to not leave type without fields"
+  field: String
 }
 
 """
@@ -52,6 +52,8 @@ Contains all user available mutations.
 Only authenticated user can execute this mutations.
 """
 type UserMutation{
+  "Something to not leave type without fields"
+  field: String
 }
 
 """
@@ -64,7 +66,7 @@ type Domain{
   "Domain hostType"
   hostType: String
   "Is domain enabled?"
-  enabled: Bool
+  enabled: Boolean
 }
 
 "A result of domain removal"
