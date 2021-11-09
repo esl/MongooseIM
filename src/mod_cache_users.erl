@@ -18,6 +18,8 @@
 -export([remove_user/3]).
 -export([remove_domain/3]).
 
+-export([handle_telemetry_event/4]).
+
 -ignore_xref([does_cached_user_exist/4, maybe_put_user_into_cache/4,
               remove_domain/3, remove_user/3]).
 
@@ -74,7 +76,25 @@ start_new_cache(HostType, Module, Opts) ->
     Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [segmented_cache]},
-    {ok, _} = ejabberd_sup:start_child(Spec).
+    {ok, _} = ejabberd_sup:start_child(Spec),
+    telemetry:attach(CacheName,
+                     [segmented_cache, request],
+                     fun ?MODULE:handle_telemetry_event/4,
+                     #{host_type => HostType,
+                       module => Module}),
+    mongoose_metrics:ensure_metric(HostType, [CacheName, hits], counter),
+    mongoose_metrics:ensure_metric(HostType, [CacheName, miss], counter),
+    mongoose_metrics:ensure_metric(HostType, [CacheName, latency], histogram),
+    ok.
+
+handle_telemetry_event([segmented_cache, request], #{hit := Hit, time := Latency},
+                       _, #{host_type := HostType, module := Module}) ->
+    case Hit of
+        true -> mongoose_metrics:update(HostType, [Module, hits], 1);
+        false -> mongoose_metrics:update(HostType, [Module, miss], 1)
+    end,
+    mongoose_metrics:update(HostType, [Module, latency], Latency),
+    ok.
 
 %%====================================================================
 %% Hooks
