@@ -209,7 +209,7 @@ commands_are_listed(_C) ->
                 path => <<"/commands">>},
     %% Check that path and args are listed using a command with args
     RosterCmd = #{action => <<"read">>, method => <<"GET">>,
-                  args => #{caller => <<"binary">>},
+                  args => #{caller => <<"string">>},
                   category => <<"contacts">>,
                   desc => <<"Get roster">>,
                   name => <<"list_contacts">>,

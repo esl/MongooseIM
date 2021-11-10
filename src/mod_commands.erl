@@ -429,8 +429,12 @@ collect_commands() ->
       } || C <- mongoose_commands:list(admin)].
 
 format_args(Args) ->
-    maps:from_list([{term_as_binary(Name), term_as_binary(Type)}
+    maps:from_list([{term_as_binary(Name), term_as_binary(rewrite_type(Type))}
                     || {Name, Type} <- Args]).
+
+%% binary is useful internally, but could confuse a regular user
+rewrite_type(binary) -> string;
+rewrite_type(Type) -> Type.
 
 term_as_binary(X) ->
     iolist_to_binary(io_lib:format("~p", [X])).
