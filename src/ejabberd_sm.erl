@@ -846,7 +846,8 @@ route_message_by_type(<<"headline">>, From, To, Acc, Packet) ->
     {stop, Acc1} = bounce_offline_message(Acc, From, To, Packet),
     Acc1;
 route_message_by_type(_, From, To, Acc, Packet) ->
-    case ejabberd_auth:does_user_exist(To) of
+    HostType = mongoose_acc:host_type(Acc),
+    case ejabberd_auth:does_user_exist(HostType, To, stored) of
         true ->
             case is_privacy_allow(From, To, Acc, Packet) of
                 true ->
