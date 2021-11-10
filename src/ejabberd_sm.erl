@@ -673,15 +673,14 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
 do_route(Acc, From, To, El) ->
     ?LOG_DEBUG(#{what => sm_route, acc => Acc}),
     #jid{lresource = LResource} = To,
-    #xmlel{name = Name, attrs = Attrs} = El,
+    #xmlel{name = Name} = El,
     case LResource of
         <<>> ->
-            do_route_no_resource(Name, xml:get_attr_s(<<"type">>, Attrs),
-                                 From, To, Acc, El);
+            do_route_no_resource(Name, From, To, Acc, El);
         _ ->
             case get_session_pid(To) of
                 none ->
-                    do_route_offline(Name, xml:get_attr_s(<<"type">>, Attrs),
+                    do_route_offline(Name, mongoose_acc:stanza_type(Acc),
                                      From, To, Acc, El);
                 Pid when is_pid(Pid) ->
                     ?LOG_DEBUG(#{what => sm_route_to_pid,
@@ -726,14 +725,14 @@ do_route_no_resource_presence(_, _, _, _, _) ->
     true.
 
 
--spec do_route_no_resource(Name, Type, From, To, Acc, El) -> Acc when
+-spec do_route_no_resource(Name, From, To, Acc, El) -> Acc when
       Name :: undefined | binary(),
-      Type :: any(),
       From :: jid:jid(),
       To :: jid:jid(),
       Acc :: mongoose_acc:t(),
       El :: exml:element().
-do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
+do_route_no_resource(<<"presence">>, From, To, Acc, El) ->
+    Type = mongoose_acc:stanza_type(Acc),
     case do_route_no_resource_presence(Type, From, To, Acc, El) of
         true ->
             PResources = get_user_present_resources(To),
@@ -745,11 +744,11 @@ do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
         false ->
             Acc
     end;
-do_route_no_resource(<<"message">>, _, From, To, Acc, El) ->
+do_route_no_resource(<<"message">>, From, To, Acc, El) ->
     route_message(From, To, Acc, El);
-do_route_no_resource(<<"iq">>, _, From, To, Acc, El) ->
+do_route_no_resource(<<"iq">>, From, To, Acc, El) ->
     process_iq(From, To, Acc, El);
-do_route_no_resource(_, _, _, _, Acc, _) ->
+do_route_no_resource(_, _, _, Acc, _) ->
     Acc.
 
 -spec do_route_offline(Name, Type, From, To, Acc, Packet) -> mongoose_acc:t() when
@@ -834,7 +833,7 @@ route_message(From, To, Acc, Packet) ->
               PrioPid),
               Acc;
         _ ->
-            MessageType = xml:get_tag_attr_s(<<"type">>, Packet),
+            MessageType = mongoose_acc:stanza_type(Acc),
             route_message_by_type(MessageType, From, To, Acc, Packet)
     end.
 
