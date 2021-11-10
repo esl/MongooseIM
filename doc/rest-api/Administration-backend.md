@@ -38,7 +38,7 @@ Each command has the fields:
 - `category` - a name used for grouping similar commands
 - `name` - a command name
 - `desc` - description text
-- `action` - a type of a command, similar to `method`
+- `action` - a type of a command, corresponding to `method`
 
 `path`, `method` and `args` are useful to figuring out how the request should
 look like (you can use Swagger instead).
