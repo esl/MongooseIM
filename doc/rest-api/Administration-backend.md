@@ -25,6 +25,57 @@ You also have to hook the `mongoose_api_admin` module to an HTTP endpoint as des
 in the [admin REST API handlers configuration](../configuration/listen.md#handler-types-rest-api-admin-mongoose_api_admin)
 section of the [listeners](../configuration/listen.md) documentation.
 
+## Listing commands
+
+To get a list of commands, you can use `/api/commands` endpoint.
+Use `jq` utility for pretty-printing JSON.
+
+Each command has the fields:
+
+- `path` - URL path for this command
+- `method` - HTTP method to use for this command
+- `args` - arguments to provide inside a path or as POST arguments
+- `category` - a name used for grouping similar commands
+- `name` - a command name
+- `desc` - description text
+- `action` - a type of a command, corresponding to `method`
+
+`path`, `method` and `args` are useful to figuring out how the request should
+look like (you can use Swagger instead).
+
+`name`, `desc` and `category` are used just as metadata (they are not part of
+any request).
+
+`action` is used internally.
+
+```json
+curl -v "http://localhost:8088/api/commands" | jq
+[
+  {
+    "path": "/commands",
+    "name": "list_methods",
+    "method": "GET",
+    "desc": "List commands",
+    "category": "commands",
+    "args": {},
+    "action": "read"
+  },
+  {
+    "path": "/contacts",
+    "name": "add_contact",
+    "method": "POST",
+    "desc": "Add a contact to roster",
+    "category": "contacts",
+    "args": {
+      "jid": "binary",
+      "caller": "binary"
+    },
+    "action": "create"
+  },
+...
+```
+
+
 ## OpenAPI specifications
 
 Read the beautiful [Swagger documentation](https://esl.github.io/MongooseDocs/latest/swagger/index.html) for more information.

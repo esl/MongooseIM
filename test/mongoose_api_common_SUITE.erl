@@ -17,17 +17,17 @@ all() ->
 url_is_correct_for_create_command(_) ->
     Cmd = create_cmd(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/",<<"users">>,["/:host"], []], Url).
+    ?aq(<<"/users/:host">>, Url).
 
 url_is_correct_for_read_command(_) ->
     Cmd = read_cmd(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/",<<"users">>,["/:host"],[]], Url).
+    ?aq(<<"/users/:host">>, Url).
 
 url_is_correct_for_read_command_with_subcategory(_) ->
     Cmd = read_cmd2(),
     Url = mongoose_api_common:create_admin_url_path(Cmd),
-    ?aq(["/",<<"users">>,["/:host"],["/", <<"rosters">>]], Url).
+    ?aq(<<"/users/:host/rosters">>, Url).
 
 create_cmd() ->
     Props = [

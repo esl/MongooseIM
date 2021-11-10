@@ -44,7 +44,7 @@
 
 -include("mongoose.hrl").
 -type options()  :: [any()].
--type path() :: iodata().
+-type path() :: binary().
 -type paths() :: [path()].
 -type route() :: {path() | paths(), module(), options()}.
 -type implemented_result() :: [route()].
