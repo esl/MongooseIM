@@ -30,7 +30,7 @@ section of the [listeners](../configuration/listen.md) documentation.
 To get a list of commands, you can use `/api/commands` endpoint.
 Use `jq` utility for pretty-printing JSON.
 
-Each command have the fields:
+Each command has the fields:
 
 - `path` - URL path for this command
 - `method` - HTTP method to use for this command
