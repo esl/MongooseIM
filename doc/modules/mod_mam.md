@@ -219,7 +219,7 @@ modules.mod_mam_meta.cache_config.number_of_segments
 
 #### `modules.mod_mam_meta.cache_config.cache_module`
 * **Syntax:** string, one of `"mod_cache_users"` or `"internal"`
-* **Default:** `mod_mam_cache_user`
+* **Default:** `internal`
 * **Example:** `modules.mod_mam_meta.cache_config.cache_module = "mod_cache_users`
 
 Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled.

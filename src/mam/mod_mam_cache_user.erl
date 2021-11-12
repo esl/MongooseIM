@@ -14,10 +14,7 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2]).
--export([deps/2]).
--export([stop/1]).
--export([supported_features/0]).
+-export([start/2, stop/1, deps/2, supported_features/0]).
 
 %% ejabberd handlers
 -export([cached_archive_id/3,

@@ -7,18 +7,11 @@
 -export([start_new_cache/3]).
 
 %% gen_mod API
--export([start/2]).
--export([stop/1]).
--export([config_spec/0]).
--export([supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% Hooks.
--export([does_cached_user_exist/4]).
--export([maybe_put_user_into_cache/4]).
--export([remove_user/3]).
--export([remove_domain/3]).
-
--export([handle_telemetry_event/4]).
+-export([does_cached_user_exist/4, maybe_put_user_into_cache/4,
+         remove_user/3, remove_domain/3, handle_telemetry_event/4]).
 
 -ignore_xref([does_cached_user_exist/4, maybe_put_user_into_cache/4,
               remove_domain/3, remove_user/3]).
@@ -77,20 +70,22 @@ start_new_cache(HostType, Module, Opts) ->
              restart => permanent, shutdown => 5000,
              type => worker, modules => [segmented_cache]},
     {ok, _} = ejabberd_sup:start_child(Spec),
+    create_metrics(HostType, Module, CacheName),
+    ok.
+
+create_metrics(HostType, Module, CacheName) ->
     telemetry:attach(CacheName,
                      [segmented_cache, request],
                      fun ?MODULE:handle_telemetry_event/4,
-                     #{host_type => HostType,
-                       module => Module}),
-    mongoose_metrics:ensure_metric(HostType, [CacheName, hits], counter),
-    mongoose_metrics:ensure_metric(HostType, [CacheName, miss], counter),
-    mongoose_metrics:ensure_metric(HostType, [CacheName, latency], histogram),
-    ok.
+                     #{host_type => HostType, module => Module}),
+    mongoose_metrics:ensure_metric(HostType, [Module, hit], counter),
+    mongoose_metrics:ensure_metric(HostType, [Module, miss], counter),
+    mongoose_metrics:ensure_metric(HostType, [Module, latency], histogram).
 
 handle_telemetry_event([segmented_cache, request], #{hit := Hit, time := Latency},
                        _, #{host_type := HostType, module := Module}) ->
     case Hit of
-        true -> mongoose_metrics:update(HostType, [Module, hits], 1);
+        true -> mongoose_metrics:update(HostType, [Module, hit], 1);
         false -> mongoose_metrics:update(HostType, [Module, miss], 1)
     end,
     mongoose_metrics:update(HostType, [Module, latency], Latency),

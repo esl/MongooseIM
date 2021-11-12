@@ -2134,6 +2134,16 @@ test_mod_mam_meta(T, M) ->
          T(#{<<"extra_fin_element">> => <<"mod_mam_utils">>})),
     ?eqf(M([{extra_lookup_params, mod_mam_utils}]),
          T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
+    ?eqf(M([{cache_config, [{cache_module, internal}]}]),
+         T(#{<<"cache_config">> => #{<<"cache_module">> => <<"internal">>}})),
+    ?eqf(M([{cache_config, [{time_to_live, 8600}]}]),
+         T(#{<<"cache_config">> => #{<<"time_to_live">> => 8600}})),
+    ?eqf(M([{cache_config, [{time_to_live, infinity}]}]),
+         T(#{<<"cache_config">> => #{<<"time_to_live">> => <<"infinity">>}})),
+    ?eqf(M([{cache_config, [{number_of_segments, 10}]}]),
+         T(#{<<"cache_config">> => #{<<"number_of_segments">> => 10}})),
+    ?eqf(M([{cache_config, [{strategy, fifo}]}]),
+         T(#{<<"cache_config">> => #{<<"strategy">> => <<"fifo">>}})),
     ?errf(T(#{<<"backend">> => <<"notepad">>})),
     ?errf(T(#{<<"no_stanzaid_element">> => <<"true">>})),
     ?errf(T(#{<<"is_archivable_message">> => <<"mod_mam_fake">>})),
@@ -2153,7 +2163,12 @@ test_mod_mam_meta(T, M) ->
     ?errf(T(#{<<"db_message_format">> => <<"not_a_module">>})),
     ?errf(T(#{<<"simple">> => <<"yes">>})),
     ?errf(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
-    ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
+    ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})),
+    ?errf(T(#{<<"cache_config">> => #{<<"cache_module">> => <<"mod_wrong_cache">>}})),
+    ?errf(T(#{<<"cache_config">> => #{<<"time_to_live">> => 0}})),
+    ?errf(T(#{<<"cache_config">> => #{<<"strategy">> => <<"lifo">>}})),
+    ?errf(T(#{<<"cache_config">> => #{<<"number_of_segments">> => 0}})),
+    ?errf(T(#{<<"cache_config">> => #{<<"number_of_segments">> => <<"infinity">>}})).
 
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
