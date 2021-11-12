@@ -50,3 +50,7 @@ all: mongooseim/cert.pem mongooseim/key.pem \
 
 clean:
 	rm -rf ca ca-clients mongooseim
+
+clean_certs:
+	rm -rf ca ca-clients
+	ls -d mongooseim/* | grep -v dh_server.pem | xargs rm -f

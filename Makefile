@@ -63,7 +63,7 @@ $(DEVNODES): certs configure.out rel/vars-toml.config
 
 certs:
 	if ! openssl x509 -checkend 3600 -noout -in tools/ssl/ca/cacert.pem ; then \
-		cd tools/ssl && make clean && $(MAKE); \
+		cd tools/ssl && make clean_certs && $(MAKE); \
 	fi
 
 xeplist:
