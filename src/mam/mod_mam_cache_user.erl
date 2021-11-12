@@ -86,26 +86,26 @@ muc_hooks(HostType) ->
 cached_archive_id(undefined, HostType, ArcJid) ->
     CacheName = cache_name(HostType),
     case segmented_cache:get_entry(CacheName, key(ArcJid)) of
-        #{id := UserId} -> UserId;
-        not_found ->
+        #{id := ArchId} -> ArchId;
+        _ ->
             put(mam_not_cached_flag, true),
             undefined
     end.
 
 -spec store_archive_id(mod_mam:archive_id(), mongooseim:host_type(), jid:jid())
         -> mod_mam:archive_id().
-store_archive_id(UserId, HostType, ArcJid) ->
+store_archive_id(ArchId, HostType, ArcJid) ->
     case erase(mam_not_cached_flag) of
         undefined ->
-            UserId;
+            ArchId;
         true ->
             CacheName = cache_name(HostType),
-            segmented_cache:merge_entry(CacheName, key(ArcJid), #{id => UserId}),
-            UserId
+            segmented_cache:merge_entry(CacheName, key(ArcJid), #{id => ArchId}),
+            ArchId
     end.
 
 -spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
-                     UserId :: mod_mam:archive_id(), ArcJid :: jid:jid()) -> map().
+                     ArchId :: mod_mam:archive_id(), ArcJid :: jid:jid()) -> map().
 remove_archive(Acc, HostType, _UserID, ArcJid) ->
     CacheName = cache_name(HostType),
     segmented_cache:delete_entry(CacheName, key(ArcJid)),
