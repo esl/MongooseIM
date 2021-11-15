@@ -214,7 +214,7 @@ create_room(RoomU, MUCHost, Owner, Members, Config) ->
     create_room(RoomU, MUCHost, Owner, Members, Config, <<"-">>).
 
 clear_db() ->
-    muc_light_helper:clear_db().
+    muc_light_helper:clear_db(host_type()).
 
 %%--------------------------------------------------------------------
 %% MUC light tests

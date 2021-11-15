@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(mod_private_riak).
 
--behaviour(mod_private).
+-behaviour(mod_private_backend).
 
 %% API
 -export([init/2,

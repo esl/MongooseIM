@@ -22,91 +22,50 @@
 
 -export([prepared_queries/0]).
 
--ignore_xref([{mod_mam_cassandra_prefs_params, pool_name, 0},
-              remove_archive/4, start/2, stop/1]).
+-ignore_xref([remove_archive/4, start/2, stop/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-type host_type() :: mongooseim:host_type().
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(jid:server(), _) -> 'ok'.
-start(Host, Opts) ->
-    compile_params_module(Opts),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end.
+-spec start(host_type(), _) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
-
--spec stop(jid:server()) -> 'ok'.
-stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
-
+-spec stop(host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Hooks
 
--spec start_pm(jid:server(), _) -> 'ok'.
-start_pm(Host, _Opts) ->
-    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
+hooks(HostType) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, pm, false) of
+        true -> pm_hooks(HostType);
+        false -> []
+    end ++
+    case gen_mod:get_module_opt(HostType, ?MODULE, muc, false) of
+        true -> muc_hooks(HostType);
+        false -> []
+    end.
 
+pm_hooks(HostType) ->
+    [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
+     {mam_get_prefs, HostType, ?MODULE, get_prefs, 50},
+     {mam_set_prefs, HostType, ?MODULE, set_prefs, 50},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}].
 
--spec stop_pm(jid:server()) -> 'ok'.
-stop_pm(Host) ->
-    ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:delete(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc_muc
-
--spec start_muc(jid:server(), _) -> 'ok'.
-start_muc(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
--spec stop_muc(jid:server()) -> 'ok'.
-stop_muc(Host) ->
-    ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:delete(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
+muc_hooks(HostType) ->
+    [{mam_muc_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
+     {mam_muc_get_prefs, HostType, ?MODULE, get_prefs, 50},
+     {mam_muc_set_prefs, HostType, ?MODULE, set_prefs, 50},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}].
 
 %% ----------------------------------------------------------------------
 
@@ -129,13 +88,13 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-                    Host :: jid:server(), ArchiveID :: mod_mam:archive_id(),
+                    HostType :: host_type(), ArchiveID :: mod_mam:archive_id(),
                     LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
-get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
+get_behaviour(DefaultBehaviour, HostType, _UserID, LocJID, RemJID) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
     BRemBareJID = mod_mam_utils:bare_jid(RemJID),
     BRemJID = mod_mam_utils:full_jid(RemJID),
-    case query_behaviour(Host, LocJID, BUserJID, BRemJID, BRemBareJID) of
+    case query_behaviour(HostType, LocJID, BUserJID, BRemJID, BRemBareJID) of
         {ok, []} ->
             DefaultBehaviour;
         {ok, [_ | _] = Rows} ->
@@ -150,14 +109,14 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
     end.
 
 
--spec set_prefs(Result :: any(), Host :: jid:server(),
+-spec set_prefs(Result :: any(), HostType :: host_type(),
                 ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
                 DefaultMode :: mod_mam:archive_behaviour(),
                 AlwaysJIDs :: [jid:literal_jid()],
                 NeverJIDs :: [jid:literal_jid()]) -> any().
-set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs(_Result, HostType, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
-        set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
+        set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
     catch Type:Error:StackTrace ->
               ?LOG_ERROR(#{what => mam_set_prefs_failed,
                            user_jid => UserJID, default_mode => DefaultMode,
@@ -166,7 +125,7 @@ set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) -
             {error, Error}
     end.
 
-set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
+set_prefs1(HostType, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     %% Force order of operations using timestamps
     %% http://stackoverflow.com/questions/30317877/cassandra-batch-statement-execution-order
@@ -179,7 +138,7 @@ set_prefs1(_Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     DelQuery = {del_prefs_ts_query, [DelParams]},
     SetQuery = {set_prefs_ts_query, MultiParams},
     Queries = [DelQuery, SetQuery],
-    Res = [mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, Query, Params)
+    Res = [mongoose_cassandra:cql_write(pool_name(HostType), UserJID, ?MODULE, Query, Params)
            || {Query, Params} <- Queries],
     ?LOG_DEBUG(#{what => mam_set_prefs, user_jid => UserJID, default_mode => DefaultMode,
                  always_jids => AlwaysJIDs, never_jids => NeverJIDs, result => Res}),
@@ -190,41 +149,42 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
       behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
--spec get_prefs(mod_mam:preference(), _Host :: jid:server(),
+-spec get_prefs(mod_mam:preference(), _HostType :: host_type(),
                 ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
                -> mod_mam:preference().
-get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
+get_prefs({GlobalDefaultMode, _, _}, HostType, _UserID, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
-    {ok, Rows} = mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE,
+    {ok, Rows} = mongoose_cassandra:cql_read(pool_name(HostType), UserJID, ?MODULE,
                                              get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
+-spec remove_archive(mongoose_acc:t(), host_type(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().
-remove_archive(Acc, _Host, _UserID, UserJID) ->
-    remove_archive(UserJID),
+remove_archive(Acc, HostType, _UserID, UserJID) ->
+    remove_archive(HostType, UserJID),
     Acc.
 
-remove_archive(UserJID) ->
-    ensure_params_loaded(UserJID#jid.lserver),
+remove_archive(HostType, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
     Now = mongoose_cassandra:now_timestamp(),
     Params = #{'[timestamp]' => Now, user_jid => BUserJID},
-    mongoose_cassandra:cql_write(pool_name(), UserJID, ?MODULE, del_prefs_ts_query, [Params]).
+    mongoose_cassandra:cql_write(pool_name(HostType), UserJID,
+                                 ?MODULE, del_prefs_ts_query, [Params]).
 
-
--spec query_behaviour(jid:server(), UserJID :: jid:jid(), BUserJID :: binary() | string(),
+-spec query_behaviour(host_type(), UserJID :: jid:jid(), BUserJID :: binary() | string(),
                       BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
-query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID)
+query_behaviour(HostType, UserJID, BUserJID, BRemJID, BRemBareJID)
   when BRemJID == BRemBareJID ->
     Params = #{user_jid => BUserJID, remote_jid => BRemBareJID},
-    mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE, get_behaviour_bare_query, Params);
-query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
+    mongoose_cassandra:cql_read(pool_name(HostType), UserJID, ?MODULE,
+                                get_behaviour_bare_query, Params);
+query_behaviour(HostType, UserJID, BUserJID, BRemJID, BRemBareJID) ->
     Params = #{user_jid => BUserJID, start_remote_jid => BRemJID,
                end_remote_jid => BRemBareJID},
-    mongoose_cassandra:cql_read(pool_name(), UserJID, ?MODULE, get_behaviour_full_query, Params).
+    mongoose_cassandra:cql_read(pool_name(HostType), UserJID, ?MODULE,
+                                get_behaviour_full_query, Params).
 
 %% ----------------------------------------------------------------------
 %% Helpers
@@ -259,29 +219,8 @@ decode_prefs_rows([#{remote_jid := JID, behaviour := <<"N">>} | Rows],
     decode_prefs_rows(Rows, DefaultMode, AlwaysJIDs, [JID | NeverJIDs]).
 
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Params getters
 
-ensure_params_loaded(Host) ->
-      case code:is_loaded(mod_mam_cassandra_prefs_params) of
-          false ->
-              Params = gen_mod:get_module_opts(Host, ?MODULE),
-              compile_params_module(Params);
-          _ -> ok
-      end.
-
-compile_params_module(Params) ->
-    CodeStr = params_helper(Params),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_mam_cassandra_prefs_params.erl", Code).
-
-params_helper(Params) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-                                      "-module(mod_mam_cassandra_prefs_params).~n"
-                                      "-compile([export_all, nowarn_export_all]).~n"
-                                      "pool_name() -> ~p.~n",
-                                      [proplists:get_value(pool_name, Params, default)
-                                      ]))).
-
--spec pool_name() -> term().
-pool_name() -> mod_mam_cassandra_prefs_params:pool_name().
-
+-spec pool_name(HostType :: host_type()) -> term().
+pool_name(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).

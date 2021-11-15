@@ -35,6 +35,7 @@ init_per_suite(C) ->
     C.
 
 end_per_suite(_C) ->
+    meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),

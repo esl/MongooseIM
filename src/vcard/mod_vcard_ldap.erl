@@ -29,7 +29,7 @@
 -module(mod_vcard_ldap).
 -author('alexey@process-one.net').
 
--behaviour(mod_vcard).
+-behaviour(mod_vcard_backend).
 
 %% mod_vcards callbacks
 -export([init/2,
@@ -45,8 +45,6 @@
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").
-
--define(PROCNAME, ejabberd_mod_vcard_ldap).
 
 -record(state,
         {serverhost = <<>>          :: binary(),

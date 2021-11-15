@@ -74,7 +74,7 @@ init_per_group(chatmarkers, C) ->
 init_per_group(_, C) -> C.
 
 with_groupchat_modules() ->
-    OfflineBackend = mongoose_helper:get_backend_name(mod_offline_backend),
+    OfflineBackend = mongoose_helper:get_backend_name(host_type(), mod_offline),
     MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
     MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_offline, [{store_groupchat_messages, true},

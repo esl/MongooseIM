@@ -886,7 +886,7 @@ init_state(_, _, Config) ->
     clean_archives(Config).
 
 end_state(C, muc_light, Config) ->
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     end_state(C, generic, Config);
 end_state(_, _, Config) ->
     Config.

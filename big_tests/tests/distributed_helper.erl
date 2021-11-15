@@ -14,7 +14,7 @@
 -export_type([rpc_spec/0]).
 
 is_sm_distributed() ->
-    Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
+    Backend = rpc(mim(), ejabberd_sm, sm_backend, []),
     is_sm_backend_distributed(Backend).
 
 is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;

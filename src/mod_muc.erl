@@ -73,18 +73,7 @@
 
 -export([config_metrics/1]).
 
--define(MOD_MUC_DB_BACKEND, mod_muc_db_backend).
 -ignore_xref([
-    {?MOD_MUC_DB_BACKEND, can_use_nick, 4},
-    {?MOD_MUC_DB_BACKEND, forget_room, 3},
-    {?MOD_MUC_DB_BACKEND, get_nick, 3},
-    {?MOD_MUC_DB_BACKEND, get_rooms, 2},
-    {?MOD_MUC_DB_BACKEND, init, 2},
-    {?MOD_MUC_DB_BACKEND, restore_room, 3},
-    {?MOD_MUC_DB_BACKEND, set_nick, 4},
-    {?MOD_MUC_DB_BACKEND, store_room, 4},
-    {?MOD_MUC_DB_BACKEND, unset_nick, 3},
-    {?MOD_MUC_DB_BACKEND, remove_domain, 3},
     can_access_identity/4, can_access_room/4, get_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
     online_rooms_number/0, register_room/4, restore_room/3, start_link/2
@@ -178,9 +167,6 @@ start_link(HostType, Opts) ->
 -spec start(host_type(), _) -> ok.
 start(HostType, Opts) ->
     ensure_metrics(HostType),
-    TrackedDBFuns = [store_room, restore_room, forget_room, get_rooms,
-                     can_use_nick, get_nick, set_nick, unset_nick],
-    gen_mod:start_backend_module(mod_muc_db, Opts, TrackedDBFuns),
     start_supervisor(HostType),
     start_server(HostType, Opts),
     assert_server_running(HostType),
@@ -214,7 +200,7 @@ assert_server_running(HostType) ->
 config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
-                                          validate = {module, mod_muc_db}},
+                                          validate = {module, mod_muc}},
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -344,31 +330,28 @@ create_instant_room(ServerHost, MucHost, Name, From, Nick, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:call(Proc, {create_instant, ServerHost, MucHost, Name, From, Nick, Opts}).
 
--spec store_room(jid:server(), jid:server(), room(), list()) ->
+-spec store_room(host_type(), jid:server(), room(), list()) ->
     {error, _} | ok.
-store_room(ServerHost, MucHost, Name, Opts) ->
-    mod_muc_db_backend:store_room(ServerHost, MucHost, Name, Opts).
+store_room(HostType, MucHost, Name, Opts) ->
+    mod_muc_backend:store_room(HostType, MucHost, Name, Opts).
 
-
--spec restore_room(host_type(), jid:server(), room()) ->
+-spec restore_room(host_type(), muc_host(), room()) ->
         {error, _} | {ok, _}.
 restore_room(HostType, MucHost, Name) ->
-    mod_muc_db_backend:restore_room(HostType, MucHost, Name).
+    mod_muc_backend:restore_room(HostType, MucHost, Name).
 
--spec forget_room(jid:server(), jid:server(), room()) -> ok | {error, term()}.
-forget_room(ServerHost, MucHost, Name) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(ServerHost),
+-spec forget_room(host_type(), jid:server(), room()) -> ok | {error, term()}.
+forget_room(HostType, MucHost, Name) ->
     %% Removes room from DB, even if it's already removed.
-    Result = mod_muc_db_backend:forget_room(HostType, MucHost, Name),
+    Result = mod_muc_backend:forget_room(HostType, MucHost, Name),
     case Result of
         ok ->
-            %% TODO this hook should be refactored to be executed on ServerHost, not MucHost.
-            %% It also should be renamed to forget_room_hook.
+            %% TODO This hook should be renamed to forget_room_hook.
             %% We also need to think how to remove stopped rooms
             %% (i.e. in case we want to expose room removal over REST or SQS).
             %%
             %% In some _rare_ cases this hook can be called more than once for the same room.
-            mongoose_hooks:forget_room(ServerHost, MucHost, Name);
+            mongoose_hooks:forget_room(HostType, MucHost, Name);
         _ ->
             %% Room is not removed or we don't know.
             %% XXX Handle this case better.
@@ -387,22 +370,22 @@ process_iq_disco_items(MucHost, From, To, #iq{lang = Lang} = IQ) ->
                                  children = iq_disco_items(MucHost, From, Lang, Rsm)}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(Res)).
 
--spec can_use_nick(jid:server(), jid:server(), jid:jid(), nick()) -> boolean().
-can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
+-spec can_use_nick(host_type(), jid:server(), jid:jid(), nick()) -> boolean().
+can_use_nick(_HostType, _Host, _JID, <<>>) ->
     false;
-can_use_nick(ServerHost, MucHost, JID, Nick) ->
-    mod_muc_db_backend:can_use_nick(ServerHost, MucHost, JID, Nick).
+can_use_nick(HostType, MucHost, JID, Nick) ->
+    mod_muc_backend:can_use_nick(HostType, MucHost, JID, Nick).
 
-set_nick(_LServer, _Host, _From, <<>>) ->
+set_nick(_HostType, _MucHost, _From, <<>>) ->
     {error, should_not_be_empty};
-set_nick(LServer, MucHost, From, Nick) ->
-    mod_muc_db_backend:set_nick(LServer, MucHost, From, Nick).
+set_nick(HostType, MucHost, From, Nick) ->
+    mod_muc_backend:set_nick(HostType, MucHost, From, Nick).
 
-unset_nick(LServer, MucHost, From) ->
-    mod_muc_db_backend:unset_nick(LServer, MucHost, From).
+unset_nick(HostType, MucHost, From) ->
+    mod_muc_backend:unset_nick(HostType, MucHost, From).
 
-get_nick(LServer, MucHost, From) ->
-    mod_muc_db_backend:get_nick(LServer, MucHost, From).
+get_nick(HostType, MucHost, From) ->
+    mod_muc_backend:get_nick(HostType, MucHost, From).
 
 %%====================================================================
 %% gen_server callbacks
@@ -410,7 +393,7 @@ get_nick(LServer, MucHost, From) ->
 
 -spec init([host_type() | list(), ...]) -> {'ok', state()}.
 init([HostType, Opts]) ->
-    mod_muc_db_backend:init(HostType, Opts),
+    mod_muc_backend:init(HostType, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, muc_online_room)}]),
@@ -861,7 +844,7 @@ check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
 start_new_room(HostType, ServerHost, MucHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts, Acc) ->
-    case mod_muc_db_backend:restore_room(HostType, MucHost, Room) of
+    case mod_muc_backend:restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
             ?LOG_DEBUG(#{what => muc_start_new_room, acc => Acc,
                          room => Room, host_type => HostType, sub_host => MucHost}),
@@ -1059,12 +1042,12 @@ iq_get_unique(From) ->
                                                          mongoose_bin:gen_from_crypto()]))}.
 
 
--spec iq_get_register_info(jid:server(), jid:server(),
+-spec iq_get_register_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
             -> [jlib:xmlel(), ...].
-iq_get_register_info(ServerHost, MucHost, From, Lang) ->
+iq_get_register_info(HostType, MucHost, From, Lang) ->
     {Nick, Registered} =
-        case catch get_nick(ServerHost, MucHost, From) of
+        case catch get_nick(HostType, MucHost, From) of
             {'EXIT', _Reason} ->
                 {<<>>, []};
             {error, _} ->
@@ -1090,11 +1073,11 @@ iq_get_register_info(ServerHost, MucHost, From, Lang) ->
                         xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
 
 
--spec iq_set_register_info(jid:server(), jid:server(),
+-spec iq_set_register_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-iq_set_register_info(ServerHost, MucHost, From, Nick, Lang) ->
-    case set_nick(ServerHost, MucHost, From, Nick) of
+iq_set_register_info(HostType, MucHost, From, Nick, Lang) ->
+    case set_nick(HostType, MucHost, From, Nick) of
         ok ->
             {result, []};
         {error, conflict} ->
@@ -1105,30 +1088,30 @@ iq_set_register_info(ServerHost, MucHost, From, Nick, Lang) ->
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_register_info_failed,
-                         server => ServerHost, sub_host => MucHost,
+                         host_type => HostType, sub_host => MucHost,
                          from_jid => jid:to_binary(From), nick => Nick,
                          reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec iq_set_unregister_info(jid:server(), jid:server(),
+-spec iq_set_unregister_info(host_type(), jid:server(),
         jid:simple_jid() | jid:jid(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-iq_set_unregister_info(ServerHost, MucHost, From, _Lang) ->
-    case unset_nick(ServerHost, MucHost, From) of
+iq_set_unregister_info(HostType, MucHost, From, _Lang) ->
+    case unset_nick(HostType, MucHost, From) of
         ok ->
             {result, []};
         {error, ErrorReason} ->
             ?LOG_ERROR(#{what => muc_iq_set_unregister_info_failed,
-                         server => ServerHost, sub_host => MucHost,
+                         host_type => HostType, sub_host => MucHost,
                          from_jid => jid:to_binary(From), reason => ErrorReason}),
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec process_iq_register_set(jid:server(), jid:server(),
+-spec process_iq_register_set(host_type(), jid:server(),
                               jid:jid(), jlib:xmlel(), ejabberd:lang())
             -> {'error', jlib:xmlel()} | {'result', []}.
-process_iq_register_set(ServerHost, MucHost, From, SubEl, Lang) ->
+process_iq_register_set(HostType, MucHost, From, SubEl, Lang) ->
     #xmlel{children = Els} = SubEl,
     case xml:get_subtag(SubEl, <<"remove">>) of
         false ->
@@ -1136,21 +1119,21 @@ process_iq_register_set(ServerHost, MucHost, From, SubEl, Lang) ->
                 [#xmlel{name = <<"x">>} = XEl] ->
                     process_register(xml:get_tag_attr_s(<<"xmlns">>, XEl),
                                      xml:get_tag_attr_s(<<"type">>, XEl),
-                                     ServerHost, MucHost, From, Lang, XEl);
+                                     HostType, MucHost, From, Lang, XEl);
                 _ ->
                     {error, mongoose_xmpp_errors:bad_request()}
             end;
         _ ->
-            iq_set_unregister_info(ServerHost, MucHost, From, Lang)
+            iq_set_unregister_info(HostType, MucHost, From, Lang)
     end.
 
 -spec process_register(XMLNS :: binary(), Type :: binary(),
-                       ServerHost :: jid:server(), MucHost :: jid:server(),
+                       HostType :: host_type(), MucHost :: jid:server(),
                        From :: jid:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
     {error, exml:element()} | {result, []}.
-process_register(?NS_XDATA, <<"cancel">>, _ServerHost, _Host, _From, _Lang, _XEl) ->
+process_register(?NS_XDATA, <<"cancel">>, _HostType, _Host, _From, _Lang, _XEl) ->
     {result, []};
-process_register(?NS_XDATA, <<"submit">>, ServerHost, MucHost, From, Lang, XEl) ->
+process_register(?NS_XDATA, <<"submit">>, HostType, MucHost, From, Lang, XEl) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
@@ -1158,13 +1141,13 @@ process_register(?NS_XDATA, <<"submit">>, ServerHost, MucHost, From, Lang, XEl) 
         _ ->
             case lists:keysearch(<<"nick">>, 1, XData) of
                 {value, {_, [Nick]}} when Nick /= <<>> ->
-                    iq_set_register_info(ServerHost, MucHost, From, Nick, Lang);
+                    iq_set_register_info(HostType, MucHost, From, Nick, Lang);
                 _ ->
                     ErrText = <<"You must fill in field \"Nickname\" in the form">>,
                     {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
             end
     end;
-process_register(_, _, _ServerHost, _Host, _From, _Lang, _XEl) ->
+process_register(_, _, _HostType, _MucHost, _From, _Lang, _XEl) ->
     {error, mongoose_xmpp_errors:bad_request()}.
 
 -spec iq_get_vcard(ejabberd:lang()) -> [exml:element(), ...].
@@ -1195,7 +1178,7 @@ get_vh_rooms(MucHost) ->
 -spec get_persistent_vh_rooms(muc_host()) -> [muc_room()].
 get_persistent_vh_rooms(MucHost) ->
     {ok, HostType} = mongoose_domain_api:get_subdomain_host_type(MucHost),
-    case mod_muc_db_backend:get_rooms(HostType, MucHost) of
+    case mod_muc_backend:get_rooms(HostType, MucHost) of
         {ok, List} ->
             List;
         {error, _} ->
@@ -1259,13 +1242,8 @@ can_access_room(_, _HostType, Room, User) ->
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
-    case backend_module:is_exported(mod_muc_db_backend, remove_domain, 3) of
-        true ->
-            MUCHost = server_host_to_muc_host(HostType, Domain),
-            mod_muc_db_backend:remove_domain(HostType, MUCHost, Domain);
-        false ->
-            ok
-    end,
+    MUCHost = server_host_to_muc_host(HostType, Domain),
+    mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
     Acc.
 
 -spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->

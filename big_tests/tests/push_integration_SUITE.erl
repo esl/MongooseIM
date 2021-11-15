@@ -162,7 +162,7 @@ init_per_group(G, Config) ->
     ReqMods = proplists:get_value(required_modules, C, []),
     case lists:keymember(mod_muc_light, 1, ReqMods) of
         true ->
-            muc_light_helper:clear_db();
+            muc_light_helper:clear_db(domain_helper:host_type());
         false ->
             ct:log("Skip muc_light_helper:clear_db()", [])
     end,
@@ -806,8 +806,9 @@ maybe_check_if_push_node_was_disabled("v2", _, _) ->
     ok;
 maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
     JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
+    Host = escalus_utils:get_server(User),
     Fun = fun() ->
-                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [JID]),
+                  {ok, Services} = rpc(?RPC_SPEC, mod_event_pusher_push_backend, get_publish_services, [Host, JID]),
                   lists:keymember(PushNode, 2, Services)
           end,
     mongoose_helper:wait_until(Fun, false),

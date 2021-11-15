@@ -65,8 +65,7 @@
 %% debug exports for tests
 -export([update_tables/0]).
 
--ignore_xref([{mod_routing_machine, get_routing_module_list, 0},
-              dirty_get_all_domains/1, dirty_get_all_routes/0, dirty_get_all_routes/1,
+-ignore_xref([dirty_get_all_domains/1, dirty_get_all_routes/0, dirty_get_all_routes/1,
               register_component/2, register_component/3, register_component/4,
               register_components/2, register_components/3, register_routes/2,
               route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
@@ -104,7 +103,7 @@ start_link() ->
 
 %% @doc The main routing function. It puts the message through a chain
 %% of filtering/routing modules, as defined in config 'routing_modules'
-%% setting (default is hardcoded in make_routing_module_source function
+%% setting (default is hardcoded in default_routing_modules function
 %% of this module). Each of those modules should use xmpp_router behaviour
 %% and implement two functions:
 %% filter/3 - should return either 'drop' atom or its args
@@ -447,7 +446,6 @@ init([]) ->
                          {type, bag},
                          {record_name, external_component}]),
     mnesia:add_table_copy(external_component_global, node(), ram_copies),
-    compile_routing_module(),
     mongoose_metrics:ensure_metric(global, routingErrors, spiral),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
 
@@ -511,14 +509,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 routing_modules_list() ->
-    %% this is going to be compiled on startup from settings
-    mod_routing_machine:get_routing_module_list().
-
-compile_routing_module() ->
-    Mods = mongoose_config:get_opt(routing_modules, default_routing_modules()),
-    CodeStr = make_routing_module_source(Mods),
-    {Mod, Code} = dynamic_compile:from_string(CodeStr),
-    code:load_binary(Mod, "mod_routing_machine.erl", Code).
+    mongoose_config:get_opt(routing_modules, default_routing_modules()).
 
 default_routing_modules() ->
     [mongoose_router_global,
@@ -527,13 +518,6 @@ default_routing_modules() ->
      mongoose_router_external,
      mongoose_router_dynamic_domains,
      ejabberd_s2s].
-
-make_routing_module_source(Mods) ->
-    binary_to_list(iolist_to_binary(io_lib:format(
-        "-module(mod_routing_machine).~n"
-        "-compile([export_all, nowarn_export_all]).~n"
-        "get_routing_module_list() -> ~p.~n",
-        [Mods]))).
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),

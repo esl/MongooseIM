@@ -16,7 +16,7 @@
 
 -module(mongoose_rdbms_mysql).
 -author('konrad.zemek@erlang-solutions.com').
--behaviour(mongoose_rdbms).
+-behaviour(mongoose_rdbms_backend).
 
 -include("mongoose.hrl").
 

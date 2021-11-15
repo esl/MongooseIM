@@ -23,46 +23,33 @@
 -module(mod_muc_light_db_mnesia).
 -author('piotr.nosek@erlang-solutions.com').
 
+-behaviour(mod_muc_light_db_backend).
+
 %% API
 -export([
-         start/1,
+         start/2,
          stop/1,
-
-         create_room/4,
-         destroy_room/1,
-         room_exists/1,
-         get_user_rooms/2,
+         create_room/5,
+         destroy_room/2,
+         room_exists/2,
+         get_user_rooms/3,
          get_user_rooms_count/2,
-         remove_user/2,
+         remove_user/3,
          remove_domain/3,
-
-         get_config/1,
-         set_config/3,
+         get_config/2,
          set_config/4,
-
-         get_blocking/2,
          get_blocking/3,
-         set_blocking/3,
-
-         get_aff_users/1,
-         modify_aff_users/4,
-
-         get_info/1
+         get_blocking/4,
+         set_blocking/4,
+         get_aff_users/2,
+         modify_aff_users/5,
+         get_info/2
         ]).
 
 %% Extra API for testing
--export([
-         force_clear/0
-        ]).
+-export([force_clear/0]).
+-ignore_xref([force_clear/0]).
 
--ignore_xref([create_room/4, destroy_room/1, force_clear/0, get_aff_users/1,
-              get_blocking/2, get_blocking/3, get_config/1, get_info/1,
-              get_user_rooms/2, get_user_rooms_count/2, modify_aff_users/4,
-              remove_domain/3, remove_user/2, room_exists/1, set_blocking/3,
-              set_config/3, set_config/4, start/1, stop/1]).
-
--include("mongoose.hrl").
--include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
 -record(muc_light_room, {
@@ -91,8 +78,8 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: jid:server()) -> ok.
-start(_Host) ->
+-spec start(Host :: jid:server(), any()) -> ok.
+start(_Host, _) ->
     init_tables().
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -101,39 +88,45 @@ stop(_Host) ->
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
+-spec create_room(mongooseim:host_type(), RoomUS :: jid:simple_bare_jid(), Config :: mod_muc_light_room_config:kv(),
                   AffUsers :: aff_users(), Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
-create_room(RoomUS, Config, AffUsers, Version) ->
+create_room(_HostType, RoomUS, Config, AffUsers, Version) ->
     {atomic, Res} = mnesia:transaction(fun create_room_transaction/4,
                                        [RoomUS, Config, AffUsers, Version]),
     Res.
 
--spec destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
-destroy_room(RoomUS) ->
+-spec destroy_room(HostType :: mongooseim:host_type(),
+                   RoomUS :: jid:simple_bare_jid()) ->
+    ok | {error, not_exists}.
+destroy_room(_HostType, RoomUS) ->
     {atomic, Res} = mnesia:transaction(fun destroy_room_transaction/1, [RoomUS]),
     Res.
 
--spec room_exists(RoomUS :: jid:simple_bare_jid()) -> boolean().
-room_exists(RoomUS) ->
+-spec room_exists(HostType :: mongooseim:host_type(),
+                  RoomUS :: jid:simple_bare_jid()) -> boolean().
+room_exists(_HostType, RoomUS) ->
     mnesia:dirty_read(muc_light_room, RoomUS) =/= [].
 
--spec get_user_rooms(UserUS :: jid:simple_bare_jid(),
+-spec get_user_rooms(HostType :: mongooseim:host_type(),
+                     UserUS :: jid:simple_bare_jid(),
                      MUCServer :: jid:lserver() | undefined) ->
     [RoomUS :: jid:simple_bare_jid()].
-get_user_rooms(UserUS, _MUCHost) ->
+get_user_rooms(_HostType, UserUS, _MUCHost) ->
     UsersRooms = mnesia:dirty_read(muc_light_user_room, UserUS),
     [ UserRoom#muc_light_user_room.room || UserRoom <- UsersRooms ].
 
--spec get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
-                           HostType :: mongooseim:host_type()) ->
+-spec get_user_rooms_count(HostType :: mongooseim:host_type(),
+                           UserUS :: jid:simple_bare_jid()) ->
     non_neg_integer().
-get_user_rooms_count(UserUS, _HostType) ->
+get_user_rooms_count(_HostType, UserUS) ->
     length(mnesia:dirty_read(muc_light_user_room, UserUS)).
 
--spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
-    mod_muc_light_db:remove_user_return() | {error, term()}.
-remove_user(UserUS, Version) ->
+-spec remove_user(HostType :: mongooseim:host_type(),
+                  UserUS :: jid:simple_bare_jid(),
+                  Version :: binary()) ->
+    mod_muc_light_db_backend:remove_user_return() | {error, term()}.
+remove_user(_HostType, UserUS, Version) ->
     mnesia:dirty_delete(muc_light_blocking, UserUS),
     {atomic, Res} = mnesia:transaction(fun remove_user_transaction/2, [UserUS, Version]),
     Res.
@@ -144,42 +137,40 @@ remove_domain(_HostType, _RoomS, _LServer) ->
 
 %% ------------------------ Configuration manipulation ------------------------
 
--spec get_config(RoomUS :: jid:simple_bare_jid()) ->
+-spec get_config(HostType :: mongooseim:host_type(),
+                 RoomUS :: jid:simple_bare_jid()) ->
     {ok, mod_muc_light_room_config:kv(), Version :: binary()} | {error, not_exists}.
-get_config(RoomUS) ->
+get_config(_HostType, RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
         [#muc_light_room{ config = Config, version = Version }] -> {ok, Config, Version}
     end.
 
--spec set_config(RoomUS :: jid:simple_bare_jid(),
+-spec set_config(HostType :: mongooseim:host_type(),
+                 RoomUS :: jid:simple_bare_jid(),
                  Config :: mod_muc_light_room_config:kv(),
                  Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
-set_config(RoomUS, ConfigChanges, Version) ->
+set_config(_HostType, RoomUS, ConfigChanges, Version) ->
     {atomic, Res} = mnesia:transaction(fun set_config_transaction/3,
                                        [RoomUS, ConfigChanges, Version]),
     Res.
 
--spec set_config(RoomUS :: jid:simple_bare_jid(),
-                 Key :: atom(), Val :: term(), Version :: binary()) ->
-    {ok, PrevVersion :: binary()} | {error, not_exists}.
-set_config(RoomJID, Key, Val, Version) ->
-    set_config(RoomJID, [{Key, Val}], Version).
-
 %% ------------------------ Blocking manipulation ------------------------
 
--spec get_blocking(UserUS :: jid:simple_bare_jid(), MUCServer :: jid:lserver()) ->
+-spec get_blocking(HostType :: mongooseim:host_type(),
+                   UserUS :: jid:simple_bare_jid(), MUCServer :: jid:lserver()) ->
     [blocking_item()].
-get_blocking(UserUS, _MUCServer) ->
+get_blocking(_HostType, UserUS, _MUCServer) ->
     [ {What, deny, Who}
       || #muc_light_blocking{ item = {What, Who} } <- dirty_get_blocking_raw(UserUS) ].
 
--spec get_blocking(UserUS :: jid:simple_bare_jid(),
+-spec get_blocking(HostType :: mongooseim:host_type(),
+                   UserUS :: jid:simple_bare_jid(),
                    MUCServer :: jid:lserver(),
                    WhatWhos :: [{blocking_what(), jid:simple_bare_jid()}]) ->
     blocking_action().
-get_blocking(UserUS, _MUCServer, WhatWhos) ->
+get_blocking(_HostType, UserUS, _MUCServer, WhatWhos) ->
     Blocklist = dirty_get_blocking_raw(UserUS),
     case lists:any(
            fun(WhatWho) ->
@@ -189,44 +180,48 @@ get_blocking(UserUS, _MUCServer, WhatWhos) ->
         false -> allow
     end.
 
--spec set_blocking(UserUS :: jid:simple_bare_jid(),
+-spec set_blocking(HostType :: mongooseim:host_type(),
+                   UserUS :: jid:simple_bare_jid(),
                    MUCServer :: jid:lserver(),
                    BlockingItems :: [blocking_item()]) -> ok.
-set_blocking(_UserUS, _MUCServer, []) ->
+set_blocking(_HostType, _UserUS, _MUCServer, []) ->
     ok;
-set_blocking(UserUS, MUCServer, [{What, deny, Who} | RBlockingItems]) ->
+set_blocking(HostType, UserUS, MUCServer, [{What, deny, Who} | RBlockingItems]) ->
     mnesia:dirty_write(#muc_light_blocking{ user = UserUS, item = {What, Who} }),
-    set_blocking(UserUS, MUCServer, RBlockingItems);
-set_blocking(UserUS, MUCServer, [{What, allow, Who} | RBlockingItems]) ->
+    set_blocking(HostType, UserUS, MUCServer, RBlockingItems);
+set_blocking(HostType, UserUS, MUCServer, [{What, allow, Who} | RBlockingItems]) ->
     mnesia:dirty_delete_object(#muc_light_blocking{ user = UserUS, item = {What, Who} }),
-    set_blocking(UserUS, MUCServer, RBlockingItems).
+    set_blocking(HostType, UserUS, MUCServer, RBlockingItems).
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec get_aff_users(RoomUS :: jid:simple_bare_jid()) ->
+-spec get_aff_users(HostType :: mongooseim:host_type(),
+                    RoomUS :: jid:simple_bare_jid()) ->
     {ok, aff_users(), Version :: binary()} | {error, not_exists}.
-get_aff_users(RoomUS) ->
+get_aff_users(_HostType, RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
         [#muc_light_room{ aff_users = AffUsers, version = Version }] -> {ok, AffUsers, Version}
     end.
 
--spec modify_aff_users(RoomUS :: jid:simple_bare_jid(),
+-spec modify_aff_users(HostType :: mongooseim:host_type(),
+                       RoomUS :: jid:simple_bare_jid(),
                        AffUsersChanges :: aff_users(),
                        ExternalCheck :: external_check_fun(),
                        Version :: binary()) ->
-    mod_muc_light_db:modify_aff_users_return().
-modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
+    mod_muc_light_db_backend:modify_aff_users_return().
+modify_aff_users(_HostType, RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     {atomic, Res} = mnesia:transaction(fun modify_aff_users_transaction/4,
                                        [RoomUS, AffUsersChanges, ExternalCheck, Version]),
     Res.
 
 %% ------------------------ Misc ------------------------
 
--spec get_info(RoomUS :: jid:simple_bare_jid()) ->
+-spec get_info(HostType :: mongooseim:host_type(),
+               RoomUS :: jid:simple_bare_jid()) ->
     {ok, mod_muc_light_room_config:kv(), aff_users(), Version :: binary()}
     | {error, not_exists}.
-get_info(RoomUS) ->
+get_info(_HostType, RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] ->
             {error, not_exists};
@@ -240,7 +235,6 @@ get_info(RoomUS) ->
 
 -spec force_clear() -> ok.
 force_clear() ->
-    %% XXX This is supported only by Mnesia backend!
     lists:foreach(fun(RoomUS) -> mod_muc_light_utils:run_forget_room_hook(RoomUS) end,
                   mnesia:dirty_all_keys(muc_light_room)),
     lists:foreach(fun mnesia:clear_table/1,
@@ -333,7 +327,7 @@ destroy_room_transaction(RoomUS) ->
     end.
 
 -spec remove_user_transaction(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
-    mod_muc_light_db:remove_user_return().
+    mod_muc_light_db_backend:remove_user_return().
 remove_user_transaction(UserUS, Version) ->
     lists:map(
       fun(#muc_light_user_room{ room = RoomUS }) ->
@@ -370,7 +364,7 @@ dirty_get_blocking_raw(UserUS) ->
                                    AffUsersChanges :: aff_users(),
                                    ExternalCheck :: external_check_fun(),
                                    Version :: binary()) ->
-    mod_muc_light_db:modify_aff_users_return().
+    mod_muc_light_db_backend:modify_aff_users_return().
 modify_aff_users_transaction(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
     case mnesia:wread({muc_light_room, RoomUS}) of
         [] ->
@@ -390,7 +384,7 @@ modify_aff_users_transaction(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
                                    ChangeResult :: mod_muc_light_utils:change_aff_success(),
                                    CheckResult :: ok | {error, any()},
                                    Version :: binary()) ->
-    mod_muc_light_db:modify_aff_users_return().
+    mod_muc_light_db_backend:modify_aff_users_return().
 verify_externally_and_submit(
   RoomUS, #muc_light_room{ aff_users = OldAffUsers, version = PrevVersion } = RoomRec,
   {ok, NewAffUsers, AffUsersChanged, JoiningUsers, LeavingUsers}, ok, Version) ->

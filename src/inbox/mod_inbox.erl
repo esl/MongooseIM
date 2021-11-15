@@ -34,12 +34,7 @@
          disco_local_features/1
         ]).
 
--define(MOD_INBOX_BACKEND, mod_inbox_backend).
 -ignore_xref([
-    {?MOD_INBOX_BACKEND, get_inbox_unread, 2},
-    {?MOD_INBOX_BACKEND, get_inbox, 4},
-    {?MOD_INBOX_BACKEND, remove_domain, 2},
-    {?MOD_INBOX_BACKEND, init, 2},
     behaviour_info/1, disco_local_features/1, filter_local_packet/1, get_personal_data/3,
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
@@ -63,66 +58,6 @@
 
 -export_type([entry_key/0, get_inbox_params/0]).
 -export_type([count_res/0, write_res/0]).
-
--callback init(Host, Opts) -> ok when
-      Host :: mongooseim:host_type(),
-      Opts :: list().
-
--callback get_inbox(HostType, LUser, LServer, Params) -> get_inbox_res() when
-      HostType :: mongooseim:host_type(),
-      LUser :: jid:luser(),
-      LServer :: jid:lserver(),
-      Params :: get_inbox_params().
-
--callback clear_inbox(HostType, LUser, LServer) -> write_res() when
-      HostType :: mongooseim:host_type(),
-      LUser :: jid:luser(),
-      LServer :: jid:lserver().
-
--callback remove_domain(HostType, LServer) -> ok when
-      HostType :: mongooseim:host_type(),
-      LServer :: jid:lserver().
-
--callback set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
-    write_res() when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key(),
-      Content :: binary(),
-      Count :: integer(),
-      MsgId :: binary(),
-      Timestamp :: integer().
-
--callback remove_inbox_row(HostType, InboxEntryKey) -> write_res() when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key().
-
--callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
-    count_res() when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key(),
-      Content :: binary(),
-      MsgId :: binary(),
-      Timestamp :: integer().
-
--callback reset_unread(HostType, InboxEntryKey, MsgId) -> write_res() when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key(),
-      MsgId :: binary().
-
--callback get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key().
-
--callback get_entry_properties(HostType, InboxEntryKey) -> Ret when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key(),
-      Ret :: entry_properties().
-
--callback set_entry_properties(HostType, InboxEntryKey, Params) -> Ret when
-      HostType :: mongooseim:host_type(),
-      InboxEntryKey :: entry_key(),
-      Params :: entry_properties(),
-      Ret :: entry_properties() | {error, binary()}.
 
 %%--------------------------------------------------------------------
 %% gdpr callbacks
@@ -160,7 +95,6 @@ start(HostType, Opts) ->
     FullOpts = add_default_backend(Opts),
     IQDisc = gen_mod:get_opt(iqdisc, FullOpts, no_queue),
     MucTypes = gen_mod:get_opt(groupchat, FullOpts, [muclight]),
-    gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
     mod_inbox_backend:init(HostType, FullOpts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
@@ -633,11 +567,6 @@ muc_dep(List) ->
         true -> [{mod_muc, hard}];
         false -> []
     end.
-
-callback_funs() ->
-    [get_inbox, set_inbox, set_inbox_incr_unread,
-     reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
-     get_entry_properties, set_entry_properties, remove_domain].
 
 -spec muclight_enabled(HostType :: mongooseim:host_type()) -> boolean().
 muclight_enabled(HostType) ->

@@ -39,13 +39,7 @@
          build_inbox_entry_key/2
         ]).
 
--define(MOD_INBOX_BACKEND, mod_inbox_backend).
 -ignore_xref([
-    {?MOD_INBOX_BACKEND, clear_inbox, 3},
-    {?MOD_INBOX_BACKEND, reset_unread, 3},
-    {?MOD_INBOX_BACKEND, reset_unread, 3},
-    {?MOD_INBOX_BACKEND, set_inbox_incr_unread, 5},
-    {?MOD_INBOX_BACKEND, set_inbox, 6},
     fill_from_attr/2, get_reset_markers/1, if_chat_marker_get_id/2
 ]).
 

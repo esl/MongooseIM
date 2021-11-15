@@ -39,19 +39,22 @@ tests() ->
 init_per_group(odbc, Config) ->
     case code:ensure_loaded(eodbc) of
         {module, eodbc} ->
+            mongoose_backend:init(global, mongoose_rdbms, [], [{backend, odbc}]),
             [{db_type, odbc} | Config];
         _ ->
             {skip, no_odbc_application}
     end;
 init_per_group(Group, Config) ->
+    mongoose_backend:init(global, mongoose_rdbms, [], [{backend, Group}]),
     [{db_type, Group} | Config].
 
 end_per_group(_, Config) ->
+    % clean up after mongoose_backend:init
+    persistent_term:erase({backend_module, global, mongoose_rdbms}),
     Config.
 
 init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     DbType = ?config(db_type, Config),
-    backend_module:create(mongoose_rdbms, DbType, []),
     set_opts(),
     meck_db(DbType),
     meck_connection_error(DbType),
@@ -59,7 +62,6 @@ init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     [{db_opts, [{server, server(DbType)}, {keepalive_interval, 2}, {start_interval, 10}]} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
-    backend_module:create(mongoose_rdbms, DbType, []),
     set_opts(),
     meck_db(DbType),
     [{db_opts, [{server, server(DbType)}, {keepalive_interval, ?KEEPALIVE_INTERVAL},
@@ -97,11 +99,11 @@ keepalive_exit(Config) ->
         ct:fail(no_down_message)
     end.
 
-%% 5 retries. Max retry 10. Iniitial retry 2.
+%% 5 retries. Max retry 10. Initial retry 2.
 %% We should get a sequence: 2 -> 4 -> 10 -> 10 -> 10.
 does_backoff_increase_to_a_point(Config) ->
     {error, _} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
-    % We expect to have 2 at the begininng, then values up to 10 and 10 three times in total
+    % We expect to have 2 at the beginning, then values up to 10 and 10 three times in total
     receive_backoffs(2, 10, 3).
 
 receive_backoffs(InitialValue, MaxValue, MaxCount) ->

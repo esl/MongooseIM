@@ -232,11 +232,11 @@ muc_light_removal(Config0) ->
         RoomID = select_room_id(host_type(), Room, MucHost),
         {selected, [_]} = select_affs_by_room_id(host_type(), RoomID),
         {selected, [_|_]} = select_config_by_room_id(host_type(), RoomID),
-        {ok, _RoomConfig, _AffUsers, _Version} = get_room_info(Room, MucHost),
+        {ok, _RoomConfig, _AffUsers, _Version} = get_room_info(host_type(), Room, MucHost),
         %% WHEN domain hook called
         run_remove_domain(),
         %% THEN Room info not available
-        {error, not_exists} = get_room_info(Room, MucHost),
+        {error, not_exists} = get_room_info(host_type(), Room, MucHost),
         %% THEN Tables are empty
         {selected, []} = select_affs_by_room_id(host_type(), RoomID),
         {selected, []} = select_config_by_room_id(host_type(), RoomID)
@@ -251,10 +251,10 @@ muc_light_blocking_removal(Config0) ->
         muc_light_helper:create_room(Room, MucHost, alice,
                                      [], Config, muc_light_helper:ver(1)),
         block_muclight_user(Bob, Alice),
-        [_] = get_blocking(Bob, MucHost),
+        [_] = get_blocking(host_type(), Bob, MucHost),
         %% WHEN domain hook called
         run_remove_domain(),
-        [] = get_blocking(Bob, MucHost)
+        [] = get_blocking(host_type(), Bob, MucHost)
         end,
     escalus_fresh:story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
 
@@ -412,10 +412,10 @@ get_vcard_search_query_count(Element) ->
                               cdata]).
 
 get_muc_registered(MucHost, UserJid) ->
-    rpc(mim(), mod_muc_db_rdbms, get_nick, [host_type(), MucHost, UserJid]).
+    rpc(mim(), mod_muc_rdbms, get_nick, [host_type(), MucHost, UserJid]).
 
 get_muc_rooms(MucHost) ->
-    {ok, Rooms} = rpc(mim(), mod_muc_db_rdbms, get_rooms, [host_type(), MucHost]),
+    {ok, Rooms} = rpc(mim(), mod_muc_rdbms, get_rooms, [host_type(), MucHost]),
     Rooms.
 
 get_muc_room_aff(Domain) ->
@@ -431,8 +431,8 @@ select_from_roster(Table) ->
 run_remove_domain() ->
     rpc(mim(), mongoose_hooks, remove_domain, [host_type(), domain()]).
 
-get_room_info(RoomU, RoomS) ->
-    rpc(mim(), mod_muc_light_db_backend, get_info, [{RoomU, RoomS}]).
+get_room_info(HostType, RoomU, RoomS) ->
+    rpc(mim(), mod_muc_light_db_backend, get_info, [HostType, {RoomU, RoomS}]).
 
 select_room_id(MainHost, RoomU, RoomS) ->
     {selected, [{DbRoomID}]} =
@@ -445,10 +445,10 @@ select_affs_by_room_id(MainHost, RoomID) ->
 select_config_by_room_id(MainHost, RoomID) ->
     rpc(mim(), mod_muc_light_db_rdbms, select_config_by_room_id, [MainHost, RoomID]).
 
-get_blocking(User, MUCServer) ->
+get_blocking(HostType, User, MUCServer) ->
     Jid = jid:from_binary(escalus_client:short_jid(User)),
     {LUser, LServer, _} = jid:to_lower(Jid),
-    rpc(mim(), mod_muc_light_db_rdbms, get_blocking, [{LUser, LServer}, MUCServer]).
+    rpc(mim(), mod_muc_light_db_rdbms, get_blocking, [HostType, {LUser, LServer}, MUCServer]).
 
 block_muclight_user(Bob, Alice) ->
     %% Bob blocks Alice

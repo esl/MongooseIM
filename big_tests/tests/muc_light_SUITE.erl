@@ -204,7 +204,8 @@ init_per_suite(Config) ->
     escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
-    muc_light_helper:clear_db(),
+    HostType = host_type(),
+    muc_light_helper:clear_db(HostType),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config1).
@@ -242,7 +243,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     escalus:end_per_testcase(CaseName, Config).
 
 %% Module configuration per test case
@@ -299,7 +300,7 @@ mam_muc_config(_CaseName) ->
 
 removing_users_from_server_triggers_room_destruction(Config) ->
     escalus:delete_users(Config, escalus:get_users([carol])),
-    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}]).
+    {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}]).
 
 %% ---------------------- Disco ----------------------
 
@@ -602,7 +603,7 @@ leave_room(Config) ->
               end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate]),
 
             % Now we verify that room is removed from DB
-            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [{?ROOM, ?MUCHOST}])
+            {error, not_exists} = rpc(mod_muc_light_db_backend, get_info, [host_type(), {?ROOM, ?MUCHOST}])
         end).
 
 change_other_aff_deny(Config) ->

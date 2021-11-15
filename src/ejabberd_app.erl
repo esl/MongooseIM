@@ -63,7 +63,6 @@ start(normal, _Args) ->
     %% ejabberd_sm is started separately because it may use one of the outgoing_pools
     %% but some outgoing_pools should be started only with ejabberd_sup already running
     ejabberd_sm:start(),
-    ejabberd_rdbms:start(),
     ejabberd_auth:start(),
     mongoose_cluster_id:start(),
     start_services(),

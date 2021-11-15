@@ -185,7 +185,7 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
           gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
-            Items = mod_muc_light_db_backend:get_blocking(jid:to_lus(From), MUCHost),
+            Items = mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(From), MUCHost),
             mod_muc_light_codec_backend:encode(
                 {get, Blocking#blocking{ items = Items }}, From, To,
                 fun(_, _, Packet) -> put(encode_res, Packet) end,

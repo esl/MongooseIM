@@ -158,7 +158,7 @@ end_per_suite(Config) ->
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_inbox),
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(HostType),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config1).
 
@@ -170,8 +170,8 @@ init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(muclight, Config) ->
-    muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
+    muc_light_helper:clear_db(HostType),
     dynamic_modules:stop(HostType, mod_muc_light),
     Config;
 end_per_group(_GroupName, Config) ->

@@ -6,7 +6,7 @@
 %%%----------------------------------------------------------------------------
 
 -module(mod_offline_chatmarkers_rdbms).
--behaviour(mod_offline_chatmarkers).
+-behaviour(mod_offline_chatmarkers_backend).
 
 -export([init/2,
          get/2,

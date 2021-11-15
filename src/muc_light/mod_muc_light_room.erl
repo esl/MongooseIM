@@ -35,7 +35,7 @@
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_aff_users, 1},
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, destroy_room, 1},
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, modify_aff_users, 4},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_config, 3},
+    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_config, 4},
     {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, destroy_room, 1},
     {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode, 5},
     {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode_error, 5}
@@ -63,7 +63,7 @@ handle_request(From, Room, OrigPacket, Request, Acc1) ->
 maybe_forget(Acc, {RoomU, RoomS} = RoomUS, []) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     mongoose_hooks:forget_room(HostType, RoomS, RoomU),
-    mod_muc_light_db_backend:destroy_room(RoomUS);
+    mod_muc_light_db_backend:destroy_room(HostType, RoomUS);
 maybe_forget(_Acc, _, _) ->
     my_room_will_go_on.
 
@@ -113,20 +113,23 @@ process_request(_Request, _From, _RoomUS, false, _AffUsers, _Acc) ->
 process_request(#msg{} = Msg, _From, _RoomUS, _Auth, AffUsers, _Acc) ->
     {Msg, AffUsers};
 process_request({get, #config{} = ConfigReq},
-                _From, RoomUS, _Auth, _AffUsers, _Acc) ->
+                _From, RoomUS, _Auth, _AffUsers, Acc) ->
     {_, RoomS} = RoomUS,
-    {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(RoomUS),
+    HostType = mongoose_acc:host_type(Acc),
+    {ok, Config, RoomVersion} = mod_muc_light_db_backend:get_config(HostType, RoomUS),
     RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, ConfigReq#config{ version = RoomVersion,
                             raw_config = RawConfig }};
 process_request({get, #affiliations{} = AffReq},
-                _From, RoomUS, _Auth, _AffUsers, _Acc) ->
-    {ok, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_aff_users(RoomUS),
+                _From, RoomUS, _Auth, _AffUsers, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    {ok, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_aff_users(HostType, RoomUS),
     {get, AffReq#affiliations{ version = RoomVersion,
                                aff_users = AffUsers }};
 process_request({get, #info{} = InfoReq},
-                _From, {_, RoomS} = RoomUS, _Auth, _AffUsers, _Acc) ->
-    {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(RoomUS),
+                _From, {_, RoomS} = RoomUS, _Auth, _AffUsers, Acc) ->
+    HostType = mongoose_acc:host_type(Acc),
+    {ok, Config, AffUsers, RoomVersion} = mod_muc_light_db_backend:get_info(HostType, RoomUS),
     RawConfig = mod_muc_light_room_config:to_binary_kv(Config, mod_muc_light:config_schema(RoomS)),
     {get, InfoReq#info{ version = RoomVersion, aff_users = AffUsers,
                         raw_config = RawConfig }};
@@ -134,7 +137,7 @@ process_request({set, #config{} = ConfigReq},
                 _From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     AllCanConfigure = all_can_configure(HostType),
-    process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
+    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, AllCanConfigure);
 process_request({set, #affiliations{} = AffReq},
                 From, RoomUS, {_, UserAff}, AffUsers, Acc) ->
     UserUS = jid:to_lus(From),
@@ -156,7 +159,8 @@ process_request({set, #affiliations{} = AffReq},
     process_aff_set(AffReq, RoomUS, ValidateResult, Acc);
 process_request({set, #destroy{} = DestroyReq},
                 _From, RoomUS, {_, owner}, AffUsers, Acc) ->
-    ok = mod_muc_light_db_backend:destroy_room(RoomUS),
+    HostType = mongoose_acc:host_type(Acc),
+    ok = mod_muc_light_db_backend:destroy_room(HostType, RoomUS),
     maybe_forget(Acc, RoomUS, []),
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}},
@@ -173,23 +177,24 @@ all_can_configure(HostType) ->
 
 %% --------- Config set ---------
 
--spec process_config_set(ConfigReq :: config_req_props(),
+-spec process_config_set(HostType :: mongooseim:host_type(),
+                         ConfigReq :: config_req_props(),
                          RoomUS :: jid:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
                          UserAllowedToConfigure :: boolean()) ->
     {set, config_req_props(), aff_users()} | {error, not_allowed} | validation_error().
-process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
+process_config_set(HostType, #config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
                    AffUsers, false) ->
     % Everyone is allowed to change subject
-    process_config_set(ConfigReq, RoomUS, UserAff, AffUsers, true);
-process_config_set(_ConfigReq, _RoomUS, member, _AffUsers, false) ->
+    process_config_set(HostType, ConfigReq, RoomUS, UserAff, AffUsers, true);
+process_config_set(_HostType, _ConfigReq, _RoomUS, member, _AffUsers, false) ->
     {error, not_allowed};
-process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
+process_config_set(HostType, ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanConfigure) ->
     case mod_muc_light_room_config:from_binary_kv_diff(
            ConfigReq#config.raw_config, mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
             NewVersion = mongoose_bin:gen_from_timestamp(),
-            {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS, Config, NewVersion),
+            {ok, PrevVersion} = mod_muc_light_db_backend:set_config(HostType, RoomUS, Config, NewVersion),
             {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
         Error ->
             Error
@@ -231,7 +236,8 @@ process_aff_set(AffReq, _RoomUS, {ok, []}, _Acc) -> % It seems that all users bl
     {set, AffReq, [], []}; % Just return result to the user, don't change or broadcast anything
 process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}, Acc) ->
     NewVersion = mongoose_bin:gen_from_timestamp(),
-    case mod_muc_light_db_backend:modify_aff_users(RoomUS, FilteredAffUsers,
+    HostType = mongoose_acc:host_type(Acc),
+    case mod_muc_light_db_backend:modify_aff_users(HostType, RoomUS, FilteredAffUsers,
                                    fun ?MODULE:participant_limit_check/2, NewVersion) of
         {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
             maybe_forget(Acc, RoomUS, NewAffUsers),
@@ -252,9 +258,9 @@ process_aff_set(_AffReq, _RoomUS, Error, _Acc) ->
 
 -spec send_response(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                     Result :: packet_processing_result(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
-send_response(From, RoomJID, OrigPacket, {error, _} = Err, _Acc) ->
+send_response(From, RoomJID, OrigPacket, {error, _} = Err, Acc) ->
     mod_muc_light_codec_backend:encode_error(
-      Err, From, RoomJID, OrigPacket, fun ejabberd_router:route/3);
+      Err, From, RoomJID, OrigPacket, Acc);
 send_response(From, RoomJID, _OriginalPacket, Response, Acc) ->
     F = make_handler_fun(Acc),
     mod_muc_light_codec_backend:encode(Response, From, RoomJID, F, Acc).

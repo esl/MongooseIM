@@ -7,7 +7,7 @@
 
 -export([is_rdbms_enabled/1,
          mnesia_or_rdbms_backend/0,
-         get_backend_name/1]).
+         get_backend_name/2]).
 
 -export([auth_modules/0]).
 
@@ -141,14 +141,19 @@ new_mongoose_acc(Location, Server) ->
 clear_caps_cache(CapsNode) ->
     ok = rpc(mim(), mod_caps, delete_caps, [CapsNode]).
 
-get_backend(Module) ->
-  case rpc(mim(), Module, backend, []) of
-    {badrpc, _Reason} -> false;
-    Backend -> Backend
-  end.
+get_backend(HostType, Module) ->
+    try rpc(mim(), mongoose_backend, get_backend_module, [HostType, Module])
+    catch
+        error:{badrpc, _Reason} ->
+            % TODO: get rid of this after dynamically compiled modules are gone
+            get_backend_old(Module)
+    end.
 
-get_backend_name(Module) ->
-    case rpc(mim(), Module, backend_name, []) of
+get_backend_name(HostType, Module) ->
+    rpc(mim(), mongoose_backend, get_backend_name, [HostType, Module]).
+
+get_backend_old(Module) ->
+    case rpc(mim(), Module, backend, []) of
         {badrpc, _Reason} -> false;
         Backend -> Backend
     end.
@@ -158,9 +163,12 @@ generic_count(mod_offline_backend, {LUser, LServer}) ->
     rpc(mim(), mod_offline_backend, count_offline_messages, [HostType, LUser, LServer, 100]).
 
 generic_count(Module) ->
-    case get_backend(Module) of
+    lists:sum([generic_count_per_host_type(HT, Module) || HT <- domain_helper:host_types()]).
+
+generic_count_per_host_type(HostType, Module) ->
+    case get_backend(HostType, Module) of
         false -> %% module disabled
-            false;
+            0;
         B when is_atom(B) ->
             generic_count_backend(B)
     end.
@@ -245,11 +253,11 @@ stop_online_rooms() ->
 forget_persistent_rooms() ->
     %% To avoid `binary_to_existing_atom(<<"maygetmemberlist">>, utf8)' failing
     rpc(mim(), mod_muc_room, module_info, []),
-    Host = ct:get_config({hosts, mim, domain}),
-    {ok, Rooms} = rpc(mim(), mod_muc_db_backend, get_rooms, [Host, muc_helper:muc_host()]),
+    HostType = domain_helper:host_type(),
+    {ok, Rooms} = rpc(mim(), mod_muc_backend, get_rooms, [HostType, muc_helper:muc_host()]),
     lists:foreach(
      fun({muc_room, {RoomName, MucHost}, _Opts}) ->
-             rpc(mim(), mod_muc, forget_room, [Host, MucHost, RoomName])
+             rpc(mim(), mod_muc, forget_room, [HostType, MucHost, RoomName])
      end,
      Rooms).
 

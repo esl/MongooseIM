@@ -1,4 +1,4 @@
--module(mod_muc_db_rdbms).
+-module(mod_muc_rdbms).
 -include("mod_muc.hrl").
 -include("mongoose_logger.hrl").
 
@@ -19,14 +19,10 @@
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
-%% Defines which RDBMS pool to use
-%% Parent host of the MUC service
--type server_host() :: jid:server().
-
 %% Host of MUC service
 -type muc_host() :: jid:server().
 
-%% User's JID. Can be on another domain accessable over FED.
+%% User's JID. Can be on another domain accessible over FED.
 %% Only bare part (user@host) is important.
 -type client_jid() :: jid:jid().
 -type room_id() :: pos_integer().
@@ -35,12 +31,12 @@
 -type updated_result() :: {updated, non_neg_integer()}.
 
 
--spec init(server_host(), ModuleOpts :: list()) -> ok.
-init(ServerHost, _Opts) ->
-    prepare_queries(ServerHost),
+-spec init(mongooseim:host_type(), ModuleOpts :: list()) -> ok.
+init(HostType, _Opts) ->
+    prepare_queries(HostType),
     ok.
 
-prepare_queries(ServerHost) ->
+prepare_queries(HostType) ->
     %% Queries to muc_rooms table
     prepare(muc_insert_room, muc_rooms,
             [muc_host, room_name, options],
@@ -100,7 +96,7 @@ prepare_queries(ServerHost) ->
     prepare(muc_registered_remove_user_domain, muc_registered,
             [lserver],
             <<"DELETE FROM muc_room_aff WHERE lserver = ?">>),
-    rdbms_queries:prepare_upsert(ServerHost, muc_nick_upsert, muc_registered,
+    rdbms_queries:prepare_upsert(HostType, muc_nick_upsert, muc_registered,
                                  [<<"muc_host">>, <<"luser">>, <<"lserver">>, <<"nick">>],
                                  [<<"nick">>],
                                  [<<"muc_host">>, <<"luser">>, <<"lserver">>]),
@@ -126,126 +122,126 @@ remove_domain(HostType, MucHost, Domain) ->
     {atomic, ok} = mongoose_rdbms:sql_transaction(HostType, F),
     ok.
 
--spec store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
+-spec store_room(mongooseim:host_type(), muc_host(), mod_muc:room(), room_opts()) ->
     ok | {error, term()}.
-store_room(ServerHost, MucHost, RoomName, Opts) ->
+store_room(HostType, MucHost, RoomName, Opts) ->
     Affs = proplists:get_value(affiliations, Opts),
     NewOpts = proplists:delete(affiliations, Opts),
     ExtOpts = jiffy:encode({NewOpts}),
     F = fun() ->
-            forget_room_transaction(ServerHost, MucHost, RoomName),
-            store_room_transaction(ServerHost, MucHost, RoomName, ExtOpts, Affs)
+            forget_room_transaction(HostType, MucHost, RoomName),
+            store_room_transaction(HostType, MucHost, RoomName, ExtOpts, Affs)
         end,
-    {atomic, Res} = mongoose_rdbms:sql_transaction(ServerHost, F),
+    {atomic, Res} = mongoose_rdbms:sql_transaction(HostType, F),
     Res.
 
--spec restore_room(server_host(), muc_host(), mod_muc:room()) ->
+-spec restore_room(mongooseim:host_type(), muc_host(), mod_muc:room()) ->
     {ok, room_opts()} | {error, room_not_found} | {error, term()}.
-restore_room(ServerHost, MucHost, RoomName) ->
-    case execute_select_room(ServerHost, MucHost, RoomName) of
+restore_room(HostType, MucHost, RoomName) ->
+    case execute_select_room(HostType, MucHost, RoomName) of
         {selected, [{ExtRoomID, ExtOpts}]} ->
             RoomID = mongoose_rdbms:result_to_integer(ExtRoomID),
-            FullOpts = get_full_options(ServerHost, ExtOpts, RoomID),
+            FullOpts = get_full_options(HostType, ExtOpts, RoomID),
             {ok, FullOpts};
         {selected, []} ->
             {error, room_not_found}
     end.
 
--spec forget_room(server_host(), muc_host(), mod_muc:room()) ->
+-spec forget_room(mongooseim:host_type(), muc_host(), mod_muc:room()) ->
     ok | {error, term()}.
-forget_room(ServerHost, MucHost, RoomName) ->
-    F = fun() -> forget_room_transaction(ServerHost, MucHost, RoomName) end,
-    {atomic, _Res} = mongoose_rdbms:sql_transaction(ServerHost, F),
+forget_room(HostType, MucHost, RoomName) ->
+    F = fun() -> forget_room_transaction(HostType, MucHost, RoomName) end,
+    {atomic, _Res} = mongoose_rdbms:sql_transaction(HostType, F),
     ok.
 
 %% Room helper functions
 
--spec get_rooms(server_host(), muc_host()) -> {ok, [#muc_room{}]}.
-get_rooms(ServerHost, MucHost) ->
-    {selected, RoomRows} = execute_select_rooms(ServerHost, MucHost),
-    RoomRecs = [handle_room_row(ServerHost, MucHost, Row) || Row <- RoomRows],
+-spec get_rooms(mongooseim:host_type(), muc_host()) -> {ok, [#muc_room{}]}.
+get_rooms(HostType, MucHost) ->
+    {selected, RoomRows} = execute_select_rooms(HostType, MucHost),
+    RoomRecs = [handle_room_row(HostType, MucHost, Row) || Row <- RoomRows],
     {ok, RoomRecs}.
 
-handle_room_row(ServerHost, MucHost, {ExtRoomID, RoomName, ExtOpts}) ->
+handle_room_row(HostType, MucHost, {ExtRoomID, RoomName, ExtOpts}) ->
     RoomID = mongoose_rdbms:result_to_integer(ExtRoomID),
-    FullOpts = get_full_options(ServerHost, ExtOpts, RoomID),
+    FullOpts = get_full_options(HostType, ExtOpts, RoomID),
     #muc_room{name_host = {RoomName, MucHost}, opts = FullOpts}.
 
-get_full_options(ServerHost, ExtOpts, RoomID) ->
-    {selected, Affs} = execute_select_aff(ServerHost, RoomID),
+get_full_options(HostType, ExtOpts, RoomID) ->
+    {selected, Affs} = execute_select_aff(HostType, RoomID),
     decode_opts(ExtOpts, Affs).
 
 %% Nick API functions
 
--spec can_use_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) -> boolean().
-can_use_nick(ServerHost, MucHost, Jid, Nick) ->
+-spec can_use_nick(mongooseim:host_type(), muc_host(), client_jid(), mod_muc:nick()) -> boolean().
+can_use_nick(HostType, MucHost, Jid, Nick) ->
     {UserU, UserS} = jid:to_lus(Jid),
-    case execute_select_nick_user(ServerHost, MucHost, UserS, Nick) of
+    case execute_select_nick_user(HostType, MucHost, UserS, Nick) of
         {selected, []} -> true;
         {selected, [{U}]} -> U == UserU
     end.
 
 %% Get nick associated with jid client_jid() across muc_host() domain
--spec get_nick(server_host(), muc_host(), client_jid()) ->
+-spec get_nick(mongooseim:host_type(), muc_host(), client_jid()) ->
     {ok, mod_muc:nick()} | {error, not_registered}.
-get_nick(ServerHost, MucHost, Jid) ->
+get_nick(HostType, MucHost, Jid) ->
     {UserU, UserS} = jid:to_lus(Jid),
-    case execute_select_nick(ServerHost, MucHost, UserU, UserS) of
+    case execute_select_nick(HostType, MucHost, UserU, UserS) of
         {selected, []} -> {error, not_registered};
         {selected, [{Nick}]} -> {ok, Nick}
     end.
 
 %% Register nick
--spec set_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) -> ok | {error, term()}.
-set_nick(ServerHost, MucHost, Jid, Nick) when is_binary(Nick), Nick =/= <<>> ->
-    CanUseNick = can_use_nick(ServerHost, MucHost, Jid, Nick),
-    store_nick_transaction(ServerHost, MucHost, Jid, Nick, CanUseNick).
+-spec set_nick(mongooseim:host_type(), muc_host(), client_jid(), mod_muc:nick()) -> ok | {error, term()}.
+set_nick(HostType, MucHost, Jid, Nick) when is_binary(Nick), Nick =/= <<>> ->
+    CanUseNick = can_use_nick(HostType, MucHost, Jid, Nick),
+    store_nick_transaction(HostType, MucHost, Jid, Nick, CanUseNick).
 
 %% Unregister nick
 %% Unregistered nicks can be used by someone else
--spec unset_nick(server_host(), muc_host(), client_jid()) -> ok.
-unset_nick(ServerHost, MucHost, Jid) ->
+-spec unset_nick(mongooseim:host_type(), muc_host(), client_jid()) -> ok.
+unset_nick(HostType, MucHost, Jid) ->
     {UserU, UserS} = jid:to_lus(Jid),
-    execute_delete_nick(ServerHost, MucHost, UserU, UserS),
+    execute_delete_nick(HostType, MucHost, UserU, UserS),
     ok.
 
 %% Transaction body functions
 
-store_nick_transaction(_ServerHost, _MucHost, _Jid, _Nick, false) ->
+store_nick_transaction(_HostType, _MucHost, _Jid, _Nick, false) ->
     {error, conflict};
-store_nick_transaction(ServerHost, MucHost, Jid, Nick, true) ->
+store_nick_transaction(HostType, MucHost, Jid, Nick, true) ->
     {LU, LS} = jid:to_lus(Jid),
     InsertParams = [MucHost, LU, LS, Nick],
     UpdateParams = [Nick],
     UniqueKeyValues  = [MucHost, LU, LS],
-    case rdbms_queries:execute_upsert(ServerHost, muc_nick_upsert,
+    case rdbms_queries:execute_upsert(HostType, muc_nick_upsert,
                                       InsertParams, UpdateParams, UniqueKeyValues) of
         {updated, _} -> ok;
         Error -> Error
     end.
 
-store_room_transaction(ServerHost, MucHost, RoomName, ExtOpts, Affs) ->
-    execute_insert_room(ServerHost, MucHost, RoomName, ExtOpts),
-    Result = execute_select_room_id(ServerHost, MucHost, RoomName),
+store_room_transaction(HostType, MucHost, RoomName, ExtOpts, Affs) ->
+    execute_insert_room(HostType, MucHost, RoomName, ExtOpts),
+    Result = execute_select_room_id(HostType, MucHost, RoomName),
     RoomID = mongoose_rdbms:selected_to_integer(Result),
-    store_aff(ServerHost, RoomID, Affs),
+    store_aff(HostType, RoomID, Affs),
     ok.
 
-store_aff(_ServerHost, _, undefined) ->
+store_aff(_HostType, _, undefined) ->
     ok;
-store_aff(ServerHost, RoomID, Affs) ->
+store_aff(HostType, RoomID, Affs) ->
     F = fun({{UserU, UserS, Resource}, Aff}) ->
             ExtAff = aff_atom2db(Aff),
-            execute_insert_aff(ServerHost, RoomID, UserU, UserS, Resource, ExtAff)
+            execute_insert_aff(HostType, RoomID, UserU, UserS, Resource, ExtAff)
         end,
     lists:foreach(F, Affs).
 
-forget_room_transaction(ServerHost, MucHost, RoomName) ->
-    case execute_select_room_id(ServerHost, MucHost, RoomName) of
+forget_room_transaction(HostType, MucHost, RoomName) ->
+    case execute_select_room_id(HostType, MucHost, RoomName) of
         {selected, [{ExtRoomID}]} ->
             RoomID = mongoose_rdbms:result_to_integer(ExtRoomID),
-            execute_delete_affs(ServerHost, RoomID),
-            execute_delete_room(ServerHost, MucHost, RoomName),
+            execute_delete_affs(HostType, RoomID),
+            execute_delete_room(HostType, MucHost, RoomName),
             ok;
         {selected, []} ->
             {error, not_exists}
@@ -253,54 +249,54 @@ forget_room_transaction(ServerHost, MucHost, RoomName) ->
 
 %% Execute call functions
 
--spec execute_insert_room(server_host(), muc_host(), jid:luser(), room_opts()) ->
+-spec execute_insert_room(mongooseim:host_type(), muc_host(), jid:luser(), room_opts()) ->
     updated_result().
-execute_insert_room(ServerHost, MucHost, RoomName, ExtOpts) ->
+execute_insert_room(HostType, MucHost, RoomName, ExtOpts) ->
     Args = [MucHost, RoomName, ExtOpts],
-    execute_successfully(ServerHost, muc_insert_room, Args).
+    execute_successfully(HostType, muc_insert_room, Args).
 
--spec execute_insert_aff(server_host(), RoomID :: room_id(),
+-spec execute_insert_aff(mongooseim:host_type(), RoomID :: room_id(),
                          UserU :: jid:luser(), UserS :: jid:lserver(),
                          Res ::iolist(), ExtAff :: pos_integer()) -> updated_result().
-execute_insert_aff(ServerHost, RoomID, UserU, UserS, Res, ExtAff) ->
+execute_insert_aff(HostType, RoomID, UserU, UserS, Res, ExtAff) ->
     Args = [RoomID, UserU, UserS, Res, ExtAff],
-    execute_successfully(ServerHost, muc_insert_aff, Args).
+    execute_successfully(HostType, muc_insert_aff, Args).
 
--spec execute_select_aff(server_host(), room_id()) -> term().
-execute_select_aff(ServerHost, RoomID) ->
-    execute_successfully(ServerHost, muc_select_aff, [RoomID]).
+-spec execute_select_aff(mongooseim:host_type(), room_id()) -> term().
+execute_select_aff(HostType, RoomID) ->
+    execute_successfully(HostType, muc_select_aff, [RoomID]).
 
--spec execute_select_room_id(server_host(), muc_host(), jid:luser()) -> term().
-execute_select_room_id(ServerHost, MucHost, RoomName) ->
-    execute_successfully(ServerHost, muc_select_room_id, [MucHost, RoomName]).
+-spec execute_select_room_id(mongooseim:host_type(), muc_host(), jid:luser()) -> term().
+execute_select_room_id(HostType, MucHost, RoomName) ->
+    execute_successfully(HostType, muc_select_room_id, [MucHost, RoomName]).
 
--spec execute_select_room(server_host(), muc_host(), jid:luser()) -> term().
-execute_select_room(ServerHost, MucHost, RoomName) ->
-    execute_successfully(ServerHost, muc_select_room, [MucHost, RoomName]).
+-spec execute_select_room(mongooseim:host_type(), muc_host(), jid:luser()) -> term().
+execute_select_room(HostType, MucHost, RoomName) ->
+    execute_successfully(HostType, muc_select_room, [MucHost, RoomName]).
 
--spec execute_delete_affs(server_host(), room_id()) -> term().
-execute_delete_affs(ServerHost, RoomID) ->
-    execute_successfully(ServerHost, muc_delete_aff, [RoomID]).
+-spec execute_delete_affs(mongooseim:host_type(), room_id()) -> term().
+execute_delete_affs(HostType, RoomID) ->
+    execute_successfully(HostType, muc_delete_aff, [RoomID]).
 
--spec execute_delete_room(server_host(), muc_host(), jid:luser()) -> term().
-execute_delete_room(ServerHost, MucHost, RoomName) ->
-    execute_successfully(ServerHost, muc_delete_room, [MucHost, RoomName]).
+-spec execute_delete_room(mongooseim:host_type(), muc_host(), jid:luser()) -> term().
+execute_delete_room(HostType, MucHost, RoomName) ->
+    execute_successfully(HostType, muc_delete_room, [MucHost, RoomName]).
 
--spec execute_select_rooms(server_host(), muc_host()) -> term().
-execute_select_rooms(ServerHost, MucHost) ->
-    execute_successfully(ServerHost, muc_select_rooms, [MucHost]).
+-spec execute_select_rooms(mongooseim:host_type(), muc_host()) -> term().
+execute_select_rooms(HostType, MucHost) ->
+    execute_successfully(HostType, muc_select_rooms, [MucHost]).
 
--spec execute_select_nick_user(server_host(), muc_host(), jid:luser(), mod_muc:nick()) -> term().
-execute_select_nick_user(ServerHost, MucHost, UserS, Nick) ->
-    execute_successfully(ServerHost, muc_select_nick_user, [MucHost, UserS, Nick]).
+-spec execute_select_nick_user(mongooseim:host_type(), muc_host(), jid:luser(), mod_muc:nick()) -> term().
+execute_select_nick_user(HostType, MucHost, UserS, Nick) ->
+    execute_successfully(HostType, muc_select_nick_user, [MucHost, UserS, Nick]).
 
--spec execute_select_nick(server_host(), muc_host(), jid:luser(), jid:lserver()) -> term().
-execute_select_nick(ServerHost, MucHost, UserU, UserS) ->
-    execute_successfully(ServerHost, muc_select_nick, [MucHost, UserS, UserU]).
+-spec execute_select_nick(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) -> term().
+execute_select_nick(HostType, MucHost, UserU, UserS) ->
+    execute_successfully(HostType, muc_select_nick, [MucHost, UserS, UserU]).
 
--spec execute_delete_nick(server_host(), muc_host(), jid:luser(), jid:lserver()) -> term().
-execute_delete_nick(ServerHost, MucHost, UserU, UserS) ->
-    execute_successfully(ServerHost, muc_delete_nick, [MucHost, UserS, UserU]).
+-spec execute_delete_nick(mongooseim:host_type(), muc_host(), jid:luser(), jid:lserver()) -> term().
+execute_delete_nick(HostType, MucHost, UserU, UserS) ->
+    execute_successfully(HostType, muc_delete_nick, [MucHost, UserS, UserU]).
 
 %% Conversion functions
 

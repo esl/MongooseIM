@@ -129,7 +129,7 @@ publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     case mongoose_hooks:push_notifications(Host, Acc, [maps:from_list(PushPayload)], OptionMap) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
-            mod_event_pusher_push:disable_node(To, PubsubJID, Node);
+            mod_event_pusher_push:disable_node(Host, To, PubsubJID, Node);
         _ -> ok
     end.
 
@@ -151,8 +151,8 @@ publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
 
     ResponseHandler =
     fun(_From, _To, FAcc, Response) ->
-            mod_event_pusher_push:cast(Host, fun handle_publish_response/4,
-                                       [To, PubsubJID, Node, Response]),
+            mod_event_pusher_push:cast(Host, fun handle_publish_response/5,
+                                       [Host, To, PubsubJID, Node, Response]),
             FAcc
     end,
     %% The IQ is routed from the recipient's server JID to pubsub JID
@@ -161,19 +161,20 @@ publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
     mod_event_pusher_push:cast(Host, fun ejabberd_local:route_iq/5,
                                [NotificationFrom, PubsubJID, Acc, Stanza, ResponseHandler]).
 
--spec handle_publish_response(Recipient :: jid:jid(), PubsubJID :: jid:jid(),
+-spec handle_publish_response(Host :: jid:server(),
+                              Recipient :: jid:jid(), PubsubJID :: jid:jid(),
                               Node :: mod_event_pusher_push:pubsub_node(),
                               Result :: timeout | jlib:iq()) -> ok.
-handle_publish_response(_Recipient, _PubsubJID, _Node, timeout) ->
+handle_publish_response(_Host, _Recipient, _PubsubJID, _Node, timeout) ->
     ok;
-handle_publish_response(_Recipient, _PubsubJID, _Node, #iq{type = result}) ->
+handle_publish_response(_Host, _Recipient, _PubsubJID, _Node, #iq{type = result}) ->
     ok;
-handle_publish_response(Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
+handle_publish_response(Host, Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
     [Error | _ ] = [Err || #xmlel{name = <<"error">>} = Err <- Els],
     case exml_query:attr(Error, <<"type">>) of
         <<"cancel">> ->
             %% We disable the push node in case the error type is cancel
-            mod_event_pusher_push:disable_node(Recipient,PubsubJID, Node);
+            mod_event_pusher_push:disable_node(Host, Recipient, PubsubJID, Node);
         _ ->
             ok
     end.

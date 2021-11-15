@@ -940,7 +940,7 @@ change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
 save_persistent_room_state(StateData) ->
     case (StateData#state.config)#config.persistent of
         true ->
-            mod_muc:store_room(StateData#state.server_host,
+            mod_muc:store_room(StateData#state.host_type,
                                StateData#state.host,
                                StateData#state.room,
                                make_opts(StateData));
@@ -1092,7 +1092,7 @@ process_presence_unavailable(From, Packet, StateData) ->
     -> 'allowed' | 'conflict_registered' | 'conflict_use' | 'not_allowed_visitor'.
 choose_nick_change_strategy(From, Nick, StateData) ->
     case {is_nick_exists(Nick, StateData),
-          mod_muc:can_use_nick(StateData#state.server_host, StateData#state.host, From, Nick),
+          mod_muc:can_use_nick(StateData#state.host_type, StateData#state.host, From, Nick),
           (StateData#state.config)#config.allow_visitor_nickchange,
           is_visitor(From, StateData)} of
         {_, _, false, true} ->
@@ -1808,7 +1808,7 @@ choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
           is_next_session_of_occupant(From, Nick, StateData),
-          mod_muc:can_use_nick(StateData#state.server_host, StateData#state.host, From, Nick),
+          mod_muc:can_use_nick(StateData#state.host_type, StateData#state.host, From, Nick),
           Role,
           Affiliation} of
         {false, _, _, _, _, _} ->
@@ -2777,7 +2777,7 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
                     end, StateData, Res),
             case (NSD#state.config)#config.persistent of
                 true ->
-                    mod_muc:store_room(NSD#state.server_host,
+                    mod_muc:store_room(NSD#state.host_type,
                                        NSD#state.host, NSD#state.room, make_opts(NSD));
                 _ -> ok
             end,
@@ -3732,9 +3732,9 @@ change_config(Config, StateData) ->
     case {(StateData#state.config)#config.persistent,
       Config#config.persistent} of
     {_, true} ->
-        mod_muc:store_room(NSD#state.server_host, NSD#state.host, NSD#state.room, make_opts(NSD));
+        mod_muc:store_room(NSD#state.host_type, NSD#state.host, NSD#state.room, make_opts(NSD));
     {true, false} ->
-        mod_muc:forget_room(NSD#state.server_host, NSD#state.host, NSD#state.room);
+        mod_muc:forget_room(NSD#state.host_type, NSD#state.host, NSD#state.room);
     {false, false} ->
         ok
     end,
@@ -3860,7 +3860,7 @@ destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
         true ->
-            mod_muc:forget_room(StateData#state.server_host,
+            mod_muc:forget_room(StateData#state.host_type,
                                 StateData#state.host,
                                 StateData#state.room);
         false ->
@@ -4541,9 +4541,9 @@ route_invitation({ok, _IJIDs}, _From, _Packet, _Lang, StateData0) ->
     StateData0.
 
 -spec store_room_if_persistent(state()) -> any().
-store_room_if_persistent(#state{ host = Host, room = Room, server_host = ServerHost,
+store_room_if_persistent(#state{ host = Host, room = Room, host_type = HostType,
                                  config = #config{ persistent = true } } = StateData) ->
-    mod_muc:store_room(ServerHost, Host, Room, make_opts(StateData));
+    mod_muc:store_room(HostType, Host, Room, make_opts(StateData));
 store_room_if_persistent(_SD) ->
     ok.
 

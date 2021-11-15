@@ -13,7 +13,7 @@
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 
--behaviour(mod_roster).
+-behaviour(mod_roster_backend).
 
 %% API
 -export([init/2,

@@ -280,12 +280,12 @@ inbox_unread_count(LServer, Acc, User) ->
     run_hook_for_host_type(inbox_unread_count, LServer, Acc, [User]).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
--spec get_key(LServer, KeyName) -> Result when
-    LServer :: jid:lserver(),
+-spec get_key(HostType, KeyName) -> Result when
+    HostType :: mongooseim:host_type(),
     KeyName :: atom(),
     Result :: mod_keystore:key_list().
-get_key(LServer, KeyName) ->
-    run_hook_for_host_type(get_key, LServer, [], [{KeyName, LServer}]).
+get_key(HostType, KeyName) ->
+    run_hook_for_host_type(get_key, HostType, [], [{KeyName, HostType}]).
 
 -spec packet_to_component(Acc, From, To) -> Result when
     Acc :: mongoose_acc:t(),

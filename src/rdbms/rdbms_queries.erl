@@ -45,7 +45,6 @@
          execute_upsert/5]).
 
 -ignore_xref([
-    {mongoose_rdbms_type, get, 0},
     count_records_where/3, get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
 ]).
 
@@ -57,7 +56,7 @@
 -define(generic, true).
 -endif.
 
--define(RDBMS_TYPE, (mongoose_rdbms_type:get())).
+-define(RDBMS_TYPE, (mongoose_rdbms:db_type())).
 
 -include("mongoose.hrl").
 
@@ -82,7 +81,7 @@ get_db_type() ->
                      UpdateParams :: [any()],
                      UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
 execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:execute(Host, Name, InsertParams ++ UpdateParams);
         {pgsql, _} ->
@@ -111,14 +110,14 @@ prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
 
 prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
     UpdateFields = lists:filter(fun is_field/1, Updates),
-    case mongoose_rdbms_type:get() of
+    case mongoose_rdbms:db_type() of
         mssql ->
             UniqueKeyFields ++ InsertFields ++ UpdateFields;
         _ -> InsertFields ++ UpdateFields
     end.
 
 upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields) ->
-    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             upsert_mysql_query(Table, InsertFields, Updates, UniqueKeyFields);
         {pgsql, _} ->

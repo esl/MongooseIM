@@ -238,13 +238,13 @@ end_per_group(muc, _Config) ->
     HostType = domain_helper:host_type(mim),
     dynamic_modules:stop(HostType, mod_muc);
 end_per_group(muclight, Config) ->
-    muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
+    muc_light_helper:clear_db(HostType),
     dynamic_modules:stop(HostType, mod_muc_light),
     Config;
 end_per_group(muclight_config, Config) ->
-    muc_light_helper:clear_db(),
     HostType = domain_helper:host_type(mim),
+    muc_light_helper:clear_db(HostType),
     dynamic_modules:stop(HostType, mod_muc_light),
     escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 end_per_group(_GroupName, Config) ->

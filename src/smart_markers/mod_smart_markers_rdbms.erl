@@ -6,7 +6,7 @@
 %%%----------------------------------------------------------------------------
 -module(mod_smart_markers_rdbms).
 -author("denysgonchar").
--behavior(mod_smart_markers).
+-behavior(mod_smart_markers_backend).
 
 -export([init/2, update_chat_marker/2, get_chat_markers/4]).
 

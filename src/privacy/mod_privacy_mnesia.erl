@@ -28,7 +28,7 @@
 -module(mod_privacy_mnesia).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
--behaviour(mod_privacy).
+-behaviour(mod_privacy_backend).
 
 -export([init/2,
          get_default_list/3,

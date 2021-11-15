@@ -256,7 +256,7 @@ stop() ->
 
 %% ------------------------ Queries execution --------------------
 prepare_select_nodes_by_owner() ->
-    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms:db_type()} of
         {mysql, _} ->
             mongoose_rdbms:prepare(pubsub_select_nodes_by_owner, pubsub_nodes, [owners],
                 <<"SELECT name, type FROM pubsub_nodes WHERE owners = convert(?, JSON);">>);

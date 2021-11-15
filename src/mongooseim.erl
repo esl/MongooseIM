@@ -16,8 +16,9 @@
 -module(mongooseim).
 
 -type host_type() :: binary().
+-type host_type_or_global() :: host_type() | global.
 -type domain_name() :: jid:lserver().
--export_type([host_type/0, domain_name/0]).
+-export_type([host_type/0, host_type_or_global/0, domain_name/0]).
 
 %% API
 -export([start/0]).

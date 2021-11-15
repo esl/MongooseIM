@@ -7,7 +7,7 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_rdbms).
--behavior(mod_event_pusher_push).
+-behavior(mod_event_pusher_push_backend).
 
 -include("mongoose.hrl").
 -include_lib("jid/include/jid.hrl").

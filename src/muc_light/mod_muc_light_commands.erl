@@ -291,14 +291,16 @@ muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
 
 -spec get_user_rooms(UserUS :: jid:simple_bare_jid(), Domain :: jid:lserver()) ->
     [jid:simple_bare_jid()].
-get_user_rooms(UserUS, Domain) ->
-    mod_muc_light_db_backend:get_user_rooms(UserUS, Domain).
+get_user_rooms({_, UserS} = UserUS, Domain) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(UserS),
+    mod_muc_light_db_backend:get_user_rooms(HostType, UserUS, Domain).
 
 -spec get_room_name_and_user_aff(RoomUS :: jid:simple_bare_jid(),
                                  UserUS :: jid:simple_bare_jid()) ->
     {ok, RoomName :: binary(), UserAff :: aff()} | {error, not_exists}.
-get_room_name_and_user_aff(RoomUS, UserUS) ->
-    case mod_muc_light_db_backend:get_info(RoomUS) of
+get_room_name_and_user_aff(RoomUS, {_, UserS} = UserUS) ->
+    HostType = mod_muc_light_utils:server_host_to_host_type(UserS),
+    case mod_muc_light_db_backend:get_info(HostType, RoomUS) of
         {ok, Cfg, Affs, _} ->
             {roomname, RoomName} = lists:keyfind(roomname, 1, Cfg),
             {_, UserAff} = lists:keyfind(UserUS, 1, Affs),

@@ -55,7 +55,7 @@
          get_full_session_list/0,
          register_iq_handler/3,
          unregister_iq_handler/2,
-         force_update_presence/1,
+         force_update_presence/2,
          user_resources/2,
          get_session_pid/1,
          get_session/1,
@@ -65,7 +65,8 @@
          is_offline/1,
          get_user_present_pids/2,
          sync/0,
-         run_session_cleanup_hook/1
+         run_session_cleanup_hook/1,
+         sm_backend/0
         ]).
 
 %% Hook handlers
@@ -79,10 +80,10 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--ignore_xref([{ejabberd_sm_backend, backend, 0},
-              bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
-              do_filter/3, do_route/4, force_update_presence/1, get_unique_sessions_number/0,
-              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2]).
+-ignore_xref([bounce_offline_message/4, check_in_subscription/5, disconnect_removed_user/3,
+              do_filter/3, do_route/4, force_update_presence/2, get_unique_sessions_number/0,
+              get_user_present_pids/2, node_cleanup/2, start_link/0, user_resources/2,
+              sm_backend/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -221,7 +222,7 @@ open_session(HostType, SID, JID, Info) ->
       ReplacedPids :: [pid()].
 open_session(HostType, SID, JID, Priority, Info) ->
     set_session(SID, JID, Priority, Info),
-    ReplacedPIDs = check_for_sessions_to_replace(JID),
+    ReplacedPIDs = check_for_sessions_to_replace(HostType, JID),
     mongoose_hooks:sm_register_connection_hook(HostType, SID, JID, Info),
     ReplacedPIDs.
 
@@ -233,13 +234,13 @@ open_session(HostType, SID, JID, Priority, Info) ->
       Acc1 :: mongoose_acc:t().
 close_session(Acc, SID, JID, Reason) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    Info = case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
+    Info = case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
                [Session] ->
                    Session#session.info;
                _ ->
                    []
            end,
-    ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
+    ejabberd_sm_backend:delete_session(SID, LUser, LServer, LResource),
     mongoose_hooks:sm_remove_connection_hook(Acc, SID, JID, Info, Reason).
 
 -spec store_info(jid:jid(), info_key(), any()) ->
@@ -331,7 +332,7 @@ disconnect_removed_user(Acc, User, Server) ->
 -spec get_user_resources(JID :: jid:jid()) -> [binary()].
 get_user_resources(JID) ->
     #jid{luser = LUser, lserver = LServer} = JID,
-    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [element(3, S#session.usr) || S <- clean_session_list(Ss)].
 
 
@@ -351,7 +352,7 @@ get_session_ip(JID) ->
       JID :: jid:jid().
 get_session(JID) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
-    case ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource) of
+    case ejabberd_sm_backend:get_sessions(LUser, LServer, LResource) of
         [] ->
             offline;
         Ss ->
@@ -361,7 +362,7 @@ get_session(JID) ->
 -spec get_raw_sessions(jid:jid()) -> [session()].
 get_raw_sessions(#jid{luser = LUser, lserver = LServer}) ->
     clean_session_list(
-      ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)).
+      ejabberd_sm_backend:get_sessions(LUser, LServer)).
 
 -spec set_presence(Acc, SID, JID, Prio, Presence, Info) -> Acc1 when
       Acc :: mongoose_acc:t(),
@@ -411,7 +412,7 @@ get_session_pid(JID) ->
 -spec get_unique_sessions_number() -> integer().
 get_unique_sessions_number() ->
     try
-        C = ejabberd_gen_sm:unique_count(sm_backend()),
+        C = ejabberd_sm_backend:unique_count(),
         mongoose_metrics:update(global, ?UNIQUE_COUNT_CACHE, C),
         C
     catch
@@ -422,17 +423,17 @@ get_unique_sessions_number() ->
 
 -spec get_total_sessions_number() -> integer().
 get_total_sessions_number() ->
-    ejabberd_gen_sm:total_count(sm_backend()).
+    ejabberd_sm_backend:total_count().
 
 
 -spec get_vh_session_number(jid:server()) -> non_neg_integer().
 get_vh_session_number(Server) ->
-    length(ejabberd_gen_sm:get_sessions(sm_backend(), Server)).
+    length(ejabberd_sm_backend:get_sessions(Server)).
 
 
 -spec get_vh_session_list(jid:server()) -> [session()].
 get_vh_session_list(Server) ->
-    ejabberd_gen_sm:get_sessions(sm_backend(), Server).
+    ejabberd_sm_backend:get_sessions(Server).
 
 
 -spec get_node_sessions_number() -> non_neg_integer().
@@ -444,7 +445,7 @@ get_node_sessions_number() ->
 
 -spec get_full_session_list() -> [session()].
 get_full_session_list() ->
-    ejabberd_gen_sm:get_sessions(sm_backend()).
+    ejabberd_sm_backend:get_sessions().
 
 
 register_iq_handler(Host, XMLNS, IQHandler) ->
@@ -492,19 +493,13 @@ node_cleanup(Acc, Node) ->
 -spec init(_) -> {ok, state()}.
 init([]) ->
     {Backend, Opts} = mongoose_config:get_opt(sm_backend, {mnesia, []}),
-    {Mod, Code} = dynamic_compile:from_string(sm_backend(Backend)),
-    code:load_binary(Mod, "ejabberd_sm_backend.erl", Code),
+    ejabberd_sm_backend:init([{backend, Backend}|Opts]),
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
-
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),
     lists:foreach(fun(HostType) -> ejabberd_hooks:add(hooks(HostType)) end,
                   ?ALL_HOST_TYPES),
-
     ejabberd_commands:register_commands(commands()),
-
-    ejabberd_gen_sm:start(sm_backend(), Opts),
-
     {ok, #state{}}.
 
 hooks(HostType) ->
@@ -525,8 +520,7 @@ hooks(HostType) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({node_cleanup, Node}, _From, State) ->
-    BackendModule = sm_backend(),
-    {TimeDiff, _R} = timer:tc(fun BackendModule:cleanup/1, [Node]),
+    {TimeDiff, _R} = timer:tc(fun ejabberd_sm_backend:cleanup/1, [Node]),
     ?LOG_INFO(#{what => sm_node_cleanup,
                 text => <<"Cleaning after a node that went down">>,
                 cleanup_node => Node,
@@ -621,7 +615,7 @@ set_session(SID, JID, Priority, Info) ->
                        us = US,
                        priority = Priority,
                        info = Info},
-    ejabberd_gen_sm:create_session(sm_backend(), LUser, LServer, LResource, Session).
+    ejabberd_sm_backend:create_session(LUser, LServer, LResource, Session).
 
 -spec update_session(SID, JID, Prio, Info) -> ok | {error, any()} when
       SID :: sid() | 'undefined',
@@ -637,7 +631,7 @@ update_session(SID, JID, Priority, Info) ->
                        us = US,
                        priority = Priority,
                        info = Info},
-    ejabberd_gen_sm:update_session(sm_backend(), LUser, LServer, LResource, Session).
+    ejabberd_sm_backend:update_session(LUser, LServer, LResource, Session).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -890,13 +884,13 @@ clean_session_list([S1, S2 | Rest], Res) ->
       LUser :: jid:luser(),
       LServer :: jid:lserver().
 get_user_present_pids(LUser, LServer) ->
-    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [{S#session.priority, element(2, S#session.sid)} ||
      S <- clean_session_list(Ss), is_integer(S#session.priority)].
 
 -spec get_user_present_resources(jid:jid()) -> [{priority(), binary()}].
 get_user_present_resources(#jid{luser = LUser, lserver = LServer}) ->
-    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     [{S#session.priority, element(3, S#session.usr)} ||
         S <- clean_session_list(Ss), is_integer(S#session.priority)].
 
@@ -912,26 +906,29 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @doc On new session, check if some existing connections need to be replace
--spec check_for_sessions_to_replace(JID) -> ReplacedPids when
+-spec check_for_sessions_to_replace(HostType, JID) -> ReplacedPids when
+      HostType :: mongooseim:host_type(),
       JID :: jid:jid(),
       ReplacedPids :: [pid()].
-check_for_sessions_to_replace(JID) ->
+check_for_sessions_to_replace(HostType, JID) ->
     #jid{luser = LUser, lserver = LServer, lresource = LResource} = JID,
     %% TODO: Depending on how this is executed, there could be an unneeded
     %% replacement for max_sessions. We need to check this at some point.
-    ReplacedRedundantSessions = check_existing_resources(LUser, LServer, LResource),
-    AllReplacedSessionPids = check_max_sessions(LUser, LServer, ReplacedRedundantSessions),
+    ReplacedRedundantSessions = check_existing_resources(HostType, LUser, LServer, LResource),
+    AllReplacedSessionPids = check_max_sessions(HostType, LUser, LServer, ReplacedRedundantSessions),
     [Pid ! replaced || Pid <- AllReplacedSessionPids],
     AllReplacedSessionPids.
 
--spec check_existing_resources(LUser, LServer, LResource) -> ReplacedSessionsPIDs when
-      LUser :: 'error' | jid:luser() | tuple(),
-      LServer :: 'error' | jid:lserver() | tuple(),
-      LResource :: 'error' | jid:lresource() | [byte()] | tuple(),
+-spec check_existing_resources(HostType, LUser, LServer, LResource) ->
+        ReplacedSessionsPIDs when
+      HostType :: mongooseim:host_type(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
+      LResource :: jid:lresource(),
       ReplacedSessionsPIDs :: ordsets:ordset(pid()).
-check_existing_resources(LUser, LServer, LResource) ->
+check_existing_resources(_HostType, LUser, LServer, LResource) ->
     %% A connection exist with the same resource. We replace it:
-    Sessions = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer, LResource),
+    Sessions = ejabberd_sm_backend:get_sessions(LUser, LServer, LResource),
     case [S#session.sid || S <- Sessions] of
         [] -> [];
         SIDs ->
@@ -939,10 +936,12 @@ check_existing_resources(LUser, LServer, LResource) ->
             ordsets:from_list([Pid || {_, Pid} = S <- SIDs, S /= MaxSID])
     end.
 
-
--spec check_max_sessions(LUser :: jid:user(), LServer :: jid:server(),
-                         ReplacedPIDs :: [pid()]) -> AllReplacedPIDs :: ordsets:ordset(pid()).
-check_max_sessions(LUser, LServer, ReplacedPIDs) ->
+-spec check_max_sessions(HostType :: mongooseim:host_type(),
+                         LUser :: jid:luser(),
+                         LServer :: jid:lserver(),
+                         ReplacedPIDs :: [pid()]) ->
+    AllReplacedPIDs :: ordsets:ordset(pid()).
+check_max_sessions(HostType, LUser, LServer, ReplacedPIDs) ->
     %% If the max number of sessions for a given is reached, we replace the
     %% first one
     SIDs = lists:filtermap(
@@ -953,8 +952,8 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
                         false -> {true, SID}
                     end
                 end,
-                ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
-    MaxSessions = get_max_user_sessions(LUser, LServer),
+                ejabberd_sm_backend:get_sessions(LUser, LServer)),
+    MaxSessions = get_max_user_sessions(HostType, LUser, LServer),
     case length(SIDs) =< MaxSessions of
         true -> ordsets:to_list(ReplacedPIDs);
         false ->
@@ -966,12 +965,14 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
 %% @doc Get the user_max_session setting
 %% This option defines the max number of time a given users are allowed to
 %% log in. Defaults to infinity
--spec get_max_user_sessions(LUser, Host) -> infinity | pos_integer() when
-      LUser :: jid:user(),
-      Host :: jid:server().
-get_max_user_sessions(LUser, Host) ->
-    case acl:match_rule(
-           Host, max_user_sessions, jid:make_noprep(LUser, Host, <<>>)) of
+-spec get_max_user_sessions(HostType, LUser, LServer) -> Result when
+      HostType :: mongooseim:host_type(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
+      Result :: infinity | pos_integer().
+get_max_user_sessions(HostType, LUser, LServer) ->
+    JID = jid:make_noprep(LUser, LServer, <<>>),
+    case acl:match_rule_for_host_type(HostType, LServer, max_user_sessions, JID) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_SESSIONS
@@ -1006,9 +1007,9 @@ process_iq(_, From, To, Acc, Packet) ->
    ejabberd_router:route(To, From, Acc1, Err).
 
 
--spec force_update_presence({jid:user(), jid:server()}) -> 'ok'.
-force_update_presence({LUser, LServer}) ->
-    Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
+-spec force_update_presence(mongooseim:host_type(), {jid:luser(), jid:lserver()}) -> 'ok'.
+force_update_presence(_HostType, {LUser, LServer}) ->
+    Ss = ejabberd_sm_backend:get_sessions(LUser, LServer),
     lists:foreach(fun(#session{sid = {_, Pid}}) ->
                           Pid ! {force_update_presence, LUser}
                   end, Ss).
@@ -1047,17 +1048,6 @@ user_resources(UserStr, ServerStr) ->
     Resources = get_user_resources(JID),
     lists:sort(Resources).
 
--spec sm_backend(backend()) -> string().
-sm_backend(Backend) ->
-    lists:flatten(
-      ["-module(ejabberd_sm_backend).
-        -export([backend/0]).
-        -spec backend() -> atom().
-        backend() ->
-            ejabberd_sm_",
-       atom_to_list(Backend),
-       ".\n"]).
-
 -spec get_cached_unique_count() -> non_neg_integer().
 get_cached_unique_count() ->
     case mongoose_metrics:get_metric_value(global, ?UNIQUE_COUNT_CACHE) of
@@ -1067,6 +1057,7 @@ get_cached_unique_count() ->
             0
     end.
 
+%% It is used from big tests
 -spec sm_backend() -> backend().
 sm_backend() ->
-    ejabberd_sm_backend:backend().
+    mongoose_backend:get_backend_module(global, ?MODULE).

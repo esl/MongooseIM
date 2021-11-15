@@ -24,7 +24,7 @@
 %%%----------------------------------------------------------------------
 
 -module(mod_offline_rdbms).
--behaviour(mod_offline).
+-behaviour(mod_offline_backend).
 -export([init/2,
          pop_messages/2,
          fetch_messages/2,

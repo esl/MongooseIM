@@ -111,7 +111,6 @@
 -export([config_metrics/1]).
 
 -define(MOD_PUBSUB_DB_BACKEND, mod_pubsub_db_backend).
--define(MOD_PUBSUB_CACHE_BACKEND, mod_pubsub_cache_backend).
 -ignore_xref([
     {?MOD_PUBSUB_DB_BACKEND, transaction, 2},
     {?MOD_PUBSUB_DB_BACKEND, get_user_nodes, 2},
@@ -120,10 +119,6 @@
     {?MOD_PUBSUB_DB_BACKEND, start, 0},
     {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
     {?MOD_PUBSUB_DB_BACKEND, stop, 0},
-    {?MOD_PUBSUB_CACHE_BACKEND, get_last_item, 2},
-    {?MOD_PUBSUB_CACHE_BACKEND, upsert_last_item, 5},
-    {?MOD_PUBSUB_CACHE_BACKEND, start, 1},
-    {?MOD_PUBSUB_CACHE_BACKEND, delete_last_item, 2},
     affiliation_to_string/1, caps_recognised/4, config/3, create_node/7, default_host/0,
     delete_item/4, delete_node/3, disco_local_features/1, disco_sm_features/1,
     disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
@@ -4140,14 +4135,10 @@ maybe_start_cache_module(ServerHost, Opts) ->
     case proplists:get_value(last_item_cache, Opts, false) of
         false ->
             ok;
-        Backend ->
-            start_cache_module(ServerHost, Backend)
+        _Backend ->
+            mod_pubsub_cache_backend:start(ServerHost, Opts)
     end.
 
-start_cache_module(ServerHost, Backend) ->
-    gen_mod:start_backend_module(mod_pubsub_cache, [{backend, Backend}],
-         [upsert_last_item, delete_last_item, get_last_item]),
-    mod_pubsub_cache_backend:start(ServerHost).
 
 is_last_item_cache_enabled(Host) ->
     case cache_backend(Host) of

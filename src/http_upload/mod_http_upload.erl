@@ -46,17 +46,7 @@
 %% mongoose_module_metrics callbacks
 -export([config_metrics/1]).
 
--ignore_xref([{mod_http_upload_backend, create_slot, 6},
-              behaviour_info/1, disco_local_items/1, process_disco_iq/5, process_iq/5]).
-
-%%--------------------------------------------------------------------
-%% Callbacks
-%%--------------------------------------------------------------------
-
--callback create_slot(UTCDateTime :: calendar:datetime(), UUID :: binary(),
-                      Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
-                      Size :: pos_integer(), Opts :: proplists:proplist()) ->
-    {PUTURL :: binary(), GETURL :: binary(), Headers :: #{binary() => binary()}}.
+-ignore_xref([behaviour_info/1, disco_local_items/1, process_disco_iq/5, process_iq/5]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -72,7 +62,7 @@ start(HostType, Opts) ->
     [gen_iq_handler:add_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, 
                                                  Component, Fn, #{}, IQDisc) ||
         {Component, Namespace, Fn} <- iq_handlers()],
-    gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]),
+    mod_http_upload_backend:init(HostType, with_default_backend(Opts)),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
@@ -157,7 +147,7 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
                     Opts = module_opts(HostType),
 
                     {PutUrl, GetUrl, Headers} =
-                        mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
+                        mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
                                                             ContentType, Size, Opts),
 
                     compose_iq_reply(IQ, PutUrl, GetUrl, Headers);
@@ -209,7 +199,7 @@ get_urls(HostType, Filename, Size, ContentType, Timeout) ->
     Token = generate_token(HostType),
     Opts = module_opts(HostType),
     NewOpts = gen_mod:set_opt(expiration_time, Opts, Timeout),
-    mod_http_upload_backend:create_slot(UTCDateTime, Token, Filename,
+    mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
                                         ContentType, Size, NewOpts).
 
 %%--------------------------------------------------------------------

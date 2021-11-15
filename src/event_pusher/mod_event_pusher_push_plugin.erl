@@ -24,8 +24,6 @@
          prepare_notification/3,
          publish_notification/5]).
 
--ignore_xref([behaviour_info/1]).
-
 -callback should_publish(Acc :: mongooseim_acc:t(),
                          Event :: mod_event_pusher:event(),
                          Services :: [mod_event_pusher_push:publish_service()]) ->

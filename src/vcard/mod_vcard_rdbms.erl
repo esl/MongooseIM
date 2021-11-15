@@ -25,7 +25,7 @@
 
 -module(mod_vcard_rdbms).
 
--behaviour(mod_vcard).
+-behaviour(mod_vcard_backend).
 
 %% mod_vcards callbacks
 -export([init/2,
@@ -207,7 +207,7 @@ search(HostType, LServer, Data) ->
 limit_type(infinity) ->
     infinity;
 limit_type(_Limit) ->
-    case mongoose_rdbms_type:get() of
+    case mongoose_rdbms:db_type() of
         mssql -> top;
         _ -> limit
     end.

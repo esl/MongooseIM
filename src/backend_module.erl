@@ -26,7 +26,7 @@
 -author('alexey@process-one.net').
 -author('konrad.zemek@erlang-solutions.com').
 
--export([create/2, backend_module/2, create/3, is_exported/3]).
+-export([create/2, create/3, backend_module/2, is_exported/3]).
 
 -ignore_xref([create/2, backend_module/2, behaviour_info/1]).
 
@@ -45,7 +45,7 @@ create(For, Name) ->
 create(Module, Backend, TrackedFuns) ->
     ProxyModule = proxy_module(Module),
     BackendModule = backend_module(Module, Backend),
-    ensure_backend_metrics(Module, TrackedFuns),
+    mongoose_backend:ensure_backend_metrics(Module, TrackedFuns),
     case catch ProxyModule:backend() of
         BackendModule ->
             {error, already_loaded};
@@ -126,10 +126,3 @@ generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
      "    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]), \n",
      "    mongoose_metrics:update(global, ", TimeMetric, ", Time), \n",
      "    Result.\n"].
-
-ensure_backend_metrics(Module, Ops) ->
-    EnsureFun = fun(Op) ->
-                        mongoose_metrics:ensure_metric(global, calls_metric(Module, Op), spiral),
-                        mongoose_metrics:ensure_metric(global, time_metric(Module, Op), histogram)
-                end,
-    lists:foreach(EnsureFun, Ops).

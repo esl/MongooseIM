@@ -11,7 +11,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_push_mnesia).
 -author("Rafal Slota").
--behavior(mod_event_pusher_push).
+-behavior(mod_event_pusher_push_backend).
 
 %%--------------------------------------------------------------------
 %% Exports

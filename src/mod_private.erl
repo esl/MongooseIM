@@ -43,12 +43,6 @@
 
 -define(MOD_PRIVATE_BACKEND, mod_private_backend).
 -ignore_xref([
-    {?MOD_PRIVATE_BACKEND, get_all_nss, 3},
-    {?MOD_PRIVATE_BACKEND, multi_get_data, 4},
-    {?MOD_PRIVATE_BACKEND, multi_set_data, 4},
-    {?MOD_PRIVATE_BACKEND, remove_user, 3},
-    {?MOD_PRIVATE_BACKEND, remove_domain, 2},
-    {?MOD_PRIVATE_BACKEND, init, 2},
     behaviour_info/1, get_personal_data/3, remove_user/3, remove_domain/3
 ]).
 
@@ -56,49 +50,6 @@
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 -xep([{xep, 49}, {version, "1.2"}]).
-
--type ns() :: binary().
-
-%% ------------------------------------------------------------------
-%% Backend callbacks
-
--callback init(HostType, Opts) -> ok when
-    HostType :: mongooseim:host_type(),
-    Opts     :: list().
-
--callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NS2XML  :: [{NS, XML}],
-    NS      :: ns(),
-    XML     :: #xmlel{},
-    Reason  :: term(),
-    Result  :: ok | {aborted, Reason} | {error, Reason}.
-
--callback multi_get_data(HostType, LUser, LServer, NS2Def) -> [XML | Default] when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NS2Def  :: [{NS, Default}],
-    NS      :: ns(),
-    Default :: term(),
-    XML     :: #xmlel{}.
-
--callback remove_user(HostType, LUser, LServer) -> any() when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver().
-
--callback remove_domain(HostType, LServer) -> any() when
-    HostType :: mongooseim:host_type(),
-    LServer :: jid:lserver().
-
--callback get_all_nss(HostType, LUser, LServer) -> NSs when
-    HostType :: mongooseim:host_type(),
-    LUser   :: jid:luser(),
-    LServer :: jid:lserver(),
-    NSs     :: [ns()].
 
 %%--------------------------------------------------------------------
 %% gdpr callback
@@ -120,7 +71,6 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% gen_mod callbacks
 
 start(HostType, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, [multi_get_data, multi_set_data]),
     mod_private_backend:init(HostType, Opts),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(hooks(HostType)),

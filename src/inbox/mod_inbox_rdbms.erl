@@ -9,7 +9,7 @@
 
 -include("mod_inbox.hrl").
 
--behaviour(mod_inbox).
+-behaviour(mod_inbox_backend).
 
 %% API
 -export([get_inbox/4,
@@ -166,7 +166,7 @@ clear_inbox(HostType, LUser, LServer) ->
 
 -spec get_entry_properties(HosType :: mongooseim:host_type(),
                            InboxEntryKey :: mod_inbox:entry_key()) ->
-    entry_properties().
+    entry_properties() | nil().
 get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
     case execute_select_properties(HostType, LUser, LServer, RemBareJID) of
         {selected, []} ->

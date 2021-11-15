@@ -1453,7 +1453,7 @@ get_us_from_spec(UserSpec) ->
 
 clear_session_table() ->
     Node = ct:get_config({hosts, mim, node}),
-    SessionBackend  = rpc(mim(), ejabberd_sm_backend, backend, []),
+    SessionBackend  = rpc(mim(), ejabberd_sm, sm_backend, []),
     rpc(mim(), SessionBackend, cleanup, [Node]).
 
 clear_sm_session_table() ->

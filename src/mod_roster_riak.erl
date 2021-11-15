@@ -13,7 +13,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--behaviour(mod_roster).
+-behaviour(mod_roster_backend).
 
 %% API
 -export([init/2,
