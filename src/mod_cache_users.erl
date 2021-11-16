@@ -1,6 +1,8 @@
 %% @doc Caches info about non-anonymous users using a queue of ets tables
 -module(mod_cache_users).
 
+-include("mongoose_config_spec.hrl").
+
 -behaviour(gen_mod).
 
 %% gen_mod API
@@ -31,7 +33,8 @@ stop(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    mongoose_user_cache:config_spec().
+    Sec = #section{items = Items} = mongoose_user_cache:config_spec(),
+    Sec#section{items = maps:remove(<<"module">>, Items)}.
 
 -spec supported_features() -> [atom()].
 supported_features() ->

@@ -2165,6 +2165,8 @@ test_mod_mam_meta(T, M) ->
     ?errf(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})),
     ?errf(T(#{<<"cache">> => #{<<"module">> => <<"mod_wrong_cache">>}})),
+    ?errf(T(#{<<"cache">> => #{<<"module">> => <<"mod_cache_users">>,
+                               <<"time_to_live">> => 8600}})),
     ?errf(T(#{<<"cache">> => #{<<"time_to_live">> => 0}})),
     ?errf(T(#{<<"cache">> => #{<<"strategy">> => <<"lifo">>}})),
     ?errf(T(#{<<"cache">> => #{<<"number_of_segments">> => 0}})),
