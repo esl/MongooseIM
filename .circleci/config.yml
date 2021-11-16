@@ -17,7 +17,7 @@ jobs:
       - run: # run a command
           name: Generate config
           command: |
-            mv .circleci/template.yml generated_config.yml
+            tools/circle-generate-config.sh generated_config.yml
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
 

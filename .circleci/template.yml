@@ -25,7 +25,28 @@ executors:
           - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
         command: ["server", "/data"]
       - image: rabbitmq:3.7-alpine
-
+  otp_24_mysql_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: mysql:8.0.20
+        environment:
+          - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+          - MINIO_SECRET_KEY: "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"
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
+          - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
+          - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
+          - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
+          - ENV_FILE_SQL_PATH: "/docker-entrypoint-initdb.d/mysql.sql"
+          - ENV_FILE_SQL_DATA: "__MYSQL_SQL__"
+          - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-mysql.sh"
+          - ENV_FILE_SH_DATA: "__MYSQL_SETUP__"
+          - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
+          - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+          - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
+          - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
 commands:
   install_erlang:
     parameters:
@@ -495,16 +516,16 @@ jobs:
       PRESET: <<parameters.preset>>
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
-      ELASTICSEARCH_VERSION: 5.6.9
-      CASSANDRA_VERSION: 3.9
-      REDIS_VERSION: 3.2.10
-      SKIP_AUTO_COMPILE: true
+#     ELASTICSEARCH_VERSION: 5.6.9
+#     CASSANDRA_VERSION: 3.9
+#     REDIS_VERSION: 3.2.10
+#     SKIP_AUTO_COMPILE: true
       KEEP_COVER_RUNNING: 1
     steps:
       - restore_workspace
       - install_dockerize
-      - dockerize_wait: {port: 6379} # Wait for redis
-      - dockerize_wait: {port: 5672} # Wait for rmq
+#     - dockerize_wait: {port: 6379} # Wait for redis
+#     - dockerize_wait: {port: 5672} # Wait for rmq
       - maybe_prepare_minio
       - prepare_etc_hosts
       - run:
@@ -665,6 +686,14 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: mysql_redis_24
+          executor: otp_24_mysql_redis
+          context: mongooseim-org
+          preset: mysql_redis
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 23 =============
@@ -719,15 +748,6 @@ workflows:
           otp_package: 24.0-1
           preset: ldap_mnesia
           db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: mysql_redis_24
-          otp_package: 24.0-1
-          preset: mysql_redis
-          db: mysql
           context: mongooseim-org
           requires:
             - otp_24
