@@ -2,8 +2,12 @@ all: mongooseim/cert.pem mongooseim/key.pem \
   mongooseim/server.pem mongooseim/dh_server.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
   ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt \
-  ca-clients/cacert.pem ca-clients/cakey.pem ca-clients/index.txt ca-clients/serial.txt
+  ca-clients/cacert.pem ca-clients/cakey.pem ca-clients/index.txt ca-clients/serial.txt \
+  ca/db_cacert.pem
 	chmod -R a+r mongooseim ca ca-clients
+
+ca/db_cacert.pem: ca/cacert.pem
+	cp ca/cacert.pem ca/db_cacert.pem
 
 %/cacert.pem %/cakey.pem: openssl-%.cnf
 	mkdir -p $(@D)

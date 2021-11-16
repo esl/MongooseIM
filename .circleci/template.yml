@@ -459,12 +459,14 @@ jobs:
     environment:
       SKIP_RELEASE: 1
       SKIP_COV: 0
+      DB_CACERT: "__DB_CACERT__"
     steps:
       - checkout
       - prepare_for_cache
       - fetch_build_packages
       - maybe_build_deps_and_cache
       - maybe_build_certs
+      - run: ./tools/circle-db-cacert-from-env-var.sh
       - run: ./rebar3 compile
       - run:
           name: Generate development releases

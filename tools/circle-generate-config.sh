@@ -23,6 +23,7 @@ MYSQL_SETUP=$(cat64 tools/docker-setup-mysql.sh)
 MIM_CERT=$(cat64 tools/ssl/mongooseim/cert.pem)
 MIM_KEY=$(cat64 tools/ssl/mongooseim/key.pem)
 INJECT_FILES=$(cat64 tools/inject-files.sh)
+CACERT=$(cat64 tools/ssl/ca/db_cacert.pem)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
@@ -30,5 +31,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MIM_CERT__/${MIM_CERT}/" \
     -e "s/__MIM_KEY__/${MIM_KEY}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
+    -e "s/__DB_CACERT__/${CACERT}/" \
     .circleci/template.yml \
     > "$OUT_FILE"
