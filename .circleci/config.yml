@@ -24,9 +24,12 @@ jobs:
 commands:
   maybe_build_certs:
     steps:
+      - run:
+          name: Make year_month
+          command: date "+%Y-%m" > year_month
       - restore_cache:
           name: Restore certificates
-          key: certs-cache
+          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
       - run:
           name: Maybe rebuild certificates if they're about to expire
           command: make certs
@@ -35,7 +38,7 @@ commands:
           command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
-          key: certs-cache
+          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
           paths:
             - ~/app/tools/ssl/ca
             - ~/app/tools/ssl/ca-clients
