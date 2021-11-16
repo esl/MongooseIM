@@ -32,6 +32,11 @@ executors:
       - image: circleci/redis:6.0.5
       - image: mysql:8.0.20
         environment:
+          - SQL_TEMP_DIR: /tmp/sql
+          - MYSQL_ROOT_PASSWORD: secret
+          - MYSQL_DATABASE: ejabberd
+          - MYSQL_USER: ejabberd
+          - MYSQL_PASSWORD: mongooseim_secret
           - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
           - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
           - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
