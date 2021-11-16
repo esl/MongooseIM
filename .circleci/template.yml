@@ -115,7 +115,9 @@ commands:
           name: Cache built certs
           key: certs-cache
           paths:
-            - ~/app/tools/ssl
+            - ~/app/tools/ssl/ca
+            - ~/app/tools/ssl/ca-clients
+            - ~/app/tools/ssl/mongooseim
   build_and_cache_prod_build:
     steps:
       - run:
@@ -224,9 +226,7 @@ commands:
       - restore_cache:
           name: Restore deps artifacts
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-      - restore_cache:
-          name: Restore certificates
-          key: certs-cache
+      - maybe_build_certs
   prepare_for_cache:
     steps:
       - run:

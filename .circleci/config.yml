@@ -37,7 +37,9 @@ commands:
           name: Cache built certs
           key: certs-cache
           paths:
-            - ~/app/tools/ssl
+            - ~/app/tools/ssl/ca
+            - ~/app/tools/ssl/ca-clients
+            - ~/app/tools/ssl/mongooseim
 
 # our single workflow, that triggers the setup job defined above
 workflows:
