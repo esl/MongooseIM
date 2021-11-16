@@ -210,9 +210,10 @@ Setting properties is done using the standard XMPP pattern of `iq-query` and `iq
   </query>
 </iq>
 ```
-Where `Property` and `Value` are a list of key-value pairs as follows:
+where `Property` and `Value` are a list of key-value pairs as follows:
+
 - `archive`: `true` or `false`
-- `mute`: number of seconds to mute for. Choose `0` for unmuting.
+- `mute`: number of _seconds_ to mute for. Choose `0` for unmuting.
 - `read` (adjective, not verb): `true` or `false`. Setting to true essentially sets the unread-count to `0`, `false` sets the unread-count to `1` (if it was equal to `0`, otherwise it lefts it unchanged). No other possibilities are offered, to reduce the risk of inconsistencies or problems induced by a faulty client.
 
 *Note* that resetting the inbox count will not be forwarded. While a chat marker will be forwarded to the interlocutor(s), (including the case of a big groupchat with thousands of participants), this reset stanza will not.  
