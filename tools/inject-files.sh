@@ -3,6 +3,9 @@
 # export ENV_FILE_CFG_PATH=/tmp/test
 # export ENV_FILE_CFG_DATA=meow
 set -e
+
+export
+
 echo "Injecting files"
 for var in "${!ENV_FILE_@}"; do
     # If ends with _PATH
