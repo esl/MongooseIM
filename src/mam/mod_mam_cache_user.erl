@@ -14,14 +14,14 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod handlers
--export([start/2, stop/1, deps/2, supported_features/0]).
+-export([start/2, stop/1, supported_features/0]).
 
 %% ejabberd handlers
 -export([cached_archive_id/3,
          store_archive_id/3,
          remove_archive/4]).
 
--ignore_xref([start/2, stop/1, deps/2, supported_features/0,
+-ignore_xref([start/2, stop/1, supported_features/0,
               cached_archive_id/3, store_archive_id/3, remove_archive/4]).
 
 %%====================================================================
@@ -33,13 +33,6 @@ start(HostType, Opts) ->
     start_cache(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType, Opts)),
     ok.
-
--spec deps(mongooseim:host_type(), proplists:proplist()) -> gen_mod:deps_list().
-deps(_, Opts) ->
-    case gen_mod:get_opt(cache_module, Opts, internal) of
-        internal -> [];
-        mod_cache_users -> [{mod_cache_users, hard}]
-    end.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -84,8 +77,7 @@ muc_hooks(HostType) ->
 -spec cached_archive_id(undefined, mongooseim:host_type(), jid:jid()) ->
     mod_mam:archive_id().
 cached_archive_id(undefined, HostType, ArcJid) ->
-    CacheName = cache_name(HostType),
-    case segmented_cache:get_entry(CacheName, key(ArcJid)) of
+    case mongoose_user_cache:get_entry(HostType, ?MODULE, ArcJid) of
         #{id := ArchId} -> ArchId;
         _ ->
             put(mam_not_cached_flag, true),
@@ -99,47 +91,23 @@ store_archive_id(ArchId, HostType, ArcJid) ->
         undefined ->
             ArchId;
         true ->
-            CacheName = cache_name(HostType),
-            segmented_cache:merge_entry(CacheName, key(ArcJid), #{id => ArchId}),
+            mongoose_user_cache:merge_entry(HostType, ?MODULE, ArcJid, #{id => ArchId}),
             ArchId
     end.
 
 -spec remove_archive(Acc :: map(), HostType :: mongooseim:host_type(),
                      ArchId :: mod_mam:archive_id(), ArcJid :: jid:jid()) -> map().
 remove_archive(Acc, HostType, _UserID, ArcJid) ->
-    CacheName = cache_name(HostType),
-    segmented_cache:delete_entry(CacheName, key(ArcJid)),
+    mongoose_user_cache:delete_user(HostType, ?MODULE, ArcJid),
     Acc.
 
 %%====================================================================
 %% internal
 %%====================================================================
--spec cache_name(mongooseim:host_type()) -> atom().
-cache_name(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, cache_module, internal) of
-        internal -> cache_name(HostType, ?MODULE);
-        CacheMod -> cache_name(HostType, CacheMod)
-    end.
-
--spec cache_name(mongooseim:host_type(), module()) -> atom().
-cache_name(HostType, Module) ->
-    gen_mod:get_module_proc(HostType, Module).
-
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    case gen_mod:get_opt(cache_module, Opts, internal) of
-        internal -> mod_cache_users:start_new_cache(HostType, ?MODULE, Opts);
-        mod_cache_users -> ok
-    end.
+    mongoose_user_cache:start_new_cache(HostType, ?MODULE, Opts).
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, cache_module, internal) of
-        internal -> ejabberd_sup:stop_child(cache_name(HostType, ?MODULE));
-        mod_cache_users -> ok
-    end.
-
--compile({inline, [key/1]}).
--spec key(jid:jid()) -> jid:simple_bare_jid().
-key(Jid) ->
-    jid:to_lus(Jid).
+    mongoose_user_cache:stop_cache(HostType, ?MODULE).

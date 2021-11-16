@@ -71,7 +71,7 @@ config_items() ->
 
       %% RDBMS-specific options
       <<"cache_users">> => #option{type = boolean},
-      <<"cache_config">> => mongoose_config_spec:user_cache(),
+      <<"cache">> => mongoose_user_cache:config_spec(),
       <<"rdbms_message_format">> => #option{type = atom,
                                             validate = {enum, [simple, internal]}},
       <<"async_writer">> => #option{type = boolean},
@@ -274,14 +274,14 @@ add_default_rdbms_opts(Opts) ->
       end, Opts, [{async_writer, true}]).
 
 add_rdbms_cache_opts(Opts) ->
-    case {lists:keyfind(cache_users, 1, Opts), lists:keyfind(cache_config, 1, Opts)} of
+    case {lists:keyfind(cache_users, 1, Opts), lists:keyfind(cache, 1, Opts)} of
         {{cache_users, false}, _} ->
-            lists:keydelete(cache_config, 1, Opts);
+            lists:keydelete(cache, 1, Opts);
         {{cache_users, true}, false} ->
-            [{cache_config, []} | Opts];
+            [{cache, []} | Opts];
         {false, false} ->
-            [{cache_config, []} | Opts];
-        {false, {cache_config, _}} ->
+            [{cache, []} | Opts];
+        {false, {cache, _}} ->
             Opts
     end.
 
@@ -289,10 +289,10 @@ add_rdbms_cache_opts(Opts) ->
                       Option :: {module(), term()}, deps()) -> deps().
 parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
     case Option of
-        {cache_config, CacheOpts} ->
-            Deps1 = case gen_mod:get_opt(cache_module, CacheOpts, internal) of
+        {cache, CacheOpts} ->
+            Deps1 = case gen_mod:get_opt(module, CacheOpts, internal) of
                         internal -> Deps;
-                        mod_cache_users -> add_dep(mod_cache_users, CacheOpts, Deps)
+                        mod_cache_users -> add_dep(mod_cache_users, Deps)
                     end,
             add_dep(mod_mam_cache_user, [Type | CacheOpts], Deps1);
         {user_prefs_store, rdbms} ->

@@ -212,15 +212,15 @@ Enables Archive ID to integer mappings cache.
 If caching is enabled, by default it will spawn its own [segmented cache](https://github.com/esl/segmented_cache) cache, with defaults as in [`mod_cache_users`](./mod_cache_users.md). To change these defaults, the same config can be accessed within the `cache_config` key. To see details about the meaning of each flag, see [`mod_cache_users`](./mod_cache_users.md). To reuse the cache already created by `mod_cache_users`, see the option below.
 
 ```toml
-modules.mod_mam_meta.cache_config.strategy
-modules.mod_mam_meta.cache_config.time_to_live
-modules.mod_mam_meta.cache_config.number_of_segments
+modules.mod_mam_meta.cache.strategy
+modules.mod_mam_meta.cache.time_to_live
+modules.mod_mam_meta.cache.number_of_segments
 ```
 
-#### `modules.mod_mam_meta.cache_config.cache_module`
+#### `modules.mod_mam_meta.cache.module`
 * **Syntax:** string, one of `"mod_cache_users"` or `"internal"`
 * **Default:** `internal`
-* **Example:** `modules.mod_mam_meta.cache_config.cache_module = "mod_cache_users`
+* **Example:** `modules.mod_mam_meta.cache.module = "mod_cache_users`
 
 Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled.
 
