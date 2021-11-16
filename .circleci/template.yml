@@ -141,16 +141,6 @@ commands:
       - prepare_for_cache
       - restore_cache:
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-  install_dockerize:
-    steps:
-      - run:
-          name: Install dockerize
-          command: |
-            wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
-            sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
-            rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
-          environment:
-            DOCKERIZE_VERSION: v0.6.1
   dockerize_wait:
     parameters: {port: {type: integer}}
     steps:
@@ -490,8 +480,10 @@ jobs:
       SKIP_AUTO_COMPILE: true
     steps:
       - restore_workspace
-      - install_dockerize
-      - dockerize_wait: {port: 6379}
+      - run:
+          name: Wait for redis
+          command: |
+            ./tools/wait-for-it.sh -p "6379"
       - run:
           name: Run Small Tests
           command: |
@@ -524,16 +516,13 @@ jobs:
       PRESET: <<parameters.preset>>
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
-#     ELASTICSEARCH_VERSION: 5.6.9
-#     CASSANDRA_VERSION: 3.9
-#     REDIS_VERSION: 3.2.10
-#     SKIP_AUTO_COMPILE: true
+      SKIP_AUTO_COMPILE: true
       KEEP_COVER_RUNNING: 1
     steps:
       - restore_workspace
-      - install_dockerize
-#     - dockerize_wait: {port: 6379} # Wait for redis
-#     - dockerize_wait: {port: 5672} # Wait for rmq
+      - run:
+          name: Wait for databases
+          command: ./tools/wait_for_db.sh
       - maybe_prepare_minio
       - prepare_etc_hosts
       - run:

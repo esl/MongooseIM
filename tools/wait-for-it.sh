@@ -62,6 +62,7 @@ wait_for_wrapper()
     return $RESULT
 }
 
+HOST=localhost
 # process arguments
 while [[ $# -gt 0 ]]
 do
