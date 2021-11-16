@@ -107,6 +107,9 @@ commands:
       - run:
           name: Maybe rebuild certificates if they're about to expire
           command: make certs
+      - run:
+          name: Print cert hashes for debugging
+          command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
           key: certs-cache
