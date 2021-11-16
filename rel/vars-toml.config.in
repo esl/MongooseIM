@@ -28,7 +28,7 @@
 {mod_blocking, ""}.
 {mod_private, ""}.
 {mod_roster, ""}.
-{mod_vcard, "  host = \"vjud.@HOST@\""}.
+{mod_vcard, "  host = \"vjud.@HOST@\"\n"}.
 {sm_backend, "\"mnesia\""}.
 {auth_method, "\"internal\""}.
 {cyrsasl_external, "\"standard\""}.

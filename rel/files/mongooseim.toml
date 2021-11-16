@@ -254,7 +254,6 @@
 {{#mod_private}}
 [modules.mod_private]
 {{{mod_private}}}
-
 {{/mod_private}}
 [modules.mod_register]
   welcome_message = {body = "", subject = ""}
