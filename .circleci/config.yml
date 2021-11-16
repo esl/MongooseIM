@@ -13,12 +13,28 @@ jobs:
     executor: continuation/default
     steps:
       - checkout # checkout code
+      - maybe_build_certs
       - run: # run a command
           name: Generate config
           command: |
             mv .circleci/template.yml generated_config.yml
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
+
+commands:
+  maybe_build_certs:
+    steps:
+      - restore_cache:
+          name: Restore certificates
+          key: certs-cache
+      - run:
+          name: Maybe rebuild certificates if they're about to expire
+          command: make certs
+      - save_cache:
+          name: Cache built certs
+          key: certs-cache
+          paths:
+            - ~/app/tools/ssl
 
 # our single workflow, that triggers the setup job defined above
 workflows:
