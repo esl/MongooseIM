@@ -30,6 +30,7 @@ executors:
     docker:
       - image: *OTP24
       - image: circleci/redis:6.0.5
+      - image: rabbitmq:3.7
       - image: mysql:8.0.20
         environment:
           - SQL_TEMP_DIR: /tmp/sql
