@@ -61,10 +61,13 @@ $(DEVNODES): certs configure.out rel/vars-toml.config
 	(. ./configure.out && \
 	DEVNODE=true $(RUN) $(REBAR) as $@ release)
 
-certs:
+maybe_clean_certs:
 	if ! openssl x509 -checkend 3600 -noout -in tools/ssl/ca/cacert.pem ; then \
-		cd tools/ssl && make clean_certs && $(MAKE); \
+		cd tools/ssl && make clean_certs; \
 	fi
+
+certs: maybe_clean_certs
+	cd tools/ssl && make
 
 xeplist:
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)
