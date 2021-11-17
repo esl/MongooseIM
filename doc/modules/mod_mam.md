@@ -209,7 +209,7 @@ These options will only have effect when the `rdbms` backend is used:
 
 Enables Archive ID to integer mappings cache.
 
-If caching is enabled, by default it will spawn its own [segmented cache](https://github.com/esl/segmented_cache) cache, with defaults as in [`mod_cache_users`](./mod_cache_users.md). To change these defaults, the same config can be accessed within the `cache_config` key. To see details about the meaning of each flag, see [`mod_cache_users`](./mod_cache_users.md). To reuse the cache already created by `mod_cache_users`, see the option below.
+If caching is enabled, by default it will spawn its own [segmented cache](https://github.com/esl/segmented_cache) cache, with defaults as in [`mod_cache_users`](./mod_cache_users.md). To change these defaults, the same config can be accessed within the `cache` key. To see details about the meaning of each flag, see [`mod_cache_users`](./mod_cache_users.md). To reuse the cache already created by `mod_cache_users`, see the option below.
 
 ```toml
 modules.mod_mam_meta.cache.strategy
@@ -222,7 +222,7 @@ modules.mod_mam_meta.cache.number_of_segments
 * **Default:** `internal`
 * **Example:** `modules.mod_mam_meta.cache.module = "mod_cache_users`
 
-Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled.
+Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled. Note that if reuse is desired – that is, `cache.module = "mod_cache_users"`, other cache configuration parameters are not allowed.
 
 #### `modules.mod_mam_meta.rdbms_message_format`
 * **Syntax:** string, one of `"internal"` and `"simple"`
