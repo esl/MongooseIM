@@ -1555,10 +1555,12 @@ mod_caps(_Config) ->
 mod_cache_users(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_cache_users">> => #{K => V}}} end,
     M = fun(K, V) -> modopts(mod_cache_users, [{K, V}]) end,
-    ?eqf(M(ttl, 8600), T(<<"time_to_live">>, 8600)),
-    ?eqf(M(ttl, infinity), T(<<"time_to_live">>, <<"infinity">>)),
+    ?eqf(M(time_to_live, 8600), T(<<"time_to_live">>, 8600)),
+    ?eqf(M(time_to_live, infinity), T(<<"time_to_live">>, <<"infinity">>)),
     ?eqf(M(number_of_segments, 10), T(<<"number_of_segments">>, 10)),
+    ?eqf(M(strategy, fifo), T(<<"strategy">>, <<"fifo">>)),
     ?errf(T(<<"time_to_live">>, 0)),
+    ?errf(T(<<"strategy">>, <<"lifo">>)),
     ?errf(T(<<"number_of_segments">>, 0)),
     ?errf(T(<<"number_of_segments">>, <<"infinity">>)).
 
@@ -2132,6 +2134,16 @@ test_mod_mam_meta(T, M) ->
          T(#{<<"extra_fin_element">> => <<"mod_mam_utils">>})),
     ?eqf(M([{extra_lookup_params, mod_mam_utils}]),
          T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
+    ?eqf(M([{cache, [{module, internal}]}]),
+         T(#{<<"cache">> => #{<<"module">> => <<"internal">>}})),
+    ?eqf(M([{cache, [{time_to_live, 8600}]}]),
+         T(#{<<"cache">> => #{<<"time_to_live">> => 8600}})),
+    ?eqf(M([{cache, [{time_to_live, infinity}]}]),
+         T(#{<<"cache">> => #{<<"time_to_live">> => <<"infinity">>}})),
+    ?eqf(M([{cache, [{number_of_segments, 10}]}]),
+         T(#{<<"cache">> => #{<<"number_of_segments">> => 10}})),
+    ?eqf(M([{cache, [{strategy, fifo}]}]),
+         T(#{<<"cache">> => #{<<"strategy">> => <<"fifo">>}})),
     ?errf(T(#{<<"backend">> => <<"notepad">>})),
     ?errf(T(#{<<"no_stanzaid_element">> => <<"true">>})),
     ?errf(T(#{<<"is_archivable_message">> => <<"mod_mam_fake">>})),
@@ -2151,7 +2163,14 @@ test_mod_mam_meta(T, M) ->
     ?errf(T(#{<<"db_message_format">> => <<"not_a_module">>})),
     ?errf(T(#{<<"simple">> => <<"yes">>})),
     ?errf(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
-    ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
+    ?errf(T(#{<<"extra_lookup_params">> => <<"bad_module">>})),
+    ?errf(T(#{<<"cache">> => #{<<"module">> => <<"mod_wrong_cache">>}})),
+    ?errf(T(#{<<"cache">> => #{<<"module">> => <<"mod_cache_users">>,
+                               <<"time_to_live">> => 8600}})),
+    ?errf(T(#{<<"cache">> => #{<<"time_to_live">> => 0}})),
+    ?errf(T(#{<<"cache">> => #{<<"strategy">> => <<"lifo">>}})),
+    ?errf(T(#{<<"cache">> => #{<<"number_of_segments">> => 0}})),
+    ?errf(T(#{<<"cache">> => #{<<"number_of_segments">> => <<"infinity">>}})).
 
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,

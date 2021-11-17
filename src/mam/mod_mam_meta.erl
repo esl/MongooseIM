@@ -71,6 +71,7 @@ config_items() ->
 
       %% RDBMS-specific options
       <<"cache_users">> => #option{type = boolean},
+      <<"cache">> => mongoose_user_cache:config_spec(),
       <<"rdbms_message_format">> => #option{type = atom,
                                             validate = {enum, [simple, internal]}},
       <<"async_writer">> => #option{type = boolean},
@@ -210,7 +211,8 @@ parse_backend_opts(riak, Type, Opts, Deps0) ->
     end;
 
 parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
-    Opts = add_default_rdbms_opts(Opts0),
+    Opts1 = add_default_rdbms_opts(Opts0),
+    Opts = add_rdbms_cache_opts(Opts1),
 
     {ModRDBMSArch, ModAsyncWriter} =
         case Type of
@@ -269,17 +271,30 @@ add_default_rdbms_opts(Opts) ->
                   none -> [DefaultOpt | Acc];
                   _ -> Acc
               end
-      end,
-      Opts,
-      [{cache_users, true}, {async_writer, true}]).
+      end, Opts, [{async_writer, true}]).
 
+add_rdbms_cache_opts(Opts) ->
+    case {lists:keyfind(cache_users, 1, Opts), lists:keyfind(cache, 1, Opts)} of
+        {{cache_users, false}, _} ->
+            lists:keydelete(cache, 1, Opts);
+        {{cache_users, true}, false} ->
+            [{cache, []} | Opts];
+        {false, false} ->
+            [{cache, []} | Opts];
+        {false, {cache, _}} ->
+            Opts
+    end.
 
 -spec parse_rdbms_opt(Type :: pm | muc, module(), module(),
-                        Option :: {module(), term()}, deps()) -> deps().
+                      Option :: {module(), term()}, deps()) -> deps().
 parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
     case Option of
-        {cache_users, true} ->
-            add_dep(mod_mam_cache_user, [Type], Deps);
+        {cache, CacheOpts} ->
+            Deps1 = case gen_mod:get_opt(module, CacheOpts, internal) of
+                        internal -> Deps;
+                        mod_cache_users -> add_dep(mod_cache_users, Deps)
+                    end,
+            add_dep(mod_mam_cache_user, [Type | CacheOpts], Deps1);
         {user_prefs_store, rdbms} ->
             add_dep(mod_mam_rdbms_prefs, [Type], Deps);
         {user_prefs_store, mnesia} ->
