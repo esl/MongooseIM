@@ -29,8 +29,11 @@ PGSQL_SETUP=$(cat32 tools/docker-setup-postgres.sh)
 MSSQL_SQL=$(cat32 priv/mssql2012.sql)
 MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 
+LDAP_SCHEMA=$(cat32 tools/db_configs/ldap/init_entries.ldif)
+
 MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
 MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/db_cacert.pem)
 
@@ -43,8 +46,10 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__PGSQL_SETUP__/${PGSQL_SETUP}/" \
     -e "s/__MSSQL_SQL__/${MSSQL_SQL}/" \
     -e "s/__MSSQL_SETUP__/${MSSQL_SETUP}/" \
+    -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
     -e "s/__MIM_CERT__/${MIM_CERT}/" \
     -e "s/__MIM_KEY__/${MIM_KEY}/" \
+    -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
     .circleci/template.yml \

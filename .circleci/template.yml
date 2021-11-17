@@ -75,6 +75,33 @@ executors:
           - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
           - ENV_FILE_KEY_DATA: "__MIM_KEY__"
         entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+  otp_24_ldap_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: osixia/openldap:1.2.4
+        environment:
+          - SQL_TEMP_DIR: /tmp/sql
+          - POSTGRES_PASSWORD: password
+          - LDAP_DOMAIN: "esl.com"
+          - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
+          - LDAP_ORGANISATION: "Erlang Solutions"
+          - LDAP_TLS_CRT_FILENAME: cert.pem
+          - LDAP_TLS_KEY_FILENAME: key.pem
+          - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
+          - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
+          - OLD_ENTRYPOINT: "/container/tool/run --copy-service"
+          - ENV_FILE_SCHEMA_PATH: "/container/service/slapd/assets/config/bootstrap/ldif/custom/init_entries.ldif"
+          - ENV_FILE_SCHEMA_DATA: "__LDAP_SCHEMA__"
+          - ENV_FILE_CERT_PATH: "/container/service/slapd/assets/certs/cert.pem"
+          - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+          - ENV_FILE_KEY_PATH: "/container/service/slapd/assets/certs/key.pem"
+          - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+          - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
+          - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
+        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
   otp_24_mssql_redis:
     working_directory: ~/app
     docker:
@@ -771,6 +798,14 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: ldap_mnesia_24
+          executor: otp_24_ldap_redis
+          context: mongooseim-org
+          preset: ldap_mnesia
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 23 =============
@@ -819,15 +854,6 @@ workflows:
           name: otp_24
           otp_package: 24.0-1
           context: mongooseim-org
-          filters: *all_tags
-      - big_tests:
-          name: ldap_mnesia_24
-          otp_package: 24.0-1
-          preset: ldap_mnesia
-          db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_24
           filters: *all_tags
       - big_tests:
           name: elasticsearch_and_cassandra_24
