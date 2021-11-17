@@ -287,6 +287,15 @@ commands:
                 ./mc policy set download "${MINIO_HOSTNAME}/${MINIO_BUCKET}"
             fi
 
+  maybe_prepare_ldap:
+    steps:
+      - run:
+          name: Change port in test.config
+          command: |
+            if [[ "$DB" == *ldap* ]]; then
+              sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
+            fi
+
   maybe_prepare_odbc:
     steps:
       - run:
@@ -614,6 +623,7 @@ jobs:
           command: ./tools/wait_for_db.sh
       - maybe_prepare_minio
       - maybe_prepare_odbc
+      - maybe_prepare_ldap
       - prepare_etc_hosts
       - run:
           name: Run Big Tests
@@ -794,7 +804,7 @@ workflows:
           executor: otp_24_mssql_redis
           context: mongooseim-org
           preset: odbc_mssql_mnesia
-          db: "mssql"
+          db: "mssql redis"
           requires:
             - otp_24_docker
           filters: *all_tags
@@ -803,6 +813,7 @@ workflows:
           executor: otp_24_ldap_redis
           context: mongooseim-org
           preset: ldap_mnesia
+          db: "ldap redis"
           requires:
             - otp_24_docker
           filters: *all_tags

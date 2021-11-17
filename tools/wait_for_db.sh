@@ -30,6 +30,10 @@ function wait_for_db {
             ./tools/wait-for-it.sh -p 8098
             ./tools/wait-for-it.sh -p 8087
         ;;
+
+        ldap)
+            ./tools/wait-for-it.sh -p 636 # On Circle CI
+        ;;
     esac
 }
 
