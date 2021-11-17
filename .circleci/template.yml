@@ -263,9 +263,11 @@ commands:
   maybe_prepare_odbc:
     steps:
       - run:
-          name: Install odbc.ini
+          name: Install odbc.ini and packages
           command: |
             if [[ "$DB" == *mssql* ]]; then
+                sudo apt-get update
+                sudo apt-get -y install unixodbc tdsodbc
                 ./tools/install_odbc_ini.sh
             fi
 

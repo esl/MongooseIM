@@ -27,6 +27,8 @@ MSSQL_PORT=${MSSQL_PORT:-1433}
 # Be aware, that Driver and Setup values are for Ubuntu.
 # CentOS would use different ones.
 
+echo "Install odbc.ini"
+
 if test -f "/usr/local/lib/libtdsodbc.so"; then
   # Mac
   ODBC_DRIVER="/usr/local/lib/libtdsodbc.so"
