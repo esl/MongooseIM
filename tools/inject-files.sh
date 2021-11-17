@@ -21,5 +21,6 @@ for var in "${!ENV_FILE_@}"; do
         echo "$data" | base64 --decode > "$path"
     fi
 done
+ls -lah /
 echo "Start old entrypoint $OLD_ENTRYPOINT"
 eval "$OLD_ENTRYPOINT"

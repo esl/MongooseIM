@@ -20,6 +20,12 @@ function cat64 {
 MYSQL_CNF=$(cat64 tools/db_configs/mysql/mysql.cnf)
 MYSQL_SQL=$(cat64 priv/mysql.sql)
 MYSQL_SETUP=$(cat64 tools/docker-setup-mysql.sh)
+
+PGSQL_CNF=$(cat64 tools/db_configs/pgsql/postgresql.conf)
+PGSQL_SQL=$(cat64 priv/pg.sql)
+PGSQL_HBA=$(cat64 tools/db_configs/pgsql/pg_hba.conf)
+PGSQL_SETUP=$(cat64 tools/docker-setup-postgres.sh)
+
 MIM_CERT=$(cat64 tools/ssl/mongooseim/cert.pem)
 MIM_KEY=$(cat64 tools/ssl/mongooseim/key.pem)
 INJECT_FILES=$(cat64 tools/inject-files.sh)
@@ -28,6 +34,10 @@ CACERT=$(cat64 tools/ssl/ca/db_cacert.pem)
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
     -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
+    -e "s/__PGSQL_CNF__/${PGSQL_CNF}/" \
+    -e "s/__PGSQL_SQL__/${PGSQL_SQL}/" \
+    -e "s/__PGSQL_HBA__/${PGSQL_HBA}/" \
+    -e "s/__PGSQL_SETUP__/${PGSQL_SETUP}/" \
     -e "s/__MIM_CERT__/${MIM_CERT}/" \
     -e "s/__MIM_KEY__/${MIM_KEY}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
