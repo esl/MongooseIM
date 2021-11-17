@@ -92,7 +92,7 @@ executors:
           - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
           - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
           - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
-          - OLD_ENTRYPOINT: "printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && printf '#!/bin/sh\necho 3' > /sbin/runlevel && chmod 755 /sbin/runlevel && /container/tool/run --copy-service"
+          - OLD_ENTRYPOINT: "printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && printf '#!/bin/sh\necho 3' > /sbin/runlevel && chmod 755 /sbin/runlevel && /container/tool/run --copy-service --loglevel debug"
           - ENV_FILE_SCHEMA_PATH: "/container/service/slapd/assets/config/bootstrap/ldif/custom/init_entries.ldif"
           - ENV_FILE_SCHEMA_DATA: "__LDAP_SCHEMA__"
           - ENV_FILE_CERT_PATH: "/container/service/slapd/assets/certs/cert.pem"
