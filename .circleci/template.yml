@@ -99,6 +99,8 @@ executors:
           - ENV_FILE_CERT_DATA: "__MIM_CERT__"
           - ENV_FILE_KEY_PATH: "/container/service/slapd/assets/certs/key.pem"
           - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+          - ENV_FILE_CACERT_PATH: "/container/service/slapd/assets/certs/cacert.pem"
+          - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
           - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
           - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
         entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]

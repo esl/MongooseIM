@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 DBS=$(./tools/test_runner/presets_to_dbs.sh "$PRESET")
 echo "Wait for $DBS"
 
