@@ -178,9 +178,8 @@ form_to_query(TS, [#xmlel{name = <<"mute">>,
         {error, _} -> {error, <<"bad-request">>};
         0 ->
             form_to_query(TS, Rest, Acc#{muted_until => 0});
-        N when N > 0 ->
-            MutedUntilSec = erlang:convert_time_unit(TS, microsecond, second) + N,
-            MutedUntilMicroSec = erlang:convert_time_unit(MutedUntilSec, second, microsecond),
+        Num when Num > 0 ->
+            MutedUntilMicroSec = TS + erlang:convert_time_unit(Num, second, microsecond),
             form_to_query(TS, Rest, Acc#{muted_until => MutedUntilMicroSec})
     end;
 form_to_query(_, _, _) ->
