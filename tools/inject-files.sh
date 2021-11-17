@@ -13,12 +13,17 @@ for var in "${!ENV_FILE_@}"; do
         # remove suffix
         name=${var%_PATH}
         data_var="${name}_DATA"
+        mode_var="${name}_MODE"
         path="${!var}"
         data="${!data_var}"
+        mode="${!mode_var}"
         echo "Write $name into $path"
         dir=$(dirname "$path")
         mkdir -p "$dir"
         echo "$data" | base32 --decode > "$path"
+        if [ ! -z "${mode}" ]; then
+            chmod "$mode" "$path"
+        fi
     fi
 done
 ls -lah /
