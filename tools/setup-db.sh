@@ -29,59 +29,6 @@ fi
 # DATA_ON_VOLUME variable and data_on_volume function come from common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 
-
-# There is one odbc.ini for both mssql and pgsql
-# Allows to run both in parallel
-function install_odbc_ini
-{
-# CLIENT OS CONFIGURING STUFF
-#
-# Be aware, that underscore in TDS_Version is required.
-# It can't be just "TDS Version = 7.1".
-#
-# To check that connection works use:
-#
-# {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123",[]).
-#
-# To check that TDS version is correct, use:
-#
-# odbc:sql_query(Conn, "select cast(1 as bigint)").
-#
-# It should return:
-# {selected,[[]],[{"1"}]}
-#
-# It should not return:
-# {selected,[[]],[{1.0}]}
-#
-# Be aware, that Driver and Setup values are for Ubuntu.
-# CentOS would use different ones.
-if test -f "/usr/local/lib/libtdsodbc.so"; then
-  # Mac
-  ODBC_DRIVER="/usr/local/lib/libtdsodbc.so"
-fi
-
-if test -f "/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"; then
-  # Ubuntu
-  ODBC_DRIVER="/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"
-  ODBC_SETUP="/usr/lib/x86_64-linux-gnu/odbc/libtdsS.so"
-fi
-
-    cat > ~/.odbc.ini << EOL
-[mongoose-mssql]
-Setup       = $ODBC_SETUP
-Driver      = $ODBC_DRIVER
-Server      = 127.0.0.1
-Port        = $MSSQL_PORT
-Database    = ejabberd
-Username    = sa
-Password    = mongooseim_secret+ESL123
-Charset     = UTF-8
-TDS_Version = 7.2
-client charset = UTF-8
-server charset = UTF-8
-EOL
-}
-
 function riak_solr_is_up
 {
     docker exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
@@ -372,21 +319,21 @@ elif [ "$db" = 'mssql' ]; then
     # Otherwise we get an error in logs
     # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
     docker run -d -p $MSSQL_PORT:1433                           \
-               --user root                                      \
                --name=$NAME                                     \
                -e "ACCEPT_EULA=Y"                               \
                -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
+               -e "DB_NAME=ejabberd"                            \
                $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/mongoose.sql")  \
+               $(mount_ro_volume "$(pwd)/tools/docker-setup-mssql.sh" "/docker-setup-mssql.sh")  \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/opt/mssql) \
                $(data_on_volume -v $NAME-data:/var/opt/mssql/data) \
                --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
                mcr.microsoft.com/mssql/server
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
+    docker exec $NAME /docker-setup-mssql.sh
 
-    tools/setup-mssql-database.sh
-
-    install_odbc_ini
+    MSSQL_PORT=$MSSQL_PORT tools/install_odbc_ini.sh
 
 elif [ "$db" = 'redis' ]; then
     tools/setup-redis.sh

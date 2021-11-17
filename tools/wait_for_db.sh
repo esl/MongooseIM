@@ -15,6 +15,7 @@ function wait_for_db {
 
         mssql)
             ./tools/wait-for-it.sh -p 1433
+            ./tools/wait-for-it.sh -p 1434 # SCHEMA_READY_PORT
         ;;
 
         rmq)

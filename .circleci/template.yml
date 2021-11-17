@@ -75,6 +75,24 @@ executors:
           - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
           - ENV_FILE_KEY_DATA: "__MIM_KEY__"
         entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+  otp_24_mssql_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - image: circleci/redis:6.0.5
+      - image: mcr.microsoft.com/mssql/server
+        environment:
+          - ACCEPT_EULA: Y
+          - SA_PASSWORD: "mongooseim_secret+ESL123"
+          - DB_NAME: ejabberd
+          - SCHEMA_READY_PORT: 1434
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
+          - OLD_ENTRYPOINT: "{ /docket-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
+          - ENV_FILE_SQL_PATH: "/mongoose.sql"
+          - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
+          - ENV_FILE_SH_PATH: "/docket-setup-mssql.sh"
+          - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
+        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
 commands:
   install_erlang:
     parameters:
@@ -237,6 +255,16 @@ commands:
                 ./mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET}
                 ./mc policy set download "${MINIO_HOSTNAME}/${MINIO_BUCKET}"
             fi
+
+  maybe_prepare_odbc:
+    steps:
+      - run:
+          name: Install odbc.ini
+          command: |
+            if [[ "$DB" == *mssql* ]]; then
+                ./tools/install_odbc_ini.sh
+            fi
+
   prepare_etc_hosts:
     steps:
       - run:
@@ -552,6 +580,7 @@ jobs:
           name: Wait for databases
           command: ./tools/wait_for_db.sh
       - maybe_prepare_minio
+      - maybe_prepare_odbc
       - prepare_etc_hosts
       - run:
           name: Run Big Tests
@@ -727,6 +756,15 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
+      - big_tests_in_docker:
+          name: mssql_mnesia_24
+          executor: otp_24_mssql_redis
+          context: mongooseim-org
+          preset: odbc_mssql_mnesia
+          db: "mssql"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
       # ============= TESTS OTP 23 =============
@@ -781,15 +819,6 @@ workflows:
           otp_package: 24.0-1
           preset: ldap_mnesia
           db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: mssql_mnesia_24
-          otp_package: 24.0-1
-          preset: odbc_mssql_mnesia
-          db: mssql
           context: mongooseim-org
           requires:
             - otp_24
