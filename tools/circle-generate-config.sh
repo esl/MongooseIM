@@ -2,37 +2,37 @@
 
 OUT_FILE="$1"
 
-echo | base64 -w0 > /dev/null 2>&1
+echo | base32 -w0 > /dev/null 2>&1
 if [ $? -eq 0 ]; then
-      # GNU coreutils base64, '-w' supported
-      MYBASE64="base64 -w0"
+      # GNU coreutils base32, '-w' supported
+      MYBASE64="base32 -w0"
     else
-      # Openssl base64, no wrapping by default
-      MYBASE64="base64"
+      # Openssl base32, no wrapping by default
+      MYBASE64="base32"
 fi
 
 set -e
 
-function cat64 {
+function cat32 {
     cat "$1" | $MYBASE64
 }
 
-MYSQL_CNF=$(cat64 tools/db_configs/mysql/mysql.cnf)
-MYSQL_SQL=$(cat64 priv/mysql.sql)
-MYSQL_SETUP=$(cat64 tools/docker-setup-mysql.sh)
+MYSQL_CNF=$(cat32 tools/db_configs/mysql/mysql.cnf)
+MYSQL_SQL=$(cat32 priv/mysql.sql)
+MYSQL_SETUP=$(cat32 tools/docker-setup-mysql.sh)
 
-PGSQL_CNF=$(cat64 tools/db_configs/pgsql/postgresql.conf)
-PGSQL_SQL=$(cat64 priv/pg.sql)
-PGSQL_HBA=$(cat64 tools/db_configs/pgsql/pg_hba.conf)
-PGSQL_SETUP=$(cat64 tools/docker-setup-postgres.sh)
+PGSQL_CNF=$(cat32 tools/db_configs/pgsql/postgresql.conf)
+PGSQL_SQL=$(cat32 priv/pg.sql)
+PGSQL_HBA=$(cat32 tools/db_configs/pgsql/pg_hba.conf)
+PGSQL_SETUP=$(cat32 tools/docker-setup-postgres.sh)
 
-MSSQL_SQL=$(cat64 priv/mssql2012.sql)
-MSSQL_SETUP=$(cat64 tools/docker-setup-mssql.sh)
+MSSQL_SQL=$(cat32 priv/mssql2012.sql)
+MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 
-MIM_CERT=$(cat64 tools/ssl/mongooseim/cert.pem)
-MIM_KEY=$(cat64 tools/ssl/mongooseim/key.pem)
-INJECT_FILES=$(cat64 tools/inject-files.sh)
-CACERT=$(cat64 tools/ssl/ca/db_cacert.pem)
+MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+INJECT_FILES=$(cat32 tools/inject-files.sh)
+CACERT=$(cat32 tools/ssl/ca/db_cacert.pem)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \

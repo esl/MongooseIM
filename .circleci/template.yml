@@ -38,7 +38,7 @@ executors:
           - MYSQL_DATABASE: ejabberd
           - MYSQL_USER: ejabberd
           - MYSQL_PASSWORD: mongooseim_secret
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
           - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
           - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
@@ -60,7 +60,7 @@ executors:
         environment:
           - SQL_TEMP_DIR: /tmp/sql
           - POSTGRES_PASSWORD: password
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "docker-entrypoint.sh postgres"
           - ENV_FILE_CFG_PATH: "/tmp/sql/postgresql.conf"
           - ENV_FILE_CFG_DATA: "__PGSQL_CNF__"
@@ -86,7 +86,7 @@ executors:
           - SA_PASSWORD: "mongooseim_secret+ESL123"
           - DB_NAME: ejabberd
           - SCHEMA_READY_PORT: 1434
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base64 --decode | bash"
+          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "{ /docket-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
           - ENV_FILE_SQL_PATH: "/mongoose.sql"
           - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"

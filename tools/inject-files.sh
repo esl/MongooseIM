@@ -18,7 +18,7 @@ for var in "${!ENV_FILE_@}"; do
         echo "Write $name into $path"
         dir=$(dirname "$path")
         mkdir -p "$dir"
-        echo "$data" | base64 --decode > "$path"
+        echo "$data" | base32 --decode > "$path"
     fi
 done
 ls -lah /
