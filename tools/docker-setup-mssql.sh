@@ -2,6 +2,7 @@
 
 # Needs SQL_FILE, DB_NAME and SA_PASSWORD env variables
 
+# -b flag is to return non-zero error codes
 SQL="/opt/mssql-tools/bin/sqlcmd"
 function do_query {
     set -e
@@ -10,9 +11,11 @@ function do_query {
 
 wait_for()
 {
+    set -ne
     start_ts=$(date +%s)
     while :
     do
+        echo "Waiting for db"
         "$@"
         result=$?
         if [[ $result -eq 0 ]]; then
@@ -22,6 +25,7 @@ wait_for()
         fi
         sleep 1
     done
+    set -e
     return $result
 }
 
@@ -29,9 +33,8 @@ set -e
 wait_for do_query "SELECT 1"
 do_query "CREATE DATABASE $DB_NAME"
 do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
-do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
 
-$SQL -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i "$SQL_FILE"
+$SQL -b -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i "$SQL_FILE"
 
 if [ -z "$SCHEMA_READY_PORT" ]; then
     echo "SCHEMA_READY_PORT not provided"
