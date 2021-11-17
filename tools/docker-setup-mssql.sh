@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Needs DB_NAME and SA_PASSWORD env variables
+# Needs SQL_FILE, DB_NAME and SA_PASSWORD env variables
 
 SQL="/opt/mssql-tools/bin/sqlcmd"
 function do_query {
@@ -31,7 +31,7 @@ do_query "CREATE DATABASE $DB_NAME"
 do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
 do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
 
-$SQL -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i mongoose.sql
+$SQL -S localhost -U sa -P "$SA_PASSWORD" -d "$DB_NAME" -i "$SQL_FILE"
 
 if [ -z "$SCHEMA_READY_PORT" ]; then
     echo "SCHEMA_READY_PORT not provided"

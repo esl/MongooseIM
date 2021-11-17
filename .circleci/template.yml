@@ -86,11 +86,14 @@ executors:
           - SA_PASSWORD: "mongooseim_secret+ESL123"
           - DB_NAME: ejabberd
           - SCHEMA_READY_PORT: 1434
+            # We are not running as root in this container,
+            # so we can only write into some directories (in this case, /tmp)
+          - SQL_FILE: "/tmp/mongoose.sql"
           - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
-          - OLD_ENTRYPOINT: "{ /docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
-          - ENV_FILE_SQL_PATH: "/mongoose.sql"
+          - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
+          - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
           - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
-          - ENV_FILE_SH_PATH: "/docker-setup-mssql.sh"
+          - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
           - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
           - ENV_FILE_SH_MODE: 755
         entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]

@@ -323,15 +323,16 @@ elif [ "$db" = 'mssql' ]; then
                -e "ACCEPT_EULA=Y"                               \
                -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
                -e "DB_NAME=ejabberd"                            \
-               $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/mongoose.sql")  \
-               $(mount_ro_volume "$(pwd)/tools/docker-setup-mssql.sh" "/docker-setup-mssql.sh")  \
+               -e "SQL_FILE=/tmp/mongoose.sql"                  \
+               $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/tmp/mongoose.sql")  \
+               $(mount_ro_volume "$(pwd)/tools/docker-setup-mssql.sh" "/tmp/docker-setup-mssql.sh")  \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/opt/mssql) \
                $(data_on_volume -v $NAME-data:/var/opt/mssql/data) \
                --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
                mcr.microsoft.com/mssql/server
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
-    docker exec $NAME /docker-setup-mssql.sh
+    docker exec $NAME /tmp/docker-setup-mssql.sh
 
     MSSQL_PORT=$MSSQL_PORT tools/install_odbc_ini.sh
 
