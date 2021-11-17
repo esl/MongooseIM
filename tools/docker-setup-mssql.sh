@@ -5,19 +5,20 @@
 # -b flag is to return non-zero error codes
 SQL="/opt/mssql-tools/bin/sqlcmd"
 function do_query {
-    set -e
     $SQL -b -S localhost -U sa -P "$SA_PASSWORD" -Q "$1"
 }
 
 wait_for()
 {
-    set -ne
     start_ts=$(date +%s)
     while :
     do
         echo "Waiting for db"
+        # Run in a subshell
+        set +e
         "$@"
         result=$?
+        set -e
         if [[ $result -eq 0 ]]; then
             end_ts=$(date +%s)
             echo "success after $((end_ts - start_ts)) seconds"
@@ -25,12 +26,14 @@ wait_for()
         fi
         sleep 1
     done
-    set -e
     return $result
 }
 
+echo "Start schema bootstrap"
 set -e
 wait_for do_query "SELECT 1"
+
+echo "Create DB"
 do_query "CREATE DATABASE $DB_NAME"
 do_query "ALTER DATABASE $DB_NAME SET READ_COMMITTED_SNAPSHOT ON"
 
