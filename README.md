@@ -6,7 +6,7 @@
 [![Coveralls](https://coveralls.io/repos/github/DenysGonchar/MongooseIM/badge.svg?branch=master)](https://coveralls.io/github/DenysGonchar/MongooseIM?branch=master)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
-* [Getting started](https://esl.github.io/MongooseDocs/latest/user-guide/Getting-started/)
+* [Getting started](https://esl.github.io/MongooseDocs/latest/getting-started/Installation/)
 * [Developer's guide](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/)
 * [Packages](https://www.erlang-solutions.com/resources/download.html)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
