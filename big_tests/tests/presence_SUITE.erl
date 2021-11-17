@@ -76,9 +76,15 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
+init_per_group(roster_versioning, Config) ->
+    Config0 = dynamic_modules:save_modules(host_type(), Config),
+    escalus:create_users(Config0, escalus:get_users([alice, bob]));
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
+end_per_group(roster_versioning, Config) ->
+    dynamic_modules:restore_modules(Config),
+    escalus:delete_users(Config, escalus:get_users([alice, bob]));
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
@@ -103,7 +109,6 @@ end_per_testcase(unsubscribe, Config) ->
     end_rosters_remove(Config);
 end_per_testcase(VersionCases, Config)
       when VersionCases =:= versioning; VersionCases =:= versioning_no_store ->
-    restore_versioning(Config),
     end_rosters_remove(Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).

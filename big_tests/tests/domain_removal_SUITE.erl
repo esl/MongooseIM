@@ -121,9 +121,6 @@ end_per_testcase(muc_removal, Config) ->
     mongoose_helper:ensure_muc_clean(),
     muc_helper:unload_muc(),
     escalus:end_per_testcase(muc_removal, Config);
-end_per_testcase(roster_removal, Config) ->
-    roster_helper:restore_versioning(Config),
-    escalus:end_per_testcase(roster_removal, Config);
 end_per_testcase(TestCase, Config) ->
     escalus:end_per_testcase(TestCase, Config).
 

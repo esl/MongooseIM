@@ -588,9 +588,9 @@ init_per_group(muc06, Config) ->
     [{props, mam06_props()}, {with_rsm, true}|Config];
 
 init_per_group(muc_configurable_archiveid, Config) ->
-    [backup_module_opts(mod_mam_muc) | Config];
+    dynamic_modules:save_modules(host_type(), Config);
 init_per_group(configurable_archiveid, Config) ->
-    [backup_module_opts(mod_mam) | Config];
+    dynamic_modules:save_modules(host_type(), Config);
 
 init_per_group(muc_rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
@@ -609,20 +609,14 @@ init_per_group(Group, ConfigIn) ->
         Config0 ->
             ct:pal("Init per group ~p; configuration ~p; basic group ~p",
                    [Group, C, B]),
-            Config1 = do_init_per_group(C, Config0),
+            Config01 = dynamic_modules:save_modules(host_type(), Config0),
+            Config1 = do_init_per_group(C, Config01),
             [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)]
    catch Class:Reason:Stacktrace ->
              ct:pal("Failed to start configuration=~p basic_group=~p",
                     [C, B]),
              erlang:raise(Class, Reason, Stacktrace)
    end.
-
-backup_module_opts(Module) ->
-    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host_type(), Module])}.
-
-restore_module_opts(Module, Config) ->
-    ParamsB = proplists:get_value({params_backup, Module}, Config),
-    rpc_apply(gen_mod, set_module_opts, [host_type(), Module, ParamsB]).
 
 do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
@@ -643,17 +637,18 @@ end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
-    restore_module_opts(mod_mam_muc, Config),
+    dynamic_modules:restore_modules(host_type(), Config),
     Config;
 end_per_group(configurable_archiveid, Config) ->
-    restore_module_opts(mod_mam, Config),
+    dynamic_modules:restore_modules(host_type(), Config),
     Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
-    Config1 = end_state(C, B, Config),
+    Config0 = dynamic_modules:restore_modules(Config),
+    Config1 = end_state(C, B, Config0),
     Config2 = end_modules(C, B, Config1),
     escalus_fresh:clean(),
     delete_users(Config2).
@@ -916,9 +911,8 @@ init_per_testcase(C, Config) when C =:= retract_message;
     skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=retract_message_on_stanza_id, Config) ->
     Init = fun() ->
-                   OrigVal = rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, false]),
-                   true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, true]),
-                   escalus:init_per_testcase(C, [{same_mam_id_for_peers, OrigVal} | Config])
+                   dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+                   escalus:init_per_testcase(C, Config)
         end,
     skip_if_retraction_not_supported(Config, Init);
 init_per_testcase(C=offline_message, Config) ->
@@ -946,23 +940,23 @@ init_per_testcase(C=muc_archive_request, Config) ->
         end,
     escalus:init_per_testcase(C, start_alice_room(Config2));
 init_per_testcase(C=muc_no_elements, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam_muc, [no_stanzaid_element]]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_only_stanzaid, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam_muc, []]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=no_elements, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, [no_stanzaid_element]]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=only_stanzaid, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, []]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=same_stanza_id, Config) ->
-    rpc_apply(gen_mod, set_module_opts, [host_type(), mod_mam, [same_mam_id_for_peers]]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
@@ -1022,18 +1016,15 @@ init_per_testcase(C=muc_text_search_request, Config) ->
 
     skip_if_cassandra(Config, Init);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    OrigVal = rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_mam, archive_groupchats, false]),
-    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, archive_groupchats, true]),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     clean_archives(Config),
-    escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
-init_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, ConfigIn) ->
-    Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
-    rpc_apply(gen_mod, set_module_opt, [host_type(), mod_mam_muc, archive_chat_markers, true]),
-    escalus:init_per_testcase(C, Config1);
-init_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, ConfigIn) ->
-    Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
-    rpc_apply(gen_mod, set_module_opt, [host_type(), mod_mam_muc, archive_chat_markers, false]),
-    escalus:init_per_testcase(C, Config1);
+    escalus:init_per_testcase(C, Config);
+init_per_testcase(C, Config) when C =:= muc_light_simple;
+                                  C =:= muc_light_shouldnt_modify_pm_archive;
+                                  C =:= muc_light_chat_markers_are_archived_if_enabled;
+                                  C =:= muc_light_chat_markers_are_not_archived_if_disabled->
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
+    escalus:init_per_testcase(C, Config);
 init_per_testcase(C=archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -1114,22 +1105,62 @@ end_per_testcase(C=muc_no_elements, Config) ->
 end_per_testcase(C=muc_only_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
-end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
-    {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
-    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, archive_groupchats, OrigVal]),
-    escalus:end_per_testcase(C, Config1);
-end_per_testcase(C = retract_message_on_stanza_id, Config0) ->
-    {value, {_, OrigVal}, Config1} = lists:keytake(same_mam_id_for_peers, 1, Config0),
-    true = rpc(mim(), gen_mod, set_module_opt, [host_type(), mod_mam, same_mam_id_for_peers, OrigVal]),
-    escalus:end_per_testcase(C, Config1);
+end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C = retract_message_on_stanza_id, Config) ->
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
-    restore_module_opts(mod_mam_muc, Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
-    restore_module_opts(mod_mam_muc, Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C = no_elements, Config) ->
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C = only_stanzaid, Config) ->
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C = same_stanza_id, Config) ->
     escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
+
+%% Module configuration per testcase
+
+required_modules(Case) ->
+    required_modules(Case, []).
+
+% muc_light basic group
+required_modules(muc_light_simple, Config) ->
+    [{mod_mam, [{archive_groupchats, false}]},
+     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
+required_modules(muc_light_shouldnt_modify_pm_archive, Config) ->
+    [{mod_mam, [{archive_groupchats, false}]},
+     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
+required_modules(muc_light_stored_in_pm_if_allowed_to, Config) ->
+    [{mod_mam, [{archive_groupchats, true}]},
+     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
+required_modules(muc_light_chat_markers_are_archived_if_enabled, Config) ->
+    Opts = dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config),
+    [{mod_mam, [{archive_groupchats, false}]},
+     {mod_mam_muc, [{archive_chat_markers, true} | Opts]}];
+required_modules(muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
+    Opts = dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config),
+    [{mod_mam, [{archive_groupchats, false}]},
+     {mod_mam_muc, [{archive_chat_markers, false} | Opts]}];
+% muc_configurable_archiveid basic group
+required_modules(muc_no_elements, _Config) ->
+    [{mod_mam_muc, [no_stanzaid_element]}];
+required_modules(muc_only_stanzaid, _Config) ->
+    [{mod_mam_muc, []}];
+% configurable_archiveid basic group
+required_modules(no_elements, _Config) ->
+    [{mod_mam, [no_stanzaid_element]}];
+required_modules(only_stanzaid, _Config) ->
+    [{mod_mam, []}];
+required_modules(same_stanza_id, _Config) ->
+    [{mod_mam, [same_mam_id_for_peers]}];
+required_modules(retract_message_on_stanza_id, _Config) ->
+    [{mod_mam, [{same_mam_id_for_peers, true}]}];
+required_modules(_, _) ->
+    [].
 
 init_module(Host, Mod, Args) ->
     lists:member(Mod, mam_modules())
