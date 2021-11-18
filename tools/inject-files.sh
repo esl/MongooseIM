@@ -6,6 +6,10 @@ set -e
 
 export
 
+function base32dec {
+    eval ${BASE32DEC:-base32 --decode}
+}
+
 echo "Injecting files"
 for var in "${!ENV_FILE_@}"; do
     # If ends with _PATH
@@ -20,7 +24,7 @@ for var in "${!ENV_FILE_@}"; do
         echo "Write $name into $path"
         dir=$(dirname "$path")
         mkdir -p "$dir"
-        echo "$data" | base32 --decode > "$path"
+        echo "$data" | base32dec > "$path"
         if [ ! -z "${mode}" ]; then
             chmod "$mode" "$path"
         fi

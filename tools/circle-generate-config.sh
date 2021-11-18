@@ -47,6 +47,8 @@ RIAK_MAM_SEARCH_SCHEMA=$(cat32 tools/mam_search_schema.xml)
 RIAK_VCARD_SEARCH_SCHEMA=$(cat32 tools/vcard_search_schema.xml)
 RIAK_SETUP_SH=$(cat32 tools/db_configs/riak/setup-riak.sh)
 
+PYTHON_BASE32="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
+
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
     -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
@@ -69,5 +71,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__RIAK_SETUP_SH__/${RIAK_SETUP_SH}/" \
     -e "s/__RIAK_MAM_SEARCH_SCHEMA__/${RIAK_MAM_SEARCH_SCHEMA}/" \
     -e "s/__RIAK_VCARD_SEARCH_SCHEMA__/${RIAK_VCARD_SEARCH_SCHEMA}/" \
+    -e "s/__PYTHON_BASE32__/${PYTHON_BASE32}/" \
     .circleci/template.yml \
     > "$OUT_FILE"

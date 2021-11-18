@@ -3,7 +3,7 @@ version: 2.1
 references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
-  - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
+  - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}
   - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}
@@ -120,6 +120,8 @@ containers:
       - ENV_FILE_SETUP_PATH: "/setup-riak.sh"
       - ENV_FILE_SETUP_SH_DATA: "__RIAK_SETUP_SH__"
       - ENV_FILE_SETUP_SH_MODE: 755
+      # Riak does not have base32, but has python
+      - BASE32DEC: "__PYTHON_BASE32__"
     entrypoint: *ENTRYPOINT
   - &redis_container
     image: circleci/redis:6.0.5
