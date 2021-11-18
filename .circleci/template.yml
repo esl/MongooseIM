@@ -668,7 +668,7 @@ jobs:
       - restore_workspace
       - run:
           name: Wait for databases
-          command: ./tools/wait_for_db.sh
+          command: ./tools/circle-wait-for-db.sh
       - maybe_prepare_minio
       - maybe_prepare_odbc
       - maybe_prepare_ldap
