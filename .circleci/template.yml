@@ -111,6 +111,11 @@ executors:
     working_directory: ~/app
     docker:
       - image: *OTP24
+  otp_23_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - *redis_container
   otp_24_redis:
     working_directory: ~/app
     docker:
@@ -142,6 +147,12 @@ executors:
       - image: *OTP24
       - *redis_container
       - *pgsql_container
+  otp_23_ldap_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - *redis_container
+      - *ldap_container
   otp_24_ldap_redis:
     working_directory: ~/app
     docker:
@@ -804,6 +815,13 @@ workflows:
           filters: *all_tags
       # ============= SMALL TESTS =============
       - small_tests_in_docker:
+          name: small_tests_23
+          executor: otp_23_redis
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - small_tests_in_docker:
           name: small_tests_24
           executor: otp_24_redis
           context: mongooseim-org
@@ -855,6 +873,15 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: ldap_mnesia_23
+          executor: otp_23_ldap_redis
+          context: mongooseim-org
+          preset: ldap_mnesia
+          db: "ldap redis"
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: ldap_mnesia_24
           executor: otp_24_ldap_redis
           context: mongooseim-org
@@ -870,22 +897,6 @@ workflows:
           name: otp_23
           otp_package: 23.3.1-1
           context: mongooseim-org
-          filters: *all_tags
-      - small_tests:
-          name: small_tests_23
-          otp_package: 23.3.1-1
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: ldap_mnesia_23
-          otp_package: 23.3.1-1
-          preset: ldap_mnesia
-          db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_23
           filters: *all_tags
       - big_tests:
           name: dynamic_domains_pgsql_mnesia_23
