@@ -3055,28 +3055,17 @@ parse(M0) ->
     %% this function does the following things:
     %%   1) plugs that mandatory options with dummy values (if required).
     %%   2) executes parsing.
-    %%   3) removes extra 'hosts'/'default_server_domain' config keys (but only if
-    %%      they have dummy values).
     %% DummyDomainName value must be unique to avoid accidental config keys removal.
     DummyDomainName = <<"dummy.domain.name">>,
     M = maybe_insert_dummy_domain(M0, DummyDomainName),
-    Config = mongoose_config_parser_toml:parse(M),
-    maybe_filter_out_dummy_domain(Config, DummyDomainName).
+    mongoose_config_parser_toml:parse(M).
 
 maybe_insert_dummy_domain(M, DomainName) ->
     DummyGenM = #{<<"default_server_domain">> => DomainName,
                   <<"hosts">> => [DomainName]},
     OldGenM = maps:get(<<"general">>, M, #{}),
-    NewGenM = maps:merge(DummyGenM,OldGenM),
+    NewGenM = maps:merge(DummyGenM, OldGenM),
     M#{<<"general">> => NewGenM}.
-
-maybe_filter_out_dummy_domain(Config, DomainName) ->
-    lists:filter(
-        fun
-            (#local_config{key = default_server_domain, value = V}) when V =:= DomainName -> false;
-            (#local_config{key = hosts, value = [V]}) when V =:= DomainName -> false;
-            (_) -> true
-        end, Config).
 
 %% helpers for testing individual options
 
