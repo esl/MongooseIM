@@ -36,6 +36,8 @@ MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
 MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/db_cacert.pem)
+LDAP_FAKE_KEY=$(cat32 tools/ssl/mongooseim/ldap_fake_key.pem)
+LDAP_FAKE_CERT=$(cat32 tools/ssl/mongooseim/ldap_fake_cert.pem)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
@@ -52,5 +54,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
+    -e "s/__LDAP_FAKE_KEY__/${LDAP_FAKE_KEY}/" \
+    -e "s/__LDAP_FAKE_CERT__/${LDAP_FAKE_CERT}/" \
     .circleci/template.yml \
     > "$OUT_FILE"

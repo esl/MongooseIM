@@ -3,11 +3,18 @@ all: mongooseim/cert.pem mongooseim/key.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
   ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt \
   ca-clients/cacert.pem ca-clients/cakey.pem ca-clients/index.txt ca-clients/serial.txt \
-  ca/db_cacert.pem
+  ca/db_cacert.pem \
+  mongooseim/ldap_fake_cert.pem mongooseim/ldap_fake_key.pem
 	chmod -R a+r mongooseim ca ca-clients
 
 ca/db_cacert.pem: ca/cacert.pem
 	cp ca/cacert.pem ca/db_cacert.pem
+
+mongooseim/ldap_fake_key.pem: mongooseim/key.pem
+	cp mongooseim/key.pem mongooseim/ldap_fake_key.pem
+
+mongooseim/ldap_fake_cert.pem: mongooseim/cert.pem
+	cp mongooseim/cert.pem mongooseim/ldap_fake_cert.pem
 
 %/cacert.pem %/cakey.pem: openssl-%.cnf
 	mkdir -p $(@D)
