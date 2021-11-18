@@ -35,8 +35,10 @@ commands:
           name: Restore certificates
           key: *CERT_KEY
       - run:
-          name: Maybe rebuild certificates if they're about to expire
-          command: make certs
+          # We do not rebuild certificates to ensure that the cached version
+          # is the master-copy
+          name: Build certificates if not cached
+          command: test -f tools/ssl/mongooseim/key.pem || make certs
       - save_cache:
           name: Cache built certs
           key: *CERT_KEY
