@@ -23,8 +23,8 @@
 
 -type key() :: atom() | host_type_key() | host_type_or_global_key().
 -type s2s_domain_key() :: {atom(), jid:lserver()}.
--type host_type_key() :: {atom() | s2s_domain_key(), mongooseim:host_type()}.
--type host_type_or_global_key() :: {shaper | access | acl, atom(), mongooseim:host_type() | global}.
+-type host_type_key() :: {atom() | s2s_domain_key(), mongooseim:host_type_or_global()}.
+-type host_type_or_global_key() :: {shaper | access | acl, atom(), mongooseim:host_type_or_global()}.
 
 -type value() :: atom()
                | binary()

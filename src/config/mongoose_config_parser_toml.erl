@@ -10,12 +10,8 @@
          extract_errors/1]).
 -endif.
 
--include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 -include("ejabberd_config.hrl").
-
-%% Used to create per-host config when the list of hosts is not known yet
--define(HOST_F(Expr), [fun(Host) -> Expr end]).
 
 %% Input: TOML parsed by tomerl
 -type toml_key() :: binary().
@@ -28,7 +24,6 @@
 -type top_level_config() :: #local_config{}.
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type config() :: top_level_config() | config_error().
--type config_list() :: [config() | fun((jid:server()) -> [config()])]. % see HOST_F
 
 -type list_processor() :: fun((path(), [config_part()]) -> config_part())
                         | fun(([config_part()]) -> config_part()).
@@ -61,21 +56,31 @@ process(Content) ->
     Config = parse(Content),
     Hosts = get_value(Config, hosts),
     HostTypes = get_value(Config, host_types),
-    {FOpts, Opts} = lists:partition(fun(Opt) -> is_function(Opt, 1) end, Config),
-    HostsOpts = lists:flatmap(fun(F) -> lists:flatmap(F, Hosts) end, FOpts),
-    HostTypesOpts = lists:flatmap(fun(F) -> lists:flatmap(F, HostTypes) end, FOpts),
-    AllOpts = Opts ++ HostsOpts ++ HostTypesOpts,
-    case extract_errors(AllOpts) of
+    Opts = unfold_globals(Config, Hosts ++ HostTypes),
+    case extract_errors(Opts) of
         [] ->
-            build_state(Hosts, HostTypes, AllOpts);
+            build_state(Hosts, HostTypes, Opts);
         Errors ->
             error(config_error(Errors))
     end.
 
+%% @doc Repeat global options for each host type for simpler lookup
+%% Put them at the end so host_config can override them
+%% Options with tags (shaper, acl, access) are left as globals as they can be set on both levels
+-spec unfold_globals([config()], [mongooseim:host_type()]) -> [config()].
+unfold_globals(Config, AllHostTypes) ->
+    {GlobalOpts, Opts} = lists:partition(fun is_global_to_unfold/1, Config),
+    Opts ++ [Opt#local_config{key = {Key, HostType}} ||
+                Opt = #local_config{key = {Key, global}} <- GlobalOpts,
+                HostType <- AllHostTypes].
+
+is_global_to_unfold(#local_config{key = {_Key, global}}) -> true;
+is_global_to_unfold(_) -> false.
+
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
 
--spec parse(toml_section()) -> config_list().
+-spec parse(toml_section()) -> [config()].
 parse(Content) ->
     handle([], Content, mongoose_config_spec:root()).
 
@@ -207,10 +212,7 @@ format([Key|_] = Path, V, host_local_config) ->
 format([Key|_] = Path, V, local_config) ->
     format(Path, V, {local_config, b2a(Key)});
 format(Path, V, {host_local_config, Key}) ->
-    case get_host(Path) of
-        global -> ?HOST_F([#local_config{key = {Key, Host}, value = V}]);
-        Host -> [#local_config{key = {Key, Host}, value = V}]
-    end;
+    [#local_config{key = {Key, get_host(Path)}, value = V}];
 format(Path, V, {local_config, Key}) ->
     global = get_host(Path),
     [#local_config{key = Key, value = V}];
@@ -281,7 +283,7 @@ item_key(_, _) -> item.
 
 %% Processing of the parsed options
 
--spec get_value(config_list(), mongoose_config:key()) -> [mongoose_config:value()].
+-spec get_value([config()], mongoose_config:key()) -> [mongoose_config:value()].
 get_value(Config, Key) ->
     FilterFn = fun(#local_config{key = K}) when K =:= Key -> true;
                   (_) -> false
