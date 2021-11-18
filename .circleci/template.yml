@@ -4,7 +4,8 @@ references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
-  - &CERT_KEY certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}-v2
+  # Caches created via the save_cache step are stored for up to 15 days
+  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}
 
 # list of references to be used inside executors block
 containers:
@@ -348,9 +349,6 @@ commands:
   # We are not allowed to regenerate them
   restore_certs:
     steps:
-      - run:
-          name: Make year_month
-          command: echo "__YEAR_MONTH__" > year_month
       - restore_cache:
           name: Restore certificates
           key: *CERT_KEY

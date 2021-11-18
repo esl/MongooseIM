@@ -38,7 +38,6 @@ INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
-YEAR_MONTH=$(cat year_month)
 # This should be equal once certs cache is restored
 CERTS_VERSION=$(tools/certs-version.sh)
 
@@ -58,7 +57,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
-    -e "s/__YEAR_MONTH__/${YEAR_MONTH}/" \
     -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
     .circleci/template.yml \
     > "$OUT_FILE"
