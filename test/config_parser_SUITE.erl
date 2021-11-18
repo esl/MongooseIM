@@ -1330,55 +1330,43 @@ pool_ldap_tls(_Config) ->
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {shaper, normal, Host}, value = {maxrate, 1000}}] end,
-      #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
-    err_host_or_global(#{<<"shaper">> => #{<<"unlimited">> =>
-                                               #{<<"max_rate">> => <<"infinity">>}}}),
-    err_host_or_global(#{<<"shaper">> => #{<<"fast">> => #{}}}).
+    ?eqh([#local_config{key = {shaper, normal, Host}, value = {maxrate, 1000}}],
+         #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
+    ?errh(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
+    ?errh(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {acl, local, Host}, value = [all]}] end,
-      #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {acl, local, Host}, value = [{user_regexp, <<>>}]}] end,
-      #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {acl, alice, Host},
-                                  value = [{node_regexp, <<"ali.*">>, <<".*host">>}]}] end,
-      #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
-                                         <<"server_regexp">> => <<".*host">>}]}}),
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {acl, alice, Host},
-                                  value = [{user, <<"alice">>, <<"localhost">>}]}] end,
-      #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
-                                         <<"server">> => <<"localhost">>}]}}),
-    err_host_or_global(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
-    err_host_or_global(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
-                                                          <<"server_blog">> => <<"bloghost">>}]}}).
+    ?eqh([#local_config{key = {acl, local, Host}, value = [all]}],
+         #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
+    ?eqh([#local_config{key = {acl, local, Host}, value = [{user_regexp, <<>>}]}],
+         #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
+    ?eqh([#local_config{key = {acl, alice, Host},
+                        value = [{node_regexp, <<"ali.*">>, <<".*host">>}]}],
+         #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
+                                            <<"server_regexp">> => <<".*host">>}]}}),
+    ?eqh([#local_config{key = {acl, alice, Host},
+                        value = [{user, <<"alice">>, <<"localhost">>}]}],
+         #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
+                                            <<"server">> => <<"localhost">>}]}}),
+    ?errh(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
+    ?errh(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
+                                             <<"server_blog">> => <<"bloghost">>}]}}).
 
 access(_Config) ->
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {access, c2s, Host}, value = [{deny, blocked},
-                                                                      {allow, all}]}]
-      end,
-      #{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
-                                          <<"value">> => <<"deny">>},
-                                        #{<<"acl">> => <<"all">>,
-                                          <<"value">> => <<"allow">>}]}}),
-    eq_host_or_global(
-      fun(Host) -> [#local_config{key = {access, max_user_sessions, Host},
-                                  value = [{10, all}]}] end,
-      #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
-                                                        <<"value">> => 10}]}}),
-    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
-                                               [#{<<"acl">> => <<"all">>}]}}),
-    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
-                                               [#{<<"value">> => 10}]}}),
-    err_host_or_global(#{<<"access">> => #{<<"max_user_sessions">> =>
-                                               [#{<<"acl">> => 10,
-                                                  <<"value">> => 10}]}}).
+    ?eqh([#local_config{key = {access, c2s, Host}, value = [{deny, blocked},
+                                                            {allow, all}]}],
+         #{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
+                                             <<"value">> => <<"deny">>},
+                                           #{<<"acl">> => <<"all">>,
+                                             <<"value">> => <<"allow">>}]}}),
+    ?eqh([#local_config{key = {access, max_user_sessions, Host},
+                        value = [{10, all}]}],
+         #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
+                                                           <<"value">> => 10}]}}),
+    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}}),
+    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}}),
+    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
+                                                            <<"value">> => 10}]}}).
 
 %% tests: s2s
 
