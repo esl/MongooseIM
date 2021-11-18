@@ -67,7 +67,11 @@ maybe_clean_certs:
 	fi
 
 certs: maybe_clean_certs
-	cd tools/ssl && make
+	if [ "$$SKIP_CERT_BUILD" = 1 ]; then \
+		echo "Skip cert build"; \
+		else \
+		cd tools/ssl && make; \
+	fi
 
 xeplist:
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)

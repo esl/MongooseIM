@@ -216,25 +216,17 @@ commands:
             - ~/.cache/rebar3
   maybe_build_certs:
     steps:
-      - run:
-          name: Make year_month
-          command: date "+%Y-%m" > year_month
       - restore_cache:
           name: Restore certificates
-          key: *CERT_KEY
+          key: certs-cache
       - run:
           name: Maybe rebuild certificates if they're about to expire
           command: make certs
-      - run:
-          name: Print cert hashes for debugging
-          command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
-          key: *CERT_KEY
+          key: certs-cache
           paths:
-            - ~/app/tools/ssl/ca
-            - ~/app/tools/ssl/ca-clients
-            - ~/app/tools/ssl/mongooseim
+            - ~/app/tools/ssl
   build_and_cache_prod_build:
     steps:
       - run:
@@ -364,7 +356,24 @@ commands:
       - restore_cache:
           name: Restore deps artifacts
           key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-      - maybe_build_certs
+      - restore_certs
+  # Certs are initialized during setup phase
+  # We are not allowed to regenerate them
+  restore_certs:
+    steps:
+      - run:
+          name: Make year_month
+          command: echo "__YEAR_MONTH__" > year_month
+      - restore_cache:
+          name: Restore certificates
+          key: *CERT_KEY
+      - run:
+          name: Verify certificates
+          command: |
+            if [ "$(tools/certs-version.sh)" != "__CERTS_VERSION__" ]; then
+              echo "Restart this build from the beginning, including the setup job"
+              exit 1
+            fi
   prepare_for_cache:
     steps:
       - run:
@@ -592,12 +601,13 @@ jobs:
       # Overwrite the certs with the ones, that our DB is aware about
       LDAP_FAKE_KEY: "__LDAP_FAKE_KEY__"
       LDAP_FAKE_CERT: "__LDAP_FAKE_CERT__"
+      SKIP_CERT_BUILD: 1
     steps:
       - checkout
       - prepare_for_cache
       - fetch_build_packages
       - maybe_build_deps_and_cache
-      - maybe_build_certs
+      - restore_certs
       - run: ./tools/circle-db-cacert-from-env-var.sh
       - run: ./rebar3 compile
       - run:

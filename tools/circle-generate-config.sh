@@ -40,6 +40,10 @@ LDAP_FAKE_KEY=$(cat32 tools/ssl/mongooseim/ldap_fake_key.pem)
 LDAP_FAKE_CERT=$(cat32 tools/ssl/mongooseim/ldap_fake_cert.pem)
 LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
+YEAR_MONTH=$(cat year_month)
+# This should be equal once certs cache is restored
+CERTS_VERSION=$(tools/certs-version.sh)
+
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
     -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
@@ -58,5 +62,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__LDAP_FAKE_KEY__/${LDAP_FAKE_KEY}/" \
     -e "s/__LDAP_FAKE_CERT__/${LDAP_FAKE_CERT}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
+    -e "s/__YEAR_MONTH__/${YEAR_MONTH}/" \
+    -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
     .circleci/template.yml \
     > "$OUT_FILE"
