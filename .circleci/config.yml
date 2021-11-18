@@ -8,7 +8,7 @@ setup: true
 
 # the continuation orb is required in order to use dynamic configuration
 orbs:
-  continuation: circleci/continuation@0.1.2
+  continuation: circleci/continuation@0.2.0
 
 # our defined job, and its steps
 jobs:
