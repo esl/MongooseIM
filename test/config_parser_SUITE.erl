@@ -3115,11 +3115,9 @@ compare_values({auth_opts, _}, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_auth_opt/2);
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
-compare_values({modules, _}, [{mod_extdisco, V1}], [{mod_extdisco, V2}]) ->
-    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
 compare_values({modules, _}, V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_modules/2);
-compare_values({services, _}, V1, V2) ->
+    compare_unordered_lists(V1, V2, fun handle_module/2);
+compare_values(services, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
 compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
@@ -3127,10 +3125,6 @@ compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
 compare_values(s2s_dns_options, V1, V2) ->
     compare_unordered_lists(V1, V2);
-compare_values(services, V1, V2) ->
-    MetricsOpts1 = proplists:get_value(service_mongoose_system_metrics, V1),
-    MetricsOpts2 = proplists:get_value(service_mongoose_system_metrics, V2),
-    compare_unordered_lists(MetricsOpts1, MetricsOpts2);
 compare_values(K, V1, V2) ->
     ?eq({K, V1}, {K, V2}).
 
@@ -3192,7 +3186,9 @@ handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
 
-handle_modules({Name, Opts}, {Name2, Opts2}) ->
+handle_module({mod_extdisco, Opts}, {mod_extdisco, Opts2}) ->
+    compare_ordered_lists(Opts, Opts2, fun compare_unordered_lists/2);
+handle_module({Name, Opts}, {Name2, Opts2}) ->
     ?eq(Name, Name2),
     compare_unordered_lists(Opts, Opts2, fun handle_module_options/2).
 
