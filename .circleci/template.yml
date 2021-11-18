@@ -117,7 +117,7 @@ containers:
       - ENV_FILE_MAM_SCHEMA_DATA: "__RIAK_MAM_SEARCH_SCHEMA__"
       - ENV_FILE_VCARD_SCHEMA_PATH: "/vcard_search_schema.xml"
       - ENV_FILE_VCARD_SCHEMA_DATA: "__RIAK_VCARD_SEARCH_SCHEMA__"
-      - ENV_FILE_SETUP_PATH: "/setup-riak.sh"
+      - ENV_FILE_SETUP_SH_PATH: "/setup-riak.sh"
       - ENV_FILE_SETUP_SH_DATA: "__RIAK_SETUP_SH__"
       - ENV_FILE_SETUP_SH_MODE: 755
       # Riak does not have base32, but has python

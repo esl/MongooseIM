@@ -68,6 +68,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
     -e "s/__RIAK_SSL_CFG__/${RIAK_SSL_CFG}/" \
     -e "s/__RIAK_ADV_CFG__/${RIAK_ADV_CFG}/" \
+    -e "s/__RIAK_SETUP__/${RIAK_SETUP}/" \
     -e "s/__RIAK_SETUP_SH__/${RIAK_SETUP_SH}/" \
     -e "s/__RIAK_MAM_SEARCH_SCHEMA__/${RIAK_MAM_SEARCH_SCHEMA}/" \
     -e "s/__RIAK_VCARD_SEARCH_SCHEMA__/${RIAK_VCARD_SEARCH_SCHEMA}/" \
