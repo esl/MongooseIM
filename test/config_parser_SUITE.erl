@@ -3220,9 +3220,6 @@ compare_ordered_lists([H1|T1], [H2|T2], F) ->
 compare_ordered_lists([], [], _) ->
     ok.
 
-set_pl(K, V, List) ->
-    lists:keyreplace(K, 1, List, {K, V}).
-
 create_files(Config) ->
     %% The files must exist for validation to pass
     Root = small_path_helper:repo_dir(Config),
@@ -3245,36 +3242,3 @@ ensure_copied(From, To) ->
             error(#{what => ensure_copied_failed, from => From, to => To,
                     reason => Other})
     end.
-
-pl_merge(L1, L2) ->
-    M1 = maps:from_list(L1),
-    M2 = maps:from_list(L2),
-    maps:to_list(maps:merge(M1, M2)).
-
-binaries_to_atoms(Bins) ->
-    [binary_to_atom(B, utf8) || B <- Bins].
-
-run_multi(Cases) ->
-    Results = [run_case(F) || {F,_} <- Cases],
-    case lists:all(fun(X) -> X =:= ok end, Results) of
-        true ->
-            ok;
-        false ->
-            Failed = [Zip || {Res,_}=Zip <- lists:zip(Results, Cases), Res =/= ok],
-            [ct:pal("Info: ~p~nResult: ~p~n", [Info, Res]) || {Res, Info} <- Failed],
-            ct:fail(#{what => run_multi_failed, failed_cases => length(Failed)})
-    end.
-
-run_case(F) ->
-    try
-        F(), ok
-    catch Class:Reason:Stacktrace ->
-        {Class, Reason, Stacktrace}
-    end.
-
-ensure_sorted(List) ->
-    [ct:fail("Not sorted list ~p~nSorted order ~p~n", [List, lists:sort(List)])
-     || lists:sort(List) =/= List].
-
-a2b(X) -> atom_to_binary(X, utf8).
-b2a(X) -> binary_to_atom(X, utf8).
