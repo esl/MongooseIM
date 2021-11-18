@@ -597,10 +597,6 @@ jobs:
     environment:
       SKIP_RELEASE: 1
       SKIP_COV: 0
-      DB_CACERT: "__DB_CACERT__"
-      # Overwrite the certs with the ones, that our DB is aware about
-      LDAP_FAKE_KEY: "__LDAP_FAKE_KEY__"
-      LDAP_FAKE_CERT: "__LDAP_FAKE_CERT__"
       SKIP_CERT_BUILD: 1
     steps:
       - checkout
@@ -608,7 +604,6 @@ jobs:
       - fetch_build_packages
       - maybe_build_deps_and_cache
       - restore_certs
-      - run: ./tools/circle-db-cacert-from-env-var.sh
       - run: ./rebar3 compile
       - run:
           name: Generate development releases
