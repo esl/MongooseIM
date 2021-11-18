@@ -2,6 +2,7 @@ version: 2.1
 
 references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
+  - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
 
 # list of references to be used inside executors block
@@ -26,9 +27,85 @@ containers:
       - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
       - ENV_FILE_KEY_DATA: "__MIM_KEY__"
     entrypoint: *ENTRYPOINT
+  - &pgsql_container
+    image: postgres:14
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - POSTGRES_PASSWORD: password
+      - OLD_ENTRYPOINT: "docker-entrypoint.sh postgres"
+      - ENV_FILE_CFG_PATH: "/tmp/sql/postgresql.conf"
+      - ENV_FILE_CFG_DATA: "__PGSQL_CNF__"
+      - ENV_FILE_SQL_PATH: "/tmp/sql/pg.sql"
+      - ENV_FILE_SQL_DATA: "__PGSQL_SQL__"
+      - ENV_FILE_HBA_PATH: "/tmp/sql/pg_hba.conf"
+      - ENV_FILE_HBA_DATA: "__PGSQL_HBA__"
+      - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-postgres.sh"
+      - ENV_FILE_SH_DATA: "__PGSQL_SETUP__"
+      - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+    entrypoint: *ENTRYPOINT
+  - &ldap_container
+    image: osixia/openldap:1.2.4
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - POSTGRES_PASSWORD: password
+      - LDAP_DOMAIN: "esl.com"
+      - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
+      - LDAP_ORGANISATION: "Erlang Solutions"
+      - LDAP_TLS_CRT_FILENAME: cert.pem
+      - LDAP_TLS_KEY_FILENAME: key.pem
+      - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
+      - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
+      - OLD_ENTRYPOINT: "/init_script.sh && /container/tool/run --copy-service"
+      - ENV_FILE_SH_PATH: "/init_script.sh"
+      - ENV_FILE_SH_DATA: "__LDAP_SETUP__"
+      - ENV_FILE_SH_MODE: 755
+      - ENV_FILE_SCHEMA_PATH: "/container/service/slapd/assets/config/bootstrap/ldif/custom/init_entries.ldif"
+      - ENV_FILE_SCHEMA_DATA: "__LDAP_SCHEMA__"
+      - ENV_FILE_CERT_PATH: "/container/service/slapd/assets/certs/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/container/service/slapd/assets/certs/key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/container/service/slapd/assets/certs/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
+      - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
+    entrypoint: *ENTRYPOINT
+  - &mssql_container
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      - ACCEPT_EULA: Y
+      - SA_PASSWORD: "mongooseim_secret+ESL123"
+      - DB_NAME: ejabberd
+      - SCHEMA_READY_PORT: 1434
+        # We are not running as root in this container,
+        # so we can only write into some directories (in this case, /tmp)
+      - SQL_FILE: "/tmp/mongoose.sql"
+      - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
+      - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
+      - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
+      - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
+      - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
+      - ENV_FILE_SH_MODE: 755
+    entrypoint: *ENTRYPOINT
+  - &redis_container
+    image: circleci/redis:6.0.5
+  - &rabbit_container
+    image: rabbitmq:3.7-alpine
+  - &minio_container
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+      - MINIO_SECRET_KEY: "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"
+    command: ["server", "/data"]
 
 executors:
-  # OTP24
+  otp_23:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
   otp_24:
     working_directory: ~/app
     docker:
@@ -37,100 +114,45 @@ executors:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
+      - *redis_container
   otp_24_redis_minio_rmq:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
-      - image: minio/minio:latest
-        environment:
-          - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
-          - MINIO_SECRET_KEY: "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"
-        command: ["server", "/data"]
-      - image: rabbitmq:3.7-alpine
+      - *redis_container
+      - *minio_container
+      - *rabbit_container
   otp_24_mysql_redis:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
-      - image: rabbitmq:3.7
+      - *redis_container
       - *mysql_container
+      - *rabbit_container
+  otp_23_pgsql_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP23
+      - *redis_container
+      - *pgsql_container
   otp_24_pgsql_redis:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
-      - image: postgres:14
-        environment:
-          - SQL_TEMP_DIR: /tmp/sql
-          - POSTGRES_PASSWORD: password
-          - OLD_ENTRYPOINT: "docker-entrypoint.sh postgres"
-          - ENV_FILE_CFG_PATH: "/tmp/sql/postgresql.conf"
-          - ENV_FILE_CFG_DATA: "__PGSQL_CNF__"
-          - ENV_FILE_SQL_PATH: "/tmp/sql/pg.sql"
-          - ENV_FILE_SQL_DATA: "__PGSQL_SQL__"
-          - ENV_FILE_HBA_PATH: "/tmp/sql/pg_hba.conf"
-          - ENV_FILE_HBA_DATA: "__PGSQL_HBA__"
-          - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-postgres.sh"
-          - ENV_FILE_SH_DATA: "__PGSQL_SETUP__"
-          - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
-          - ENV_FILE_CERT_DATA: "__MIM_CERT__"
-          - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
-          - ENV_FILE_KEY_DATA: "__MIM_KEY__"
-        entrypoint: *ENTRYPOINT
+      - *redis_container
+      - *pgsql_container
   otp_24_ldap_redis:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
-      - image: osixia/openldap:1.2.4
-        environment:
-          - SQL_TEMP_DIR: /tmp/sql
-          - POSTGRES_PASSWORD: password
-          - LDAP_DOMAIN: "esl.com"
-          - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
-          - LDAP_ORGANISATION: "Erlang Solutions"
-          - LDAP_TLS_CRT_FILENAME: cert.pem
-          - LDAP_TLS_KEY_FILENAME: key.pem
-          - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
-          - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
-          - OLD_ENTRYPOINT: "/init_script.sh && /container/tool/run --copy-service"
-          - ENV_FILE_SH_PATH: "/init_script.sh"
-          - ENV_FILE_SH_DATA: "__LDAP_SETUP__"
-          - ENV_FILE_SH_MODE: 755
-          - ENV_FILE_SCHEMA_PATH: "/container/service/slapd/assets/config/bootstrap/ldif/custom/init_entries.ldif"
-          - ENV_FILE_SCHEMA_DATA: "__LDAP_SCHEMA__"
-          - ENV_FILE_CERT_PATH: "/container/service/slapd/assets/certs/cert.pem"
-          - ENV_FILE_CERT_DATA: "__MIM_CERT__"
-          - ENV_FILE_KEY_PATH: "/container/service/slapd/assets/certs/key.pem"
-          - ENV_FILE_KEY_DATA: "__MIM_KEY__"
-          - ENV_FILE_CACERT_PATH: "/container/service/slapd/assets/certs/cacert.pem"
-          - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
-          - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
-          - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
-        entrypoint: *ENTRYPOINT
+      - *redis_container
+      - *ldap_container
   otp_24_mssql_redis:
     working_directory: ~/app
     docker:
       - image: *OTP24
-      - image: circleci/redis:6.0.5
-      - image: mcr.microsoft.com/mssql/server
-        environment:
-          - ACCEPT_EULA: Y
-          - SA_PASSWORD: "mongooseim_secret+ESL123"
-          - DB_NAME: ejabberd
-          - SCHEMA_READY_PORT: 1434
-            # We are not running as root in this container,
-            # so we can only write into some directories (in this case, /tmp)
-          - SQL_FILE: "/tmp/mongoose.sql"
-          - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
-          - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
-          - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
-          - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
-          - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
-          - ENV_FILE_SH_MODE: 755
-        entrypoint: *ENTRYPOINT
+      - *redis_container
+      - *mssql_container
 commands:
   install_erlang:
     parameters:
@@ -750,6 +772,11 @@ workflows:
           executor: otp_24
           context: mongooseim-org
           build_prod: true
+      - build_in_docker:
+          name: otp_23_docker
+          executor: otp_23
+          context: mongooseim-org
+          build_prod: false
       # ============= DIALYZER =============
       - dialyzer:
           name: dialyzer
@@ -802,6 +829,14 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: pgsql_mnesia_23
+          executor: otp_23_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: pgsql_mnesia_24
           executor: otp_24_pgsql_redis
           context: mongooseim-org
@@ -847,15 +882,6 @@ workflows:
           otp_package: 23.3.1-1
           preset: ldap_mnesia
           db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
-      - big_tests:
-          name: pgsql_mnesia_23
-          otp_package: 23.3.1-1
-          preset: pgsql_mnesia
-          db: pgsql
           context: mongooseim-org
           requires:
             - otp_23
