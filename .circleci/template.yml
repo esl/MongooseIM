@@ -4,6 +4,29 @@ references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
   - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
 
+# list of references to be used inside executors block
+containers:
+  - &mysql_container
+    image: mysql:8.0.20
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - MYSQL_ROOT_PASSWORD: secret
+      - MYSQL_DATABASE: ejabberd
+      - MYSQL_USER: ejabberd
+      - MYSQL_PASSWORD: mongooseim_secret
+      - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
+      - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
+      - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
+      - ENV_FILE_SQL_PATH: "/docker-entrypoint-initdb.d/mysql.sql"
+      - ENV_FILE_SQL_DATA: "__MYSQL_SQL__"
+      - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-mysql.sh"
+      - ENV_FILE_SH_DATA: "__MYSQL_SETUP__"
+      - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+    entrypoint: *ENTRYPOINT
+
 executors:
   # OTP24
   otp_24:
@@ -32,25 +55,7 @@ executors:
       - image: *OTP24
       - image: circleci/redis:6.0.5
       - image: rabbitmq:3.7
-      - image: mysql:8.0.20
-        environment:
-          - SQL_TEMP_DIR: /tmp/sql
-          - MYSQL_ROOT_PASSWORD: secret
-          - MYSQL_DATABASE: ejabberd
-          - MYSQL_USER: ejabberd
-          - MYSQL_PASSWORD: mongooseim_secret
-          - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
-          - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
-          - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
-          - ENV_FILE_SQL_PATH: "/docker-entrypoint-initdb.d/mysql.sql"
-          - ENV_FILE_SQL_DATA: "__MYSQL_SQL__"
-          - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-mysql.sh"
-          - ENV_FILE_SH_DATA: "__MYSQL_SETUP__"
-          - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
-          - ENV_FILE_CERT_DATA: "__MIM_CERT__"
-          - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
-          - ENV_FILE_KEY_DATA: "__MIM_KEY__"
-        entrypoint: *ENTRYPOINT
+      - *mysql_container
   otp_24_pgsql_redis:
     working_directory: ~/app
     docker:
