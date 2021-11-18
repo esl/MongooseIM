@@ -640,6 +640,9 @@ jobs:
     parameters:
       executor:
         type: executor
+      spec:
+        type: string
+        default: default.spec
       preset:
         type: enum
         enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
@@ -655,6 +658,7 @@ jobs:
         description: Erlang distribution with TLS enabled
         default: false
     environment:
+      TESTSPEC: <<parameters.spec>>
       PRESET: <<parameters.preset>>
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
@@ -864,6 +868,15 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: dynamic_domains_pgsql_mnesia_23
+          spec: dynamic_domains.spec
+          executor: otp_23_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: mssql_mnesia_24
           executor: otp_24_mssql_redis
           context: mongooseim-org
@@ -892,22 +905,6 @@ workflows:
           filters: *all_tags
       # ============================================
       # ============= IN VM EXECUTORS ==============
-      # ============= TESTS OTP 23 =============
-      - build:
-          name: otp_23
-          otp_package: 23.3.1-1
-          context: mongooseim-org
-          filters: *all_tags
-      - big_tests:
-          name: dynamic_domains_pgsql_mnesia_23
-          otp_package: 23.3.1-1
-          spec: dynamic_domains.spec
-          preset: pgsql_mnesia
-          db: pgsql
-          context: mongooseim-org
-          requires:
-            - otp_23
-          filters: *all_tags
       # ============= TESTS OTP 24 =============
       - build:
           name: otp_24
