@@ -5,16 +5,16 @@ OUT_FILE="$1"
 echo | base32 -w0 > /dev/null 2>&1
 if [ $? -eq 0 ]; then
       # GNU coreutils base32, '-w' supported
-      MYBASE64="base32 -w0"
+      ENCODER="base32 -w0"
     else
       # Openssl base32, no wrapping by default
-      MYBASE64="base32"
+      ENCODER="base32"
 fi
 
 set -e
 
 function cat32 {
-    cat "$1" | $MYBASE64
+    cat "$1" | $ENCODER
 }
 
 MYSQL_CNF=$(cat32 tools/db_configs/mysql/mysql.cnf)
