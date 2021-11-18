@@ -2,6 +2,7 @@ version: 2.1
 
 references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
+  - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
 
 executors:
   # OTP24
@@ -38,7 +39,6 @@ executors:
           - MYSQL_DATABASE: ejabberd
           - MYSQL_USER: ejabberd
           - MYSQL_PASSWORD: mongooseim_secret
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
           - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
           - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
@@ -50,7 +50,7 @@ executors:
           - ENV_FILE_CERT_DATA: "__MIM_CERT__"
           - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
           - ENV_FILE_KEY_DATA: "__MIM_KEY__"
-        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+        entrypoint: *ENTRYPOINT
   otp_24_pgsql_redis:
     working_directory: ~/app
     docker:
@@ -60,7 +60,6 @@ executors:
         environment:
           - SQL_TEMP_DIR: /tmp/sql
           - POSTGRES_PASSWORD: password
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "docker-entrypoint.sh postgres"
           - ENV_FILE_CFG_PATH: "/tmp/sql/postgresql.conf"
           - ENV_FILE_CFG_DATA: "__PGSQL_CNF__"
@@ -74,7 +73,7 @@ executors:
           - ENV_FILE_CERT_DATA: "__MIM_CERT__"
           - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
           - ENV_FILE_KEY_DATA: "__MIM_KEY__"
-        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+        entrypoint: *ENTRYPOINT
   otp_24_ldap_redis:
     working_directory: ~/app
     docker:
@@ -91,7 +90,6 @@ executors:
           - LDAP_TLS_KEY_FILENAME: key.pem
           - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
           - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "/init_script.sh && /container/tool/run --copy-service"
           - ENV_FILE_SH_PATH: "/init_script.sh"
           - ENV_FILE_SH_DATA: "__LDAP_SETUP__"
@@ -106,7 +104,7 @@ executors:
           - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
           - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
           - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
-        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+        entrypoint: *ENTRYPOINT
   otp_24_mssql_redis:
     working_directory: ~/app
     docker:
@@ -121,14 +119,13 @@ executors:
             # We are not running as root in this container,
             # so we can only write into some directories (in this case, /tmp)
           - SQL_FILE: "/tmp/mongoose.sql"
-          - NEW_ENTRYPOINT: "echo __INJECT_FILES__ | base32 --decode | bash"
           - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
           - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
           - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
           - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
           - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
           - ENV_FILE_SH_MODE: 755
-        entrypoint: ["/bin/bash", "-c", "eval $NEW_ENTRYPOINT"]
+        entrypoint: *ENTRYPOINT
 commands:
   install_erlang:
     parameters:
