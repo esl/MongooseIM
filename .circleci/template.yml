@@ -6,6 +6,8 @@ references:
   - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}
+  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}
 
 # list of references to be used inside executors block
 containers:
@@ -204,7 +206,7 @@ commands:
     steps:
       - restore_cache:
           name: Maybe restore all rebar3 dependencies
-          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          key: *DEPS_CACHE_KEY
       - run:
           name: Get deps
           command: |
@@ -212,7 +214,7 @@ commands:
             ./rebar3 get-deps
       - save_cache:
           name: Cache downloaded and built dependencies
-          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          key: *DEPS_CACHE_KEY
           paths:
             - ~/.cache/rebar3
   build_and_cache_prod_build:
@@ -223,12 +225,12 @@ commands:
             echo $ERLANG_VERSION > otp_version
             make rel
       - save_cache:
-          key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          key: *BUILD_CACHE_KEY
           paths: ~/app/_build/prod/rel/mongooseim
   restore_prod_build:
     steps:
       - restore_cache:
-          key: prod-build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          key: *BUILD_CACHE_KEY
   persist_workspace:
     steps:
       - run: git gc
@@ -240,7 +242,7 @@ commands:
       - attach_workspace: {at: ~/app}
       - prepare_for_cache
       - restore_cache:
-          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          key: *DEPS_CACHE_KEY
   dockerize_wait:
     parameters: {port: {type: integer}}
     steps:
@@ -340,10 +342,10 @@ commands:
     steps:
       - restore_cache:
           name: Restore build artifacts
-          key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          key: *BUILD_CACHE_KEY
       - restore_cache:
           name: Restore deps artifacts
-          key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          key: *DEPS_CACHE_KEY
       - restore_certs
   # Certs are initialized during setup phase
   # We are not allowed to regenerate them
@@ -388,7 +390,7 @@ jobs:
           command: |
             echo <<parameters.otp_package>> > otp_version
       - restore_cache:
-          key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          key: *BUILD_CACHE_KEY
       - maybe_build_deps_and_cache
       - restore_certs
       - run: ./rebar3 compile
@@ -400,7 +402,7 @@ jobs:
           command: |
             tools/build-tests.sh
       - save_cache:
-          key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          key: *BUILD_CACHE_KEY
           paths: ./
 
   small_tests:
