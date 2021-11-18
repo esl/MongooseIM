@@ -94,6 +94,33 @@ containers:
       - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
       - ENV_FILE_SH_MODE: 755
     entrypoint: *ENTRYPOINT
+  - &riak_container
+    image: michalwski/docker-riak:1.0.6
+    environment:
+      - DOCKER_RIAK_BACKEND: leveldb
+      - DOCKER_RIAK_CLUSTER_SIZE: 1
+      - SCHEMA_READY_PORT: 8999
+      - OLD_ENTRYPOINT: "/setup-riak.sh && /sbin/my_init --skip-startup-files"
+      - ENV_FILE_ADV_CFG_PATH: "/etc/riak/advanced.config"
+      - ENV_FILE_ADV_CFG_DATA: "__RIAK_ADV_CFG__"
+      - ENV_FILE_SSL_CFG_PATH: "/etc/riak/riak.conf.ssl"
+      - ENV_FILE_SSL_CFG_DATA: "__RIAK_SSL_CFG__"
+      - ENV_FILE_CERT_PATH: "/etc/riak/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/etc/riak/key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/etc/riak/ca/cacertfile.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_SETUP_PATH: "/setup_riak.escript"
+      - ENV_FILE_SETUP_DATA: "__RIAK_SETUP__"
+      - ENV_FILE_MAM_SCHEMA_PATH: "/mam_search_schema.xml"
+      - ENV_FILE_MAM_SCHEMA_DATA: "__RIAK_MAM_SEARCH_SCHEMA__"
+      - ENV_FILE_VCARD_SCHEMA_PATH: "/vcard_search_schema.xml"
+      - ENV_FILE_VCARD_SCHEMA_DATA: "__RIAK_VCARD_SEARCH_SCHEMA__"
+      - ENV_FILE_SETUP_PATH: "/setup-riak.sh"
+      - ENV_FILE_SETUP_SH_DATA: "__RIAK_SETUP_SH__"
+      - ENV_FILE_SETUP_SH_MODE: 755
+    entrypoint: *ENTRYPOINT
   - &redis_container
     image: circleci/redis:6.0.5
   - &rabbit_container
@@ -168,6 +195,12 @@ executors:
       - image: *OTP24
       - *redis_container
       - *mssql_container
+  otp_24_riak_redis:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *riak_container
 commands:
   install_erlang:
     parameters:
@@ -317,6 +350,15 @@ commands:
           command: |
             if [[ "$DB" == *ldap* ]]; then
               sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
+            fi
+
+  maybe_wait_for_solr:
+    steps:
+      - run:
+          name: Maybe wait for Riak SOLR
+          command: |
+            if [[ "$DB" == *riak* ]]; then
+              tools/circle-wait-for-solr.sh
             fi
 
   maybe_prepare_odbc:
@@ -664,6 +706,7 @@ jobs:
       - maybe_prepare_minio
       - maybe_prepare_odbc
       - maybe_prepare_ldap
+      - maybe_wait_for_solr
       - prepare_etc_hosts
       - run:
           name: Run Big Tests
@@ -906,6 +949,15 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: riak_mnesia_24
+          executor: otp_24_riak_redis
+          context: mongooseim-org
+          preset: riak_mnesia
+          db: "riak redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: ldap_mnesia_23
           executor: otp_23_ldap_redis
           context: mongooseim-org
@@ -936,15 +988,6 @@ workflows:
           otp_package: 24.0-1
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: riak_mnesia_24
-          otp_package: 24.0-1
-          preset: riak_mnesia
-          db: riak
           context: mongooseim-org
           requires:
             - otp_24

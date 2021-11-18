@@ -40,6 +40,12 @@ LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
 # This should be equal once certs cache is restored
 CERTS_VERSION=$(tools/certs-version.sh)
+RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
+RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
+RIAK_SETUP=$(cat32 tools/setup_riak.escript)
+RIAK_MAM_SEARCH_SCHEMA=$(cat32 tools/mam_search_schema.xml)
+RIAK_VCARD_SEARCH_SCHEMA=$(cat32 tools/vcard_search_schema.xml)
+RIAK_SETUP_SH=$(cat32 tools/db_configs/riak/setup-riak.sh)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
@@ -58,5 +64,10 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
     -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
+    -e "s/__RIAK_SSL_CFG__/${RIAK_SSL_CFG}/" \
+    -e "s/__RIAK_ADV_CFG__/${RIAK_ADV_CFG}/" \
+    -e "s/__RIAK_SETUP_SH__/${RIAK_SETUP_SH}/" \
+    -e "s/__RIAK_MAM_SEARCH_SCHEMA__/${RIAK_MAM_SEARCH_SCHEMA}/" \
+    -e "s/__RIAK_VCARD_SEARCH_SCHEMA__/${RIAK_VCARD_SEARCH_SCHEMA}/" \
     .circleci/template.yml \
     > "$OUT_FILE"
