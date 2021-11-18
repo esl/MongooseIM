@@ -4,6 +4,7 @@ references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | base32 --decode | bash"]
+  - &CERT_KEY certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}-v2
 
 # list of references to be used inside executors block
 containers:
@@ -209,7 +210,7 @@ commands:
           command: date "+%Y-%m" > year_month
       - restore_cache:
           name: Restore certificates
-          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
+          key: *CERT_KEY
       - run:
           name: Maybe rebuild certificates if they're about to expire
           command: make certs
@@ -218,7 +219,7 @@ commands:
           command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
-          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
+          key: *CERT_KEY
           paths:
             - ~/app/tools/ssl/ca
             - ~/app/tools/ssl/ca-clients

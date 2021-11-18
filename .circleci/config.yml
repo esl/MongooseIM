@@ -1,5 +1,8 @@
 version: 2.1
 
+references:
+  - &CERT_KEY certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}-v2
+
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true
 
@@ -11,6 +14,7 @@ orbs:
 jobs:
   setup:
     executor: continuation/default
+    working_directory: ~/app
     steps:
       - checkout # checkout code
       - maybe_build_certs
@@ -29,7 +33,7 @@ commands:
           command: date "+%Y-%m" > year_month
       - restore_cache:
           name: Restore certificates
-          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
+          key: *CERT_KEY
       - run:
           name: Maybe rebuild certificates if they're about to expire
           command: make certs
@@ -38,7 +42,7 @@ commands:
           command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
-          key: certs-cache-{{ checksum "year_month" }}-{{ checksum "tools/ssl/Makefile" }}
+          key: *CERT_KEY
           paths:
             - ~/app/tools/ssl/ca
             - ~/app/tools/ssl/ca-clients
