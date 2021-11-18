@@ -852,6 +852,15 @@ workflows:
             - otp_24_docker
           filters: *all_tags
       - big_tests_in_docker:
+          name: dynamic_domains_mysql_redis_24
+          spec: dynamic_domains.spec
+          executor: otp_24_mysql_redis
+          context: mongooseim-org
+          preset: mysql_redis
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
           name: pgsql_mnesia_23
           executor: otp_23_pgsql_redis
           context: mongooseim-org
@@ -861,6 +870,15 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: pgsql_mnesia_24
+          executor: otp_24_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_pgsql_mnesia_24
+          spec: dynamic_domains.spec
           executor: otp_24_pgsql_redis
           context: mongooseim-org
           preset: pgsql_mnesia
@@ -878,6 +896,16 @@ workflows:
           filters: *all_tags
       - big_tests_in_docker:
           name: mssql_mnesia_24
+          executor: otp_24_mssql_redis
+          context: mongooseim-org
+          preset: odbc_mssql_mnesia
+          db: "mssql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_mssql_mnesia_24
+          spec: dynamic_domains.spec
           executor: otp_24_mssql_redis
           context: mongooseim-org
           preset: odbc_mssql_mnesia
@@ -925,36 +953,6 @@ workflows:
           otp_package: 24.0-1
           preset: riak_mnesia
           db: riak
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: dynamic_domains_pgsql_mnesia_24
-          otp_package: 24.0-1
-          spec: dynamic_domains.spec
-          preset: pgsql_mnesia
-          db: pgsql
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: dynamic_domains_mysql_redis_24
-          otp_package: 24.0-1
-          spec: dynamic_domains.spec
-          preset: mysql_redis
-          db: mysql
-          context: mongooseim-org
-          requires:
-            - otp_24
-          filters: *all_tags
-      - big_tests:
-          name: dynamic_domains_mssql_mnesia_24
-          otp_package: 24.0-1
-          spec: dynamic_domains.spec
-          preset: odbc_mssql_mnesia
-          db: mssql
           context: mongooseim-org
           requires:
             - otp_24
