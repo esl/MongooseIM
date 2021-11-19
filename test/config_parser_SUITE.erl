@@ -1398,7 +1398,7 @@ s2s_ciphers(_Config) ->
 s2s_domain_certfile(_Config) ->
     DomCert = #{<<"domain">> => <<"myxmpp.com">>,
                 <<"certfile">> => <<"mycert.pem">>},
-    ?cfg({domain_certfile, "myxmpp.com"}, "mycert.pem",
+    ?cfg({domain_certfile, <<"myxmpp.com">>}, "mycert.pem",
          #{<<"s2s">> => #{<<"domain_certfile">> => [DomCert]}}),
     [?err(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
      || K <- maps:keys(DomCert)],

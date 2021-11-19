@@ -1094,7 +1094,7 @@ s2s_address() ->
 %% path: (host_config[].)s2s.domain_certfile[]
 s2s_domain_cert() ->
     #section{
-       items = #{<<"domain">> => #option{type = string,
+       items = #{<<"domain">> => #option{type = binary,
                                          validate = non_empty},
                  <<"certfile">> => #option{type = string,
                                            validate = non_empty}},
