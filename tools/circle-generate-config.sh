@@ -30,6 +30,7 @@ MSSQL_SQL=$(cat32 priv/mssql2012.sql)
 MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 
 LDAP_SCHEMA=$(cat32 tools/db_configs/ldap/init_entries.ldif)
+LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
 MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
 MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
@@ -37,10 +38,10 @@ MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
 MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/cacert.pem)
-LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
 # This should be equal once certs cache is restored
 CERTS_VERSION=$(tools/certs-version.sh)
+
 RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
 RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
 RIAK_SETUP=$(cat32 tools/setup_riak.escript)
