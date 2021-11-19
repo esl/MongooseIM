@@ -6,8 +6,8 @@ references:
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v3
-  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v2
-  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v2
+  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v4
 
 # list of references to be used inside executors block
 containers:
@@ -280,11 +280,22 @@ commands:
           name: Get and compile deps
           command: |
             tools/configure with-all
-            ./rebar3 deps
+            # Hide our code from rebar to not compile it at this stage
+            mv src src_old
+            ./rebar3 compile
+            # rebar3 could create src directory on its own
+            rm -rf src
+            mv src_old src
       - run:
           name: Get and compile big_tests deps
           command: |
-            cd big_tests && ../rebar3 deps
+            cd big_tests
+            mv src src_old
+            mv tests tests_old
+            ../rebar3 compile
+            rm -rf src tests
+            mv src_old src
+            mv tests_old tests
       - save_cache:
           name: Cache built dependencies
           key: *DEPS_CACHE_KEY
