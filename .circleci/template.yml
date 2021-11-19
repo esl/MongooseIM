@@ -5,9 +5,9 @@ references:
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
-  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}
-  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}
-  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}
+  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v3
+  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v2
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v2
 
 # list of references to be used inside executors block
 containers:
@@ -175,75 +175,62 @@ containers:
 
 executors:
   otp_23:
-    working_directory: ~/app
     docker:
       - image: *OTP23
   otp_24:
-    working_directory: ~/app
     docker:
       - image: *OTP24
   otp_23_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP23
       - *redis_container
   otp_24_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
   otp_24_redis_minio_rmq:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *minio_container
       - *rabbit_container
   otp_24_mysql_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *mysql_container
       - *rabbit_container
   otp_23_pgsql_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP23
       - *redis_container
       - *pgsql_container
   otp_24_pgsql_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *pgsql_container
   otp_23_ldap_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP23
       - *redis_container
       - *ldap_container
   otp_24_ldap_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *ldap_container
   otp_24_mssql_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *mssql_container
   otp_24_riak_redis:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
       - *riak_container
   otp_24_elasticsearch_cassandra_mnesia:
-    working_directory: ~/app
     docker:
       - image: *OTP24
       - *redis_container
@@ -308,7 +295,7 @@ commands:
             make rel
       - save_cache:
           key: *BUILD_CACHE_KEY
-          paths: ~/app/_build/prod/rel/mongooseim
+          paths: ~/project/_build/prod/rel/mongooseim
   restore_prod_build:
     steps:
       - restore_cache:
@@ -317,11 +304,11 @@ commands:
     steps:
       - run: git gc
       - persist_to_workspace:
-          root: ~/app/
+          root: ~/project/
           paths: ["*"]
   restore_workspace:
     steps:
-      - attach_workspace: {at: ~/app}
+      - attach_workspace: {at: ~/project}
       - prepare_for_cache
       - restore_cache:
           key: *DEPS_CACHE_KEY
@@ -479,7 +466,6 @@ jobs:
     environment:
       SKIP_RELEASE: 1
       SKIP_COV: 0
-    working_directory: ~/app
     steps:
       - checkout
       - fetch_packages
@@ -509,7 +495,6 @@ jobs:
     parallelism: 1
     machine:
       image: ubuntu-2004:202010-01
-    working_directory: ~/app
     parameters:
       otp_package:
         type: string
@@ -539,7 +524,6 @@ jobs:
     parallelism: 1
     machine:
       image: ubuntu-2004:202010-01
-    working_directory: ~/app
     parameters:
       otp_package:
         type: string
@@ -630,7 +614,6 @@ jobs:
     parallelism: 1
     docker:
       - image: cimg/python:3.9.0
-    working_directory: ~/app
     steps:
       - checkout
       - run:
