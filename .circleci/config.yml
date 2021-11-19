@@ -1,7 +1,7 @@
 version: 2.1
 
 references:
-  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v3
+  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v5
 
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true
@@ -35,6 +35,9 @@ commands:
           # is the master-copy
           name: Build certificates if not cached
           command: test -f tools/ssl/mongooseim/key.pem || make certs
+      - run:
+          name: Print cert hashes for debugging
+          command: find tools/ssl -type f -exec md5sum {} \; | sort
       - save_cache:
           name: Cache built certs
           key: *CERT_KEY
