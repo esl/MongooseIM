@@ -3,7 +3,7 @@ version: 2.1
 references:
   - &OTP24 cimg/elixir:1.12  # Contains Erlang 24.0
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
-  - &ENTRYPOINT ["/bin/bash", "-c", "echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
+  - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}
   - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}
@@ -121,7 +121,7 @@ containers:
       - ENV_FILE_SETUP_SH_DATA: "__RIAK_SETUP_SH__"
       - ENV_FILE_SETUP_SH_MODE: 755
       # Riak does not have base32, but has python
-      - BASE32DEC: "__PYTHON_BASE32__"
+      - BASE32DEC: "__PYTHON3_BASE32_DEC__"
     entrypoint: *ENTRYPOINT
   - &redis_container
     image: circleci/redis:6.0.5
@@ -133,6 +133,45 @@ containers:
       - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
       - MINIO_SECRET_KEY: "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"
     command: ["server", "/data"]
+  - &elasticsearch_container
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.9
+    environment:
+      - ES_JAVA_OPTS: "-Xms500m -Xmx500m"
+      - http.host: 0.0.0.0
+      - transport.host: 127.0.0.1
+      - xpack.security.enabled: false
+  - &cassandra_container
+    image: cassandra:3.9
+    environment:
+      - SCHEMA_READY_PORT: 9242
+      - HEAP_NEWSIZE: 64M
+      - MAX_HEAP_SIZE: 128M
+      - OLD_ENTRYPOINT: "/entry.sh"
+      - ENV_FILE_CERT_PATH: "/ssl/mongooseim/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/ssl/mongooseim/privkey.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_PRIV_KEY__"
+      - ENV_FILE_CACERT_PATH: "/ssl/ca/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_CASSA_ENTRY_PATH: "/entry.sh"
+      - ENV_FILE_CASSA_ENTRY_DATA: "__CASSA_ENTRY__"
+      - ENV_FILE_CASSA_ENTRY_MODE: 755
+      - ENV_FILE_CASSA_MIM_CQL_PATH: "/schemas/mim.cql"
+      - ENV_FILE_CASSA_MIM_CQL_DATA: "__CASSA_MIM_SQL__"
+      - ENV_FILE_CASSA_TEST_CQL_PATH: "/schemas/test.cql"
+      - ENV_FILE_CASSA_TEST_CQL_DATA: "__CASSA_TEST_SQL__"
+      # Cassandra does not have base32, but has python
+      - BASE32DEC: "__PYTHON2_BASE32_DEC__"
+    entrypoint: *ENTRYPOINT
+  - &cassandra_proxy_container
+    image: emicklei/zazkia
+    environment:
+      - OLD_ENTRYPOINT: "./zazkia -v -f /data/zazkia-routes.json"
+      - ENV_FILE_CFG_PATH: "/data/zazkia-routes.json"
+      - ENV_FILE_CFG_DATA: "__CASSA_PROXY_CNF__"
+      # base32 (coreutils) is missing on Alpine
+      - INSTALL_DEPS_CMD: "apk update && apk add bash coreutils"
+    entrypoint: *ENTRYPOINT
 
 executors:
   otp_23:
@@ -203,6 +242,14 @@ executors:
       - image: *OTP24
       - *redis_container
       - *riak_container
+  otp_24_elasticsearch_cassandra_mnesia:
+    working_directory: ~/app
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *elasticsearch_container
+      - *cassandra_container
+      - *cassandra_proxy_container
 commands:
   install_erlang:
     parameters:
@@ -361,6 +408,15 @@ commands:
           command: |
             if [[ "$DB" == *riak* ]]; then
               tools/circle-wait-for-solr.sh
+            fi
+
+  maybe_setup_elasticsearch:
+    steps:
+      - run:
+          name: Maybe create ElasticSearch schema
+          command: |
+            if [[ "$DB" == *elasticsearch* ]]; then
+              tools/setup-elasticsearch.sh
             fi
 
   maybe_prepare_odbc:
@@ -709,6 +765,7 @@ jobs:
       - maybe_prepare_odbc
       - maybe_prepare_ldap
       - maybe_wait_for_solr
+      - maybe_setup_elasticsearch
       - prepare_etc_hosts
       - run:
           name: Run Big Tests
@@ -977,22 +1034,14 @@ workflows:
           requires:
             - otp_24_docker
           filters: *all_tags
-      # ============================================
-      # ============= IN VM EXECUTORS ==============
-      # ============= TESTS OTP 24 =============
-      - build:
-          name: otp_24
-          otp_package: 24.0-1
-          context: mongooseim-org
-          filters: *all_tags
-      - big_tests:
+      - big_tests_in_docker:
           name: elasticsearch_and_cassandra_24
-          otp_package: 24.0-1
+          executor: otp_24_elasticsearch_cassandra_mnesia
+          context: mongooseim-org
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
-          context: mongooseim-org
           requires:
-            - otp_24
+            - otp_24_docker
           filters: *all_tags
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - docker_image:

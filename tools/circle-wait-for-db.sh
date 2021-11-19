@@ -37,6 +37,15 @@ function wait_for_db {
         ldap)
             ./tools/wait-for-it.sh -p 636 # On Circle CI
         ;;
+
+        elasticsearch)
+            ./tools/wait-for-it.sh -p 9200
+        ;;
+
+        cassandra)
+            ./tools/wait-for-it.sh -p 9242 # SCHEMA_READY_PORT
+            ./tools/wait-for-it.sh -p 9142 # proxy
+        ;;
     esac
 }
 

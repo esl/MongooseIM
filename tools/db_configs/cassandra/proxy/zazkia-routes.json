@@ -1,7 +1,7 @@
 [
   {
     "label": "cassandra",
-    "service-hostname": "mongooseim-cassandra",
+    "service-hostname": "localhost",
     "service-port": 9042,
     "listen-port": 9142,
     "transport": {

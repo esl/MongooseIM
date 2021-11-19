@@ -172,35 +172,26 @@ elif [ "$db" = 'cassandra' ]; then
     PROXY_NAME=$(db_name cassandra-proxy)
     CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
     CASSANDRA_PORT=${CASSANDRA_PORT:-9142}
-    docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
-
-    opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    while read -r line; do
-        if [ ! -z "$line" ]; then
-             init_opts+=("$line")
-        fi
-    done <<<"$opts"
-    echo -e "cassandra startup cmd:\n\t${init_opts[@]}"
-
-    docker_entry="${DB_CONF_DIR}/docker_entry.sh"
 
     MIM_SCHEMA=$(pwd)/priv/cassandra.cql
     TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
+    SCHEMA_READY_PORT=9242
 
     docker run -d                                \
                -e MAX_HEAP_SIZE=128M             \
                -e HEAP_NEWSIZE=64M               \
-               $(mount_ro_volume "${SSLDIR}" "/ssl") \
-               $(mount_ro_volume "${docker_entry}" "/entry.sh") \
+               -e SCHEMA_READY_PORT=$SCHEMA_READY_PORT \
+               $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/ssl/ca/cacert.pem") \
+               $(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/ssl/mongooseim/cert.pem") \
+               $(mount_ro_volume "${SSLDIR}/mongooseim/privkey.pem" "/ssl/mongooseim/privkey.pem") \
+               $(mount_ro_volume "${DB_CONF_DIR}/docker_entry.sh" "/entry.sh") \
                $(mount_ro_volume "$MIM_SCHEMA" "/schemas/mim.cql") \
                $(mount_ro_volume "$TEST_SCHEMA" "/schemas/test.cql") \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/cassandra) \
-               --name=$NAME       \
-               --entrypoint "/entry.sh"          \
-               cassandra:${CASSANDRA_VERSION}    \
-               "${init_opts[@]}"
+               --name=$NAME \
+               --entrypoint "/entry.sh" \
+               cassandra:${CASSANDRA_VERSION}
     tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
     # Start TCP proxy on 9142 port, instead of the default 9042
@@ -215,34 +206,8 @@ elif [ "$db" = 'cassandra' ]; then
                --name=$PROXY_NAME \
                emicklei/zazkia
     tools/wait_for_service.sh $PROXY_NAME 9142 || docker logs $PROXY_NAME
-
-    CQLSH_DEBUG=""
-    if [ "${VERBOSE:-0}" = "1" ]; then
-        CQLSH_DEBUG=" --debug "
-    fi
-
-    function cqlsh
-    {
-        docker exec \
-        -e SSL_CERTFILE=/ssl/ca/cacert.pem \
-        "$NAME" \
-        cqlsh "127.0.0.1" --ssl $CQLSH_DEBUG "$@"
-    }
-
-    while ! cqlsh -e 'describe cluster' ; do
-        echo "Waiting for cassandra"
-        sleep 1
-    done
-
-    # Apply schemas
-    echo "Apply Cassandra schema"
-    # For some reason, "cqlsh -f" does not create schema and no error is reported.
-    cqlsh -e "source '/schemas/mim.cql'"
-    cqlsh -e "source '/schemas/test.cql'"
-    echo "Verify Cassandra schema"
-    # Would fail with reason and exit code 2:
-    # <stdin>:1:InvalidRequest: Error from server: code=2200 [Invalid query] message="unconfigured table mam_config"
-    cqlsh -e "select * from mongooseim.mam_config;"
+    # Wait for ready schema
+    tools/wait_for_service.sh $NAME $SCHEMA_READY_PORT || docker logs $NAME
     echo "Cassandra setup done"
 
 elif [ "$db" = 'elasticsearch' ]; then
@@ -257,6 +222,7 @@ elif [ "$db" = 'elasticsearch' ]; then
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
     docker run -d $RM_FLAG \
            -p $ELASTICSEARCH_PORT:9200 \
+           -e ES_JAVA_OPTS="-Xms750m -Xmx750m" \
            -e "http.host=0.0.0.0" \
            -e "transport.host=127.0.0.1" \
            -e "xpack.security.enabled=false" \
@@ -265,14 +231,7 @@ elif [ "$db" = 'elasticsearch' ]; then
     echo "Waiting for ElasticSearch to start listening on port"
     tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
-    ELASTICSEARCH_URL=http://localhost:$ELASTICSEARCH_PORT
-    ELASTICSEARCH_PM_MAPPING="$(pwd)/priv/elasticsearch/pm.json"
-    ELASTICSEARCH_MUC_MAPPING="$(pwd)/priv/elasticsearch/muc.json"
-    echo "Putting ElasticSearch mappings"
-    (curl -X PUT $ELASTICSEARCH_URL/messages -d "@$ELASTICSEARCH_PM_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
-        echo "Failed to put PM mapping into ElasticSearch"
-    (curl -X PUT $ELASTICSEARCH_URL/muc_messages -d "@$ELASTICSEARCH_MUC_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
-        echo "Failed to put MUC mapping into ElasticSearch"
+    ELASTICSEARCH_PORT=$ELASTICSEARCH_PORT ./tools/setup-elasticsearch.sh
 
 elif [ "$db" = 'mssql' ]; then
     NAME=$(db_name mssql)
