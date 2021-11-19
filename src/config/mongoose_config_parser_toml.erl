@@ -98,10 +98,13 @@ ensure_keys(Keys, Section) ->
 
 -spec parse_section(path(), toml_section(), mongoose_config_spec:config_section()) ->
           [config_part()].
-parse_section(Path, M, #section{items = Items}) ->
-    lists:flatmap(fun({K, V}) ->
-                          handle([K|Path], V, get_spec_for_key(K, Items))
-                  end, lists:sort(maps:to_list(M))).
+parse_section(Path, M, #section{items = Items, defaults = Defaults}) ->
+    FilteredDefaults = maps:filter(fun(K, _V) -> not maps:is_key(K, M) end, Defaults),
+    ProcessedConfig = maps:map(fun(K, V) -> handle([K|Path], V, get_spec_for_key(K, Items)) end, M),
+    ProcessedDefaults = maps:map(fun(K, V) -> handle_default([K|Path], V, maps:get(K, Items)) end,
+                                 FilteredDefaults),
+    lists:flatmap(fun({_K, ConfigParts}) -> ConfigParts end,
+                  lists:keysort(1, maps:to_list(maps:merge(ProcessedDefaults, ProcessedConfig)))).
 
 -spec get_spec_for_key(toml_key(), map()) -> mongoose_config_spec:config_node().
 get_spec_for_key(Key, Items) ->
@@ -122,19 +125,27 @@ parse_list(Path, L, #list{items = ItemSpec}) ->
                           handle([Key|Path], Elem, ItemSpec)
                   end, L).
 
--spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> config_part().
+-spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
 handle(Path, Value, Spec) ->
+    handle(Path, Value, Spec, [parse, validate, process, format]).
+
+-spec handle_default(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
+handle_default(Path, Value, Spec) ->
+    handle(Path, Value, Spec, [format]).
+
+-spec handle(path(), toml_value(), mongoose_config_spec:config_node(), [step()]) -> [config_part()].
+handle(Path, Value, Spec, Steps) ->
     lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
                         Error;
                    (Step, Acc) ->
                         try_step(Step, Path, Value, Acc, Spec)
-                end, Value, [parse, validate, process, format]).
+                end, Value, Steps).
 
 -spec handle_step(step(), path(), toml_value(), mongoose_config_spec:config_node()) ->
           config_part().
 handle_step(parse, Path, Value, Spec) ->
     ParsedValue = case Spec of
-                      #section{} = Spec when is_map(Value) ->
+                      #section{} when is_map(Value) ->
                           check_required_keys(Spec, Value),
                           validate_keys(Spec, Value),
                           parse_section(Path, Value, Spec);
@@ -204,7 +215,7 @@ format_spec(#section{format = Format}) -> Format;
 format_spec(#list{format = Format}) -> Format;
 format_spec(#option{format = Format}) -> Format.
 
--spec format(path(), config_part(), mongoose_config_spec:format()) -> config_part().
+-spec format(path(), config_part(), mongoose_config_spec:format()) -> [config_part()].
 format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
     Keys = lists:map(fun({K, _}) -> K end, KVs),
     mongoose_config_validator:validate_list(Keys, unique),
