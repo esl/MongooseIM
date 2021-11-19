@@ -39,7 +39,9 @@
 %%   - {host, Host}: item in the list of hosts in host_config
 -type path() :: [toml_key() | item | {host, jid:server()}].
 
--export_type([toml_key/0, option_value/0, config_part/0, list_processor/0, processor/0]).
+-export_type([toml_key/0, toml_value/0, toml_section/0,
+              option_value/0, config/0, config_error/0, config_part/0,
+              list_processor/0, processor/0]).
 
 -spec parse_file(FileName :: string()) -> mongoose_config_parser:state().
 parse_file(FileName) ->

@@ -1,7 +1,6 @@
 -module(config_parser_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -include("ejabberd_config.hrl").
@@ -361,13 +360,16 @@ hosts(_Config) ->
     ?err(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}}),
     ?err(#{<<"general">> => #{<<"hosts">> => [<<>>]}}),
     ?err(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}}),
-                                                % either hosts or host_types must be provided
+    %% either hosts or host_types must be provided
     assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
     assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => [],
-                                                                            <<"host_types">> => []}})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host">> => []}})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM#{<<"host_types">> => []}})).
+    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
+                                                         GenM#{<<"host">> => [],
+                                                               <<"host_types">> => []}})),
+    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
+                                                         GenM#{<<"host">> => []}})),
+    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
+                                                         GenM#{<<"host_types">> => []}})).
 
 host_types(_Config) ->
     ?cfg(host_types, [<<"type 1">>], #{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}}),
@@ -377,7 +379,7 @@ host_types(_Config) ->
                               <<"hosts">> => []}}),
     ?err(#{<<"general">> => #{<<"host_types">> => [<<>>]}}),
     ?err(#{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type1">>]}}),
-                                                % either hosts and host_types cannot have the same values
+    %% either hosts and host_types cannot have the same values
     ?err(#{<<"general">> => #{<<"host_types">> => [<<"type1">>],
                               <<"hosts">> => [<<"type1">>]}}).
 
@@ -391,7 +393,7 @@ default_server_domain(_Config) ->
                    mongoose_config_parser_toml:parse(#{<<"general">> => M})),
     ?err(#{<<"general">> => #{<<"default_server_domain">> => <<"what is this?">>}}),
     ?err(#{<<"general">> => #{<<"default_server_domain">> => <<>>}}),
-                                                % default_server_domain must be provided
+    %% default_server_domain must be provided
     assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})).
 
 registration_timeout(_Config) ->
@@ -470,349 +472,349 @@ hide_service_name(_Config) ->
 %% tests: listen
 
 listen_portip(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, []), listener(<<"c2s">>, #{})),
+    ?cfg(listener_config(ejabberd_c2s, []), listen_raw(<<"c2s">>, #{})),
     ?cfg(listen, [{{5222, {192, 168, 1, 16}, tcp}, ejabberd_c2s, []}],
-         listener(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.16">>})),
+         listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.16">>})),
     ?cfg(listen, [{{5222, {8193, 3512, 3, 4, 5, 6, 7, 8}, tcp}, ejabberd_c2s, []}],
-         listener(<<"c2s">>, #{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
-    ?err(listener(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.999">>})),
+         listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
+    ?err(listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.999">>})),
     ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"ip_address">> => <<"192.168.1.16">>}]}}),
     ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => <<"5222">>}]}}),
     ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 522222}]}}).
 
 listen_proto(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{proto, tcp}]),
-         listener(<<"c2s">>, #{<<"proto">> => <<"tcp">>})),
+         listen_raw(<<"c2s">>, #{<<"proto">> => <<"tcp">>})),
     ?cfg(listen, [{{5222, {0, 0, 0, 0}, udp}, ejabberd_c2s, [{proto, udp}]}],
-         listener(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
-    ?err(listener(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
+         listen_raw(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
+    ?err(listen_raw(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
 
 listen_ip_version(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [inet]),
-         listener(<<"c2s">>, #{<<"ip_version">> => 4})),
+         listen_raw(<<"c2s">>, #{<<"ip_version">> => 4})),
     ?cfg(listen, [{{5222, {0, 0, 0, 0, 0, 0, 0, 0}, tcp}, ejabberd_c2s, []}],
-         listener(<<"c2s">>, #{<<"ip_version">> => 6})),
-    ?err(listener(<<"c2s">>, #{<<"ip_version">> => 7})).
+         listen_raw(<<"c2s">>, #{<<"ip_version">> => 6})),
+    ?err(listen_raw(<<"c2s">>, #{<<"ip_version">> => 7})).
 
 listen_backlog(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{backlog, 10}]),
-         listener(<<"c2s">>, #{<<"backlog">> => 10})),
-    ?err(listener(<<"c2s">>, #{<<"backlog">> => -10})).
+         listen_raw(<<"c2s">>, #{<<"backlog">> => 10})),
+    ?err(listen_raw(<<"c2s">>, #{<<"backlog">> => -10})).
 
 listen_proxy_protocol(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{proxy_protocol, true}]),
-         listener(<<"c2s">>, #{<<"proxy_protocol">> => true})),
+         listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => true})),
     ?cfg(listener_config(ejabberd_s2s_in, [{proxy_protocol, true}]),
-         listener(<<"s2s">>, #{<<"proxy_protocol">> => true})),
+         listen_raw(<<"s2s">>, #{<<"proxy_protocol">> => true})),
     ?cfg(listener_config(ejabberd_service, [{proxy_protocol, true}]),
-         listener(<<"service">>, #{<<"proxy_protocol">> => true})),
-    ?err(listener(<<"c2s">>, #{<<"proxy_protocol">> => <<"awesome">>})).
+         listen_raw(<<"service">>, #{<<"proxy_protocol">> => true})),
+    ?err(listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => <<"awesome">>})).
 
 listen_num_acceptors(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{acceptors_num, 100}]),
-         listener(<<"c2s">>, #{<<"num_acceptors">> => 100})),
+         listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 100})),
     ?cfg(listener_config(ejabberd_s2s_in, [{acceptors_num, 100}]),
-         listener(<<"s2s">>, #{<<"num_acceptors">> => 100})),
+         listen_raw(<<"s2s">>, #{<<"num_acceptors">> => 100})),
     ?cfg(listener_config(ejabberd_service, [{acceptors_num, 100}]),
-         listener(<<"service">>, #{<<"num_acceptors">> => 100})),
-    ?err(listener(<<"c2s">>, #{<<"num_acceptors">> => 0})).
+         listen_raw(<<"service">>, #{<<"num_acceptors">> => 100})),
+    ?err(listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 0})).
 
 listen_access(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{access, rule1}]),
-         listener(<<"c2s">>, #{<<"access">> => <<"rule1">>})),
+         listen_raw(<<"c2s">>, #{<<"access">> => <<"rule1">>})),
     ?cfg(listener_config(ejabberd_service, [{access, rule1}]),
-         listener(<<"service">>, #{<<"access">> => <<"rule1">>})),
-    ?err(listener(<<"c2s">>, #{<<"access">> => <<>>})).
+         listen_raw(<<"service">>, #{<<"access">> => <<"rule1">>})),
+    ?err(listen_raw(<<"c2s">>, #{<<"access">> => <<>>})).
 
 listen_shaper(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{shaper, c2s_shaper}]),
-         listener(<<"c2s">>, #{<<"shaper">> => <<"c2s_shaper">>})),
+         listen_raw(<<"c2s">>, #{<<"shaper">> => <<"c2s_shaper">>})),
     ?cfg(listener_config(ejabberd_s2s_in, [{shaper, s2s_shaper}]),
-         listener(<<"s2s">>, #{<<"shaper">> => <<"s2s_shaper">>})),
+         listen_raw(<<"s2s">>, #{<<"shaper">> => <<"s2s_shaper">>})),
     ?cfg(listener_config(ejabberd_service, [{shaper_rule, fast}]),
-         listener(<<"service">>, #{<<"shaper_rule">> => <<"fast">>})),
-    ?err(listener(<<"s2s">>, #{<<"shaper">> => <<>>})).
+         listen_raw(<<"service">>, #{<<"shaper_rule">> => <<"fast">>})),
+    ?err(listen_raw(<<"s2s">>, #{<<"shaper">> => <<>>})).
 
 listen_xml_socket(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{xml_socket, true}]),
-         listener(<<"c2s">>, #{<<"xml_socket">> => true})),
-    ?err(listener(<<"c2s">>, #{<<"xml_socket">> => 10})).
+         listen_raw(<<"c2s">>, #{<<"xml_socket">> => true})),
+    ?err(listen_raw(<<"c2s">>, #{<<"xml_socket">> => 10})).
 
 listen_zlib(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{zlib, 1024}]),
-         listener(<<"c2s">>, #{<<"zlib">> => 1024})),
-    ?err(listener(<<"c2s">>, #{<<"zlib">> => 0})).
+         listen_raw(<<"c2s">>, #{<<"zlib">> => 1024})),
+    ?err(listen_raw(<<"c2s">>, #{<<"zlib">> => 0})).
 
 listen_hibernate_after(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{hibernate_after, 10}]),
-         listener(<<"c2s">>, #{<<"hibernate_after">> => 10})),
+         listen_raw(<<"c2s">>, #{<<"hibernate_after">> => 10})),
     ?cfg(listener_config(ejabberd_s2s_in, [{hibernate_after, 10}]),
-         listener(<<"s2s">>, #{<<"hibernate_after">> => 10})),
+         listen_raw(<<"s2s">>, #{<<"hibernate_after">> => 10})),
     ?cfg(listener_config(ejabberd_service, [{hibernate_after, 10}]),
-         listener(<<"service">>, #{<<"hibernate_after">> => 10})),
-    ?err(listener(<<"c2s">>, #{<<"hibernate_after">> => -10})).
+         listen_raw(<<"service">>, #{<<"hibernate_after">> => 10})),
+    ?err(listen_raw(<<"c2s">>, #{<<"hibernate_after">> => -10})).
 
 listen_max_stanza_size(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{max_stanza_size, 10000}]),
-         listener(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
+         listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
     ?cfg(listener_config(ejabberd_s2s_in, [{max_stanza_size, 10000}]),
-         listener(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
+         listen_raw(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
     ?cfg(listener_config(ejabberd_service, [{max_stanza_size, 10000}]),
-         listener(<<"service">>, #{<<"max_stanza_size">> => 10000})),
-    ?err(listener(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
+         listen_raw(<<"service">>, #{<<"max_stanza_size">> => 10000})),
+    ?err(listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
 
 listen_max_fsm_queue(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{max_fsm_queue, 1000}]),
-         listener(<<"c2s">>, #{<<"max_fsm_queue">> => 1000})),
+         listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 1000})),
     ?cfg(listener_config(ejabberd_service, [{max_fsm_queue, 1000}]),
-         listener(<<"service">>, #{<<"max_fsm_queue">> => 1000})),
-    ?err(listener(<<"s2s">>, #{<<"max_fsm_queue">> => 1000})), % only for c2s and service
-    ?err(listener(<<"c2s">>, #{<<"max_fsm_queue">> => 0})).
+         listen_raw(<<"service">>, #{<<"max_fsm_queue">> => 1000})),
+    ?err(listen_raw(<<"s2s">>, #{<<"max_fsm_queue">> => 1000})), % only for c2s and service
+    ?err(listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 0})).
 
 listen_tls_mode(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [starttls]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"starttls">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"stoptls">>}})).
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"starttls">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"stoptls">>}})).
 
 listen_tls_module(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>}})),
     ?cfg(listener_config(ejabberd_c2s, []),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"fast_tls">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"slow_tls">>}})).
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"fast_tls">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"slow_tls">>}})).
 
 listen_tls_verify(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [verify_peer]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
     ?cfg(listener_config(ejabberd_c2s, [verify_none]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}, verify_peer]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_peer">> => true}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_peer">> => true}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{verify, verify_peer}]}]),
-         listener(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}, verify_none]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_peer">> => false}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => <<"maybe">>}})).
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_peer">> => false}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => <<"maybe">>}})).
 
 listen_tls_verify_mode(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{verify_fun, {peer, true}}]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_mode">> => <<"peer">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_mode">> => <<"peer">>}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{verify_fun, {selfsigned_peer, false}}]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_mode">> => <<"selfsigned_peer">>,
-                                              <<"disconnect_on_failure">> => false}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_mode">> => <<"selfsigned_peer">>,
+                                                <<"disconnect_on_failure">> => false}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{verify_mode, peer}]}]),
-         listener(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"peer">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_mode">> => <<"peer">>,
-                                              <<"disconnect_on_failure">> => <<"false">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"verify_mode">> => <<"whatever">>}})),
-    ?err(listener(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"whatever">>}})).
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"peer">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_mode">> => <<"peer">>,
+                                                <<"disconnect_on_failure">> => <<"false">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"verify_mode">> => <<"whatever">>}})),
+    ?err(listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"whatever">>}})).
 
 listen_tls_crl_files(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {crlfiles, ["file1", "file2"]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"crl_files">> => [<<"file1">>,
-                                                                  <<"file2">>]}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"crl_files">> => [<<>>]}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"crl_files">> => [<<"file1">>,
+                                                                    <<"file2">>]}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"crl_files">> => [<<>>]}})),
     %% only for just_tls
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"crl_files">> => [<<"file1">>,
-                                                                  <<"file2">>]}})).
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"crl_files">> => [<<"file1">>,
+                                                                    <<"file2">>]}})).
 
 listen_tls_certfile(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{certfile, "mycert.pem"}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{certfile, "mycert.pem"}]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"certfile">> => <<"mycert.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"certfile">> => <<"mycert.pem">>}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{certfile, "mycert.pem"}]}]),
-         listener(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<>>}})).
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<>>}})).
 
 listen_tls_cacertfile(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{cafile, "cacert.pem"}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?cfg(listener_config(ejabberd_s2s_in, [{cafile, "cacert.pem"}]),
-         listener(<<"s2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
+         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{cacertfile, "cacert.pem"}]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"cacertfile">> => <<"cacert.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"cacertfile">> => <<"cacert.pem">>}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{cacertfile, "cacert.pem"}]}]),
-         listener(<<"http">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<>>}})).
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<>>}})).
 
 listen_tls_dhfile(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{dhfile, "dh.pem"}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
     ?cfg(listener_config(ejabberd_s2s_in, [{dhfile, "dh.pem"}]),
-         listener(<<"s2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
+         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{dhfile, "dh.pem"}]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"dhfile">> => <<"dh.pem">>}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"dhfile">> => <<"dh.pem">>}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{dhfile, "dh.pem"}]}]),
-         listener(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<>>}})).
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<>>}})).
 
 listen_tls_ciphers(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
-         listener(<<"c2s">>,
-                  #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+         listen_raw(<<"c2s">>,
+                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
-         listener(<<"c2s">>,
-                  #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                   <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+         listen_raw(<<"c2s">>,
+                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                     <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?cfg(listener_config(ejabberd_s2s_in, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
-         listener(<<"s2s">>,
-                  #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+         listen_raw(<<"s2s">>,
+                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
-         listener(<<"http">>,
-                  #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?err(listener(<<"c2s">>,
-                  #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
+         listen_raw(<<"http">>,
+                    #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
+    ?err(listen_raw(<<"c2s">>,
+                    #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
 
 listen_tls_versions(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
                                         {ssl_options, [{versions, ['tlsv1.2', 'tlsv1.3']}]}]),
-         listener(<<"c2s">>,
-                  #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                   <<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]}})),
-    ?err(listener(<<"c2s">>,
-                  #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                   <<"versions">> => <<"tlsv1.2">>}})).
+         listen_raw(<<"c2s">>,
+                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                     <<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]}})),
+    ?err(listen_raw(<<"c2s">>,
+                    #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                     <<"versions">> => <<"tlsv1.2">>}})).
 
 listen_tls_protocol_options(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, [{protocol_options, ["nosslv2"]}]),
-         listener(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
     ?cfg(listener_config(ejabberd_s2s_in, [{protocol_options, ["nosslv2"]}]),
-         listener(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
-    ?err(listener(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
-    ?err(listener(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                              <<"protocol_options">> => [<<"nosslv2">>]}})).
+         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
+    ?err(listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
+                                                <<"protocol_options">> => [<<"nosslv2">>]}})).
 
 listen_check_from(_Config) ->
     ?cfg(listener_config(ejabberd_service, [{service_check_from, false}]),
-         listener(<<"service">>, #{<<"check_from">> => false})),
-    ?err(listener(<<"service">>, #{<<"check_from">> => 1})).
+         listen_raw(<<"service">>, #{<<"check_from">> => false})),
+    ?err(listen_raw(<<"service">>, #{<<"check_from">> => 1})).
 
 listen_hidden_components(_Config) ->
     ?cfg(listener_config(ejabberd_service, [{hidden_components, true}]),
-         listener(<<"service">>, #{<<"hidden_components">> => true})),
-    ?err(listener(<<"service">>, #{<<"hidden_components">> => <<"yes">>})).
+         listen_raw(<<"service">>, #{<<"hidden_components">> => true})),
+    ?err(listen_raw(<<"service">>, #{<<"hidden_components">> => <<"yes">>})).
 
 listen_conflict_behaviour(_Config) ->
     ?cfg(listener_config(ejabberd_service, [{conflict_behaviour, kick_old}]),
-         listener(<<"service">>, #{<<"conflict_behaviour">> => <<"kick_old">>})),
-    ?err(listener(<<"service">>, #{<<"conflict_behaviour">> => <<"kill_server">>})).
+         listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kick_old">>})),
+    ?err(listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kill_server">>})).
 
 listen_password(_Config) ->
     ?cfg(listener_config(ejabberd_service, [{password, "secret"}]),
-         listener(<<"service">>, #{<<"password">> => <<"secret">>})),
-    ?err(listener(<<"service">>, #{<<"password">> => <<>>})).
+         listen_raw(<<"service">>, #{<<"password">> => <<"secret">>})),
+    ?err(listen_raw(<<"service">>, #{<<"password">> => <<>>})).
 
 listen_http_num_acceptors(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{num_acceptors, 10}]}]),
-         listener(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 10}})),
-    ?err(listener(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 0}})).
+         listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 10}})),
+    ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 0}})).
 
 listen_http_max_connections(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{max_connections, 100}]}]),
-         listener(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => 100}})),
+         listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => 100}})),
     ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{max_connections, infinity}]}]),
-         listener(<<"http">>, #{<<"transport">> =>
-                                    #{<<"max_connections">> => <<"infinity">>}})),
-    ?err(listener(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => -1}})).
+         listen_raw(<<"http">>, #{<<"transport">> =>
+                                      #{<<"max_connections">> => <<"infinity">>}})),
+    ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => -1}})).
 
 listen_http_compress(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{protocol_options, [{compress, true}]}]),
-         listener(<<"http">>, #{<<"protocol">> => #{<<"compress">> => true}})),
-    ?err(listener(<<"http">>, #{<<"protocol">> => #{<<"compress">> => 0}})).
+         listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => true}})),
+    ?err(listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => 0}})).
 
 listen_http_handlers(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"_", "/http-bind", mod_bosh, []}]}]),
-         listener(<<"http">>, #{<<"handlers">> =>
-                                    #{<<"mod_bosh">> =>
-                                          [#{<<"host">> => <<"_">>,
-                                             <<"path">> => <<"/http-bind">>}]}})),
-    ?err(listener(<<"http">>, #{<<"handlers">> =>
-                                    #{<<"mod_bosch">> =>
-                                          [#{<<"host">> => <<"dishwasher">>,
-                                             <<"path">> => <<"/cutlery">>}]}})),
-    ?err(listener(<<"http">>, #{<<"handlers">> =>
-                                    #{<<"mod_bosh">> =>
-                                          [#{<<"host">> => <<"pathless">>}]}})),
-    ?err(listener(<<"http">>, #{<<"handlers">> =>
-                                    #{<<"mod_bosh">> =>
-                                          [#{<<"host">> => <<>>,
-                                             <<"path">> => <<"/">>}]}})),
-    ?err(listener(<<"http">>, #{<<"handlers">> =>
-                                    #{<<"mod_bosh">> =>
-                                          [#{<<"path">> => <<"hostless">>}]}})).
+         listen_raw(<<"http">>, #{<<"handlers">> =>
+                                      #{<<"mod_bosh">> =>
+                                            [#{<<"host">> => <<"_">>,
+                                               <<"path">> => <<"/http-bind">>}]}})),
+    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
+                                      #{<<"mod_bosch">> =>
+                                            [#{<<"host">> => <<"dishwasher">>,
+                                               <<"path">> => <<"/cutlery">>}]}})),
+    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
+                                      #{<<"mod_bosh">> =>
+                                            [#{<<"host">> => <<"pathless">>}]}})),
+    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
+                                      #{<<"mod_bosh">> =>
+                                            [#{<<"host">> => <<>>,
+                                               <<"path">> => <<"/">>}]}})),
+    ?err(listen_raw(<<"http">>, #{<<"handlers">> =>
+                                      #{<<"mod_bosh">> =>
+                                            [#{<<"path">> => <<"hostless">>}]}})).
 
 listen_http_handlers_websockets(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mod_websockets, []}]}]),
-         http_handler(<<"mod_websockets">>, #{})),
+         http_handler_raw(<<"mod_websockets">>, #{})),
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mod_websockets,
                                                        [{ejabberd_service, [{access, all}]}]
                                                       }]}]),
-         http_handler(<<"mod_websockets">>, #{<<"service">> => #{<<"access">> => <<"all">>}})),
-    ?err(http_handler(<<"mod_websockets">>, #{<<"service">> => <<"unbelievable">>})).
+         http_handler_raw(<<"mod_websockets">>, #{<<"service">> => #{<<"access">> => <<"all">>}})),
+    ?err(http_handler_raw(<<"mod_websockets">>, #{<<"service">> => <<"unbelievable">>})).
 
 listen_http_handlers_lasse(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", lasse_handler,
                                                        [mongoose_client_api_sse]
                                                       }]}]),
-         http_handler(<<"lasse_handler">>, #{<<"module">> => <<"mongoose_client_api_sse">>})),
-    ?err(http_handler(<<"lasse_handler">>, #{<<"module">> => <<"mooongooose_api_ssie">>})),
-    ?err(http_handler(<<"lasse_handler">>, #{})).
+         http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mongoose_client_api_sse">>})),
+    ?err(http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mooongooose_api_ssie">>})),
+    ?err(http_handler_raw(<<"lasse_handler">>, #{})).
 
 listen_http_handlers_static(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", cowboy_static,
                                                        {priv_dir, cowboy_swagger, "swagger",
                                                         [{mimetypes, cow_mimetypes, all}]}
                                                       }]}]),
-         http_handler(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
-                                             <<"app">> => <<"cowboy_swagger">>,
-                                             <<"content_path">> => <<"swagger">>})),
-    ?err(http_handler(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
-                                             <<"app">> => <<"cowboy_swagger">>})).
+         http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
+                                                 <<"app">> => <<"cowboy_swagger">>,
+                                                 <<"content_path">> => <<"swagger">>})),
+    ?err(http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
+                                                 <<"app">> => <<"cowboy_swagger">>})).
 
 listen_http_handlers_api(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mongoose_api,
                                                        [{handlers, [mongoose_api_metrics,
                                                                     mongoose_api_users]}]}
                                                      ]}]),
-         http_handler(<<"mongoose_api">>, #{<<"handlers">> => [<<"mongoose_api_metrics">>,
-                                                               <<"mongoose_api_users">>]})),
-    ?err(http_handler(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
-    ?err(http_handler(<<"mongoose_api">>, #{})).
+         http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"mongoose_api_metrics">>,
+                                                                   <<"mongoose_api_users">>]})),
+    ?err(http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
+    ?err(http_handler_raw(<<"mongoose_api">>, #{})).
 
 listen_http_handlers_domain(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy,
                          [{modules, [{"localhost", "/api", mongoose_domain_handler,
                                       [{password, <<"cool">>}, {username, <<"admin">>}]
                                      }]}]),
-         http_handler(<<"mongoose_domain_handler">>,
-                      #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
+         http_handler_raw(<<"mongoose_domain_handler">>,
+                          #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
     ?cfg(listener_config(ejabberd_cowboy,
                          [{modules, [{"localhost", "/api", mongoose_domain_handler,
                                       [] }]}]),
-         http_handler(<<"mongoose_domain_handler">>, #{})),
+         http_handler_raw(<<"mongoose_domain_handler">>, #{})),
     %% Both username and password required. Or none.
-    ?err(http_handler(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
-    ?err(http_handler(<<"mongoose_domain_handler">>, #{<<"password">> => <<"cool">>})).
+    ?err(http_handler_raw(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
+    ?err(http_handler_raw(<<"mongoose_domain_handler">>, #{<<"password">> => <<"cool">>})).
 
 %% tests: auth
 
@@ -857,82 +859,82 @@ auth_sasl_mechanisms(_Config) ->
 
 auth_allow_multiple_connections(_Config) ->
     ?cfgh([{auth_opts, []}, {allow_multiple_connections, true}],
-          auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => true})),
-    ?errh(auth_config(<<"anonymous">>, #{<<"allow_multiple_connections">> => <<"yes">>})).
+          auth_raw(<<"anonymous">>, #{<<"allow_multiple_connections">> => true})),
+    ?errh(auth_raw(<<"anonymous">>, #{<<"allow_multiple_connections">> => <<"yes">>})).
 
 auth_anonymous_protocol(_Config) ->
     ?cfgh([{auth_opts, []}, {anonymous_protocol, login_anon}],
-          auth_config(<<"anonymous">>, #{<<"protocol">> => <<"login_anon">>})),
-    ?errh(auth_config(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
+          auth_raw(<<"anonymous">>, #{<<"protocol">> => <<"login_anon">>})),
+    ?errh(auth_raw(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
 
 auth_ldap_pool(_Config) ->
     ?cfgh(auth_opts, [{ldap_pool_tag, ldap_pool}],
-          auth_ldap(#{<<"pool_tag">> => <<"ldap_pool">>})),
-    ?errh(auth_ldap(#{<<"pool_tag">> => <<>>})).
+          auth_ldap_raw(#{<<"pool_tag">> => <<"ldap_pool">>})),
+    ?errh(auth_ldap_raw(#{<<"pool_tag">> => <<>>})).
 
 auth_ldap_bind_pool(_Config) ->
     ?cfgh(auth_opts, [{ldap_bind_pool_tag, ldap_bind_pool}],
-          auth_ldap(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>})),
-    ?errh(auth_ldap(#{<<"bind_pool_tag">> => true})).
+          auth_ldap_raw(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>})),
+    ?errh(auth_ldap_raw(#{<<"bind_pool_tag">> => true})).
 
 auth_ldap_base(_Config) ->
     ?cfgh(auth_opts, [{ldap_base, "ou=Users,dc=example,dc=com"}],
-          auth_ldap(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>})),
-    ?errh(auth_ldap(#{<<"base">> => 10})).
+          auth_ldap_raw(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>})),
+    ?errh(auth_ldap_raw(#{<<"base">> => 10})).
 
 auth_ldap_uids(_Config) ->
     ?cfgh(auth_opts, [{ldap_uids, [{"uid1", "user=%u"}]}],
-          auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
-                                       <<"format">> => <<"user=%u">>}]})),
+          auth_ldap_raw(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
+                                           <<"format">> => <<"user=%u">>}]})),
     ?cfgh(auth_opts, [{ldap_uids, ["uid1"]}],
-          auth_ldap(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]})),
-    ?errh(auth_ldap(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
+          auth_ldap_raw(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]})),
+    ?errh(auth_ldap_raw(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
 
 auth_ldap_filter(_Config) ->
     ?cfgh(auth_opts, [{ldap_filter, "(objectClass=inetOrgPerson)"}],
-          auth_ldap(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>})),
-    ?errh(auth_ldap(#{<<"filter">> => 10})).
+          auth_ldap_raw(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>})),
+    ?errh(auth_ldap_raw(#{<<"filter">> => 10})).
 
 auth_ldap_dn_filter(_Config) ->
     Filter = #{<<"filter">> => <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
                <<"attributes">> => [<<"sn">>]},
     ?cfgh(auth_opts, [{ldap_dn_filter, {"(&(name=%s)(owner=%D)(user=%u@%d))", ["sn"]}}],
-          auth_ldap(#{<<"dn_filter">> => Filter})),
-    [?errh(auth_ldap(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
+          auth_ldap_raw(#{<<"dn_filter">> => Filter})),
+    [?errh(auth_ldap_raw(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
         K <- maps:keys(Filter)],
-    ?errh(auth_ldap(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
-    ?errh(auth_ldap(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
+    ?errh(auth_ldap_raw(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
+    ?errh(auth_ldap_raw(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
 
 auth_ldap_local_filter(_Config) ->
     Filter = #{<<"operation">> => <<"equal">>,
                <<"attribute">> => <<"accountStatus">>,
                <<"values">> => [<<"enabled">>]},
     ?cfgh(auth_opts, [{ldap_local_filter, {equal, {"accountStatus", ["enabled"]}}}],
-          auth_ldap(#{<<"local_filter">> => Filter})),
-    [?errh(auth_ldap(#{<<"local_filter">> => maps:without([K], Filter)})) ||
+          auth_ldap_raw(#{<<"local_filter">> => Filter})),
+    [?errh(auth_ldap_raw(#{<<"local_filter">> => maps:without([K], Filter)})) ||
         K <- maps:keys(Filter)],
-    ?errh(auth_ldap(#{<<"local_filter">> => Filter#{<<"operation">> := <<"lt">>}})),
-    ?errh(auth_ldap(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
-    ?errh(auth_ldap(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
+    ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"operation">> := <<"lt">>}})),
+    ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
+    ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
 
 auth_ldap_deref(_Config) ->
-    ?cfgh(auth_opts, [{ldap_deref, always}], auth_ldap(#{<<"deref">> => <<"always">>})),
-    ?errh(auth_ldap(#{<<"deref">> => <<"sometimes">>})).
+    ?cfgh(auth_opts, [{ldap_deref, always}], auth_ldap_raw(#{<<"deref">> => <<"always">>})),
+    ?errh(auth_ldap_raw(#{<<"deref">> => <<"sometimes">>})).
 
 auth_external_instances(_Config) ->
     ?cfgh([{auth_opts, []}, {extauth_instances, 2}],
-          auth_config(<<"external">>, #{<<"instances">> => 2})),
-    ?errh(auth_config(<<"external">>, #{<<"instances">> => 0})).
+          auth_raw(<<"external">>, #{<<"instances">> => 2})),
+    ?errh(auth_raw(<<"external">>, #{<<"instances">> => 0})).
 
 auth_external_program(_Config) ->
     ?cfgh(auth_opts, [{extauth_program, "/usr/bin/auth"}],
-          auth_config(<<"external">>, #{<<"program">> => <<"/usr/bin/auth">>})),
-    ?errh(auth_config(<<"external">>, #{<<"program">> => <<>>})).
+          auth_raw(<<"external">>, #{<<"program">> => <<"/usr/bin/auth">>})),
+    ?errh(auth_raw(<<"external">>, #{<<"program">> => <<>>})).
 
 auth_http_basic_auth(_Config) ->
     ?cfgh(auth_opts, [{basic_auth, "admin:admin123"}],
-          auth_config(<<"http">>, #{<<"basic_auth">> => <<"admin:admin123">>})),
-    ?errh(auth_config(<<"http">>, #{<<"basic_auth">> => true})).
+          auth_raw(<<"http">>, #{<<"basic_auth">> => <<"admin:admin123">>})),
+    ?errh(auth_raw(<<"http">>, #{<<"basic_auth">> => true})).
 
 auth_jwt(_Config) ->
     Opts = #{<<"secret">> => #{<<"value">> => <<"secret123">>},
@@ -941,216 +943,216 @@ auth_jwt(_Config) ->
     ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
                       {jwt_secret, "secret123"},
                       {jwt_username_key, user}],
-          auth_config(<<"jwt">>, Opts)),
+          auth_raw(<<"jwt">>, Opts)),
     FileOpts = Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}},
     ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
                       {jwt_secret_source, "/home/user/jwt_secret"},
                       {jwt_username_key, user}],
-          auth_config(<<"jwt">>, FileOpts)),
+          auth_raw(<<"jwt">>, FileOpts)),
     ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
                       {jwt_secret_source, {env, "SECRET"}},
                       {jwt_username_key, user}],
-          auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<>>}})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/jwt_secret">>,
-                                                         <<"env">> => <<"SECRET">>}})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"algorithm">> := <<"bruteforce">>})),
-    ?errh(auth_config(<<"jwt">>, Opts#{<<"username_key">> := <<>>})),
-    [?errh(auth_config(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
+          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<>>}})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/jwt_secret">>,
+                                                      <<"env">> => <<"SECRET">>}})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"algorithm">> := <<"bruteforce">>})),
+    ?errh(auth_raw(<<"jwt">>, Opts#{<<"username_key">> := <<>>})),
+    [?errh(auth_raw(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
 
 auth_riak_bucket_type(_Config) ->
     ?cfgh(auth_opts, [{bucket_type, <<"buckethead">>}],
-          auth_config(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
-    ?errh(auth_config(<<"riak">>, #{<<"bucket_type">> => <<>>})).
+          auth_raw(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
+    ?errh(auth_raw(<<"riak">>, #{<<"bucket_type">> => <<>>})).
 
 auth_rdbms_users_number_estimate(_Config) ->
     ?cfgh(auth_opts, [{rdbms_users_number_estimate, true}],
-          auth_config(<<"rdbms">>, #{<<"users_number_estimate">> => true})),
-    ?errh(auth_config(<<"rdbms">>, #{<<"users_number_estimate">> => 1200})).
+          auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => true})),
+    ?errh(auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => 1200})).
 
 %% tests: outgoing_pools
 
 pool_type(_Config) ->
     ?cfg(pool_config({http, global, default, [], []}),
-         pool(<<"http">>, <<"default">>, #{})),
-    ?err(pool(<<"swimming_pool">>, <<"default">>, #{})).
+         pool_raw(<<"http">>, <<"default">>, #{})),
+    ?err(pool_raw(<<"swimming_pool">>, <<"default">>, #{})).
 
 pool_tag(_Config) ->
     ?cfg(pool_config({http, global, my_pool, [], []}),
-         pool(<<"http">>, <<"my_pool">>, #{})),
-    ?err(pool(<<"http">>, 1000, #{})).
+         pool_raw(<<"http">>, <<"my_pool">>, #{})),
+    ?err(pool_raw(<<"http">>, 1000, #{})).
 
 pool_scope(_Config) ->
     ?cfg(pool_config({http, global, default, [], []}),
-         pool(<<"http">>, <<"default">>, #{})),
+         pool_raw(<<"http">>, <<"default">>, #{})),
     ?cfg(pool_config({http, global, default, [], []}),
-         pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"global">>})),
+         pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"global">>})),
     ?cfg(pool_config({http, host, default, [], []}),
-         pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"host">>})),
+         pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"host">>})),
     ?cfg(pool_config({http, <<"localhost">>, default, [], []}),
-         pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
-                                           <<"host">> => <<"localhost">>})),
-    ?err(pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
-    ?err(pool(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
+         pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
+                                               <<"host">> => <<"localhost">>})),
+    ?err(pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
+    ?err(pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
 
 pool_workers(_Config) ->
     ?cfg(pool_config({http, global, default, [{workers, 10}], []}),
-         pool(<<"http">>, <<"default">>, #{<<"workers">> => 10})),
-    ?err(pool(<<"http">>, <<"default">>, #{<<"workers">> => 0})).
+         pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 10})),
+    ?err(pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 0})).
 
 pool_strategy(_Config) ->
     ?cfg(pool_config({http, global, default, [{strategy, best_worker}], []}),
-         pool(<<"http">>, <<"default">>, #{<<"strategy">> => <<"best_worker">>})),
-    ?err(pool(<<"http">>, <<"default">>, #{<<"strategy">> => <<"worst_worker">>})).
+         pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"best_worker">>})),
+    ?err(pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"worst_worker">>})).
 
 pool_call_timeout(_Config) ->
     ?cfg(pool_config({http, global, default, [{call_timeout, 5000}], []}),
-         pool(<<"http">>, <<"default">>, #{<<"call_timeout">> => 5000})),
-    ?err(pool(<<"http">>, <<"default">>, #{<<"call_timeout">> => 0})).
+         pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 5000})),
+    ?err(pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 0})).
 
 pool_rdbms_settings(_Config) ->
     ?cfg(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"}]}),
-         pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
-                                  <<"settings">> => <<"DSN=mydb">>})),
-    ?err(pool_conn(<<"rdbms">>, #{<<"driver">> => <<"mysql">>,
-                                  <<"settings">> => <<"DSN=mydb">>})),
-    ?err(pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
-                                  <<"settings">> => true})),
-    ?err(pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>})).
+         pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                      <<"settings">> => <<"DSN=mydb">>})),
+    ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"mysql">>,
+                                      <<"settings">> => <<"DSN=mydb">>})),
+    ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                      <<"settings">> => true})),
+    ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>})).
 
 pool_rdbms_keepalive_interval(_Config) ->
     ?cfg(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"},
                                                    {keepalive_interval, 1000}]}),
-         pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
-                                  <<"settings">> => <<"DSN=mydb">>,
-                                  <<"keepalive_interval">> => 1000})),
-    ?err(pool_conn(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
-                                  <<"settings">> => <<"DSN=mydb">>,
-                                  <<"keepalive_interval">> => false})).
+         pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                      <<"settings">> => <<"DSN=mydb">>,
+                                      <<"keepalive_interval">> => 1000})),
+    ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
+                                      <<"settings">> => <<"DSN=mydb">>,
+                                      <<"keepalive_interval">> => false})).
 
 pool_rdbms_server(_Config) ->
     ServerOpts = rdbms_opts(),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", "db", "dbuser", "secret"}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts)),
-    ?err(pool_conn(<<"rdbms">>, ServerOpts#{<<"driver">> := <<"odbc">>})),
-    [?err(pool_conn(<<"rdbms">>, maps:without([K], ServerOpts))) ||
+         pool_conn_raw(<<"rdbms">>, ServerOpts)),
+    ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> := <<"odbc">>})),
+    [?err(pool_conn_raw(<<"rdbms">>, maps:without([K], ServerOpts))) ||
         K <- maps:keys(ServerOpts)],
-    [?err(pool_conn(<<"rdbms">>, ServerOpts#{K := 123})) ||
+    [?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{K := 123})) ||
         K <- maps:keys(ServerOpts)].
 
 pool_rdbms_port(_Config) ->
     ServerOpts = rdbms_opts(),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"port">> => 1234})),
-    ?err(pool_conn(<<"rdbms">>, ServerOpts#{<<"port">> => <<"airport">>})).
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => 1234})),
+    ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => <<"airport">>})).
 
 pool_rdbms_tls(_Config) ->
     ServerOpts = rdbms_opts(),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", "db", "dbuser", "secret",
                                  [{ssl, required}]}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{<<"required">> => true}})),
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{<<"required">> => true}})),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", "db", "dbuser", "secret",
                                  [{ssl, true}]}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{}})),
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{}})),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {mysql, "localhost", "db", "dbuser", "secret", []}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"driver">> => <<"mysql">>,
-                                            <<"tls">> => #{}})),
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> => <<"mysql">>,
+                                                <<"tls">> => #{}})),
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret",
                                  [{ssl, true}]}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => #{},
-                                            <<"port">> => 1234})),
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{},
+                                                <<"port">> => 1234})),
 
     %% one option tested here as they are all checked by 'listen_tls_*' tests
     ?cfg(pool_config({rdbms, global, default, [],
                       [{server, {pgsql, "localhost", "db", "dbuser", "secret",
                                  [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}]}),
-         pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> =>
-                                                #{<<"certfile">> => <<"cert.pem">>}})),
-    ?err(pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> =>
-                                                #{<<"certfile">> => true}})),
-    ?err(pool_conn(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
+         pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
+                                                    #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
+                                                    #{<<"certfile">> => true}})),
+    ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
 
 pool_http_host(_Config) ->
     ?cfg(pool_config({http, global, default, [], [{server, "https://localhost:8443"}]}),
-         pool_conn(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
-    ?err(pool_conn(<<"http">>, #{<<"host">> => 8443})),
-    ?err(pool_conn(<<"http">>, #{<<"host">> => ""})).
+         pool_conn_raw(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"host">> => 8443})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"host">> => ""})).
 
 pool_http_path_prefix(_Config) ->
     ?cfg(pool_config({http, global, default, [], [{path_prefix, "/"}]}),
-         pool_conn(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
-    ?err(pool_conn(<<"http">>, #{<<"path_prefix">> => 8443})),
-    ?err(pool_conn(<<"http">>, #{<<"path_prefix">> => ""})).
+         pool_conn_raw(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => 8443})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => ""})).
 
 pool_http_request_timeout(_Config) ->
     ?cfg(pool_config({http, global, default, [], [{request_timeout, 2000}]}),
-         pool_conn(<<"http">>, #{<<"request_timeout">> => 2000})),
-    ?err(pool_conn(<<"http">>, #{<<"request_timeout">> => -1000})),
-    ?err(pool_conn(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
+         pool_conn_raw(<<"http">>, #{<<"request_timeout">> => 2000})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => -1000})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
 pool_http_tls(_Config) ->
     ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"} ]}]}),
-         pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?err(pool_conn(<<"http">>, #{<<"tls">> => #{<<"certfile">> => true}})),
-    ?err(pool_conn(<<"http">>, #{<<"tls">> => <<"secure">>})).
+         pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => true}})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => <<"secure">>})).
 
 pool_redis_host(_Config) ->
     ?cfg(pool_config({redis, global, default, [], [{host, "localhost"}]}),
-         pool_conn(<<"redis">>, #{<<"host">> => <<"localhost">>})),
-    ?err(pool_conn(<<"redis">>, #{<<"host">> => 8443})),
-    ?err(pool_conn(<<"redis">>, #{<<"host">> => ""})).
+         pool_conn_raw(<<"redis">>, #{<<"host">> => <<"localhost">>})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => 8443})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => ""})).
 
 pool_redis_port(_Config) ->
     ?cfg(pool_config({redis, global, default, [], [{port, 6379}]}),
-         pool_conn(<<"redis">>, #{<<"port">> => 6379})),
-    ?err(pool_conn(<<"redis">>, #{<<"port">> => 666666})),
-    ?err(pool_conn(<<"redis">>, #{<<"port">> => <<"airport">>})).
+         pool_conn_raw(<<"redis">>, #{<<"port">> => 6379})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => 666666})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => <<"airport">>})).
 
 pool_redis_database(_Config) ->
     ?cfg(pool_config({redis, global, default, [], [{database, 0}]}),
-         pool_conn(<<"redis">>, #{<<"database">> => 0})),
-    ?err(pool_conn(<<"redis">>, #{<<"database">> => -1})),
-    ?err(pool_conn(<<"redis">>, #{<<"database">> => <<"my_database">>})).
+         pool_conn_raw(<<"redis">>, #{<<"database">> => 0})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => -1})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => <<"my_database">>})).
 
 pool_redis_password(_Config) ->
     ?cfg(pool_config({redis, global, default, [], [{password, ""}]}),
-         pool_conn(<<"redis">>, #{<<"password">> => <<"">>})),
+         pool_conn_raw(<<"redis">>, #{<<"password">> => <<"">>})),
     ?cfg(pool_config({redis, global, default, [], [{password, "password1"}]}),
-         pool_conn(<<"redis">>, #{<<"password">> => <<"password1">>})),
-    ?err(pool_conn(<<"redis">>, #{<<"password">> => 0})).
+         pool_conn_raw(<<"redis">>, #{<<"password">> => <<"password1">>})),
+    ?err(pool_conn_raw(<<"redis">>, #{<<"password">> => 0})).
 
 pool_riak_address(_Config) ->
     ?cfg(pool_config({riak, global, default, [], [{address, "127.0.0.1"}]}),
-         pool_conn(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
-    ?err(pool_conn(<<"riak">>, #{<<"address">> => 66})),
-    ?err(pool_conn(<<"riak">>, #{<<"address">> => <<"">>})).
+         pool_conn_raw(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => 66})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => <<"">>})).
 
 pool_riak_port(_Config) ->
     ?cfg(pool_config({riak, global, default, [], [{port, 8087}]}),
-         pool_conn(<<"riak">>, #{<<"port">> => 8087})),
-    ?err(pool_conn(<<"riak">>, #{<<"port">> => 666666})),
-    ?err(pool_conn(<<"riak">>, #{<<"port">> => <<"airport">>})).
+         pool_conn_raw(<<"riak">>, #{<<"port">> => 8087})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => 666666})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => <<"airport">>})).
 
 pool_riak_credentials(_Config) ->
     ?cfg(pool_config({riak, global, default, [], [{credentials, "user", "pass"}]}),
-         pool_conn(<<"riak">>, #{<<"credentials">> =>
-                                     #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
-    ?err(pool_conn(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
-    ?err(pool_conn(<<"riak">>, #{<<"credentials">> =>
-                                     #{<<"user">> => <<"">>, <<"password">> => 011001}})).
+         pool_conn_raw(<<"riak">>, #{<<"credentials">> =>
+                                         #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"credentials">> =>
+                                         #{<<"user">> => <<"">>, <<"password">> => 011001}})).
 
 pool_riak_cacertfile(_Config) ->
     ?cfg(pool_config({riak, global, default, [], [{cacertfile, "cacert.pem"}]}),
-         pool_conn(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
-    ?err(pool_conn(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
+         pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
 pool_riak_tls(_Config) ->
     %% make sure these options are not extracted out of 'ssl_opts'
@@ -1158,128 +1160,129 @@ pool_riak_tls(_Config) ->
     ?cfg(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "path/to/cert.pem"},
                                                               {dhfile, "cert.pem"},
                                                               {keyfile, "path/to/key.pem"}]}]}),
-         pool_conn(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
-                                                <<"dhfile">> => <<"cert.pem">>,
-                                                <<"keyfile">> => <<"path/to/key.pem">>}})),
-    ?err(pool_conn(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
-    ?err(pool_conn(<<"riak">>, #{<<"tls">> => <<"secure">>})).
+         pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
+                                                    <<"dhfile">> => <<"cert.pem">>,
+                                                    <<"keyfile">> => <<"path/to/key.pem">>}})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"dhfile">> => true}})),
+    ?err(pool_conn_raw(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
     ?cfg(pool_config({cassandra, global, default, [],
                       [{servers, [{"cassandra_server1.example.com", 9042},
                                   {"cassandra_server2.example.com", 9042}]}]}),
-         pool_conn(<<"cassandra">>, #{<<"servers">> => [
-                                                        #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042},
-                                                        #{<<"ip_address">> => <<"cassandra_server2.example.com">>, <<"port">> => 9042}
-                                                       ]})),
-    ?err(pool_conn(<<"cassandra">>, #{<<"servers">> =>
-                                          #{<<"ip_address">> => <<"cassandra_server1.example.com">>, <<"port">> => 9042}})).
+         pool_conn_raw(<<"cassandra">>,
+                       #{<<"servers">> => [#{<<"ip_address">> => <<"cassandra_server1.example.com">>,
+                                             <<"port">> => 9042},
+                                           #{<<"ip_address">> => <<"cassandra_server2.example.com">>,
+                                             <<"port">> => 9042}]})),
+    ?err(pool_conn_raw(<<"cassandra">>,
+                       #{<<"servers">> => #{<<"ip_address">> => <<"cassandra_server1.example.com">>,
+                                            <<"port">> => 9042}})).
 
 pool_cassandra_keyspace(_Config) ->
     ?cfg(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
-         pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
-    ?err(pool_conn(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
+         pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
+    ?err(pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
     ?cfg(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler,
                                                                [{<<"auser">>, <<"secretpass">>}]
                                                               }}]}),
-         pool_conn(<<"cassandra">>,
-                   #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
-                                                      <<"password">> => <<"secretpass">>}}})),
-    ?err(pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+         pool_conn_raw(<<"cassandra">>,
+                       #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
+                                                          <<"password">> => <<"secretpass">>}}})),
+    ?err(pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_cassandra_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config({cassandra, global, default, [], [{ssl, [{verify, verify_none}
-                                                             ]}]}),
-         pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
-    ?err(pool_conn(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+    ?cfg(pool_config({cassandra, global, default, [], [{ssl, [{verify, verify_none}]}]}),
+         pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
+    ?err(pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_elastic_host(_Config) ->
     ?cfg(pool_config({elastic, global, default, [], [{host, "localhost"}]}),
-         pool_conn(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
-    ?err(pool_conn(<<"elastic">>, #{<<"host">> => <<"">>})).
+         pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
+    ?err(pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"">>})).
 
 pool_elastic_port(_Config) ->
     ?cfg(pool_config({elastic, global, default, [], [{port, 9200}]}),
-         pool_conn(<<"elastic">>, #{<<"port">> => 9200})),
-    ?err(pool_conn(<<"elastic">>, #{<<"port">> => 122333})),
-    ?err(pool_conn(<<"elastic">>, #{<<"port">> => <<"airport">>})).
+         pool_conn_raw(<<"elastic">>, #{<<"port">> => 9200})),
+    ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => 122333})),
+    ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => <<"airport">>})).
 
 pool_rabbit_amqp_host(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{amqp_host, "localhost"}]}),
-         pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
+         pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
 
 pool_rabbit_amqp_port(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{amqp_port, 5672}]}),
-         pool_conn(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
+         pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
 
 pool_rabbit_amqp_username(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{amqp_username, "guest"}]}),
-         pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
+         pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
 
 pool_rabbit_amqp_password(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{amqp_password, "guest"}]}),
-         pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
+         pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
 
 pool_rabbit_amqp_confirms_enabled(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{confirms_enabled, true}]}),
-         pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
+         pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
 
 pool_rabbit_amqp_max_worker_queue_len(_Config) ->
     ?cfg(pool_config({rabbit, global, default, [], [{max_worker_queue_len, 100}]}),
-         pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
-    ?err(pool_conn(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
+         pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
+    ?err(pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
 
 pool_ldap_host(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{host, "localhost"}]}),
-         pool_conn(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
-    ?err(pool_conn(<<"ldap">>, #{<<"host">> => <<"">>})).
+         pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"">>})).
 
 pool_ldap_port(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{port, 389}]}),
-         pool_conn(<<"ldap">>, #{<<"port">> => 389})),
-    ?err(pool_conn(<<"ldap">>, #{<<"port">> => <<"airport">>})).
+         pool_conn_raw(<<"ldap">>, #{<<"port">> => 389})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"port">> => <<"airport">>})).
 
 pool_ldap_servers(_Config) ->
     ?cfg(pool_config({ldap, global, default, [],
-                      [{servers, ["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]}]}),
-         pool_conn(<<"ldap">>, #{<<"servers">> =>
-                                     [<<"primary-ldap-server.example.com">>, <<"secondary-ldap-server.example.com">>]})),
-    ?err(pool_conn(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
+                      [{servers, ["primary-ldap-server.example.com",
+                                  "secondary-ldap-server.example.com"]}]}),
+         pool_conn_raw(<<"ldap">>, #{<<"servers">> => [<<"primary-ldap-server.example.com">>,
+                                                       <<"secondary-ldap-server.example.com">>]})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
 
 pool_ldap_encrypt(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{encrypt, none}]}),
-         pool_conn(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
-    ?err(pool_conn(<<"ldap">>, #{<<"encrypt">> => true})).
+         pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => true})).
 
 pool_ldap_rootdn(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{rootdn, ""}]}),
-         pool_conn(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
-    ?err(pool_conn(<<"ldap">>, #{<<"rootdn">> => false})).
+         pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => false})).
 
 pool_ldap_password(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{password, "pass"}]}),
-         pool_conn(<<"ldap">>, #{<<"password">> => <<"pass">>})),
-    ?err(pool_conn(<<"ldap">>, #{<<"password">> => true})).
+         pool_conn_raw(<<"ldap">>, #{<<"password">> => <<"pass">>})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"password">> => true})).
 
 pool_ldap_connect_interval(_Config) ->
     ?cfg(pool_config({ldap, global, default, [], [{connect_interval, 10000}]}),
-         pool_conn(<<"ldap">>, #{<<"connect_interval">> => 10000})),
-    ?err(pool_conn(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
+         pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => 10000})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
 
 pool_ldap_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config({ldap, global, default, [], [{tls_options, [{verify, verify_peer}
-                                                                ]}]}),
-         pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
-    ?err(pool_conn(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
+    ?cfg(pool_config({ldap, global, default, [], [{tls_options, [{verify, verify_peer}]}]}),
+         pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
+    ?err(pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
@@ -2939,33 +2942,33 @@ servopts(Service, Opts) ->
 listener_config(Mod, Opts) ->
     [{listen, [{{5222, {0, 0, 0, 0}, tcp}, Mod, Opts}]}].
 
-http_handler(Type, Opts) ->
-    listener(<<"http">>, #{<<"handlers">> =>
-                               #{Type =>
-                                     [Opts#{<<"host">> => <<"localhost">>,
-                                            <<"path">> => <<"/api">>}]
-                                }}).
+http_handler_raw(Type, Opts) ->
+    listen_raw(<<"http">>, #{<<"handlers">> =>
+                                 #{Type =>
+                                       [Opts#{<<"host">> => <<"localhost">>,
+                                              <<"path">> => <<"/api">>}]
+                                  }}).
 
-listener(Type, Opts) ->
+listen_raw(Type, Opts) ->
     #{<<"listen">> => #{Type => [Opts#{<<"port">> => 5222}]}}.
 
 %% helpers for 'auth' tests
 
-auth_ldap(Opts) ->
-    auth_config(<<"ldap">>, Opts).
+auth_ldap_raw(Opts) ->
+    auth_raw(<<"ldap">>, Opts).
 
-auth_config(Method, Opts) ->
+auth_raw(Method, Opts) ->
     #{<<"auth">> => #{Method => Opts}}.
 
 %% helpers for 'pool' tests
 
 pool_config(Pool) ->
-    [#local_config{key = outgoing_pools, value = [Pool]}].
+    [{outgoing_pools, [Pool]}].
 
-pool(Type, Tag, Opts) ->
+pool_raw(Type, Tag, Opts) ->
     #{<<"outgoing_pools">> => #{Type => #{Tag => Opts}}}.
 
-pool_conn(Type, Opts) ->
+pool_conn_raw(Type, Opts) ->
     #{<<"outgoing_pools">> => #{Type => #{<<"default">> => #{<<"connection">> => Opts}}}}.
 
 rdbms_opts() ->
@@ -2977,31 +2980,43 @@ rdbms_opts() ->
 
 %% helpers for 'host_config' tests
 
+-spec assert_option_host_or_global(key_prefix(), mongoose_config:value(),
+                                   mongoose_config_parser_toml:toml_section()) -> any().
 assert_option_host_or_global(KeyPrefix, Value, RawConfig) ->
     assert_options_host_or_global([{KeyPrefix, Value}], RawConfig).
 
+-spec assert_options_host_or_global([{key_prefix(), mongoose_config:value()}],
+                                    mongoose_config_parser_toml:toml_section()) -> any().
 assert_options_host_or_global(ExpectedOptions, RawConfig) ->
     assert_options_host(ExpectedOptions, RawConfig),
     assert_options_global(ExpectedOptions, RawConfig).
 
+-spec assert_options_global([{key_prefix(), mongoose_config:value()}],
+                            mongoose_config_parser_toml:toml_section()) -> any().
 assert_options_global(ExpectedOptions, RawConfig) ->
     GlobalConfig = parse(RawConfig),
     GlobalOptions = [{host_key(Key, global), Value} || {Key, Value} <- ExpectedOptions],
     assert_options(GlobalOptions, GlobalConfig).
 
+-spec assert_options_host([{key_prefix(), mongoose_config:value()}],
+                          mongoose_config_parser_toml:toml_section()) -> any().
 assert_options_host(ExpectedOptions, RawConfig) ->
     HostConfig = parse(host_config(RawConfig)),
     HostOptions = [{host_key(Key, ?HOST_TYPE), Value} || {Key, Value} <- ExpectedOptions],
     assert_options(HostOptions, HostConfig).
 
-%% @doc Create full per-host config for host-or-global options
+-type key_prefix() :: {shaper | acl | access, atom()} | atom() | {atom(), jid:lserver()}.
+
+%% @doc Create full per-host config key for host-or-global options
+-spec host_key(key_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key().
 host_key({Key, Tag}, HostType) when Key =:= shaper;
-                                Key =:= acl;
-                                Key =:= access ->
+                                    Key =:= acl;
+                                    Key =:= access ->
     {Key, Tag, HostType};
 host_key(Key, HostType) ->
     {Key, HostType}.
 
+-spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) -> any().
 assert_error_host_or_global(RawConfig) ->
     assert_error(parse(RawConfig)),
     assert_error(parse(host_config(RawConfig))).
@@ -3009,6 +3024,7 @@ assert_error_host_or_global(RawConfig) ->
 host_config(Config) ->
     #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST_TYPE}]}.
 
+-spec parse(mongoose_config_parser_toml:toml_section()) -> [mongoose_config_parser_toml:config()].
 parse(M0) ->
     %% 'hosts' (or 'host_types') and `default_server_domain` options are mandatory.
     %% this function does the following things:
@@ -3028,16 +3044,20 @@ maybe_insert_dummy_domain(M, DomainName) ->
 
 %% helpers for testing individual options
 
+-spec assert_options([{mongoose_config:key(), mongoose_config:value()}],
+                     [mongoose_config_parser_toml:config()]) -> any().
 assert_options(ExpectedOptions, Config) ->
-    [assert_option(Key, Value, Config) || {Key, Value} <- ExpectedOptions],
-    ok.
+    lists:foreach(fun({Key, Value}) -> assert_option(Key, Value, Config) end, ExpectedOptions).
 
+-spec assert_option(mongoose_config:key(), mongoose_config:value(),
+                    [mongoose_config_parser_toml:config()]) -> any().
 assert_option(Key, Value, Config) ->
     case lists:keyfind(Key, #local_config.key, Config) of
         false -> ct:fail({"option not found", Key, Value, Config});
         ActualOpt -> handle_config_option(#local_config{key = Key, value = Value}, ActualOpt)
     end.
 
+-spec assert_error([mongoose_config_parser_toml:config()]) -> any().
 assert_error(Config) ->
     ?assertMatch([#{class := error, what := _}|_],
                  mongoose_config_parser_toml:extract_errors(Config)).
@@ -3174,10 +3194,10 @@ compare_unordered_lists(L1, L2, F) ->
 
 compare_ordered_lists([H1|T1], [H1|T2], F) ->
     compare_ordered_lists(T1, T2, F);
-compare_ordered_lists([H1|T1], [H2|T2], F) ->
+compare_ordered_lists([H1|T1] = L1, [H2|T2] = L2, F) ->
     try F(H1, H2)
     catch C:R:S ->
-            ct:fail({C, R, S})
+            ct:fail({"Failed to compare ordered lists", L1, L2, {C, R, S}})
     end,
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
