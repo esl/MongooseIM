@@ -277,15 +277,20 @@ commands:
           name: Maybe restore all rebar3 dependencies
           key: *DEPS_CACHE_KEY
       - run:
-          name: Get deps
+          name: Get and compile deps
           command: |
             tools/configure with-all
-            ./rebar3 get-deps
+            ./rebar3 deps
+      - run:
+          name: Get and compile big_tests deps
+          command: |
+            cd big_tests && ../rebar3 deps
       - save_cache:
-          name: Cache downloaded and built dependencies
+          name: Cache built dependencies
           key: *DEPS_CACHE_KEY
           paths:
-            - ~/.cache/rebar3
+            - ~/project/_build/default/
+            - ~/project/big_tests/_build/default/
   build_and_cache_prod_build:
     steps:
       - run:
