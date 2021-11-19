@@ -200,7 +200,7 @@ COMMENT_ID="$1"
 echo "Patch comment $COMMENT_ID"
 BODY_FROM_GH="$(cat /tmp/gh_comment | jq -r .body)"
 BODY="${BODY_FROM_GH}"$'\n'$'\n'"---"$'\n'$'\n'"${BODY}"
-PATCH_BODY=$(BODY_ENV="${BODY}" jq -n '{body: env.BODY_ENV}')
+PATCH_BODY=$(echo "${BODY}" | jq -Rn '{body: [inputs] | join("\n")}')
 curl -o /dev/null -i \
     -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
