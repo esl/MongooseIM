@@ -312,12 +312,6 @@ commands:
       - prepare_for_cache
       - restore_cache:
           key: *DEPS_CACHE_KEY
-  dockerize_wait:
-    parameters: {port: {type: integer}}
-    steps:
-      - run:
-          name: Wait for port << parameters.port >>
-          command: dockerize -wait tcp://localhost:<< parameters.port >> -timeout 60s
   fetch_coverage_packages:
     steps:
       - run:
@@ -455,144 +449,6 @@ commands:
           command: echo $ERLANG_VERSION > otp_version
 
 jobs:
-  build:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    environment:
-      SKIP_RELEASE: 1
-      SKIP_COV: 0
-    steps:
-      - checkout
-      - fetch_packages
-      - install_erlang:
-          otp_package: <<parameters.otp_package>>
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_cache:
-          key: *BUILD_CACHE_KEY
-      - maybe_build_deps_and_cache
-      - restore_certs
-      - run: ./rebar3 compile
-      - run:
-          name: Generate development releases
-          command: ./tools/build-releases.sh
-      - run:
-          name: Build Big Tests
-          command: |
-            tools/build-tests.sh
-      - save_cache:
-          key: *BUILD_CACHE_KEY
-          paths: ./
-
-  small_tests:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    environment:
-      PRESET: small_tests
-      SKIP_AUTO_COMPILE: true
-    steps:
-      - checkout
-      - fetch_packages
-      - install_erlang:
-          otp_package: <<parameters.otp_package>>
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_all_caches
-      - run:
-          name: Run Small Tests
-          command: |
-            ./tools/test.sh -p small_tests -s true -e true
-      - run_coverage_analysis
-      - upload_results_to_aws
-      - publish_github_comment
-
-  big_tests:
-    parallelism: 1
-    machine:
-      image: ubuntu-2004:202010-01
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-      preset:
-        type: enum
-        enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
-        description: Preset to run
-        default: internal_mnesia
-      db:
-        type: string
-        description: Database to use
-        default: mnesia
-      tls_dist:
-        type: boolean
-        description: Erlang distribution with TLS enabled
-        default: false
-      spec:
-        type: string
-        description: Test spec file to use
-        default: default.spec
-    environment:
-      MIX_ENV: test
-      PRESET: <<parameters.preset>>
-      DB: <<parameters.db>>
-      TLS_DIST: <<parameters.tls_dist>>
-      ELASTICSEARCH_VERSION: 5.6.9
-      CASSANDRA_VERSION: 3.9
-      TESTSPEC: <<parameters.spec>>
-      REDIS_VERSION: 3.2.10
-      SKIP_AUTO_COMPILE: true
-      KEEP_COVER_RUNNING: 1
-    steps:
-      - checkout
-      - fetch_packages
-      - install_erlang:
-          otp_package: <<parameters.otp_package>>
-      - run:
-          name: Prepare for cache
-          command: |
-            echo <<parameters.otp_package>> > otp_version
-      - restore_all_caches
-      - run:
-          name: Setup database
-          command: |
-            tools/setup-db.sh
-            if [ $PRESET = ldap_mnesia ]; then sudo tools/setup-ldap.sh; fi
-            sudo tools/setup-rmq.sh; tools/setup-redis.sh
-            echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-      - run:
-          name: Run Big Tests
-          command: |
-            ./tools/test.sh -p $PRESET -s false
-          no_output_timeout: 40m
-      - run_coverage_analysis
-      - run:
-          name: Build Failed - Logs
-          when: on_fail
-          command: |
-            echo "Failure!"
-            if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
-            if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-            tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
-            tail -100 _build/mim2/rel/mongooseim/log/mongooseim.log.1
-      - upload_results_to_aws
-      - publish_github_comment
-      - publish_github_summary_comment
-
   # #########################
   # jobs in docker containers
   docker_image:
@@ -765,6 +621,7 @@ jobs:
             tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
       - upload_results_to_aws
       - publish_github_comment
+      - publish_github_summary_comment
 
   dialyzer:
     executor: << parameters.executor >>
