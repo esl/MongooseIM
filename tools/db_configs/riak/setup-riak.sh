@@ -2,8 +2,8 @@
 
 # Enable search
 # Solr is sloow on CI
-sed -e "s/^search = \(.*\)/search = on/" \
-    -e "s/^search.solr.start_timeout = \(.*\)/search.solr.start_timeout = 2m/" \
+sed -i "s/^search = \(.*\)/search = on/" \
+    -i "s/^search.solr.start_timeout = \(.*\)/search.solr.start_timeout = 2m/" \
     /etc/riak/riak.conf
 
 # Enable ssl by appending settings from riak.conf.ssl
