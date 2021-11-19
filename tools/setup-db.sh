@@ -171,7 +171,7 @@ elif [ "$db" = 'cassandra' ]; then
     NAME=$(db_name cassandra)
     PROXY_NAME=$(db_name cassandra-proxy)
     CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
-    CASSANDRA_PORT=${CASSANDRA_PORT:-9042}
+    CASSANDRA_PORT=${CASSANDRA_PORT:-9142}
     docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
 
@@ -203,18 +203,18 @@ elif [ "$db" = 'cassandra' ]; then
                "${init_opts[@]}"
     tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
-    # Start TCP proxy
+    # Start TCP proxy on 9142 port, instead of the default 9042
     CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
     cp ${DB_CONF_DIR}/proxy/zazkia-routes.json "$SQL_TEMP_DIR/"
     $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" "$SQL_TEMP_DIR/zazkia-routes.json"
     docker run -d                               \
-               -p $CASSANDRA_PORT:9042                   \
+               -p $CASSANDRA_PORT:9142                   \
                -p $CASSANDRA_PROXY_API_PORT:9191         \
                $(mount_ro_volume "$SQL_TEMP_DIR" /data)  \
                --name=$PROXY_NAME \
                emicklei/zazkia
-    tools/wait_for_service.sh $PROXY_NAME 9042 || docker logs $PROXY_NAME
+    tools/wait_for_service.sh $PROXY_NAME 9142 || docker logs $PROXY_NAME
 
     CQLSH_DEBUG=""
     if [ "${VERBOSE:-0}" = "1" ]; then
