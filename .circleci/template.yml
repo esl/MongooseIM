@@ -325,9 +325,6 @@ commands:
   restore_workspace:
     steps:
       - attach_workspace: {at: ~/project}
-      - prepare_for_cache
-      - restore_cache:
-          key: *DEPS_CACHE_KEY
   fetch_coverage_packages:
     steps:
       - run:
