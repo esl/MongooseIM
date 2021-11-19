@@ -1,5 +1,18 @@
+{local_config,all_metrics_are_global,false}.
 {local_config,default_server_domain,<<"localhost">>}.
+{local_config,hide_service_name,false}.
+{local_config,host_types,[]}.
 {local_config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
+{local_config,language,<<"en">>}.
+{local_config,loglevel,warning}.
+{local_config,mongooseimctl_access_commands,[]}.
+{local_config,rdbms_server_type,generic}.
+{local_config,registration_timeout,600}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain,
+               mongoose_router_external_localnode,mongoose_router_external,
+               mongoose_router_dynamic_domains,ejabberd_s2s]}.
+{local_config,sm_backend,{mnesia,[]}}.
 {local_config,
     {modules,<<"dummy_host">>},
     [{mod_jingle_sip,
@@ -197,8 +210,8 @@
           {host,{fqdn,<<"muclight.example.com">>}},
           {equal_occupants,true},
           {config_schema,
-              [{<<"roomname">>,<<"The Room">>,roomname,binary},
-               {<<"display-lines">>,30,display_lines,integer}]},
+              [{<<"display-lines">>,30,display_lines,integer},
+               {<<"roomname">>,<<"The Room">>,roomname,binary}]},
           {blocking,false},
           {all_can_invite,true},
           {all_can_configure,true}]},
@@ -461,8 +474,8 @@
           {host,{fqdn,<<"muclight.example.com">>}},
           {equal_occupants,true},
           {config_schema,
-              [{<<"roomname">>,<<"The Room">>,roomname,binary},
-               {<<"display-lines">>,30,display_lines,integer}]},
+              [{<<"display-lines">>,30,display_lines,integer},
+               {<<"roomname">>,<<"The Room">>,roomname,binary}]},
           {blocking,false},
           {all_can_invite,true},
           {all_can_configure,true}]},
@@ -528,3 +541,5 @@
                     {sns_host,"sns.eu-west-1.amazonaws.com"}]}]}]},
      {mod_carboncopy,[{iqdisc,no_queue}]},
      {mod_version,[{os_info,true}]}]}.
+{local_config,{replaced_wait_timeout,<<"dummy_host">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.

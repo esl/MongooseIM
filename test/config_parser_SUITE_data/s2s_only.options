@@ -1,16 +1,31 @@
+{local_config,all_metrics_are_global,false}.
 {local_config,default_server_domain,<<"localhost">>}.
+{local_config,hide_service_name,false}.
+{local_config,host_types,[]}.
 {local_config,hosts,[<<"localhost">>,<<"dummy_host">>]}.
+{local_config,language,<<"en">>}.
+{local_config,loglevel,warning}.
+{local_config,mongooseimctl_access_commands,[]}.
 {local_config,outgoing_s2s_families,[ipv4,ipv6]}.
 {local_config,outgoing_s2s_port,5299}.
 {local_config,outgoing_s2s_timeout,10000}.
+{local_config,rdbms_server_type,generic}.
+{local_config,registration_timeout,600}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain,
+               mongoose_router_external_localnode,mongoose_router_external,
+               mongoose_router_dynamic_domains,ejabberd_s2s]}.
 {local_config,s2s_certfile,"tools/ssl/mongooseim/server.pem"}.
 {local_config,s2s_ciphers,"TLSv1.2:TLSv1.3"}.
 {local_config,s2s_dns_options,[{retries,1},{timeout,30}]}.
 {local_config,s2s_use_starttls,optional}.
+{local_config,sm_backend,{mnesia,[]}}.
 {local_config,{domain_certfile,<<"example.com">>},"/path/to/example_com.pem"}.
 {local_config,{domain_certfile,<<"example.org">>},"/path/to/example_org.pem"}.
+{local_config,{replaced_wait_timeout,<<"dummy_host">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
 {local_config,{s2s_addr,<<"fed1">>},"127.0.0.1"}.
-{local_config,{s2s_addr,<<"fed2">>},{"127.0.0.1", 8765}}.
+{local_config,{s2s_addr,<<"fed2">>},{"127.0.0.1",8765}}.
 {local_config,{s2s_default_policy,<<"dummy_host">>},allow}.
 {local_config,{s2s_default_policy,<<"localhost">>},allow}.
 {local_config,{s2s_max_retry_delay,<<"dummy_host">>},30}.

@@ -1,8 +1,20 @@
+{local_config,all_metrics_are_global,false}.
 {local_config,default_server_domain,<<"localhost">>}.
+{local_config,hide_service_name,false}.
 {local_config,host_types,
-        [<<"this is host type">>,<<"some host type">>,<<"another host type">>,
-         <<"yet another host type">>]}.
+              [<<"this is host type">>,<<"some host type">>,
+               <<"another host type">>,<<"yet another host type">>]}.
 {local_config,hosts,[<<"localhost">>]}.
+{local_config,language,<<"en">>}.
+{local_config,loglevel,warning}.
+{local_config,mongooseimctl_access_commands,[]}.
+{local_config,rdbms_server_type,generic}.
+{local_config,registration_timeout,600}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain,
+               mongoose_router_external_localnode,mongoose_router_external,
+               mongoose_router_dynamic_domains,ejabberd_s2s]}.
+{local_config,sm_backend,{mnesia,[]}}.
 {local_config,{auth_method,<<"another host type">>},[]}.
 {local_config,{auth_method,<<"localhost">>},[test3]}.
 {local_config,{auth_method,<<"some host type">>},[test2]}.
@@ -18,3 +30,8 @@
 {local_config,{modules,<<"some host type">>},[]}.
 {local_config,{modules,<<"this is host type">>},[]}.
 {local_config,{modules,<<"yet another host type">>},[{test_mim_module1,[]}]}.
+{local_config,{replaced_wait_timeout,<<"another host type">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"some host type">>},2000}.
+{local_config,{replaced_wait_timeout,<<"this is host type">>},2000}.
+{local_config,{replaced_wait_timeout,<<"yet another host type">>},2000}.
