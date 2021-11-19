@@ -81,7 +81,7 @@ to_html(Req, #{ index_location :=
 json_request(Req, State) ->
     case gather(Req) of
         {error, Reason} ->
-            err(400, Reason, Req, State);
+            reply_error(400, Reason, Req, State);
         {ok, Req2, Decoded} ->
             run_request(Decoded, Req2, State)
     end.
@@ -111,13 +111,13 @@ check_auth(_, _) ->
     {ok, none}.
 
 run_request(#{ document := undefined }, Req, State) ->
-    err(400, no_query_supplied, Req, State);
+    reply_error(400, no_query_supplied, Req, State);
 run_request(#{ document := Doc} = ReqCtx, Req, State) ->
     case graphql:parse(Doc) of
         {ok, AST} ->
             run_preprocess(ReqCtx#{ document := AST }, Req, State);
         {error, Reason} ->
-            err(400, Reason, Req, State)
+            reply_error(400, Reason, Req, State)
     end.
 
 run_preprocess(#{ document := AST } = ReqCtx, Req, State) ->
@@ -129,7 +129,7 @@ run_preprocess(#{ document := AST } = ReqCtx, Req, State) ->
         run_execute(ReqCtx#{ document := AST2, fun_env => FunEnv }, Req, State)
     catch
         throw:Err ->
-            err(400, Err, Req, State)
+            reply_error(400, Err, Req, State)
     end.
 
 run_execute(#{ document := AST,
@@ -202,11 +202,17 @@ operation_name([_ | Next]) ->
 operation_name([]) ->
     undefined.
 
-err(Code, Msg, Req, State) ->
-    Formatted = iolist_to_binary(io_lib:format("~p", [Msg])),
-    Err = #{ type => error,
-             message => Formatted },
-    Body = jsx:encode(#{ errors => [Err] }),
+reply_error(Code, Msg, Req, State) ->
+    Errors =
+        case Msg of
+            {error, E} ->
+                graphql_err:format_errors(#{}, [E]);
+            _ ->
+                Formatted = iolist_to_binary(io_lib:format("~p", [Msg])),
+                [#{type => error, message => Formatted}]
+            end,
+
+    Body = jsx:encode(#{ errors => Errors}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.
