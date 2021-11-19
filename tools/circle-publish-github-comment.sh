@@ -210,10 +210,24 @@ curl -o /dev/null -i \
 
 # List comments
 # https://developer.github.com/v3/issues/comments/#list-comments-on-an-issue
-curl -s -S -o /tmp/gh_comments -L \
-    -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
-    -H "Content-Type: application/json" \
-    https://api.github.com/repos/$REPO_SLUG/issues/$PR_NUM/comments
+
+function get_comments_page {
+    PAGE=$1
+    FILE=/tmp/gh_comments_page$1
+    curl -s -S -o $FILE -L \
+        -H "Authorization: token $COMMENTER_GITHUB_TOKEN" \
+        -H "Content-Type: application/json" \
+        "https://api.github.com/repos/$REPO_SLUG/issues/$PR_NUM/comments?per_page=100&page=$PAGE"
+    if test "$(cat "$FILE" | jq length)" = "100"; then
+        # Get next page
+        ((PAGE=PAGE+1))
+        get_comments_page $PAGE
+    fi
+}
+
+get_comments_page 1
+# Add all comments into one document
+jq -s "map(.) | add" /tmp/gh_comments_page* > /tmp/gh_comments
 
 # Filter out all comments for a particular user
 # Then filter out all comments that have a git commit rev in the body text

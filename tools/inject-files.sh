@@ -30,6 +30,5 @@ for var in "${!ENV_FILE_@}"; do
         fi
     fi
 done
-ls -lah /
 echo "Start old entrypoint $OLD_ENTRYPOINT"
 eval "$OLD_ENTRYPOINT"
