@@ -34,6 +34,7 @@ function maybe_listen_for_schema_port {
 
 function wait_for_riak_and_setup {
     wait_for_port 8098
+    set -e
     riak escript /setup_riak.escript
     maybe_listen_for_schema_port
 }

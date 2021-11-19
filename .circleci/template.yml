@@ -103,7 +103,7 @@ containers:
       - OLD_ENTRYPOINT: "/setup-riak.sh && /sbin/my_init --skip-startup-files"
       - ENV_FILE_ADV_CFG_PATH: "/etc/riak/advanced.config"
       - ENV_FILE_ADV_CFG_DATA: "__RIAK_ADV_CFG__"
-      - ENV_FILE_SSL_CFG_PATH: "/etc/riak/riak.conf.ssl"
+      - ENV_FILE_SSL_CFG_PATH: "/riak.conf.ssl"
       - ENV_FILE_SSL_CFG_DATA: "__RIAK_SSL_CFG__"
       - ENV_FILE_CERT_PATH: "/etc/riak/cert.pem"
       - ENV_FILE_CERT_DATA: "__MIM_CERT__"
