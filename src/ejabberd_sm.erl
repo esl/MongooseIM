@@ -492,7 +492,7 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 -spec init(_) -> {ok, state()}.
 init([]) ->
-    {Backend, Opts} = mongoose_config:get_opt(sm_backend, {mnesia, []}),
+    {Backend, Opts} = mongoose_config:get_opt(sm_backend),
     ejabberd_sm_backend:init([{backend, Backend}|Opts]),
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),

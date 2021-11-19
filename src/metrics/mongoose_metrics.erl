@@ -189,12 +189,12 @@ remove_all_metrics() ->
 
 -spec all_metrics_are_global() -> boolean().
 all_metrics_are_global() ->
-    mongoose_config:get_opt(all_metrics_are_global, false).
+    mongoose_config:get_opt(all_metrics_are_global).
 
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
     case all_metrics_are_global() of
         true -> WhenGlobal;
-        _ -> WhenNot
+        false -> WhenNot
     end.
 
 -spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type() | global,

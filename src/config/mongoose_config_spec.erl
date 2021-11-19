@@ -115,7 +115,8 @@ root() ->
     General = general(),
     #section{
        items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
-                                                  process = fun ?MODULE:process_general/1},
+                                                  process = fun ?MODULE:process_general/1,
+                                                  defaults = general_defaults()},
                  <<"listen">> => listen(),
                  <<"auth">> => auth(),
                  <<"outgoing_pools">> => outgoing_pools(),
@@ -225,6 +226,20 @@ general() ->
                 },
        format = none
       }.
+
+general_defaults() ->
+    #{<<"loglevel">> => warning,
+      <<"hosts">> => [],
+      <<"host_types">> => [],
+      <<"registration_timeout">> => 600,
+      <<"language">> => <<"en">>,
+      <<"all_metrics_are_global">> => false,
+      <<"sm_backend">> => {mnesia, []},
+      <<"rdbms_server_type">> => generic,
+      <<"mongooseimctl_access_commands">> => [],
+      <<"routing_modules">> => ejabberd_router:default_routing_modules(),
+      <<"replaced_wait_timeout">> => 2000,
+      <<"hide_service_name">> => false}.
 
 ctl_access_rule() ->
     #section{

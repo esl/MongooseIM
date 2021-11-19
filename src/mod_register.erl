@@ -412,7 +412,7 @@ send_registration_notification(JIDBin, Domain, Body) ->
 check_timeout(undefined) ->
     true;
 check_timeout(Source) ->
-    Timeout = mongoose_config:get_opt(registration_timeout, 600),
+    Timeout = mongoose_config:get_opt(registration_timeout),
     case is_integer(Timeout) of
         true ->
             Priority = -(erlang:system_time(second)),

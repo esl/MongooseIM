@@ -521,7 +521,7 @@ unregister_routes(StateData) ->
     ejabberd_router:unregister_components(Routes).
 
 get_routes(#state{host=Subdomain, is_subdomain=true}) ->
-    Hosts = mongoose_config:get_opt(hosts, []),
+    Hosts = mongoose_config:get_opt(hosts),
     component_routes(Subdomain, Hosts);
 get_routes(#state{host=Host}) ->
     [Host].

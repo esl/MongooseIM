@@ -22,10 +22,10 @@
 %% If the ejabberd application description isn't loaded, returns atom: undefined
 -define(MONGOOSE_VERSION, element(2, application:get_key(mongooseim,vsn))).
 
--define(MYHOSTS, mongoose_config:get_opt(hosts, [])).
--define(ALL_HOST_TYPES, mongoose_config:get_opt(hosts, []) ++ mongoose_config:get_opt(host_types, [])).
+-define(MYHOSTS, mongoose_config:get_opt(hosts)).
+-define(ALL_HOST_TYPES, mongoose_config:get_opt(hosts) ++ mongoose_config:get_opt(host_types)).
 -define(MYNAME, mongoose_config:get_opt(default_server_domain)).
--define(MYLANG, mongoose_config:get_opt(language, <<"en">>)).
+-define(MYLANG, mongoose_config:get_opt(language)).
 
 -define(CONFIG_PATH, "etc/mongooseim.toml").
 

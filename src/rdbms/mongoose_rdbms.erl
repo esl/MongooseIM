@@ -744,7 +744,7 @@ db_engine(_HostType) ->
 %% Also, this parameter should not be global, but pool-name parameterized
 -spec db_type() -> mssql | generic.
 db_type() ->
-    case mongoose_config:get_opt(rdbms_server_type, undefined) of
+    case mongoose_config:get_opt(rdbms_server_type) of
         mssql -> mssql;
         _ -> generic
     end.

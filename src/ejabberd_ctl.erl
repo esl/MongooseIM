@@ -247,7 +247,7 @@ process2(Args, Auth, AccessCommands) ->
 
 -spec get_accesscommands() -> [char() | tuple()].
 get_accesscommands() ->
-    mongoose_config:get_opt(mongooseimctl_access_commands, []).
+    mongoose_config:get_opt(mongooseimctl_access_commands).
 
 
 %%-----------------------------
