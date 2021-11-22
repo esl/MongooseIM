@@ -16,6 +16,11 @@ EUNIT_TESTS="${EUNIT_TESTS:-false}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
 REBAR_CT_EXTRA_ARGS="${REBAR_CT_EXTRA_ARGS:-}"
 
+if [ "$SKIP_PREPARE_BIG_TESTS" = "true" ]; then
+    # Pass to Makefile
+    export PREPARE=""
+fi
+
 while getopts ":p:s:e:c:" opt; do
   case $opt in
     p)

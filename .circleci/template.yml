@@ -518,7 +518,6 @@ jobs:
     parallelism: 1
     environment:
       PRESET: small_tests
-      SKIP_AUTO_COMPILE: true
     steps:
       - restore_workspace
       - run:
@@ -562,6 +561,7 @@ jobs:
       DB: <<parameters.db>>
       TLS_DIST: <<parameters.tls_dist>>
       SKIP_AUTO_COMPILE: true
+      SKIP_PREPARE_BIG_TESTS: true
       KEEP_COVER_RUNNING: 1
     steps:
       - restore_workspace
