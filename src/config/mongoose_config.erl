@@ -19,7 +19,6 @@
 -ignore_xref([set_opt/2, unset_opt/1, config_state/0, config_states/0]).
 
 -include("mongoose.hrl").
--include("ejabberd_config.hrl").
 
 -type key() :: atom() | host_type_key() | host_type_or_global_key().
 -type s2s_domain_key() :: {atom(), jid:lserver()}.
@@ -69,14 +68,12 @@ get_config_path() ->
 -spec set_opts(mongoose_config_parser:state()) -> ok.
 set_opts(State) ->
     Opts = mongoose_config_parser:state_to_opts(State),
-    [set_opt(Key, Value) || #local_config{key = Key, value = Value} <- Opts],
-    ok.
+    lists:foreach(fun({Key, Value}) -> set_opt(Key, Value) end, Opts).
 
 -spec unset_opts(mongoose_config_parser:state()) -> ok.
 unset_opts(State) ->
     Opts = mongoose_config_parser:state_to_opts(State),
-    [unset_opt(Key) || #local_config{key = Key} <- Opts],
-    ok.
+    lists:foreach(fun unset_opt/1, proplists:get_keys(Opts)).
 
 -spec set_opt(key(), value()) -> ok.
 set_opt(Key, Value) ->

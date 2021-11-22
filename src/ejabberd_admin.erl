@@ -544,8 +544,7 @@ restore(Path) ->
 %% restored and are ignored.
 -spec keep_tables() -> [atom()].
 keep_tables() ->
-    lists:flatten([acl, passwd, config, local_config, disco_publish,
-                   keep_modules_tables()]).
+    lists:flatten([acl, passwd, disco_publish, keep_modules_tables()]).
 
 %% @doc Returns the list of modules tables in use, according to the list of
 %% actually loaded modules

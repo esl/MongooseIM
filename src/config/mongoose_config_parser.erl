@@ -27,7 +27,6 @@
 -callback parse_file(FileName :: string()) -> state().
 
 -include("mongoose.hrl").
--include("ejabberd_config.hrl").
 
 -export_type([state/0]).
 
@@ -110,18 +109,14 @@ dedup_state_opts(State = #state{opts = RevOpts}) ->
     {RevOpts2, _Removed} = dedup_state_opts_list(RevOpts, [], [], sets:new()),
     State#state{opts = RevOpts2}.
 
-dedup_state_opts_list([{Type, K, _V} = H|List], Removed, Keep, Set)
-  when Type =:= config; Type =:= local_config ->
-    Element = {Type, K},
-    case sets:is_element(Element, Set) of
+dedup_state_opts_list([{K, _V} = H|List], Removed, Keep, Set) ->
+    case sets:is_element(K, Set) of
         true ->
             dedup_state_opts_list(List, [H|Removed], Keep, Set);
         false ->
-            Set1 = sets:add_element(Element, Set),
+            Set1 = sets:add_element(K, Set),
             dedup_state_opts_list(List, Removed, [H|Keep], Set1)
     end;
-dedup_state_opts_list([H|List], Removed, Keep, Set) ->
-    dedup_state_opts_list(List, Removed, [H|Keep], Set);
 dedup_state_opts_list([], Removed, Keep, _Set) ->
     {Keep, Removed}.
 
@@ -133,9 +128,9 @@ add_dep_modules(State = #state{opts = Opts}) ->
 add_dep_modules_opts(Opts) ->
     lists:map(fun add_dep_modules_opt/1, Opts).
 
-add_dep_modules_opt({local_config, {modules, Host}, Modules}) ->
+add_dep_modules_opt({{modules, Host}, Modules}) ->
     Modules2 = gen_mod_deps:add_deps(Host, Modules),
-    {local_config, {modules, Host}, Modules2};
+    {{modules, Host}, Modules2};
 add_dep_modules_opt(Other) ->
     Other.
 
@@ -171,9 +166,7 @@ check_dynamic_domains_support(State) ->
             config_error("Invalid host type configuration", Errors)
     end.
 
-maybe_check_modules_for_host_type(#local_config{key = {modules, HostOrHostType},
-                                                value = ModulesWithOpts},
-                                  HostTypes) ->
+maybe_check_modules_for_host_type({{modules, HostOrHostType}, ModulesWithOpts}, HostTypes) ->
     case lists:member(HostOrHostType, HostTypes) of
         false -> [];
         true ->
@@ -202,8 +195,7 @@ invalid_modules_for_host_type(HostType, Modules) ->
             end,
     lists:map(MapFN, Modules).
 
-maybe_check_auth_methods_for_host_types(#local_config{key = {auth_method, HostOrHostType},
-                                                      value = ListOfMethods},
+maybe_check_auth_methods_for_host_types({{auth_method, HostOrHostType}, ListOfMethods},
                                         HostTypes) ->
     case lists:member(HostOrHostType, HostTypes) of
         false -> [];

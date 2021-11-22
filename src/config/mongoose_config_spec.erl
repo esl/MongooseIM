@@ -44,7 +44,6 @@
          process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
--include("ejabberd_config.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.
@@ -72,14 +71,14 @@
       % Config record, the key is replaced with NewKey
       | {config_record_format(), NewKey :: term()}
 
-      % #local_config{} with either key = {Tag, Key, Host} - inside host_config
-      %                      or key = {Tag, Key, global} - at the top level
+      % {Key, Value} with either key = {Tag, Key, Host} - inside host_config
+      %                       or key = {Tag, Key, global} - at the top level
       | {host_or_global_config, Tag :: term()}.
 
 %% The value becomes a top-level config record
 -type config_record_format() ::
-        local_config % #local_config{}
-      | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
+        local_config % {Key, Value}
+      | host_local_config. % Inside host_config: {{Key, Host}, Value}
                            % Otherwise: one such record for each configured host
 
 %% The value becomes a nested config part - key-value pair or just a value
@@ -1142,14 +1141,12 @@ hosts_and_host_types_are_unique_and_non_empty(General) ->
     true = [] =/= AllHostTypes.
 
 get_all_hosts_and_host_types(General) ->
-    FoldFN = fun
-                 (#local_config{key = K} = C, Acc) when K =:= hosts;
-                                                        K =:= host_types ->
-                     Acc ++ C#local_config.value;
-                 (_, Acc) ->
-                     Acc
-             end,
-    lists:foldl(FoldFN, [], General).
+    lists:flatmap(fun({Key, Value}) when Key =:= hosts;
+                                         Key =:= host_types ->
+                          Value;
+                     (_) ->
+                          []
+                  end, General).
 
 process_sni(false) ->
     disable.
