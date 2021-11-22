@@ -119,7 +119,12 @@ wait_for_pid_exit() {
 
 # Check the first argument for instructions
 case "$1" in
-    start)
+    start|start_clean)
+        case "$1" in
+            start)   BOOTFILE=start ;;
+            start_clean)  BOOTFILE=start_clean ;;
+        esac
+        export BOOTFILE
         # Make sure there is not already a node running
         RES=`nodetool ping`
         if [ "$RES" = "pong" ]; then
