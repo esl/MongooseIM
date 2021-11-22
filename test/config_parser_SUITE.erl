@@ -3,8 +3,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--include("ejabberd_config.hrl").
-
 -define(HOST_TYPE, <<"my host type">>).
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
@@ -3056,9 +3054,9 @@ assert_options(ExpectedOptions, Config) ->
 -spec assert_option(mongoose_config:key(), mongoose_config:value(),
                     [mongoose_config_parser_toml:config()]) -> any().
 assert_option(Key, Value, Config) ->
-    case lists:keyfind(Key, #local_config.key, Config) of
+    case lists:keyfind(Key, 1, Config) of
         false -> ct:fail({"option not found", Key, Value, Config});
-        ActualOpt -> handle_config_option(#local_config{key = Key, value = Value}, ActualOpt)
+        ActualOpt -> handle_config_option({Key, Value}, ActualOpt)
     end.
 
 -spec assert_error([mongoose_config_parser_toml:config()]) -> any().
@@ -3089,8 +3087,7 @@ save_opts(Path, Opts) ->
 compare_config(C1, C2) ->
     compare_unordered_lists(C1, C2, fun handle_config_option/2).
 
-handle_config_option(#local_config{key = K1, value = V1},
-                     #local_config{key = K2, value = V2}) ->
+handle_config_option({K1, V1}, {K2, V2}) ->
     ?eq(K1, K2),
     compare_values(K1, V1, V2);
 handle_config_option(Opt1, Opt2) ->
