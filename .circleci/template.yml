@@ -7,7 +7,7 @@ references:
   # Caches created via the save_cache step are stored for up to 15 days
   - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v5
   - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
-  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v4
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v5
 
 # list of references to be used inside executors block
 containers:
@@ -282,10 +282,12 @@ commands:
             tools/configure with-all
             # Hide our code from rebar to not compile it at this stage
             mv src src_old
+            mv asn1 asn1_old
             ./rebar3 compile
             # rebar3 could create src directory on its own
-            rm -rf src
+            rm -rf src asn1 asngen
             mv src_old src
+            mv asn1_old asn1
       - run:
           name: Get and compile big_tests deps
           command: |
