@@ -34,21 +34,28 @@
 -export([verify_creds/1]).
 
 -include_lib("jid/include/jid.hrl").
+-include("mongoose_logger.hrl").
 
 -spec verify_creds(Creds :: mongoose_credentials:t()) ->
     {ok, Username :: binary()} | {error, Error :: binary()}.
 
 verify_creds(Creds) ->
     AuthId = mongoose_credentials:get(Creds, auth_id, undefined),
-    XmppAddr = case mongoose_credentials:get(Creds, xmpp_addresses) of
+    Addrs = mongoose_credentials:get(Creds, xmpp_addresses),
+    XmppAddr = case Addrs of
                    [Addr] -> Addr;
                    _ -> undefined
                end,
     CN = mongoose_credentials:get(Creds, common_name, undefined),
-    [JID | _] = [Name || Name <- [AuthId, XmppAddr, CN, <<"">>], Name =/= undefined],
+    Sources = [AuthId, XmppAddr, CN, <<"">>],
+    [JID | _] = [Name || Name <- Sources, Name =/= undefined],
     Server = mongoose_credentials:lserver(Creds),
     case jid:from_binary(JID) of
         #jid{luser = User, lserver = Server, lresource = <<"">>} when User =/= <<"">> ->
             {ok, User};
-        _ -> {error, <<"not-authorized">>}
+        Result ->
+            ?LOG_ERROR(#{what => cyrsasl_external_verification_failed,
+                         xmpp_addresses => Addrs, server => Server,
+                         auth_sources => Sources, result => Result}),
+            {error, <<"not-authorized">>}
     end.
