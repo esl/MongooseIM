@@ -54,9 +54,7 @@ CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
 PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
 
-# This should be equal once certs cache is restored
-CERTS_VERSION=$(tools/certs-version.sh)
-CERTS_DATE=$(cat cert_date)
+CERTS_CACHE_KEY=$(cat certs_cache_key)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
@@ -87,7 +85,6 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__DB_CACERT__/${CACERT}/" \
     -e "s/__PYTHON2_BASE32_DEC__/${PYTHON2_BASE32_DEC}/" \
     -e "s/__PYTHON3_BASE32_DEC__/${PYTHON3_BASE32_DEC}/" \
-    -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
-    -e "s/__CERTS_DATE__/${CERTS_DATE}/" \
+    -e "s/__CERTS_CACHE_KEY__/${CERTS_CACHE_KEY}/" \
     .circleci/template.yml \
     > "$OUT_FILE"

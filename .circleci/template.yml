@@ -5,7 +5,7 @@ references:
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
-  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-{{ checksum "cert_date" }}-v5
+  - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}
   - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
   - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v5
 
@@ -403,17 +403,13 @@ commands:
     steps:
       - run:
           name: Prepare cache key
-          command: echo "__CERTS_DATE__" > cert_date
+          command: echo "__CERTS_CACHE_KEY__" > certs_cache_key
       - restore_cache:
           name: Restore certificates
           key: *CERT_KEY
       - run:
-          name: Verify certificates
-          command: |
-            if [ "$(tools/certs-version.sh)" != "__CERTS_VERSION__" ]; then
-              echo "Restart this build from the beginning, including the setup job"
-              exit 1
-            fi
+          name: Continue if certificate cache restored
+          command: test -f tools/ssl/mongooseim/key.pem
   prepare_for_cache:
     steps:
       - run:
