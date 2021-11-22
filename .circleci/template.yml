@@ -256,24 +256,11 @@ commands:
           name: Get and compile deps
           command: |
             tools/configure with-all
-            # Hide our code from rebar to not compile it at this stage
-            mv src src_old
-            mv asn1 asn1_old
-            ./rebar3 compile
-            # rebar3 could create src directory on its own
-            rm -rf src asn1 asngen
-            mv src_old src
-            mv asn1_old asn1
+            tools/build-deps.sh
       - run:
           name: Get and compile big_tests deps
           command: |
-            cd big_tests
-            mv src src_old
-            mv tests tests_old
-            ../rebar3 compile
-            rm -rf src tests
-            mv src_old src
-            mv tests_old tests
+            tools/build-test-deps.sh
       - save_cache:
           name: Cache built dependencies
           key: *DEPS_CACHE_KEY
