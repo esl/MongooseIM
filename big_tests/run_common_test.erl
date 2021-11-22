@@ -337,6 +337,7 @@ analyze_coverage(_, _) ->
 
 prepare(Props) ->
     Nodes = get_mongoose_nodes(Props),
+    wait_for_nodes_up(Nodes),
     maybe_compile_cover(Nodes).
 
 maybe_compile_cover([]) ->
@@ -692,3 +693,8 @@ assert_preset_present(Preset, PresetConfs) ->
             error_logger:error_msg("Preset not found ~p~n", [Preset]),
             error({preset_not_found, Preset})
     end.
+
+wait_for_nodes_up(Nodes) ->
+    mongoose_helper:wait_until(fun() -> [net_adm:ping(Node) || Node <- Nodes] end,
+                               [pong || _Node <- Nodes],
+                               #{node => Nodes, time_left => timer:seconds(30)}).
