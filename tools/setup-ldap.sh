@@ -2,6 +2,7 @@
 
 set -e
 source tools/common-vars.sh
+source tools/db-versions.sh
 LDAP_ROOTPASS=mongooseim_secret
 
 NAME=$(db_name ldap)
@@ -69,7 +70,7 @@ docker run -d \
     $(mount_ro_volume "$LDAP_SCHEMAS_DIR" /container/service/slapd/assets/config/bootstrap/ldif/custom/) \
     $(mount_ro_volume "$LDAP_CERT_DIR" /container/service/slapd/assets/certs/) \
     --health-cmd='ldapwhoami -x' \
-    osixia/openldap:1.2.4 \
+    osixia/openldap:$LDAP_VERSION \
     --copy-service
 
 echo "Waiting for ldap"

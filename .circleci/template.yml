@@ -12,7 +12,7 @@ references:
 # list of references to be used inside executors block
 containers:
   - &mysql_container
-    image: mysql:8.0.20
+    image: mysql:__MYSQL_VERSION__
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - MYSQL_ROOT_PASSWORD: secret
@@ -32,7 +32,7 @@ containers:
       - ENV_FILE_KEY_DATA: "__MIM_KEY__"
     entrypoint: *ENTRYPOINT
   - &pgsql_container
-    image: postgres:14
+    image: postgres:__PGSQL_VERSION__
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - POSTGRES_PASSWORD: password
@@ -51,7 +51,7 @@ containers:
       - ENV_FILE_KEY_DATA: "__MIM_KEY__"
     entrypoint: *ENTRYPOINT
   - &ldap_container
-    image: osixia/openldap:1.2.4
+    image: osixia/openldap:__LDAP_VERSION__
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - POSTGRES_PASSWORD: password
@@ -124,9 +124,9 @@ containers:
       - BASE32DEC: "__PYTHON3_BASE32_DEC__"
     entrypoint: *ENTRYPOINT
   - &redis_container
-    image: cimg/redis:6.2.6
+    image: cimg/redis:__REDIS_VERSION__
   - &rabbit_container
-    image: rabbitmq:3.7-alpine
+    image: rabbitmq:__RMQ_VERSION__
   - &minio_container
     image: minio/minio:latest
     environment:
@@ -134,14 +134,14 @@ containers:
       - MINIO_SECRET_KEY: "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"
     command: ["server", "/data"]
   - &elasticsearch_container
-    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.9
+    image: docker.elastic.co/elasticsearch/elasticsearch:__ELASTICSEARCH_VERSION__
     environment:
       - ES_JAVA_OPTS: "-Xms500m -Xmx500m"
       - http.host: 0.0.0.0
       - transport.host: 127.0.0.1
       - xpack.security.enabled: false
   - &cassandra_container
-    image: cassandra:3.9
+    image: cassandra:__CASSA_VERSION__
     environment:
       - SCHEMA_READY_PORT: 9242
       - HEAP_NEWSIZE: 64M

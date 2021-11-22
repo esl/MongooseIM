@@ -12,6 +12,7 @@ if [ $? -eq 0 ]; then
 fi
 
 set -e
+source tools/db-versions.sh
 
 function cat32 {
     cat "$1" | $ENCODER
@@ -59,14 +60,18 @@ CERTS_CACHE_KEY=$(cat certs_cache_key)
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
     -e "s/__MYSQL_SETUP__/${MYSQL_SETUP}/" \
+    -e "s/__MYSQL_VERSION__/${MYSQL_VERSION}/" \
     -e "s/__PGSQL_CNF__/${PGSQL_CNF}/" \
     -e "s/__PGSQL_SQL__/${PGSQL_SQL}/" \
     -e "s/__PGSQL_HBA__/${PGSQL_HBA}/" \
     -e "s/__PGSQL_SETUP__/${PGSQL_SETUP}/" \
+    -e "s/__PGSQL_VERSION__/${PGSQL_VERSION}/g" \
     -e "s/__MSSQL_SQL__/${MSSQL_SQL}/" \
     -e "s/__MSSQL_SETUP__/${MSSQL_SETUP}/" \
+    -e "s/__REDIS_VERSION__/${REDIS_VERSION}/" \
     -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
+    -e "s/__LDAP_VERSION__/${LDAP_VERSION}/" \
     -e "s/__RIAK_SSL_CFG__/${RIAK_SSL_CFG}/" \
     -e "s/__RIAK_ADV_CFG__/${RIAK_ADV_CFG}/" \
     -e "s/__RIAK_SETUP__/${RIAK_SETUP}/" \
@@ -77,6 +82,9 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__CASSA_ENTRY__/${CASSA_ENTRY}/" \
     -e "s/__CASSA_MIM_SQL__/${CASSA_MIM_CQL_ENTRY}/" \
     -e "s/__CASSA_TEST_SQL__/${CASSA_TEST_CQL_ENTRY}/" \
+    -e "s/__CASSA_VERSION__/${CASSANDRA_VERSION}/" \
+    -e "s/__ELASTICSEARCH_VERSION__/${ELASTICSEARCH_VERSION}/" \
+    -e "s/__RMQ_VERSION__/${RMQ_VERSION}/" \
     -e "s/__MIM_CERT__/${MIM_CERT}/" \
     -e "s/__MIM_KEY__/${MIM_KEY}/" \
     -e "s/__MIM_PRIV_KEY__/${MIM_PRIV_KEY}/" \
