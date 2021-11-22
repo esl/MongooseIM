@@ -57,29 +57,26 @@
 %% are packed into the resulting list of configuration options.
 -type format() :: top_level_config_format() | config_part_format().
 
-%% The value becomes a top-level config record or 'override' tuple
+%% The value becomes a top-level config option or 'override' tuple
 -type top_level_config_format() ::
-      % {override, Value}
-        override
+      % Config options, see the type below for details
+        config_option_format()
 
-      % Config records, see the type below for details
-      | config_record_format()
+      % Config option for each {K, V} in Value, which has to be a list
+      | {foreach, config_option_format()}
 
-      % Config record for each {K, V} in Value, which has to be a list
-      | {foreach, config_record_format()}
+      % Config option, the key is replaced with NewKey
+      | {config_option_format(), NewKey :: term()}
 
-      % Config record, the key is replaced with NewKey
-      | {config_record_format(), NewKey :: term()}
-
-      % {Key, Value} with either key = {Tag, Key, Host} - inside host_config
-      %                       or key = {Tag, Key, global} - at the top level
+      % Inside host_config: {{Tag, Key, Host}, Value}
+      % Otherwise: {{Tag, Key, global}, Value}
       | {host_or_global_config, Tag :: term()}.
 
-%% The value becomes a top-level config record
--type config_record_format() ::
+%% The value becomes a top-level config option
+-type config_option_format() ::
         global_config % {Key, Value}
       | host_config. % Inside host_config: {{Key, Host}, Value}
-                           % Otherwise: one such record for each configured host
+                     % Otherwise: one such option for each configured host
 
 %% The value becomes a nested config part - key-value pair or just a value
 -type config_part_format() ::
