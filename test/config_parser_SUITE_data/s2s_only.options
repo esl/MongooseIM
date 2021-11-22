@@ -7,8 +7,8 @@
 {local_config,s2s_ciphers,"TLSv1.2:TLSv1.3"}.
 {local_config,s2s_dns_options,[{retries,1},{timeout,30}]}.
 {local_config,s2s_use_starttls,optional}.
-{local_config,{domain_certfile,"example.com"},"/path/to/example_com.pem"}.
-{local_config,{domain_certfile,"example.org"},"/path/to/example_org.pem"}.
+{local_config,{domain_certfile,<<"example.com">>},"/path/to/example_com.pem"}.
+{local_config,{domain_certfile,<<"example.org">>},"/path/to/example_org.pem"}.
 {local_config,{s2s_addr,<<"fed1">>},"127.0.0.1"}.
 {local_config,{s2s_addr,<<"fed2">>},{"127.0.0.1", 8765}}.
 {local_config,{s2s_default_policy,<<"dummy_host">>},allow}.
