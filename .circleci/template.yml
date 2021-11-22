@@ -5,7 +5,7 @@ references:
   - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
   - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
   # Caches created via the save_cache step are stored for up to 15 days
-  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v5
+  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-{{ checksum "cert_date" }}-v5
   - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
   - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v5
 
@@ -414,6 +414,9 @@ commands:
   # We are not allowed to regenerate them
   restore_certs:
     steps:
+      - run:
+          name: Prepare cache key
+          command: echo "__CERTS_DATE__" > cert_date
       - restore_cache:
           name: Restore certificates
           key: *CERT_KEY

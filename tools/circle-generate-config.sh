@@ -32,16 +32,6 @@ MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
 LDAP_SCHEMA=$(cat32 tools/db_configs/ldap/init_entries.ldif)
 LDAP_SETUP=$(cat32 tools/db_configs/ldap/init_script.sh)
 
-MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
-MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
-MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
-MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
-INJECT_FILES=$(cat32 tools/inject-files.sh)
-CACERT=$(cat32 tools/ssl/ca/cacert.pem)
-
-# This should be equal once certs cache is restored
-CERTS_VERSION=$(tools/certs-version.sh)
-
 RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
 RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
 RIAK_SETUP=$(cat32 tools/setup_riak.escript)
@@ -54,8 +44,19 @@ CASSA_ENTRY=$(cat32 tools/db_configs/cassandra/docker_entry.sh)
 CASSA_MIM_CQL_ENTRY=$(cat32 priv/cassandra.cql)
 CASSA_TEST_CQL_ENTRY=$(cat32 big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql)
 
+MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
+MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
+INJECT_FILES=$(cat32 tools/inject-files.sh)
+CACERT=$(cat32 tools/ssl/ca/cacert.pem)
+
 PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
 PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
+
+# This should be equal once certs cache is restored
+CERTS_VERSION=$(tools/certs-version.sh)
+CERTS_DATE=$(cat cert_date)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MYSQL_SQL__/${MYSQL_SQL}/" \
@@ -67,14 +68,7 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__MSSQL_SQL__/${MSSQL_SQL}/" \
     -e "s/__MSSQL_SETUP__/${MSSQL_SETUP}/" \
     -e "s/__LDAP_SCHEMA__/${LDAP_SCHEMA}/" \
-    -e "s/__MIM_CERT__/${MIM_CERT}/" \
-    -e "s/__MIM_KEY__/${MIM_KEY}/" \
-    -e "s/__MIM_PRIV_KEY__/${MIM_PRIV_KEY}/" \
-    -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
-    -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
-    -e "s/__DB_CACERT__/${CACERT}/" \
     -e "s/__LDAP_SETUP__/${LDAP_SETUP}/" \
-    -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
     -e "s/__RIAK_SSL_CFG__/${RIAK_SSL_CFG}/" \
     -e "s/__RIAK_ADV_CFG__/${RIAK_ADV_CFG}/" \
     -e "s/__RIAK_SETUP__/${RIAK_SETUP}/" \
@@ -85,7 +79,15 @@ sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
     -e "s/__CASSA_ENTRY__/${CASSA_ENTRY}/" \
     -e "s/__CASSA_MIM_SQL__/${CASSA_MIM_CQL_ENTRY}/" \
     -e "s/__CASSA_TEST_SQL__/${CASSA_TEST_CQL_ENTRY}/" \
+    -e "s/__MIM_CERT__/${MIM_CERT}/" \
+    -e "s/__MIM_KEY__/${MIM_KEY}/" \
+    -e "s/__MIM_PRIV_KEY__/${MIM_PRIV_KEY}/" \
+    -e "s/__MIM_DHSERVER__/${MIM_DHSERVER}/" \
+    -e "s/__INJECT_FILES__/${INJECT_FILES}/" \
+    -e "s/__DB_CACERT__/${CACERT}/" \
     -e "s/__PYTHON2_BASE32_DEC__/${PYTHON2_BASE32_DEC}/" \
     -e "s/__PYTHON3_BASE32_DEC__/${PYTHON3_BASE32_DEC}/" \
+    -e "s/__CERTS_VERSION__/${CERTS_VERSION}/" \
+    -e "s/__CERTS_DATE__/${CERTS_DATE}/" \
     .circleci/template.yml \
     > "$OUT_FILE"

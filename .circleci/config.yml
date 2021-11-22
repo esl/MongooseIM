@@ -1,7 +1,7 @@
 version: 2.1
 
 references:
-  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-v5
+  - &CERT_KEY certs-cache-{{ checksum "tools/ssl/Makefile" }}-{{ checksum "cert_date" }}-v5
 
 # this allows you to use CircleCI's dynamic configuration feature
 setup: true
@@ -27,6 +27,9 @@ jobs:
 commands:
   maybe_build_certs:
     steps:
+      - run:
+          name: Prepare cache key
+          command: tools/make-cert-key.sh > cert_date
       - restore_cache:
           name: Restore certificates
           key: *CERT_KEY
