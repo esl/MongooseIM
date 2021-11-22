@@ -2,6 +2,6 @@
 
 week=$(date "+%V")
 ((num=$week - $week % 2))
-year_month=$(date "+%Y_%m")
+year=$(date "+%Y")
 
-echo "${year_month}-week${num}"
+echo "${year}-week${num}"
