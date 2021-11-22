@@ -243,7 +243,7 @@ commands:
       - run:
           name: Install packages necessary for building
           command: |
-            sudo killall -9 apt-get || true && \
+            sudo pkill -9 apt-get || true && \
             echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
             sudo apt-get update && \
             sudo apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
@@ -295,7 +295,7 @@ commands:
       - run:
           name: Install pip3 and codecov packages
           command: |
-            sudo killall -9 apt-get || true && \
+            sudo pkill -9 apt-get || true && \
             echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
             sudo apt-get update && \
             sudo apt-get install python3-pip -y && \
