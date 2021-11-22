@@ -238,30 +238,6 @@ executors:
       - *cassandra_container
       - *cassandra_proxy_container
 commands:
-  install_erlang:
-    parameters:
-      otp_package:
-        type: string
-        description: Version of the Erlang package to install
-    steps:
-    - run:
-        name: Install Erlang
-        command: |
-          sudo killall -9 apt-get || true && \
-          sudo apt-get install -y esl-erlang=1:<<parameters.otp_package>>
-  fetch_packages:
-    steps:
-    - run:
-        name: Install basic packages
-        command: |
-          sudo killall -9 apt-get || true && \
-          echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
-          wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && \
-          sudo dpkg -i erlang-solutions_2.0_all.deb && \
-          sudo apt-get update && \
-          sudo apt-get install unixodbc-dev -y && \
-          sudo apt-get install unixodbc -y && \
-          sudo apt-get install tdsodbc -y
   fetch_build_packages:
     steps:
       - run:
@@ -434,15 +410,6 @@ commands:
             echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
             echo '127.0.0.1 localhost.bis' | sudo tee -a /etc/hosts
             echo '127.0.0.1 localhost' | sudo tee -a /etc/hosts
-  restore_all_caches:
-    steps:
-      - restore_cache:
-          name: Restore build artifacts
-          key: *BUILD_CACHE_KEY
-      - restore_cache:
-          name: Restore deps artifacts
-          key: *DEPS_CACHE_KEY
-      - restore_certs
   # Certs are initialized during setup phase
   # We are not allowed to regenerate them
   restore_certs:
