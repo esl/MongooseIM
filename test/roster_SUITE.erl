@@ -45,13 +45,19 @@ init_per_suite(C) ->
     meck:expect(gen_iq_handler, remove_iq_handler_for_domain, fun(_, _, _) -> ok end),
     meck:new(mongoose_domain_api, [no_link]),
     meck:expect(mongoose_domain_api, get_domain_host_type, fun(_) -> {ok, host_type()} end),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     C.
 
 end_per_suite(C) ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     meck:unload(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     C.
+
+opts() ->
+    [{hosts, []},
+     {all_metrics_are_global, false}].
 
 init_per_testcase(_TC, C) ->
     init_ets(),
@@ -158,12 +164,10 @@ assert_state_old(Subscription, Ask) ->
     ?assertEqual(Ask, Rentry#roster.ask).
 
 init_ets() ->
-    catch ets:new(local_config, [named_table]),
     catch ets:new(mongoose_services, [named_table]),
     ok.
 
 delete_ets() ->
-    catch ets:delete(local_config),
     catch ets:delete(mongoose_services),
     ok.
 

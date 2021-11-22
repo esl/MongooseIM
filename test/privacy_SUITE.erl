@@ -37,15 +37,16 @@ init_per_suite(C) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     {ok, _} = application:ensure_all_started(exometer_core),
+    mongoose_config:set_opt(all_metrics_are_global, false),
     C.
 
 init_per_testcase(_, C) ->
-    catch ets:new(local_config, [named_table]),
     gen_hook:start_link(),
     mod_privacy:start(<<"localhost">>, []),
     C.
 
 end_per_suite(_C) ->
+    mongoose_config:unset_opt(all_metrics_are_global),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),

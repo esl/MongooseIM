@@ -107,17 +107,33 @@ cluster_load_from_file(Config) ->
 check_loaded_config(State) ->
     Opts = lists:sort(mongoose_config_parser:state_to_opts(State)),
     ExpectedOpts = minimal_config_opts(),
-    ?assertEqual(ExpectedOpts, Opts),
-    [?assertEqual(Val, mongoose_config:get_opt(Key)) || {{_, Key}, Val} <- ExpectedOpts].
+    ?assertEqual([{local_config, Key, Val} || {Key, Val} <- ExpectedOpts], Opts),
+    [?assertEqual(Val, mongoose_config:get_opt(Key)) || {Key, Val} <- ExpectedOpts].
 
 check_removed_config() ->
     Opts = minimal_config_opts(),
     ?assertError(badarg, mongoose_config:config_state()),
-    [?assertError(badarg, mongoose_config:get_opt(Key)) || {{_, Key}, _} <- Opts].
+    [?assertError(badarg, mongoose_config:get_opt(Key)) || {Key, _} <- Opts].
 
 minimal_config_opts() ->
-    [{local_config, default_server_domain, <<"localhost">>},
-     {local_config, hosts, [<<"localhost">>]}].
+    [{all_metrics_are_global, false},
+     {default_server_domain, <<"localhost">>},
+     {hide_service_name, false},
+     {host_types, []},
+     {hosts, [<<"localhost">>]},
+     {language, <<"en">>},
+     {loglevel, warning},
+     {mongooseimctl_access_commands, []},
+     {rdbms_server_type, generic},
+     {registration_timeout, 600},
+     {routing_modules, [mongoose_router_global,
+                        mongoose_router_localdomain,
+                        mongoose_router_external_localnode,
+                        mongoose_router_external,
+                        mongoose_router_dynamic_domains,
+                        ejabberd_s2s]},
+     {sm_backend, {mnesia, []}},
+     {{replaced_wait_timeout, <<"localhost">>}, 2000}].
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

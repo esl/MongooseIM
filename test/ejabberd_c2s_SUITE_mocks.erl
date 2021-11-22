@@ -61,7 +61,8 @@ teardown() ->
 
 opts() ->
     [{max_fsm_queue, 100},
-     {default_server_domain, <<"localhost">>}].
+     {default_server_domain, <<"localhost">>},
+     {language, <<"en">>}].
 
 mcred_get(dummy_creds, username) -> <<"cosmic_hippo">>;
 mcred_get(dummy_creds, auth_module) -> auuuthmodule.

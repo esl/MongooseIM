@@ -4,7 +4,6 @@
 
 all() ->
     [
-     test_undefined_translation,
      test_english_translation,
      test_polish_translation,
      test_portuguese_translation
@@ -14,15 +13,6 @@ all() ->
 end_per_testcase(_, C) ->
     mongoose_config:unset_opt(language),
     C.
-
-test_undefined_translation(_Config) ->
-    %% given - no language set, defaults to English
-    given_loaded_translations(),
-    %% then
-    ?assertEqual(<<"undef">>, translate:translate(<<"en">>, <<"undef">>)),
-    ?assertEqual(<<"undef2">>, translate:translate(<<"klingon">>, <<"undef2">>)),
-
-    ok.
 
 test_english_translation(_Config) ->
     %% given

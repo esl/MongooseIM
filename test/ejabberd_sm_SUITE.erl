@@ -107,7 +107,7 @@ end_per_testcase(_, Config) ->
     clean_sessions(Config),
     terminate_sm(),
     unload_meck(),
-    unset_opts().
+    unset_opts(Config).
 
 open_session(C) ->
     {Sid, USR} = generate_random_user(<<"localhost">>),
@@ -596,8 +596,16 @@ terminate_sm() ->
     gen_server:stop(ejabberd_sm).
 
 set_opts(Config) ->
-    mongoose_config:set_opt(hosts, [<<"localhost">>]),
-    mongoose_config:set_opt(sm_backend, sm_backend(?config(backend, Config))).
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts(Config)].
+
+unset_opts(Config) ->
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts(Config)].
+
+opts(Config) ->
+    [{hosts, [<<"localhost">>]},
+     {host_types, []},
+     {all_metrics_are_global, false},
+     {sm_backend, sm_backend(?config(backend, Config))}].
 
 sm_backend(ejabberd_sm_redis) ->
     {redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]};
@@ -610,7 +618,3 @@ set_meck() ->
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     meck:expect(ejabberd_commands, unregister_commands, fun(_) -> ok end),
     ok.
-
-unset_opts() ->
-    mongoose_config:unset_opt(hosts),
-    mongoose_config:unset_opt(sm_backend).
