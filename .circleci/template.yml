@@ -1,0 +1,880 @@
+version: 2.1
+
+references:
+  - &OTP24 cimg/elixir:1.12.3  # Contains Erlang 24.0.5
+  - &OTP23 cimg/elixir:1.11.4  # Contains Erlang 23.1
+  - &ENTRYPOINT ["/bin/sh", "-c", "eval ${INSTALL_DEPS_CMD:-echo} && echo __INJECT_FILES__ | eval ${BASE32DEC:-base32 --decode} | bash"]
+  # Caches created via the save_cache step are stored for up to 15 days
+  - &CERT_KEY certs-cache-{{ checksum "certs_cache_key" }}
+  - &DEPS_CACHE_KEY deps-cache-{{ checksum "rebar.lock" }}-{{ checksum "big_tests/rebar.lock" }}-{{ checksum "otp_version" }}-v4
+  - &BUILD_CACHE_KEY build-cache-{{ .Branch }}-{{ .Revision }}-{{ checksum "otp_version" }}-v5
+
+# list of references to be used inside executors block
+containers:
+  - &mysql_container
+    image: mysql:__MYSQL_VERSION__
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - MYSQL_ROOT_PASSWORD: secret
+      - MYSQL_DATABASE: ejabberd
+      - MYSQL_USER: ejabberd
+      - MYSQL_PASSWORD: mongooseim_secret
+      - OLD_ENTRYPOINT: "./entrypoint.sh mysqld"
+      - ENV_FILE_CFG_PATH: "/etc/mysql/conf.d/mysql.cnf"
+      - ENV_FILE_CFG_DATA: "__MYSQL_CNF__"
+      - ENV_FILE_SQL_PATH: "/docker-entrypoint-initdb.d/mysql.sql"
+      - ENV_FILE_SQL_DATA: "__MYSQL_SQL__"
+      - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-mysql.sh"
+      - ENV_FILE_SH_DATA: "__MYSQL_SETUP__"
+      - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+    entrypoint: *ENTRYPOINT
+  - &pgsql_container
+    image: postgres:__PGSQL_VERSION__
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - POSTGRES_PASSWORD: password
+      - OLD_ENTRYPOINT: "docker-entrypoint.sh postgres"
+      - ENV_FILE_CFG_PATH: "/tmp/sql/postgresql.conf"
+      - ENV_FILE_CFG_DATA: "__PGSQL_CNF__"
+      - ENV_FILE_SQL_PATH: "/tmp/sql/pg.sql"
+      - ENV_FILE_SQL_DATA: "__PGSQL_SQL__"
+      - ENV_FILE_HBA_PATH: "/tmp/sql/pg_hba.conf"
+      - ENV_FILE_HBA_DATA: "__PGSQL_HBA__"
+      - ENV_FILE_SH_PATH: "/docker-entrypoint-initdb.d/docker-setup-postgres.sh"
+      - ENV_FILE_SH_DATA: "__PGSQL_SETUP__"
+      - ENV_FILE_CERT_PATH: "/tmp/sql/fake_cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/tmp/sql/fake_key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+    entrypoint: *ENTRYPOINT
+  - &ldap_container
+    image: osixia/openldap:__LDAP_VERSION__
+    environment:
+      - SQL_TEMP_DIR: /tmp/sql
+      - POSTGRES_PASSWORD: password
+      - LDAP_DOMAIN: "esl.com"
+      - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
+      - LDAP_ORGANISATION: "Erlang Solutions"
+      - LDAP_TLS_CRT_FILENAME: cert.pem
+      - LDAP_TLS_KEY_FILENAME: key.pem
+      - LDAP_TLS_CA_CRT_FILENAME: cacert.pem
+      - LDAP_TLS_DH_PARAM_FILENAME: dh_server.pem
+      - OLD_ENTRYPOINT: "/init_script.sh && /container/tool/run --copy-service"
+      - ENV_FILE_SH_PATH: "/init_script.sh"
+      - ENV_FILE_SH_DATA: "__LDAP_SETUP__"
+      - ENV_FILE_SH_MODE: 755
+      - ENV_FILE_SCHEMA_PATH: "/container/service/slapd/assets/config/bootstrap/ldif/custom/init_entries.ldif"
+      - ENV_FILE_SCHEMA_DATA: "__LDAP_SCHEMA__"
+      - ENV_FILE_CERT_PATH: "/container/service/slapd/assets/certs/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/container/service/slapd/assets/certs/key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/container/service/slapd/assets/certs/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_DHSERVER_PATH: "/container/service/slapd/assets/certs/dh_server.pem"
+      - ENV_FILE_DHSERVER_DATA: "__MIM_DHSERVER__"
+    entrypoint: *ENTRYPOINT
+  - &mssql_container
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      - ACCEPT_EULA: Y
+      - SA_PASSWORD: "mongooseim_secret+ESL123"
+      - DB_NAME: ejabberd
+      - SCHEMA_READY_PORT: 1434
+        # We are not running as root in this container,
+        # so we can only write into some directories (in this case, /tmp)
+      - SQL_FILE: "/tmp/mongoose.sql"
+      - OLD_ENTRYPOINT: "{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr"
+      - ENV_FILE_SQL_PATH: "/tmp/mongoose.sql"
+      - ENV_FILE_SQL_DATA: "__MSSQL_SQL__"
+      - ENV_FILE_SH_PATH: "/tmp/docker-setup-mssql.sh"
+      - ENV_FILE_SH_DATA: "__MSSQL_SETUP__"
+      - ENV_FILE_SH_MODE: 755
+    entrypoint: *ENTRYPOINT
+  - &riak_container
+    image: michalwski/docker-riak:1.0.6
+    environment:
+      - DOCKER_RIAK_BACKEND: leveldb
+      - DOCKER_RIAK_CLUSTER_SIZE: 1
+      - SCHEMA_READY_PORT: 8999
+      - OLD_ENTRYPOINT: "/setup-riak.sh && /sbin/my_init --skip-startup-files"
+      - ENV_FILE_ADV_CFG_PATH: "/etc/riak/advanced.config"
+      - ENV_FILE_ADV_CFG_DATA: "__RIAK_ADV_CFG__"
+      - ENV_FILE_SSL_CFG_PATH: "/riak.conf.ssl"
+      - ENV_FILE_SSL_CFG_DATA: "__RIAK_SSL_CFG__"
+      - ENV_FILE_CERT_PATH: "/etc/riak/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/etc/riak/key.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_KEY__"
+      - ENV_FILE_CACERT_PATH: "/etc/riak/ca/cacertfile.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_SETUP_PATH: "/setup_riak.escript"
+      - ENV_FILE_SETUP_DATA: "__RIAK_SETUP__"
+      - ENV_FILE_MAM_SCHEMA_PATH: "/mam_search_schema.xml"
+      - ENV_FILE_MAM_SCHEMA_DATA: "__RIAK_MAM_SEARCH_SCHEMA__"
+      - ENV_FILE_VCARD_SCHEMA_PATH: "/vcard_search_schema.xml"
+      - ENV_FILE_VCARD_SCHEMA_DATA: "__RIAK_VCARD_SEARCH_SCHEMA__"
+      - ENV_FILE_SETUP_SH_PATH: "/setup-riak.sh"
+      - ENV_FILE_SETUP_SH_DATA: "__RIAK_SETUP_SH__"
+      - ENV_FILE_SETUP_SH_MODE: 755
+      # Riak does not have base32, but has python
+      - BASE32DEC: "__PYTHON3_BASE32_DEC__"
+    entrypoint: *ENTRYPOINT
+  - &redis_container
+    image: cimg/redis:__REDIS_VERSION__
+  - &rabbit_container
+    image: rabbitmq:__RMQ_VERSION__
+  - &minio_container
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+      - MINIO_SECRET_KEY: "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"
+    command: ["server", "/data"]
+  - &elasticsearch_container
+    image: docker.elastic.co/elasticsearch/elasticsearch:__ELASTICSEARCH_VERSION__
+    environment:
+      - ES_JAVA_OPTS: "-Xms500m -Xmx500m"
+      - http.host: 0.0.0.0
+      - transport.host: 127.0.0.1
+      - xpack.security.enabled: false
+  - &cassandra_container
+    image: cassandra:__CASSA_VERSION__
+    environment:
+      - SCHEMA_READY_PORT: 9242
+      - HEAP_NEWSIZE: 64M
+      - MAX_HEAP_SIZE: 128M
+      - OLD_ENTRYPOINT: "/entry.sh"
+      - ENV_FILE_CERT_PATH: "/ssl/mongooseim/cert.pem"
+      - ENV_FILE_CERT_DATA: "__MIM_CERT__"
+      - ENV_FILE_KEY_PATH: "/ssl/mongooseim/privkey.pem"
+      - ENV_FILE_KEY_DATA: "__MIM_PRIV_KEY__"
+      - ENV_FILE_CACERT_PATH: "/ssl/ca/cacert.pem"
+      - ENV_FILE_CACERT_DATA: "__DB_CACERT__"
+      - ENV_FILE_CASSA_ENTRY_PATH: "/entry.sh"
+      - ENV_FILE_CASSA_ENTRY_DATA: "__CASSA_ENTRY__"
+      - ENV_FILE_CASSA_ENTRY_MODE: 755
+      - ENV_FILE_CASSA_MIM_CQL_PATH: "/schemas/mim.cql"
+      - ENV_FILE_CASSA_MIM_CQL_DATA: "__CASSA_MIM_SQL__"
+      - ENV_FILE_CASSA_TEST_CQL_PATH: "/schemas/test.cql"
+      - ENV_FILE_CASSA_TEST_CQL_DATA: "__CASSA_TEST_SQL__"
+      # Cassandra does not have base32, but has python
+      - BASE32DEC: "__PYTHON2_BASE32_DEC__"
+    entrypoint: *ENTRYPOINT
+  - &cassandra_proxy_container
+    image: emicklei/zazkia
+    environment:
+      - OLD_ENTRYPOINT: "./zazkia -v -f /data/zazkia-routes.json"
+      - ENV_FILE_CFG_PATH: "/data/zazkia-routes.json"
+      - ENV_FILE_CFG_DATA: "__CASSA_PROXY_CNF__"
+      # base32 (coreutils) is missing on Alpine
+      - INSTALL_DEPS_CMD: "apk update && apk add bash coreutils"
+    entrypoint: *ENTRYPOINT
+
+executors:
+  otp_23:
+    docker:
+      - image: *OTP23
+  otp_24:
+    docker:
+      - image: *OTP24
+  otp_23_redis:
+    docker:
+      - image: *OTP23
+      - *redis_container
+  otp_24_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+  otp_24_redis_minio_rmq:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *minio_container
+      - *rabbit_container
+  otp_24_mysql_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *mysql_container
+      - *rabbit_container
+  otp_23_pgsql_redis:
+    docker:
+      - image: *OTP23
+      - *redis_container
+      - *pgsql_container
+  otp_24_pgsql_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *pgsql_container
+  otp_23_ldap_redis:
+    docker:
+      - image: *OTP23
+      - *redis_container
+      - *ldap_container
+  otp_24_ldap_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *ldap_container
+  otp_24_mssql_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *mssql_container
+  otp_24_riak_redis:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *riak_container
+  otp_24_elasticsearch_cassandra_mnesia:
+    docker:
+      - image: *OTP24
+      - *redis_container
+      - *elasticsearch_container
+      - *cassandra_container
+      - *cassandra_proxy_container
+commands:
+  fetch_build_packages:
+    steps:
+      - run:
+          name: Install packages necessary for building
+          command: |
+            sudo pkill -9 apt-get || true && \
+            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+            sudo apt-get update && \
+            sudo apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
+  maybe_build_deps_and_cache:
+    steps:
+      - restore_cache:
+          name: Maybe restore all rebar3 dependencies
+          key: *DEPS_CACHE_KEY
+      - run:
+          name: Get and compile deps
+          command: |
+            tools/configure with-all
+            tools/build-deps.sh
+      - run:
+          name: Get and compile big_tests deps
+          command: |
+            tools/build-test-deps.sh
+      - save_cache:
+          name: Cache built dependencies
+          key: *DEPS_CACHE_KEY
+          paths:
+            - ~/project/_build/default/
+            - ~/project/big_tests/_build/default/
+  build_and_cache_prod_build:
+    steps:
+      - run:
+          name: Generate prod release
+          command: |
+            echo $ERLANG_VERSION > otp_version
+            make rel
+      - save_cache:
+          key: *BUILD_CACHE_KEY
+          paths: ~/project/_build/prod/rel/mongooseim
+  restore_prod_build:
+    steps:
+      - restore_cache:
+          key: *BUILD_CACHE_KEY
+  persist_workspace:
+    steps:
+      - run: git gc
+      - persist_to_workspace:
+          root: ~/project/
+          paths: ["*"]
+  restore_workspace:
+    steps:
+      - attach_workspace: {at: ~/project}
+  fetch_coverage_packages:
+    steps:
+      - run:
+          name: Install pip3 and codecov packages
+          command: |
+            sudo pkill -9 apt-get || true && \
+            echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
+            sudo apt-get update && \
+            sudo apt-get install python3-pip -y && \
+            pip3 install codecov && codecov
+  run_coverage_analysis:
+    steps:
+      - fetch_coverage_packages
+      - run:
+          name: Coverage
+          when: on_success
+          command: |
+            echo "Success!"
+            ./rebar3 codecov analyze
+            codecov --disable=gcov --env PRESET
+  upload_results_to_aws:
+    steps:
+      - run:
+          name: Upload results
+          when: always
+          command: |
+              tools/circleci-prepare-log-dir.sh
+              if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+  publish_github_comment:
+    steps:
+      - run:
+          name: Publish a comment to GitHub
+          when: always
+          command: |
+              tools/circle-publish-github-comment.sh
+  publish_github_summary_comment:
+    steps:
+      - run:
+          name: Publish a summary comment to GitHub
+          when: on_fail
+          command: |
+              tools/circle-publish-github-summary-comment.sh
+
+  maybe_prepare_minio:
+    steps:
+      - run:
+          name: Install minio client, prepare minio
+          environment:
+            - MINIO_HOSTNAME: "mongooseim-minio"
+            - MINIO_ACCESS_KEY: "AKIAIAOAONIULXQGMOUA"
+            - MINIO_SECRET_KEY: "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"
+            - MINIO_BUCKET: "mybucket"
+          command: |
+            if [[ "$DB" == *minio* ]]; then
+                curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/mc -o ./mc
+                chmod +x ./mc
+                ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+                ./mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET}
+                ./mc policy set download "${MINIO_HOSTNAME}/${MINIO_BUCKET}"
+            fi
+
+  maybe_prepare_ldap:
+    steps:
+      - run:
+          name: Change port in test.config
+          command: |
+            if [[ "$DB" == *ldap* ]]; then
+              sed -i "s/connection.port = 3636/connection.port = 636/g" big_tests/test.config
+            fi
+
+  maybe_wait_for_solr:
+    steps:
+      - run:
+          name: Maybe wait for Riak SOLR
+          command: |
+            if [[ "$DB" == *riak* ]]; then
+              tools/circle-wait-for-solr.sh
+            fi
+
+  maybe_setup_elasticsearch:
+    steps:
+      - run:
+          name: Maybe create ElasticSearch schema
+          command: |
+            if [[ "$DB" == *elasticsearch* ]]; then
+              tools/setup-elasticsearch.sh
+            fi
+
+  maybe_prepare_odbc:
+    steps:
+      - run:
+          name: Install odbc.ini and packages
+          command: |
+            if [[ "$DB" == *mssql* ]]; then
+                sudo apt-get update
+                sudo apt-get -y install unixodbc tdsodbc
+                ./tools/install_odbc_ini.sh
+            fi
+
+  prepare_etc_hosts:
+    steps:
+      - run:
+          name: Prepare /etc/hosts
+          command: |
+            echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+            echo '127.0.0.1 localhost.bis' | sudo tee -a /etc/hosts
+            echo '127.0.0.1 localhost' | sudo tee -a /etc/hosts
+  # Certs are initialized during setup phase
+  # We are not allowed to regenerate them
+  restore_certs:
+    steps:
+      - run:
+          name: Prepare cache key
+          command: echo "__CERTS_CACHE_KEY__" > certs_cache_key
+      - restore_cache:
+          name: Restore certificates
+          key: *CERT_KEY
+      - run:
+          name: Continue if certificate cache restored
+          command: test -f tools/ssl/mongooseim/key.pem
+  prepare_for_cache:
+    steps:
+      - run:
+          name: Prepare for cache
+          command: echo $ERLANG_VERSION > otp_version
+
+jobs:
+  # #########################
+  # jobs in docker containers
+  docker_image:
+    parallelism: 1
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    steps:
+      - checkout
+      - prepare_for_cache
+      - setup_remote_docker
+      - restore_prod_build
+      - run:
+          name: Execute Docker image build and upload
+          command: tools/circle-build-and-push-docker.sh
+
+  docs_build_deploy:
+    parallelism: 1
+    docker:
+      - image: cimg/python:3.9.0
+    steps:
+      - checkout
+      - run:
+          name: Test that docs build
+          command: |
+            pip3 install mkdocs
+            pip3 install mkdocs-material
+            mkdocs build --strict
+      - when:
+          condition:
+            or:
+              - equal: [ master, << pipeline.git.branch >> ]
+              - << pipeline.git.tag >>
+          steps:
+            - add_ssh_keys
+            - run:
+                name: Configure Git
+                command: |
+                  git config --global user.email "mongoose-im@erlang-solutions.com"
+                  git config --global user.name "mongooseim"
+            - run:
+                name: Generate image tag
+                command: |
+                  set -x
+                  if [ -n "$CIRCLE_TAG" ]; then
+                      DOCS_TAG="$CIRCLE_TAG"
+                  elif [ "$CIRCLE_BRANCH" == "master" ]; then
+                      DOCS_TAG="latest"
+                  else
+                      DOCS_TAG=`echo $CIRCLE_BRANCH | sed 's,/,_,g'`
+                  fi
+                  env | sort
+                  echo "export DOCS_TAG=$DOCS_TAG" >> $BASH_ENV
+            - run:
+                name: Build latest
+                command: |
+                  git fetch git@github.com:esl/MongooseDocs.git gh-pages:gh-pages
+                  pip3 install mike
+                  mike deploy $DOCS_TAG --remote git@github.com:esl/MongooseDocs.git --branch gh-pages --push --rebase
+
+  build_in_docker:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+      build_prod:
+        type: boolean
+        description: When enabled, prod release will be generated besides the dev ones
+        default: false
+    parallelism: 1
+    environment:
+      SKIP_RELEASE: 1
+      SKIP_COV: 0
+      SKIP_CERT_BUILD: 1
+    steps:
+      - checkout
+      - prepare_for_cache
+      - restore_certs
+      - fetch_build_packages
+      - maybe_build_deps_and_cache
+      - run: ./rebar3 compile
+      - run:
+          name: Generate development releases
+          command: ./tools/build-releases.sh
+      - when:
+          condition: << parameters.build_prod >>
+          steps: [ build_and_cache_prod_build ]
+      - run:
+          name: Build Big Tests
+          command: tools/build-tests.sh
+      - persist_workspace
+
+  small_tests_in_docker:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    environment:
+      PRESET: small_tests
+      SKIP_AUTO_COMPILE: true
+    steps:
+      - restore_workspace
+      - run:
+          name: Wait for redis
+          command: |
+            ./tools/wait-for-it.sh -p "6379"
+      - run:
+          name: Run Small Tests
+          command: |
+            ./tools/test.sh -p small_tests -s true -e true
+      - run_coverage_analysis
+      - upload_results_to_aws
+      - publish_github_comment
+
+  big_tests_in_docker:
+    executor: << parameters.executor >>
+    parallelism: 1
+    parameters:
+      executor:
+        type: executor
+      spec:
+        type: string
+        default: default.spec
+      preset:
+        type: enum
+        enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
+        description: Preset to run
+        default: internal_mnesia
+      db:
+        type: string
+        description: Database to use
+        default: mnesia
+      tls_dist:
+        type: boolean
+        description: Erlang distribution with TLS enabled
+        default: false
+    environment:
+      TESTSPEC: <<parameters.spec>>
+      PRESET: <<parameters.preset>>
+      DB: <<parameters.db>>
+      TLS_DIST: <<parameters.tls_dist>>
+      SKIP_AUTO_COMPILE: true
+      KEEP_COVER_RUNNING: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Wait for databases
+          command: ./tools/circle-wait-for-db.sh
+      - maybe_prepare_minio
+      - maybe_prepare_odbc
+      - maybe_prepare_ldap
+      - maybe_wait_for_solr
+      - maybe_setup_elasticsearch
+      - prepare_etc_hosts
+      - run:
+          name: Run Big Tests
+          command: |
+            ./tools/test.sh -p $PRESET -s false
+          no_output_timeout: 40m
+      - run_coverage_analysis
+      - run:
+          name: Build Failed - Logs
+          when: on_fail
+          command: |
+            echo "Failure!"
+            if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+            tail -100 _build/mim1/rel/mongooseim/log/mongooseim.log.1
+      - upload_results_to_aws
+      - publish_github_comment
+      - publish_github_summary_comment
+
+  dialyzer:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Dialyzer
+          command: |
+            ./tools/test.sh -p dialyzer_only -s false
+
+  xref:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Xref
+          command: |
+            ./tools/test.sh -p xref_only -s false
+  edoc:
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+    parallelism: 1
+    steps:
+      - restore_workspace
+      - run:
+          name: Run Edoc
+          command: |
+            ./tools/test.sh -p edoc_only -s false
+
+  package:
+    parallelism: 1
+    executor: << parameters.executor >>
+    parameters:
+      executor:
+        type: executor
+      platform:
+        type: enum
+        enum: [centos_7, debian_stretch]
+        description: Platform type
+      otp_package:
+        type: string
+        description: Version of the Erlang package to install
+    environment:
+      pkg_PLATFORM: <<parameters.platform>>
+      ESL_ERLANG_PKG_VER: <<parameters.otp_package>>
+      PRESET: pkg
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build package
+          command: |
+            ./tools/test.sh -p pkg -s false
+
+filters: &all_tags
+  tags:
+    only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      # ============================================
+      # ============= IN DOCKER EXECUTORS =============
+      # ============= DOCUMENTATION =============
+      - docs_build_deploy:
+          name: build_and_deploy_docs
+          context: mongooseim-org
+          filters: *all_tags
+      # ============= PACKAGES =============
+      - package:
+          name: centos_7
+          executor: otp_24
+          platform: centos_7
+          context: mongooseim-org
+          otp_package: 24.0-1
+          filters: *all_tags
+      - package:
+          name: debian_stretch
+          executor: otp_24
+          platform: debian_stretch
+          context: mongooseim-org
+          otp_package: 24.0-1
+          filters: *all_tags
+      # ======== BASE DOCKER BUILDS ========
+      - build_in_docker:
+          name: otp_24_docker
+          executor: otp_24
+          context: mongooseim-org
+          build_prod: true
+      - build_in_docker:
+          name: otp_23_docker
+          executor: otp_23
+          context: mongooseim-org
+          build_prod: false
+      # ============= DIALYZER =============
+      - dialyzer:
+          name: dialyzer
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= XREF =============
+      - xref:
+          name: xref
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= EDOC =============
+      - edoc:
+          name: edoc
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= SMALL TESTS =============
+      - small_tests_in_docker:
+          name: small_tests_23
+          executor: otp_23_redis
+          context: mongooseim-org
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - small_tests_in_docker:
+          name: small_tests_24
+          executor: otp_24_redis
+          context: mongooseim-org
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= BIG TESTS =============
+      - big_tests_in_docker:
+          name: internal_mnesia_24
+          executor: otp_24_redis_minio_rmq
+          context: mongooseim-org
+          preset: internal_mnesia
+          db: "mnesia minio"
+          tls_dist: true
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: mysql_redis_24
+          executor: otp_24_mysql_redis
+          context: mongooseim-org
+          preset: mysql_redis
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_mysql_redis_24
+          spec: dynamic_domains.spec
+          executor: otp_24_mysql_redis
+          context: mongooseim-org
+          preset: mysql_redis
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: pgsql_mnesia_23
+          executor: otp_23_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: pgsql_mnesia_24
+          executor: otp_24_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_pgsql_mnesia_24
+          spec: dynamic_domains.spec
+          executor: otp_24_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_pgsql_mnesia_23
+          spec: dynamic_domains.spec
+          executor: otp_23_pgsql_redis
+          context: mongooseim-org
+          preset: pgsql_mnesia
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: mssql_mnesia_24
+          executor: otp_24_mssql_redis
+          context: mongooseim-org
+          preset: odbc_mssql_mnesia
+          db: "mssql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: dynamic_domains_mssql_mnesia_24
+          spec: dynamic_domains.spec
+          executor: otp_24_mssql_redis
+          context: mongooseim-org
+          preset: odbc_mssql_mnesia
+          db: "mssql redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: riak_mnesia_24
+          executor: otp_24_riak_redis
+          context: mongooseim-org
+          preset: riak_mnesia
+          db: "riak redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: ldap_mnesia_23
+          executor: otp_23_ldap_redis
+          context: mongooseim-org
+          preset: ldap_mnesia
+          db: "ldap redis"
+          requires:
+            - otp_23_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: ldap_mnesia_24
+          executor: otp_24_ldap_redis
+          context: mongooseim-org
+          preset: ldap_mnesia
+          db: "ldap redis"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: elasticsearch_and_cassandra_24
+          executor: otp_24_elasticsearch_cassandra_mnesia
+          context: mongooseim-org
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      # ============= DOCKER IMAGE BUILD & UPLOAD =============
+      - docker_image:
+          name: docker_build_and_ship
+          executor: otp_24
+          context: mongooseim-org
+          requires:
+            - small_tests_23
+            - ldap_mnesia_23
+            - pgsql_mnesia_23
+            - dynamic_domains_pgsql_mnesia_23
+
+            - small_tests_24
+            - internal_mnesia_24
+            - pgsql_mnesia_24
+            - mysql_redis_24
+            - mssql_mnesia_24
+            - ldap_mnesia_24
+            - riak_mnesia_24
+            - elasticsearch_and_cassandra_24
+            - dynamic_domains_pgsql_mnesia_24
+            - dynamic_domains_mysql_redis_24
+            - dynamic_domains_mssql_mnesia_24
+
+            - dialyzer
+            - xref
+            - edoc
+          filters: *all_tags

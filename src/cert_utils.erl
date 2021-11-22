@@ -107,8 +107,7 @@ get_lserver_from_addr(V, UTF8) when is_binary(V); is_list(V) ->
 get_lserver_from_addr(_, _) -> [].
 
 
-log_exception(Cert, Class, Exception, StackTrace) ->
-    ?LOG_DEBUG(#{what => <<"cert_parsing_failed">>,
+log_exception(_Cert, Class, Exception, StackTrace) ->
+    ?LOG_ERROR(#{what => <<"cert_parsing_failed">>,
                  text => <<"failed to parse certificate">>,
-                 cert => Cert,
                  class => Class, reason => Exception, stacktrace => StackTrace}).

@@ -29,59 +29,6 @@ fi
 # DATA_ON_VOLUME variable and data_on_volume function come from common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 
-
-# There is one odbc.ini for both mssql and pgsql
-# Allows to run both in parallel
-function install_odbc_ini
-{
-# CLIENT OS CONFIGURING STUFF
-#
-# Be aware, that underscore in TDS_Version is required.
-# It can't be just "TDS Version = 7.1".
-#
-# To check that connection works use:
-#
-# {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123",[]).
-#
-# To check that TDS version is correct, use:
-#
-# odbc:sql_query(Conn, "select cast(1 as bigint)").
-#
-# It should return:
-# {selected,[[]],[{"1"}]}
-#
-# It should not return:
-# {selected,[[]],[{1.0}]}
-#
-# Be aware, that Driver and Setup values are for Ubuntu.
-# CentOS would use different ones.
-if test -f "/usr/local/lib/libtdsodbc.so"; then
-  # Mac
-  ODBC_DRIVER="/usr/local/lib/libtdsodbc.so"
-fi
-
-if test -f "/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"; then
-  # Ubuntu
-  ODBC_DRIVER="/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so"
-  ODBC_SETUP="/usr/lib/x86_64-linux-gnu/odbc/libtdsS.so"
-fi
-
-    cat > ~/.odbc.ini << EOL
-[mongoose-mssql]
-Setup       = $ODBC_SETUP
-Driver      = $ODBC_DRIVER
-Server      = 127.0.0.1
-Port        = $MSSQL_PORT
-Database    = ejabberd
-Username    = sa
-Password    = mongooseim_secret+ESL123
-Charset     = UTF-8
-TDS_Version = 7.2
-client charset = UTF-8
-server charset = UTF-8
-EOL
-}
-
 function riak_solr_is_up
 {
     docker exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
@@ -224,78 +171,43 @@ elif [ "$db" = 'cassandra' ]; then
     NAME=$(db_name cassandra)
     PROXY_NAME=$(db_name cassandra-proxy)
     CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
-    CASSANDRA_PORT=${CASSANDRA_PORT:-9042}
-    docker image pull cassandra:${CASSANDRA_VERSION}
+    CASSANDRA_PORT=${CASSANDRA_PORT:-9142}
     docker rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
-
-    opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    while read -r line; do
-        if [ ! -z "$line" ]; then
-             init_opts+=("$line")
-        fi
-    done <<<"$opts"
-    echo -e "cassandra startup cmd:\n\t${init_opts[@]}"
-
-    docker_entry="${DB_CONF_DIR}/docker_entry.sh"
 
     MIM_SCHEMA=$(pwd)/priv/cassandra.cql
     TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
+    SCHEMA_READY_PORT=9242
 
     docker run -d                                \
                -e MAX_HEAP_SIZE=128M             \
                -e HEAP_NEWSIZE=64M               \
-               $(mount_ro_volume "${SSLDIR}" "/ssl") \
-               $(mount_ro_volume "${docker_entry}" "/entry.sh") \
+               -e SCHEMA_READY_PORT=$SCHEMA_READY_PORT \
+               $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/ssl/ca/cacert.pem") \
+               $(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/ssl/mongooseim/cert.pem") \
+               $(mount_ro_volume "${SSLDIR}/mongooseim/privkey.pem" "/ssl/mongooseim/privkey.pem") \
+               $(mount_ro_volume "${DB_CONF_DIR}/docker_entry.sh" "/entry.sh") \
                $(mount_ro_volume "$MIM_SCHEMA" "/schemas/mim.cql") \
                $(mount_ro_volume "$TEST_SCHEMA" "/schemas/test.cql") \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/cassandra) \
-               --name=$NAME       \
-               --entrypoint "/entry.sh"          \
-               cassandra:${CASSANDRA_VERSION}    \
-               "${init_opts[@]}"
+               --name=$NAME \
+               --entrypoint "/entry.sh" \
+               cassandra:${CASSANDRA_VERSION}
     tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
-    # Start TCP proxy
+    # Start TCP proxy on 9142 port, instead of the default 9042
     CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
     cp ${DB_CONF_DIR}/proxy/zazkia-routes.json "$SQL_TEMP_DIR/"
     $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" "$SQL_TEMP_DIR/zazkia-routes.json"
     docker run -d                               \
-               -p $CASSANDRA_PORT:9042                   \
+               -p $CASSANDRA_PORT:9142                   \
                -p $CASSANDRA_PROXY_API_PORT:9191         \
                $(mount_ro_volume "$SQL_TEMP_DIR" /data)  \
                --name=$PROXY_NAME \
                emicklei/zazkia
-    tools/wait_for_service.sh $PROXY_NAME 9042 || docker logs $PROXY_NAME
-
-    CQLSH_DEBUG=""
-    if [ "${VERBOSE:-0}" = "1" ]; then
-        CQLSH_DEBUG=" --debug "
-    fi
-
-    function cqlsh
-    {
-        docker exec \
-        -e SSL_CERTFILE=/ssl/ca/cacert.pem \
-        "$NAME" \
-        cqlsh "127.0.0.1" --ssl $CQLSH_DEBUG "$@"
-    }
-
-    while ! cqlsh -e 'describe cluster' ; do
-        echo "Waiting for cassandra"
-        sleep 1
-    done
-
-    # Apply schemas
-    echo "Apply Cassandra schema"
-    # For some reason, "cqlsh -f" does not create schema and no error is reported.
-    cqlsh -e "source '/schemas/mim.cql'"
-    cqlsh -e "source '/schemas/test.cql'"
-    echo "Verify Cassandra schema"
-    # Would fail with reason and exit code 2:
-    # <stdin>:1:InvalidRequest: Error from server: code=2200 [Invalid query] message="unconfigured table mam_config"
-    cqlsh -e "select * from mongooseim.mam_config;"
+    tools/wait_for_service.sh $PROXY_NAME 9142 || docker logs $PROXY_NAME
+    # Wait for ready schema
+    tools/wait_for_service.sh $NAME $SCHEMA_READY_PORT || docker logs $NAME
     echo "Cassandra setup done"
 
 elif [ "$db" = 'elasticsearch' ]; then
@@ -310,6 +222,7 @@ elif [ "$db" = 'elasticsearch' ]; then
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
     docker run -d $RM_FLAG \
            -p $ELASTICSEARCH_PORT:9200 \
+           -e ES_JAVA_OPTS="-Xms750m -Xmx750m" \
            -e "http.host=0.0.0.0" \
            -e "transport.host=127.0.0.1" \
            -e "xpack.security.enabled=false" \
@@ -318,14 +231,7 @@ elif [ "$db" = 'elasticsearch' ]; then
     echo "Waiting for ElasticSearch to start listening on port"
     tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
-    ELASTICSEARCH_URL=http://localhost:$ELASTICSEARCH_PORT
-    ELASTICSEARCH_PM_MAPPING="$(pwd)/priv/elasticsearch/pm.json"
-    ELASTICSEARCH_MUC_MAPPING="$(pwd)/priv/elasticsearch/muc.json"
-    echo "Putting ElasticSearch mappings"
-    (curl -X PUT $ELASTICSEARCH_URL/messages -d "@$ELASTICSEARCH_PM_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
-        echo "Failed to put PM mapping into ElasticSearch"
-    (curl -X PUT $ELASTICSEARCH_URL/muc_messages -d "@$ELASTICSEARCH_MUC_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
-        echo "Failed to put MUC mapping into ElasticSearch"
+    ELASTICSEARCH_PORT=$ELASTICSEARCH_PORT ./tools/setup-elasticsearch.sh
 
 elif [ "$db" = 'mssql' ]; then
     NAME=$(db_name mssql)
@@ -372,21 +278,22 @@ elif [ "$db" = 'mssql' ]; then
     # Otherwise we get an error in logs
     # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
     docker run -d -p $MSSQL_PORT:1433                           \
-               --user root                                      \
                --name=$NAME                                     \
                -e "ACCEPT_EULA=Y"                               \
                -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
-               $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/mongoose.sql")  \
+               -e "DB_NAME=ejabberd"                            \
+               -e "SQL_FILE=/tmp/mongoose.sql"                  \
+               $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/tmp/mongoose.sql")  \
+               $(mount_ro_volume "$(pwd)/tools/docker-setup-mssql.sh" "/tmp/docker-setup-mssql.sh")  \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/opt/mssql) \
                $(data_on_volume -v $NAME-data:/var/opt/mssql/data) \
                --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
                mcr.microsoft.com/mssql/server
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
+    docker exec $NAME /tmp/docker-setup-mssql.sh
 
-    tools/setup-mssql-database.sh
-
-    install_odbc_ini
+    MSSQL_PORT=$MSSQL_PORT tools/install_odbc_ini.sh
 
 elif [ "$db" = 'redis' ]; then
     tools/setup-redis.sh
