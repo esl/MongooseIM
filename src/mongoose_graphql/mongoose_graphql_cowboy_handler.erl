@@ -140,6 +140,7 @@ run_execute(#{ document := AST,
     Ctx = #{
       params => Coerced,
       operation_name => OpName,
+      error_module => mongoose_graphql_errors,
       role => maps:get(role, State, none)},
     Response = graphql:execute(Ctx, AST),
     ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response),

@@ -16,5 +16,5 @@ execute(_Ctx, admin, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
             {ok, #domain{host_type = HostType, domain = Domain,
                          enabled = Enabled}};
         {error, not_found} ->
-            {error, not_found}
+            {error, domain_not_found}
     end.
