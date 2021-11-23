@@ -106,8 +106,8 @@ cluster_load_from_file(Config) ->
 
 check_loaded_config(State) ->
     Opts = lists:sort(mongoose_config_parser:state_to_opts(State)),
-    ExpectedOpts = minimal_config_opts(),
-    ?assertEqual([{local_config, Key, Val} || {Key, Val} <- ExpectedOpts], Opts),
+    ExpectedOpts = lists:sort(minimal_config_opts()),
+    ?assertEqual(ExpectedOpts, Opts),
     [?assertEqual(Val, mongoose_config:get_opt(Key)) || {Key, Val} <- ExpectedOpts].
 
 check_removed_config() ->

@@ -1,65 +1,65 @@
-{local_config,all_metrics_are_global,false}.
-{local_config,default_server_domain,<<"localhost">>}.
-{local_config,hide_service_name,false}.
-{local_config,host_types,[]}.
-{local_config,hosts,
-              [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
-{local_config,language,<<"en">>}.
-{local_config,loglevel,warning}.
-{local_config,mongooseimctl_access_commands,[]}.
-{local_config,outgoing_pools,
-    [{cassandra,global,default,[],
-         [{keyspace,"big_mongooseim"},
-          {servers,
-              [{"cassandra_server1.example.com",9042},
-               {"cassandra_server2.example.com",9042}]}]},
-     {elastic,global,default,[],[{host,"localhost"}]},
-     {http,global,mongoose_push_http,
-         [{workers,50}],
-         [{server,"https://localhost:8443"},
-          {path_prefix,"/"},
-          {request_timeout,2000}]},
-     {ldap,host,default,
-         [{workers,5}],
-         [{password,"ldap-admin-password"},
-          {rootdn,"cn=admin,dc=example,dc=com"},
-          {servers,["ldap-server.example.com"]}]},
-     {rabbit,host,event_pusher,
-         [{workers,20}],
-         [{amqp_host,"localhost"},
-          {amqp_password,"guest"},
-          {amqp_port,5672},
-          {amqp_username,"guest"},
-          {confirms_enabled,true},
-          {max_worker_queue_len,100}]},
-     {rdbms,global,default,
-         [{workers,5}],
-         [{server,
-              {pgsql,"localhost","ejabberd","ejabberd","mongooseim_secret",
-                  [{ssl,required},
-                   {ssl_opts,
-                       [{cacertfile,"priv/ssl/cacert.pem"},
-                        {server_name_indication,disable},
-                        {verify,verify_peer}]}]}},
-          {keepalive_interval,30}]},
-     {redis,<<"localhost">>,global_distrib,[{workers,10}],[]},
-     {riak,global,default,
-         [{strategy,next_worker},{workers,20}],
-         [{address,"127.0.0.1"},
-          {credentials,"username","pass"},
-          {port,8087},
-          {ssl_opts,
-              [{certfile,"path/to/cert.pem"},
-               {keyfile,"path/to/key.pem"},
-               {verify,verify_peer}]},
-          {cacertfile,"path/to/cacert.pem"}]}]}.
-{local_config,rdbms_server_type,generic}.
-{local_config,registration_timeout,600}.
-{local_config,routing_modules,
-              [mongoose_router_global,mongoose_router_localdomain,
-               mongoose_router_external_localnode,mongoose_router_external,
-               mongoose_router_dynamic_domains,ejabberd_s2s]}.
-{local_config,sm_backend,{mnesia,[]}}.
-{local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
-{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
-{local_config,{replaced_wait_timeout,<<"localhost.bis">>},2000}.
+{all_metrics_are_global,false}.
+{default_server_domain,<<"localhost">>}.
+{hide_service_name,false}.
+{host_types,[]}.
+{hosts,
+ [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{language,<<"en">>}.
+{loglevel,warning}.
+{mongooseimctl_access_commands,[]}.
+{outgoing_pools,
+ [{cassandra,global,default,[],
+   [{keyspace,"big_mongooseim"},
+    {servers,
+     [{"cassandra_server1.example.com",9042},
+      {"cassandra_server2.example.com",9042}]}]},
+  {elastic,global,default,[],[{host,"localhost"}]},
+  {http,global,mongoose_push_http,
+   [{workers,50}],
+   [{server,"https://localhost:8443"},
+    {path_prefix,"/"},
+    {request_timeout,2000}]},
+  {ldap,host,default,
+   [{workers,5}],
+   [{password,"ldap-admin-password"},
+    {rootdn,"cn=admin,dc=example,dc=com"},
+    {servers,["ldap-server.example.com"]}]},
+  {rabbit,host,event_pusher,
+   [{workers,20}],
+   [{amqp_host,"localhost"},
+    {amqp_password,"guest"},
+    {amqp_port,5672},
+    {amqp_username,"guest"},
+    {confirms_enabled,true},
+    {max_worker_queue_len,100}]},
+  {rdbms,global,default,
+   [{workers,5}],
+   [{server,
+     {pgsql,"localhost","ejabberd","ejabberd","mongooseim_secret",
+      [{ssl,required},
+       {ssl_opts,
+        [{cacertfile,"priv/ssl/cacert.pem"},
+         {server_name_indication,disable},
+         {verify,verify_peer}]}]}},
+    {keepalive_interval,30}]},
+  {redis,<<"localhost">>,global_distrib,[{workers,10}],[]},
+  {riak,global,default,
+   [{strategy,next_worker},{workers,20}],
+   [{address,"127.0.0.1"},
+    {credentials,"username","pass"},
+    {port,8087},
+    {ssl_opts,
+     [{certfile,"path/to/cert.pem"},
+      {keyfile,"path/to/key.pem"},
+      {verify,verify_peer}]},
+    {cacertfile,"path/to/cacert.pem"}]}]}.
+{rdbms_server_type,generic}.
+{registration_timeout,600}.
+{routing_modules,
+ [mongoose_router_global,mongoose_router_localdomain,
+  mongoose_router_external_localnode,mongoose_router_external,
+  mongoose_router_dynamic_domains,ejabberd_s2s]}.
+{sm_backend,{mnesia,[]}}.
+{{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
+{{replaced_wait_timeout,<<"localhost">>},2000}.
+{{replaced_wait_timeout,<<"localhost.bis">>},2000}.

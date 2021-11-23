@@ -1,245 +1,245 @@
-{local_config,all_metrics_are_global,false}.
-{local_config,default_server_domain,<<"localhost">>}.
-{local_config,hide_service_name,false}.
-{local_config,host_types,[]}.
-{local_config,hosts,
-              [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
-{local_config,language,<<"en">>}.
-{local_config,listen,
-    [{{5222,{0,0,0,0},tcp},
-      ejabberd_c2s,
-      [{access,c2s},
-       {max_stanza_size,65536},
-       {shaper,c2s_shaper},
-       {certfile,"tools/ssl/mongooseim/server.pem"},
-       {dhfile,"tools/ssl/mongooseim/dh_server.pem"},
-       starttls,
-       {zlib,10000}]},
-     {{5223,{0,0,0,0},tcp},
-      ejabberd_c2s,
-      [{access,c2s},{max_stanza_size,65536},{shaper,c2s_shaper},{zlib,4096}]},
-     {{5280,{0,0,0,0},tcp},
-      ejabberd_cowboy,
-      [{modules,
-           [{"_","/http-bind",mod_bosh,[]},
-            {"_","/ws-xmpp",mod_websockets,
-             [{ejabberd_service,
-                  [{access,all},{password,"secret"},{shaper_rule,fast}]}]}]},
-       {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
-     {{5285,{0,0,0,0},tcp},
-      ejabberd_cowboy,
-      [{modules,
-           [{"_","/http-bind",mod_bosh,[]},
-            {"_","/ws-xmpp",mod_websockets,
-             [{max_stanza_size,100},{ping_rate,120000},{timeout,infinity}]},
-            {"localhost","/api",mongoose_api_admin,
-             [{auth,{<<"ala">>,<<"makotaipsa">>}}]},
-            {"localhost","/api/contacts/{:jid}",mongoose_api_client,[]}]},
-       {ssl,
-           [{certfile,"tools/ssl/mongooseim/cert.pem"},
-            {keyfile,"tools/ssl/mongooseim/key.pem"},
-            {password,[]}]},
-       {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
-     {{8088,{127,0,0,1},tcp},
-      ejabberd_cowboy,
-      [{modules,[{"localhost","/api",mongoose_api_admin,[]}]},
-       {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
-     {{8089,{0,0,0,0},tcp},
-      ejabberd_cowboy,
-      [{modules,
-           [{"_","/api-docs/[...]",cowboy_static,
-             {priv_dir,cowboy_swagger,"swagger",
-                 [{mimetypes,cow_mimetypes,all}]}},
-            {"_","/api-docs/swagger.json",cowboy_swagger_json_handler,#{}},
-            {"_","/api-docs",cowboy_swagger_redirect_handler,#{}},
-            {"_","/api/sse",lasse_handler,[mongoose_client_api_sse]},
-            {"_","/api/contacts/[:jid]",mongoose_client_api_contacts,[]},
-            {"_","/api/messages/[:with]",mongoose_client_api_messages,[]},
-            {"_","/api/rooms/[:id]",mongoose_client_api_rooms,[]},
-            {"_","/api/rooms/[:id]/config",mongoose_client_api_rooms_config,
-             []},
-            {"_","/api/rooms/[:id]/messages",
-             mongoose_client_api_rooms_messages,[]},
-            {"_","/api/rooms/:id/users/[:user]",
-             mongoose_client_api_rooms_users,[]}]},
-       {protocol_options,[{compress,true}]},
-       {ssl,
-           [{certfile,"tools/ssl/mongooseim/cert.pem"},
-            {keyfile,"tools/ssl/mongooseim/key.pem"},
-            {password,[]}]},
-       {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
-     {{5288,{127,0,0,1},tcp},
-      ejabberd_cowboy,
-      [{modules,
-           [{"localhost","/api",mongoose_api,
-             [{handlers,[mongoose_api_metrics,mongoose_api_users]}]}]},
-       {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
-     {{5269,{0,0,0,0},tcp},
-      ejabberd_s2s_in,
-      [{max_stanza_size,131072},
-       {shaper,s2s_shaper},
-       {dhfile,"tools/ssl/mongooseim/dh_server.pem"}]},
-     {{8888,{127,0,0,1},tcp},
-      ejabberd_service,
-      [{access,all},{password,"secret"},{shaper_rule,fast}]},
-     {{8666,{127,0,0,1},tcp},
-      ejabberd_service,
-      [{access,all},
-       {conflict_behaviour,kick_old},
-       {password,"secret"},
-       {shaper_rule,fast}]},
-     {{8189,{127,0,0,1},tcp},
-      ejabberd_service,
-      [{access,all},
-       {hidden_components,true},
-       {password,"secret"},
-       {shaper_rule,fast}]}]}.
-{local_config,loglevel,warning}.
-{local_config,max_fsm_queue,1000}.
-{local_config,mongooseimctl_access_commands,[]}.
-{local_config,outgoing_pools,
-    [{rdbms,global,default,
-         [{workers,5}],
-         [{server,
-              {pgsql,"localhost","ejabberd","ejabberd","mongooseim_secret",
-                  [{ssl,required},
-                   {ssl_opts,
-                       [{cacertfile,"priv/ssl/cacert.pem"},
-                        {server_name_indication,disable},
-                        {verify,verify_peer}]}]}}]},
-     {redis,<<"localhost">>,global_distrib,[{workers,10}],[]}]}.
-{local_config,outgoing_s2s_port,5299}.
-{local_config,rdbms_server_type,generic}.
-{local_config,registration_timeout,infinity}.
-{local_config,routing_modules,
-              [mongoose_router_global,mongoose_router_localdomain,
-               mongoose_router_external_localnode,mongoose_router_external,
-               mongoose_router_dynamic_domains,ejabberd_s2s]}.
-{local_config,s2s_certfile,"tools/ssl/mongooseim/server.pem"}.
-{local_config,s2s_use_starttls,optional}.
-{local_config,services,
-    [{service_admin_extra,
-         [{submods,
-              [node,accounts,sessions,vcard,gdpr,upload,roster,last,private,
-               stanza,stats]}]},
-     {service_mongoose_system_metrics,
-         [{initial_report,300000},{periodic_report,10800000}]}]}.
-{local_config,sm_backend,{mnesia,[]}}.
-{local_config,{allow_multiple_connections,<<"anonymous.localhost">>},true}.
-{local_config,{anonymous_protocol,<<"anonymous.localhost">>},both}.
-{local_config,{auth_method,<<"anonymous.localhost">>},[anonymous]}.
-{local_config,{auth_method,<<"localhost">>},[rdbms]}.
-{local_config,{auth_method,<<"localhost.bis">>},[rdbms]}.
-{local_config,{auth_opts,<<"anonymous.localhost">>},[]}.
-{local_config,{auth_opts,<<"localhost">>},
-              [{password_format,{scram,[sha256]}},
-               {cyrsasl_external,[standard]},
-               {scram_iterations,64}]}.
-{local_config,{auth_opts,<<"localhost.bis">>},
-              [{password_format,{scram,[sha256]}},
-               {cyrsasl_external,[standard]},
-               {scram_iterations,64}]}.
-{local_config,
-    {modules,<<"anonymous.localhost">>},
-    [{mod_register,
-         [{access,register},
-          {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
-          {welcome_message,{"Hello","I am MongooseIM"}}]},
-     {mod_adhoc,[]},
-     {mod_sic,[]},
-     {mod_private,[{backend,rdbms}]},
-     {mod_privacy,[{backend,rdbms}]},
-     {mod_disco,[{users_can_see_hidden_services,false}]},
-     {mod_commands,[]},
-     {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
-     {mod_blocking,[]},
-     {mod_bosh,[]},
-     {mod_roster,[{backend,rdbms}]},
-     {mod_last,[{backend,rdbms}]},
-     {mod_offline,[{backend,rdbms}]},
-     {mod_amp,[]},
-     {mod_muc_commands,[]},
-     {mod_stream_management,[]},
-     {mod_carboncopy,[]}]}.
-{local_config,
-    {modules,<<"localhost">>},
-    [{mod_register,
-         [{access,register},
-          {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
-          {welcome_message,{"Hello","I am MongooseIM"}}]},
-     {mod_adhoc,[]},
-     {mod_sic,[]},
-     {mod_private,[{backend,rdbms}]},
-     {mod_privacy,[{backend,rdbms}]},
-     {mod_disco,[{users_can_see_hidden_services,false}]},
-     {mod_commands,[]},
-     {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
-     {mod_blocking,[]},
-     {mod_bosh,[]},
-     {mod_roster,[{backend,rdbms}]},
-     {mod_last,[{backend,rdbms}]},
-     {mod_offline,[{backend,rdbms}]},
-     {mod_amp,[]},
-     {mod_muc_commands,[]},
-     {mod_stream_management,[]},
-     {mod_carboncopy,[]}]}.
-{local_config,
-    {modules,<<"localhost.bis">>},
-    [{mod_register,
-         [{access,register},
-          {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
-          {welcome_message,{"Hello","I am MongooseIM"}}]},
-     {mod_adhoc,[]},
-     {mod_sic,[]},
-     {mod_private,[{backend,rdbms}]},
-     {mod_privacy,[{backend,rdbms}]},
-     {mod_disco,[{users_can_see_hidden_services,false}]},
-     {mod_commands,[]},
-     {mod_muc_light_commands,[]},
-     {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
-     {mod_blocking,[]},
-     {mod_bosh,[]},
-     {mod_roster,[{backend,rdbms}]},
-     {mod_last,[{backend,rdbms}]},
-     {mod_offline,[{backend,rdbms}]},
-     {mod_amp,[]},
-     {mod_muc_commands,[]},
-     {mod_stream_management,[]},
-     {mod_carboncopy,[]}]}.
-{local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
-{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
-{local_config,{replaced_wait_timeout,<<"localhost.bis">>},2000}.
-{local_config,{s2s_addr,<<"fed1">>},"127.0.0.1"}.
-{local_config,{s2s_default_policy,<<"anonymous.localhost">>},allow}.
-{local_config,{s2s_default_policy,<<"localhost">>},allow}.
-{local_config,{s2s_default_policy,<<"localhost.bis">>},allow}.
-{local_config,{access,c2s,global},[{deny,blocked},{allow,all}]}.
-{local_config,{access,c2s_shaper,global},[{none,admin},{normal,all}]}.
-{local_config,{access,local,global},[{allow,local}]}.
-{local_config,{access,mam_get_prefs,global},[{default,all}]}.
-{local_config,{access,mam_get_prefs_global_shaper,global},
-              [{mam_global_shaper,all}]}.
-{local_config,{access,mam_get_prefs_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,mam_lookup_messages,global},[{default,all}]}.
-{local_config,{access,mam_lookup_messages_global_shaper,global},
-              [{mam_global_shaper,all}]}.
-{local_config,{access,mam_lookup_messages_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,mam_set_prefs,global},[{default,all}]}.
-{local_config,{access,mam_set_prefs_global_shaper,global},
-              [{mam_global_shaper,all}]}.
-{local_config,{access,mam_set_prefs_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,max_user_offline_messages,global},
-              [{5000,admin},{100,all}]}.
-{local_config,{access,max_user_sessions,global},[{10,all}]}.
-{local_config,{access,muc,global},[{allow,all}]}.
-{local_config,{access,muc_admin,global},[{allow,admin}]}.
-{local_config,{access,muc_create,global},[{allow,local}]}.
-{local_config,{access,register,global},[{allow,all}]}.
-{local_config,{access,s2s_shaper,global},[{fast,all}]}.
-{local_config,{acl,local,global},[{user_regexp,<<>>}]}.
-{local_config,{shaper,fast,global},{maxrate,50000}}.
-{local_config,{shaper,mam_global_shaper,global},{maxrate,1000}}.
-{local_config,{shaper,mam_shaper,global},{maxrate,1}}.
-{local_config,{shaper,normal,global},{maxrate,1000}}.
+{all_metrics_are_global,false}.
+{default_server_domain,<<"localhost">>}.
+{hide_service_name,false}.
+{host_types,[]}.
+{hosts,
+ [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{language,<<"en">>}.
+{listen,
+ [{{5222,{0,0,0,0},tcp},
+   ejabberd_c2s,
+   [{access,c2s},
+    {max_stanza_size,65536},
+    {shaper,c2s_shaper},
+    {certfile,"tools/ssl/mongooseim/server.pem"},
+    {dhfile,"tools/ssl/mongooseim/dh_server.pem"},
+    starttls,
+    {zlib,10000}]},
+  {{5223,{0,0,0,0},tcp},
+   ejabberd_c2s,
+   [{access,c2s},{max_stanza_size,65536},{shaper,c2s_shaper},{zlib,4096}]},
+  {{5280,{0,0,0,0},tcp},
+   ejabberd_cowboy,
+   [{modules,
+     [{"_","/http-bind",mod_bosh,[]},
+      {"_","/ws-xmpp",mod_websockets,
+       [{ejabberd_service,
+         [{access,all},{password,"secret"},{shaper_rule,fast}]}]}]},
+    {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
+  {{5285,{0,0,0,0},tcp},
+   ejabberd_cowboy,
+   [{modules,
+     [{"_","/http-bind",mod_bosh,[]},
+      {"_","/ws-xmpp",mod_websockets,
+       [{max_stanza_size,100},{ping_rate,120000},{timeout,infinity}]},
+      {"localhost","/api",mongoose_api_admin,
+       [{auth,{<<"ala">>,<<"makotaipsa">>}}]},
+      {"localhost","/api/contacts/{:jid}",mongoose_api_client,[]}]},
+    {ssl,
+     [{certfile,"tools/ssl/mongooseim/cert.pem"},
+      {keyfile,"tools/ssl/mongooseim/key.pem"},
+      {password,[]}]},
+    {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
+  {{8088,{127,0,0,1},tcp},
+   ejabberd_cowboy,
+   [{modules,[{"localhost","/api",mongoose_api_admin,[]}]},
+    {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
+  {{8089,{0,0,0,0},tcp},
+   ejabberd_cowboy,
+   [{modules,
+     [{"_","/api-docs/[...]",cowboy_static,
+       {priv_dir,cowboy_swagger,"swagger",
+        [{mimetypes,cow_mimetypes,all}]}},
+      {"_","/api-docs/swagger.json",cowboy_swagger_json_handler,#{}},
+      {"_","/api-docs",cowboy_swagger_redirect_handler,#{}},
+      {"_","/api/sse",lasse_handler,[mongoose_client_api_sse]},
+      {"_","/api/contacts/[:jid]",mongoose_client_api_contacts,[]},
+      {"_","/api/messages/[:with]",mongoose_client_api_messages,[]},
+      {"_","/api/rooms/[:id]",mongoose_client_api_rooms,[]},
+      {"_","/api/rooms/[:id]/config",mongoose_client_api_rooms_config,
+       []},
+      {"_","/api/rooms/[:id]/messages",
+       mongoose_client_api_rooms_messages,[]},
+      {"_","/api/rooms/:id/users/[:user]",
+       mongoose_client_api_rooms_users,[]}]},
+    {protocol_options,[{compress,true}]},
+    {ssl,
+     [{certfile,"tools/ssl/mongooseim/cert.pem"},
+      {keyfile,"tools/ssl/mongooseim/key.pem"},
+      {password,[]}]},
+    {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
+  {{5288,{127,0,0,1},tcp},
+   ejabberd_cowboy,
+   [{modules,
+     [{"localhost","/api",mongoose_api,
+       [{handlers,[mongoose_api_metrics,mongoose_api_users]}]}]},
+    {transport_options,[{max_connections,1024},{num_acceptors,10}]}]},
+  {{5269,{0,0,0,0},tcp},
+   ejabberd_s2s_in,
+   [{max_stanza_size,131072},
+    {shaper,s2s_shaper},
+    {dhfile,"tools/ssl/mongooseim/dh_server.pem"}]},
+  {{8888,{127,0,0,1},tcp},
+   ejabberd_service,
+   [{access,all},{password,"secret"},{shaper_rule,fast}]},
+  {{8666,{127,0,0,1},tcp},
+   ejabberd_service,
+   [{access,all},
+    {conflict_behaviour,kick_old},
+    {password,"secret"},
+    {shaper_rule,fast}]},
+  {{8189,{127,0,0,1},tcp},
+   ejabberd_service,
+   [{access,all},
+    {hidden_components,true},
+    {password,"secret"},
+    {shaper_rule,fast}]}]}.
+{loglevel,warning}.
+{max_fsm_queue,1000}.
+{mongooseimctl_access_commands,[]}.
+{outgoing_pools,
+ [{rdbms,global,default,
+   [{workers,5}],
+   [{server,
+     {pgsql,"localhost","ejabberd","ejabberd","mongooseim_secret",
+      [{ssl,required},
+       {ssl_opts,
+        [{cacertfile,"priv/ssl/cacert.pem"},
+         {server_name_indication,disable},
+         {verify,verify_peer}]}]}}]},
+  {redis,<<"localhost">>,global_distrib,[{workers,10}],[]}]}.
+{outgoing_s2s_port,5299}.
+{rdbms_server_type,generic}.
+{registration_timeout,infinity}.
+{routing_modules,
+ [mongoose_router_global,mongoose_router_localdomain,
+  mongoose_router_external_localnode,mongoose_router_external,
+  mongoose_router_dynamic_domains,ejabberd_s2s]}.
+{s2s_certfile,"tools/ssl/mongooseim/server.pem"}.
+{s2s_use_starttls,optional}.
+{services,
+ [{service_admin_extra,
+   [{submods,
+     [node,accounts,sessions,vcard,gdpr,upload,roster,last,private,
+      stanza,stats]}]},
+  {service_mongoose_system_metrics,
+   [{initial_report,300000},{periodic_report,10800000}]}]}.
+{sm_backend,{mnesia,[]}}.
+{{allow_multiple_connections,<<"anonymous.localhost">>},true}.
+{{anonymous_protocol,<<"anonymous.localhost">>},both}.
+{{auth_method,<<"anonymous.localhost">>},[anonymous]}.
+{{auth_method,<<"localhost">>},[rdbms]}.
+{{auth_method,<<"localhost.bis">>},[rdbms]}.
+{{auth_opts,<<"anonymous.localhost">>},[]}.
+{{auth_opts,<<"localhost">>},
+ [{password_format,{scram,[sha256]}},
+  {cyrsasl_external,[standard]},
+  {scram_iterations,64}]}.
+{{auth_opts,<<"localhost.bis">>},
+ [{password_format,{scram,[sha256]}},
+  {cyrsasl_external,[standard]},
+  {scram_iterations,64}]}.
+{
+ {modules,<<"anonymous.localhost">>},
+ [{mod_register,
+   [{access,register},
+    {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
+    {welcome_message,{"Hello","I am MongooseIM"}}]},
+  {mod_adhoc,[]},
+  {mod_sic,[]},
+  {mod_private,[{backend,rdbms}]},
+  {mod_privacy,[{backend,rdbms}]},
+  {mod_disco,[{users_can_see_hidden_services,false}]},
+  {mod_commands,[]},
+  {mod_muc_light_commands,[]},
+  {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
+  {mod_blocking,[]},
+  {mod_bosh,[]},
+  {mod_roster,[{backend,rdbms}]},
+  {mod_last,[{backend,rdbms}]},
+  {mod_offline,[{backend,rdbms}]},
+  {mod_amp,[]},
+  {mod_muc_commands,[]},
+  {mod_stream_management,[]},
+  {mod_carboncopy,[]}]}.
+{
+ {modules,<<"localhost">>},
+ [{mod_register,
+   [{access,register},
+    {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
+    {welcome_message,{"Hello","I am MongooseIM"}}]},
+  {mod_adhoc,[]},
+  {mod_sic,[]},
+  {mod_private,[{backend,rdbms}]},
+  {mod_privacy,[{backend,rdbms}]},
+  {mod_disco,[{users_can_see_hidden_services,false}]},
+  {mod_commands,[]},
+  {mod_muc_light_commands,[]},
+  {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
+  {mod_blocking,[]},
+  {mod_bosh,[]},
+  {mod_roster,[{backend,rdbms}]},
+  {mod_last,[{backend,rdbms}]},
+  {mod_offline,[{backend,rdbms}]},
+  {mod_amp,[]},
+  {mod_muc_commands,[]},
+  {mod_stream_management,[]},
+  {mod_carboncopy,[]}]}.
+{
+ {modules,<<"localhost.bis">>},
+ [{mod_register,
+   [{access,register},
+    {ip_access,[{allow,"127.0.0.0/8"},{deny,"0.0.0.0/0"}]},
+    {welcome_message,{"Hello","I am MongooseIM"}}]},
+  {mod_adhoc,[]},
+  {mod_sic,[]},
+  {mod_private,[{backend,rdbms}]},
+  {mod_privacy,[{backend,rdbms}]},
+  {mod_disco,[{users_can_see_hidden_services,false}]},
+  {mod_commands,[]},
+  {mod_muc_light_commands,[]},
+  {mod_vcard,[{backend,rdbms},{host,{prefix,<<"vjud.">>}}]},
+  {mod_blocking,[]},
+  {mod_bosh,[]},
+  {mod_roster,[{backend,rdbms}]},
+  {mod_last,[{backend,rdbms}]},
+  {mod_offline,[{backend,rdbms}]},
+  {mod_amp,[]},
+  {mod_muc_commands,[]},
+  {mod_stream_management,[]},
+  {mod_carboncopy,[]}]}.
+{{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
+{{replaced_wait_timeout,<<"localhost">>},2000}.
+{{replaced_wait_timeout,<<"localhost.bis">>},2000}.
+{{s2s_addr,<<"fed1">>},"127.0.0.1"}.
+{{s2s_default_policy,<<"anonymous.localhost">>},allow}.
+{{s2s_default_policy,<<"localhost">>},allow}.
+{{s2s_default_policy,<<"localhost.bis">>},allow}.
+{{access,c2s,global},[{deny,blocked},{allow,all}]}.
+{{access,c2s_shaper,global},[{none,admin},{normal,all}]}.
+{{access,local,global},[{allow,local}]}.
+{{access,mam_get_prefs,global},[{default,all}]}.
+{{access,mam_get_prefs_global_shaper,global},
+ [{mam_global_shaper,all}]}.
+{{access,mam_get_prefs_shaper,global},[{mam_shaper,all}]}.
+{{access,mam_lookup_messages,global},[{default,all}]}.
+{{access,mam_lookup_messages_global_shaper,global},
+ [{mam_global_shaper,all}]}.
+{{access,mam_lookup_messages_shaper,global},[{mam_shaper,all}]}.
+{{access,mam_set_prefs,global},[{default,all}]}.
+{{access,mam_set_prefs_global_shaper,global},
+ [{mam_global_shaper,all}]}.
+{{access,mam_set_prefs_shaper,global},[{mam_shaper,all}]}.
+{{access,max_user_offline_messages,global},
+ [{5000,admin},{100,all}]}.
+{{access,max_user_sessions,global},[{10,all}]}.
+{{access,muc,global},[{allow,all}]}.
+{{access,muc_admin,global},[{allow,admin}]}.
+{{access,muc_create,global},[{allow,local}]}.
+{{access,register,global},[{allow,all}]}.
+{{access,s2s_shaper,global},[{fast,all}]}.
+{{acl,local,global},[{user_regexp,<<>>}]}.
+{{shaper,fast,global},{maxrate,50000}}.
+{{shaper,mam_global_shaper,global},{maxrate,1000}}.
+{{shaper,mam_shaper,global},{maxrate,1}}.
+{{shaper,normal,global},{maxrate,1000}}.

@@ -44,7 +44,6 @@
          process_s2s_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
--include("ejabberd_config.hrl").
 
 -type config_node() :: config_section() | config_list() | config_option().
 -type config_section() :: #section{}.
@@ -58,29 +57,26 @@
 %% are packed into the resulting list of configuration options.
 -type format() :: top_level_config_format() | config_part_format().
 
-%% The value becomes a top-level config record or 'override' tuple
+%% The value becomes a top-level config option or 'override' tuple
 -type top_level_config_format() ::
-      % {override, Value}
-        override
+      % Config options, see the type below for details
+        config_option_format()
 
-      % Config records, see the type below for details
-      | config_record_format()
+      % Config option for each {K, V} in Value, which has to be a list
+      | {foreach, config_option_format()}
 
-      % Config record for each {K, V} in Value, which has to be a list
-      | {foreach, config_record_format()}
+      % Config option, the key is replaced with NewKey
+      | {config_option_format(), NewKey :: term()}
 
-      % Config record, the key is replaced with NewKey
-      | {config_record_format(), NewKey :: term()}
-
-      % #local_config{} with either key = {Tag, Key, Host} - inside host_config
-      %                      or key = {Tag, Key, global} - at the top level
+      % Inside host_config: {{Tag, Key, Host}, Value}
+      % Otherwise: {{Tag, Key, global}, Value}
       | {host_or_global_config, Tag :: term()}.
 
-%% The value becomes a top-level config record
--type config_record_format() ::
-        local_config % #local_config{}
-      | host_local_config. % Inside host_config: #local_config{key = {Key, Host}}
-                           % Otherwise: one such record for each configured host
+%% The value becomes a top-level config option
+-type config_option_format() ::
+        global_config % {Key, Value}
+      | host_config. % Inside host_config: {{Key, Host}, Value}
+                     % Otherwise: one such option for each configured host
 
 %% The value becomes a nested config part - key-value pair or just a value
 -type config_part_format() ::
@@ -155,7 +151,7 @@ host_config() ->
 
                  %% Sections below are allowed in host_config,
                  %% but only options with these formats are accepted:
-                 %%  - host_local_config
+                 %%  - host_config
                  %%  - host_or_global_config
                  %% Any other options would be caught by
                  %%   mongoose_config_parser_toml:format/3
@@ -175,54 +171,54 @@ general() ->
     #section{
        items = #{<<"loglevel">> => #option{type = atom,
                                            validate = loglevel,
-                                           format = local_config},
+                                           format = global_config},
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
                                       validate = unique,
-                                      format = local_config},
+                                      format = global_config},
                  <<"host_types">> => #list{items = #option{type = binary,
                                                            validate = non_empty},
                                            validate = unique,
-                                           format = local_config},
+                                           format = global_config},
                  <<"default_server_domain">> => #option{type = binary,
                                                         validate = non_empty,
                                                         process = fun ?MODULE:process_host/1,
-                                                        format = local_config},
+                                                        format = global_config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
-                                                       format = local_config},
+                                                       format = global_config},
                  <<"language">> => #option{type = binary,
                                            validate = non_empty,
-                                           format = local_config},
+                                           format = global_config},
                  <<"all_metrics_are_global">> => #option{type = boolean,
-                                                         format = local_config},
+                                                         format = global_config},
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
                                              process = fun ?MODULE:process_sm_backend/1,
-                                             format = local_config},
+                                             format = global_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
-                                                format = local_config},
+                                                format = global_config},
                  <<"http_server_name">> => #option{type = string,
-                                                   format = {local_config, cowboy_server_name}},
+                                                   format = {global_config, cowboy_server_name}},
                  <<"rdbms_server_type">> => #option{type = atom,
                                                     validate = {enum, [mssql, pgsql]},
-                                                    format = local_config},
+                                                    format = global_config},
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
-                                                   format = host_local_config},
+                                                   format = host_config},
                  <<"mongooseimctl_access_commands">> => #section{
                                                            items = #{default => ctl_access_rule()},
-                                                           format = local_config},
+                                                           format = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
-                                                format = local_config},
+                                                format = global_config},
                  <<"replaced_wait_timeout">> => #option{type = integer,
                                                         validate = positive,
-                                                        format = host_local_config},
+                                                        format = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    format = local_config}
+                                                    format = global_config}
                 },
        format = none
       }.
@@ -258,7 +254,7 @@ listen() ->
     #section{
        items = maps:from_list([{Key, #list{items = listener(Key),
                                            format = none}} || Key <- Keys]),
-       format = local_config
+       format = global_config
       }.
 
 %% path: listen.*[]
@@ -502,7 +498,7 @@ auth() ->
                  <<"rdbms">> => auth_rdbms(),
                  <<"dummy">> => auth_dummy()},
        process = fun ?MODULE:process_auth/1,
-       format = {foreach, host_local_config}
+       format = {foreach, host_config}
       }.
 
 %% path: (host_config[].)auth.password
@@ -677,7 +673,7 @@ outgoing_pools() ->
                              format = none}} || Type <- PoolTypes],
     #section{
        items = maps:from_list(Items),
-       format = local_config
+       format = global_config
       }.
 
 %% path: outgoing_pools.*.*
@@ -879,7 +875,7 @@ services() ->
                 || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
-       format = local_config
+       format = global_config
       }.
 
 configurable_services() ->
@@ -895,7 +891,7 @@ modules() ->
     #section{
        items = Items#{default => #section{items = #{}}},
        validate_keys = module,
-       format = host_local_config
+       format = host_config
       }.
 
 configurable_modules() ->
@@ -1026,27 +1022,27 @@ s2s() ->
                  <<"use_starttls">> => #option{type = atom,
                                                validate = {enum, [false, optional, required,
                                                                   required_trusted]},
-                                               format = {local_config, s2s_use_starttls}},
+                                               format = {global_config, s2s_use_starttls}},
                  <<"certfile">> => #option{type = string,
                                            validate = non_empty,
-                                           format = {local_config, s2s_certfile}},
+                                           format = {global_config, s2s_certfile}},
                  <<"default_policy">> => #option{type = atom,
                                                  validate = {enum, [allow, deny]},
-                                                 format = {host_local_config, s2s_default_policy}},
+                                                 format = {host_config, s2s_default_policy}},
                  <<"host_policy">> => #list{items = s2s_host_policy(),
-                                            format = {foreach, host_local_config}},
+                                            format = {foreach, host_config}},
                  <<"address">> => #list{items = s2s_address(),
-                                        format = {foreach, local_config}},
+                                        format = {foreach, global_config}},
                  <<"ciphers">> => #option{type = string,
-                                          format = {local_config, s2s_ciphers}},
+                                          format = {global_config, s2s_ciphers}},
                  <<"domain_certfile">> => #list{items = s2s_domain_cert(),
-                                                format = {foreach, local_config}},
+                                                format = {foreach, global_config}},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty,
-                                         format = {host_local_config, s2s_shared}},
+                                         format = {host_config, s2s_shared}},
                  <<"max_retry_delay">> => #option{type = integer,
                                                   validate = positive,
-                                                  format = {host_local_config, s2s_max_retry_delay}}
+                                                  format = {host_config, s2s_max_retry_delay}}
                 },
        format = none
       }.
@@ -1058,7 +1054,7 @@ s2s_dns() ->
                                           validate = positive},
                  <<"retries">> => #option{type = integer,
                                           validate = positive}},
-       format = {local_config, s2s_dns_options}
+       format = {global_config, s2s_dns_options}
       }.
 
 %% path: (host_config[].)s2s.outgoing
@@ -1066,16 +1062,16 @@ s2s_outgoing() ->
     #section{
        items = #{<<"port">> => #option{type = integer,
                                        validate = port,
-                                       format = {local_config, outgoing_s2s_port}},
+                                       format = {global_config, outgoing_s2s_port}},
                  <<"ip_versions">> =>
                      #list{items = #option{type = integer,
                                            validate = {enum, [4, 6]},
                                            process = fun ?MODULE:process_s2s_address_family/1},
                            validate = unique_non_empty,
-                           format = {local_config, outgoing_s2s_families}},
+                           format = {global_config, outgoing_s2s_families}},
                  <<"connection_timeout">> => #option{type = int_or_infinity,
                                                      validate = positive,
-                                                     format = {local_config, outgoing_s2s_timeout}}
+                                                     format = {global_config, outgoing_s2s_timeout}}
                 },
        format = none
       }.
@@ -1142,14 +1138,12 @@ hosts_and_host_types_are_unique_and_non_empty(General) ->
     true = [] =/= AllHostTypes.
 
 get_all_hosts_and_host_types(General) ->
-    FoldFN = fun
-                 (#local_config{key = K} = C, Acc) when K =:= hosts;
-                                                        K =:= host_types ->
-                     Acc ++ C#local_config.value;
-                 (_, Acc) ->
-                     Acc
-             end,
-    lists:foldl(FoldFN, [], General).
+    lists:flatmap(fun({Key, Value}) when Key =:= hosts;
+                                         Key =:= host_types ->
+                          Value;
+                     (_) ->
+                          []
+                  end, General).
 
 process_sni(false) ->
     disable.

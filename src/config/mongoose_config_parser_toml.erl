@@ -11,7 +11,6 @@
 -endif.
 
 -include("mongoose_config_spec.hrl").
--include("ejabberd_config.hrl").
 
 %% Input: TOML parsed by tomerl
 -type toml_key() :: binary().
@@ -21,7 +20,7 @@
 %% Output: list of config records, containing key-value pairs
 -type option_value() :: atom() | binary() | string() | float(). % parsed leaf value
 -type config_part() :: term(). % any part of a top-level option value, may contain config errors
--type top_level_config() :: #local_config{}.
+-type top_level_config() :: {mongoose_config:key(), mongoose_config:value()}.
 -type config_error() :: #{class := error, what := atom(), text := string(), any() => any()}.
 -type config() :: top_level_config() | config_error().
 
@@ -56,8 +55,8 @@ parse_file(FileName) ->
 -spec process(toml_section()) -> mongoose_config_parser:state().
 process(Content) ->
     Config = parse(Content),
-    Hosts = get_value(Config, hosts),
-    HostTypes = get_value(Config, host_types),
+    Hosts = proplists:get_value(hosts, Config, []),
+    HostTypes = proplists:get_value(host_types, Config, []),
     Opts = unfold_globals(Config, Hosts ++ HostTypes),
     case extract_errors(Opts) of
         [] ->
@@ -72,11 +71,10 @@ process(Content) ->
 -spec unfold_globals([config()], [mongooseim:host_type()]) -> [config()].
 unfold_globals(Config, AllHostTypes) ->
     {GlobalOpts, Opts} = lists:partition(fun is_global_to_unfold/1, Config),
-    Opts ++ [Opt#local_config{key = {Key, HostType}} ||
-                Opt = #local_config{key = {Key, global}} <- GlobalOpts,
-                HostType <- AllHostTypes].
+    Opts ++ [{{Key, HostType}, Value} || {{Key, global}, Value} <- GlobalOpts,
+                                         HostType <- AllHostTypes].
 
-is_global_to_unfold(#local_config{key = {_Key, global}}) -> true;
+is_global_to_unfold({{_Key, global}, _Value}) -> true;
 is_global_to_unfold(_) -> false.
 
 config_error(Errors) ->
@@ -220,17 +218,17 @@ format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
     Keys = lists:map(fun({K, _}) -> K end, KVs),
     mongoose_config_validator:validate_list(Keys, unique),
     lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, KVs);
-format([Key|_] = Path, V, host_local_config) ->
-    format(Path, V, {host_local_config, b2a(Key)});
-format([Key|_] = Path, V, local_config) ->
-    format(Path, V, {local_config, b2a(Key)});
-format(Path, V, {host_local_config, Key}) ->
-    [#local_config{key = {Key, get_host(Path)}, value = V}];
-format(Path, V, {local_config, Key}) ->
+format([Key|_] = Path, V, host_config) ->
+    format(Path, V, {host_config, b2a(Key)});
+format([Key|_] = Path, V, global_config) ->
+    format(Path, V, {global_config, b2a(Key)});
+format(Path, V, {host_config, Key}) ->
+    [{{Key, get_host(Path)}, V}];
+format(Path, V, {global_config, Key}) ->
     global = get_host(Path),
-    [#local_config{key = Key, value = V}];
+    [{Key, V}];
 format([Key|_] = Path, V, {host_or_global_config, Tag}) ->
-    [#local_config{key = {Tag, b2a(Key), get_host(Path)}, value = V}];
+    [{{Tag, b2a(Key), get_host(Path)}, V}];
 format([item|_] = Path, V, default) ->
     format(Path, V, item);
 format([Key|_] = Path, V, default) ->
@@ -295,16 +293,6 @@ item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
 
 %% Processing of the parsed options
-
--spec get_value([config()], mongoose_config:key()) -> [mongoose_config:value()].
-get_value(Config, Key) ->
-    FilterFn = fun(#local_config{key = K}) when K =:= Key -> true;
-                  (_) -> false
-               end,
-    case lists:filter(FilterFn, Config) of
-        [] -> [];
-        [#local_config{value = Value}] -> Value
-    end.
 
 -spec build_state([jid:server()], [jid:server()], [top_level_config()]) ->
           mongoose_config_parser:state().
