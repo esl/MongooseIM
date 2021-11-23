@@ -48,7 +48,7 @@ all() ->
 init_per_suite(Config) ->
     ok = meck:new(wpool, [no_link, passthrough]),
     ok = meck:new(mongoose_wpool, [no_link, passthrough]),
-    mongoose_config:set_opt(hosts, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     Self = self(),
     spawn(fun() ->
                   register(test_helper, self()),
@@ -62,8 +62,12 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     meck:unload(wpool),
     whereis(test_helper) ! stop,
-    mongoose_config:unset_opt(hosts),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     Config.
+
+opts() ->
+    [{hosts, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]},
+     {host_types, []}].
 
 init_per_testcase(_Case, Config) ->
     cleanup_pools(),
@@ -171,7 +175,7 @@ global_pool_is_used_by_default(_C) ->
     Pools = [{generic, global, default, [], []},
              {generic, <<"a.com">>, default, [], []}],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
-
+    ?assertMatch([_, _], StartRes),
     meck:expect(wpool, call, fun(Name, _Req, _Strat, _Timeout) -> Name end),
     ?assertEqual(mongoose_wpool:make_pool_name(generic, <<"a.com">>, default),
                  mongoose_wpool:call(generic, <<"a.com">>, default, request)),

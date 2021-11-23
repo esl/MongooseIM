@@ -54,8 +54,8 @@ init_per_testcase(codec_calls, Config) ->
     meck_mongoose_subdomain_core(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
+    mongoose_config:set_opt(all_metrics_are_global, false),
     {ok, _} = application:ensure_all_started(exometer_core),
-    ets:new(local_config, [named_table]),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
@@ -70,6 +70,7 @@ init_per_testcase(_, Config) ->
 
 end_per_testcase(codec_calls, Config) ->
     mod_muc_light:stop(?DOMAIN),
+    mongoose_config:unset_opt(all_metrics_are_global),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),

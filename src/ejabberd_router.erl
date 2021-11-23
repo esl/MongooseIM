@@ -52,7 +52,8 @@
          unregister_component/1,
          unregister_component/2,
          unregister_components/1,
-         unregister_components/2
+         unregister_components/2,
+         default_routing_modules/0
         ]).
 
 -export([start_link/0]).
@@ -509,7 +510,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 routing_modules_list() ->
-    mongoose_config:get_opt(routing_modules, default_routing_modules()).
+    mongoose_config:get_opt(routing_modules).
 
 default_routing_modules() ->
     [mongoose_router_global,

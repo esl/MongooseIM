@@ -806,10 +806,7 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     {established, Acc1, NewStateData}.
 
 get_replaced_wait_timeout(HostType) ->
-    mongoose_config:get_opt({replaced_wait_timeout, HostType}, default_replaced_wait_timeout()).
-
-default_replaced_wait_timeout() ->
-    2000.
+    mongoose_config:get_opt({replaced_wait_timeout, HostType}).
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().

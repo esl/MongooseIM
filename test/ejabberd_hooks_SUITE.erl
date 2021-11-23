@@ -25,10 +25,12 @@ all() ->
     ].
 
 init_per_suite(C) ->
-    Res = application:ensure_all_started(exometer_core),
+    application:ensure_all_started(exometer_core),
+    mongoose_config:set_opt(all_metrics_are_global, false),
     C.
 
 end_per_suite(_C) ->
+    mongoose_config:unset_opt(all_metrics_are_global),
     application:stop(exometer_core).
 
 a_module_fun_can_be_added(_) ->

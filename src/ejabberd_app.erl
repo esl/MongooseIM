@@ -54,7 +54,7 @@ start(normal, _Args) ->
     mongoose_service:start(),
     gen_mod:start(),
     mongoose_config:start(),
-    mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel, warning)),
+    mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     mongoose_domain_api:init(),

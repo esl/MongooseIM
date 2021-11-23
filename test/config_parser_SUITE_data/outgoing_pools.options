@@ -1,5 +1,12 @@
+{local_config,all_metrics_are_global,false}.
 {local_config,default_server_domain,<<"localhost">>}.
-{local_config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{local_config,hide_service_name,false}.
+{local_config,host_types,[]}.
+{local_config,hosts,
+              [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{local_config,language,<<"en">>}.
+{local_config,loglevel,warning}.
+{local_config,mongooseimctl_access_commands,[]}.
 {local_config,outgoing_pools,
     [{cassandra,global,default,[],
          [{keyspace,"big_mongooseim"},
@@ -46,3 +53,13 @@
                {keyfile,"path/to/key.pem"},
                {verify,verify_peer}]},
           {cacertfile,"path/to/cacert.pem"}]}]}.
+{local_config,rdbms_server_type,generic}.
+{local_config,registration_timeout,600}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain,
+               mongoose_router_external_localnode,mongoose_router_external,
+               mongoose_router_dynamic_domains,ejabberd_s2s]}.
+{local_config,sm_backend,{mnesia,[]}}.
+{local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost.bis">>},2000}.

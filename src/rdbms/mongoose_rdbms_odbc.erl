@@ -239,7 +239,7 @@ map_param(Param, Mapper) ->
 
 -spec server_type() -> atom().
 server_type() ->
-    mongoose_config:get_opt(rdbms_server_type, generic).
+    mongoose_config:get_opt(rdbms_server_type).
 
 -spec escape_binary(ServerType :: atom(), binary()) -> iodata().
 escape_binary(pgsql, Bin) ->

@@ -1,33 +1,10 @@
-{local_config,{acl,local,global},[{user_regexp,<<>>}]}.
-{local_config,default_server_domain,<<"localhost">>}.
-{local_config,hosts,[<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
-{local_config,language,<<"en">>}.
-{local_config,sm_backend,{mnesia,[]}}.
-{local_config,{access,c2s,global},[{deny,blocked},{allow,all}]}.
-{local_config,{access,c2s_shaper,global},[{none,admin},{normal,all}]}.
-{local_config,{access,local,global},[{allow,local}]}.
-{local_config,{access,mam_get_prefs,global},[{default,all}]}.
-{local_config,{access,mam_get_prefs_global_shaper,global},[{mam_global_shaper,all}]}.
-{local_config,{access,mam_get_prefs_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,mam_lookup_messages,global},[{default,all}]}.
-{local_config,{access,mam_lookup_messages_global_shaper,global},
-        [{mam_global_shaper,all}]}.
-{local_config,{access,mam_lookup_messages_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,mam_set_prefs,global},[{default,all}]}.
-{local_config,{access,mam_set_prefs_global_shaper,global},[{mam_global_shaper,all}]}.
-{local_config,{access,mam_set_prefs_shaper,global},[{mam_shaper,all}]}.
-{local_config,{access,max_user_offline_messages,global},[{5000,admin},{100,all}]}.
-{local_config,{access,max_user_sessions,global},[{10,all}]}.
-{local_config,{access,muc,global},[{allow,all}]}.
-{local_config,{access,muc_admin,global},[{allow,admin}]}.
-{local_config,{access,muc_create,global},[{allow,local}]}.
-{local_config,{access,register,global},[{allow,all}]}.
-{local_config,{access,s2s_shaper,global},[{fast,all}]}.
-{local_config,{shaper,fast,global},{maxrate,50000}}.
-{local_config,{shaper,mam_global_shaper,global},{maxrate,1000}}.
-{local_config,{shaper,mam_shaper,global},{maxrate,1}}.
-{local_config,{shaper,normal,global},{maxrate,1000}}.
 {local_config,all_metrics_are_global,false}.
+{local_config,default_server_domain,<<"localhost">>}.
+{local_config,hide_service_name,false}.
+{local_config,host_types,[]}.
+{local_config,hosts,
+              [<<"localhost">>,<<"anonymous.localhost">>,<<"localhost.bis">>]}.
+{local_config,language,<<"en">>}.
 {local_config,listen,
     [{{5222,{0,0,0,0},tcp},
       ejabberd_c2s,
@@ -119,6 +96,7 @@
        {shaper_rule,fast}]}]}.
 {local_config,loglevel,warning}.
 {local_config,max_fsm_queue,1000}.
+{local_config,mongooseimctl_access_commands,[]}.
 {local_config,outgoing_pools,
     [{rdbms,global,default,
          [{workers,5}],
@@ -131,7 +109,12 @@
                         {verify,verify_peer}]}]}}]},
      {redis,<<"localhost">>,global_distrib,[{workers,10}],[]}]}.
 {local_config,outgoing_s2s_port,5299}.
+{local_config,rdbms_server_type,generic}.
 {local_config,registration_timeout,infinity}.
+{local_config,routing_modules,
+              [mongoose_router_global,mongoose_router_localdomain,
+               mongoose_router_external_localnode,mongoose_router_external,
+               mongoose_router_dynamic_domains,ejabberd_s2s]}.
 {local_config,s2s_certfile,"tools/ssl/mongooseim/server.pem"}.
 {local_config,s2s_use_starttls,optional}.
 {local_config,services,
@@ -141,6 +124,7 @@
                stanza,stats]}]},
      {service_mongoose_system_metrics,
          [{initial_report,300000},{periodic_report,10800000}]}]}.
+{local_config,sm_backend,{mnesia,[]}}.
 {local_config,{allow_multiple_connections,<<"anonymous.localhost">>},true}.
 {local_config,{anonymous_protocol,<<"anonymous.localhost">>},both}.
 {local_config,{auth_method,<<"anonymous.localhost">>},[anonymous]}.
@@ -224,7 +208,38 @@
      {mod_muc_commands,[]},
      {mod_stream_management,[]},
      {mod_carboncopy,[]}]}.
+{local_config,{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost">>},2000}.
+{local_config,{replaced_wait_timeout,<<"localhost.bis">>},2000}.
 {local_config,{s2s_addr,<<"fed1">>},"127.0.0.1"}.
 {local_config,{s2s_default_policy,<<"anonymous.localhost">>},allow}.
 {local_config,{s2s_default_policy,<<"localhost">>},allow}.
 {local_config,{s2s_default_policy,<<"localhost.bis">>},allow}.
+{local_config,{access,c2s,global},[{deny,blocked},{allow,all}]}.
+{local_config,{access,c2s_shaper,global},[{none,admin},{normal,all}]}.
+{local_config,{access,local,global},[{allow,local}]}.
+{local_config,{access,mam_get_prefs,global},[{default,all}]}.
+{local_config,{access,mam_get_prefs_global_shaper,global},
+              [{mam_global_shaper,all}]}.
+{local_config,{access,mam_get_prefs_shaper,global},[{mam_shaper,all}]}.
+{local_config,{access,mam_lookup_messages,global},[{default,all}]}.
+{local_config,{access,mam_lookup_messages_global_shaper,global},
+              [{mam_global_shaper,all}]}.
+{local_config,{access,mam_lookup_messages_shaper,global},[{mam_shaper,all}]}.
+{local_config,{access,mam_set_prefs,global},[{default,all}]}.
+{local_config,{access,mam_set_prefs_global_shaper,global},
+              [{mam_global_shaper,all}]}.
+{local_config,{access,mam_set_prefs_shaper,global},[{mam_shaper,all}]}.
+{local_config,{access,max_user_offline_messages,global},
+              [{5000,admin},{100,all}]}.
+{local_config,{access,max_user_sessions,global},[{10,all}]}.
+{local_config,{access,muc,global},[{allow,all}]}.
+{local_config,{access,muc_admin,global},[{allow,admin}]}.
+{local_config,{access,muc_create,global},[{allow,local}]}.
+{local_config,{access,register,global},[{allow,all}]}.
+{local_config,{access,s2s_shaper,global},[{fast,all}]}.
+{local_config,{acl,local,global},[{user_regexp,<<>>}]}.
+{local_config,{shaper,fast,global},{maxrate,50000}}.
+{local_config,{shaper,mam_global_shaper,global},{maxrate,1000}}.
+{local_config,{shaper,mam_shaper,global},{maxrate,1}}.
+{local_config,{shaper,normal,global},{maxrate,1000}}.

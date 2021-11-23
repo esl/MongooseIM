@@ -159,6 +159,7 @@ wait_for_update({ok, [{count,0}]}, N) ->
 
 opts(Group) ->
     [{hosts, [<<"localhost">>]},
+     {host_types, []},
      {all_metrics_are_global, Group =:= all_metrics_are_global}].
 
 get_reporters_cfg(Port) ->

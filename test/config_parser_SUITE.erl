@@ -343,36 +343,33 @@ host_types_unsupported_auth_methods_and_modules(Config) ->
 
 %% tests: general
 loglevel(_Config) ->
+    ?cfg(loglevel, warning, #{}), % default
     ?cfg(loglevel, debug, #{<<"general">> => #{<<"loglevel">> => <<"debug">>}}),
     ?err(#{<<"general">> => #{<<"loglevel">> => <<"bebug">>}}),
     %% make sure non-host options are not accepted in host_config
     ?err(host_config(#{<<"general">> => #{<<"loglevel">> => <<"debug">>}})).
 
 hosts(_Config) ->
-    ?cfg(hosts, [<<"host1">>], #{<<"general">> => #{<<"hosts">> => [<<"host1">>]}}),
-    GenM = #{<<"default_server_domain">> => <<"some.host">>},
-    M = GenM#{<<"hosts">> => [<<"host1">>, <<"host2">>],
-              <<"host_types">> => []},
-    assert_options([{hosts, [<<"host1">>, <<"host2">>]},
-                    {host_types, []},
-                    {default_server_domain, <<"some.host">>}],
-                   mongoose_config_parser_toml:parse(#{<<"general">> => M})),
+    ?cfg(hosts, [], % default
+         #{<<"general">> => #{<<"host_types">> => [<<"type1">>]}, without => [<<"hosts">>]}),
+    ?cfg(hosts, [<<"host1">>],
+         #{<<"general">> => #{<<"hosts">> => [<<"host1">>]}}),
+    ?cfg(hosts, [<<"host1">>, <<"host2">>],
+         #{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host2">>]}}),
     ?err(#{<<"general">> => #{<<"hosts">> => [<<"what is this?">>]}}),
     ?err(#{<<"general">> => #{<<"hosts">> => [<<>>]}}),
     ?err(#{<<"general">> => #{<<"hosts">> => [<<"host1">>, <<"host1">>]}}),
-    %% either hosts or host_types must be provided
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => #{}})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
-                                                         GenM#{<<"host">> => [],
-                                                               <<"host_types">> => []}})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
-                                                         GenM#{<<"host">> => []}})),
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> =>
-                                                         GenM#{<<"host_types">> => []}})).
+    %% at least one host or host_type must be provided
+    ?err(#{<<"general">> => #{}, without => [<<"hosts">>]}),
+    ?err(#{<<"general">> => #{<<"hosts">> => []}}),
+    ?err(#{<<"general">> => #{<<"host_types">> => []}, without => [<<"hosts">>]}),
+    ?err(#{<<"general">> => #{<<"hosts">> => [], <<"host_types">> => []}}).
 
 host_types(_Config) ->
-    ?cfg(host_types, [<<"type 1">>], #{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}}),
+    ?cfg(host_types, [], #{}), % default
+    ?cfg([{host_types, [<<"type 1">>]},
+          {hosts, []}],
+         #{<<"general">> => #{<<"host_types">> => [<<"type 1">>]}, without => [<<"hosts">>]}),
     ?cfg([{host_types, [<<"type 1">>, <<"type 2">>]},
           {hosts, []}],
          #{<<"general">> => #{<<"host_types">> => [<<"type 1">>, <<"type 2">>],
@@ -386,17 +383,13 @@ host_types(_Config) ->
 default_server_domain(_Config) ->
     ?cfg(default_server_domain, <<"host1">>,
          #{<<"general">> => #{<<"default_server_domain">> => <<"host1">>}}),
-    GenM = #{<<"hosts">> => [<<"host1">>, <<"host2">>]},
-    M = GenM#{<<"default_server_domain">> => <<"some.host">>},
-    assert_options([{hosts, [<<"host1">>, <<"host2">>]},
-                    {default_server_domain, <<"some.host">>}],
-                   mongoose_config_parser_toml:parse(#{<<"general">> => M})),
     ?err(#{<<"general">> => #{<<"default_server_domain">> => <<"what is this?">>}}),
     ?err(#{<<"general">> => #{<<"default_server_domain">> => <<>>}}),
     %% default_server_domain must be provided
-    assert_error(mongoose_config_parser_toml:parse(#{<<"general">> => GenM})).
+    ?err(#{without => [<<"default_server_domain">>]}).
 
 registration_timeout(_Config) ->
+    ?cfg(registration_timeout, 600, #{}), % default
     ?cfg(registration_timeout, infinity,
          #{<<"general">> => #{<<"registration_timeout">> => <<"infinity">>}}),
     ?cfg(registration_timeout, 300,
@@ -404,14 +397,17 @@ registration_timeout(_Config) ->
     ?err(#{<<"general">> => #{<<"registration_timeout">> => 0}}).
 
 language(_Config) ->
-    ?cfg(language, <<"en">>, #{<<"general">> => #{<<"language">> => <<"en">>}}),
+    ?cfg(language, <<"en">>, #{}), % default
+    ?cfg(language, <<"pl">>, #{<<"general">> => #{<<"language">> => <<"pl">>}}),
     ?err(#{<<"general">> => #{<<"language">> => <<>>}}).
 
 all_metrics_are_global(_Config) ->
+    ?cfg(all_metrics_are_global, false, #{}), % default
     ?cfg(all_metrics_are_global, true, #{<<"general">> => #{<<"all_metrics_are_global">> => true}}),
     ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
 
 sm_backend(_Config) ->
+    ?cfg(sm_backend, {mnesia, []}, #{}), % default
     ?cfg(sm_backend, {mnesia, []}, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
     ?cfg(sm_backend, {redis, []}, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
@@ -426,6 +422,7 @@ http_server_name(_Config) ->
     ?err(#{<<"general">> => #{<<"http_server_name">> => #{}}}).
 
 rdbms_server_type(_Config) ->
+    ?cfg(rdbms_server_type, generic, #{}), % default
     ?cfg(rdbms_server_type, mssql, #{<<"general">> => #{<<"rdbms_server_type">> => <<"mssql">>}}),
     ?cfg(rdbms_server_type, pgsql, #{<<"general">> => #{<<"rdbms_server_type">> => <<"pgsql">>}}),
     ?err(#{<<"general">> => #{<<"rdbms_server_type">> => <<"nosql">>}}).
@@ -435,6 +432,7 @@ route_subdomains(_Config) ->
     ?errh(#{<<"general">> => #{<<"route_subdomains">> => <<"c2s">>}}).
 
 mongooseimctl_access_commands(_Config) ->
+    ?cfg(mongooseimctl_access_commands, [], #{}), % default
     AccessRule = #{<<"commands">> => [<<"join_cluster">>],
                    <<"argument_restrictions">> => #{<<"node">> => <<"mim1@host1">>}},
     ?cfg(mongooseimctl_access_commands, [{local, ["join_cluster"], [{node, "mim1@host1"}]}],
@@ -456,17 +454,20 @@ mongooseimctl_access_commands(_Config) ->
                                                          [<<"none">>]}}}}).
 
 routing_modules(_Config) ->
+    ?cfg(routing_modules, ejabberd_router:default_routing_modules(), #{}), % default
     ?cfg(routing_modules, [mongoose_router_global, mongoose_router_localdomain],
          #{<<"general">> => #{<<"routing_modules">> => [<<"mongoose_router_global">>,
                                                         <<"mongoose_router_localdomain">>]}}),
     ?err(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}}).
 
 replaced_wait_timeout(_Config) ->
+    ?cfg({replaced_wait_timeout, global}, 2000, #{}), % global default
     ?cfgh(replaced_wait_timeout, 1000, #{<<"general">> => #{<<"replaced_wait_timeout">> => 1000}}),
     ?errh(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}}).
 
 hide_service_name(_Config) ->
-    ?cfg(hide_service_name, false, #{<<"general">> => #{<<"hide_service_name">> => false}}),
+    ?cfg(hide_service_name, false, #{}), % default
+    ?cfg(hide_service_name, true, #{<<"general">> => #{<<"hide_service_name">> => true}}),
     ?err(#{<<"general">> => #{<<"hide_service_name">> => []}}).
 
 %% tests: listen
@@ -3024,13 +3025,12 @@ assert_error_host_or_global(RawConfig) ->
 host_config(Config) ->
     #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST_TYPE}]}.
 
--spec parse(mongoose_config_parser_toml:toml_section()) -> [mongoose_config_parser_toml:config()].
+-spec parse(map()) -> [mongoose_config_parser_toml:config()].
 parse(M0) ->
-    %% 'hosts' (or 'host_types') and `default_server_domain` options are mandatory.
-    %% this function does the following things:
-    %%   1) plugs that mandatory options with dummy values (if required).
-    %%   2) executes parsing.
-    %% DummyDomainName value must be unique to avoid accidental config keys removal.
+    %% As 'hosts' (or 'host_types') and 'default_server_domain' options are mandatory,
+    %% this function inserts them with dummy values if they are missing.
+    %% To prevent the insertion, add a 'without' option to the map, e.g. without => [<<"hosts">>]
+    %% The resulting map is then passed to the TOML config parser.
     DummyDomainName = <<"dummy.domain.name">>,
     M = maybe_insert_dummy_domain(M0, DummyDomainName),
     mongoose_config_parser_toml:parse(M).
@@ -3038,9 +3038,13 @@ parse(M0) ->
 maybe_insert_dummy_domain(M, DomainName) ->
     DummyGenM = #{<<"default_server_domain">> => DomainName,
                   <<"hosts">> => [DomainName]},
-    OldGenM = maps:get(<<"general">>, M, #{}),
-    NewGenM = maps:merge(DummyGenM, OldGenM),
-    M#{<<"general">> => NewGenM}.
+    {FilteredGenM, RawConfig} = case maps:take(without, M) of
+                                    {Keys, Cfg} -> {maps:without(Keys, DummyGenM), Cfg};
+                                    error -> {DummyGenM, M}
+                                end,
+    OldGenM = maps:get(<<"general">>, RawConfig, #{}),
+    NewGenM = maps:merge(FilteredGenM, OldGenM),
+    RawConfig#{<<"general">> => NewGenM}.
 
 %% helpers for testing individual options
 
