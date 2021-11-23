@@ -20,6 +20,7 @@ Configure MAM with different storage backends:
 This module supports [XEP-0424: Message Retraction](http://xmpp.org/extensions/xep-0424.html) with RDBMS storage backends. When a [retraction message](https://xmpp.org/extensions/xep-0424.html#example-4) is received, the MAM module finds the message to retract and replaces it with a tombstone.
 
 The following criteria are used to find the original message:
+
 * The `id` attribute specified in the `apply-to` element of the retraction message has to be the same as the `id` attribute of the `origin-id` (or `stanza-id` when configured, see [below](#retraction-on-the-stanza-id)) element of the original message.
 * Both messages need to originate from the same user.
 * Both messages need to be addressed to the same user.
