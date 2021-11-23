@@ -1,0 +1,13 @@
+type Query {
+  "Contains all admin available queries"
+  admin: AdminQuery
+  "Contains all user available queries"
+  user: UserQuery
+}
+
+type Mutation {
+  "Contains all user available mutations"
+  admin: AdminMutation
+  "Contains all user available mutations"
+  user: UserMutation
+}
