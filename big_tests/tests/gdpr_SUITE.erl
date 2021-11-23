@@ -214,6 +214,9 @@ init_per_group(retrieve_personal_data_inbox = GN, Config) ->
     init_inbox(GN, Config, muclight);
 init_per_group(remove_personal_data_inbox = GN, Config) ->
     init_inbox(GN, Config, muclight);
+init_per_group(retrieve_personal_data_private_xml, Config) ->
+    private_started(),
+    Config;
 init_per_group(_GN, Config) ->
     Config.
 

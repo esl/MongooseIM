@@ -215,6 +215,9 @@ end_per_suite(Config) ->
     dynamic_modules:stop(domain_helper:secondary_host_type(), mod_last),
     escalus:end_per_suite(Config1).
 
+init_per_group(private, Config) ->
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_private, []}]),
+    Config;
 init_per_group(vcard, Config) ->
     case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_vcard, backend, mnesia]) of
         ldap ->
@@ -238,6 +241,9 @@ init_per_group(upload_with_acl, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(private, Config) ->
+    dynamic_modules:stop(domain_helper:host_type(), mod_private),
+    Config;
 end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_advanced) ->
     TemplatePath = escalus_config:get_config(roster_template, Config),
     RegUsers = [atom_to_list(U) || {U, _} <- escalus_config:get_config(escalus_users, Config)],
