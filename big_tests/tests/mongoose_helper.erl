@@ -6,6 +6,7 @@
 %% API
 
 -export([is_rdbms_enabled/1,
+         get_backend_mnesia_rdbms_riak/1,
          mnesia_or_rdbms_backend/0,
          get_backend_name/2]).
 
@@ -62,6 +63,13 @@ mnesia_or_rdbms_backend() ->
     case mongoose_helper:is_rdbms_enabled(Host) of
         true -> rdbms;
         false -> mnesia
+    end.
+
+get_backend_mnesia_rdbms_riak(HostType) ->
+    case {is_rdbms_enabled(HostType), mam_helper:is_riak_enabled(HostType)} of
+        {false, false} -> mnesia;
+        {true, false} -> rdbms;
+        {false, true} -> riak
     end.
 
 -spec auth_modules() -> [atom()].
