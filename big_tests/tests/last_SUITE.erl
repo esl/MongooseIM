@@ -34,17 +34,22 @@ groups() ->
 
 valid_test_cases() -> [last_online_user,
                        last_offline_user,
-                       last_server ].
+                       last_server].
 
 invalid_test_cases() -> [user_not_subscribed_receives_error].
 
 suite() ->
     escalus:suite().
 
-init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+init_per_suite(Config0) ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config0),
+    Backend = get_configured_backend(HostType),
+    dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
+    escalus:init_per_suite([{backend, Backend} | Config1]).
 
 end_per_suite(Config) ->
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(valid_queries, Config0) ->
@@ -156,3 +161,13 @@ get_last_activity(Stanza) ->
 
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
+
+get_configured_backend(HostType) ->
+    case {mongoose_helper:is_rdbms_enabled(HostType), mam_helper:is_riak_enabled(HostType)} of
+        {false, false} -> mnesia;
+        {true, false} -> rdbms;
+        {false, true} -> riak
+    end.
+
+required_modules(Backend) ->
+    [{mod_last, [{backend, Backend}]}].
