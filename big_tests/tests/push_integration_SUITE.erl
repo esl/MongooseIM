@@ -964,7 +964,9 @@ mongoose_push_api_for_group(_) ->
     "v3".
 
 required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
-    [{mod_inbox, inbox_opts()} | required_modules(API, PubSubHost)];
+    [{mod_inbox, inbox_opts()},
+     {mod_offline, []} |
+     required_modules(API, PubSubHost)];
 required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost)->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}
      | required_modules(API, PubSubHost)];

@@ -33,12 +33,14 @@ suite() ->
     escalus:suite().
 
 init_per_suite(Config) ->
-    dynamic_modules:start(host_type(), mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]),
-    [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(Config)].
+    NewConfig = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(
+      host_type(), [{mod_offline, []}, {mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]}]),
+    [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(NewConfig)].
 
 end_per_suite(Config) ->
-    dynamic_modules:stop(host_type(), mod_csi),
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->

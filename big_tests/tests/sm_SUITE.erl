@@ -120,8 +120,8 @@ init_per_suite(Config) ->
     escalus:init_per_suite(NewConfigWithSM).
 
 end_per_suite(Config) ->
-    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(Group, Config) when Group =:= unacknowledged_message_hook;
@@ -178,7 +178,7 @@ required_modules(Scope, Name) ->
                    stopped -> stopped;
                    ExtraOpts -> common_sm_opts() ++ ExtraOpts
                end,
-    [{mod_stream_management, SMConfig}].
+    [{mod_stream_management, SMConfig}, {mod_offline, []}].
 
 required_sm_opts(group, parallel) ->
     [{ack_freq, never}];

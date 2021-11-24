@@ -240,7 +240,8 @@ init_per_testcase(retrieve_logs = CN, Config) ->
         false -> {skip, not_running_in_distributed};
         _ -> escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(remove_offline = CN, Config) ->
+init_per_testcase(CN, Config) when CN =:= remove_offline;
+                                   CN =:= retrieve_offline ->
     offline_started(),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) when
@@ -314,7 +315,7 @@ init_per_testcase(CN, Config) ->
 end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
                                   CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                   CN =:= retrieve_mam_pm_and_muc_light_dont_interfere ->
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     escalus:end_per_testcase(CN, Config);
 %% mod_inbox
 end_per_testcase(CN, Config) when
@@ -322,7 +323,7 @@ end_per_testcase(CN, Config) when
       CN =:= retrieve_inbox;
       CN =:= remove_inbox_muclight;
       CN =:= retrieve_inbox_muclight ->
-    muc_light_helper:clear_db(),
+    muc_light_helper:clear_db(host_type()),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
                                   CN =:= remove_inbox_muc ->
