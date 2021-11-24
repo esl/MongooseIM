@@ -191,8 +191,8 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     delete_files(),
-    dynamic_modules:restore_modules(host_type(), Config),
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(host_type(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
