@@ -1220,19 +1220,19 @@ clean_table_from_bad_node(Node, HostType) ->
 %% Hooks handlers
 %%====================================================================
 
--spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+-spec is_muc_room_owner(Acc :: boolean(), Acc :: mongoose_acc:t(),
                         Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_muc_room_owner(true, _HostType, _Room, _User) ->
+is_muc_room_owner(true, _Acc, _Room, _User) ->
     true;
-is_muc_room_owner(_, _HostType, Room, User) ->
+is_muc_room_owner(_, _Acc, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
--spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+-spec can_access_room(Acc :: boolean(), Acc :: mongoose_acc:t(),
                       Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(true, _HostType, _Room, _User) ->
+can_access_room(true, _Acc, _Room, _User) ->
     true;
-can_access_room(_, _HostType, Room, User) ->
+can_access_room(_, _Acc, Room, User) ->
     case mod_muc_room:can_access_room(Room, User) of
         {error, _} -> false;
         {ok, CanAccess} -> CanAccess

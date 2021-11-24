@@ -147,7 +147,7 @@ try_to_create_room(CreatorJid, RoomJID, #create{raw_config = RawConfig} = Creati
     | {error, validation_error() | bad_request | not_allowed}.
 change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq, Acc1) ->
     RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
-    {Acc2, AffUsersRes} = mod_muc_light:get_room_affiliations(Acc1, RoomJID),
+    {Acc2, AffUsersRes} = get_room_affiliations(Acc1, RoomJID),
     case mod_muc_light_room:process_request(UserJid, RoomJID, {set, ConfigReq}, AffUsersRes, Acc2) of
         {set, ConfigResp, _} ->
             {ok, RoomJID, ConfigResp};
@@ -474,20 +474,20 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
--spec is_muc_room_owner(Acc :: boolean(), HostType :: mongooseim:host_type(),
+-spec is_muc_room_owner(boolean(), Acc :: mongoose_acc:t(),
                         Room :: jid:jid(), User :: jid:jid()) -> boolean().
-is_muc_room_owner(true, _HostType, _Room, _User) ->
+is_muc_room_owner(true, _Acc, _Room, _User) ->
     true;
-is_muc_room_owner(_, HostType, Room, User) ->
-    owner == get_affiliation(HostType, Room, User).
+is_muc_room_owner(_, Acc, Room, User) ->
+    owner == get_affiliation(Acc, Room, User).
 
--spec can_access_room(Acc :: boolean(), HostType :: mongooseim:host_type(),
+-spec can_access_room(boolean(), Acc :: mongoose_acc:t(),
                       Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
-can_access_room(true, _HostType, _Room, _User) ->
+can_access_room(true, _Acc, _Room, _User) ->
     true;
-can_access_room(_, HostType, Room, User) ->
-    none =/= get_affiliation(HostType, Room, User).
+can_access_room(_, Acc, Room, User) ->
+    none =/= get_affiliation(Acc, Room, User).
 
 -spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
@@ -541,9 +541,9 @@ prepare_affs(HostType, CreatorJid, RoomUS, #create{aff_users = AffUsers}) ->
 max_occupants(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS).
 
-get_affiliation(HostType, Room, User) ->
-    case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(Room)) of
-        {ok, AffUsers, _} ->
+get_affiliation(Acc, Room, User) ->
+    case get_room_affiliations(Acc, Room) of
+        {_, {ok, AffUsers, _}} ->
             case lists:keyfind(jid:to_lus(User), 1, AffUsers) of
                 {_, Aff} -> Aff;
                 _ -> none
