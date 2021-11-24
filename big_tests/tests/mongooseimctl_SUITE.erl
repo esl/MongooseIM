@@ -215,6 +215,9 @@ end_per_suite(Config) ->
     dynamic_modules:stop(domain_helper:secondary_host_type(), mod_last),
     escalus:end_per_suite(Config1).
 
+init_per_group(basic, Config) ->
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
+    Config;
 init_per_group(private, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_private, []}]),
     Config;
@@ -241,6 +244,9 @@ init_per_group(upload_with_acl, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(basic, Config) ->
+    dynamic_modules:stop(domain_helper:host_type(), mod_offline),
+    Config;
 end_per_group(private, Config) ->
     dynamic_modules:stop(domain_helper:host_type(), mod_private),
     Config;
