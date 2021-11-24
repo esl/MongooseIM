@@ -97,13 +97,18 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
-%%    [{escalus_no_stanzas_after_story, true} |
-%%     escalus:init_per_suite(Config)].
+init_per_suite(Config0) ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config0),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
+    ModConfig = mongoose_helper:backend_for_module(mod_blocking, Backend),
+    dynamic_modules:ensure_modules(HostType, ModConfig),
+    [{backend, Backend} |
+     escalus:init_per_suite(Config1)].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->

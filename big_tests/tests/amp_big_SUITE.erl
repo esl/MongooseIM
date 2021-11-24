@@ -979,11 +979,11 @@ is_module_loaded(Mod) ->
     rpc(mim(), gen_mod, is_loaded, [host_type(), Mod]).
 
 required_modules(basic) ->
-    mam_modules(off) ++ offline_modules(off);
+    mam_modules(off) ++ offline_modules(off) ++ privacy_modules(on);
 required_modules(mam) ->
-    mam_modules(on) ++ offline_modules(off);
+    mam_modules(on) ++ offline_modules(off) ++ privacy_modules(off);
 required_modules(offline) ->
-    mam_modules(off) ++ offline_modules(on);
+    mam_modules(off) ++ offline_modules(on) ++ privacy_modules(on);
 required_modules(_) ->
     [].
 
@@ -1000,3 +1000,10 @@ offline_modules(on) ->
 offline_modules(off) ->
     [{mod_offline, stopped},
      {mod_offline_stub, []}].
+
+privacy_modules(on) ->
+    [{mod_privacy, []},
+     {mod_blocking, []}];
+privacy_modules(off) ->
+    [{mod_privacy, stopped},
+     {mod_blocking, stopped}].
