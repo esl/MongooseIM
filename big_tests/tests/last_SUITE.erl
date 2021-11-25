@@ -44,7 +44,7 @@ suite() ->
 init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
-    Backend = get_configured_backend(HostType),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
     dynamic_modules:ensure_modules(HostType, required_modules(Backend)),
     escalus:init_per_suite([{backend, Backend} | Config1]).
 
@@ -161,13 +161,6 @@ get_last_activity(Stanza) ->
 
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
-
-get_configured_backend(HostType) ->
-    case {mongoose_helper:is_rdbms_enabled(HostType), mam_helper:is_riak_enabled(HostType)} of
-        {false, false} -> mnesia;
-        {true, false} -> rdbms;
-        {false, true} -> riak
-    end.
 
 required_modules(Backend) ->
     [{mod_last, [{backend, Backend}]}].

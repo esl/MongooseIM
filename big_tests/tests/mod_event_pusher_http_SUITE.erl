@@ -22,7 +22,7 @@
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [host_type/0]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -63,7 +63,7 @@ init_per_group(with_prefix, Config) ->
     set_modules(Config, [{path, "/prefix"}]).
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(host_type(), Config),
     ok.
 
 init_per_testcase(CaseName, Config) ->
@@ -177,12 +177,14 @@ stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]).
 
 set_modules(Config0, Opts) ->
-    Config = dynamic_modules:save_modules(domain(), Config0),
+    Config = dynamic_modules:save_modules(host_type(), Config0),
+    Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(host_type()),
+    ModOffline = mongoose_helper:backend_for_module(mod_offline, Backend),
     ModOpts = [{backends,
                     [{http,
                         [{worker_timeout, 500},
                          {host, http_notifications_host()}] ++ Opts}]}],
-    dynamic_modules:ensure_modules(domain(), [{mod_event_pusher, ModOpts}]),
+    dynamic_modules:ensure_modules(host_type(), [{mod_event_pusher, ModOpts} | ModOffline]),
     Config.
 
 start_http_listener(simple_message, Prefix) ->

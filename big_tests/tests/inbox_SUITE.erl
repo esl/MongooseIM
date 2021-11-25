@@ -196,9 +196,10 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-init_per_suite(Config) ->
+init_per_suite(Config0) ->
+    Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config0),
     ok = dynamic_modules:ensure_modules(
-           domain_helper:host_type(mim), inbox_modules()),
+           domain_helper:host_type(), inbox_modules()),
     ok = dynamic_modules:ensure_modules(
            ct:get_config({hosts, mim, secondary_host_type}),
            [{mod_inbox,
@@ -207,18 +208,16 @@ init_per_suite(Config) ->
               {groupchat, [muclight]},
               {markers, [displayed]}]}]),
     InboxOptions = inbox_opts(),
-    Config1 = escalus:init_per_suite(Config),
-    [{inbox_opts, InboxOptions} | Config1].
+    escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
 
 end_per_suite(Config) ->
-    dynamic_modules:stop(
-      domain_helper:host_type(mim), mod_inbox),
-    dynamic_modules:stop(
-      ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
     escalus_fresh:clean(),
+    dynamic_modules:stop(ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
+    dynamic_modules:restore_modules(domain_helper:host_type(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(one_to_one, Config) ->
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
     inbox_helper:reload_inbox_option(Config, groupchat, []);
 init_per_group(muclight, Config) ->
     ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),

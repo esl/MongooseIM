@@ -6,6 +6,8 @@
 %% API
 
 -export([is_rdbms_enabled/1,
+         get_backend_mnesia_rdbms_riak/1,
+         backend_for_module/2,
          mnesia_or_rdbms_backend/0,
          get_backend_name/2]).
 
@@ -63,6 +65,16 @@ mnesia_or_rdbms_backend() ->
         true -> rdbms;
         false -> mnesia
     end.
+
+get_backend_mnesia_rdbms_riak(HostType) ->
+    case {is_rdbms_enabled(HostType), mam_helper:is_riak_enabled(HostType)} of
+        {false, false} -> mnesia;
+        {true, false} -> rdbms;
+        {false, true} -> riak
+    end.
+
+backend_for_module(Module, Backend) ->
+    [{Module, [{backend, Backend}]}].
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
