@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
--import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4]).
 -import(mongooseimctl_helper, [mongooseimctl/3]).
 
 -import(domain_rest_helper,
@@ -33,7 +33,7 @@
 -define(UNWANTED_PWD, <<"basic auth provided, but not configured">>).
 
 suite() ->
-    require_rpc_nodes([mim, mim2]).
+    require_rpc_nodes([mim, mim2, mim3]).
 
 all() ->
     [
@@ -172,9 +172,11 @@ rest_cases() ->
 init_per_suite(Config) ->
     Conf1 = store_conf(mim()),
     Conf2 = store_conf(mim2()),
+    Conf3 = store_conf(mim3()),
     ensure_nodes_know_each_other(),
     service_disabled(mim()),
     service_disabled(mim2()),
+    service_disabled(mim3()),
     prepare_test_queries(mim()),
     prepare_test_queries(mim2()),
     erase_database(mim()),
@@ -182,6 +184,7 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(dummy_auth_host_type(), Config1),
     escalus:init_per_suite([{mim_conf1, Conf1},
                             {mim_conf2, Conf2},
+                            {mim_conf3, Conf3},
                             {service_setup, per_testcase} | Config2]).
 
 store_conf(Node) ->
@@ -193,8 +196,10 @@ store_conf(Node) ->
 end_per_suite(Config) ->
     Conf1 = proplists:get_value(mim_conf1, Config),
     Conf2 = proplists:get_value(mim_conf2, Config),
+    Conf3 = proplists:get_value(mim_conf3, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
+    restore_conf(mim3(), Conf3),
     domain_helper:insert_configured_domains(),
     dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
     escalus_fresh:clean(),
