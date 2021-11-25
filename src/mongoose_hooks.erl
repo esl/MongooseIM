@@ -9,8 +9,6 @@
 -include("mod_privacy.hrl").
 -include("mongoose.hrl").
 
--ignore_xref([acc_room_affiliations/2]).
-
 -export([adhoc_local_commands/4,
          adhoc_sm_commands/4,
          anonymous_purge_hook/3,

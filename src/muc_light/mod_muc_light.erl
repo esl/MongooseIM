@@ -53,8 +53,8 @@
          is_muc_room_owner/4,
          can_access_room/4,
          acc_room_affiliations/2,
-         get_room_affiliations_from_acc/2,
          can_access_identity/4]).
+-export([get_room_affiliations_from_acc/1]).
 
 %% For propEr
 -export([apply_rsm/3]).
@@ -504,6 +504,11 @@ acc_room_affiliations(Acc1, Room) ->
         _Affs ->
             Acc1
     end.
+
+-spec get_room_affiliations_from_acc(mongoose_acc:t()) ->
+    {ok, aff_users(), binary()} | {error, not_exists}.
+get_room_affiliations_from_acc(Acc) ->
+    mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc).
 
 -spec get_room_affiliations_from_acc(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
