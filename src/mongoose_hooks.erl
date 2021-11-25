@@ -9,8 +9,6 @@
 -include("mod_privacy.hrl").
 -include("mongoose.hrl").
 
--ignore_xref([get_room_affiliations/2]).
-
 -export([adhoc_local_commands/4,
          adhoc_sm_commands/4,
          anonymous_purge_hook/3,
@@ -84,10 +82,10 @@
          roster_push/3,
          roster_set/4]).
 
--export([is_muc_room_owner/3,
+-export([is_muc_room_owner/4,
          can_access_identity/3,
-         can_access_room/3,
-         get_room_affiliations/2]).
+         can_access_room/4,
+         acc_room_affiliations/2]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -873,13 +871,14 @@ roster_set(HostType, From, To, SubEl) ->
 %%% `Acc', `Room', `User'.
 %%% The arguments and the return value types correspond to the
 %%% following spec.
--spec is_muc_room_owner(HostType, Room, User) -> Result when
+-spec is_muc_room_owner(HostType, Acc, Room, User) -> Result when
       HostType :: mongooseim:host_type(),
+      Acc :: mongoose_acc:t(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-is_muc_room_owner(HostType, Room, User) ->
-    run_hook_for_host_type(is_muc_room_owner, HostType, false, [HostType, Room, User]).
+is_muc_room_owner(HostType, Acc, Room, User) ->
+    run_hook_for_host_type(is_muc_room_owner, HostType, false, [Acc, Room, User]).
 
 %%% @doc The `can_access_identity' hook is called to determine if
 %%% a given user can see the real identity of the people in a room.
@@ -893,21 +892,22 @@ can_access_identity(HostType, Room, User) ->
 
 %%% @doc The `can_access_room' hook is called to determine
 %%% if a given user can access a room.
--spec can_access_room(HostType, Room, User) -> Result when
+-spec can_access_room(HostType, Acc, Room, User) -> Result when
       HostType :: mongooseim:host_type(),
+      Acc :: mongoose_acc:t(),
       Room :: jid:jid(),
       User :: jid:jid(),
       Result :: boolean().
-can_access_room(HostType, Room, User) ->
-    run_hook_for_host_type(can_access_room, HostType, false, [HostType, Room, User]).
+can_access_room(HostType, Acc, Room, User) ->
+    run_hook_for_host_type(can_access_room, HostType, false, [Acc, Room, User]).
 
--spec get_room_affiliations(Acc, Room) -> Result when
+-spec acc_room_affiliations(Acc, Room) -> NewAcc when
       Acc :: mongoose_acc:t(),
       Room :: jid:jid(),
-      Result :: {mongoose_acc:t(), term()}.
-get_room_affiliations(Acc, Room) ->
+      NewAcc :: mongoose_acc:t().
+acc_room_affiliations(Acc, Room) ->
     HostType = mongoose_acc:host_type(Acc),
-    run_hook_for_host_type(get_room_affiliations, HostType, Acc, [Room]).
+    run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
 
 %% MAM related hooks
 

@@ -160,8 +160,8 @@ has_valid_markers(Acc, From, To, Packet) ->
     false | {true, mongooseim:host_type()}.
 is_valid_host(Acc, From, To) ->
     case mongoose_acc:stanza_type(Acc) of
-        <<"groupchat">> -> get_host(groupchat, From, To);
-        _ -> get_host(one2one, From, To)
+        <<"groupchat">> -> get_host(Acc, From, To, groupchat);
+        _ -> get_host(Acc, From, To, one2one)
     end.
 
 -spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
@@ -182,12 +182,12 @@ get_thread(El) ->
         _ -> undefined
     end.
 
--spec get_host(chat_type(), jid:jid(), jid:jid()) ->
+-spec get_host(mongoose_acc:t(), jid:jid(), jid:jid(), chat_type()) ->
     false | {true, mongooseim:host_type()}.
-get_host(groupchat, From, To) ->
+get_host(Acc, From, To, groupchat) ->
     HostType = mod_muc_light_utils:room_jid_to_host_type(To),
-    can_access_room(HostType, From, To) andalso {true, HostType};
-get_host(one2one, _From, To) ->
+    can_access_room(HostType, Acc, From, To) andalso {true, HostType};
+get_host(_Acc, _From, To, one2one) ->
     LServer = To#jid.lserver,
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} -> {true, HostType};
@@ -195,6 +195,8 @@ get_host(one2one, _From, To) ->
     end.
 
 -spec can_access_room(HostType :: mongooseim:host_type(),
-                      User :: jid:jid(), Room :: jid:jid()) -> boolean().
-can_access_room(HostType, User, Room) ->
-    mongoose_hooks:can_access_room(HostType, Room, User).
+                      Acc :: mongoose_acc:t(),
+                      User :: jid:jid(),
+                      Room :: jid:jid()) -> boolean().
+can_access_room(HostType, Acc, User, Room) ->
+    mongoose_hooks:can_access_room(HostType, Acc, Room, User).

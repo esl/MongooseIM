@@ -54,7 +54,8 @@
 -spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(), OrigPacket :: exml:element(),
                      Request :: muc_light_packet(), Acc :: mongoose_acc:t()) -> mongoose_acc:t().
 handle_request(From, Room, OrigPacket, Request, Acc1) ->
-    {Acc2, AffUsersRes} = mod_muc_light:get_room_affiliations(Acc1, Room),
+    Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, Room),
+    AffUsersRes = mod_muc_light:get_room_affiliations_from_acc(Acc2),
     Response = process_request(From, Room, Request, AffUsersRes, Acc2),
     send_response(From, Room, OrigPacket, Response, Acc2).
 

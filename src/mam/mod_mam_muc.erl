@@ -249,7 +249,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     MucAction = action_to_muc_action(Action),
-    case check_action_allowed(HostType, To#jid.lserver, Action, MucAction, From, To) of
+    case check_action_allowed(HostType, Acc, To#jid.lserver, Action, MucAction, From, To) of
         ok ->
             case mod_mam_utils:wait_shaper(HostType, To#jid.lserver, MucAction, From) of
                 ok ->
@@ -262,7 +262,7 @@ room_process_mam_iq(Acc, From, To, IQ, #{host_type := HostType}) ->
         {error, Reason} ->
             ?LOG_WARNING(#{what => action_not_allowed,
                            action => Action, acc => Acc, reason => Reason,
-                           can_access_room => can_access_room(HostType, From, To)}),
+                           can_access_room => can_access_room(HostType, Acc, From, To)}),
             {Acc, return_action_not_allowed_error_iq(Reason, IQ)}
     end.
 
@@ -274,13 +274,13 @@ forget_room(Acc, _HostType, MucServer, RoomName) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec check_action_allowed(host_type(), jid:lserver(), mam_iq:action(), muc_action(),
+-spec check_action_allowed(host_type(), mongoose_acc:t(), jid:lserver(), mam_iq:action(), muc_action(),
                         jid:jid(), jid:jid()) -> ok | {error, binary()}.
-check_action_allowed(HostType, Domain, Action, MucAction, From, To) ->
+check_action_allowed(HostType, Acc, Domain, Action, MucAction, From, To) ->
     case acl:match_rule_for_host_type(HostType, Domain, MucAction, From, default) of
         allow -> ok;
         deny -> {false, <<"Blocked by service policy.">>};
-        default -> check_room_action_allowed_by_default(HostType, Action, From, To)
+        default -> check_room_action_allowed_by_default(HostType, Acc, Action, From, To)
     end.
 
 -spec action_to_muc_action(mam_iq:action()) -> atom().
@@ -288,27 +288,30 @@ action_to_muc_action(Action) ->
     list_to_atom("muc_" ++ atom_to_list(Action)).
 
 -spec check_room_action_allowed_by_default(HostType :: host_type(),
-                                        Action :: mam_iq:action(),
-                                        From :: jid:jid(),
-                                        To :: jid:jid()) -> ok | {error, binary()}.
-check_room_action_allowed_by_default(HostType, Action, From, To) ->
+                                           Acc :: mongoose_acc:t(),
+                                           Action :: mam_iq:action(),
+                                           From :: jid:jid(),
+                                           To :: jid:jid()) -> ok | {error, binary()}.
+check_room_action_allowed_by_default(HostType, Acc, Action, From, To) ->
     case mam_iq:action_type(Action) of
         set ->
-            case is_room_owner(HostType, From, To) of
+            case is_room_owner(HostType, Acc, From, To) of
                 true -> ok;
                 false -> {error, <<"Not a room owner.">>}
             end;
         get ->
-            case can_access_room(HostType, From, To) of
+            case can_access_room(HostType, Acc, From, To) of
                 true -> ok;
                 false -> {error, <<"Not allowed to enter the room.">>}
             end
     end.
 
 -spec is_room_owner(HostType :: host_type(),
-                    UserJid :: jid:jid(), RoomJid :: jid:jid()) -> boolean().
-is_room_owner(HostType, UserJid, RoomJid) ->
-    mongoose_hooks:is_muc_room_owner(HostType, UserJid, RoomJid).
+                    Acc :: mongoose_acc:t(),
+                    UserJid :: jid:jid(),
+                    RoomJid :: jid:jid()) -> boolean().
+is_room_owner(HostType, Acc, UserJid, RoomJid) ->
+    mongoose_hooks:is_muc_room_owner(HostType, Acc, UserJid, RoomJid).
 
 %% @doc Return true if user element should be removed from results
 -spec is_user_identity_hidden(HostType :: host_type(),
@@ -320,9 +323,11 @@ is_user_identity_hidden(HostType, UserJid, RoomJid) ->
     end.
 
 -spec can_access_room(HostType :: host_type(),
-                      UserJid :: jid:jid(), RoomJid :: jid:jid()) -> boolean().
-can_access_room(HostType, UserJid, RoomJid) ->
-    mongoose_hooks:can_access_room(HostType, RoomJid, UserJid).
+                      Acc :: mongoose_acc:t(),
+                      UserJid :: jid:jid(),
+                      RoomJid :: jid:jid()) -> boolean().
+can_access_room(HostType, Acc, UserJid, RoomJid) ->
+    mongoose_hooks:can_access_room(HostType, Acc, RoomJid, UserJid).
 
 -spec handle_mam_iq(HostType :: host_type(), mam_iq:action(),
                     From :: jid:jid(), jid:jid(), jlib:iq()) ->
