@@ -499,7 +499,7 @@ acc_room_affiliations(Acc1, Room) ->
                 {error, not_exists} ->
                     Acc1;
                 {ok, _Affs, _Version} = Res ->
-                    mongoose_acc:set_permanent(?MODULE, affiliations, Res, Acc1)
+                    mongoose_acc:set(?MODULE, affiliations, Res, Acc1)
             end;
         _Affs ->
             Acc1
