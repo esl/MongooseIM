@@ -8,7 +8,6 @@
 -module(mongoose_wpool).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
--include("mongoose_wpool.hrl").
 
 -type call_timeout() :: pos_integer() | undefined.
 -record(mongoose_wpool, {
