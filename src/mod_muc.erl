@@ -63,7 +63,7 @@
 -export([is_muc_room_owner/4,
          can_access_room/4,
          remove_domain/3,
-         get_room_affiliations/2,
+         acc_room_affiliations/2,
          can_access_identity/4,
          disco_local_items/1]).
 
@@ -74,7 +74,7 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    can_access_identity/4, can_access_room/4, get_room_affiliations/2, create_instant_room/6,
+    can_access_identity/4, can_access_room/4, acc_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
     online_rooms_number/0, register_room/4, restore_room/3, start_link/2
 ]).
@@ -1246,21 +1246,18 @@ remove_domain(Acc, HostType, Domain) ->
     mod_muc_backend:remove_domain(HostType, MUCHost, Domain),
     Acc.
 
--spec get_room_affiliations(mongoose_acc:t(), jid:jid()) ->
-    {mongoose_acc:t(), any()}.
-get_room_affiliations(Acc1, Room) ->
-    case mongoose_acc:get(?MODULE, affiliations, undefined, Acc1) of
-        undefined ->
+-spec acc_room_affiliations(mongoose_acc:t(), jid:jid()) -> mongoose_acc:t().
+acc_room_affiliations(Acc1, Room) ->
+    case mongoose_acc:get(?MODULE, affiliations, {error, not_found}, Acc1) of
+        {error, _} ->
             case mod_muc_room:get_room_users(Room) of
                 {error, not_found} ->
-                    Acc2 = mongoose_acc:set(?MODULE, affiliations, {error, not_found}, Acc1),
-                    {Acc2, {error, not_found}};
+                    Acc1;
                 {ok, _Affs} = Res ->
-                    Acc2 = mongoose_acc:set_permanent(?MODULE, affiliations, Res, Acc1),
-                    {Acc2, Res}
+                    mongoose_acc:set_permanent(?MODULE, affiliations, Res, Acc1)
             end;
-        Affs ->
-            {Acc1, Affs}
+        _Affs ->
+            Acc1
     end.
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
@@ -1335,7 +1332,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
      {remove_domain, HostType, ?MODULE, remove_domain, 50},
-     {get_room_affiliations, HostType, ?MODULE, get_room_affiliations, 50},
+     {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
      {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
 
