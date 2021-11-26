@@ -29,18 +29,6 @@
 %% Callbacks
 -export([participant_limit_check/2]).
 
--define(MOD_MUC_LIGHT_DB_BACKEND_BACKEN, mod_muc_light_db_backend).
--define(MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, mod_muc_light_codec_backend).
--ignore_xref([
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, get_aff_users, 1},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, destroy_room, 1},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, modify_aff_users, 4},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, set_config, 4},
-    {?MOD_MUC_LIGHT_DB_BACKEND_BACKEN, destroy_room, 1},
-    {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode, 5},
-    {?MOD_MUC_LIGHT_CODEC_BACKEND_BACKEN, encode_error, 5}
-]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
