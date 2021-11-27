@@ -112,7 +112,7 @@ ensure_started() ->
             % we set heir here because the whole thing may be started by an ephemeral process
             ets:new(?MODULE, [named_table, public,
                 {read_concurrency, true},
-                {keypos, 2},
+                {keypos, #mongoose_wpool.name},
                 {heir, whereis(mongoose_wpool_sup), undefined}]);
         _ ->
             ok
