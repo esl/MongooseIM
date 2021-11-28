@@ -21,6 +21,7 @@
          mam_remove_archive/4,
          mam_lookup_messages/3,
          mam_archive_message/3,
+         mam_flush_messages/3,
          mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/4,
@@ -28,7 +29,7 @@
          mam_muc_archive_message/3,
          mam_muc_flush_messages/3]).
 
--ignore_xref([mam_archive_message/3, mam_get_prefs/4, mam_lookup_messages/3,
+-ignore_xref([mam_archive_message/3, mam_get_prefs/4, mam_lookup_messages/3, mam_flush_messages/3,
               mam_muc_archive_message/3, mam_muc_flush_messages/3, mam_muc_get_prefs/4,
               mam_muc_lookup_messages/3, mam_muc_remove_archive/4, mam_muc_set_prefs/7,
               mam_remove_archive/4, mam_set_prefs/7]).
@@ -47,7 +48,8 @@ get_mam_hooks(Host) ->
         {mam_get_prefs, Host, ?MODULE, mam_get_prefs, 50},
         {mam_archive_message, Host, ?MODULE, mam_archive_message, 50},
         {mam_remove_archive, Host, ?MODULE, mam_remove_archive, 50},
-        {mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100}
+        {mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100},
+        {mam_flush_messages, Host, ?MODULE, mam_flush_messages, 50}
     ].
 
 %% @doc Here will be declared which hooks should be registered when mod_mam_muc is enabled.
@@ -105,6 +107,10 @@ mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
 mam_archive_message(Result, Host, _Params) ->
     mongoose_metrics:update(Host, modMamArchived, 1),
     Result.
+
+mam_flush_messages(Acc, Host, MessageCount) ->
+    mongoose_metrics:update(Host, modMamFlushed, MessageCount),
+    Acc.
 
 %% ----------------------------------------------------------------------------
 %% mod_mam_muc
