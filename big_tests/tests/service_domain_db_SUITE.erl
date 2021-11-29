@@ -77,6 +77,7 @@ db_cases() -> [
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
      db_get_all_static,
+     db_get_all_dynamic,
      db_could_sync_between_nodes,
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
@@ -367,6 +368,14 @@ db_get_all_static(_) ->
      {<<"erlang-solutions.local">>, <<"type2">>},
      {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
+
+db_get_all_dynamic(_) ->
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = insert_domain(mim(), <<"example2.db">>, <<"type1">>),
+    sync(),
+    [{<<"example.db">>, <<"type1">>},
+     {<<"example2.db">>, <<"type1">>}] =
+        lists:sort(get_all_dynamic(mim())).
 
 db_inserted_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
@@ -1109,6 +1118,9 @@ get_domains_by_host_type(Node, HostType) ->
 
 get_all_static(Node) ->
     rpc(Node, mongoose_domain_api, get_all_static, []).
+
+get_all_dynamic(Node) ->
+    rpc(Node, mongoose_domain_api, get_all_dynamic, []).
 
 disable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, disable_domain, [Domain]).
