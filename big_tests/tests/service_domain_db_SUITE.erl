@@ -72,6 +72,7 @@ db_cases() -> [
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
      sql_select_from_works,
+     sql_find_gaps_between_works,
      db_records_are_restored_on_mim_restart,
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
@@ -461,6 +462,24 @@ sql_select_from_works(_) ->
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
+sql_find_gaps_between_works(_) ->
+    with_service_suspended(fun() ->
+            %% Check several ranges
+            check_gap_finder(20, 22),
+            check_gap_finder(10, 15),
+            check_gap_finder(123, 321),
+            check_gap_finder(1000, 1300)
+        end).
+
+check_gap_finder(From, To) ->
+    {updated, 1} = insert_full_event(mim(), From, <<"gap_start">>),
+    {updated, 1} = insert_full_event(mim(), To, <<"gap_end">>),
+    Expected = lists:seq(From + 1, To - 1),
+    Expected = find_gaps_between(From, To).
+
+find_gaps_between(From, To) ->
+    rpc(mim(), mongoose_domain_loader, find_gaps_between, [From, To]).
+
 db_records_are_restored_on_mim_restart(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
     %% Simulate MIM restart
@@ -569,7 +588,7 @@ db_out_of_sync_restarts_service(_) ->
     ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
     %% Pause processing events on one node
-    ok = rpc(mim(), sys, suspend, [service_domain_db]),
+    suspend_service(mim()),
     ok = insert_domain(mim2(), <<"example3.com">>, <<"type1">>),
     ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
     sync_local(mim2()),

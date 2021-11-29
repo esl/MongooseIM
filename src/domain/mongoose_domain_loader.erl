@@ -6,6 +6,10 @@
 -export([initial_load/0,
          check_for_updates/0]).
 
+%% For tests
+-export([find_gaps_between/2]).
+-ignore_xref([find_gaps_between/2]).
+
 -include("mongoose_logger.hrl").
 
 %% There are two important functions, called by service_domain_db:
