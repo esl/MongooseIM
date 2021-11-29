@@ -225,4 +225,3 @@ maybe_stop_pool({Type, Host, Tag} = Key, #{monitor := Monitor}, Monitors) ->
             ?LOG_WARNING(#{what => pool_stop_failed, pool_key => Key, reason => Other}),
             {Other, NewMonitors}
     end.
-

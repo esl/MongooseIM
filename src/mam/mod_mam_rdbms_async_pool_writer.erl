@@ -59,13 +59,6 @@
 worker_prefix() ->
     "ejabberd_mod_mam_writer".
 
-%% Ensure, that:
-%% `worker_count(_) = Int * mod_mam_rdbms_arch:partition_count()'
-%%
-%% For example,
-%% `worker_count(_) = 32, partition_count() = 16'.
-%% or
-%% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
@@ -246,7 +239,6 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                     Error -> Error
                 end
         end,
-    [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
     case InsertResult of
         {updated, _Count} -> ok;
         {error, Reason} ->
@@ -256,7 +248,8 @@ do_run_flush(MessageCount, State = #state{host_type = HostType, max_batch_size =
                          message_count => MessageCount, reason => Reason}),
             ok
     end,
-    mongoose_metrics:update(HostType, modMamFlushed, MessageCount),
+    [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
+    mongoose_hooks:mam_flush_messages(HostType, MessageCount),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
 

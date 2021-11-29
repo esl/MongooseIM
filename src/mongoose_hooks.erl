@@ -94,7 +94,8 @@
          mam_get_prefs/4,
          mam_remove_archive/3,
          mam_lookup_messages/2,
-         mam_archive_message/2]).
+         mam_archive_message/2,
+         mam_flush_messages/2]).
 
 -export([mam_muc_archive_id/2,
          mam_muc_archive_size/3,
@@ -1007,6 +1008,14 @@ mam_lookup_messages(HookServer, Params) ->
     Result :: ok | {error, timeout}.
 mam_archive_message(HookServer, Params) ->
     run_hook_for_host_type(mam_archive_message, HookServer, ok, [HookServer, Params]).
+
+%%% @doc The `mam_flush_messages' hook is run after the async bulk write
+%%% happens for messages despite the result of the write.
+-spec mam_flush_messages(HookServer :: jid:lserver(),
+                         MessageCount :: integer()) -> ok.
+mam_flush_messages(HookServer, MessageCount) ->
+    run_hook_for_host_type(mam_flush_messages, HookServer, ok,
+                           [HookServer, MessageCount]).
 
 
 %% MAM MUC related hooks

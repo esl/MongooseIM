@@ -259,6 +259,13 @@ How often (in milliseconds) the buffered messages are flushed to a DB.
 Max size of the batch insert query for an async writer.
 If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
+#### `modules.mod_mam_meta.pool_size`
+* **Syntax:** non-negative integer
+* **Default:** `32`
+* **Example:** `modules.mod_mam_meta.pool_size = 30`
+
+Number of workers in the pool.
+
 ### Common backend options
 
 #### `modules.mod_mam_meta.user_prefs_store`

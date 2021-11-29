@@ -8,11 +8,11 @@
 -module(mongoose_wpool).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
--include("mongoose_wpool.hrl").
 
 -type call_timeout() :: pos_integer() | undefined.
 -record(mongoose_wpool, {
           name :: pool_name(),
+          atom_name :: wpool:name(),
           strategy :: wpool:strategy() | undefined,
           call_timeout :: call_timeout()
          }).
@@ -113,7 +113,7 @@ ensure_started() ->
             % we set heir here because the whole thing may be started by an ephemeral process
             ets:new(?MODULE, [named_table, public,
                 {read_concurrency, true},
-                {keypos, 2},
+                {keypos, #mongoose_wpool.name},
                 {heir, whereis(mongoose_wpool_sup), undefined}]);
         _ ->
             ok
@@ -171,11 +171,14 @@ start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
     case mongoose_wpool_mgr:start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts) of
         {ok, Pid} ->
             ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag},
+                                                atom_name = make_pool_name(PoolType, HostType, Tag),
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),
             {ok, Pid};
         {external, Pid} ->
-            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag}}),
+            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag},
+                                                atom_name = make_pool_name(PoolType, HostType, Tag)
+                                               }),
             {ok, Pid};
         Error ->
             Error
@@ -317,8 +320,10 @@ make_pool_name(PoolType, HostType, Tag) when is_binary(HostType) ->
     binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(PoolType, utf8))/binary, $$,
                      HostType/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
-make_pool_name(#mongoose_wpool{name = {PoolType, HostType, Tag}}) ->
-    make_pool_name(PoolType, HostType, Tag).
+make_pool_name(#mongoose_wpool{atom_name = undefined, name = {PoolType, HostType, Tag}}) ->
+    make_pool_name(PoolType, HostType, Tag);
+make_pool_name(#mongoose_wpool{atom_name = AtomName}) ->
+    AtomName.
 
 -spec call_start_callback(pool_type(), list()) -> term().
 call_start_callback(PoolType, Args) ->

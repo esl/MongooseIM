@@ -79,6 +79,8 @@ config_items() ->
                                       validate = non_negative},
       <<"max_batch_size">> => #option{type = integer,
                                       validate = non_negative},
+      <<"pool_size">> => #option{type = integer,
+                                 validate = non_negative},
 
       %% Low-level options
       <<"default_result_limit">> => #option{type = integer,

@@ -45,14 +45,6 @@
 worker_prefix() ->
     "ejabberd_mod_mam_muc_writer".
 
-
-%% @doc Ensure, that:
-%% `worker_count(_) = Int * mod_mam_muc_rdbms_arch:partition_count()'
-%%
-%% For example,
-%% `worker_count(_) = 32, partition_count() = 16'.
-%% or
-%% `worker_count(_) = 16, partition_count() = 16'.
 worker_count(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
