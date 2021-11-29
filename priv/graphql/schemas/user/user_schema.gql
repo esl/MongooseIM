@@ -1,3 +1,8 @@
+schema{
+  query: UserQuery,
+  mutation: UserMutation
+}
+
 """
 Contains all user available queries.
 Only authenticated user can execute this queries.

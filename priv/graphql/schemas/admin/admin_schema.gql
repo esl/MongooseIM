@@ -1,3 +1,8 @@
+schema{
+  query: AdminQuery,
+  mutation: AdminMutation
+}
+
 """
 Contains all admin available queries.
 Only authenticated admin can execute this queries.

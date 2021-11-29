@@ -179,7 +179,8 @@ process(["mnesia", Arg]) when is_list(Arg) ->
     ?STATUS_SUCCESS;
 process(["graphql", Arg]) when is_list(Arg) ->
     Doc = list_to_binary(Arg),
-    case mongoose_graphql:execute(Doc) of
+    {ok, Ep} = mongoose_graphql:get_endpoint(admin),
+    case mongoose_graphql:execute(Ep, Doc) of
         {ok, Result} ->
             PrettyResult = jsx:prettify(jsx:encode(Result)),
             ?PRINT("~s\n", [PrettyResult]);

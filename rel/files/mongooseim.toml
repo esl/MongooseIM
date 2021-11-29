@@ -128,6 +128,7 @@
   [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
     host = "_"
     path = "/api/graphql"
+    schema_endpoint = "admin"
     username = "admin"
     password = "secret"
 

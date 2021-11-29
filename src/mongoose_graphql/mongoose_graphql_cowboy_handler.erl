@@ -27,8 +27,6 @@
 
 -ignore_xref([cowboy_router_paths/2, from_json/2, to_html/2, to_json/2]).
 
--include("mongoose_logger.hrl").
-
 %% -- API ---------------------------------------------------
 
 cowboy_router_paths(BasePath, Opts) ->
@@ -59,13 +57,9 @@ charsets_provided(Req, State) ->
     {[<<"utf-8">>], Req, State}.
 
 is_authorized(Req, State) ->
-    HeaderDetails = cowboy_req:parse_header(<<"authorization">>, Req),
-    case check_auth(HeaderDetails, State) of
-        {ok, Role} ->
-            {true, Req, State#{role => Role}};
-        {error, wrong_credentials} ->
-            {stop, reply_auth_error(<<"Wrong credentials">>, Req), State}
-    end.
+    Auth = cowboy_req:parse_header(<<"authorization">>, Req),
+    State2 = check_auth(Auth, State),
+    {true, Req, State2}.
 
 resource_exists(#{ method := <<"GET">> } = Req, State) ->
     {true, Req, State};
@@ -91,62 +85,42 @@ to_json(Req, State) -> json_request(Req, State).
 
 %% -- INTERNAL FUNCTIONS ---------------------------------------
 
-reply_auth_error(Msg, Req) ->
-    ?LOG_ERROR(#{what => mongoose_graphql_failed, reason => Msg,
-                 code => 401, req => Req}),
-    Body = jiffy:encode(#{error => Msg}),
-    cowboy_req:reply(401, #{<<"content-type">> => <<"application/json">>}, Body, Req).
+check_auth(Auth, #{schema_endpoint := <<"admin">>} = State) ->
+    auth_admin(Auth, State);
+check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
+    auth_user(Auth, State).
 
-check_auth({basic, Username, Password}, #{username := Username, password := Password}) ->
-    % NOTE Rest Api allows admin operation only from `localhost`.
-    % This one should be also restricted or should we have admin role users?
-    % Maybe we have, but I don't know :O
-    {ok, admin};
-check_auth({basic, User, Password}, _) ->
+auth_user({basic, User, Password}, State) ->
     case mongoose_api_common:check_password(jid:from_binary(User), Password) of
-        {true, _} -> {ok, user};
-        _ ->  {error, wrong_credentials}
+        {true, _} -> State#{authorized => true, schema_ctx => #{username => User}};
+        _ ->  State#{authorized => false}
     end;
-check_auth(_, _) ->
-    {ok, none}.
+auth_user(_, State) ->
+    State#{authorized => false}.
+
+auth_admin({basic, Username, Password}, #{username := Username, password := Password} = State) ->
+    State#{authorized => true};
+auth_admin(undefined, #{username := _, password := _} = State) ->
+    State#{authorized => false};
+auth_admin(_, State) ->
+    % auth credentials not provided in config
+    State#{authorized => true}.
 
 run_request(#{ document := undefined }, Req, State) ->
     reply_error(400, no_query_supplied, Req, State);
-run_request(#{ document := Doc} = ReqCtx, Req, State) ->
-    case graphql:parse(Doc) of
-        {ok, AST} ->
-            run_preprocess(ReqCtx#{ document := AST }, Req, State);
+run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName} = State) ->
+    {ok, Ep} = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
+    Ctx = maps:get(schema_ctx, State, #{}),
+    ReqCtx2 = ReqCtx#{ctx => Ctx},
+    case mongoose_graphql:execute(Ep, ReqCtx2) of
+        {ok, Response} ->
+            ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response),
+            Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
+            Reply = cowboy_req:reply(200, Req2),
+            {stop, Reply, State};
         {error, Reason} ->
             reply_error(400, Reason, Req, State)
     end.
-
-run_preprocess(#{ document := AST } = ReqCtx, Req, State) ->
-    try
-        {ok, #{
-           fun_env := FunEnv,
-           ast := AST2 }} = graphql:type_check(AST),
-        ok = graphql:validate(AST2),
-        run_execute(ReqCtx#{ document := AST2, fun_env => FunEnv }, Req, State)
-    catch
-        throw:Err ->
-            reply_error(400, Err, Req, State)
-    end.
-
-run_execute(#{ document := AST,
-               fun_env := FunEnv,
-               vars := Vars,
-               operation_name := OpName }, Req, State) ->
-    Coerced = graphql:type_check_params(FunEnv, OpName, Vars),
-    Ctx = #{
-      params => Coerced,
-      operation_name => OpName,
-      error_module => mongoose_graphql_errors,
-      role => maps:get(role, State, none)},
-    Response = graphql:execute(Ctx, AST),
-    ResponseBody = mongoose_graphql_cowboy_response:term_to_json(Response),
-    Req2 = cowboy_req:set_resp_body(ResponseBody, Req),
-    Reply = cowboy_req:reply(200, Req2),
-    {stop, Reply, State}.
 
 gather(Req) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
