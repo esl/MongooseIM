@@ -353,35 +353,36 @@ vcard_removal(Config) ->
     end).
 
 last_removal(Config0) ->
-    Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
-    Config2 = escalus:make_everyone_friends(Config1),
-        escalus:story(Config2, [{alice, 1}],
-                  fun(Alice) ->
-                          %% Bob logs in
-                          {ok, Bob} = escalus_client:start_for(Config2, bob, <<"bob">>),
+    F = fun(Config2, Alice, Bob) ->
+            escalus_story:make_all_clients_friends([Alice, Bob]),
 
-                          %% Bob logs out with a status
-                          Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
-                          Presence = escalus_stanza:presence(<<"unavailable">>, Status),
-                          escalus_client:send(Bob, Presence),
-                          escalus_client:stop(Config2, Bob),
-                          timer:sleep(1024), % more than a second
+            %% Bob logs out with a status
+            Status = escalus_stanza:tags([{<<"status">>, <<"I am a banana!">>}]),
+            Presence = escalus_stanza:presence(<<"unavailable">>, Status),
+            escalus_client:send(Bob, Presence),
 
-                          %% Alice asks for Bob's last availability
-                          BobShortJID = escalus_client:short_jid(Bob),
-                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
+            escalus_client:stop(Config2, Bob),
+            timer:sleep(1024), % more than a second
 
-                          %% Alice receives Bob's status and last online time > 0
-                          Stanza = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_last_result, Stanza),
-                          true = (1 =< get_last_activity(Stanza)),
-                          <<"I am a banana!">> = get_last_status(Stanza),
-
-                          run_remove_domain(),                                         
-                          escalus_client:send(Alice, escalus_stanza:last_activity(BobShortJID)),
-                          Error = escalus_client:wait_for_stanza(Alice),
-                          escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
-                  end).
+            PresUn = escalus_client:wait_for_stanza(Alice),
+            escalus:assert(is_presence_with_type, [<<"unavailable">>], PresUn),
+    
+            %% Alice asks for Bob's last availability
+            BobShortJID = escalus_client:short_jid(Bob),
+            GetLast = escalus_stanza:last_activity(BobShortJID),
+            Stanza = escalus_client:send_iq_and_wait_for_result(Alice, GetLast),
+    
+            %% Alice receives Bob's status and last online time > 0
+            escalus:assert(is_last_result, Stanza),
+            true = (1 =< get_last_activity(Stanza)),
+            <<"I am a banana!">> = get_last_status(Stanza),
+    
+            run_remove_domain(),                                         
+            escalus_client:send(Alice, GetLast),
+            Error = escalus_client:wait_for_stanza(Alice),
+            escalus:assert(is_error, [<<"auth">>, <<"forbidden">>], Error)
+        end,
+    escalus:fresh_story_with_config(Config0, [{alice, 1}, {bob, 1}], F).
 
 %% Helpers
 
