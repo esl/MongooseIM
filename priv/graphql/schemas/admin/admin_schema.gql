@@ -3,11 +3,13 @@ schema{
   mutation: AdminMutation
 }
 
+directive @protected on FIELD_DEFINITION | OBJECT
+
 """
 Contains all admin available queries.
 Only authenticated admin can execute this queries.
 """
-type AdminQuery{
+type AdminQuery @protected{
   "Get all enabled domains by hostType"
   domainsByHostType(hostType: String!): [String!]
   "Get information about the domain"
@@ -18,7 +20,7 @@ type AdminQuery{
 Contains all admin available mutations
 Only authenticated admin can execute this mutations.
 """
-type AdminMutation{
+type AdminMutation @protected{
   "Add new domain"
   addDomain(domain: String!, hostType: String!): Domain
   "Remove domain"

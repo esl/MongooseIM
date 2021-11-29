@@ -3,11 +3,13 @@ schema{
   mutation: UserMutation
 }
 
+directive @protected on FIELD_DEFINITION | OBJECT
+
 """
 Contains all user available queries.
 Only authenticated user can execute this queries.
 """
-type UserQuery{
+type UserQuery @protected{
   "Something to not leave type without fields"
   field: String
 }
@@ -16,7 +18,7 @@ type UserQuery{
 Contains all user available mutations.
 Only authenticated user can execute this mutations.
 """
-type UserMutation{
+type UserMutation @protected{
   "Something to not leave type without fields"
   field: String
 }

@@ -5,6 +5,7 @@
 -type request() :: #{document := binary(),
                      operation_name := binary(),
                      vars := map() | undefined,
+                     authorized := boolean(),
                      ctx := map()}.
 
 -export_type([request/0]).
@@ -26,9 +27,11 @@ get_endpoint(user) ->
 get_endpoint(_) ->
     {error, unknown_endpoint}.
 
--spec execute(graphql:endpoint_context(), request() | binary()) -> {ok, map()} | {error, term()}.
+-spec execute(graphql:endpoint_context(), request() | binary()) ->
+    {ok, map()} | {error, term()}.
 execute(Ep, #{document := Doc,
               operation_name := OpName,
+              authorized := AuthStatus,
               vars := Vars,
               ctx := Ctx}) ->
     try
@@ -36,6 +39,7 @@ execute(Ep, #{document := Doc,
         {ok, #{ast := Ast2,
                fun_env := FunEnv}} = graphql:type_check(Ep, Ast),
         ok = graphql:validate(Ast2),
+        ok = mongoose_graphql_permissions:check_permissions(OpName, AuthStatus, Ast2),
         Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars),
         Ctx2 = Ctx#{params => Coerced,
                     operation_name => OpName,
@@ -49,6 +53,7 @@ execute(Ep, Doc)  ->
     Req = #{document => Doc,
             operation_name => <<>>,
             vars => undefined,
+            authorized => true,
             ctx => #{}},
     execute(Ep, Req).
 
