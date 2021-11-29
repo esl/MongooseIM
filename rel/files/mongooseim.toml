@@ -119,18 +119,30 @@
     content_path = "swagger"
 
 [[listen.http]]
-  {{#http_graphql_api_endpoint}}
-  {{{http_graphql_api_endpoint}}}
-  {{/http_graphql_api_endpoint}}
+  {{#http_graphql_api_admin_endpoint}}
+  {{{http_graphql_api_admin_endpoint}}}
+  {{/http_graphql_api_admin_endpoint}}
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
+    host = "localhost"
+    path = "/api/graphql"
+    schema_endpoint = "admin"
+    username = "admin"
+    password = "secret"
+
+[[listen.http]]
+  {{#http_graphql_api_user_endpoint}}
+  {{{http_graphql_api_user_endpoint}}}
+  {{/http_graphql_api_user_endpoint}}
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
   [[listen.http.handlers.mongoose_graphql_cowboy_handler]]
     host = "_"
     path = "/api/graphql"
-    schema_endpoint = "admin"
-    username = "admin"
-    password = "secret"
+    schema_endpoint = "user"
 
 [[listen.http]]
   {{#http_api_old_endpoint}}
