@@ -526,9 +526,10 @@ suite() ->
 
 init_per_suite(Config) ->
     muc_helper:load_muc(),
-    increase_limits(
-      delete_users([{escalus_user_db, {module, escalus_ejabberd}}
-                  | escalus:init_per_suite(Config)])).
+    mam_helper:prepare_for_suite(
+      increase_limits(
+        delete_users([{escalus_user_db, {module, escalus_ejabberd}}
+                  | escalus:init_per_suite(Config)]))).
 
 end_per_suite(Config) ->
     muc_helper:unload_muc(),
