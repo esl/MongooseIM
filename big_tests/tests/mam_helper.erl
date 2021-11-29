@@ -33,6 +33,7 @@
 
 %% TODO: Split into modules like mam_stanza, mam_pred etc.
 -export([
+         prepare_for_suite/1,
          backend/0,
          rpc_apply/3,
          get_prop/2,
@@ -687,10 +688,22 @@ send_rsm_messages(Config) ->
     escalus:end_per_testcase(pre_rsm, Config1),
     [{all_messages, ParsedMessages}|Config].
 
+prepare_for_suite(Config) ->
+    Loaded = is_module_loaded(mod_offline),
+    [{mod_offline_loaded, Loaded}|Config].
+
+is_module_loaded(Mod) ->
+    rpc(mim(), gen_mod, is_loaded, [host_type(), Mod]).
+
 clean_archives(Config) ->
     SUs = serv_users(Config),
     %% It is not the best place to delete these messages.
-    [ok = delete_offline_messages(S, U) || {S, U} <- SUs],
+    case ?config(mod_offline_loaded, Config) of
+        true ->
+            [ok = delete_offline_messages(S, U) || {S, U} <- SUs];
+        false ->
+            ok
+    end,
     [ok = delete_archive(S, U) || {S, U} <- SUs],
     %% Wait for archive to be empty
     [wait_for_archive_size(S, U, 0) || {S, U} <- SUs],
@@ -1145,6 +1158,8 @@ make_alice_and_bob_friends(Alice, Bob) ->
                                                 % presence
         ok.
 
+%% Alice and Bob are friends.
+%% Alice and Kate are not friends.
 run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
@@ -1161,16 +1176,20 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     escalus:send(Alice, escalus_stanza:chat_to(Bob, lists:nth(2, Messages))),
     escalus:send(Kate, escalus_stanza:chat_to(Alice, lists:nth(3, Messages))),
     escalus:send(Alice, escalus_stanza:chat_to(Kate, lists:nth(4, Messages))),
-    escalus:wait_for_stanzas(Bob, 1, 5000),
-    escalus:wait_for_stanzas(Kate, 1, 5000),
-    escalus:wait_for_stanzas(Alice, 2, 5000),
+    [M1] = escalus:wait_for_stanzas(Bob, 1, 5000),
+    [M2] = escalus:wait_for_stanzas(Kate, 1, 5000),
+    [M3, M4] = escalus:wait_for_stanzas(Alice, 2, 5000),
+    [escalus:assert(is_message, Message) || Message <- [M1, M2, M3, M4]],
     %% Delay check
     fun(Bodies) ->
         ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
         Debug = make_debug_prefs(ExpectedMessageStates, ActualMessageStates),
         ?_assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
                              #{prefs_state => PrefsState,
-                               debug => Debug})
+                               debug => Debug,
+                               bob_receives => [M1],
+                               kate_receives => [M2],
+                               alice_receives => [M3, M4]})
     end.
 
 make_debug_prefs(ExpectedMessageStates, ActualMessageStates) ->

@@ -154,7 +154,7 @@ set_prefs1(HostType, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     mongoose_rdbms:transaction_with_delayed_retry(HostType, fun() ->
             {updated, _} =
                 mongoose_rdbms:execute(HostType, mam_prefs_delete, [UserID]),
-            [mongoose_rdbms:execute(HostType, mam_prefs_insert, Row) || Row <- Rows],
+            [{updated, 1} = mongoose_rdbms:execute(HostType, mam_prefs_insert, Row) || Row <- Rows],
             ok
         end, #{user_id => UserID, retries => 5, delay => 100}),
     ok.
