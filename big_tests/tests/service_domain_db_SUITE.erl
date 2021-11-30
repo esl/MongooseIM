@@ -71,8 +71,8 @@ db_cases() -> [
      db_cannot_enable_domain_with_unknown_host_type,
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
-     sql_select_from_works,
-     sql_find_gaps_between_works,
+     sql_select_from,
+     sql_find_gaps_between,
      db_records_are_restored_on_mim_restart,
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
@@ -466,12 +466,12 @@ db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
-sql_select_from_works(_) ->
+sql_select_from(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
 
-sql_find_gaps_between_works(_) ->
+sql_find_gaps_between(_) ->
     with_service_suspended(fun() ->
             %% Check several ranges
             check_gap_finder(20, 22),
