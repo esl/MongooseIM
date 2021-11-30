@@ -1,6 +1,6 @@
 %% This module is designed assuming the fact, that records inserted
 %% into domains or events table could appear in any order.
-%% I.e. events with ids [1, 2, 3] could appear as [1,3] for a short amount of time.
+%% I.e. events with ids [1, 2, 3] could appear as [1, 3] for a short amount of time.
 %% We also assume, event ids are never reused.
 -module(mongoose_domain_loader).
 -export([initial_load/0,
@@ -253,8 +253,8 @@ fix_gaps(Gaps) ->
 fix_gaps([], _Retries) ->
     ok;
 fix_gaps(Gaps, Retries) when Retries > 0 ->
-    %% A gap is an event id without a record. But it has a records above and below.
-    %% It occures pretty rare.
+    %% A gap is an event id without a record. But it has records above and below.
+    %% It occurs pretty rarely.
     %%
     %% There are two reasons for it:
     %% - a transaction is very slow, and not committed yet (but the key is already

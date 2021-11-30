@@ -306,7 +306,7 @@ get_service_opts() ->
 transaction(F) ->
     transaction(F, 3, []).
 
-%% MSSQL especially likes to kill one of a connection, deadlocked by tablock connections.
+%% MSSQL especially likes to kill a connection deadlocked by tablock connections.
 %% But that's fine, we could just restart
 %% (there is no logic, that would suffer by a restart of a transaction).
 transaction(_F, 0, Errors) ->
