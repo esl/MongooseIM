@@ -46,8 +46,8 @@ cold_load() ->
     %% Do domain loading from the main domain table
     load_data_from_base(0, 1000),
     %% Try to fix gaps
-    Gaps2 = fix_gaps(Gaps),
-    State = #{gaps => Gaps2, min_event_id => MinEventId, max_event_id => MaxEventId},
+    fix_gaps(Gaps),
+    State = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State),
     State.
 
@@ -80,21 +80,25 @@ remove_outdated_domains_from_core() ->
     remove_domains(OutdatedDomains),
     {ok, #{count => length(OutdatedDomains)}}.
 
+
+%% If this function fails
+%% (for example, if the database is not available at this moment),
+%% it is safe to just call it again
 check_for_updates() ->
     MinMax = mongoose_domain_sql:get_minmax_event_id(),
     State = mongoose_loader_state:get(undefined),
     check_for_updates(MinMax, State).
 
 check_for_updates({null, null}, State) ->
-    State;
-check_for_updates({Min, Max}, #{min_event_id := Min, max_event_id := Max} = State) ->
-    State;
-check_for_updates(MinMax = {Min, Max}, State) when is_integer(Min), is_integer(Max) ->
-    #{gaps := OldGaps, min_event_id := OldMin, max_event_id := OldMax} =
-        State,
+    State; %% empty db
+check_for_updates({Min, Max},
+                  #{min_event_id := Min, max_event_id := Max} = State) ->
+    State; %% no new updates
+check_for_updates(MinMax = {Min, Max},
+                  #{min_event_id := OldMin, max_event_id := OldMax})
+  when is_integer(Min), is_integer(Max) ->
     {MinEventId, MaxEventId} = limit_max_id(OldMax, MinMax, 1000),
     check_if_id_is_still_relevant(OldMax, MinEventId),
-    check_missing_gaps_are_expired(min_gap(OldGaps), MinEventId),
     NewGapsFromBelow =
         case {OldMin, OldMax} of
             {MinEventId, _} ->
@@ -121,8 +125,8 @@ check_for_updates(MinMax = {Min, Max}, State) when is_integer(Min), is_integer(M
                 Ids = rows_to_ids(Rows),
                 ids_to_gaps(FromId, MaxEventId, Ids)
         end,
-    Gaps2 = fix_gaps(NewGapsFromBelow ++ OldGaps ++ NewGapsFromThePage),
-    State2 = #{gaps => Gaps2, min_event_id => MinEventId, max_event_id => MaxEventId},
+    fix_gaps(NewGapsFromBelow ++ NewGapsFromThePage),
+    State2 = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State2),
     State2.
 
@@ -130,9 +134,6 @@ limit_max_id(null, {MinEventId, MaxEventId}, PageSize) ->
     {MinEventId, min(MaxEventId, MinEventId + PageSize)};
 limit_max_id(OldMax, {MinEventId, MaxEventId}, PageSize) ->
     {MinEventId, min(MaxEventId, OldMax + PageSize)}.
-
-min_gap([]) -> null;
-min_gap(Gaps) -> lists:min(Gaps).
 
 rows_to_ids(Rows) ->
     [row_to_id(Row) || Row <- Rows].
@@ -150,21 +151,6 @@ check_if_id_is_still_relevant(OldMax, MinEventId) when OldMax < MinEventId ->
                     text => Text}),
     service_domain_db:restart();
 check_if_id_is_still_relevant(_OldMax, _MinEventId) ->
-    ok.
-
-check_missing_gaps_are_expired(null, _MinEventId) ->
-    %% Starting from the empty event table
-    ok;
-check_missing_gaps_are_expired(MinGapId, MinEventId) when MinGapId < MinEventId ->
-    %% Looks like this node has no DB connection for a long time.
-    %% But the event log in the DB has been truncated by some other node
-    %% meanwhile. We have to load the whole set of data from DB.
-    Text = <<"DB domain log had some updates to domains deleted,"
-             " which we have not applied yet. Have to crash.">>,
-    ?LOG_CRITICAL(#{what => events_log_out_of_sync,
-                    text => Text}),
-    service_domain_db:restart();
-check_missing_gaps_are_expired(_MinGapId, _MinEventId) ->
     ok.
 
 apply_changes(Rows) ->
@@ -230,9 +216,13 @@ ids_to_gaps(MinEventId, MaxEventId, Ids) ->
     %% Find missing ids
     ordsets:subtract(AllIds, Ids).
 
-fix_gaps([]) ->
-    [];
 fix_gaps(Gaps) ->
+    %% Retries are only for extra safety, one try would be enough usually
+    fix_gaps(Gaps, 3).
+
+fix_gaps([], _Retries) ->
+    ok;
+fix_gaps(Gaps, Retries) when Retries > 0 ->
     %% A gap is an event id without a record. But it has a records above and below.
     %% It occures pretty rare.
     %%
@@ -255,8 +245,11 @@ fix_gaps(Gaps) ->
     %% RDBMS servers do not overwrite data when INSERT operation is used.
     %% i.e. only one insert for a key succeeded.
     [catch mongoose_domain_sql:insert_dummy_event(Id) || Id <- Gaps],
+    %% The gaps should be filled at this point
     Rows = lists:append([mongoose_domain_sql:select_updates_between(Id, Id) || Id <- Gaps]),
     ?LOG_WARNING(#{what => domain_fix_gaps, gaps => Gaps, rows => Rows}),
     apply_changes(Rows),
     Ids = rows_to_ids(Rows),
-    Gaps -- Ids.
+    %% We still retry to fill the gaps, in case insert_dummy_event fails
+    %% It could fail, if there is a database connectivity issues, for example
+    fix_gaps(Gaps -- Ids, Retries - 1).
