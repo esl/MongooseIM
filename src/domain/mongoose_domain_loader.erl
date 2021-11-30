@@ -15,6 +15,7 @@
 %% There are two important functions, called by service_domain_db:
 %% - initial_load
 %% - check_for_updates
+-spec initial_load() -> skip | ok.
 initial_load() ->
     case mongoose_loader_state:get(undefined) of
         undefined ->
@@ -92,7 +93,10 @@ remove_outdated_domains_from_core() ->
 check_for_updates() ->
     MinMax = mongoose_domain_sql:get_minmax_event_id(),
     State = mongoose_loader_state:get(undefined),
-    check_for_updates(MinMax, State).
+    case check_for_updates(MinMax, State) of
+        more_pages -> check_for_updates();
+        Other -> Other
+    end.
 
 check_for_updates({null, null}, _State) ->
     empty_db; %% empty db
@@ -133,7 +137,10 @@ check_for_updates(MinMax = {Min, Max},
     fix_gaps(NewGapsFromBelow ++ NewGapsFromThePage),
     State2 = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State2),
-    ok.
+    case MaxEventId < Max of
+        true -> more_pages;
+        false -> ok
+    end.
 
 limit_max_id(null, {MinEventId, MaxEventId}, PageSize) ->
     {MinEventId, min(MaxEventId, MinEventId + PageSize)};
