@@ -25,7 +25,8 @@ initial_load() ->
             %% Case when state has been reset without restarting core
             %% For example, when we detected out-of-sync situation
             cold_load(),
-            remove_outdated_domains_from_core();
+            remove_outdated_domains_from_core(),
+            ok;
         _ ->
             %% Already synced to some point.
             %% Just read updates from the event table.
@@ -49,7 +50,7 @@ cold_load() ->
     fix_gaps(Gaps),
     State = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State),
-    State.
+    ok.
 
 load_data_from_base(FromId, PageSize) ->
     try
@@ -71,6 +72,8 @@ load_data_from_base_loop(FromId, PageSize, Loaded) ->
         Rows ->
             PageMaxId = row_to_id(lists:last(Rows)),
             insert_rows_to_core(Rows),
+            ?LOG_INFO(#{what => load_data_from_base,
+                        count => length(Rows)}),
             load_data_from_base_loop(PageMaxId, PageSize, Loaded + length(Rows))
     end.
 
@@ -78,22 +81,24 @@ remove_outdated_domains_from_core() ->
     CurrentSource = self(),
     OutdatedDomains = mongoose_domain_core:get_all_outdated(CurrentSource),
     remove_domains(OutdatedDomains),
-    {ok, #{count => length(OutdatedDomains)}}.
-
+    ?LOG_WARNING(#{what => remove_outdated_domains_from_core,
+                   count => length(OutdatedDomains)}),
+    ok.
 
 %% If this function fails
 %% (for example, if the database is not available at this moment),
 %% it is safe to just call it again
+-spec check_for_updates() -> empty_db | no_new_updates | ok.
 check_for_updates() ->
     MinMax = mongoose_domain_sql:get_minmax_event_id(),
     State = mongoose_loader_state:get(undefined),
     check_for_updates(MinMax, State).
 
-check_for_updates({null, null}, State) ->
-    State; %% empty db
+check_for_updates({null, null}, _State) ->
+    empty_db; %% empty db
 check_for_updates({Min, Max},
-                  #{min_event_id := Min, max_event_id := Max} = State) ->
-    State; %% no new updates
+                  #{min_event_id := Min, max_event_id := Max}) ->
+    no_new_updates; %% no new updates
 check_for_updates(MinMax = {Min, Max},
                   #{min_event_id := OldMin, max_event_id := OldMax})
   when is_integer(Min), is_integer(Max) ->
@@ -128,7 +133,7 @@ check_for_updates(MinMax = {Min, Max},
     fix_gaps(NewGapsFromBelow ++ NewGapsFromThePage),
     State2 = #{min_event_id => MinEventId, max_event_id => MaxEventId},
     mongoose_loader_state:set(State2),
-    State2.
+    ok.
 
 limit_max_id(null, {MinEventId, MaxEventId}, PageSize) ->
     {MinEventId, min(MaxEventId, MinEventId + PageSize)};
@@ -153,20 +158,38 @@ check_if_id_is_still_relevant(OldMax, MinEventId) when OldMax < MinEventId ->
 check_if_id_is_still_relevant(_OldMax, _MinEventId) ->
     ok.
 
+apply_changes([]) ->
+    ok;
 apply_changes(Rows) ->
-    lists:foreach(fun apply_change/1, Rows).
+    Results = lists:map(fun apply_change/1, Rows),
+    ?LOG_INFO(#{what => load_updated_domains,
+                skips => count(skip, Results),
+                deletes => count(delete, Results),
+                inserts => count(insert, Results)}).
+
+count(X, List) ->
+    count(X, List, 0).
+
+count(X, [X|T], Count) ->
+    count(X, T, Count + 1);
+count(X, [_|T], Count) ->
+    count(X, T, Count);
+count(_, [], Count) ->
+    Count.
 
 apply_change({_Id, <<>>, null}) -> %% Skip dummy domain
-    ok;
+    skip;
 apply_change({_Id, Domain, null}) ->
     %% Removed or disabled domain.
     %% According to the SQL query, the HostType is null when:
     %% - There is no record for the domain in the domain_settings table.
     %% - Or domain_settings.enabled equals false.
-    mongoose_domain_core:delete(Domain);
+    mongoose_domain_core:delete(Domain),
+    delete;
 apply_change({_Id, Domain, HostType}) ->
     %% Inserted, reinserted (removed & inserted) or enabled record.
-    maybe_insert_to_core(Domain, HostType).
+    maybe_insert_to_core(Domain, HostType),
+    insert.
 
 insert_rows_to_core(Rows) ->
     lists:foreach(fun insert_row_to_core/1, Rows).
@@ -248,7 +271,7 @@ fix_gaps(Gaps, Retries) when Retries > 0 ->
     %% The gaps should be filled at this point
     Rows = lists:append([mongoose_domain_sql:select_updates_between(Id, Id) || Id <- Gaps]),
     ?LOG_WARNING(#{what => domain_fix_gaps, gaps => Gaps, rows => Rows}),
-    apply_changes(Rows),
+    apply_changes(lists:usort(Rows)),
     Ids = rows_to_ids(Rows),
     %% We still retry to fill the gaps, in case insert_dummy_event fails
     %% It could fail, if there is a database connectivity issues, for example
