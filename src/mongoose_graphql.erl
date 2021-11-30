@@ -1,10 +1,10 @@
 -module(mongoose_graphql).
 
--export([init/0, get_endpoint/1, execute/2]).
+-export([init/0, get_endpoint/1, execute/2, execute/3]).
 
 -type request() :: #{document := binary(),
-                     operation_name := binary(),
-                     vars := map() | undefined,
+                     operation_name := binary() | undefined,
+                     vars := map(),
                      authorized := boolean(),
                      ctx := map()}.
 
@@ -27,7 +27,7 @@ get_endpoint(user) ->
 get_endpoint(_) ->
     {error, unknown_endpoint}.
 
--spec execute(graphql:endpoint_context(), request() | binary()) ->
+-spec execute(graphql:endpoint_context(), request()) ->
     {ok, map()} | {error, term()}.
 execute(Ep, #{document := Doc,
               operation_name := OpName,
@@ -48,11 +48,14 @@ execute(Ep, #{document := Doc,
     catch
         throw:{error, Err} ->
             {error, Err}
-    end;
-execute(Ep, Doc)  ->
+    end.
+
+-spec execute(graphql:endpoint_context(), undefined | binary(), binary()) ->
+    {ok, map()} | {error, term()}.
+execute(Ep, OpName, Doc)  ->
     Req = #{document => Doc,
-            operation_name => <<>>,
-            vars => undefined,
+            operation_name => OpName,
+            vars => #{},
             authorized => true,
             ctx => #{}},
     execute(Ep, Req).
