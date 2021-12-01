@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
--import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(distributed_helper, [mim/0, mim2/0, mim3/0, require_rpc_nodes/1, rpc/4]).
 -import(mongooseimctl_helper, [mongooseimctl/3]).
 
 -import(domain_rest_helper,
@@ -33,7 +33,7 @@
 -define(UNWANTED_PWD, <<"basic auth provided, but not configured">>).
 
 suite() ->
-    require_rpc_nodes([mim, mim2]).
+    require_rpc_nodes([mim, mim2, mim3]).
 
 all() ->
     [
@@ -71,11 +71,13 @@ db_cases() -> [
      db_cannot_enable_domain_with_unknown_host_type,
      db_cannot_disable_domain_with_unknown_host_type,
      db_domains_with_unknown_host_type_are_ignored_by_core,
-     sql_select_from_works,
+     sql_select_from,
+     sql_find_gaps_between,
      db_records_are_restored_on_mim_restart,
      db_record_is_ignored_if_domain_static,
      db_events_table_gets_truncated,
      db_get_all_static,
+     db_get_all_dynamic,
      db_could_sync_between_nodes,
      db_deleted_from_one_node_while_service_disabled_on_another,
      db_inserted_from_one_node_while_service_disabled_on_another,
@@ -84,6 +86,8 @@ db_cases() -> [
      db_crash_on_initial_load_restarts_service,
      db_restarts_properly,
      db_keeps_syncing_after_cluster_join,
+     db_gaps_are_getting_filled_automatically,
+     db_event_could_appear_with_lower_id,
      cli_can_insert_domain,
      cli_can_disable_domain,
      cli_can_enable_domain,
@@ -172,9 +176,11 @@ rest_cases() ->
 init_per_suite(Config) ->
     Conf1 = store_conf(mim()),
     Conf2 = store_conf(mim2()),
+    Conf3 = store_conf(mim3()),
     ensure_nodes_know_each_other(),
     service_disabled(mim()),
     service_disabled(mim2()),
+    service_disabled(mim3()),
     prepare_test_queries(mim()),
     prepare_test_queries(mim2()),
     erase_database(mim()),
@@ -182,6 +188,7 @@ init_per_suite(Config) ->
     Config2 = dynamic_modules:save_modules(dummy_auth_host_type(), Config1),
     escalus:init_per_suite([{mim_conf1, Conf1},
                             {mim_conf2, Conf2},
+                            {mim_conf3, Conf3},
                             {service_setup, per_testcase} | Config2]).
 
 store_conf(Node) ->
@@ -193,8 +200,10 @@ store_conf(Node) ->
 end_per_suite(Config) ->
     Conf1 = proplists:get_value(mim_conf1, Config),
     Conf2 = proplists:get_value(mim_conf2, Config),
+    Conf3 = proplists:get_value(mim_conf3, Config),
     restore_conf(mim(), Conf1),
     restore_conf(mim2(), Conf2),
+    restore_conf(mim3(), Conf3),
     domain_helper:insert_configured_domains(),
     dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
     escalus_fresh:clean(),
@@ -282,11 +291,8 @@ setup_service(Opts, Config) ->
     Pairs1 = [{<<"example.cfg">>, <<"type1">>},
              {<<"erlang-solutions.com">>, <<"type2">>},
              {<<"erlang-solutions.local">>, <<"type2">>}],
-    CommonTypes = [<<"type1">>, <<"type2">>, dummy_auth_host_type(),
-                   <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>],
-    Types2 = [<<"mim2only">>|CommonTypes],
-    init_with(mim(), Pairs1, CommonTypes),
-    init_with(mim2(), [], Types2),
+    init_with(mim(), Pairs1, host_types_for_mim()),
+    init_with(mim2(), [], host_types_for_mim2()),
     case ServiceEnabled of
         true ->
             service_enabled(mim(), Opts),
@@ -294,6 +300,13 @@ setup_service(Opts, Config) ->
         false ->
             ok
     end.
+
+host_types_for_mim() ->
+    [<<"type1">>, <<"type2">>, dummy_auth_host_type(),
+     <<"dbgroup">>, <<"dbgroup2">>, <<"cfggroup">>].
+
+host_types_for_mim2() ->
+    [<<"mim2only">> | host_types_for_mim()].
 
 teardown_service() ->
     service_disabled(mim()),
@@ -355,6 +368,14 @@ db_get_all_static(_) ->
      {<<"erlang-solutions.local">>, <<"type2">>},
      {<<"example.cfg">>, <<"type1">>}] =
         lists:sort(get_all_static(mim())).
+
+db_get_all_dynamic(_) ->
+    ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
+    ok = insert_domain(mim(), <<"example2.db">>, <<"type1">>),
+    sync(),
+    [{<<"example.db">>, <<"type1">>},
+     {<<"example2.db">>, <<"type1">>}] =
+        lists:sort(get_all_dynamic(mim())).
 
 db_inserted_domain_is_in_db(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
@@ -445,10 +466,28 @@ db_domains_with_unknown_host_type_are_ignored_by_core(_) ->
     {ok, <<"type1">>} = get_host_type(mim(), <<"example.org">>), %% Counter-case
     {error, not_found} = get_host_type(mim(), <<"example.com">>).
 
-sql_select_from_works(_) ->
+sql_select_from(_) ->
     ok = insert_domain(mim(), <<"example.db">>, <<"type1">>),
     [{_, <<"example.db">>, <<"type1">>}] =
        rpc(mim(), mongoose_domain_sql, select_from, [0, 100]).
+
+sql_find_gaps_between(_) ->
+    with_service_suspended(fun() ->
+            %% Check several ranges
+            check_gap_finder(20, 22),
+            check_gap_finder(10, 15),
+            check_gap_finder(123, 321),
+            check_gap_finder(1000, 1300)
+        end).
+
+check_gap_finder(From, To) ->
+    {updated, 1} = insert_full_event(mim(), From, <<"gap_start">>),
+    {updated, 1} = insert_full_event(mim(), To, <<"gap_end">>),
+    Expected = lists:seq(From + 1, To - 1),
+    Expected = find_gaps_between(From, To).
+
+find_gaps_between(From, To) ->
+    rpc(mim(), mongoose_domain_loader, find_gaps_between, [From, To]).
 
 db_records_are_restored_on_mim_restart(_) ->
     ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
@@ -486,7 +525,7 @@ db_events_table_gets_truncated(_) ->
     ok = insert_domain(mim(), <<"example.net">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.org">>, <<"dbgroup">>),
     ok = insert_domain(mim(), <<"example.beta">>, <<"dbgroup">>),
-    Max = get_max_event_id_or_set_dummy(mim()),
+    Max = get_max_event_id(mim()),
     true = is_integer(Max),
     true = Max > 0,
     %% The events table is not empty and the size of 1, eventually.
@@ -558,18 +597,18 @@ db_out_of_sync_restarts_service(_) ->
     ok = insert_domain(mim2(), <<"example2.com">>, <<"type1">>),
     sync(),
     %% Pause processing events on one node
-    ok = rpc(mim(), sys, suspend, [service_domain_db]),
+    suspend_service(mim()),
     ok = insert_domain(mim2(), <<"example3.com">>, <<"type1">>),
     ok = insert_domain(mim2(), <<"example4.com">>, <<"type1">>),
     sync_local(mim2()),
     %% Truncate events table, keep only one event
-    MaxId = get_max_event_id_or_set_dummy(mim2()),
+    MaxId = get_max_event_id(mim2()),
     {updated, _} = delete_events_older_than(mim2(), MaxId),
     {error, not_found} = get_host_type(mim(), <<"example3.com">>),
     %% The size of the table is 1
     MaxId = get_min_event_id(mim2()),
     %% Resume processing events on one node
-    ok = rpc(mim(), sys, resume, [service_domain_db]),
+    resume_service(mim()),
     sync(),
     %% Out of sync detected and service is restarted
     true = rpc(mim(), meck, num_calls, [service_domain_db, restart, 0]) > 0,
@@ -605,6 +644,46 @@ db_keeps_syncing_after_cluster_join(Config) ->
     ok = insert_domain(mim2(), <<"example4.com">>, HostType),
     sync(),
     assert_domains_are_equal(HostType).
+
+db_gaps_are_getting_filled_automatically(_Config) ->
+    ok = insert_domain(mim(), <<"example.com">>, <<"type1">>),
+    sync(),
+    Max = get_max_event_id(mim()),
+    %% Create a gap in events by manually adding an event
+    GapSize = 10,
+    {updated, 1} = insert_full_event(mim(), Max + GapSize, <<"something.else">>),
+    force_check_for_updates(mim()),
+    sync_local(mim()),
+    F = fun() -> get_event_ids_between(mim(), Max, Max + GapSize) end,
+    mongoose_helper:wait_until(F, lists:seq(Max, Max + GapSize),
+                               #{time_left => timer:seconds(15)}).
+
+db_event_could_appear_with_lower_id(_Config) ->
+    %% We use 40 and 50 as event ids
+    %% We check two things:
+    %% - that "lazydom" actually gets loaded
+    %% - that gaps get filled
+    %% Starting with an empty DB
+    null = get_max_event_id(mim()),
+    {updated, 1} = insert_domain_settings_without_event(mim(), <<"fastdom">>, <<"type1">>),
+    {updated, 1} = insert_full_event(mim(), 50, <<"fastdom">>),
+    force_check_for_updates(mim()),
+    sync_local(mim()),
+    {ok, <<"type1">>} = get_host_type(mim(), <<"fastdom">>),
+    %% At this point we've completed the initial load and the DB sync
+    %% Now create an event before the first known event
+    {updated, 1} = insert_domain_settings_without_event(mim(), <<"lazydom">>, <<"type1">>),
+    {updated, 1} = insert_full_event(mim(), 40, <<"lazydom">>),
+    force_check_for_updates(mim()),
+    sync_local(mim()),
+    40 = get_min_event_id(mim()),
+    50 = get_max_event_id(mim()),
+    %% lazydom gets loaded
+    {ok, <<"type1">>} = get_host_type(mim(), <<"lazydom">>),
+    %% Check gaps
+    F = fun() -> get_event_ids_between(mim(), 40, 50) end,
+    mongoose_helper:wait_until(F, lists:seq(40, 50),
+                               #{time_left => timer:seconds(15)}).
 
 cli_can_insert_domain(Config) ->
     {"Added\n", 0} =
@@ -956,7 +1035,7 @@ rest_delete_domain_cleans_data_from_mam(Config) ->
             rest_delete_domain(Config, <<"example.com">>, HostType),
         {{<<"204">>, _}, _} =
             rest_delete_domain(Config, <<"example.org">>, HostType),
-            sync(),
+        sync(),
         %% At this point MIM cannot resolve a domain to a host type,
         %% so we have to pass it
         mam_helper:wait_for_archive_size_with_host_type(HostType, Alice, 0),
@@ -985,9 +1064,7 @@ service_disabled(Node) ->
 
 init_with(Node, Pairs, AllowedHostTypes) ->
     rpc(Node, mongoose_domain_core, stop, []),
-    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]),
-    %% call restart to reset last event id
-    rpc(Node, service_domain_db, reset_last_event_id, []).
+    rpc(Node, mongoose_domain_core, start, [Pairs, AllowedHostTypes]).
 
 insert_domain(Node, Domain, HostType) ->
     rpc(Node, mongoose_domain_api, insert_domain, [Domain, HostType]).
@@ -997,6 +1074,16 @@ delete_domain(Node, Domain, HostType) ->
 
 select_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_sql, select_domain, [Domain]).
+
+insert_full_event(Node, EventId, Domain) ->
+    rpc(Node, mongoose_domain_sql, insert_full_event, [EventId, Domain]).
+
+insert_domain_settings_without_event(Node, Domain, HostType) ->
+    rpc(Node, mongoose_domain_sql, insert_domain_settings_without_event,
+        [Domain, HostType]).
+
+get_event_ids_between(Node, Min, Max) ->
+    rpc(Node, mongoose_domain_sql, get_event_ids_between, [Min, Max]).
 
 erase_database(Node) ->
     case mongoose_helper:is_rdbms_enabled(domain()) of
@@ -1013,10 +1100,12 @@ prepare_test_queries(Node) ->
     end.
 
 get_min_event_id(Node) ->
-    rpc(Node, mongoose_domain_sql, get_min_event_id, []).
+    {Min, _} = rpc(Node, mongoose_domain_sql, get_minmax_event_id, []),
+    Min.
 
-get_max_event_id_or_set_dummy(Node) ->
-    rpc(Node, mongoose_domain_sql, get_max_event_id_or_set_dummy, []).
+get_max_event_id(Node) ->
+    {_, Max} = rpc(Node, mongoose_domain_sql, get_minmax_event_id, []),
+    Max.
 
 delete_events_older_than(Node, Id) ->
     rpc(Node, mongoose_domain_sql, delete_events_older_than, [Id]).
@@ -1030,19 +1119,45 @@ get_domains_by_host_type(Node, HostType) ->
 get_all_static(Node) ->
     rpc(Node, mongoose_domain_api, get_all_static, []).
 
+get_all_dynamic(Node) ->
+    rpc(Node, mongoose_domain_api, get_all_dynamic, []).
+
 disable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, disable_domain, [Domain]).
 
 enable_domain(Node, Domain) ->
     rpc(Node, mongoose_domain_api, enable_domain, [Domain]).
 
-%% Call sync before get_host_type, if there are some async changes expected
+%% force_check_for_updates is already sent by insert or delete commands.
+%% But it is async.
+%% So, the only thing is left to sync is to call ping to the gen_server
+%% to ensure we've finished the check.
 sync() ->
     sync_local(mim()),
-    sync_local(mim2()).
+    sync_local(mim2()),
+    ok.
+
+with_service_suspended(F) ->
+    suspend_service(mim()),
+    suspend_service(mim2()),
+    try
+        F()
+    after
+        resume_service(mim()),
+        resume_service(mim2())
+    end.
+
+suspend_service(Node) ->
+    ok = rpc(Node, sys, suspend, [service_domain_db]).
+
+resume_service(Node) ->
+    ok = rpc(Node, sys, resume, [service_domain_db]).
 
 sync_local(Node) ->
-    rpc(Node, service_domain_db, sync_local, []).
+    pong = rpc(Node, service_domain_db, sync_local, []).
+
+force_check_for_updates(Node) ->
+    ok = rpc(Node, service_domain_db, force_check_for_updates, []).
 
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
     rpc(Node, mongoose_service, stop_service, [service_domain_db]),

@@ -78,10 +78,19 @@ code_change(_OldVsn, State, _Extra) ->
 %% ---------------------------------------------------------------------------
 %% Server helpers
 
+%% We are ensuring that to remove events, they have to be in the database
+%% for some amount of time
 schedule_removal(State = #{max_age := MaxAge}) ->
-    LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
-    Msg = {do_removal, LastEventId},
-    erlang:start_timer(timer:seconds(MaxAge), self(), Msg),
+    try mongoose_domain_sql:get_minmax_event_id() of
+        {_Min, LastEventId} ->
+            Msg = {do_removal, LastEventId},
+            erlang:start_timer(timer:seconds(MaxAge), self(), Msg)
+    catch Class:Reason:Stacktrace ->
+        %% It's safe to skip scheduling
+        ?LOG_ERROR(#{what => domain_cleaning_schedule_failed,
+                     text => <<"Failed to get LastEventId">>,
+                     class => Class, reason => Reason, stacktrace => Stacktrace})
+    end,
     State.
 
 handle_timeout(_TimerRef, {do_removal, LastEventId}, State) ->

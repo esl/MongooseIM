@@ -22,7 +22,11 @@
          get_subdomain_info/1,
          get_all_subdomains_for_domain/1]).
 
+%% For testing
+-export([get_all_dynamic/0]).
+
 -ignore_xref([get_all_static/0]).
+-ignore_xref([get_all_dynamic/0]).
 -ignore_xref([stop/0]).
 
 -type domain() :: jid:lserver().
@@ -152,6 +156,11 @@ get_subdomain_info(Subdomain) ->
 -spec get_all_static() -> [{domain(), host_type()}].
 get_all_static() ->
     mongoose_domain_core:get_all_static().
+
+%% Get domains, loaded from DB to this node
+-spec get_all_dynamic() -> [{domain(), host_type()}].
+get_all_dynamic() ->
+    mongoose_domain_core:get_all_dynamic().
 
 %% Get the list of the host_types provided during initialisation
 %% This has complexity N, where N is the number of online domains.

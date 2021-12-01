@@ -8,24 +8,29 @@
          enable_domain/1]).
 
 -export([select_domain/1,
-         get_max_event_id_or_set_dummy/0,
+         get_minmax_event_id/0,
+         count_events_between_ids/2,
+         get_event_ids_between/2,
          select_from/2,
-         select_updates_from/2,
-         delete_events_older_than/1]).
+         select_updates_between/2,
+         get_enabled_dynamic/0,
+         delete_events_older_than/1,
+         insert_dummy_event/1]).
 
 %% interfaces only for integration tests
 -export([prepare_test_queries/0,
-         get_min_event_id/0,
-         erase_database/0]).
+         erase_database/0,
+         insert_full_event/2,
+         insert_domain_settings_without_event/2]).
 
--ignore_xref([erase_database/0, get_min_event_id/0, prepare_test_queries/0]).
+-ignore_xref([erase_database/0, prepare_test_queries/0, get_enabled_dynamic/0,
+              insert_full_event/2, insert_domain_settings_without_event/2]).
 
 -include("mongoose_logger.hrl").
 
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
 -type event_id() :: non_neg_integer().
--type limit() :: non_neg_integer().
 -type domain() :: binary().
 -type row() :: {event_id(), domain(), mongooseim:host_type() | null}.
 -export_type([row/0]).
@@ -33,10 +38,7 @@
 start(_Opts) ->
     {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits_binaries(),
     Pool = get_db_pool(),
-    True = case mongoose_rdbms:db_engine(Pool) of
-               pgsql -> <<"true">>;
-               _ -> <<"1">>
-           end,
+    True = sql_true(Pool),
     %% Settings
     prepare(domain_insert_settings, domain_settings, [domain, host_type],
             <<"INSERT INTO domain_settings (domain, host_type) "
@@ -62,30 +64,48 @@ start(_Opts) ->
     %% Events
     prepare(domain_insert_event, domain_events, [domain],
             <<"INSERT INTO domain_events (domain) VALUES (?)">>),
-    prepare(domain_events_max, domain_events, [],
-            <<"SELECT MAX(id) FROM domain_events">>),
+    prepare(domain_insert_full_event, domain_events, [id, domain],
+            <<"INSERT INTO domain_events (id, domain) VALUES (?, ?)">>),
+    prepare(domain_events_minmax, domain_events, [],
+            <<"SELECT MIN(id), MAX(id) FROM domain_events">>),
+    prepare(domain_count_event_between, domain_events, [id, id],
+            <<"SELECT COUNT(*) FROM domain_events  WHERE id >= ? AND id <= ?">>),
+    prepare(domain_event_ids_between, domain_events, [id, id],
+            <<"SELECT id FROM domain_events  WHERE id >= ? AND id <= ? ORDER BY id">>),
     prepare(domain_events_delete_older_than, domain_events, [id],
             <<"DELETE FROM domain_events WHERE id < ?">>),
-    prepare(domain_select_events_from, domain_events,
-            rdbms_queries:add_limit_arg(limit, [id]),
-            <<"SELECT ", LimitMSSQL/binary,
+    prepare(domain_select_events_between, domain_events, [id, id],
+            <<"SELECT "
               " domain_events.id, domain_events.domain, domain_settings.host_type "
               " FROM domain_events "
               " LEFT JOIN domain_settings ON "
                   "(domain_settings.domain = domain_events.domain AND "
                    "domain_settings.enabled = ", True/binary, ") "
-              " WHERE domain_events.id >= ? "
-              " ORDER BY domain_events.id ",
-              LimitSQL/binary>>),
+              " WHERE domain_events.id >= ? AND domain_events.id <= ? "
+              " ORDER BY domain_events.id ">>),
     ok.
 
 prepare_test_queries() ->
+    Pool = get_db_pool(),
+    True = sql_true(Pool),
     prepare(domain_erase_settings, domain_settings, [],
             <<"DELETE FROM domain_settings">>),
     prepare(domain_erase_events, domain_events, [],
             <<"DELETE FROM domain_events">>),
-    prepare(domain_events_min, domain_events, [],
-            <<"SELECT MIN(id) FROM domain_events">>).
+    prepare(domain_get_enabled_dynamic, domain_settings, [],
+            <<"SELECT "
+              " domain, host_type "
+              " FROM domain_settings "
+              " WHERE enabled = ", True/binary, " "
+              " ORDER BY id">>),
+    prepare(domain_events_get_all, domain_events, [],
+            <<"SELECT id, domain FROM domain_events ORDER BY id">>).
+
+sql_true(Pool) ->
+    case mongoose_rdbms:db_engine(Pool) of
+        pgsql -> <<"true">>;
+        _ -> <<"1">>
+    end.
 
 %% ----------------------------------------------------------------------------
 %% API
@@ -132,17 +152,6 @@ disable_domain(Domain) ->
 enable_domain(Domain) ->
     set_enabled(Domain, true).
 
-erase_database() ->
-    Pool = get_db_pool(),
-    execute_successfully(Pool, domain_erase_events, []),
-    execute_successfully(Pool, domain_erase_settings, []).
-
-get_min_event_id() ->
-    %% use this function for integration tests only
-    Pool = get_db_pool(),
-    Selected = execute_successfully(Pool, domain_events_min, []),
-    mongoose_rdbms:selected_to_integer(Selected).
-
 %% Returns smallest id first
 select_from(FromId, Limit) ->
     Pool = get_db_pool(),
@@ -150,76 +159,97 @@ select_from(FromId, Limit) ->
     {selected, Rows} = execute_successfully(Pool, domain_select_from, Args),
     Rows.
 
--spec select_updates_from(event_id(), limit()) -> [row()].
-select_updates_from(FromId, Limit) ->
-    select_updates_from(FromId, Limit, 2).
-
-select_updates_from(_FromId, _Limit, 0) ->
-    %% this should never happen, but just in case returning
-    %% an empty list here and trying to restart service
-    service_domain_db:restart(),
-    [];
-select_updates_from(FromId, Limit, NoOfRetries) ->
+get_enabled_dynamic() ->
+    prepare_test_queries(),
     Pool = get_db_pool(),
-    Args = rdbms_queries:add_limit_arg(Limit, [FromId]),
-    case execute_successfully(Pool, domain_select_events_from, Args) of
-        {selected, []} ->
-            %% get MaxID, this inserts the dummy record
-            %% in the events table if required.
-            MaxId = get_max_event_id_or_set_dummy(),
-            if
-                MaxId > FromId ->
-                    select_updates_from(FromId, Limit, NoOfRetries - 1);
-                true ->
-                    %% This must never happen though, unless the events table
-                    %% is modified externally. this is critical error!
-                    ?LOG_ERROR(#{what => select_updates_from_failed, limit => Limit,
-                                 from_id => FromId, max_id => MaxId}),
-                    service_domain_db:restart(),
-                    []
-            end;
-        {selected, Rows} ->
-            Rows
+    {selected, Rows} = execute_successfully(Pool, domain_get_enabled_dynamic, []),
+    Rows.
+
+%% FromId, ToId are included into the result
+-spec select_updates_between(event_id(), event_id()) -> [row()].
+select_updates_between(FromId, ToId) ->
+    Pool = get_db_pool(),
+    Args = [FromId, ToId],
+    {selected, Rows} = execute_successfully(Pool, domain_select_events_between, Args),
+    Rows.
+
+get_minmax_event_id() ->
+    Pool = get_db_pool(),
+    {selected, [{Min, Max}]} = execute_successfully(Pool, domain_events_minmax, []),
+    case Min of
+        null ->
+            {null, null};
+        _ ->
+            {mongoose_rdbms:result_to_integer(Min),
+             mongoose_rdbms:result_to_integer(Max)}
     end.
 
-get_max_event_id_or_set_dummy() ->
-    get_max_event_id_or_set_dummy(2).
-
-get_max_event_id_or_set_dummy(0) ->
-    %% this should never happen, but just in case
-    %% returning 0 here and trying to restart service
-    service_domain_db:restart(),
-    0;
-get_max_event_id_or_set_dummy(NoOfRetries) ->
+count_events_between_ids(Min, Max) ->
     Pool = get_db_pool(),
-    case execute_successfully(Pool, domain_events_max, []) of
-        {selected, [{null}]} ->
-            %% ensure that we have at least one record
-            %% in the table, even if it's dummy one.
-            insert_domain_event(Pool, <<"dummy.test.domain">>),
-            get_max_event_id_or_set_dummy(NoOfRetries - 1);
-        NonNullSelection ->
-            mongoose_rdbms:selected_to_integer(NonNullSelection)
-    end.
+    Selected = execute_successfully(Pool, domain_count_event_between, [Min, Max]),
+    mongoose_rdbms:selected_to_integer(Selected).
+
+%% Min and Max are included in the result set
+get_event_ids_between(Min, Max) ->
+    Pool = get_db_pool(),
+    {selected, Rows} = execute_successfully(Pool, domain_event_ids_between, [Min, Max]),
+    [mongoose_rdbms:result_to_integer(Id) || {Id} <- Rows].
 
 delete_events_older_than(Id) ->
     transaction(fun(Pool) ->
-            MaxId = get_max_event_id_or_set_dummy(),
-            if
-                MaxId < Id ->
-                    %% Removal would erase all the events, which we don't want.
-                    %% We want to keep at least one event.
-                    %% This must never happen though, unless the events table
-                    %% is modified externally. this is critical error!
-                    ?LOG_ERROR(#{what => domain_delete_events_older_than_failed,
-                                 max_id => MaxId, older_than_id => Id}),
-                    service_domain_db:restart(),
-                    skipped;
-                true ->
-                    execute_successfully(Pool, domain_events_delete_older_than, [Id])
+            execute_successfully(Pool, domain_events_delete_older_than, [Id])
+        end).
+
+insert_dummy_event(EventId) ->
+    insert_full_event(EventId, <<>>).
+
+insert_full_event(EventId, Domain) ->
+    case mongoose_rdbms:db_type() of
+        mssql ->
+            insert_full_event_mssql(EventId, Domain);
+        _ ->
+            Pool = get_db_pool(),
+            execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+    end.
+
+insert_full_event_mssql(EventId, Domain) ->
+    %% MSSQL does not allow to specify ids,
+    %% that are supposed to be autoincremented, easily
+    %% https://docs.microsoft.com/pl-pl/sql/t-sql/statements/set-identity-insert-transact-sql
+    transaction(fun(Pool) ->
+            %% This query could not be a prepared query
+            %% You will get an error:
+            %% "No SQL-driver information available."
+            %% when trying to execute
+            mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events ON">>),
+            try
+                execute_successfully(Pool, domain_insert_full_event, [EventId, Domain])
+            after
+                mongoose_rdbms:sql_query(Pool, <<"SET IDENTITY_INSERT domain_events OFF">>)
             end
         end).
+
 %% ----------------------------------------------------------------------------
+%% For testing
+
+erase_database() ->
+    Pool = get_db_pool(),
+    execute_successfully(Pool, domain_erase_events, []),
+    execute_successfully(Pool, domain_erase_settings, []).
+
+insert_domain_settings_without_event(Domain, HostType) ->
+    Pool = get_db_pool(),
+    execute_successfully(Pool, domain_insert_settings, [Domain, HostType]).
+
+%% ----------------------------------------------------------------------------
+
+%% Inserts a new event with an autoincremented EventId.
+%% Rows would not appear in the EventId order, RDBMS likes to rearrange them.
+%% Example of rearranging:
+%% Events with ids [1, 2, 3] could appear as:
+%% 1. [1]
+%% 2. [1, 3] - at this step record with EventId=2 is not visible yet.
+%% 3. [1, 2, 3] - and finally everything is fine.
 insert_domain_event(Pool, Domain) ->
     execute_successfully(Pool, domain_insert_event, [Domain]).
 
@@ -274,9 +304,23 @@ get_service_opts() ->
     mongoose_service:get_service_opts(service_domain_db).
 
 transaction(F) ->
+    transaction(F, 3, []).
+
+%% MSSQL especially likes to kill a connection deadlocked by tablock connections.
+%% But that's fine, we could just restart
+%% (there is no logic, that would suffer by a restart of a transaction).
+transaction(_F, 0, Errors) ->
+    {error, {db_error, Errors}};
+transaction(F, Retries, Errors) when Retries > 0 ->
     Pool = get_db_pool(),
     Result = rdbms_queries:sql_transaction(Pool, fun() -> F(Pool) end),
-    simple_result(Result).
+    case Result of
+        {aborted, _} -> %% Restart any rolled back transaction
+            timer:sleep(100), %% Small break before retry
+            transaction(F, Retries - 1, [Result|Errors]);
+        _ ->
+            simple_result(Result)
+    end.
 
 simple_result({atomic, Result}) -> Result;
 simple_result(Other) -> {error, {db_error, Other}}.

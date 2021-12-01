@@ -5,6 +5,9 @@
 -include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
 
+%% Use a separate pg scope, which is started by ejabberd_sup
+%% This prevents a bug when a default pg server is not running
+-define(SCOPE, mim_scope).
 -define(GROUP, service_domain_db_group).
 -define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
@@ -14,11 +17,9 @@
 -export([force_check_for_updates/0]).
 -export([sync_local/0]).
 
-%% exported for integration tests only!
--export([reset_last_event_id/0]).
-
--ignore_xref([code_change/3, handle_call/3, handle_cast/2, handle_info/2,
-              init/1, start_link/0, sync_local/0, terminate/2, reset_last_event_id/0]).
+-ignore_xref([start_link/0, sync_local/0,
+              init/1, handle_call/3, handle_cast/2, handle_info/2,
+              code_change/3, terminate/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -41,6 +42,8 @@ stop() ->
     mongoose_domain_db_cleaner:stop(),
     supervisor:terminate_child(ejabberd_sup, ?MODULE),
     supervisor:delete_child(ejabberd_sup, ?MODULE),
+    supervisor:terminate_child(ejabberd_sup, domain_pg),
+    supervisor:delete_child(ejabberd_sup, domain_pg),
     ok.
 
 restart() ->
@@ -69,7 +72,7 @@ enabled() ->
 
 force_check_for_updates() ->
     %% Send a broadcast message.
-    case pg:get_members(?GROUP) of
+    case pg:get_members(?SCOPE, ?GROUP) of
         [_|_] = Pids ->
             [Pid ! check_for_updates || Pid <- Pids],
             ok;
@@ -84,8 +87,7 @@ sync_local() ->
 %% Server callbacks
 
 init([]) ->
-    mongoose_domain_gaps:init(),
-    pg:join(?GROUP, self()),
+    pg:join(?SCOPE, ?GROUP, self()),
     gen_server:cast(self(), initial_loading),
     %% initial state will be set on initial_loading processing
     {ok, #{}}.
@@ -97,15 +99,13 @@ handle_call(Request, From, State) ->
     {reply, ok, State}.
 
 handle_cast(initial_loading, State) ->
-    LastEventId = initial_load(get_last_event_id()),
-    ?LOG_INFO(#{what => domains_loaded, last_event_id => LastEventId}),
-    NewState = State#{last_event_id => LastEventId,
-                      check_for_updates_interval => 30000},
+    mongoose_domain_loader:initial_load(),
+    NewState = State#{check_for_updates_interval => 30000},
     {noreply, handle_check_for_updates(NewState, true)};
 handle_cast(reset_and_shutdown, State) ->
     %% to ensure that domains table is re-read from
     %% scratch, we must reset the last event id.
-    reset_last_event_id(),
+    mongoose_loader_state:reset(),
     {stop, shutdown, State};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
@@ -126,26 +126,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% ---------------------------------------------------------------------------
 %% Server helpers
 
-initial_load(undefined) ->
-    LastEventId = mongoose_domain_sql:get_max_event_id_or_set_dummy(),
-    PageSize = 10000,
-    mongoose_domain_loader:load_data_from_base(0, PageSize),
-    mongoose_domain_loader:remove_outdated_domains_from_core(),
-    set_last_event_id(LastEventId),
-    LastEventId;
-initial_load(LastEventId) when is_integer(LastEventId) ->
-    LastEventId. %% Skip initial init
-
-handle_check_for_updates(State = #{last_event_id := LastEventId,
-                                   check_for_updates_interval := Interval},
+handle_check_for_updates(State = #{check_for_updates_interval := Interval},
                          IsInitial) ->
     maybe_cancel_timer(IsInitial, State),
     receive_all_check_for_updates(),
-    PageSize = 1000,
-    LastEventId2 = mongoose_domain_loader:check_for_updates(LastEventId, PageSize),
-    maybe_set_last_event_id(LastEventId, LastEventId2),
+    mongoose_domain_loader:check_for_updates(),
     TRef = erlang:send_after(Interval, self(), check_for_updates),
-    State#{last_event_id => LastEventId2, check_for_updates_tref => TRef}.
+    State#{check_for_updates_tref => TRef}.
 
 maybe_cancel_timer(IsInitial, State) ->
     TRef = maps:get(check_for_updates_tref, State, undefined),
@@ -156,17 +143,3 @@ maybe_cancel_timer(IsInitial, State) ->
 
 receive_all_check_for_updates() ->
     receive check_for_updates -> receive_all_check_for_updates() after 0 -> ok end.
-
-maybe_set_last_event_id(LastEventId, LastEventId) ->
-    ok;
-maybe_set_last_event_id(_LastEventId, LastEventId2) ->
-    set_last_event_id(LastEventId2).
-
-set_last_event_id(LastEventId) ->
-    persistent_term:put(?LAST_EVENT_ID_KEY, LastEventId).
-
-get_last_event_id() ->
-    persistent_term:get(?LAST_EVENT_ID_KEY, undefined).
-
-reset_last_event_id() ->
-    set_last_event_id(undefined).
