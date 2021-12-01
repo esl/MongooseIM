@@ -48,8 +48,7 @@ parse_file(FileName) ->
         {ok, Content} ->
             process(Content);
         {error, Error} ->
-            Text = tomerl:format_error(Error),
-            error(config_error([#{what => toml_parsing_failed, text => Text}]))
+            error(config_error([#{what => toml_parsing_failed, text => Error}]))
     end.
 
 -spec process(toml_section()) -> mongoose_config_parser:state().
