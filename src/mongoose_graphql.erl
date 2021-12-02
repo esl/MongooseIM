@@ -1,3 +1,6 @@
+%% @doc This module provides main interface to graphql. It initializes schemas
+%% and allows executing queries with permissions checks.
+%% @end
 -module(mongoose_graphql).
 
 -export([init/0, get_endpoint/1, execute/2, execute/3]).

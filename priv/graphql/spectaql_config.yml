@@ -1,8 +1,7 @@
-#Config file needed to generate static documentation from GraphQL using SpectaQL
+# Config file needed to generate static documentation from GraphQL using SpectaQL
 
 introspection:
-  #url: http://localhost:5551/api/graphql
-  schemaFile: ./priv/graphql/api_schema.gql
+  url: http://localhost:5551/api/graphql
 
 info:
   title: MongooseIM GraphQL API Reference

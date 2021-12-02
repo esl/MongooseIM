@@ -1,4 +1,3 @@
-
 -record(domain, {
           domain :: binary(),
           host_type = null :: binary() | null,

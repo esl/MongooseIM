@@ -1,3 +1,9 @@
+%% @doc A cowboy handler for graphql listeners. It supports both admin and user
+%% schemas. The `schema_endpoint' config option must be set to decide which
+%% schema to use.
+%%
+%% The graphql request is authorized, processed and then passed for execution.
+%% @end
 -module(mongoose_graphql_cowboy_handler).
 
 -behavior(cowboy_rest).
