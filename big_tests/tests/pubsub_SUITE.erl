@@ -153,11 +153,7 @@ group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:=
 group_is_compatible(_, _) -> true.
 
 base_groups() ->
-    %% NOTE: basic and collection are placed in sequence because they run bigger
-    %% sets of tests, which in parallel might cause deadlocks in the
-    %% transactions for MNESIA and MYSQL.
-    %% TODO: Optimise pubsub backends (MYSQL! Mnesia?)
-    G = [{basic, [sequence], basic_tests()},
+    G = [{basic, [parallel], basic_tests()},
          {service_config, [parallel], service_config_tests()},
          {node_config, [parallel], node_config_tests()},
          {node_affiliations, [parallel], node_affiliations_tests()},
@@ -482,9 +478,9 @@ subscribe_options_deliver_option_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
-              %% Geralt should recive a notification
+              %% Geralt should receive a notification
               pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Node, [{expected_result, true}]),
-              %% Bob should not recive a notification
+              %% Bob should not receive a notification
               [] = escalus:wait_for_stanzas(Bob, 1, 5000),
 
               pubsub_tools:delete_node(Alice, Node, [])
