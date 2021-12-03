@@ -550,7 +550,7 @@ allow_host(MyServer, S2SHost) ->
     end.
 
 allow_host1(MyHost, S2SHost) ->
-    case mongoose_config:lookup_opt({{s2s_host, S2SHost}, MyHost}) of
+    case mongoose_config:lookup_opt([{s2s_host_policy, MyHost}, S2SHost]) of
         {ok, deny} ->
             false;
         {ok, allow} ->
