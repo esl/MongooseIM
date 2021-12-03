@@ -92,7 +92,7 @@ init_per_group(change_account_details, Config) ->
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config];
 init_per_group(change_account_details_store_plain, Config) ->
     AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
-    Config1 = mongoose_helper:backup_and_set_config_option(Config, auth_opts, AuthOpts),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, auth, AuthOpts),
     [{escalus_user_db,  {module, escalus_ejabberd}} |Config1];
 init_per_group(registration_timeout, Config) ->
     set_registration_timeout(Config);
@@ -100,8 +100,7 @@ init_per_group(utilities, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob]));
 init_per_group(users_number_estimate, Config) ->
     AuthOpts = get_auth_opts(),
-    Key = rdbms_users_number_estimate,
-    NewAuthOpts = lists:keystore(Key, 1, AuthOpts, {Key, true}),
+    NewAuthOpts = AuthOpts#{rdbms => #{users_number_estimate => true}},
     set_auth_opts(Config, NewAuthOpts);
 init_per_group(_GroupName, Config) ->
     Config.
@@ -125,12 +124,11 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 get_auth_opts() ->
-    rpc(mim(), mongoose_config, get_opt, [{auth_opts, host_type()}]).
+    rpc(mim(), mongoose_config, get_opt, [{auth, host_type()}]).
 
 set_auth_opts(Config, AuthOpts) ->
     rpc(mim(), ejabberd_auth, stop, [host_type()]),
-    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, host_type()},
-                                                           AuthOpts),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth, host_type()}, AuthOpts),
     rpc(mim(), ejabberd_auth, start, [host_type()]),
     Config1.
 

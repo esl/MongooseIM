@@ -456,7 +456,7 @@ configure_mod_vcard(Config) ->
 ldap_opts() ->
     [{backend,ldap}, {host, subhost_pattern("vjud.@HOST@")},
      {ldap_uids, [{<<"uid">>}]}, %% equivalent to {<<"uid">>, <<"%u">>}
-     {ldap_filter,"(objectClass=inetOrgPerson)"},
+     {ldap_filter,<<"(objectClass=inetOrgPerson)">>},
      {ldap_base,"ou=Users,dc=esl,dc=com"},
      {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
      {ldap_vcard_map,[{"FN","%s",["cn"]}]}].

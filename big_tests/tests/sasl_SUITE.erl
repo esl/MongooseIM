@@ -29,6 +29,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -55,12 +56,12 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
-init_per_group(GroupName, Config) ->
-    Config1 = set_sasl_mechanisms(mech_option_key(GroupName), Config),
+init_per_group(_GroupName, Config) ->
+    Config1 = set_sasl_mechanisms(Config),
     escalus:create_users(Config1, escalus:get_users([alice])).
 
-end_per_group(GroupName, Config) ->
-    reset_sasl_mechanisms(mech_option_key(GroupName), Config),
+end_per_group(_GroupName, Config) ->
+    reset_sasl_mechanisms(Config),
     escalus:delete_users(Config, escalus:get_users([alice])).
 
 init_per_testcase(CaseName, Config) ->
@@ -86,21 +87,20 @@ text_response(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-mech_option_key(host_type_config) ->
-    HostType = domain_helper:host_type(),
-    {sasl_mechanisms, HostType}.
-
-set_sasl_mechanisms(Key, Config) ->
+set_sasl_mechanisms(Config) ->
     %% pretend that an auth module is set for this mechanism
     rpc(mim(), meck, new, [ejabberd_auth, [no_link, passthrough]]),
     rpc(mim(), meck, expect, [ejabberd_auth, supports_sasl_module,
                               fun(_, M) -> M =:= ?MODULE end]),
 
     %% configure the mechanism
-    mongoose_helper:backup_and_set_config_option(Config, Key, [?MODULE]).
+    Key = {auth, host_type()},
+    AuthOpts = rpc(mim(), mongoose_config, get_opt, [Key]),
+    NewAuthOpts = AuthOpts#{sasl_mechanisms => [?MODULE]},
+    mongoose_helper:backup_and_set_config_option(Config, Key, NewAuthOpts).
 
-reset_sasl_mechanisms(Key, Config) ->
-    mongoose_helper:restore_config_option(Config, Key),
+reset_sasl_mechanisms(Config) ->
+    mongoose_helper:restore_config_option(Config, {auth, host_type()}),
     rpc(mim(), meck, unload, [ejabberd_auth]).
 
 assert_is_failure_with_text(#xmlel{name = <<"failure">>,
