@@ -5,8 +5,8 @@
          stop/0,
          get_config_path/0,
          lookup_opt/1,
-         get_opt/1,
-         get_opt/2]).
+         get_opt/2,
+         get_opt/1]).
 
 %% Test API, do not use outside of test suites, options set here are not cleaned up by stop/0
 -export([set_opt/2,
@@ -84,22 +84,32 @@ unset_opt(Key) ->
     persistent_term:erase({?MODULE, Key}).
 
 %% @doc Use instead of get_opt(Key, undefined)
--spec lookup_opt(key()) -> {ok, value()} | {error, not_found}.
+-spec lookup_opt(key() | key_path()) -> {ok, value()} | {error, not_found}.
 lookup_opt(Key) ->
-    try persistent_term:get({?MODULE, Key}) of
+    try get_opt(Key) of
         Value -> {ok, Value}
     catch
-        error:_ -> {error, not_found}
+        error:badarg -> {error, not_found}; % missing persistent term
+        error:{badkey, _} -> {error, not_found} % missing map key
+    end.
+
+% @doc Returns Default if the option does not exist
+-spec get_opt(key() | key_path(), value()) -> value().
+get_opt(Key, Default) ->
+    try
+        get_opt(Key)
+    catch
+        error:badarg -> Default; % missing persistent term
+        error:{badkey, _} -> Default % missing map key
     end.
 
 %% @doc Fails if the option does not exist
--spec get_opt(key()) -> value().
+-spec get_opt(key() | key_path()) -> value().
+get_opt([Key | Rest]) ->
+    Config = persistent_term:get({?MODULE, Key}),
+    lists:foldl(fun maps:get/2, Config, Rest);
 get_opt(Key) ->
     persistent_term:get({?MODULE, Key}).
-
--spec get_opt(key(), value()) -> value().
-get_opt(Key, Default) ->
-    persistent_term:get({?MODULE, Key}, Default).
 
 -spec config_state() -> mongoose_config_parser:state().
 config_state() ->
