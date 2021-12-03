@@ -236,17 +236,15 @@ creds_with_cert(Config, Username) ->
                                            {username, Username}]).
 
 set_opts(Config) ->
-    ScramOpts = case lists:keyfind(scram_group, 1, Config) of
-                    {_, false} -> [{password_format, plain}];
-                    _ -> []
+    AuthOpts = case lists:keyfind(scram_group, 1, Config) of
+                    {_, false} -> #{password_format => plain};
+                    _ -> #{}
                 end,
-    mongoose_config:set_opt({auth_opts, ?HOST_TYPE},
-                            [{host, ?AUTH_HOST},
-                             {path_prefix, "/auth/"},
-                             {basic_auth, ?BASIC_AUTH}] ++ ScramOpts).
+    HttpOpts = #{basic_auth => ?BASIC_AUTH},
+    mongoose_config:set_opt({auth, ?HOST_TYPE}, AuthOpts#{http => HttpOpts}).
 
 unset_opts() ->
-    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
+    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
 
 do_scram(Pass, Config) ->
     case lists:keyfind(scram_group, 1, Config) of

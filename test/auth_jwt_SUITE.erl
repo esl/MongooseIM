@@ -56,11 +56,11 @@ init_per_group(public_key, Config) ->
     PrivkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "privkey.pem"]),
     PubkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "pubkey.pem"]),
     {ok, PrivKey} = file:read_file(PrivkeyPath),
-    set_auth_opts(PubkeyPath, undefined, "RS256", bookingNumber),
+    set_auth_opts({file, PubkeyPath}, "RS256", bookingNumber),
     ok = ejabberd_auth_jwt:start(?HOST_TYPE),
     [{priv_key, PrivKey} | Config];
 init_per_group(_, Config) ->
-    set_auth_opts(undefined, ?JWT_KEY, "HS256", bookingNumber),
+    set_auth_opts({value, ?JWT_KEY}, "HS256", bookingNumber),
     ok = ejabberd_auth_jwt:start(?HOST_TYPE),
     Config.
 
@@ -119,15 +119,13 @@ check_password_succeeds_for_pubkey_signed_token(C) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-set_auth_opts(SecretSource, Secret, Algorithm, Key) ->
-    mongoose_config:set_opt({auth_opts, ?HOST_TYPE},
-                            [{jwt_secret_source, SecretSource},
-                             {jwt_secret, Secret},
-                             {jwt_algorithm, Algorithm},
-                             {jwt_username_key, Key}]).
+set_auth_opts(Secret, Algorithm, Key) ->
+    mongoose_config:set_opt({auth, ?HOST_TYPE}, #{jwt => #{secret => Secret,
+                                                           algorithm => Algorithm,
+                                                           username_key => Key}}).
 
 unset_auth_opts() ->
-    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
+    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
 
 generate_token(Alg, NbfDelta, Key) ->
     Now = erlang:system_time(second),

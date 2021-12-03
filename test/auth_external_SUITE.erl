@@ -79,11 +79,11 @@ given_user_registered() ->
 
 set_opts(Config) ->
     DataDir = ?config(data_dir, Config),
-    mongoose_config:set_opt({auth_opts, ?HOST_TYPE},
-                            [{extauth_program, DataDir ++ "sample_external_auth.py"}]).
+    mongoose_config:set_opt({auth, ?HOST_TYPE},
+                            #{external => #{program => DataDir ++ "sample_external_auth.py"}}).
 
 unset_opts() ->
-    mongoose_config:unset_opt({auth_opts, ?HOST_TYPE}).
+    mongoose_config:unset_opt({auth, ?HOST_TYPE}).
 
 gen_user() ->
     U = random_binary(5),
