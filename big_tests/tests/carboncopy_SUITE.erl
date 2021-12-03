@@ -137,13 +137,21 @@ unavailable_resources_dont_get_carbons(Config) ->
 
           escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, ?BODY)),
           %% Alice2 receives the message, no carbons for Alice1
-          AliceReceived = escalus_client:wait_for_stanza(Alice2),
-          escalus:assert(is_chat_message, [?BODY], AliceReceived),
-          [] = escalus:wait_for_stanzas(Alice1, 1, 500),
+          wait_for_message_with_body(Alice2, ?BODY),
           client_sets_presence(Alice1),
           %% still no carbons for Alice1, only presences
           escalus_new_assert:mix_match([is_presence, is_presence],
-                                       escalus:wait_for_stanzas(Alice1, 3, 500))
+                                       escalus:wait_for_stanzas(Alice1, 2)),
+          escalus:assert(is_presence, [],
+                         escalus_client:wait_for_stanza(Alice2)),
+          enable_carbons(Alice1),
+          %% Send a message with a different body and wait for it.
+          %% If we receive it, we can be sure, that our first message has
+          %% been fully processed by the routing pipeline.
+          Body2 = <<"carbonated">>,
+          escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, Body2)),
+          wait_for_message_with_body(Alice2, Body2),
+          wait_for_carbon_with_body(Alice1, Body2, #{from => Bob, to => Alice2})
       end).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
@@ -276,3 +284,13 @@ client_sets_presence(Client) ->
 run_prop(PropName, Property) ->
     ?AE(true, proper:quickcheck(proper:conjunction([{PropName, Property}]),
                                 [verbose, long_result, {numtests, 3}])).
+
+wait_for_message_with_body(Alice, Body) ->
+    AliceReceived = escalus_client:wait_for_stanza(Alice),
+    escalus:assert(is_chat_message, [Body], AliceReceived).
+
+wait_for_carbon_with_body(Alice, Body, #{from := From, to := To}) ->
+    escalus:assert(
+      is_forwarded_received_message,
+      [escalus_client:full_jid(From), escalus_client:full_jid(To), Body],
+      escalus_client:wait_for_stanza(Alice)).
