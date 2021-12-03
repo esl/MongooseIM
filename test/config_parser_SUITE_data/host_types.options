@@ -15,16 +15,11 @@
   mongoose_router_external_localnode,mongoose_router_external,
   mongoose_router_dynamic_domains,ejabberd_s2s]}.
 {sm_backend,{mnesia,[]}}.
-{{auth_method,<<"another host type">>},[]}.
-{{auth_method,<<"localhost">>},[test3]}.
-{{auth_method,<<"some host type">>},[test2]}.
-{{auth_method,<<"this is host type">>},[test1]}.
-{{auth_method,<<"yet another host type">>},[test1,test2]}.
-{{auth_opts,<<"another host type">>},[]}.
-{{auth_opts,<<"localhost">>},[]}.
-{{auth_opts,<<"some host type">>},[]}.
-{{auth_opts,<<"this is host type">>},[]}.
-{{auth_opts,<<"yet another host type">>},[]}.
+{{auth,<<"another host type">>},#{methods => []}}.
+{{auth,<<"localhost">>},#{methods => [test3]}}.
+{{auth,<<"some host type">>},#{methods => [test2]}}.
+{{auth,<<"this is host type">>},#{methods => [test1]}}.
+{{auth,<<"yet another host type">>},#{methods => [test1,test2]}}.
 {{modules,<<"another host type">>},[{test_mim_module2,[]}]}.
 {{modules,<<"localhost">>},[{test_mim_module3,[]}]}.
 {{modules,<<"some host type">>},[]}.

@@ -30,44 +30,44 @@
     report,
     {tracking_id,"UA-123456789"}]}]}.
 {sm_backend,{mnesia,[]}}.
-{{allow_multiple_connections,<<"anonymous.localhost">>},true}.
-{{allow_multiple_connections,<<"localhost">>},true}.
-{{anonymous_protocol,<<"anonymous.localhost">>},sasl_anon}.
-{{anonymous_protocol,<<"localhost">>},sasl_anon}.
-{{auth_opts,<<"anonymous.localhost">>},
- [{extauth_program,"/usr/bin/authenticator"},
-  {basic_auth,"admin:admin"},
-  {jwt_algorithm,<<"RS256">>},
-  {jwt_secret,"secret123"},
-  {jwt_username_key,user},
-  {ldap_base,"ou=Users,dc=esl,dc=com"},
-  {ldap_bind_pool_tag,bind},
-  {ldap_deref,never},
-  {ldap_dn_filter,{"(&(name=%s)(owner=%D)(user=%u@%d))",["sn"]}},
-  {ldap_filter,"(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
-  {ldap_local_filter,{equal,{"accountStatus",["enabled"]}}},
-  {ldap_pool_tag,default},
-  {ldap_uids,["uid",{"uid2","%u"}]},
-  {rdbms_users_number_estimate,true},
-  {bucket_type,<<"user_bucket">>}]}.
-{{auth_opts,<<"localhost">>},
- [{extauth_program,"/usr/bin/authenticator"},
-  {basic_auth,"admin:admin"},
-  {jwt_algorithm,<<"RS256">>},
-  {jwt_secret,"secret123"},
-  {jwt_username_key,user},
-  {ldap_base,"ou=Users,dc=esl,dc=com"},
-  {ldap_bind_pool_tag,bind},
-  {ldap_deref,never},
-  {ldap_dn_filter,{"(&(name=%s)(owner=%D)(user=%u@%d))",["sn"]}},
-  {ldap_filter,"(&(objectClass=shadowAccount)(memberOf=Jabber Users))"},
-  {ldap_local_filter,{equal,{"accountStatus",["enabled"]}}},
-  {ldap_pool_tag,default},
-  {ldap_uids,["uid",{"uid2","%u"}]},
-  {rdbms_users_number_estimate,true},
-  {bucket_type,<<"user_bucket">>}]}.
-{{extauth_instances,<<"anonymous.localhost">>},1}.
-{{extauth_instances,<<"localhost">>},1}.
+{{auth,<<"anonymous.localhost">>},
+ #{anonymous => #{allow_multiple_connections => true,
+                  protocol => sasl_anon},
+   http => #{basic_auth => "admin:admin"},
+   external => #{instances => 1,
+                 program => "/usr/bin/authenticator"},
+   jwt => #{algorithm => <<"RS256">>,
+            secret => {value,"secret123"},
+            username_key => user},
+   ldap => #{base => <<"ou=Users,dc=esl,dc=com">>,
+             bind_pool_tag => bind,
+             deref => never,
+             dn_filter => {<<"(&(name=%s)(owner=%D)(user=%u@%d))">>,[<<"sn">>]},
+             filter => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
+             local_filter => {equal,{"accountStatus",["enabled"]}},
+             pool_tag => default,
+             uids => [<<"uid">>,{<<"uid2">>,<<"%u">>}]},
+   rdbms => #{users_number_estimate => true},
+   riak => #{bucket_type => <<"user_bucket">>}}}.
+{{auth,<<"localhost">>},
+ #{anonymous => #{allow_multiple_connections => true,
+                  protocol => sasl_anon},
+   http => #{basic_auth => "admin:admin"},
+   external => #{instances => 1,
+                 program => "/usr/bin/authenticator"},
+   jwt => #{algorithm => <<"RS256">>,
+            secret => {value,"secret123"},
+            username_key => user},
+   ldap => #{base => <<"ou=Users,dc=esl,dc=com">>,
+             bind_pool_tag => bind,
+             deref => never,
+             dn_filter => {<<"(&(name=%s)(owner=%D)(user=%u@%d))">>,[<<"sn">>]},
+             filter => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
+             local_filter => {equal,{"accountStatus",["enabled"]}},
+             pool_tag => default,
+             uids => [<<"uid">>,{<<"uid2">>,<<"%u">>}]},
+   rdbms => #{users_number_estimate => true},
+   riak => #{bucket_type => <<"user_bucket">>}}}.
 {{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
 {{replaced_wait_timeout,<<"localhost">>},2000}.
 {{route_subdomains,<<"anonymous.localhost">>},s2s}.
