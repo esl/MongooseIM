@@ -106,7 +106,7 @@ auth_user(_, State) ->
 
 auth_admin({basic, Username, Password}, #{username := Username, password := Password} = State) ->
     State#{authorized => true};
-auth_admin(undefined, #{username := _, password := _} = State) ->
+auth_admin(_, #{username := _, password := _} = State) ->
     State#{authorized => false};
 auth_admin(_, State) ->
     % auth credentials not provided in config

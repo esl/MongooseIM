@@ -312,6 +312,14 @@ is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
     {value, {modules, ModulesConfs}} = lists:keysearch(modules, 1, Opts),
     ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_"); (_) -> [] end, ModulesConfs),
     lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
+is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, {graphql, SchemaEndpoint}) ->
+    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+    lists:any(fun({_, _Path,  Mod, Args}) ->
+                      Mod == mongoose_graphql_cowboy_handler andalso
+                      SchemaEndpoint == proplists:get_value(schema_endpoint, Args);
+                 (_) ->
+                      false
+              end, Modules);
 is_roles_config(_, _) -> false.
 
 mapfromlist(L) ->
