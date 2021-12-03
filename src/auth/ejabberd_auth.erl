@@ -29,8 +29,6 @@
 -export([start/0,
          start/1,
          stop/1,
-         get_opt/3,
-         get_opt/2,
          authorize/1,
          set_password/2,
          check_password/2,
@@ -119,25 +117,6 @@ hooks(HostType) ->
      %% It is important that this handler happens _before_ all other modules
      {remove_domain, HostType, ?MODULE, remove_domain, 10}
     ].
-
--spec get_opt(HostType :: mongooseim:host_type(),
-              Opt :: atom(),
-              Default :: ejabberd:value()) -> undefined | ejabberd:value().
-get_opt(HostType, Opt, Default) ->
-    case mongoose_config:lookup_opt({auth_opts, HostType}) of
-        {error, not_found} ->
-            Default;
-        {ok, Opts} ->
-            case lists:keyfind(Opt, 1, Opts) of
-                {Opt, Value} ->
-                    Value;
-                false ->
-                    Default
-            end
-    end.
-
-get_opt(HostType, Opt) ->
-    get_opt(HostType, Opt, undefined).
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(HostType, SASLModule) ->
@@ -433,7 +412,7 @@ auth_modules_for_host_type(HostType) ->
 
 -spec auth_methods(mongooseim:host_type()) -> [atom()].
 auth_methods(HostType) ->
-    mongoose_config:get_opt({auth_method, HostType}, []).
+    mongoose_config:get_opt([{auth, HostType}, methods], []).
 
 -spec auth_method_to_module(atom()) -> authmodule().
 auth_method_to_module(Method) ->

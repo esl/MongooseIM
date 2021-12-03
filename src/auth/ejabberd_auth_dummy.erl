@@ -39,8 +39,9 @@ stop(_HostType) ->
 
 authorize(Creds) ->
     HostType = mongoose_credentials:host_type(Creds),
-    Base = ejabberd_auth:get_opt(HostType, dummy_base_timeout, 50),
-    Variance = ejabberd_auth:get_opt(HostType, dummy_variance, 450),
+    Opts = mongoose_config:get_opt([{auth, HostType}, dummy], #{}),
+    Base = maps:get(base_time, Opts, 50),
+    Variance = maps:get(variance, Opts, 450),
     timer:sleep(Base + rand:uniform(Variance)),
     {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)}.
 

@@ -56,8 +56,8 @@
 
 -spec start(HostType :: mongooseim:host_type()) -> 'ok'.
 start(HostType) ->
-    ExtauthProgram = ejabberd_auth:get_opt(HostType, extauth_program),
-    extauth:start(HostType, ExtauthProgram),
+    Program = mongoose_config:get_opt([{auth, HostType}, external, program]),
+    extauth:start(HostType, Program),
     case check_cache_last_options(HostType) of
         cache ->
             ok = ejabberd_auth_internal:start(HostType);

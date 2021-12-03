@@ -190,10 +190,10 @@ make_req(Method, Path, Params = #{luser := LUser, lserver := LServer, host_type 
     Query = uri_string:compose_query([{<<"user">>, LUser},
                                       {<<"server">>, LServer},
                                       {<<"pass">>, Password}]),
-    Header = case ejabberd_auth:get_opt(HostType, basic_auth) of
-                 undefined ->
+    Header = case mongoose_config:lookup_opt([{auth, HostType}, http, basic_auth]) of
+                 {error, not_found} ->
                      [];
-                 BasicAuth ->
+                 {ok, BasicAuth} ->
                      BasicAuth64 = base64:encode(BasicAuth),
                      [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
              end,
