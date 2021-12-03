@@ -228,10 +228,6 @@ format_spec(#list{format = Format}) -> Format;
 format_spec(#option{format = Format}) -> Format.
 
 -spec format(path(), config_part(), mongoose_config_spec:format()) -> [config_part()].
-format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
-    Keys = lists:map(fun({K, _}) -> K end, KVs),
-    mongoose_config_validator:validate_list(Keys, unique),
-    lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, KVs);
 format([Key|_] = Path, V, host_config) ->
     format(Path, V, {host_config, b2a(Key)});
 format([Key|_] = Path, V, global_config) ->

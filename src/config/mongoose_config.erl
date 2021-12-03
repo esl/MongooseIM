@@ -20,19 +20,17 @@
 
 -include("mongoose.hrl").
 
--type key() :: atom() | host_type_key() | host_type_or_global_key().
--type s2s_domain_key() :: {atom(), jid:lserver()}.
--type host_type_key() :: {atom() | s2s_domain_key(), mongooseim:host_type_or_global()}.
--type host_type_or_global_key() :: {shaper | access | acl, atom(), mongooseim:host_type_or_global()}.
+-type key() :: atom() | host_type_key() | tagged_host_type_key().
+-type host_type_key() :: {atom(), mongooseim:host_type_or_global()}.
+-type tagged_host_type_key() :: {shaper | access | acl, atom(), mongooseim:host_type_or_global()}.
 
--type value() :: atom()
-               | binary()
-               | integer()
-               | string()
-               | [value()]
-               | tuple().
+%% Top-level key() followed by inner_key() for each of the nested maps
+-type key_path() :: [key() | inner_key()].
+-type inner_key() :: atom() | binary() | integer() | string() | tuple().
 
--export_type([key/0, value/0]).
+-type value() :: atom() | binary() | integer() | string() | [value()] | tuple() | map().
+
+-export_type([key/0, key_path/0, value/0]).
 
 -spec start() -> ok.
 start() ->
