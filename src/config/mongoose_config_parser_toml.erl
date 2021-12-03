@@ -30,7 +30,7 @@
 -type processor() :: fun((path(), config_part()) -> config_part())
                    | fun((config_part()) -> config_part()).
 
--type step() :: parse | validate | process | format.
+-type step() :: parse | validate | format_items | process | format.
 
 %% Path from the currently processed config node to the root
 %%   - toml_key(): key in a toml_section()
@@ -124,7 +124,7 @@ parse_list(Path, L, #list{items = ItemSpec}) ->
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
 handle(Path, Value, Spec) ->
-    handle(Path, Value, Spec, [parse, validate, process, format]).
+    handle(Path, Value, Spec, [parse, validate, format_items, process, format]).
 
 -spec handle_default(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
 handle_default(Path, Value, Spec) ->
@@ -155,6 +155,8 @@ handle_step(parse, Path, Value, Spec) ->
         [] -> ParsedValue;
         Errors -> Errors
     end;
+handle_step(format_items, _Path, Items, Spec) ->
+    format_items(Items, format_items_spec(Spec));
 handle_step(validate, _Path, ParsedValue, Spec) ->
     validate(ParsedValue, Spec),
     ParsedValue;
@@ -174,6 +176,19 @@ validate_keys(#section{validate_keys = Validator}, Section) ->
     lists:foreach(fun(Key) ->
                           mongoose_config_validator:validate(b2a(Key), atom, Validator)
                   end, maps:keys(Section)).
+
+-spec format_items_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:format_items().
+format_items_spec(#section{format_items = FormatItems}) -> FormatItems;
+format_items_spec(#list{format_items = FormatItems}) -> FormatItems;
+format_items_spec(#option{}) -> none.
+
+-spec format_items(config_part(), mongoose_config_spec:format_items()) -> config_part().
+format_items(KVs, map) ->
+    Keys = lists:map(fun({K, _}) -> K end, KVs),
+    mongoose_config_validator:validate_list(Keys, unique),
+    maps:from_list(KVs);
+format_items(Value, none) ->
+    Value.
 
 -spec validate(config_part(), mongoose_config_spec:config_node()) -> any().
 validate(Value, #section{validate = Validator}) ->
