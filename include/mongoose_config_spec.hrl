@@ -6,6 +6,7 @@
                   validate_keys = any :: mongoose_config_validator:validator(),
                   required = [] :: [mongoose_config_parser_toml:toml_key()] | all,
                   validate = any :: mongoose_config_validator:section_validator(),
+                  format_items = none :: mongoose_config_spec:format_items(),
                   process :: undefined | mongoose_config_parser_toml:list_processor(),
                   format = default :: mongoose_config_spec:format(),
                   defaults = #{} :: #{mongoose_config_parser_toml:toml_key() =>
@@ -13,6 +14,7 @@
 
 -record(list, {items :: mongoose_config_spec:config_node(),
                validate = any :: mongoose_config_validator:list_validator(),
+               format_items = none :: mongoose_config_spec:format_items(),
                process :: undefined | mongoose_config_parser_toml:list_processor(),
                format = default :: mongoose_config_spec:format()}).
 

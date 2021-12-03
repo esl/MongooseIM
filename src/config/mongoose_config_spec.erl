@@ -83,12 +83,17 @@
         default      % {Key, Value} for section items, Value for list items
       | item         % only Value
       | skip         % nothing - the item is ignored
-      | none         % no formatting - Value must be a list and is injected into the parent list
+      | none         % elements of Value are injected into the parent section/list
       | {kv, NewKey :: term()} % {NewKey, Value} - replaces the key with NewKey
       | prepend_key. % {Key, V1, ..., Vn} when Value = {V1, ..., Vn}
 
+%% This option allows to put list/section items in a map
+-type format_items() ::
+        none         % keep the processed items unchanged
+      | map.         % convert the processed items (which have to be a KV list) to a map
+
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0,
-              format/0, option_type/0]).
+              format/0, format_items/0, option_type/0]).
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
