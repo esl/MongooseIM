@@ -1,0 +1,7 @@
+"""
+Contains all available mutations.
+"""
+type Mutation{
+  "Something to not leave type without fields"
+  field: String
+}

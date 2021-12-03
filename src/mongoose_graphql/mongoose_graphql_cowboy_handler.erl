@@ -116,7 +116,7 @@ run_request(#{ document := undefined }, Req, State) ->
     reply_error(400, no_query_supplied, Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
-    {ok, Ep} = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
+    Ep = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
     Ctx = maps:get(schema_ctx, State, #{}),
     ReqCtx2 = ReqCtx#{authorized => AuthStatus, ctx => Ctx},
     case mongoose_graphql:execute(Ep, ReqCtx2) of

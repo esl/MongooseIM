@@ -1,0 +1,7 @@
+"""
+Contains all available queries.
+"""
+type Query{
+  "Something to not leave type without fields"
+  field: String
+}

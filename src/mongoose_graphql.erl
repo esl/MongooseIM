@@ -3,7 +3,14 @@
 %% @end
 -module(mongoose_graphql).
 
--export([init/0, get_endpoint/1, execute/2, execute/3]).
+%API
+-export([init/0,
+         get_endpoint/1,
+         create_endpoint/3,
+         execute/2,
+         execute/3]).
+
+-ignore_xref([create_endpoint/3]).
 
 -type request() :: #{document := binary(),
                      operation_name := binary() | undefined,
@@ -16,20 +23,33 @@
 -define(USER_EP_NAME, user_schema_ep).
 -define(ADMIN_EP_NAME, admin_schema_ep).
 
+%% @doc Create and initialize endpoints for user and admin.
 -spec init() -> ok.
 init() ->
-    create_endpoint(?USER_EP_NAME, user_mapping_rules(), "user"),
-    create_endpoint(?ADMIN_EP_NAME, admin_mapping_rules(), "admin"),
+    create_endpoint(?USER_EP_NAME, user_mapping_rules(), schema_pattern("user")),
+    create_endpoint(?ADMIN_EP_NAME, admin_mapping_rules(), schema_pattern("admin")),
     ok.
 
--spec get_endpoint(atom()) -> {ok, graphql:endpoint_context()} | {error, term()}.
+%% @doc Get endpoint_context for passed endpoint name.
+-spec get_endpoint(atom()) -> graphql:endpoint_context().
 get_endpoint(admin) ->
-    {ok, graphql_schema:get_endpoint_ctx(?ADMIN_EP_NAME)};
+    graphql_schema:get_endpoint_ctx(?ADMIN_EP_NAME);
 get_endpoint(user) ->
-    {ok, graphql_schema:get_endpoint_ctx(?USER_EP_NAME)};
-get_endpoint(_) ->
-    {error, unknown_endpoint}.
+    graphql_schema:get_endpoint_ctx(?USER_EP_NAME);
+get_endpoint(Name) ->
+    graphql_schema:get_endpoint_ctx(Name).
 
+%% @doc Create a new endpoint and load schema.
+-spec create_endpoint(atom(), map(), file:filename_all()) -> gen:start_ret().
+create_endpoint(Name, Mapping, Pattern) ->
+    Res = graphql_schema:start_link(Name),
+    Ep = graphql_schema:get_endpoint_ctx(Name),
+    {ok, SchemaData} = load_multiple_file_schema(Pattern),
+    ok = graphql:load_schema(Ep, Mapping, SchemaData),
+    ok = graphql:validate_schema(Ep),
+    Res.
+
+%% @doc Execute request on a given endpoint.
 -spec execute(graphql:endpoint_context(), request()) ->
     {ok, map()} | {error, term()}.
 execute(Ep, #{document := Doc,
@@ -53,6 +73,7 @@ execute(Ep, #{document := Doc,
             {error, Err}
     end.
 
+%% @doc Execute selected operation on a given endpoint with authorization.
 -spec execute(graphql:endpoint_context(), undefined | binary(), binary()) ->
     {ok, map()} | {error, term()}.
 execute(Ep, OpName, Doc)  ->
@@ -65,18 +86,10 @@ execute(Ep, OpName, Doc)  ->
 
 % Internal
 
--spec create_endpoint(atom(), map(), string()) -> ok.
-create_endpoint(Name, Mapping, DirName) ->
-    graphql_schema:start_link(Name),
-    Ep = graphql_schema:get_endpoint_ctx(Name),
-    Pattern =
-        filename:join([code:priv_dir(mongooseim),
+schema_pattern(DirName) ->
+    filename:join([code:priv_dir(mongooseim),
                        "graphql/schemas",
-                       DirName, "*.gql"]),
-    {ok, SchemaData} = load_multiple_file_schema(Pattern),
-    ok = graphql:load_schema(Ep, Mapping, SchemaData),
-    ok = graphql:validate_schema(Ep),
-    ok.
+                       DirName, "*.gql"]).
 
 graphql_parse(Doc) ->
     case graphql:parse(Doc) of
