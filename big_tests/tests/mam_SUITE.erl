@@ -693,7 +693,7 @@ init_modules(rdbms_simple, C, Config) when C =:= muc_all;
 init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
                                                C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
@@ -719,7 +719,7 @@ init_modules(rdbms_cache, C, Config) when C =:= muc_all;
 init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
                                                 C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host_type(), mod_mam_cache_user, [muc]),
@@ -787,7 +787,7 @@ init_modules(elasticsearch, C, Config) ->
 init_modules(rdbms_async_pool, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
     Config;
@@ -807,7 +807,7 @@ init_modules(rdbms_cache, C, Config) ->
 init_modules(rdbms_async_cache, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
     init_module(host_type(), mod_mam_cache_user, [pm]),
@@ -862,8 +862,7 @@ mam_modules() ->
      mod_mam_muc_elasticsearch_arch,
      mod_mam_rdbms_arch,
      mod_mam_muc_rdbms_arch,
-     mod_mam_rdbms_async_pool_writer,
-     mod_mam_muc_rdbms_async_pool_writer,
+     mod_mam_rdbms_arch_async,
      mod_mam_rdbms_prefs,
      mod_mam_mnesia_prefs,
      mod_mam_rdbms_user,
@@ -1162,10 +1161,14 @@ required_modules(retract_message_on_stanza_id, _Config) ->
 required_modules(_, _) ->
     [].
 
+init_module(Host, mod_mam_rdbms_arch_async, Args) ->
+    OldOpts = case stop_module(Host, mod_mam_rdbms_arch_async) of
+                  {ok, O} -> O;
+                  ok -> []
+              end,
+    {ok, _} = start_module(Host, mod_mam_rdbms_arch_async, lists:ukeymerge(1, OldOpts, Args));
 init_module(Host, Mod, Args) ->
-    lists:member(Mod, mam_modules())
-    orelse
-    ct:fail("Unknown module ~p", [Mod]),
+    lists:member(Mod, mam_modules()) orelse ct:fail("Unknown module ~p", [Mod]),
     stop_module(Host, Mod),
     {ok, _} = start_module(Host, Mod, Args).
 
