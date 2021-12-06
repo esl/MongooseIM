@@ -34,8 +34,6 @@
          make_filter/3,
          get_state/2,
          case_insensitive_match/2,
-         get_mod_opt/2,
-         get_mod_opt/3,
          get_mod_opt/4,
          get_base/1,
          get_deref_aliases/1,
@@ -44,15 +42,13 @@
          get_user_filter/2,
          process_user_filter/2,
          get_search_filter/1,
-         get_dn_filter_with_attrs/1,
          decode_octet_string/3,
          uids_domain_subst/2,
          singleton_value/1,
          maybe_list2b/1,
          maybe_b2list/1]).
 
--ignore_xref([decode_octet_string/3, generate_subfilter/1, get_mod_opt/3,
-              make_filter/2, uids_domain_subst/2]).
+-ignore_xref([decode_octet_string/3, generate_subfilter/1, make_filter/2, uids_domain_subst/2]).
 
 -include("mongoose.hrl").
 -include("eldap.hrl").
@@ -225,14 +221,6 @@ uids_domain_subst(Host, UIDs) ->
               end,
               UIDs).
 
--spec get_mod_opt(atom(), list()) -> any().
-get_mod_opt(Key, Opts) ->
-    get_mod_opt(Key, Opts, fun(Val) -> Val end).
-
--spec get_mod_opt(atom(), list(), fun()) -> any().
-get_mod_opt(Key, Opts, F) ->
-    get_mod_opt(Key, Opts, F, undefined).
-
 
 -spec get_mod_opt(atom(), list(), fun(), any()) -> any().
 get_mod_opt(Key, Opts, F, Default) ->
@@ -242,7 +230,6 @@ get_mod_opt(Key, Opts, F, Default) ->
         Val ->
             prepare_opt_val(Key, Val, F, Default)
     end.
-
 
 -type check_fun() :: fun((any()) -> any()) | {module(), atom()}.
 -spec prepare_opt_val(any(), any(), check_fun(), any()) -> any().
@@ -292,9 +279,6 @@ process_user_filter(UIDs, RawUserFilter) ->
 
 get_search_filter(UserFilter) ->
     eldap_filter:do_sub(UserFilter, [{<<"%u">>, <<"*">>}]).
-
-get_dn_filter_with_attrs(Opts) ->
-    get_mod_opt(ldap_dn_filter, Opts, fun(DNF) -> DNF end, {undefined, []}).
 
 -spec singleton_value(list()) -> {binary(), binary()} | false.
 singleton_value([{K, [V]}]) ->
