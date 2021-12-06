@@ -18,7 +18,7 @@
 -spec start_pool(mongooseim:host_type(), pool_id(), pool_opts()) ->
     supervisor:startchild_ret().
 start_pool(HostType, PoolId, Opts) ->
-    ?LOG_INFO(#{what => starting_async_pool, host_type => HostType, pool_id => PoolId}),
+    ?LOG_INFO(#{what => async_pool_starting, host_type => HostType, pool_id => PoolId}),
     Supervisor = sup_name(HostType, PoolId),
     ChildSpec = #{id => Supervisor,
                   start => {?MODULE, start_link, [HostType, PoolId, Opts]},
@@ -28,7 +28,7 @@ start_pool(HostType, PoolId, Opts) ->
 
 -spec stop_pool(mongooseim:host_type(), pool_id()) -> ok.
 stop_pool(HostType, PoolId) ->
-    ?LOG_INFO(#{what => stopping_async_pool, host_type => HostType, pool_id => PoolId}),
+    ?LOG_INFO(#{what => async_pool_stopping, host_type => HostType, pool_id => PoolId}),
     ejabberd_sup:stop_child(sup_name(HostType, PoolId)).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -64,12 +64,12 @@ init([HostType, PoolId, Opts]) ->
 -spec sup_name(mongooseim:host_type(), pool_id()) -> atom().
 sup_name(HostType, PoolId) ->
     list_to_atom(
-      atom_to_list(PoolId) ++ "-sup-async-pool-" ++ binary_to_list(HostType)).
+      atom_to_list(PoolId) ++ "_sup_async_pool_" ++ binary_to_list(HostType)).
 
 -spec pool_name(mongooseim:host_type(), pool_id()) -> atom().
 pool_name(HostType, PoolId) ->
     list_to_atom(
-      atom_to_list(PoolId) ++ "-async-pool-" ++ binary_to_list(HostType)).
+      atom_to_list(PoolId) ++ "_async_pool_" ++ binary_to_list(HostType)).
 
 -spec make_wpool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
 make_wpool_opts(HostType, _PoolId, Opts) ->
