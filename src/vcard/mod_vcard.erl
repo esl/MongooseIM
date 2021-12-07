@@ -291,7 +291,7 @@ riak_config_spec() ->
                   <<"search_index">> => #option{type = binary,
                                                 validate = non_empty}
                 },
-        format = none
+        wrap = none
     }.
 
 process_map_spec(KVs) ->

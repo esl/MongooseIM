@@ -143,7 +143,7 @@ config_spec() ->
                  <<"server_acks">> => #option{type = boolean},
                  <<"max_pause">> => #option{type = integer,
                                             validate = positive,
-                                            format = {kv, maxpause}}
+                                            wrap = {kv, maxpause}}
                 }
       }.
 

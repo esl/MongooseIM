@@ -103,13 +103,13 @@ tls_spec() ->
                                             validate = filename},
                   <<"cacertfile">> => #option{type = string,
                                               validate = filename,
-                                              format = {kv, cafile}},
+                                              wrap = {kv, cafile}},
                   <<"ciphers">> => #option{type = string},
                   <<"dhfile">> => #option{type = string,
                                           validate = filename}
         },
         required = [<<"certfile">>, <<"cacertfile">>],
-        format = {kv, tls_opts}
+        wrap = {kv, tls_opts}
     }.
 
 redis_spec() ->

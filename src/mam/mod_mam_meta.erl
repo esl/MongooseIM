@@ -115,7 +115,7 @@ riak_config_spec() ->
                                                validate = non_empty},
                  <<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
-       format = none
+       wrap = none
       }.
 
 -spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) ->

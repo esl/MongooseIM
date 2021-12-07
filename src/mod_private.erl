@@ -102,7 +102,7 @@ riak_config_spec() ->
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}
                 },
-       format = none
+       wrap = none
       }.
 
 %% ------------------------------------------------------------------

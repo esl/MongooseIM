@@ -92,7 +92,7 @@ riak_config_spec() ->
                  <<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}
                 },
-       format = none
+       wrap = none
       }.
 
 -spec supported_features() -> [atom()].

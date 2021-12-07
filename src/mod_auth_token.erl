@@ -107,7 +107,7 @@ supported_features() ->
 config_spec() ->
     #section{
        items = #{<<"validity_period">> => #list{items = validity_period_spec(),
-                                                format = none},
+                                                wrap = none},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
                 }
       }.

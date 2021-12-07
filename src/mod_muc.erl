@@ -278,7 +278,7 @@ default_room_config_spec() ->
                  <<"subject">> => #option{type = binary},
                  <<"subject_author">> => #option{type = binary}
                 },
-       format = {kv, default_room_options}
+       wrap = {kv, default_room_options}
       }.
 
 default_room_affiliations_spec() ->
