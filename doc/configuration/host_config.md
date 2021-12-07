@@ -59,30 +59,12 @@ The `replaced_wait_timeout` option is set to `2000` only for `domain2.com`.
 
 ### `host_config.auth`
 
-This section overrides the top-level [`auth`](auth.md) section, all options are allowed.
-It is recommended to repeat all top-level options in the domain-specific section as the rule is quite complicated:
-
-- If you specify any of the following options, **all** of the following options will be overridden:
-    - [`sasl_external`](auth.md#authsasl_external)
-    - [`password.*`](auth.md#password-related-options)
-    - [`scram_iterations`](auth.md#authscram_iterations)
-    - [`external.program`](../authentication-methods/external.md#authexternalprogram)
-    - [`rdbms.*`](../authentication-methods/rdbms.md)
-    - [`ldap.*`](../authentication-methods/ldap.md)
-    - [`jwt.*`](../authentication-methods/jwt.md)
-    - [`riak.*`](../authentication-methods/riak.md)
-    - [`http.*`](../authentication-methods/http.md)
-- If you specify any of the following options, only these options will be overridden:
-    - [`methods`](auth.md#authmethods)
-    - [`sasl_mechanisms`](auth.md#authsasl_mechanisms)
-    - [`external.instances`](../authentication-methods/external.md#authexternalinstances)
-    - [`anonymous.*`](../authentication-methods/anonymous.md)
+This section completely overrides the top-level [`auth`](auth.md) section, all options are allowed.
 
 #### Example
 
 In the example below the number of `scram_iterations` is increased for `domain2`.
-It is necessary to put the `password.hash` there as well, as otherwise it would be replaced with the default setting.
-However, specifying `methods` is not necessary as this value will not be changed.
+It is necessary to put `methods` and `password.hash` and there as well, as otherwise they would not be set for `domain2`.
 
 ```toml
 [general]
@@ -97,14 +79,6 @@ However, specifying `methods` is not necessary as this value will not be changed
 
   [host_config.auth]
     methods = ["rdbms"]
-    password.hash = ["sha256"]
-    scram_iterations = 40_000
-```
-
-The last section would work the same without `methods`:
-
-```toml
-  [host_config.auth]
     password.hash = ["sha256"]
     scram_iterations = 40_000
 ```
@@ -223,7 +197,7 @@ The options defined here override the ones defined in the top-level [`s2s`](s2s.
 The following options are allowed:
 
 * [`default_policy`](s2s.md#s2sdefault_policy)
-* [`host_policy`](s2s.md#s2shost_policy) - overrides the top-level setting host by host
+* [`host_policy`](s2s.md#s2shost_policy)
 * [`shared`](s2s.md#s2sshared)
 * [`max_retry_delay`](s2s.md#s2smax_retry_delay)
 
@@ -251,16 +225,6 @@ The `host_policy` option is changed for `domain2.com`:
       {host = "bad-xmpp.org", policy = "allow"},
       {host = "evil-xmpp.org", policy = "deny"}
     ]
-```
-
-The resulting `host_policy` for `domain2.com` is the following:
-
-```toml
-host_policy = [
-  {host = "good-xmpp.org", policy = "allow"},
-  {host = "bad-xmpp.org", policy = "allow"},
-  {host = "evil-xmpp.org", policy = "deny"}
-]
 ```
 
 The `default_policy` is still `deny`.

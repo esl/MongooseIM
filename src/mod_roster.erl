@@ -163,7 +163,7 @@ riak_config_spec() ->
                                                     validate = non_empty},
                        <<"version_bucket_type">> => #option{type = binary,
                                                             validate = non_empty}},
-             format = none
+             wrap = none
             }.
 
 supported_features() -> [dynamic_domains].

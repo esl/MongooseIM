@@ -1188,7 +1188,7 @@ get_addr_list(Server) ->
 %% @doc Get IPs predefined for a given s2s domain in the configuration
 -spec get_predefined_addresses(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
-    case mongoose_config:lookup_opt({s2s_addr, Server}) of
+    case mongoose_config:lookup_opt([s2s_address, Server]) of
         {error, not_found} -> [];
         {ok, S2SAddr} -> do_get_predefined_addresses(S2SAddr)
     end.
@@ -1246,7 +1246,7 @@ get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
 get_tls_opts_with_certfile(StateData) ->
-    case mongoose_config:lookup_opt({domain_certfile, StateData#state.myname}) of
+    case mongoose_config:lookup_opt([domain_certfile, StateData#state.myname]) of
         {error, not_found} ->
             StateData#state.tls_options;
         {ok, CertFile} ->

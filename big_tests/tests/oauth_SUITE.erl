@@ -115,7 +115,7 @@ init_per_group(GroupName, Config0) ->
              end,
     AuthOpts = mongoose_helper:auth_opts_with_password_format(password_format(GroupName)),
     HostType = domain_helper:host_type(),
-    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, HostType}, AuthOpts),
+    Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth, HostType}, AuthOpts),
     Config2 = escalus:create_users(Config1, escalus:get_users([bob, alice])),
     assert_password_format(GroupName, Config2).
 

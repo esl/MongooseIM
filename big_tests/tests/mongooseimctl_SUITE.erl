@@ -293,7 +293,7 @@ init_per_testcase(check_password_hash, Config) ->
             {skip, not_fully_supported_with_ldap};
         false ->
             AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
-            Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth_opts, host_type()},
+            Config1 = mongoose_helper:backup_and_set_config_option(Config, {auth, host_type()},
                                                                    AuthOpts),
             Config2 = escalus:create_users(Config1, escalus:get_users([carol])),
             escalus:init_per_testcase(check_password_hash, Config2)

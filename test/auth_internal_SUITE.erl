@@ -47,8 +47,6 @@ passwords_in_plain_can_be_converted_to_scram(_C) ->
     OldScramFormat = old_password_to_scram(P2, 340),
     UserRecord2 = {passwd, {U2, S2}, OldScramFormat},
     mnesia:dirty_write(UserRecord2),
-    meck:new(ejabberd_auth),
-    meck:expect(ejabberd_auth, get_opt, fun(_, scram_iterations, D) -> D end),
     %% when the migration function is run
     ejabberd_auth_internal:scram_passwords(),
     AfterMigrationPlain = mnesia:dirty_read({passwd, {U, S}}),
@@ -76,8 +74,7 @@ passwords_in_plain_can_be_converted_to_scram(_C) ->
                  #{iteration_count := _,
                    sha := #{salt       := _,
                             server_key := _,
-                            stored_key := _}}}], AfterMigrationScram),
-    meck:unload().
+                            stored_key := _}}}], AfterMigrationScram).
 
 gen_user() ->
     {base64:encode(crypto:strong_rand_bytes(5)),

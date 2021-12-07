@@ -67,10 +67,10 @@ init_per_testcase(unregister, Config) ->
     escalus_users:create_user(Config, Alice),
     Config;
 init_per_testcase(registered_users, Config) ->
-    case rpc(mim(), mongoose_config, lookup_opt, [{auth_method, host_type()}]) of
-        {ok, external} ->
+    case rpc(mim(), mongoose_config, get_opt, [[{auth, host_type()}, methods], []]) of
+        [external] ->
             {skip, "counter not supported with ejabberd_auth_external"};
-        {ok, anonymous} ->
+        [anonymous] ->
             {skip, "counter not supported with anonymous authentication"};
         _ ->
             Config

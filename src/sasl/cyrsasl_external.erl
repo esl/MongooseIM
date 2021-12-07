@@ -105,7 +105,7 @@ authorize(Creds) ->
 
 get_verification_list(Creds) ->
     HostType = mongoose_credentials:host_type(Creds),
-    case ejabberd_auth:get_opt(HostType, cyrsasl_external, [standard]) of
+    case mongoose_config:get_opt([{auth, HostType}, sasl_external], [standard]) of
         [] -> [standard];
         List when is_list(List) -> List;
         standard -> [standard];

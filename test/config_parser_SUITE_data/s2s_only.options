@@ -20,19 +20,19 @@
 {s2s_dns_options,[{retries,1},{timeout,30}]}.
 {s2s_use_starttls,optional}.
 {sm_backend,{mnesia,[]}}.
-{{domain_certfile,<<"example.com">>},"/path/to/example_com.pem"}.
-{{domain_certfile,<<"example.org">>},"/path/to/example_org.pem"}.
+{domain_certfile,#{<<"example.com">> => "/path/to/example_com.pem",
+                   <<"example.org">> => "/path/to/example_org.pem"}}.
 {{replaced_wait_timeout,<<"dummy_host">>},2000}.
 {{replaced_wait_timeout,<<"localhost">>},2000}.
-{{s2s_addr,<<"fed1">>},"127.0.0.1"}.
-{{s2s_addr,<<"fed2">>},{"127.0.0.1",8765}}.
+{s2s_address,#{<<"fed1">> => "127.0.0.1",
+               <<"fed2">> => {"127.0.0.1",8765}}}.
 {{s2s_default_policy,<<"dummy_host">>},allow}.
 {{s2s_default_policy,<<"localhost">>},allow}.
 {{s2s_max_retry_delay,<<"dummy_host">>},30}.
 {{s2s_max_retry_delay,<<"localhost">>},30}.
 {{s2s_shared,<<"dummy_host">>},<<"shared secret">>}.
 {{s2s_shared,<<"localhost">>},<<"shared secret">>}.
-{{{s2s_host,<<"fed1">>},<<"dummy_host">>},allow}.
-{{{s2s_host,<<"fed1">>},<<"localhost">>},allow}.
-{{{s2s_host,<<"reg1">>},<<"dummy_host">>},deny}.
-{{{s2s_host,<<"reg1">>},<<"localhost">>},deny}.
+{{s2s_host_policy,<<"dummy_host">>},#{<<"fed1">> => allow,
+                                      <<"reg1">> => deny}}.
+{{s2s_host_policy,<<"localhost">>},#{<<"fed1">> => allow,
+                                     <<"reg1">> => deny}}.

@@ -77,7 +77,7 @@ config_spec() ->
                      (translate_backend(B)):config_spec()} || B <- all_backends()],
     #section{
        items = #{<<"backend">> => #section{items = maps:from_list(BackendItems),
-                                           format = {kv, backends}}
+                                           wrap = {kv, backends}}
                 }
       }.
 

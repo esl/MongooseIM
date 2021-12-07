@@ -438,23 +438,29 @@ result_attrs(#state{uids = UIDs,
 
 -spec parse_options(HostType :: mongooseim:host_type()) -> state().
 parse_options(HostType) ->
-    Opts = mongoose_config:get_opt({auth_opts, HostType}, []),
-    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
-                                      fun(A) when is_atom(A) -> A end, default),
-    BindEldapID = eldap_utils:get_mod_opt(ldap_bind_pool_tag, Opts,
-                                          fun(A) when is_atom(A) -> A end, bind),
-    Base = eldap_utils:get_base(Opts),
-    DerefAliases = eldap_utils:get_deref_aliases(Opts),
-    UIDs = eldap_utils:get_uids(HostType, Opts),
-    UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
+    Opts = mongoose_config:get_opt([{auth, HostType}, ldap], #{}),
+    EldapID = maps:get(pool_tag, Opts, default),
+    BindEldapID = maps:get(bind_pool_tag, Opts, bind),
+    Base = maps:get(base, Opts, <<>>),
+    DerefAliases = eldap_utils:deref_aliases(maps:get(deref, Opts, never)),
+    RawUIDs = maps:get(uids, Opts, [{<<"uid">>, <<"%u">>}]),
+    UIDs = eldap_utils:uids_domain_subst(HostType, RawUIDs),
+    RawUserFilter = maps:get(filter, Opts, <<>>),
+    UserFilter = eldap_utils:process_user_filter(UIDs, RawUserFilter),
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
-    {DNFilter, DNFilterAttrs} = eldap_utils:get_dn_filter_with_attrs(Opts),
-    LocalFilter = eldap_utils:get_mod_opt(ldap_local_filter, Opts),
+    {DNFilter, DNFilterAttrs} = case maps:find(dn_filter, Opts) of
+                                    {ok, DNF} -> DNF;
+                                    error -> {undefined, []}
+                                end,
+    LocalFilter = maps:get(local_filter, Opts, undefined),
     #state{host_type = HostType,
            eldap_id = {HostType, EldapID},
            bind_eldap_id = {HostType, BindEldapID},
            base = Base,
            deref = DerefAliases,
-           uids = UIDs, ufilter = UserFilter,
-           sfilter = SearchFilter, lfilter = LocalFilter,
-           dn_filter = DNFilter, dn_filter_attrs = DNFilterAttrs}.
+           uids = UIDs,
+           ufilter = UserFilter,
+           sfilter = SearchFilter,
+           lfilter = LocalFilter,
+           dn_filter = DNFilter,
+           dn_filter_attrs = DNFilterAttrs}.

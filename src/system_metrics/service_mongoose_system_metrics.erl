@@ -75,7 +75,7 @@ config_spec() ->
                                                   validate = non_negative},
                  <<"report">> => #option{type = boolean,
                                          process = fun ?MODULE:process_report_option/1,
-                                         format = item},
+                                         wrap = item},
                  <<"tracking_id">> => #option{type = string,
                                               validate = non_empty}
                 }

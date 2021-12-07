@@ -44,7 +44,7 @@ stop(Host) ->
 config_spec() ->
     #section{
         items = #{<<"service">> => #list{items = service_config_spec(),
-                                         format = none}}
+                                         wrap = none}}
         }.
 
 service_config_spec() ->

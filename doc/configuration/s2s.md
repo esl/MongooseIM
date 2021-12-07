@@ -94,7 +94,7 @@ The options listed below affect only the outgoing S2S connections.
     * `host` - string, mandatory, host name
     * `ip_address` - string, mandatory, IP address
     * `port` - integer, optional, port number
-* **Default:** `"allow"`
+* **Default:** not set
 * **Example:**
 
 ```toml

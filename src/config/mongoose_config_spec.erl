@@ -22,7 +22,6 @@
          process_http_handler/2,
          process_sasl_external/1,
          process_sasl_mechanism/1,
-         process_auth/1,
          process_auth_password/1,
          process_jwt_secret/1,
          process_ldap_uids/1,
@@ -53,42 +52,41 @@
 -type option_type() :: boolean | binary | string | atom | int_or_infinity
                      | int_or_atom | integer | float.
 
-%% The format describes how the TOML Key and the parsed and processed Value
-%% are packed into the resulting list of configuration options.
--type format() :: top_level_config_format() | config_part_format().
+-type wrapper() :: top_level_config_wrapper() | config_part_wrapper().
 
-%% The value becomes a top-level config option or 'override' tuple
--type top_level_config_format() ::
-      % Config options, see the type below for details
-        config_option_format()
-
-      % Config option for each {K, V} in Value, which has to be a list
-      | {foreach, config_option_format()}
+%% Wrap the value in a top-level config option
+-type top_level_config_wrapper() ::
+      % Config option, see the type below for details
+        config_option_wrapper()
 
       % Config option, the key is replaced with NewKey
-      | {config_option_format(), NewKey :: term()}
+      | {config_option_wrapper(), NewKey :: atom()}
 
-      % Inside host_config: {{Tag, Key, Host}, Value}
-      % Otherwise: {{Tag, Key, global}, Value}
-      | {host_or_global_config, Tag :: term()}.
+      % Inside host_config: [{{Tag, Key, Host}, Value}]
+      % Otherwise: [{{Tag, Key, global}, Value}]
+      | {host_or_global_config, Tag :: atom()}.
 
-%% The value becomes a top-level config option
--type config_option_format() ::
-        global_config % {Key, Value}
-      | host_config. % Inside host_config: {{Key, Host}, Value}
+-type config_option_wrapper() ::
+        global_config % [{Key, Value}]
+      | host_config. % Inside host_config: [{{Key, Host}, Value}]
                      % Otherwise: one such option for each configured host
 
-%% The value becomes a nested config part - key-value pair or just a value
--type config_part_format() ::
-        default      % {Key, Value} for section items, Value for list items
-      | item         % only Value
-      | skip         % nothing - the item is ignored
-      | none         % no formatting - Value must be a list and is injected into the parent list
-      | {kv, NewKey :: term()} % {NewKey, Value} - replaces the key with NewKey
-      | prepend_key. % {Key, V1, ..., Vn} when Value = {V1, ..., Vn}
+%% Wrap the value in config part - key-value pair or just a value
+-type config_part_wrapper() ::
+        default      % [{Key, Value}] for section items, [Value] for list items
+      | item         % [Value]
+      | remove       % [] - the item is ignored
+      | none         % just Value - injects elements of Value into the parent section/list
+      | {kv, NewKey :: term()} % [{NewKey, Value}] - replaces the key with NewKey
+      | prepend_key. % [{Key, V1, ..., Vn}] when Value = {V1, ..., Vn}
+
+%% This option allows to put list/section items in a map
+-type format_items() ::
+        none         % keep the processed items unchanged
+      | map.         % convert the processed items (which have to be a KV list) to a map
 
 -export_type([config_node/0, config_section/0, config_list/0, config_option/0,
-              format/0, option_type/0]).
+              wrapper/0, format_items/0, option_type/0]).
 
 %% Config processing functions are annotated with TOML paths
 %% Path syntax: dotted, like TOML keys with the following additions:
@@ -123,10 +121,10 @@ root() ->
                  <<"access">> => access(),
                  <<"s2s">> => s2s(),
                  <<"host_config">> => #list{items = host_config(),
-                                            format = none}
+                                            wrap = none}
                 },
        required = [<<"general">>],
-       format = none
+       wrap = none
       }.
 
 %% path: host_config[]
@@ -143,11 +141,11 @@ host_config() ->
                  %% just a synonym to host_type.
                  <<"host">> => #option{type = binary,
                                        validate = non_empty,
-                                       format = skip},
+                                       wrap = remove},
 
                  <<"host_type">> => #option{type = binary,
                                             validate = non_empty,
-                                            format = skip},
+                                            wrap = remove},
 
                  %% Sections below are allowed in host_config,
                  %% but only options with these formats are accepted:
@@ -163,7 +161,7 @@ host_config() ->
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
                 },
-       format = none
+       wrap = none
       }.
 
 %% path: general
@@ -171,56 +169,56 @@ general() ->
     #section{
        items = #{<<"loglevel">> => #option{type = atom,
                                            validate = loglevel,
-                                           format = global_config},
+                                           wrap = global_config},
                  <<"hosts">> => #list{items = #option{type = binary,
                                                       validate = non_empty,
                                                       process = fun ?MODULE:process_host/1},
                                       validate = unique,
-                                      format = global_config},
+                                      wrap = global_config},
                  <<"host_types">> => #list{items = #option{type = binary,
                                                            validate = non_empty},
                                            validate = unique,
-                                           format = global_config},
+                                           wrap = global_config},
                  <<"default_server_domain">> => #option{type = binary,
                                                         validate = non_empty,
                                                         process = fun ?MODULE:process_host/1,
-                                                        format = global_config},
+                                                        wrap = global_config},
                  <<"registration_timeout">> => #option{type = int_or_infinity,
                                                        validate = positive,
-                                                       format = global_config},
+                                                       wrap = global_config},
                  <<"language">> => #option{type = binary,
                                            validate = non_empty,
-                                           format = global_config},
+                                           wrap = global_config},
                  <<"all_metrics_are_global">> => #option{type = boolean,
-                                                         format = global_config},
+                                                         wrap = global_config},
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
                                              process = fun ?MODULE:process_sm_backend/1,
-                                             format = global_config},
+                                             wrap = global_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
-                                                format = global_config},
+                                                wrap = global_config},
                  <<"http_server_name">> => #option{type = string,
-                                                   format = {global_config, cowboy_server_name}},
+                                                   wrap = {global_config, cowboy_server_name}},
                  <<"rdbms_server_type">> => #option{type = atom,
                                                     validate = {enum, [mssql, pgsql]},
-                                                    format = global_config},
+                                                    wrap = global_config},
                  <<"route_subdomains">> => #option{type = atom,
                                                    validate = {enum, [s2s]},
-                                                   format = host_config},
+                                                   wrap = host_config},
                  <<"mongooseimctl_access_commands">> => #section{
                                                            items = #{default => ctl_access_rule()},
-                                                           format = global_config},
+                                                           wrap = global_config},
                  <<"routing_modules">> => #list{items = #option{type = atom,
                                                                 validate = module},
-                                                format = global_config},
+                                                wrap = global_config},
                  <<"replaced_wait_timeout">> => #option{type = integer,
                                                         validate = positive,
-                                                        format = host_config},
+                                                        wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    format = global_config}
+                                                    wrap = global_config}
                 },
-       format = none
+       wrap = none
       }.
 
 general_defaults() ->
@@ -245,7 +243,7 @@ ctl_access_rule() ->
                                                   }
                 },
        process = fun ?MODULE:process_ctl_access_rule/1,
-       format = prepend_key
+       wrap = prepend_key
       }.
 
 %% path: listen
@@ -253,8 +251,8 @@ listen() ->
     Keys = [<<"http">>, <<"c2s">>, <<"s2s">>, <<"service">>],
     #section{
        items = maps:from_list([{Key, #list{items = listener(Key),
-                                           format = none}} || Key <- Keys]),
-       format = global_config
+                                           wrap = none}} || Key <- Keys]),
+       wrap = global_config
       }.
 
 %% path: listen.*[]
@@ -270,7 +268,7 @@ listener(Type) ->
                            <<"ip_version">> => #option{type = integer,
                                                        validate = {enum, [4, 6]},
                                                        process = fun ?MODULE:process_ip_version/1,
-                                                       format = item}},
+                                                       wrap = item}},
        required = [<<"port">>],
        process = fun ?MODULE:process_listener/2
       }.
@@ -292,7 +290,7 @@ listener_items(Type) ->
                 <<"proxy_protocol">> => #option{type = boolean},
                 <<"num_acceptors">> => #option{type = integer,
                                                validate = positive,
-                                               format = {kv, acceptors_num}}
+                                               wrap = {kv, acceptors_num}}
                }.
 
 xmpp_listener_items(<<"c2s">>) ->
@@ -316,7 +314,7 @@ xmpp_listener_items(<<"service">>) ->
       <<"shaper_rule">> => #option{type = atom,
                                    validate = non_empty},
       <<"check_from">> => #option{type = boolean,
-                                  format = {kv, service_check_from}},
+                                  wrap = {kv, service_check_from}},
       <<"hidden_components">> => #option{type = boolean},
       <<"conflict_behaviour">> => #option{type = atom,
                                           validate = {enum, [kick_old, disconnect]}},
@@ -354,14 +352,14 @@ c2s_tls() ->
                  <<"disconnect_on_failure">> => #option{type = boolean},
                  <<"crl_files">> => #list{items = #option{type = string,
                                                           validate = non_empty},
-                                          format = {kv, crlfiles}},
+                                          wrap = {kv, crlfiles}},
                  <<"password">> => #option{type = string},
                  <<"server_name_indication">> => #option{type = boolean,
                                                          process = fun ?MODULE:process_sni/1},
                  <<"versions">> => #list{items = #option{type = atom}}
                 },
        process = fun ?MODULE:process_xmpp_tls/1,
-       format = none
+       wrap = none
       }.
 
 %% path: listen.s2s[].tls
@@ -376,7 +374,7 @@ s2s_tls() ->
                                                                  validate = non_empty}}
                 },
        process = fun ?MODULE:process_fast_tls/1,
-       format = none
+       wrap = none
       }.
 
 %% path: listen.http[].tls
@@ -386,7 +384,7 @@ http_listener_tls() ->
        items = Items#{<<"verify_mode">> => #option{type = atom,
                                                    validate = {enum, [peer, selfsigned_peer, none]}}
                      },
-       format = {kv, ssl}
+       wrap = {kv, ssl}
       }.
 
 %% path: listen.http[].transport
@@ -397,14 +395,14 @@ http_transport() ->
                  <<"max_connections">> => #option{type = int_or_infinity,
                                                   validate = non_negative}
                 },
-       format = {kv, transport_options}
+       wrap = {kv, transport_options}
       }.
 
 %% path: listen.http[].protocol
 http_protocol() ->
     #section{
        items = #{<<"compress">> => #option{type = boolean}},
-       format = {kv, protocol_options}
+       wrap = {kv, protocol_options}
       }.
 
 %% path: listen.http[].handlers
@@ -418,9 +416,9 @@ http_handlers() ->
             default],
     #section{
        items = maps:from_list([{Key, #list{items = http_handler(Key),
-                                           format = none}} || Key <- Keys]),
+                                           wrap = none}} || Key <- Keys]),
        validate_keys = module,
-       format = {kv, modules}
+       wrap = {kv, modules}
       }.
 
 %% path: listen.http[].handlers.*[]
@@ -447,7 +445,7 @@ http_handler_items(<<"mod_websockets">>) ->
       <<"max_stanza_size">> => #option{type = int_or_infinity,
                                        validate = positive},
       <<"service">> => #section{items = xmpp_listener_items(<<"service">>),
-                                format = {kv, ejabberd_service}}};
+                                wrap = {kv, ejabberd_service}}};
 http_handler_items(<<"lasse_handler">>) ->
     #{<<"module">> => #option{type = atom,
                               validate = module}};
@@ -476,15 +474,13 @@ http_handler_required(_) -> [].
 auth() ->
     #section{
        items = #{<<"methods">> => #list{items = #option{type = atom,
-                                                        validate = {module, ejabberd_auth}},
-                                        format = {kv, auth_method}},
+                                                        validate = {module, ejabberd_auth}}},
                  <<"password">> => auth_password(),
                  <<"scram_iterations">> => #option{type = integer,
                                                    validate = positive},
                  <<"sasl_external">> =>
                      #list{items = #option{type = atom,
-                                           process = fun ?MODULE:process_sasl_external/1},
-                           format = {kv, cyrsasl_external}},
+                                           process = fun ?MODULE:process_sasl_external/1}},
                  <<"sasl_mechanisms">> =>
                      #list{items = #option{type = atom,
                                            validate = {module, cyrsasl},
@@ -497,8 +493,8 @@ auth() ->
                  <<"riak">> => auth_riak(),
                  <<"rdbms">> => auth_rdbms(),
                  <<"dummy">> => auth_dummy()},
-       process = fun ?MODULE:process_auth/1,
-       format = {foreach, host_config}
+       wrap = host_config,
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.password
@@ -513,7 +509,7 @@ auth_password() ->
                                     }
                 },
        process = fun ?MODULE:process_auth_password/1,
-       format = {kv, password_format}
+       wrap = {kv, password_format}
       }.
 
 %% path: (host_config[].)auth.anonymous
@@ -521,30 +517,28 @@ auth_anonymous() ->
     #section{
        items = #{<<"allow_multiple_connections">> => #option{type = boolean},
                  <<"protocol">> => #option{type = atom,
-                                           validate = {enum, [sasl_anon, login_anon, both]},
-                                           format = {kv, anonymous_protocol}}
+                                           validate = {enum, [sasl_anon, login_anon, both]}}
                 },
-       format = none
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.external
 auth_external() ->
     #section{
        items = #{<<"instances">> => #option{type = integer,
-                                            validate = positive,
-                                            format = {kv, extauth_instances}},
+                                            validate = positive},
                  <<"program">> => #option{type = string,
-                                          validate = non_empty,
-                                          format = {kv, extauth_program}}
+                                          validate = non_empty}
                 },
-       format = none
+       required = [<<"program">>],
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.http
 auth_http() ->
     #section{
        items = #{<<"basic_auth">> => #option{type = string}},
-       format = none
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.jwt
@@ -555,14 +549,13 @@ auth_jwt() ->
                                             validate = {enum,
                                                         [<<"HS256">>, <<"RS256">>, <<"ES256">>,
                                                          <<"HS386">>, <<"RS386">>, <<"ES386">>,
-                                                         <<"HS512">>, <<"RS512">>, <<"ES512">>]},
-                                            format = {kv, jwt_algorithm}},
+                                                         <<"HS512">>, <<"RS512">>, <<"ES512">>]}
+                                           },
                  <<"username_key">> => #option{type = atom,
-                                               validate = non_empty,
-                                               format = {kv, jwt_username_key}}
+                                               validate = non_empty}
                 },
        required = all,
-       format = none
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.jwt.secret
@@ -573,52 +566,49 @@ auth_jwt_secret() ->
                  <<"env">> => #option{type = string,
                                       validate = non_empty},
                  <<"value">> => #option{type = string}},
-       process = fun ?MODULE:process_jwt_secret/1,
-       format = item
+       process = fun ?MODULE:process_jwt_secret/1
       }.
 
 %% path: (host_config[].)auth.ldap
 auth_ldap() ->
     #section{
        items = #{<<"pool_tag">> => #option{type = atom,
-                                           validate = non_empty,
-                                           format = {kv, ldap_pool_tag}},
+                                           validate = non_empty},
                  <<"bind_pool_tag">> => #option{type = atom,
-                                                validate = non_empty,
-                                                format = {kv, ldap_bind_pool_tag}},
-                 <<"base">> => #option{type = string,
-                                       format = {kv, ldap_base}},
-                 <<"uids">> => #list{items = ldap_uids(),
-                                     format = {kv, ldap_uids}},
-                 <<"filter">> => #option{type = string,
-                                         format = {kv, ldap_filter}},
+                                                validate = non_empty},
+                 <<"base">> => #option{type = binary},
+                 <<"uids">> => #list{items = ldap_uids()},
+                 <<"filter">> => #option{type = binary,
+                                         validate = ldap_filter},
                  <<"dn_filter">> => ldap_dn_filter(),
                  <<"local_filter">> => ldap_local_filter(),
                  <<"deref">> => #option{type = atom,
-                                        validate = {enum, [never, always, finding, searching]},
-                                        format = {kv, ldap_deref}}
+                                        validate = {enum, [never, always, finding, searching]}}
                 },
-       format = none
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.ldap.uids
 ldap_uids() ->
     #section{
-       items = #{<<"attr">> => #option{type = string},
-                 <<"format">> => #option{type = string}},
+       items = #{<<"attr">> => #option{type = binary},
+                 <<"format">> => #option{type = binary}},
        process = fun ?MODULE:process_ldap_uids/1,
-       required = [<<"attr">>]
+       required = [<<"attr">>],
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.ldap.dn_filter
 ldap_dn_filter() ->
     #section{
-       items = #{<<"filter">> => #option{type = string},
-                 <<"attributes">> => #list{items = #option{type = string}}
+       items = #{<<"filter">> => #option{type = binary,
+                                         validate = ldap_filter},
+                 <<"attributes">> => #list{items = #option{type = binary}}
                 },
-       required = all,
+       required = [<<"filter">>],
+       defaults = #{<<"attributes">> => []},
        process = fun ?MODULE:process_ldap_dn_filter/1,
-       format = {kv, ldap_dn_filter}
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.ldap.local_filter
@@ -633,7 +623,7 @@ ldap_local_filter() ->
                 },
        required = all,
        process = fun ?MODULE:process_ldap_local_filter/1,
-       format = {kv, ldap_local_filter}
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.riak
@@ -641,27 +631,24 @@ auth_riak() ->
     #section{
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
-       format = none
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.rdbms
 auth_rdbms() ->
     #section{
-       items = #{<<"users_number_estimate">> => #option{type = boolean,
-                                                        format = {kv, rdbms_users_number_estimate}}
-                },
-       format = none
+       items = #{<<"users_number_estimate">> => #option{type = boolean}},
+       format_items = map
       }.
 
 %% path: (host_config[].)auth.dummy
 auth_dummy() ->
     #section{
        items = #{<<"base_time">> => #option{type = integer,
-                                            format = {kv, dummy_base_timeout}},
+                                            validate = non_negative},
                  <<"variance">> => #option{type = integer,
-                                           format = {kv, dummy_variance}}
-                },
-       format = none
+                                           validate = positive}},
+       format_items = map
       }.
 
 %% path: outgoing_pools
@@ -670,10 +657,10 @@ outgoing_pools() ->
                  <<"rabbit">>, <<"rdbms">>, <<"redis">>, <<"riak">>],
     Items = [{Type, #section{items = #{default => outgoing_pool(Type)},
                              validate_keys = non_empty,
-                             format = none}} || Type <- PoolTypes],
+                             wrap = none}} || Type <- PoolTypes],
     #section{
        items = maps:from_list(Items),
-       format = global_config
+       wrap = global_config
       }.
 
 %% path: outgoing_pools.*.*
@@ -687,7 +674,7 @@ outgoing_pool(Type) ->
                       <<"connection">> => outgoing_pool_connection(Type)
                 },
        process = fun ?MODULE:process_pool/2,
-       format = item
+       wrap = item
       }.
 
 wpool_items() ->
@@ -709,7 +696,7 @@ outgoing_pool_connection(<<"cassandra">>) ->
                                         required = all,
                                         process = fun ?MODULE:process_cassandra_auth/1},
                  <<"tls">> => #section{items = tls_items(),
-                                       format = {kv, ssl}}
+                                       wrap = {kv, ssl}}
                 }
       };
 outgoing_pool_connection(<<"elastic">>) ->
@@ -724,13 +711,13 @@ outgoing_pool_connection(<<"http">>) ->
     #section{
        items = #{<<"host">> => #option{type = string,
                                        validate = non_empty,
-                                       format = {kv, server}},
+                                       wrap = {kv, server}},
                  <<"path_prefix">> => #option{type = string,
                                               validate = non_empty},
                  <<"request_timeout">> => #option{type = integer,
                                                   validate = non_negative},
                  <<"tls">> => #section{items = tls_items(),
-                                       format = {kv, http_opts}}
+                                       wrap = {kv, http_opts}}
                 }
       };
 outgoing_pool_connection(<<"ldap">>) ->
@@ -747,7 +734,7 @@ outgoing_pool_connection(<<"ldap">>) ->
                  <<"connect_interval">> => #option{type = integer,
                                                    validate = positive},
                  <<"tls">> => #section{items = tls_items(),
-                                       format = {kv, tls_options}}
+                                       wrap = {kv, tls_options}}
                 }
       };
 outgoing_pool_connection(<<"rabbit">>) ->
@@ -810,7 +797,7 @@ outgoing_pool_connection(<<"riak">>) ->
                  <<"credentials">> => riak_credentials(),
                  <<"tls">> => #section{items = tls_items(),
                                        process = fun ?MODULE:process_riak_tls/1,
-                                       format = none}}
+                                       wrap = none}}
       }.
 
 cassandra_server() ->
@@ -840,7 +827,7 @@ riak_credentials() ->
                                            validate = non_empty}},
        required = all,
        process = fun ?MODULE:process_riak_credentials/1,
-       format = prepend_key
+       wrap = prepend_key
       }.
 
 %% path: outgoing_pools.rdbms.*.connection.tls
@@ -853,7 +840,7 @@ sql_tls() ->
 tls_items() ->
     #{<<"verify_peer">> => #option{type = boolean,
                                    process = fun ?MODULE:process_verify_peer/1,
-                                   format = {kv, verify}},
+                                   wrap = {kv, verify}},
       <<"certfile">> => #option{type = string,
                                 validate = non_empty},
       <<"cacertfile">> => #option{type = string,
@@ -875,7 +862,7 @@ services() ->
                 || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
-       format = global_config
+       wrap = global_config
       }.
 
 configurable_services() ->
@@ -891,7 +878,7 @@ modules() ->
     #section{
        items = Items#{default => #section{items = #{}}},
        validate_keys = module,
-       format = host_config
+       wrap = host_config
       }.
 
 configurable_modules() ->
@@ -956,23 +943,23 @@ shaper() ->
                      #section{
                         items = #{<<"max_rate">> => #option{type = integer,
                                                             validate = positive,
-                                                            format = {kv, maxrate}}},
+                                                            wrap = {kv, maxrate}}},
                         required = all,
                         process = fun ?MODULE:process_shaper/1,
-                        format = {host_or_global_config, shaper}
+                        wrap = {host_or_global_config, shaper}
                        }
                 },
        validate_keys = non_empty,
-       format = none
+       wrap = none
       }.
 
 %% path: (host_config[].)acl
 acl() ->
     #section{
        items = #{default => #list{items = acl_item(),
-                                  format = {host_or_global_config, acl}}
+                                  wrap = {host_or_global_config, acl}}
                 },
-       format = none
+       wrap = none
       }.
 
 %% path: (host_config[].)acl.*[]
@@ -998,9 +985,9 @@ acl_item() ->
 access() ->
     #section{
        items = #{default => #list{items = access_rule_item(),
-                                  format = {host_or_global_config, access}}
+                                  wrap = {host_or_global_config, access}}
                 },
-       format = none
+       wrap = none
       }.
 
 %% path: (host_config[].)access.*[]
@@ -1022,29 +1009,32 @@ s2s() ->
                  <<"use_starttls">> => #option{type = atom,
                                                validate = {enum, [false, optional, required,
                                                                   required_trusted]},
-                                               format = {global_config, s2s_use_starttls}},
+                                               wrap = {global_config, s2s_use_starttls}},
                  <<"certfile">> => #option{type = string,
                                            validate = non_empty,
-                                           format = {global_config, s2s_certfile}},
+                                           wrap = {global_config, s2s_certfile}},
                  <<"default_policy">> => #option{type = atom,
                                                  validate = {enum, [allow, deny]},
-                                                 format = {host_config, s2s_default_policy}},
+                                                 wrap = {host_config, s2s_default_policy}},
                  <<"host_policy">> => #list{items = s2s_host_policy(),
-                                            format = {foreach, host_config}},
+                                            format_items = map,
+                                            wrap = {host_config, s2s_host_policy}},
                  <<"address">> => #list{items = s2s_address(),
-                                        format = {foreach, global_config}},
+                                        format_items = map,
+                                        wrap = {global_config, s2s_address}},
                  <<"ciphers">> => #option{type = string,
-                                          format = {global_config, s2s_ciphers}},
+                                          wrap = {global_config, s2s_ciphers}},
                  <<"domain_certfile">> => #list{items = s2s_domain_cert(),
-                                                format = {foreach, global_config}},
+                                                format_items = map,
+                                                wrap = {global_config, domain_certfile}},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty,
-                                         format = {host_config, s2s_shared}},
+                                         wrap = {host_config, s2s_shared}},
                  <<"max_retry_delay">> => #option{type = integer,
                                                   validate = positive,
-                                                  format = {host_config, s2s_max_retry_delay}}
+                                                  wrap = {host_config, s2s_max_retry_delay}}
                 },
-       format = none
+       wrap = none
       }.
 
 %% path: (host_config[].)s2s.dns
@@ -1054,7 +1044,7 @@ s2s_dns() ->
                                           validate = positive},
                  <<"retries">> => #option{type = integer,
                                           validate = positive}},
-       format = {global_config, s2s_dns_options}
+       wrap = {global_config, s2s_dns_options}
       }.
 
 %% path: (host_config[].)s2s.outgoing
@@ -1062,18 +1052,18 @@ s2s_outgoing() ->
     #section{
        items = #{<<"port">> => #option{type = integer,
                                        validate = port,
-                                       format = {global_config, outgoing_s2s_port}},
+                                       wrap = {global_config, outgoing_s2s_port}},
                  <<"ip_versions">> =>
                      #list{items = #option{type = integer,
                                            validate = {enum, [4, 6]},
                                            process = fun ?MODULE:process_s2s_address_family/1},
                            validate = unique_non_empty,
-                           format = {global_config, outgoing_s2s_families}},
+                           wrap = {global_config, outgoing_s2s_families}},
                  <<"connection_timeout">> => #option{type = int_or_infinity,
                                                      validate = positive,
-                                                     format = {global_config, outgoing_s2s_timeout}}
+                                                     wrap = {global_config, outgoing_s2s_timeout}}
                 },
-       format = none
+       wrap = none
       }.
 
 %% path: (host_config[].)s2s.host_policy[]
@@ -1085,6 +1075,7 @@ s2s_host_policy() ->
                                          validate = {enum, [allow, deny]}}
                 },
        required = all,
+       format_items = map,
        process = fun ?MODULE:process_s2s_host_policy/1
       }.
 
@@ -1099,6 +1090,7 @@ s2s_address() ->
                                        validate = port}
                 },
        required = [<<"host">>, <<"ip_address">>],
+       format_items = map,
        process = fun ?MODULE:process_s2s_address/1
       }.
 
@@ -1110,6 +1102,7 @@ s2s_domain_cert() ->
                  <<"certfile">> => #option{type = string,
                                            validate = non_empty}},
        required = all,
+       format_items = map,
        process = fun ?MODULE:process_s2s_domain_cert/1
       }.
 
@@ -1244,17 +1237,6 @@ process_http_handler_opts(<<"cowboy_swagger_redirect_handler">>, []) -> #{};
 process_http_handler_opts(<<"cowboy_swagger_json_handler">>, []) -> #{};
 process_http_handler_opts(_, Opts) -> Opts.
 
-process_auth(Opts) ->
-    %% some options need to be wrapped in 'auth_opts' - this needs simplifying in the future
-    OuterKeys = [auth_method, allow_multiple_connections, anonymous_protocol, sasl_mechanisms,
-                 extauth_instances],
-    PartitionFn = fun
-                      ({K, _}) -> lists:member(K, OuterKeys);
-                      (_) -> false %% e.g. error maps
-                  end,
-    {OuterOpts, InnerOpts} = lists:partition(PartitionFn, Opts),
-    [{auth_opts, InnerOpts} | OuterOpts].
-
 process_sasl_external(V) when V =:= standard;
                               V =:= common_name;
                               V =:= auth_id ->
@@ -1266,9 +1248,7 @@ process_sasl_external(M) ->
 process_sasl_mechanism(V) ->
     list_to_atom("cyrsasl_" ++ atom_to_list(V)).
 
-process_jwt_secret([{file, V}]) -> {jwt_secret_source, V};
-process_jwt_secret([{env, V}]) -> {jwt_secret_source, {env, V}};
-process_jwt_secret([{value, V}]) -> {jwt_secret, V}.
+process_jwt_secret([V]) -> V.
 
 process_auth_password(KVs) ->
     {[FormatOpts, HashOpts], []} = proplists:split(KVs, [format, hash]),
@@ -1278,23 +1258,14 @@ process_auth_password(KVs) ->
         {[], [{hash, Hashes}]} -> {scram, Hashes}
     end.
 
-process_ldap_dn_filter(KVs) ->
-    {_, Filter} = proplists:lookup(filter, KVs),
-    {_, Attrs} = proplists:lookup(attributes, KVs),
+process_ldap_dn_filter(#{filter := Filter, attributes := Attrs}) ->
     {Filter, Attrs}.
 
-process_ldap_local_filter(KVs) ->
-    {_, Op} = proplists:lookup(operation, KVs),
-    {_, Attribute} = proplists:lookup(attribute, KVs),
-    {_, Values} = proplists:lookup(values, KVs),
-    {Op, {Attribute, Values}}.
+process_ldap_local_filter(#{operation := Op, attribute := Attr, values := Values}) ->
+    {Op, {Attr, Values}}.
 
-process_ldap_uids(KVs) ->
-    {[AttrOpts, FormatOpts], []} = proplists:split(KVs, [attr, format]),
-    case {AttrOpts, FormatOpts} of
-        {[{attr, Attr}], []} -> Attr;
-        {[{attr, Attr}], [{format, Format}]} -> {Attr, Format}
-    end.
+process_ldap_uids(#{attr := Attr, format := Format}) -> {Attr, Format};
+process_ldap_uids(#{attr := Attr}) -> Attr.
 
 process_pool([Tag, Type|_], KVs) ->
     {[ScopeOpts, HostOpts, ConnOpts], Opts} = proplists:split(KVs, [scope, host, connection]),
@@ -1416,17 +1387,13 @@ process_access_rule_item(KVs) ->
 process_s2s_address_family(4) -> ipv4;
 process_s2s_address_family(6) -> ipv6.
 
-process_s2s_host_policy(KVs) ->
-    {[[{host, S2SHost}], [{policy, Policy}]], []} = proplists:split(KVs, [host, policy]),
-    {{s2s_host, S2SHost}, Policy}.
+process_s2s_host_policy(#{host := S2SHost, policy := Policy}) ->
+    {S2SHost, Policy}.
 
-process_s2s_address(KVs) ->
-    {[[{host, S2SHost}], [{ip_address, IPAddr}]], Opts} = proplists:split(KVs, [host, ip_address]),
-    {{s2s_addr, S2SHost}, s2s_address(IPAddr, Opts)}.
+process_s2s_address(#{host := S2SHost, ip_address := IPAddr, port := Port}) ->
+    {S2SHost, {IPAddr, Port}};
+process_s2s_address(#{host := S2SHost, ip_address := IPAddr}) ->
+    {S2SHost, IPAddr}.
 
-s2s_address(IPAddress, []) -> IPAddress;
-s2s_address(IPAddress, [{port, Port}]) -> {IPAddress, Port}.
-
-process_s2s_domain_cert(KVs) ->
-    {[[{domain, Domain}], [{certfile, Certfile}]], []} = proplists:split(KVs, [domain, certfile]),
-    {{domain_certfile, Domain}, Certfile}.
+process_s2s_domain_cert(#{domain := Domain, certfile := Certfile}) ->
+    {Domain, Certfile}.

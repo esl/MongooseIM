@@ -125,20 +125,20 @@
   {service_mongoose_system_metrics,
    [{initial_report,300000},{periodic_report,10800000}]}]}.
 {sm_backend,{mnesia,[]}}.
-{{allow_multiple_connections,<<"anonymous.localhost">>},true}.
-{{anonymous_protocol,<<"anonymous.localhost">>},both}.
-{{auth_method,<<"anonymous.localhost">>},[anonymous]}.
-{{auth_method,<<"localhost">>},[rdbms]}.
-{{auth_method,<<"localhost.bis">>},[rdbms]}.
-{{auth_opts,<<"anonymous.localhost">>},[]}.
-{{auth_opts,<<"localhost">>},
- [{password_format,{scram,[sha256]}},
-  {cyrsasl_external,[standard]},
-  {scram_iterations,64}]}.
-{{auth_opts,<<"localhost.bis">>},
- [{password_format,{scram,[sha256]}},
-  {cyrsasl_external,[standard]},
-  {scram_iterations,64}]}.
+{{auth,<<"anonymous.localhost">>},
+ #{anonymous => #{allow_multiple_connections => true,
+                  protocol => both},
+   methods => [anonymous]}}.
+{{auth,<<"localhost">>},
+ #{methods => [rdbms],
+   sasl_external => [standard],
+   password_format => {scram,[sha256]},
+   scram_iterations => 64}}.
+{{auth,<<"localhost.bis">>},
+ #{methods => [rdbms],
+   sasl_external => [standard],
+   password_format => {scram,[sha256]},
+   scram_iterations => 64}}.
 {
  {modules,<<"anonymous.localhost">>},
  [{mod_register,
@@ -211,7 +211,7 @@
 {{replaced_wait_timeout,<<"anonymous.localhost">>},2000}.
 {{replaced_wait_timeout,<<"localhost">>},2000}.
 {{replaced_wait_timeout,<<"localhost.bis">>},2000}.
-{{s2s_addr,<<"fed1">>},"127.0.0.1"}.
+{s2s_address,#{<<"fed1">> => "127.0.0.1"}}.
 {{s2s_default_policy,<<"anonymous.localhost">>},allow}.
 {{s2s_default_policy,<<"localhost">>},allow}.
 {{s2s_default_policy,<<"localhost.bis">>},allow}.

@@ -165,16 +165,15 @@ init_per_group(GroupName, ConfigIn) ->
     escalus:create_users(Config, escalus:get_users([alice, bob])).
 
 backup_and_set_options(GroupName, Config) ->
-    Options = config_options(GroupName),
-    mongoose_helper:backup_and_set_config(Config, Options).
+    mongoose_helper:backup_and_set_config_option(Config, {auth, host_type()}, auth_opts(GroupName)).
 
-config_options(login_digest) ->
-    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(plain),
-      {sasl_mechanisms, host_type()} => [cyrsasl_digest]};
-config_options(login_scram_store_plain) ->
-    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(plain)};
-config_options(_GroupName) ->
-    #{{auth_opts, host_type()} => mongoose_helper:auth_opts_with_password_format(scram)}.
+auth_opts(login_digest) ->
+    AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
+    AuthOpts#{sasl_mechanisms => [cyrsasl_digest]};
+auth_opts(login_scram_store_plain) ->
+    mongoose_helper:auth_opts_with_password_format(plain);
+auth_opts(_GroupName) ->
+    mongoose_helper:auth_opts_with_password_format(scram).
 
 end_per_group(login_digest, Config) ->
     mongoose_helper:restore_config(Config),
@@ -481,7 +480,7 @@ configure_scram_plus_and_fail_log_scram(Config, Sha, Mech) ->
 
 set_scram_sha(Config, Sha) ->
     NewAuthOpts = mongoose_helper:auth_opts_with_password_format({scram, [Sha]}),
-    mongoose_helper:change_config_option(Config, {auth_opts, host_type()}, NewAuthOpts),
+    mongoose_helper:change_config_option(Config, {auth, host_type()}, NewAuthOpts),
     assert_password_format({scram, Sha}, Config).
 
 fail_log_one(Config) ->

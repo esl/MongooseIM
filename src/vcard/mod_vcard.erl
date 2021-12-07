@@ -235,7 +235,7 @@ config_spec() ->
                                                 validate = pool_name},
                  <<"ldap_base">> => #option{type = string},
                  <<"ldap_uids">> => #list{items = mongoose_config_spec:ldap_uids()},
-                 <<"ldap_filter">> => #option{type = string},
+                 <<"ldap_filter">> => #option{type = binary},
                  <<"ldap_deref">> => #option{type = atom,
                                              validate = {enum, [never, always, finding, searching]}},
                  <<"ldap_vcard_map">> => #list{items = ldap_vcard_map_spec()},
@@ -291,7 +291,7 @@ riak_config_spec() ->
                   <<"search_index">> => #option{type = binary,
                                                 validate = non_empty}
                 },
-        format = none
+        wrap = none
     }.
 
 process_map_spec(KVs) ->

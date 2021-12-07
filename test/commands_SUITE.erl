@@ -83,7 +83,7 @@ end_per_testcase(_, _C) ->
     meck:unload().
 
 opts() ->
-    [{{auth_method, <<"localhost">>}, [dummy]},
+    [{{auth, <<"localhost">>}, #{methods => [dummy]}},
      {{access, experts_only, <<"localhost">>}, [{allow, coder}, {allow, manager}, {deny, all}]},
      {{acl, coder, <<"localhost">>}, [{user, <<"zenek">>}]}].
 

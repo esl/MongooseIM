@@ -55,7 +55,7 @@ salted_password(Sha, Password, Salt, IterationCount) ->
     fast_scram:salted_password(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 enabled(HostType) ->
-    case ejabberd_auth:get_opt(HostType, password_format, scram) of
+    case mongoose_config:get_opt([{auth, HostType}, password_format], scram) of
         plain -> false;
         {scram, _Sha} -> true;
         scram -> true
@@ -74,7 +74,7 @@ enabled(HostType, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(HostT
 enabled(_HostType, _Mechanism) -> false.
 
 is_password_format_allowed(HostType, Sha) ->
-    case ejabberd_auth:get_opt(HostType, password_format, scram) of
+    case mongoose_config:get_opt([{auth, HostType}, password_format], scram) of
         plain -> true;
         scram -> true;
         {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)
@@ -84,7 +84,8 @@ is_password_format_allowed(HostType, Sha) ->
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
 iterations(HostType) ->
-    ejabberd_auth:get_opt(HostType, scram_iterations, ?SCRAM_DEFAULT_ITERATION_COUNT).
+    mongoose_config:get_opt([{auth, HostType}, scram_iterations],
+                            ?SCRAM_DEFAULT_ITERATION_COUNT).
 
 password_to_scram(HostType, Password) ->
     password_to_scram(HostType, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
@@ -222,8 +223,8 @@ supported_sha_types() ->
      {sha512,   <<?SCRAM_SHA512_PREFIX>>}].
 
 configured_sha_types(HostType) ->
-    case catch ejabberd_auth:get_opt(HostType, password_format) of
-        {scram, ScramSha} when length(ScramSha) > 0 ->
+    case mongoose_config:lookup_opt([{auth, HostType}, password_format]) of
+        {ok, {scram, ScramSha}} when length(ScramSha) > 0 ->
             lists:filter(fun({Sha, _Prefix}) ->
                             lists:member(Sha, ScramSha) end, supported_sha_types());
         _ -> supported_sha_types()

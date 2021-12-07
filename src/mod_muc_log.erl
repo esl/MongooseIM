@@ -141,7 +141,7 @@ config_spec() ->
                                               validate = {enum, [html, plaintext]}},
                  <<"css_file">> => #option{type = binary,
                                            validate = non_empty,
-                                           format = {kv, cssfile}},
+                                           wrap = {kv, cssfile}},
                  <<"timezone">> => #option{type = atom,
                                            validate = {enum, [local, universal]}},
                  <<"top_link">> => top_link_config_spec(),

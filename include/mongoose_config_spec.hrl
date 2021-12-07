@@ -6,19 +6,21 @@
                   validate_keys = any :: mongoose_config_validator:validator(),
                   required = [] :: [mongoose_config_parser_toml:toml_key()] | all,
                   validate = any :: mongoose_config_validator:section_validator(),
+                  format_items = none :: mongoose_config_spec:format_items(),
                   process :: undefined | mongoose_config_parser_toml:list_processor(),
-                  format = default :: mongoose_config_spec:format(),
+                  wrap = default :: mongoose_config_spec:wrapper(),
                   defaults = #{} :: #{mongoose_config_parser_toml:toml_key() =>
                                          mongoose_config_parser_toml:config_part()}}).
 
 -record(list, {items :: mongoose_config_spec:config_node(),
                validate = any :: mongoose_config_validator:list_validator(),
+               format_items = none :: mongoose_config_spec:format_items(),
                process :: undefined | mongoose_config_parser_toml:list_processor(),
-               format = default :: mongoose_config_spec:format()}).
+               wrap = default :: mongoose_config_spec:wrapper()}).
 
 -record(option, {type :: mongoose_config_spec:option_type(),
                  validate = any :: mongoose_config_validator:validator(),
                  process :: undefined | mongoose_config_parser_toml:processor(),
-                 format = default :: mongoose_config_spec:format()}).
+                 wrap = default :: mongoose_config_spec:wrapper()}).
 
 -endif.

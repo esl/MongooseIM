@@ -27,6 +27,7 @@ validate(V, binary, non_empty) -> validate_non_empty_binary(V);
 validate(V, binary, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
 validate(V, binary, jid) -> validate_jid(V);
+validate(V, binary, ldap_filter) -> validate_ldap_filter(V);
 validate(V, integer, non_negative) -> validate_non_negative_integer(V);
 validate(V, integer, positive) -> validate_positive_integer(V);
 validate(V, integer, port) -> validate_port(V);
@@ -117,6 +118,9 @@ validate_jid(Jid) ->
         _ ->
             error(#{what => validate_jid_failed, value => Jid})
     end.
+
+validate_ldap_filter(Value) ->
+    {ok, _} = eldap_filter:parse(Value).
 
 validate_domain(Domain) when is_list(Domain) ->
     #jid{luser = <<>>, lresource = <<>>} = jid:from_binary(list_to_binary(Domain)),

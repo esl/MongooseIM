@@ -30,7 +30,18 @@
 -type processor() :: fun((path(), config_part()) -> config_part())
                    | fun((config_part()) -> config_part()).
 
--type step() :: parse | validate | process | format.
+-type step() ::
+        parse        % Recursive processing (section/list) or type conversion (leaf option)
+
+      | validate     % Value check with one of the predefined validators
+
+      | format_items % Optional formatting of section/list items as a map
+
+      | process      % Optional processing of the value with a custom function
+
+      | wrap.        % Wrapping the value into a list, which will be concatenated
+                     % with other items of the parent node.
+                     % In case of a KV pair the key is also added here.
 
 %% Path from the currently processed config node to the root
 %%   - toml_key(): key in a toml_section()
@@ -124,11 +135,11 @@ parse_list(Path, L, #list{items = ItemSpec}) ->
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
 handle(Path, Value, Spec) ->
-    handle(Path, Value, Spec, [parse, validate, process, format]).
+    handle(Path, Value, Spec, [parse, validate, format_items, process, wrap]).
 
 -spec handle_default(path(), toml_value(), mongoose_config_spec:config_node()) -> [config_part()].
 handle_default(Path, Value, Spec) ->
-    handle(Path, Value, Spec, [format]).
+    handle(Path, Value, Spec, [wrap]).
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node(), [step()]) -> [config_part()].
 handle(Path, Value, Spec, Steps) ->
@@ -155,13 +166,15 @@ handle_step(parse, Path, Value, Spec) ->
         [] -> ParsedValue;
         Errors -> Errors
     end;
+handle_step(format_items, _Path, Items, Spec) ->
+    format_items(Items, format_items_spec(Spec));
 handle_step(validate, _Path, ParsedValue, Spec) ->
     validate(ParsedValue, Spec),
     ParsedValue;
 handle_step(process, Path, ParsedValue, Spec) ->
     process(Path, ParsedValue, process_spec(Spec));
-handle_step(format, Path, ProcessedValue, Spec) ->
-    format(Path, ProcessedValue, format_spec(Spec)).
+handle_step(wrap, Path, ProcessedValue, Spec) ->
+    wrap(Path, ProcessedValue, wrap_spec(Spec)).
 
 -spec check_required_keys(mongoose_config_spec:config_section(), toml_section()) -> any().
 check_required_keys(#section{required = all, items = Items}, Section) ->
@@ -174,6 +187,19 @@ validate_keys(#section{validate_keys = Validator}, Section) ->
     lists:foreach(fun(Key) ->
                           mongoose_config_validator:validate(b2a(Key), atom, Validator)
                   end, maps:keys(Section)).
+
+-spec format_items_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:format_items().
+format_items_spec(#section{format_items = FormatItems}) -> FormatItems;
+format_items_spec(#list{format_items = FormatItems}) -> FormatItems;
+format_items_spec(#option{}) -> none.
+
+-spec format_items(config_part(), mongoose_config_spec:format_items()) -> config_part().
+format_items(KVs, map) ->
+    Keys = lists:map(fun({K, _}) -> K end, KVs),
+    mongoose_config_validator:validate_list(Keys, unique),
+    maps:from_list(KVs);
+format_items(Value, none) ->
+    Value.
 
 -spec validate(config_part(), mongoose_config_spec:config_node()) -> any().
 validate(Value, #section{validate = Validator}) ->
@@ -207,41 +233,37 @@ convert(V, int_or_atom) -> b2a(V);
 convert(V, integer) when is_integer(V) -> V;
 convert(V, float) when is_float(V) -> V.
 
--spec format_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:format().
-format_spec(#section{format = Format}) -> Format;
-format_spec(#list{format = Format}) -> Format;
-format_spec(#option{format = Format}) -> Format.
+-spec wrap_spec(mongoose_config_spec:config_node()) -> mongoose_config_spec:wrapper().
+wrap_spec(#section{wrap = Wrap}) -> Wrap;
+wrap_spec(#list{wrap = Wrap}) -> Wrap;
+wrap_spec(#option{wrap = Wrap}) -> Wrap.
 
--spec format(path(), config_part(), mongoose_config_spec:format()) -> [config_part()].
-format(Path, KVs, {foreach, Format}) when is_atom(Format) ->
-    Keys = lists:map(fun({K, _}) -> K end, KVs),
-    mongoose_config_validator:validate_list(Keys, unique),
-    lists:flatmap(fun({K, V}) -> format(Path, V, {Format, K}) end, KVs);
-format([Key|_] = Path, V, host_config) ->
-    format(Path, V, {host_config, b2a(Key)});
-format([Key|_] = Path, V, global_config) ->
-    format(Path, V, {global_config, b2a(Key)});
-format(Path, V, {host_config, Key}) ->
+-spec wrap(path(), config_part(), mongoose_config_spec:wrapper()) -> [config_part()].
+wrap([Key|_] = Path, V, host_config) ->
+    wrap(Path, V, {host_config, b2a(Key)});
+wrap([Key|_] = Path, V, global_config) ->
+    wrap(Path, V, {global_config, b2a(Key)});
+wrap(Path, V, {host_config, Key}) ->
     [{{Key, get_host(Path)}, V}];
-format(Path, V, {global_config, Key}) ->
+wrap(Path, V, {global_config, Key}) ->
     global = get_host(Path),
     [{Key, V}];
-format([Key|_] = Path, V, {host_or_global_config, Tag}) ->
+wrap([Key|_] = Path, V, {host_or_global_config, Tag}) ->
     [{{Tag, b2a(Key), get_host(Path)}, V}];
-format([item|_] = Path, V, default) ->
-    format(Path, V, item);
-format([Key|_] = Path, V, default) ->
-    format(Path, V, {kv, b2a(Key)});
-format(_Path, V, {kv, Key}) ->
+wrap([item|_] = Path, V, default) ->
+    wrap(Path, V, item);
+wrap([Key|_] = Path, V, default) ->
+    wrap(Path, V, {kv, b2a(Key)});
+wrap(_Path, V, {kv, Key}) ->
     [{Key, V}];
-format(_Path, V, item) ->
+wrap(_Path, V, item) ->
     [V];
-format(_Path, _V, skip) ->
+wrap(_Path, _V, remove) ->
     [];
-format([Key|_], V, prepend_key) ->
+wrap([Key|_], V, prepend_key) ->
     L = [b2a(Key) | tuple_to_list(V)],
     [list_to_tuple(L)];
-format(_Path, V, none) when is_list(V) ->
+wrap(_Path, V, none) when is_list(V) ->
     V.
 
 -spec get_host(path()) -> jid:server() | global.
@@ -260,7 +282,7 @@ try_step(Step, Path, Value, Acc, Spec) ->
             BasicFields = #{what => toml_processing_failed,
                             class => error,
                             stacktrace => Stacktrace,
-                            text => error_text(Step),
+                            text => "TOML configuration error: " ++ error_text(Step),
                             toml_path => path_to_string(Path),
                             toml_value => Value},
             ErrorFields = error_fields(Reason),
@@ -268,10 +290,11 @@ try_step(Step, Path, Value, Acc, Spec) ->
     end.
 
 -spec error_text(step()) -> string().
-error_text(parse) -> "Malformed option in the TOML configuration file";
-error_text(validate) -> "Incorrect option value in the TOML configuration file";
-error_text(process) -> "Unable to process a value the TOML configuration file";
-error_text(format) -> "Unable to format an option in the TOML configuration file".
+error_text(parse) -> "Malformed node";
+error_text(validate) -> "Invalid node value";
+error_text(format_items) -> "List or section has invalid key-value pairs";
+error_text(process) -> "Node could not be processed";
+error_text(wrap) -> "Node could not be wrapped in a config option".
 
 -spec error_fields(any()) -> map().
 error_fields(#{what := Reason} = M) -> maps:remove(what, M#{reason => Reason});

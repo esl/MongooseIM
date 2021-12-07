@@ -74,11 +74,11 @@ check_password(HostType, LUser, LServer, Password) ->
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    BinAlg = ejabberd_auth:get_opt(HostType, jwt_algorithm),
+    BinAlg = mongoose_config:get_opt([{auth, HostType}, jwt, algorithm]),
     Alg = binary_to_atom(jid:str_tolower(BinAlg), utf8),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
-            UserKey = ejabberd_auth:get_opt(HostType, jwt_username_key),
+            UserKey = mongoose_config:get_opt([{auth,HostType}, jwt, username_key]),
             case maps:find(UserKey, TokenData) of
                 {ok, LUser} ->
                     %% Login username matches $token_user_key in TokenData
@@ -134,17 +134,12 @@ supported_features() -> [dynamic_domains].
 % A direct path to a file is read only once during startup,
 % a path in environment variable is read on every auth request.
 get_jwt_secret(HostType) ->
-   JWTSource = ejabberd_auth:get_opt(HostType, jwt_secret_source),
-   JWTSecret = ejabberd_auth:get_opt(HostType, jwt_secret),
-
-   case {JWTSource, JWTSecret} of
-       {undefined, JWTSecret0} when is_list(JWTSecret0) ->
-           list_to_binary(JWTSecret0);
-       {undefined, JWTSecret0} when is_binary(JWTSecret0) ->
-           JWTSecret0;
-       {{env, _} = Env, _} ->
-           Env;
-       {JWTSecretPath, _} when is_list(JWTSecretPath) ->
-           {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
-           JWTSecretBin
-   end.
+    case mongoose_config:get_opt([{auth, HostType}, jwt, secret]) of
+        {value, JWTSecret} ->
+            JWTSecret;
+        {env, Env} ->
+            {env, Env};
+        {file, Path} ->
+            {ok, JWTSecret} = file:read_file(Path),
+            JWTSecret
+    end.

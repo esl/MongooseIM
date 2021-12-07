@@ -518,7 +518,7 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
         {?NS_TLS, <<"starttls">>} when TLS == true,
                                        TLSEnabled == false,
                                        SockMod == gen_tcp ->
-            TLSOpts = case mongoose_config:lookup_opt({domain_certfile, StateData#state.host_type}) of
+            TLSOpts = case mongoose_config:lookup_opt([domain_certfile, StateData#state.host_type]) of
                           {error, not_found} ->
                               StateData#state.tls_options;
                           {ok, CertFile} ->

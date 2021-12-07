@@ -431,7 +431,7 @@ prepare_queries(HostType) ->
             <<"DELETE FROM users WHERE server = ?">>).
 
 prepare_count_users(HostType) ->
-    case {ejabberd_auth:get_opt(HostType, rdbms_users_number_estimate),
+    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate], false),
           mongoose_rdbms:db_engine(HostType)} of
         {true, mysql} ->
             prepare(auth_count_users_estimate, 'information_schema.tables', [],
@@ -502,7 +502,7 @@ execute_count_users(HostType, LServer, #{prefix := Prefix}) ->
     Args = [LServer, prefix_to_like(Prefix)],
     execute_successfully(HostType, auth_count_users_prefix, Args);
 execute_count_users(HostType, LServer, #{}) ->
-    case {ejabberd_auth:get_opt(LServer, rdbms_users_number_estimate),
+    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate], false),
           mongoose_rdbms:db_engine(LServer)} of
         {true, mysql} ->
             execute_successfully(HostType, auth_count_users_estimate, []);

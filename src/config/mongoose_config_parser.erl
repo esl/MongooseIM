@@ -195,12 +195,12 @@ invalid_modules_for_host_type(HostType, Modules) ->
             end,
     lists:map(MapFN, Modules).
 
-maybe_check_auth_methods_for_host_types({{auth_method, HostOrHostType}, ListOfMethods},
+maybe_check_auth_methods_for_host_types({{auth, HostOrHostType}, #{methods := Methods}},
                                         HostTypes) ->
     case lists:member(HostOrHostType, HostTypes) of
         false -> [];
         true ->
-            BadModules = check_auth_methods_for_host_type(ListOfMethods),
+            BadModules = check_auth_methods_for_host_type(Methods),
             invalid_auth_methods_for_host_type(HostOrHostType, BadModules)
     end;
 maybe_check_auth_methods_for_host_types(_, _) -> [].

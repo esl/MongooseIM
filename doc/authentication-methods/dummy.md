@@ -16,13 +16,13 @@ where `Base` is `base_time` and `Variance` is `variance`, as configured below.
 
 ### `auth.dummy.base_time`
 * **Scope:** local
-* **Syntax:** integer
+* **Syntax:** non-negative integer
 * **Default:** 50
 * **Example:** `base_time = 5`
 
 ### `auth.dummy.variance`
 * **Scope:** local
-* **Syntax:** integer
+* **Syntax:** positive integer
 * **Default:** 450
 * **Example:** `variance = 10`
 
@@ -34,4 +34,3 @@ where `Base` is `base_time` and `Variance` is `variance`, as configured below.
   dummy.base = 5
   dummy.variance = 10
 ```
-

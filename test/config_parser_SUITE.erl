@@ -116,12 +116,12 @@ groups() ->
                          auth_ldap_dn_filter,
                          auth_ldap_local_filter,
                          auth_ldap_deref,
-                         auth_external_instances,
-                         auth_external_program,
+                         auth_external,
                          auth_http_basic_auth,
                          auth_jwt,
                          auth_riak_bucket_type,
-                         auth_rdbms_users_number_estimate]},
+                         auth_rdbms_users_number_estimate,
+                         auth_dummy]},
      {pool, [parallel], [pool_type,
                          pool_tag,
                          pool_scope,
@@ -818,17 +818,17 @@ listen_http_handlers_domain(_Config) ->
 %% tests: auth
 
 auth_methods(_Config) ->
-    ?cfgh([{auth_opts, []}, {auth_method, [internal, rdbms]}],
+    ?cfgh(auth, #{methods => [internal, rdbms]},
           #{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
     ?errh(#{<<"auth">> => #{<<"methods">> => [<<"supernatural">>]}}).
 
 auth_password_format(_Config) ->
-    ?cfgh(auth_opts, [{password_format, {scram, [sha, sha256]}}],
+    ?cfgh(auth, #{password_format => {scram, [sha, sha256]}},
           #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
                                                 <<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
-    ?cfgh(auth_opts, [{password_format, scram}],
+    ?cfgh(auth, #{password_format => scram},
           #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>}}}),
-    ?cfgh(auth_opts, [{password_format, plain}],
+    ?cfgh(auth, #{password_format => plain},
           #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
     ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}}),
     ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
@@ -837,14 +837,14 @@ auth_password_format(_Config) ->
                                                 <<"hash">> => [<<"sha1234">>]}}}).
 
 auth_scram_iterations(_Config) ->
-    ?cfgh(auth_opts, [{scram_iterations, 1000}],
+    ?cfgh(auth, #{scram_iterations => 1000},
           #{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
     ?errh(#{<<"auth">> => #{<<"scram_iterations">> => false}}).
 
 auth_sasl_external(_Config) ->
-    ?cfgh(auth_opts, [{cyrsasl_external, [standard,
-                                          common_name,
-                                          {mod, cyrsasl_external_verification}]}],
+    ?cfgh(auth, #{sasl_external => [standard,
+                                    common_name,
+                                    {mod, cyrsasl_external_verification}]},
           #{<<"auth">> => #{<<"sasl_external">> =>
                                 [<<"standard">>,
                                  <<"common_name">>,
@@ -852,86 +852,89 @@ auth_sasl_external(_Config) ->
     ?errh(#{<<"auth">> => #{<<"sasl_external">> => [<<"unknown">>]}}).
 
 auth_sasl_mechanisms(_Config) ->
-    ?cfgh([{auth_opts, []}, {sasl_mechanisms, [cyrsasl_external, cyrsasl_scram]}],
+    ?cfgh(auth, #{sasl_mechanisms => [cyrsasl_external, cyrsasl_scram]},
           #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     ?errh(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
 
 auth_allow_multiple_connections(_Config) ->
-    ?cfgh([{auth_opts, []}, {allow_multiple_connections, true}],
+    ?cfgh(auth, #{anonymous => #{allow_multiple_connections => true}},
           auth_raw(<<"anonymous">>, #{<<"allow_multiple_connections">> => true})),
     ?errh(auth_raw(<<"anonymous">>, #{<<"allow_multiple_connections">> => <<"yes">>})).
 
 auth_anonymous_protocol(_Config) ->
-    ?cfgh([{auth_opts, []}, {anonymous_protocol, login_anon}],
+    ?cfgh(auth, #{anonymous => #{protocol => login_anon}},
           auth_raw(<<"anonymous">>, #{<<"protocol">> => <<"login_anon">>})),
     ?errh(auth_raw(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
 
 auth_ldap_pool(_Config) ->
-    ?cfgh(auth_opts, [{ldap_pool_tag, ldap_pool}],
+    ?cfgh(auth, #{ldap => #{pool_tag => ldap_pool}},
           auth_ldap_raw(#{<<"pool_tag">> => <<"ldap_pool">>})),
     ?errh(auth_ldap_raw(#{<<"pool_tag">> => <<>>})).
 
 auth_ldap_bind_pool(_Config) ->
-    ?cfgh(auth_opts, [{ldap_bind_pool_tag, ldap_bind_pool}],
+    ?cfgh(auth, #{ldap => #{bind_pool_tag => ldap_bind_pool}},
           auth_ldap_raw(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>})),
     ?errh(auth_ldap_raw(#{<<"bind_pool_tag">> => true})).
 
 auth_ldap_base(_Config) ->
-    ?cfgh(auth_opts, [{ldap_base, "ou=Users,dc=example,dc=com"}],
+    ?cfgh(auth, #{ldap => #{base => <<"ou=Users,dc=example,dc=com">>}},
           auth_ldap_raw(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>})),
     ?errh(auth_ldap_raw(#{<<"base">> => 10})).
 
 auth_ldap_uids(_Config) ->
-    ?cfgh(auth_opts, [{ldap_uids, [{"uid1", "user=%u"}]}],
+    ?cfgh(auth, #{ldap => #{uids => [{<<"uid1">>, <<"user=%u">>}]}},
           auth_ldap_raw(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
                                            <<"format">> => <<"user=%u">>}]})),
-    ?cfgh(auth_opts, [{ldap_uids, ["uid1"]}],
+    ?cfgh(auth, #{ldap => #{uids => [<<"uid1">>]}},
           auth_ldap_raw(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>}]})),
     ?errh(auth_ldap_raw(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
 
 auth_ldap_filter(_Config) ->
-    ?cfgh(auth_opts, [{ldap_filter, "(objectClass=inetOrgPerson)"}],
+    ?cfgh(auth, #{ldap => #{filter => <<"(objectClass=inetOrgPerson)">>}},
           auth_ldap_raw(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>})),
     ?errh(auth_ldap_raw(#{<<"filter">> => 10})).
 
 auth_ldap_dn_filter(_Config) ->
-    Filter = #{<<"filter">> => <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
-               <<"attributes">> => [<<"sn">>]},
-    ?cfgh(auth_opts, [{ldap_dn_filter, {"(&(name=%s)(owner=%D)(user=%u@%d))", ["sn"]}}],
-          auth_ldap_raw(#{<<"dn_filter">> => Filter})),
-    [?errh(auth_ldap_raw(#{<<"dn_filter">> => maps:without([K], Filter)})) ||
-        K <- maps:keys(Filter)],
-    ?errh(auth_ldap_raw(#{<<"dn_filter">> => Filter#{<<"filter">> := 12}})),
-    ?errh(auth_ldap_raw(#{<<"dn_filter">> => Filter#{<<"attributes">> := <<"sn">>}})).
+    ?cfgh(auth, #{ldap => #{dn_filter => {<<"(user=%u@%d)">>, []}}},
+          auth_ldap_raw(#{<<"dn_filter">> => #{<<"filter">> => <<"(user=%u@%d)">>}})),
+    Pattern = <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
+    ?cfgh(auth, #{ldap => #{dn_filter => {Pattern, [<<"sn">>]}}},
+          auth_ldap_raw(#{<<"dn_filter">> => #{<<"filter">> => Pattern,
+                                               <<"attributes">> => [<<"sn">>]}})),
+    ?errh(auth_ldap_raw(#{<<"dn_filter">> => #{<<"attributes">> => [<<"sn">>]}})),
+    ?errh(auth_ldap_raw(#{<<"dn_filter">> => #{<<"filter">> => 12}})),
+    ?errh(auth_ldap_raw(#{<<"dn_filter">> => #{<<"filter">> => Pattern,
+                                               <<"attributes">> => <<"sn">>}})).
 
 auth_ldap_local_filter(_Config) ->
     Filter = #{<<"operation">> => <<"equal">>,
                <<"attribute">> => <<"accountStatus">>,
                <<"values">> => [<<"enabled">>]},
-    ?cfgh(auth_opts, [{ldap_local_filter, {equal, {"accountStatus", ["enabled"]}}}],
+    ?cfgh(auth, #{ldap => #{local_filter => {equal, {"accountStatus", ["enabled"]}}}},
           auth_ldap_raw(#{<<"local_filter">> => Filter})),
-    [?errh(auth_ldap_raw(#{<<"local_filter">> => maps:without([K], Filter)})) ||
+    [?errh(auth_ldap_raw(#{<<"local_filter">> => maps:remove(K, Filter)})) ||
         K <- maps:keys(Filter)],
     ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"operation">> := <<"lt">>}})),
     ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"attribute">> := <<>>}})),
     ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
 
 auth_ldap_deref(_Config) ->
-    ?cfgh(auth_opts, [{ldap_deref, always}], auth_ldap_raw(#{<<"deref">> => <<"always">>})),
+    ?cfgh(auth, #{ldap => #{deref => always}}, auth_ldap_raw(#{<<"deref">> => <<"always">>})),
     ?errh(auth_ldap_raw(#{<<"deref">> => <<"sometimes">>})).
 
-auth_external_instances(_Config) ->
-    ?cfgh([{auth_opts, []}, {extauth_instances, 2}],
-          auth_raw(<<"external">>, #{<<"instances">> => 2})),
-    ?errh(auth_raw(<<"external">>, #{<<"instances">> => 0})).
-
-auth_external_program(_Config) ->
-    ?cfgh(auth_opts, [{extauth_program, "/usr/bin/auth"}],
-          auth_raw(<<"external">>, #{<<"program">> => <<"/usr/bin/auth">>})),
-    ?errh(auth_raw(<<"external">>, #{<<"program">> => <<>>})).
+auth_external(_Config) ->
+    RequiredOpts = #{<<"program">> => <<"/usr/bin/auth">>},
+    Config = #{program => "/usr/bin/auth"},
+    ?cfgh(auth, #{external => Config},
+          auth_raw(<<"external">>, RequiredOpts)),
+    ?cfgh(auth, #{external => Config#{instances => 2}},
+          auth_raw(<<"external">>, RequiredOpts#{<<"instances">> => 2})),
+    ?errh(auth_raw(<<"external">>, #{<<"program">> => <<>>})),
+    ?errh(auth_raw(<<"external">>, #{<<"instances">> => 2})),
+    ?errh(auth_raw(<<"external">>, RequiredOpts#{<<"instances">> => 0})).
 
 auth_http_basic_auth(_Config) ->
-    ?cfgh(auth_opts, [{basic_auth, "admin:admin123"}],
+    ?cfgh(auth, #{http => #{basic_auth => "admin:admin123"}},
           auth_raw(<<"http">>, #{<<"basic_auth">> => <<"admin:admin123">>})),
     ?errh(auth_raw(<<"http">>, #{<<"basic_auth">> => true})).
 
@@ -939,18 +942,14 @@ auth_jwt(_Config) ->
     Opts = #{<<"secret">> => #{<<"value">> => <<"secret123">>},
              <<"algorithm">> => <<"HS512">>,
              <<"username_key">> => <<"user">>}, % tested together as all options are required
-    ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
-                      {jwt_secret, "secret123"},
-                      {jwt_username_key, user}],
+    Config = #{algorithm => <<"HS512">>,
+               secret => {value, "secret123"},
+               username_key => user},
+    ?cfgh(auth, #{jwt => Config},
           auth_raw(<<"jwt">>, Opts)),
-    FileOpts = Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}},
-    ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
-                      {jwt_secret_source, "/home/user/jwt_secret"},
-                      {jwt_username_key, user}],
-          auth_raw(<<"jwt">>, FileOpts)),
-    ?cfgh(auth_opts, [{jwt_algorithm, <<"HS512">>},
-                      {jwt_secret_source, {env, "SECRET"}},
-                      {jwt_username_key, user}],
+    ?cfgh(auth, #{jwt => Config#{secret => {file, "/home/user/jwt_secret"}}},
+          auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<"/home/user/jwt_secret">>}})),
+    ?cfgh(auth, #{jwt => Config#{secret => {env, "SECRET"}}},
           auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"env">> => <<"SECRET">>}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"value">> => 123}})),
     ?errh(auth_raw(<<"jwt">>, Opts#{<<"secret">> := #{<<"file">> => <<>>}})),
@@ -962,14 +961,22 @@ auth_jwt(_Config) ->
     [?errh(auth_raw(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
 
 auth_riak_bucket_type(_Config) ->
-    ?cfgh(auth_opts, [{bucket_type, <<"buckethead">>}],
+    ?cfgh(auth, #{riak => #{bucket_type => <<"buckethead">>}},
           auth_raw(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
     ?errh(auth_raw(<<"riak">>, #{<<"bucket_type">> => <<>>})).
 
 auth_rdbms_users_number_estimate(_Config) ->
-    ?cfgh(auth_opts, [{rdbms_users_number_estimate, true}],
+    ?cfgh(auth, #{rdbms => #{users_number_estimate => true}},
           auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => true})),
     ?errh(auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => 1200})).
+
+auth_dummy(_Config) ->
+    ?cfgh(auth, #{dummy => #{base_time => 0}},
+          auth_raw(<<"dummy">>, #{<<"base_time">> => 0})),
+    ?cfgh(auth, #{dummy => #{variance => 10}},
+          auth_raw(<<"dummy">>, #{<<"variance">> => 10})),
+    ?errh(auth_raw(<<"dummy">>, #{<<"base_time">> => -5})),
+    ?errh(auth_raw(<<"dummy">>, #{<<"variance">> => 0})).
 
 %% tests: outgoing_pools
 
@@ -1361,10 +1368,10 @@ s2s_default_policy(_Config) ->
 s2s_host_policy(_Config) ->
     Policy = #{<<"host">> => <<"host1">>,
                <<"policy">> => <<"allow">>},
-    ?cfgh({s2s_host, <<"host1">>}, allow,
+    ?cfgh(s2s_host_policy, #{<<"host1">> => allow},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
-    ?cfgh([{{s2s_host, <<"host1">>}, allow},
-           {{s2s_host, <<"host2">>}, deny}],
+    ?cfgh(s2s_host_policy, #{<<"host1">> => allow,
+                             <<"host2">> => deny},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy, #{<<"host">> => <<"host2">>,
                                                            <<"policy">> => <<"deny">>}]}}),
     ?errh(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
@@ -1378,9 +1385,9 @@ s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
              <<"ip_address">> => <<"192.168.1.2">>,
              <<"port">> => 5321},
-    ?cfg({s2s_addr, <<"host1">>}, {"192.168.1.2", 5321},
+    ?cfg(s2s_address, #{<<"host1">> => {"192.168.1.2", 5321}},
          #{<<"s2s">> => #{<<"address">> => [Addr]}}),
-    ?cfg({s2s_addr, <<"host1">>}, "192.168.1.2",
+    ?cfg(s2s_address, #{<<"host1">> => "192.168.1.2"},
          #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
     ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
     ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
@@ -1397,7 +1404,7 @@ s2s_ciphers(_Config) ->
 s2s_domain_certfile(_Config) ->
     DomCert = #{<<"domain">> => <<"myxmpp.com">>,
                 <<"certfile">> => <<"mycert.pem">>},
-    ?cfg({domain_certfile, <<"myxmpp.com">>}, "mycert.pem",
+    ?cfg(domain_certfile, #{<<"myxmpp.com">> => "mycert.pem"},
          #{<<"s2s">> => #{<<"domain_certfile">> => [DomCert]}}),
     [?err(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
      || K <- maps:keys(DomCert)],
@@ -2785,7 +2792,7 @@ mod_vcard(_Config) ->
           T(#{<<"ldap_pool_tag">> => <<"default">>})),
     ?cfgh(M([{ldap_base, "ou=Users,dc=ejd,dc=com"}]),
           T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
-    ?cfgh(M([{ldap_filter, "(&(objectClass=shadowAccount)(memberOf=Jabber Users))"}]),
+    ?cfgh(M([{ldap_filter, <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>}]),
           T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
     ?cfgh(M([{ldap_deref, never}]),
           T(#{<<"ldap_deref">> => <<"never">>})),
@@ -2822,12 +2829,12 @@ mod_vcard_ldap_uids(_Config) ->
                            #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
     M = fun(Cfg) -> modopts(mod_vcard, [{ldap_uids, Cfg}]) end,
     RequiredOpts = #{<<"attr">> => <<"name">>},
-    ExpectedCfg = "name",
+    ExpectedCfg = <<"name">>,
     ?cfgh(M([]), T([])),
     ?cfgh(M([ExpectedCfg]), T([RequiredOpts])),
-    ?cfgh(M([{"name", "%u@mail.example.org"}]),
+    ?cfgh(M([{<<"name">>, <<"%u@mail.example.org">>}]),
           T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}])),
-    ?cfgh(M([{"name", "%u@mail.example.org"}, ExpectedCfg]),
+    ?cfgh(M([{<<"name">>, <<"%u@mail.example.org">>}, ExpectedCfg]),
           T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}, RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"attr">> := 1})),
@@ -3098,8 +3105,8 @@ handle_config_option(Opt1, Opt2) ->
 
 compare_values(listen, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
-compare_values({auth_opts, _}, V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_auth_opt/2);
+compare_values({auth, _}, V1, V2) ->
+    compare_maps(V1, V2);
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
 compare_values({modules, _}, V1, V2) ->
@@ -3143,9 +3150,6 @@ compare_listener_module_options(mod_websockets, L1, L2) ->
     compare_unordered_lists(T1, T2);
 compare_listener_module_options(_, O1, O2) ->
     ?eq(O1, O2).
-
-handle_auth_opt({cyrsasl_external, M}, {cyrsasl_external, [M]}) -> ok;
-handle_auth_opt(V1, V2) -> ?eq(V1, V2).
 
 handle_item_with_opts({M1, O1}, {M2, O2}) ->
     ?eq(M1, M2),
@@ -3206,6 +3210,12 @@ compare_ordered_lists([H1|T1] = L1, [H2|T2] = L2, F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
+
+compare_maps(M1, M2) ->
+    ?eq(M1, M2).
+
+compare_maps(M1, M2, F) ->
+    compare_unordered_lists(maps:to_list(M1), maps:to_list(M2), F).
 
 create_files(Config) ->
     %% The files must exist for validation to pass

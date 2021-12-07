@@ -143,7 +143,7 @@ server_step(State, ClientIn) ->
 
 -spec get_modules(binary()) -> [sasl_module()].
 get_modules(HostType) ->
-    mongoose_config:get_opt({sasl_mechanisms, HostType}, default_modules()).
+    mongoose_config:get_opt([{auth, HostType}, sasl_mechanisms], default_modules()).
 
 default_modules() ->
     [cyrsasl_scram_sha512_plus,

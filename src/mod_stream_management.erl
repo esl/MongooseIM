@@ -107,10 +107,10 @@ stale_h_config_spec() ->
         items = #{<<"enabled">> => #option{type = boolean},
                   <<"repeat_after">> => #option{type = integer,
                                                 validate = positive,
-                                                format = {kv, stale_h_repeat_after}},
+                                                wrap = {kv, stale_h_repeat_after}},
                   <<"geriatric">> => #option{type = integer,
                                              validate = positive,
-                                             format = {kv, stale_h_geriatric}}
+                                             wrap = {kv, stale_h_geriatric}}
         }
     }.
 
