@@ -97,7 +97,7 @@ containers:
   - &riak_container
     image: michalwski/docker-riak:1.0.6
     environment:
-      - DOCKER_RIAK_BACKEND: leveldb
+      - DOCKER_RIAK_BACKEND: memory
       - DOCKER_RIAK_CLUSTER_SIZE: 1
       - SCHEMA_READY_PORT: 8999
       - OLD_ENTRYPOINT: "/setup-riak.sh && /sbin/my_init --skip-startup-files"

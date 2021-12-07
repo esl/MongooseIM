@@ -119,7 +119,7 @@ elif [ "$db" = 'riak' ]; then
     # - container starting code runs sed on it and gets IO error,
     #   if it's a volume
     time docker create -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 \
-        -e DOCKER_RIAK_BACKEND=leveldb \
+        -e DOCKER_RIAK_BACKEND=memory \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
         --name=$NAME \
         $(mount_ro_volume "${DB_CONF_DIR}/advanced.config" "/etc/riak/advanced.config") \
