@@ -195,8 +195,8 @@ Please note that you can override all common options in similar way.
 ```toml
 [modules.mod_mam_meta]
   backend = "rdbms"
-  async_writer = true # this option enables async writer for RDBMS backend
-  muc.async_writer = false # disable async writer for MUC archive only
+  async_writer.enabled = true # this option enables async writer for RDBMS backend
+  muc.async_writer.enabled = false # disable async writer for MUC archive only
 ```
 
 ### RDBMS backend options
@@ -236,33 +236,33 @@ Configures which cache to use, either start an internal instance, or reuse the c
 When set to `simple`, stores messages in XML and full JIDs.
 When set to `internal`, stores messages and JIDs in internal format.
 
-#### `modules.mod_mam_meta.async_writer`
+#### `modules.mod_mam_meta.async_writer.enabled`
 * **Syntax:** boolean
 * **Default:** `true`
-* **Example:** `modules.mod_mam_meta.async_writer = false`
+* **Example:** `modules.mod_mam_meta.async_writer.enabled = false`
 
 Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
-The async writers store batches of messages with a certain delay (see **flush_interval**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes.
+The async writers store batches of messages that will be flush on a timeout (see **flush_interval**) or when the batch reaches a size (see **batch_size**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes or the queue is full.
 
-#### `modules.mod_mam_meta.flush_interval`
+#### `modules.mod_mam_meta.async_writer.flush_interval`
 * **Syntax:** non-negative integer
 * **Default:** `2000`
-* **Example:** `modules.mod_mam_meta.flush_interval = 2000`
+* **Example:** `modules.mod_mam_meta.async_writer.flush_interval = 2000`
 
-How often (in milliseconds) the buffered messages are flushed to a DB.
+How often (in milliseconds) the buffered messages are flushed to DB.
 
-#### `modules.mod_mam_meta.max_batch_size`
+#### `modules.mod_mam_meta.async_writer.batch_size`
 * **Syntax:** non-negative integer
 * **Default:** `30`
-* **Example:** `modules.mod_mam_meta.max_batch_size = 30`
+* **Example:** `modules.mod_mam_meta.async_writer.batch_size = 30`
 
-Max size of the batch insert query for an async writer.
+Max size of the batch for an async writer before the queue is considered full and flushed.
 If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
-#### `modules.mod_mam_meta.pool_size`
+#### `modules.mod_mam_meta.async_writer.pool_size`
 * **Syntax:** non-negative integer
-* **Default:** `32`
-* **Example:** `modules.mod_mam_meta.pool_size = 30`
+* **Default:** `2 * erlang:system_info(schedulers_online)`
+* **Example:** `modules.mod_mam_meta.async_writer.pool_size = 30`
 
 Number of workers in the pool.
 
@@ -421,7 +421,7 @@ This module can be used to add extra lookup parameters to MAM lookup queries.
 
   muc.host = "muc.example.com"
   muc.rdbms_message_format = "simple"
-  muc.async_writer = false
+  muc.async_writer.enabled = false
   muc.user_prefs_store = "mnesia"
 
 ```
