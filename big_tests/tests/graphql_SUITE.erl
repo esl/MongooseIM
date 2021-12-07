@@ -5,6 +5,7 @@
 
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
+-import(graphql_helper, [load_test_schema/2]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -144,23 +145,6 @@ assert_access_granted(Status, Data) ->
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
-
-load_test_schema(Name, Config) ->
-    Path = filename:join([?config(mim_data_dir, Config), "schema.gql"]),
-    {ok, SchemaData} = file:read_file(Path),
-    Ep = rpc(mim(), mongoose_graphql, get_endpoint, [Name]),
-    ok = rpc(mim(), graphql_schema, reset, [Ep]),
-    ok = rpc(mim(), graphql, load_schema, [Ep, test_schema_mapping(), SchemaData]),
-    ok = rpc(mim(), graphql, validate_schema, [Ep]),
-    ok.
-
-test_schema_mapping() ->
-    #{objects => #{
-            'Query' => mongoose_graphql_default,
-            'Mutation' => mongoose_graphql_default,
-            default => mongoose_graphql_default
-           }
-         }.
 
 get_port(EpName) ->
     {PortIpNet, ejabberd_cowboy, _Opts} = get_listener_config(EpName),
