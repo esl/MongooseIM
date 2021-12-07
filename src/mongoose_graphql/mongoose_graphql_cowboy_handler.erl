@@ -8,9 +8,6 @@
 
 -behavior(cowboy_rest).
 
-%% ejabberd_cowboy callbacks
--export([cowboy_router_paths/2]).
-
 %% Cowboy Handler Interface
 -export([init/2]).
 
@@ -33,16 +30,14 @@
 
 -ignore_xref([cowboy_router_paths/2, from_json/2, to_html/2, to_json/2]).
 
-%% -- API ---------------------------------------------------
+%% API
 
-cowboy_router_paths(BasePath, Opts) ->
-    [{[BasePath, "/"], ?MODULE, [{priv_file, mongooseim, "graphql/wsite/index.html"} | Opts]}].
-
-init(Req, [{priv_file, _, _} = PrivFile | Opts]) ->
+init(Req, Opts) ->
+    IndexLocation = {priv_file, mongooseim, "graphql/wsite/index.html"},
     OptsMap = maps:from_list(Opts),
     {cowboy_rest,
      Req,
-     OptsMap#{index_location => PrivFile}
+     OptsMap#{index_location => IndexLocation}
     }.
 
 allowed_methods(Req, State) ->

@@ -7,7 +7,7 @@ directive @protected on FIELD_DEFINITION | OBJECT
 
 """
 Contains all admin available queries.
-Only authenticated admin can execute this queries.
+Only an authenticated admin can execute these queries.
 """
 type AdminQuery @protected{
   "Get all enabled domains by hostType"
@@ -18,7 +18,7 @@ type AdminQuery @protected{
 
 """
 Contains all admin available mutations
-Only authenticated admin can execute this mutations.
+Only an authenticated admin can execute these mutations.
 """
 type AdminMutation @protected{
   "Add new domain"
@@ -33,7 +33,7 @@ type AdminMutation @protected{
 
 """
 A dynamic domain representation.
-Some operation could return not complete object i.e. some fields can be null.
+Some operation could return incomplete object i.e. some fields can be null.
 """
 type Domain{
   "Domain name"

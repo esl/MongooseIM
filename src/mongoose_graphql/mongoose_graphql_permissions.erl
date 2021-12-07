@@ -2,9 +2,10 @@
 %% permissions.
 %%
 %% GraphQL has directives that allow attaching additional information to schema,
-%% objects, fields, and more. The custom directive `@protected' is created to mark
-%% which objects or fields could be accessed only by authorized request. This module
-%% analyzes the AST and tries to find if there is at least one protected resource.
+%% to objects, to fields, and more. The custom directive `@protected' is created
+%% to mark which objects or fields could be accessed only by authorized request.
+%% This module analyzes the AST and tries to find if there is at least one protected
+%% resource.
 %%
 %% If unauthorized request want to execute a query that contains protected resources,
 %% an error is thrown.

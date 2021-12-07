@@ -3,6 +3,8 @@
 %% @end
 -module(mongoose_graphql).
 
+-include_lib("kernel/include/logger.hrl").
+
 %API
 -export([init/0,
          get_endpoint/1,
@@ -122,10 +124,16 @@ load_multiple_file_schema(Pattern) ->
         SchemaData = [read_schema_file(P) || P <- Paths],
         {ok, lists:flatten(SchemaData)}
     catch
-        _:_ ->
+        throw:{error, Reason, Path} ->
+            ?LOG_ERROR(#{what => graphql_cannot_load_schema,
+                         reason => Reason, path => Path}),
             {error, cannot_load}
     end.
 
 read_schema_file(Path) ->
-    {ok, Data} = file:read_file(Path),
-    binary_to_list(Data).
+    case file:read_file(Path) of
+         {ok, Data} ->
+            binary_to_list(Data);
+         {error, Reason} ->
+            throw({error, Reason, Path})
+    end.

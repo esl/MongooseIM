@@ -9,24 +9,24 @@
 all() ->
     [can_create_endpoint, 
      can_load_splitted_schema,
-     {group, unprotected_graphql}, 
+     {group, unprotected_graphql},
      {group, protected_graphql},
      {group, errors_handling}].
 
 groups() ->
-    [{protected_graphql, [], 
+    [{protected_graphql, [parallel],
      [auth_can_execute_protected_query, 
       auth_can_execute_protected_mutation,
       unauth_cannot_execute_protected_query,
       unauth_cannot_execute_protected_mutation,
       unauth_can_access_introspection]},
-     {unprotected_graphql, [], 
+     {unprotected_graphql, [parallel],
       [can_execute_query_with_vars,
        auth_can_execute_query,
        auth_can_execute_mutation,
        unauth_can_execute_query,
        unauth_can_execute_mutation]},
-     {errors_handling, [], 
+     {errors_handling, [parallel],
       [should_catch_parsing_errors,
        should_catch_type_check_params_errors,
        should_catch_type_check_errors

@@ -15,16 +15,16 @@ all() ->
      {group, user_handler}].
 
 groups() ->
-    [{cowboy_handler, [], [can_connect_to_admin,
+    [{cowboy_handler, [parallel], [can_connect_to_admin,
                            can_connect_to_user
                           ]},
-     {user_handler, [], [wrong_creds_cannot_access_protected_types,
+     {user_handler, [parallel], [wrong_creds_cannot_access_protected_types,
                          unauth_cannot_access_protected_types,
                          unauth_can_access_unprotected_types,
                          can_execute_query_with_variables,
                          auth_user_can_access_protected_types
                         ]},
-     {admin_handler, [], [wrong_creds_cannot_access_protected_types,
+     {admin_handler, [parallel], [wrong_creds_cannot_access_protected_types,
                           unauth_cannot_access_protected_types,
                           unauth_can_access_unprotected_types,
                           can_execute_query_with_variables,
@@ -48,7 +48,7 @@ init_per_group(admin_handler, Config) ->
         true ->
             [{schema_endpoint, Endpoint} | Config];
         false ->
-            {skipped, <<"Admin credentials not defined in config">>}
+            {skipped, <<"Admin credentials are not defined in config">>}
     end;
 init_per_group(user_handler, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
@@ -92,7 +92,7 @@ wrong_creds_cannot_access_protected_types(Config) ->
     assert_no_permissions(Status, Data).
 
 auth_user_can_access_protected_types(Config) ->
-    escalus:story(
+    escalus:fresh_story(
         Config, [{alice, 1}],
         fun(Alice) ->
             Password = user_password(alice),
@@ -121,7 +121,7 @@ can_execute_query_with_variables(Config) ->
     {Status, Data} = execute(Ep, Body, undefined),
     ?assertEqual({<<"200">>,<<"OK">>}, Status),
     % operation M1 was executed, because id is in path
-    % access was granted, error was returned because valid resolver was not defined
+    % access was granted, an error was returned because valid resolver was not defined
     ?assertMatch(#{<<"data">> := #{<<"id">> := null},
                    <<"errors">> :=
                        [#{<<"extensions">> := #{<<"code">> := <<"resolver_crash">>},
@@ -136,7 +136,7 @@ assert_no_permissions(Status, Data) ->
 
 assert_access_granted(Status, Data) ->
     ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    % access was granted, error was returned because valid resolver was not defined
+    % access was granted, an error was returned because valid resolver was not defined
     ?assertMatch(#{<<"errors">> :=
                    [#{<<"extensions">> :=
                      #{<<"code">> := <<"resolver_crash">>}}]}, Data).
