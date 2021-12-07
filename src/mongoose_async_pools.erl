@@ -40,6 +40,10 @@ config_spec() ->
                  <<"pool_size">> => #option{type = integer, validate = non_negative}}
       }.
 
+-spec pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
+pool_name(HostType, PoolId) ->
+    persistent_term:get({?MODULE, HostType, PoolId}).
+
 %%% Supervisor callbacks
 -spec start_link(mongooseim:host_type(), pool_id(), pool_opts()) ->
     {ok, pid()} | ignore | {error, term()}.
@@ -49,7 +53,8 @@ start_link(HostType, PoolId, Opts) ->
 
 -spec init(term()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([HostType, PoolId, Opts]) ->
-    PoolName = pool_name(HostType, PoolId),
+    PoolName = gen_pool_name(HostType, PoolId),
+    store_pool_name(HostType, PoolId, PoolName),
     WPoolOpts = make_wpool_opts(HostType, PoolId, Opts),
     WorkerSpec = #{id => PoolName,
                    start => {wpool, start_pool, [PoolName, WPoolOpts]},
@@ -66,8 +71,12 @@ sup_name(HostType, PoolId) ->
     list_to_atom(
       atom_to_list(PoolId) ++ "_sup_async_pool_" ++ binary_to_list(HostType)).
 
--spec pool_name(mongooseim:host_type(), pool_id()) -> atom().
-pool_name(HostType, PoolId) ->
+-spec store_pool_name(mongooseim:host_type(), pool_id(), pool_name()) -> ok.
+store_pool_name(HostType, PoolId, PoolName) ->
+    persistent_term:put({?MODULE, HostType, PoolId}, PoolName).
+
+-spec gen_pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
+gen_pool_name(HostType, PoolId) ->
     list_to_atom(
       atom_to_list(PoolId) ++ "_async_pool_" ++ binary_to_list(HostType)).
 
