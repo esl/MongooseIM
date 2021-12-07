@@ -72,14 +72,12 @@ pool_name(HostType, PoolId) ->
       atom_to_list(PoolId) ++ "_async_pool_" ++ binary_to_list(HostType)).
 
 -spec make_wpool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
-make_wpool_opts(HostType, _PoolId, Opts) ->
+make_wpool_opts(HostType, PoolId, Opts) ->
     Interval = gen_mod:get_opt(flush_interval, Opts, 1000),
     MaxSize = gen_mod:get_opt(batch_size, Opts, 100),
     NumWorkers = gen_mod:get_opt(pool_size, Opts, 2 * erlang:system_info(schedulers_online)),
     FlushCallback = gen_mod:get_opt(flush_callback, Opts),
-    FlushExtra = gen_mod:get_opt(flush_extra, Opts,
-                                 fun(Val) -> Val#{host_type => HostType} end,
-                                 #{host_type => HostType}),
+    FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],
     WorkerOpts = {HostType, Interval, MaxSize, FlushCallback, FlushExtra},
     Worker = {mongoose_batch_worker, WorkerOpts},
@@ -87,3 +85,15 @@ make_wpool_opts(HostType, _PoolId, Opts) ->
      {workers, NumWorkers},
      {worker_opt, ProcessOpts},
      {worker_shutdown, 10000}].
+
+-spec make_extra(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
+make_extra(HostType, PoolId, Opts) ->
+    case {gen_mod:get_opt(init_callback, Opts, undefined),
+          gen_mod:get_opt(flush_extra, Opts,
+                          fun(Val) -> Val#{host_type => HostType} end,
+                          #{host_type => HostType})} of
+        {undefined, Extra} ->
+            Extra;
+        {InitFun, Extra} when is_function(InitFun, 3) ->
+            Extra#{init_data => InitFun(HostType, PoolId, Opts)}
+    end.
