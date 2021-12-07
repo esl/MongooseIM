@@ -436,7 +436,7 @@ server_requests_ack(Config, N) ->
     maybe_assert_ack_request(2, N, Alice).
 
 maybe_assert_ack_request(StanzasRec, AckRequests, Alice) ->
-    ct:print("StanzasRec: ~p, AckRequests: ~p", [StanzasRec, AckRequests]),
+    ct:log("StanzasRec: ~p, AckRequests: ~p", [StanzasRec, AckRequests]),
     case StanzasRec rem AckRequests of
         0 ->
             escalus:assert(is_sm_ack_request, escalus:wait_for_stanza(Alice));
@@ -504,12 +504,7 @@ resend_unacked_on_reconnection(Config) ->
     [escalus:assert(is_chat_message, [Msg], Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice disconnects without acking the messages.
-    C2SRef = monitor_session(Alice),
-    escalus_connection:stop(Alice),
-    %% TODO There's a race condition between the C2S process and mod_offline,
-    %% so we have to wait for C2S termination.
-    %% For details please see https://github.com/esl/MongooseIM/pull/2007
-    ok = wait_for_process_termination(C2SRef),
+    stop_client_and_wait_for_termination(Alice),
     escalus_connection:stop(Bob),
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
@@ -1198,7 +1193,11 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus:assert(is_presence, Presence),
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
+        %% The receiver process would stop now
+        wait_for_c2s_state(Alice, resume_session),
+
         {ok, C2SPid} = get_session_pid(AliceSpec, <<"escalus-default-resource">>),
+        wait_for_queue_length(C2SPid, 0),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         % WHEN new session requests resumption
@@ -1244,6 +1243,7 @@ messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
         escalus:assert(is_presence, Presence),
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
+        wait_for_c2s_state(Alice, resume_session),
         {ok, C2SPid} = get_session_pid(AliceSpec, <<"escalus-default-resource">>),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
@@ -1474,10 +1474,17 @@ given_fresh_user_with_spec(Spec) ->
     {User#client{jid  = JID}, Spec}.
 
 wait_for_queue_length(Pid, Length) ->
-    mongoose_helper:wait_until(
-      fun() ->
-              rpc(mim(), erlang, process_info, [Pid, message_queue_len])
-      end, {message_queue_len, Length}).
+    F = fun() ->
+                case rpc(mim(), erlang, process_info, [Pid, messages]) of
+                    {messages, List} when length(List) =:= Length ->
+                        ok;
+                    {messages, List} ->
+                        {messages, length(List), List};
+                    Other ->
+                        Other
+                end
+        end,
+    mongoose_helper:wait_until(F, ok, #{name => {wait_for_queue_length, Length}}).
 
 %%--------------------------------------------------------------------
 %% IQ handler necessary for reproducing "replies_are_processed_by_resumed_session"
@@ -1525,3 +1532,12 @@ wait_for_session(JID, Retries, SleepTime) ->
 
 make_smid() ->
     base64:encode(crypto:strong_rand_bytes(21)).
+
+stop_client_and_wait_for_termination(Alice) ->
+    C2SRef = monitor_session(Alice),
+    escalus_connection:stop(Alice),
+    ok = wait_for_process_termination(C2SRef).
+
+wait_for_c2s_state(Alice, StateName) ->
+    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, StateName).
