@@ -18,11 +18,13 @@
 -behaviour(mongoose_gen_auth).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("scram.hrl").
 
 %% API
 -export([start/1,
          stop/1,
+         config_spec/0,
          supports_sasl_module/2,
          supported_features/0,
          set_password/4,
@@ -46,7 +48,15 @@ start(_HostType) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
-ok.
+    ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"bucket_type">> => #option{type = binary,
+                                              validate = non_empty}},
+       format_items = map
+      }.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;

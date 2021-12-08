@@ -3,6 +3,7 @@
 
 -export([start/2,
          stop/2,
+         config_spec/1,
          supports_sasl_module/3,
          authorize/2,
          check_password/5,
@@ -27,6 +28,8 @@
 -callback start(HostType :: mongooseim:host_type()) -> ok.
 
 -callback stop(HostType :: mongooseim:host_type()) -> ok.
+
+-callback config_spec() -> mongoose_config_spec:config_section().
 
 -callback supports_sasl_module(HostType :: mongooseim:host_type(),
                                Module :: cyrsasl:sasl_module()) ->
@@ -103,7 +106,8 @@
                          DigestGen :: fun()) -> boolean().
 
 %% See the API function definitions below for default values
--optional_callbacks([try_register/4,
+-optional_callbacks([config_spec/0,
+                     try_register/4,
                      get_registered_users/3,
                      get_registered_users_number/3,
                      get_password/3,
@@ -115,6 +119,8 @@
                      check_password/4,
                      check_password/6]).
 
+-include("mongoose_config_spec.hrl").
+
 %% API
 
 -spec start(ejabberd_auth:authmodule(), mongooseim:host_type()) -> ok.
@@ -124,6 +130,13 @@ start(Mod, HostType) ->
 -spec stop(ejabberd_auth:authmodule(), mongooseim:host_type()) -> ok.
 stop(Mod, HostType) ->
     Mod:stop(HostType).
+
+-spec config_spec(ejabberd_auth:authmodule()) -> mongoose_config_spec:config_section().
+config_spec(Mod) ->
+    case is_exported(Mod, config_spec, 0) of
+        true -> Mod:config_spec();
+        false -> #section{items = #{}}
+    end.
 
 -spec supports_sasl_module(ejabberd_auth:authmodule(), mongooseim:host_type(),
                            cyrsasl:sasl_module()) -> boolean().

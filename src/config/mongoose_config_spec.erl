@@ -23,10 +23,6 @@
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth_password/1,
-         process_jwt_secret/1,
-         process_ldap_uids/1,
-         process_ldap_dn_filter/1,
-         process_ldap_local_filter/1,
          process_pool/2,
          process_cassandra_auth/1,
          process_rdbms_connection/1,
@@ -472,30 +468,28 @@ http_handler_required(_) -> [].
 
 %% path: (host_config[].)auth
 auth() ->
+    Items = maps:from_list([{a2b(Method), ejabberd_auth:config_spec(Method)} ||
+                               Method <- all_auth_methods()]),
     #section{
-       items = #{<<"methods">> => #list{items = #option{type = atom,
-                                                        validate = {module, ejabberd_auth}}},
-                 <<"password">> => auth_password(),
-                 <<"scram_iterations">> => #option{type = integer,
-                                                   validate = positive},
-                 <<"sasl_external">> =>
-                     #list{items = #option{type = atom,
-                                           process = fun ?MODULE:process_sasl_external/1}},
-                 <<"sasl_mechanisms">> =>
-                     #list{items = #option{type = atom,
-                                           validate = {module, cyrsasl},
-                                           process = fun ?MODULE:process_sasl_mechanism/1}},
-                 <<"anonymous">> => auth_anonymous(),
-                 <<"external">> => auth_external(),
-                 <<"http">> => auth_http(),
-                 <<"jwt">> => auth_jwt(),
-                 <<"ldap">> => auth_ldap(),
-                 <<"riak">> => auth_riak(),
-                 <<"rdbms">> => auth_rdbms(),
-                 <<"dummy">> => auth_dummy()},
+       items = Items#{<<"methods">> => #list{items = #option{type = atom,
+                                                             validate = {module, ejabberd_auth}}},
+                      <<"password">> => auth_password(),
+                      <<"scram_iterations">> => #option{type = integer,
+                                                        validate = positive},
+                      <<"sasl_external">> =>
+                          #list{items = #option{type = atom,
+                                                process = fun ?MODULE:process_sasl_external/1}},
+                      <<"sasl_mechanisms">> =>
+                          #list{items = #option{type = atom,
+                                                validate = {module, cyrsasl},
+                                                process = fun ?MODULE:process_sasl_mechanism/1}}
+                     },
        wrap = host_config,
        format_items = map
       }.
+
+all_auth_methods() ->
+    [anonymous, dummy, external, http, internal, jwt, ldap, pki, rdbms, riak].
 
 %% path: (host_config[].)auth.password
 auth_password() ->
@@ -512,82 +506,6 @@ auth_password() ->
        wrap = {kv, password_format}
       }.
 
-%% path: (host_config[].)auth.anonymous
-auth_anonymous() ->
-    #section{
-       items = #{<<"allow_multiple_connections">> => #option{type = boolean},
-                 <<"protocol">> => #option{type = atom,
-                                           validate = {enum, [sasl_anon, login_anon, both]}}
-                },
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.external
-auth_external() ->
-    #section{
-       items = #{<<"instances">> => #option{type = integer,
-                                            validate = positive},
-                 <<"program">> => #option{type = string,
-                                          validate = non_empty}
-                },
-       required = [<<"program">>],
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.http
-auth_http() ->
-    #section{
-       items = #{<<"basic_auth">> => #option{type = string}},
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.jwt
-auth_jwt() ->
-    #section{
-       items = #{<<"secret">> => auth_jwt_secret(),
-                 <<"algorithm">> => #option{type = binary,
-                                            validate = {enum,
-                                                        [<<"HS256">>, <<"RS256">>, <<"ES256">>,
-                                                         <<"HS386">>, <<"RS386">>, <<"ES386">>,
-                                                         <<"HS512">>, <<"RS512">>, <<"ES512">>]}
-                                           },
-                 <<"username_key">> => #option{type = atom,
-                                               validate = non_empty}
-                },
-       required = all,
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.jwt.secret
-auth_jwt_secret() ->
-    #section{
-       items = #{<<"file">> => #option{type = string,
-                                       validate = non_empty},
-                 <<"env">> => #option{type = string,
-                                      validate = non_empty},
-                 <<"value">> => #option{type = string}},
-       process = fun ?MODULE:process_jwt_secret/1
-      }.
-
-%% path: (host_config[].)auth.ldap
-auth_ldap() ->
-    #section{
-       items = #{<<"pool_tag">> => #option{type = atom,
-                                           validate = non_empty},
-                 <<"bind_pool_tag">> => #option{type = atom,
-                                                validate = non_empty},
-                 <<"base">> => #option{type = binary},
-                 <<"uids">> => #list{items = ldap_uids()},
-                 <<"filter">> => #option{type = binary,
-                                         validate = ldap_filter},
-                 <<"dn_filter">> => ldap_dn_filter(),
-                 <<"local_filter">> => ldap_local_filter(),
-                 <<"deref">> => #option{type = atom,
-                                        validate = {enum, [never, always, finding, searching]}}
-                },
-       format_items = map
-      }.
-
 %% path: (host_config[].)auth.ldap.uids
 ldap_uids() ->
     #section{
@@ -595,59 +513,6 @@ ldap_uids() ->
                  <<"format">> => #option{type = binary}},
        process = fun ?MODULE:process_ldap_uids/1,
        required = [<<"attr">>],
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.ldap.dn_filter
-ldap_dn_filter() ->
-    #section{
-       items = #{<<"filter">> => #option{type = binary,
-                                         validate = ldap_filter},
-                 <<"attributes">> => #list{items = #option{type = binary}}
-                },
-       required = [<<"filter">>],
-       defaults = #{<<"attributes">> => []},
-       process = fun ?MODULE:process_ldap_dn_filter/1,
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.ldap.local_filter
-ldap_local_filter() ->
-    #section{
-       items = #{<<"operation">> => #option{type = atom,
-                                            validate = {enum, [equal, notequal]}},
-                 <<"attribute">> => #option{type = string,
-                                            validate = non_empty},
-                 <<"values">> => #list{items = #option{type = string},
-                                       validate = non_empty}
-                },
-       required = all,
-       process = fun ?MODULE:process_ldap_local_filter/1,
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.riak
-auth_riak() ->
-    #section{
-       items = #{<<"bucket_type">> => #option{type = binary,
-                                              validate = non_empty}},
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.rdbms
-auth_rdbms() ->
-    #section{
-       items = #{<<"users_number_estimate">> => #option{type = boolean}},
-       format_items = map
-      }.
-
-%% path: (host_config[].)auth.dummy
-auth_dummy() ->
-    #section{
-       items = #{<<"base_time">> => #option{type = integer,
-                                            validate = non_negative},
-                 <<"variance">> => #option{type = integer,
-                                           validate = positive}},
        format_items = map
       }.
 
@@ -1248,8 +1113,6 @@ process_sasl_external(M) ->
 process_sasl_mechanism(V) ->
     list_to_atom("cyrsasl_" ++ atom_to_list(V)).
 
-process_jwt_secret([V]) -> V.
-
 process_auth_password(KVs) ->
     {[FormatOpts, HashOpts], []} = proplists:split(KVs, [format, hash]),
     case {FormatOpts, HashOpts} of
@@ -1257,12 +1120,6 @@ process_auth_password(KVs) ->
         {[{format, scram}], [{hash, Hashes}]} -> {scram, Hashes};
         {[], [{hash, Hashes}]} -> {scram, Hashes}
     end.
-
-process_ldap_dn_filter(#{filter := Filter, attributes := Attrs}) ->
-    {Filter, Attrs}.
-
-process_ldap_local_filter(#{operation := Op, attribute := Attr, values := Values}) ->
-    {Op, {Attr, Values}}.
 
 process_ldap_uids(#{attr := Attr, format := Format}) -> {Attr, Format};
 process_ldap_uids(#{attr := Attr}) -> Attr.

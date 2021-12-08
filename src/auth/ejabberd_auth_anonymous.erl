@@ -28,6 +28,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          register_connection/5,
          unregister_connection/5,
          session_cleanup/5
@@ -56,6 +57,8 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("session.hrl").
+-include("mongoose_config_spec.hrl").
+
 -record(anonymous, {us  :: jid:simple_bare_jid(),
                     sid :: ejabberd_sm:sid()
                    }).
@@ -81,6 +84,16 @@ stop(HostType) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, HostType, ?MODULE, unregister_connection, 100),
     ejabberd_hooks:delete(session_cleanup, HostType, ?MODULE, session_cleanup, 50),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"allow_multiple_connections">> => #option{type = boolean},
+                 <<"protocol">> => #option{type = atom,
+                                           validate = {enum, [sasl_anon, login_anon, both]}}
+                },
+       format_items = map
+      }.
 
 %% @doc Return true if multiple connections have been allowed in the config file
 %% defaults to false

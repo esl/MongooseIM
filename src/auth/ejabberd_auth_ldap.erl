@@ -36,6 +36,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          start_link/1,
          set_password/4,
          authorize/1,
@@ -48,13 +49,17 @@
          supported_features/0
         ]).
 
+%% Config spec callbacks
+-export([process_ldap_dn_filter/1,
+         process_ldap_local_filter/1]).
+
 %% Internal
 -export([check_password/4,
          check_password/6]).
 
 -ignore_xref([start_link/1]).
 
--include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("eldap.hrl").
 
 -record(state,
@@ -98,6 +103,57 @@ stop(HostType) ->
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"pool_tag">> => #option{type = atom,
+                                           validate = non_empty},
+                 <<"bind_pool_tag">> => #option{type = atom,
+                                                validate = non_empty},
+                 <<"base">> => #option{type = binary},
+                 <<"uids">> => #list{items = mongoose_config_spec:ldap_uids()},
+                 <<"filter">> => #option{type = binary,
+                                         validate = ldap_filter},
+                 <<"dn_filter">> => ldap_dn_filter(),
+                 <<"local_filter">> => ldap_local_filter(),
+                 <<"deref">> => #option{type = atom,
+                                        validate = {enum, [never, always, finding, searching]}}
+                },
+       format_items = map
+      }.
+
+ldap_dn_filter() ->
+    #section{
+       items = #{<<"filter">> => #option{type = binary,
+                                         validate = ldap_filter},
+                 <<"attributes">> => #list{items = #option{type = binary}}
+                },
+       required = [<<"filter">>],
+       defaults = #{<<"attributes">> => []},
+       process = fun ?MODULE:process_ldap_dn_filter/1,
+       format_items = map
+      }.
+
+ldap_local_filter() ->
+    #section{
+       items = #{<<"operation">> => #option{type = atom,
+                                            validate = {enum, [equal, notequal]}},
+                 <<"attribute">> => #option{type = string,
+                                            validate = non_empty},
+                 <<"values">> => #list{items = #option{type = string},
+                                       validate = non_empty}
+                },
+       required = all,
+       process = fun ?MODULE:process_ldap_local_filter/1,
+       format_items = map
+      }.
+
+process_ldap_dn_filter(#{filter := Filter, attributes := Attrs}) ->
+    {Filter, Attrs}.
+
+process_ldap_local_filter(#{operation := Op, attribute := Attr, values := Values}) ->
+    {Op, {Attr, Values}}.
 
 -spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
 start_link(HostType) ->

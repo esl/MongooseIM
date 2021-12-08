@@ -46,7 +46,8 @@
          does_method_support/2,
          remove_user/1,
          supports_sasl_module/2,
-         entropy/1
+         entropy/1,
+         config_spec/1
         ]).
 
 -export([check_digest/4]).
@@ -388,6 +389,10 @@ entropy(IOList) ->
                     end, [0, 0, 0, 0, 0], InputList),
             length(InputList) * math:log(lists:sum(Set))/math:log(2)
     end.
+
+-spec config_spec(atom()) -> mongoose_config_spec:config_section().
+config_spec(Method) ->
+    mongoose_gen_auth:config_spec(auth_method_to_module(Method)).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
