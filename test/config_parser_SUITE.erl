@@ -3014,15 +3014,20 @@ assert_options_host(ExpectedOptions, RawConfig) ->
     HostOptions = [{host_key(Key, ?HOST_TYPE), Value} || {Key, Value} <- ExpectedOptions],
     assert_options(HostOptions, HostConfig).
 
--type key_prefix() :: {shaper | acl | access, atom()} | atom() | {atom(), jid:lserver()}.
+-type key_prefix() :: top_level_key_prefix() | key_path_prefix().
+-type top_level_key_prefix() :: {shaper | acl | access, atom()} | atom().
+-type key_path_prefix() :: [atom() | binary()].
 
-%% @doc Create full per-host config key for host-or-global options
--spec host_key(key_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key().
+%% @doc Build full per-host config key for host-or-global options
+-spec host_key(top_level_key_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key();
+              (key_path_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key_path().
 host_key({Key, Tag}, HostType) when Key =:= shaper;
                                     Key =:= acl;
                                     Key =:= access ->
     {Key, Tag, HostType};
-host_key(Key, HostType) ->
+host_key([TopKey | Rest], HostType) when is_atom(TopKey) ->
+    [{TopKey, HostType} | Rest];
+host_key(Key, HostType) when is_atom(Key) ->
     {Key, HostType}.
 
 -spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) -> any().
@@ -3056,18 +3061,26 @@ maybe_insert_dummy_domain(M, DomainName) ->
 
 %% helpers for testing individual options
 
--spec assert_options([{mongoose_config:key(), mongoose_config:value()}],
+-spec assert_options([{mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value()}],
                      [mongoose_config_parser_toml:config()]) -> any().
 assert_options(ExpectedOptions, Config) ->
     lists:foreach(fun({Key, Value}) -> assert_option(Key, Value, Config) end, ExpectedOptions).
 
--spec assert_option(mongoose_config:key(), mongoose_config:value(),
+-spec assert_option(mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value(),
                     [mongoose_config_parser_toml:config()]) -> any().
 assert_option(Key, Value, Config) ->
-    case lists:keyfind(Key, 1, Config) of
-        false -> ct:fail({"option not found", Key, Value, Config});
-        ActualOpt -> handle_config_option({Key, Value}, ActualOpt)
-    end.
+    compare_values(Key, Value, get_config_value(Key, Config)).
+
+-spec get_config_value(mongoose_config:key() | mongoose_config:key_path(),
+                       [mongoose_config_parser_toml:config()]) ->
+          mongoose_config:value().
+get_config_value([TopKey | Rest], Config) ->
+    case lists:keyfind(TopKey, 1, Config) of
+        false -> ct:fail({"option not found", TopKey, Config});
+        {_, TopValue} -> lists:foldl(fun maps:get/2, TopValue, Rest)
+    end;
+get_config_value(Key, Config) ->
+    get_config_value([Key], Config).
 
 -spec assert_error([mongoose_config_parser_toml:config()]) -> any().
 assert_error(Config) ->
