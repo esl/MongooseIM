@@ -49,10 +49,6 @@
          supported_features/0
         ]).
 
-%% Config spec callbacks
--export([process_ldap_dn_filter/1,
-         process_ldap_local_filter/1]).
-
 %% Internal
 -export([check_password/4,
          check_password/6]).
@@ -112,48 +108,16 @@ config_spec() ->
                  <<"bind_pool_tag">> => #option{type = atom,
                                                 validate = non_empty},
                  <<"base">> => #option{type = binary},
-                 <<"uids">> => #list{items = mongoose_config_spec:ldap_uids()},
+                 <<"uids">> => #list{items = mongoose_ldap_config:uids()},
                  <<"filter">> => #option{type = binary,
                                          validate = ldap_filter},
-                 <<"dn_filter">> => ldap_dn_filter(),
-                 <<"local_filter">> => ldap_local_filter(),
+                 <<"dn_filter">> => mongoose_ldap_config:dn_filter(),
+                 <<"local_filter">> => mongoose_ldap_config:local_filter(),
                  <<"deref">> => #option{type = atom,
                                         validate = {enum, [never, always, finding, searching]}}
                 },
        format_items = map
       }.
-
-ldap_dn_filter() ->
-    #section{
-       items = #{<<"filter">> => #option{type = binary,
-                                         validate = ldap_filter},
-                 <<"attributes">> => #list{items = #option{type = binary}}
-                },
-       required = [<<"filter">>],
-       defaults = #{<<"attributes">> => []},
-       process = fun ?MODULE:process_ldap_dn_filter/1,
-       format_items = map
-      }.
-
-ldap_local_filter() ->
-    #section{
-       items = #{<<"operation">> => #option{type = atom,
-                                            validate = {enum, [equal, notequal]}},
-                 <<"attribute">> => #option{type = string,
-                                            validate = non_empty},
-                 <<"values">> => #list{items = #option{type = string},
-                                       validate = non_empty}
-                },
-       required = all,
-       process = fun ?MODULE:process_ldap_local_filter/1,
-       format_items = map
-      }.
-
-process_ldap_dn_filter(#{filter := Filter, attributes := Attrs}) ->
-    {Filter, Attrs}.
-
-process_ldap_local_filter(#{operation := Op, attribute := Attr, values := Values}) ->
-    {Op, {Attr, Values}}.
 
 -spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
 start_link(HostType) ->
@@ -504,10 +468,7 @@ parse_options(HostType) ->
     RawUserFilter = maps:get(filter, Opts, <<>>),
     UserFilter = eldap_utils:process_user_filter(UIDs, RawUserFilter),
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
-    {DNFilter, DNFilterAttrs} = case maps:find(dn_filter, Opts) of
-                                    {ok, DNF} -> DNF;
-                                    error -> {undefined, []}
-                                end,
+    {DNFilter, DNFilterAttrs} = maps:get(dn_filter, Opts, {undefined, []}),
     LocalFilter = maps:get(local_filter, Opts, undefined),
     #state{host_type = HostType,
            eldap_id = {HostType, EldapID},

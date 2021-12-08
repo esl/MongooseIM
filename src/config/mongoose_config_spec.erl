@@ -5,8 +5,7 @@
 
 %% spec parts used by modules and services
 -export([wpool_items/0,
-         iqdisc/0,
-         ldap_uids/0]).
+         iqdisc/0]).
 
 %% callbacks for the 'process' step
 -export([process_host/1,
@@ -504,16 +503,6 @@ auth_password() ->
                 },
        process = fun ?MODULE:process_auth_password/1,
        wrap = {kv, password_format}
-      }.
-
-%% path: (host_config[].)auth.ldap.uids
-ldap_uids() ->
-    #section{
-       items = #{<<"attr">> => #option{type = binary},
-                 <<"format">> => #option{type = binary}},
-       process = fun ?MODULE:process_ldap_uids/1,
-       required = [<<"attr">>],
-       format_items = map
       }.
 
 %% path: outgoing_pools
@@ -1120,9 +1109,6 @@ process_auth_password(KVs) ->
         {[{format, scram}], [{hash, Hashes}]} -> {scram, Hashes};
         {[], [{hash, Hashes}]} -> {scram, Hashes}
     end.
-
-process_ldap_uids(#{attr := Attr, format := Format}) -> {Attr, Format};
-process_ldap_uids(#{attr := Attr}) -> Attr.
 
 process_pool([Tag, Type|_], KVs) ->
     {[ScopeOpts, HostOpts, ConnOpts], Opts} = proplists:split(KVs, [scope, host, connection]),
