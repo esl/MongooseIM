@@ -8,9 +8,10 @@
                   validate = any :: mongoose_config_validator:section_validator(),
                   format_items = none :: mongoose_config_spec:format_items(),
                   process :: undefined | mongoose_config_parser_toml:list_processor(),
-                  wrap = default :: mongoose_config_spec:wrapper(),
                   defaults = #{} :: #{mongoose_config_parser_toml:toml_key() =>
-                                         mongoose_config_parser_toml:config_part()}}).
+                                         mongoose_config_parser_toml:config_part()},
+                  wrap = default :: mongoose_config_spec:wrapper(),
+                  include = when_present :: always | when_present}).
 
 -record(list, {items :: mongoose_config_spec:config_node(),
                validate = any :: mongoose_config_validator:list_validator(),

@@ -108,7 +108,8 @@ ensure_keys(Keys, Section) ->
           [config_part()].
 parse_section(Path, M, #section{items = Items, defaults = Defaults}) ->
     FilteredDefaults = maps:filter(fun(K, _V) -> not maps:is_key(K, M) end, Defaults),
-    ProcessedConfig = maps:map(fun(K, V) -> handle([K|Path], V, get_spec_for_key(K, Items)) end, M),
+    M1 = maps:merge(get_always_included(Items), M),
+    ProcessedConfig = maps:map(fun(K, V) -> handle([K|Path], V, get_spec_for_key(K, Items)) end, M1),
     ProcessedDefaults = maps:map(fun(K, V) -> handle_default([K|Path], V, maps:get(K, Items)) end,
                                  FilteredDefaults),
     lists:flatmap(fun({_K, ConfigParts}) -> ConfigParts end,
@@ -125,6 +126,9 @@ get_spec_for_key(Key, Items) ->
                 error -> error(#{what => unexpected_key, key => Key})
             end
     end.
+
+get_always_included(Items) ->
+    maps:from_list([{K, #{}} || {K, #section{include = always}} <- maps:to_list(Items)]).
 
 -spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [config_part()].
 parse_list(Path, L, #list{items = ItemSpec}) ->
