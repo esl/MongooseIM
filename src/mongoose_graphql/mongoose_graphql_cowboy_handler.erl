@@ -84,7 +84,7 @@ json_request(Req, State) ->
 from_json(Req, State) -> json_request(Req, State).
 to_json(Req, State) -> json_request(Req, State).
 
-%% -- INTERNAL FUNCTIONS ---------------------------------------
+%% Internal
 
 check_auth(Auth, #{schema_endpoint := <<"admin">>} = State) ->
     auth_admin(Auth, State);
@@ -157,10 +157,10 @@ variables([#{ <<"variables">> := Vars} | _]) ->
           try jsx:decode(Vars, [return_maps]) of
               null -> {ok, #{}};
               JSON when is_map(JSON) -> {ok, JSON};
-              _ -> {error, invalid_json}
+              _ -> {error, variables_invalid_json}
           catch
               error:badarg ->
-                  {error, invalid_json}
+                  {error, variables_invalid_json}
           end;
       is_map(Vars) ->
           {ok, Vars};

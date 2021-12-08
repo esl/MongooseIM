@@ -16,20 +16,36 @@ all() ->
      {group, user_handler}].
 
 groups() ->
-    [{cowboy_handler, [parallel], [can_connect_to_admin,
-                           can_connect_to_user
-                          ]},
-     {user_handler, [parallel], [wrong_creds_cannot_access_protected_types,
-                         unauth_cannot_access_protected_types,
-                         unauth_can_access_unprotected_types,
-                         can_execute_query_with_variables,
-                         auth_user_can_access_protected_types
-                        ]},
-     {admin_handler, [parallel], [wrong_creds_cannot_access_protected_types,
-                          unauth_cannot_access_protected_types,
-                          unauth_can_access_unprotected_types,
-                          can_execute_query_with_variables,
-                          auth_admin_can_access_protected_types]}].
+    [{cowboy_handler, [parallel], cowboy_handler()},
+     {user_handler, [parallel], user_handler()},
+     {admin_handler, [parallel], admin_handler()}].
+
+cowboy_handler() ->
+    [can_connect_to_admin,
+     can_connect_to_user].
+
+user_handler() ->
+    [wrong_creds_cannot_access_protected_types,
+     unauth_cannot_access_protected_types,
+     unauth_can_access_unprotected_types,
+     can_execute_query_with_variables,
+     auth_user_can_access_protected_types,
+     invalid_json_body_error,
+     no_query_supplied_error,
+     variables_invalid_json_error,
+     can_load_graphiql].
+
+
+admin_handler() ->
+    [wrong_creds_cannot_access_protected_types,
+     unauth_cannot_access_protected_types,
+     unauth_can_access_unprotected_types,
+     can_execute_query_with_variables,
+     auth_admin_can_access_protected_types,
+     invalid_json_body_error,
+     no_query_supplied_error,
+     variables_invalid_json_error,
+     can_load_graphiql].
 
 init_per_suite(Config) ->
     % reset endpoints and load test schema
@@ -129,6 +145,33 @@ can_execute_query_with_variables(Config) ->
                           <<"path">> := [<<"id">>]}]},
                  Data).
 
+can_load_graphiql(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    {Status, Html} = get_graphiql_website(Ep),
+    ?assertEqual({<<"200">>,<<"OK">>}, Status),
+    ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
+
+invalid_json_body_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = <<"">>,
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"invalid_json_body">>}]}, Data).
+
+no_query_supplied_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"no_query_supplied">>}]}, Data).
+
+variables_invalid_json_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"variables_invalid_json">>}]}, Data).
+
 %% Helpers
 
 assert_no_permissions(Status, Data) ->
@@ -186,4 +229,14 @@ execute(EpName, Body, Creds) ->
         creds => Creds,
         path => "/graphql",
         body => Body},
+    rest_helper:make_request(Request).
+
+get_graphiql_website(EpName) ->
+    Request =
+      #{port => get_port(EpName),
+        role => {graphql, atom_to_binary(EpName)},
+        method => <<"GET">>,
+        headers => [{<<"Accept">>, <<"text/html">>}],
+        return_maps => true,
+        path => "/graphql"},
     rest_helper:make_request(Request).
