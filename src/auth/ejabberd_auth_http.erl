@@ -13,6 +13,7 @@
 %% External exports
 -export([start/1,
          stop/1,
+         config_spec/0,
          supports_sasl_module/2,
          set_password/4,
          authorize/1,
@@ -28,7 +29,7 @@
          check_password/6]).
 
 -include("mongoose.hrl").
--include("scram.hrl").
+-include("mongoose_config_spec.hrl").
 
 -type http_error_atom() :: conflict | not_found | not_authorized | not_allowed.
 -type params() :: #{luser := jid:luser(),
@@ -47,6 +48,13 @@ start(_HostType) ->
 -spec stop(moongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"basic_auth">> => #option{type = string}},
+       format_items = map
+      }.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;

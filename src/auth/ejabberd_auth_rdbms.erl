@@ -31,6 +31,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          authorize/1,
          set_password/4,
          try_register/4,
@@ -56,7 +57,7 @@
 -import(mongoose_rdbms, [prepare/4, execute_successfully/3]).
 
 -include("mongoose.hrl").
--include("scram.hrl").
+-include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_SCRAMMIFY_COUNT, 10000).
 -define(DEFAULT_SCRAMMIFY_INTERVAL, 1000).
@@ -74,12 +75,21 @@
 %%% API
 %%%----------------------------------------------------------------------
 
+-spec start(moongooseim:host_type()) -> ok.
 start(HostType) ->
     prepare_queries(HostType),
     ok.
 
+-spec stop(moongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"users_number_estimate">> => #option{type = boolean}},
+       format_items = map
+      }.
 
 -spec supports_sasl_module(mongooseim:host_type(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_HostType, cyrsasl_plain) -> true;

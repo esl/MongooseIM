@@ -31,6 +31,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          set_password/4,
          authorize/1,
          try_register/4,
@@ -49,6 +50,7 @@
          check_password/6]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -65,9 +67,21 @@ start(HostType) ->
             ok
     end.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     extauth:stop(HostType).
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"instances">> => #option{type = integer,
+                                            validate = positive},
+                 <<"program">> => #option{type = string,
+                                          validate = non_empty}
+                },
+       required = [<<"program">>],
+       format_items = map
+      }.
 
 -spec check_cache_last_options(mongooseim:host_type()) -> 'cache' | 'no_cache'.
 check_cache_last_options(HostType) ->

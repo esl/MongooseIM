@@ -36,6 +36,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          start_link/1,
          set_password/4,
          authorize/1,
@@ -54,7 +55,7 @@
 
 -ignore_xref([start_link/1]).
 
--include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 -include("eldap.hrl").
 
 -record(state,
@@ -98,6 +99,25 @@ stop(HostType) ->
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"pool_tag">> => #option{type = atom,
+                                           validate = non_empty},
+                 <<"bind_pool_tag">> => #option{type = atom,
+                                                validate = non_empty},
+                 <<"base">> => #option{type = binary},
+                 <<"uids">> => #list{items = mongoose_ldap_config:uids()},
+                 <<"filter">> => #option{type = binary,
+                                         validate = ldap_filter},
+                 <<"dn_filter">> => mongoose_ldap_config:dn_filter(),
+                 <<"local_filter">> => mongoose_ldap_config:local_filter(),
+                 <<"deref">> => #option{type = atom,
+                                        validate = {enum, [never, always, finding, searching]}}
+                },
+       format_items = map
+      }.
 
 -spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
 start_link(HostType) ->
@@ -448,10 +468,7 @@ parse_options(HostType) ->
     RawUserFilter = maps:get(filter, Opts, <<>>),
     UserFilter = eldap_utils:process_user_filter(UIDs, RawUserFilter),
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
-    {DNFilter, DNFilterAttrs} = case maps:find(dn_filter, Opts) of
-                                    {ok, DNF} -> DNF;
-                                    error -> {undefined, []}
-                                end,
+    {DNFilter, DNFilterAttrs} = maps:get(dn_filter, Opts, {undefined, []}),
     LocalFilter = maps:get(local_filter, Opts, undefined),
     #state{host_type = HostType,
            eldap_id = {HostType, EldapID},

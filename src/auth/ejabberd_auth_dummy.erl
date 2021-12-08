@@ -3,6 +3,7 @@
 %% API
 -export([start/1,
          stop/1,
+         config_spec/0,
          check_password/4,
          check_password/6,
          authorize/1,
@@ -24,6 +25,7 @@
 -ignore_xref([scram_passwords/0]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -36,6 +38,16 @@ start(_HostType) ->
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"base_time">> => #option{type = integer,
+                                            validate = non_negative},
+                 <<"variance">> => #option{type = integer,
+                                           validate = positive}},
+       format_items = map
+      }.
 
 authorize(Creds) ->
     HostType = mongoose_credentials:host_type(Creds),

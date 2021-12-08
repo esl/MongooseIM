@@ -31,6 +31,7 @@
 
 -export([start/1,
          stop/1,
+         config_spec/0,
          authorize/1,
          check_password/4,
          check_password/6,
@@ -39,8 +40,11 @@
          supported_features/0
         ]).
 
+%% Config spec callbacks
+-export([process_jwt_secret/1]).
 
 -include("mongoose.hrl").
+-include("mongoose_config_spec.hrl").
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -56,6 +60,31 @@ start(HostType) ->
 stop(_HostType) ->
     persistent_term:erase(jwt_secret),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"secret">> => jwt_secret_config_spec(),
+                 <<"algorithm">> => #option{type = binary,
+                                            validate = {enum, algorithms()}},
+                 <<"username_key">> => #option{type = atom,
+                                               validate = non_empty}
+                },
+       required = all,
+       format_items = map
+      }.
+
+jwt_secret_config_spec() ->
+    #section{
+       items = #{<<"file">> => #option{type = string,
+                                       validate = non_empty},
+                 <<"env">> => #option{type = string,
+                                      validate = non_empty},
+                 <<"value">> => #option{type = string}},
+       process = fun ?MODULE:process_jwt_secret/1
+      }.
+
+process_jwt_secret([V]) -> V.
 
 -spec supports_sasl_module(binary(), cyrsasl:sasl_module()) -> boolean().
 supports_sasl_module(_, Module) -> Module =:= cyrsasl_plain.
@@ -143,3 +172,8 @@ get_jwt_secret(HostType) ->
             {ok, JWTSecret} = file:read_file(Path),
             JWTSecret
     end.
+
+algorithms() ->
+    [<<"HS256">>, <<"RS256">>, <<"ES256">>,
+     <<"HS386">>, <<"RS386">>, <<"ES386">>,
+     <<"HS512">>, <<"RS512">>, <<"ES512">>].

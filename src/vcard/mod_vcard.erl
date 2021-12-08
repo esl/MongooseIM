@@ -234,7 +234,7 @@ config_spec() ->
                  <<"ldap_pool_tag">> => #option{type = atom,
                                                 validate = pool_name},
                  <<"ldap_base">> => #option{type = string},
-                 <<"ldap_uids">> => #list{items = mongoose_config_spec:ldap_uids()},
+                 <<"ldap_uids">> => #list{items = mongoose_ldap_config:uids()},
                  <<"ldap_filter">> => #option{type = binary},
                  <<"ldap_deref">> => #option{type = atom,
                                              validate = {enum, [never, always, finding, searching]}},
