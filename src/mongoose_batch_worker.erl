@@ -56,6 +56,8 @@ handle_cast(Msg, State) ->
 -spec handle_info(flush | term(), state()) -> {noreply, state()}.
 handle_info(flush, State) ->
     {noreply, run_flush(State)};
+handle_info({garbage_collect, asynchronous_gc_triggered, true}, State) ->
+    {noreply, State};
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
     {noreply, State}.
@@ -102,7 +104,7 @@ run_flush(State = #state{flush_interval_tref = TRef}) ->
     cancel_and_flush_timer(TRef),
     ?LOG_DEBUG(log_fields(State, #{what => batch_worker_flush})),
     NewState = do_run_flush(State#state{flush_interval_tref = undefined}),
-    erlang:garbage_collect(),
+    erlang:garbage_collect(self(), [{async, asynchronous_gc_triggered}, {type, major}]),
     NewState.
 
 cancel_and_flush_timer(undefined) ->
