@@ -370,7 +370,7 @@ do_wait_until(_Fun, ExpectedValue, #{
                                       history := History,
                                       name := Name
                                      }) when TimeLeft =< 0 ->
-    error({Name, ExpectedValue, lists:reverse(History)});
+    error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1)});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
@@ -381,6 +381,13 @@ do_wait_until(Fun, ExpectedValue, Opts) ->
     catch Error:Reason ->
             wait_and_continue(Fun, ExpectedValue, {Error, Reason}, Opts)
     end.
+
+simplify_history([H|[H|_]=T], Times) ->
+    simplify_history(T, Times + 1);
+simplify_history([H|T], Times) ->
+    [{times, Times, H}|simplify_history(T, 1)];
+simplify_history([], 1) ->
+    [].
 
 wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
                                                    sleep_time := SleepTime,
