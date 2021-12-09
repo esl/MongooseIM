@@ -182,7 +182,7 @@ process(["graphql", Arg]) when is_list(Arg) ->
     Ep = mongoose_graphql:get_endpoint(admin),
     case mongoose_graphql:execute(Ep, undefined, Doc) of
         {ok, Result} ->
-            PrettyResult = jsx:prettify(jsx:encode(Result)),
+            PrettyResult = jiffy:encode(Result, [pretty]),
             ?PRINT("~s\n", [PrettyResult]);
         {error, _} = Err ->
             ?PRINT("~p\n", [Err])
@@ -190,7 +190,7 @@ process(["graphql", Arg]) when is_list(Arg) ->
     ?STATUS_SUCCESS;
 process(["graphql" | _]) ->
     ?PRINT("This command requires one string type argument!\n", []),
-    ?STATUS_SUCCESS;
+    ?STATUS_ERROR;
 
 %% @doc The arguments --long and --dual are not documented because they are
 %% automatically selected depending in the number of columns of the shell
@@ -571,7 +571,7 @@ print_usage(HelpMode, MaxC, ShCode) ->
          {"restart", [], "Restart MongooseIM"},
          {"help", ["[--tags [tag] | com?*]"], "Show help (try: mongooseimctl help help)"},
          {"mnesia", ["[info]"], "show information of Mnesia system"},
-         {"graphql", ["query"], "Executes graphql query or mutation"}] ++
+         {"graphql", ["query"], "Execute graphql query or mutation"}] ++
         get_list_commands() ++
         get_list_ctls(),
 

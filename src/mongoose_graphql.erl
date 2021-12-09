@@ -89,9 +89,7 @@ execute(Ep, OpName, Doc)  ->
 % Internal
 
 schema_pattern(DirName) ->
-    filename:join([code:priv_dir(mongooseim),
-                       "graphql/schemas",
-                       DirName, "*.gql"]).
+    filename:join([code:priv_dir(mongooseim), "graphql/schemas", DirName, "*.gql"]).
 
 graphql_parse(Doc) ->
     case graphql:parse(Doc) of

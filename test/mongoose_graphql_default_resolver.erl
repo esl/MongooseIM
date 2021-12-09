@@ -10,5 +10,3 @@ execute(_Ctx, _Obj, <<"id">>, #{<<"value">> := Value}) ->
     {ok, Value};
 execute(_Ctx, _Obj, Field, _Attrs) ->
     {error, {not_implemented, Field}}.
-
-

@@ -25,23 +25,15 @@ cowboy_handler() ->
      can_connect_to_user].
 
 user_handler() ->
-    [wrong_creds_cannot_access_protected_types,
-     unauth_cannot_access_protected_types,
-     unauth_can_access_unprotected_types,
-     can_execute_query_with_variables,
-     auth_user_can_access_protected_types,
-     invalid_json_body_error,
-     no_query_supplied_error,
-     variables_invalid_json_error,
-     can_load_graphiql].
-
-
+    [auth_user_can_access_protected_types | common_tests()].
 admin_handler() ->
+    [auth_admin_can_access_protected_types | common_tests()].
+
+common_tests() ->
     [wrong_creds_cannot_access_protected_types,
      unauth_cannot_access_protected_types,
      unauth_can_access_unprotected_types,
      can_execute_query_with_variables,
-     auth_admin_can_access_protected_types,
      invalid_json_body_error,
      no_query_supplied_error,
      variables_invalid_json_error,

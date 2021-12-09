@@ -1,13 +1,12 @@
-%% @doc Module that checks if a requested query can be executed with provided
-%% permissions.
+%% @doc Checks if a requested query can be executed with provided permissions.
 %%
 %% GraphQL has directives that allow attaching additional information to schema,
 %% to objects, to fields, and more. The custom directive `@protected' is created
-%% to mark which objects or fields could be accessed only by authorized request.
+%% to mark which objects or fields could be accessed only by an authorized request.
 %% This module analyzes the AST and tries to find if there is at least one protected
 %% resource.
 %%
-%% If unauthorized request want to execute a query that contains protected resources,
+%% If an unauthorized request wants to execute a query that contains protected resources,
 %% an error is thrown.
 %%
 %% Directives can have arguments, so if needed this functionality can be easily
@@ -25,7 +24,7 @@
 -type auth_status() :: boolean().
 
 %% @doc Checks if query can be executed by unauthorized request. If not, throws
-%% an error. When request is authorized just skip.
+%% an error. When request is authorized, just skip.
 %% @end
 -spec check_permissions(binary(), auth_status(), #document{}) -> ok.
 check_permissions(OpName, false, #document{definitions = Definitions}) ->
@@ -41,7 +40,7 @@ check_permissions(OpName, false, #document{definitions = Definitions}) ->
                     % When an object is protected we need to ensure that the request
                     % query contains only introspection fields to execute it without
                     % authorization. Otherwise, a user couldn't access documentation
-                    % without login in.
+                    % without logging in.
                     case is_introspection_op(Op1) of
                         true ->
                             ok;

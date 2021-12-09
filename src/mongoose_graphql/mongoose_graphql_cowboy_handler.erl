@@ -62,13 +62,12 @@ is_authorized(Req, State) ->
     State2 = check_auth(Auth, State),
     {true, Req, State2}.
 
-resource_exists(#{ method := <<"GET">> } = Req, State) ->
+resource_exists(#{method := <<"GET">>} = Req, State) ->
     {true, Req, State};
-resource_exists(#{ method := <<"POST">> } = Req, State) ->
+resource_exists(#{method := <<"POST">>} = Req, State) ->
     {false, Req, State}.
 
-to_html(Req, #{ index_location :=
-                    {priv_file, App, FileLocation}} = State) ->
+to_html(Req, #{index_location := {priv_file, App, FileLocation}} = State) ->
     Filename = filename:join(code:priv_dir(App), FileLocation),
     {ok, Data} = file:read_file(Filename),
     {Data, Req, State}.
@@ -107,7 +106,7 @@ auth_admin(_, State) ->
     % auth credentials not provided in config
     State#{authorized => true}.
 
-run_request(#{ document := undefined }, Req, State) ->
+run_request(#{document := undefined}, Req, State) ->
     reply_error(400, no_query_supplied, Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
@@ -127,11 +126,11 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
 gather(Req) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     Bindings = cowboy_req:bindings(Req2),
-    try jsx:decode(Body, [return_maps]) of
+    try jiffy:decode(Body, [return_maps]) of
         JSON ->
             gather(Req2, JSON, Bindings)
     catch
-        error:badarg ->
+        _:_ ->
             {error, invalid_json_body}
     end.
 
@@ -140,26 +139,26 @@ gather(Req, Body, Params) ->
     case variables([Params, Body]) of
         {ok, Vars} ->
             Operation = operation_name([Params, Body]),
-            {ok, Req, #{ document => QueryDocument,
+            {ok, Req, #{document => QueryDocument,
                          vars => Vars,
                          operation_name => Operation}};
         {error, Reason} ->
             {error, Reason}
     end.
 
-document([#{ <<"query">> := Q }|_]) -> Q;
+document([#{<<"query">> := Q}|_]) -> Q;
 document([_|Next]) -> document(Next);
 document([]) -> undefined.
 
-variables([#{ <<"variables">> := Vars} | _]) ->
+variables([#{<<"variables">> := Vars} | _]) ->
   if
       is_binary(Vars) ->
-          try jsx:decode(Vars, [return_maps]) of
+          try jiffy:decode(Vars, [return_maps]) of
               null -> {ok, #{}};
               JSON when is_map(JSON) -> {ok, JSON};
               _ -> {error, variables_invalid_json}
           catch
-              error:badarg ->
+              _:_ ->
                   {error, variables_invalid_json}
           end;
       is_map(Vars) ->
@@ -172,7 +171,7 @@ variables([_ | Next]) ->
 variables([]) ->
     {ok, #{}}.
 
-operation_name([#{ <<"operationName">> := OpName } | _]) ->
+operation_name([#{<<"operationName">> := OpName} | _]) ->
     OpName;
 operation_name([_ | Next]) ->
     operation_name(Next);
@@ -189,7 +188,7 @@ reply_error(Code, Msg, Req, State) ->
                 [#{type => error, message => Formatted}]
             end,
 
-    Body = jsx:encode(#{ errors => Errors}),
+    Body = jiffy:encode(#{errors => Errors}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.

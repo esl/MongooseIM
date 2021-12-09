@@ -7,15 +7,15 @@
 -include_lib("graphql/src/graphql_schema.hrl").
 
 all() ->
-    [can_create_endpoint, 
-     can_load_splitted_schema,
+    [can_create_endpoint,
+     can_load_split_schema,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, errors_handling}].
 
 groups() ->
     [{protected_graphql, [parallel],
-     [auth_can_execute_protected_query, 
+     [auth_can_execute_protected_query,
       auth_can_execute_protected_mutation,
       unauth_cannot_execute_protected_query,
       unauth_cannot_execute_protected_mutation,
@@ -66,38 +66,34 @@ can_create_endpoint(Config) ->
 
     Ep = mongoose_graphql:get_endpoint(Name),
     ?assertMatch({endpoint_context, Name, Pid, _, _}, Ep),
-    ?assertMatch(#root_schema{id = 'ROOT', query = <<"UserQuery">>, 
+    ?assertMatch(#root_schema{id = 'ROOT', query = <<"UserQuery">>,
                               mutation = <<"UserMutation">>},
                   graphql_schema:get(Ep, 'ROOT')).
 
-can_load_splitted_schema(Config) ->
+can_load_split_schema(Config) ->
     Name = ?config(endpoint_name, Config),
-    {Mapping, Pattern} = example_splitted_schema_data(Config),
-    Pattern2 = filelib:wildcard(Pattern),
+    {Mapping, Pattern} = example_split_schema_data(Config),
     {ok, Pid} = mongoose_graphql:create_endpoint(Name, Mapping, Pattern),
 
     Ep = mongoose_graphql:get_endpoint(Name),
     ?assertMatch({endpoint_context, Name, Pid, _, _}, Ep),
-    ?assertMatch(#root_schema{id = 'ROOT', query = <<"Query">>, 
+    ?assertMatch(#root_schema{id = 'ROOT', query = <<"Query">>,
                               mutation = <<"Mutation">>},
                   graphql_schema:get(Ep, 'ROOT')),
-    ?assertMatch(#object_type{id = <<"Query">>}, 
-                 graphql_schema:get(Ep, <<"Query">>)),
-    ?assertMatch(#object_type{id = <<"Mutation">>}, 
-                 graphql_schema:get(Ep, <<"Mutation">>)).
-    
+    ?assertMatch(#object_type{id = <<"Query">>}, graphql_schema:get(Ep, <<"Query">>)),
+    ?assertMatch(#object_type{id = <<"Mutation">>}, graphql_schema:get(Ep, <<"Mutation">>)).
 
 auth_can_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"{ field }">>,
     Res = mongoose_graphql:execute(Ep, undefined, Doc),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 auth_can_execute_protected_mutation(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, undefined, Doc),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 unauth_cannot_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),
@@ -115,15 +111,15 @@ unauth_can_access_introspection(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"{ __schema { queryType { name } } __type(name: \"UserQuery\") { name } }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    Expected = 
+    Expected =
         {ok,
             #{data =>
                 #{<<"__schema">> =>
-                    #{<<"queryType">> => 
+                    #{<<"queryType">> =>
                         #{<<"name">> => <<"UserQuery">>}
                 },
-                <<"__type">> => 
-                    #{<<"name">> => 
+                <<"__type">> =>
+                    #{<<"name">> =>
                         <<"UserQuery">>
                      }
                  }
@@ -134,38 +130,38 @@ unauth_can_access_introspection(Config) ->
 can_execute_query_with_vars(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query Q1($value: String!) { id(value: $value)}">>,
-    Req = 
-        #{document => Doc, 
-          operation_name => <<"Q1">>, 
-          vars => #{<<"value">> => <<"Hello">>}, 
-          authorized => false, 
+    Req =
+        #{document => Doc,
+          operation_name => <<"Q1">>,
+          vars => #{<<"value">> => <<"Hello">>},
+          authorized => false,
           ctx => #{}},
     Res = mongoose_graphql:execute(Ep, Req),
-    ?assertEqual({ok,#{data => #{<<"id">> => <<"Hello">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"id">> => <<"Hello">>}}}, Res).
 
 unauth_can_execute_query(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 unauth_can_execute_mutation(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 auth_can_execute_query(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, true)),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 auth_can_execute_mutation(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, true)),
-    ?assertEqual({ok,#{data => #{<<"field">> => <<"Test field">>}}}, Res).
+    ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
 should_catch_parsing_errors(Config) ->
     Ep = ?config(endpoint, Config),
@@ -188,15 +184,15 @@ should_catch_type_check_params_errors(Config) ->
 %% Helpers
 
 request(Doc, Authorized) ->
-    #{document => Doc, 
-      operation_name => undefined, 
-      vars => #{}, 
-      authorized => Authorized, 
+    #{document => Doc,
+      operation_name => undefined,
+      vars => #{},
+      authorized => Authorized,
       ctx => #{}}.
 
-example_splitted_schema_data(Config) ->
-    Pattern = filename:join([proplists:get_value(data_dir, Config), 
-                             "splitted_schema", "*.gql"]),
+example_split_schema_data(Config) ->
+    Pattern = filename:join([proplists:get_value(data_dir, Config),
+                             "split_schema", "*.gql"]),
     Mapping =
         #{objects =>
               #{'Query' => mongoose_graphql_default_resolver,

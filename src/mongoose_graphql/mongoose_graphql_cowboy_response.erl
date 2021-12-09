@@ -3,7 +3,7 @@
 -export([term_to_json/1]).
 
 term_to_json(Term) ->
-    jsx:encode(fixup(Term)).
+    jiffy:encode(fixup(Term)).
 
 %% Ground types
 fixup(Term) when is_number(Term) -> Term;

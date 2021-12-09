@@ -1138,12 +1138,12 @@ can_handle_execution_error(Config) ->
 graphql_wrong_arguments_number(Config) ->
     ExpectedFragment = "This command requires",
     ResNoArgs = mongooseimctl("graphql", [], Config),
-    ?assertMatch({_, 0}, ResNoArgs),
+    ?assertMatch({_, 1}, ResNoArgs),
     Data1 = element(1, ResNoArgs),
     ?assertNotEqual(nomatch, string:find(Data1, ExpectedFragment)),
 
     ResTooManyArgs = mongooseimctl("graphql", ["{}", "{}"], Config),
-    ?assertMatch({_, 0}, ResTooManyArgs),
+    ?assertMatch({_, 1}, ResTooManyArgs),
     Data2 = element(1, ResTooManyArgs),
     ?assertNotEqual(nomatch, string:find(Data2, ExpectedFragment)).
 
