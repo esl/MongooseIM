@@ -10,12 +10,6 @@
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/3]).
 
--define(MOD_INBOX_BACKEND, mod_inbox_backend).
--ignore_xref([
-    {?MOD_INBOX_BACKEND, get_entry_properties, 2},
-    {?MOD_INBOX_BACKEND, set_entry_properties, 3}
-]).
-
 -spec process_iq_conversation(Acc :: mongoose_acc:t(),
                               From :: jid:jid(),
                               To :: jid:jid(),
