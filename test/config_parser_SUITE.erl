@@ -3098,7 +3098,7 @@ assert_error(Config) ->
 
 test_config_file(Config, File) ->
     OptionsPath = ejabberd_helper:data(Config, File ++ ".options"),
-    {ok, ExpectedOpts} = file:consult(OptionsPath),
+    ExpectedOpts = config_parser_helper:options(File),
 
     TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
     State = mongoose_config_parser:parse_file(TOMLPath),
