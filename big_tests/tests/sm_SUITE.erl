@@ -735,6 +735,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:send(Alice, escalus_stanza:sm_ack(1)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
     %% get pid of c2s
     {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
@@ -746,7 +747,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:kill(Alice),
     % session should be alive
     1 = length(get_user_alive_resources(AliceSpec)),
-    rpc(mim(), ejabberd_c2s, stop, [C2SPid] ),
+    rpc(mim(), ejabberd_c2s, stop, [C2SPid]),
     wait_for_c2s_state_change(C2SPid, resume_session),
     %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
@@ -759,8 +760,6 @@ resume_session_state_stop_c2s(Config) ->
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
-
-    escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
     escalus_connection:stop(NewAlice),
     escalus_connection:stop(Bob).
