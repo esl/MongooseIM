@@ -250,9 +250,11 @@ max_offline_messages_reached(Config) ->
                 logout(FreshConfig, Alice),
                 each_client_sends_messages_to(BobsResources, Alice,
                                               {count, MessagesPerResource}),
+                wait_for_n_offline_messages(Alice, MessagesPerResource * 4),
 
                 send_message(B1, Alice, ?MAX_OFFLINE_MSGS+1),
-                Packet = escalus:wait_for_stanza(B1, 5000),
+
+                Packet = escalus:wait_for_stanza(B1),
                 escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Packet),
 
                 NewAlice = login_send_presence(FreshConfig, alice),
