@@ -5,7 +5,7 @@ schema{
 
 """
 Contains all user available queries.
-Only authenticated user can execute this queries.
+Only an authenticated user can execute these queries.
 """
 type UserQuery @protected{
   "Something to not leave type without fields"
@@ -14,7 +14,7 @@ type UserQuery @protected{
 
 """
 Contains all user available mutations.
-Only authenticated user can execute this mutations.
+Only an authenticated user can execute these mutations.
 """
 type UserMutation @protected{
   "Something to not leave type without fields"
