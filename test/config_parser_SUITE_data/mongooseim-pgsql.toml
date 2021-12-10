@@ -180,11 +180,12 @@
   password = "secret"
 
 [auth]
-  methods = ["rdbms"]
   password.format = "scram"
   password.hash = ["sha256"]
   scram_iterations = 64
   sasl_external = ["standard"]
+
+  [auth.rdbms]
 
 [outgoing_pools.redis.global_distrib]
   scope = "single_host"
@@ -374,7 +375,6 @@
 [[host_config]]
   host = "anonymous.localhost"
 
-  [host_config.auth]
-    methods = ["anonymous"]
-    anonymous.allow_multiple_connections = true
-    anonymous.protocol = "both"
+  [host_config.auth.anonymous]
+    allow_multiple_connections = true
+    protocol = "both"

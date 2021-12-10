@@ -22,10 +22,10 @@ options("host_types") ->
      {routing_modules, ejabberd_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
      {{auth, <<"another host type">>}, auth_with_methods([])},
-     {{auth, <<"localhost">>}, auth_with_methods([test3])},
-     {{auth, <<"some host type">>}, auth_with_methods([test2])},
-     {{auth, <<"this is host type">>}, auth_with_methods([test1])},
-     {{auth, <<"yet another host type">>}, auth_with_methods([test1, test2])},
+     {{auth, <<"localhost">>}, auth_with_methods([rdbms])},
+     {{auth, <<"some host type">>}, auth_with_methods([http])},
+     {{auth, <<"this is host type">>}, auth_with_methods([external])},
+     {{auth, <<"yet another host type">>}, auth_with_methods([external, http])},
      {{modules, <<"another host type">>}, [{test_mim_module2, []}]},
      {{modules, <<"localhost">>}, [{test_mim_module3, []}]},
      {{modules, <<"some host type">>}, []},
@@ -226,10 +226,12 @@ options("mongooseim-pgsql") ->
      {{auth, <<"localhost">>},
       (default_auth())#{methods => [rdbms],
                         password_format => {scram, [sha256]},
+                        rdbms => #{},
                         scram_iterations => 64}},
      {{auth, <<"localhost.bis">>},
       (default_auth())#{methods => [rdbms],
                         password_format => {scram, [sha256]},
+                        rdbms => #{},
                         scram_iterations => 64}},
      {{modules, <<"anonymous.localhost">>}, pgsql_modules()},
      {{modules, <<"localhost">>}, pgsql_modules()},
@@ -662,7 +664,8 @@ pgsql_modules() ->
      {mod_carboncopy, []}].
 
 auth_with_methods(Methods) ->
-    maps:merge(default_auth(), #{methods => Methods}).
+    MethodSections = maps:from_keys(Methods, #{}),
+    maps:merge(default_auth(), MethodSections#{methods => Methods}).
 
 custom_auth() ->
     maps:merge(default_auth(), extra_auth()).
@@ -684,6 +687,7 @@ extra_auth() ->
                 local_filter => {equal, {"accountStatus", ["enabled"]}},
                 pool_tag => default,
                 uids => [<<"uid">>, {<<"uid2">>, <<"%u">>}]},
+      methods => [anonymous, external, http, jwt, ldap, rdbms, riak],
       rdbms => #{users_number_estimate => true},
       riak => #{bucket_type => <<"user_bucket">>}}.
 
