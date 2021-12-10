@@ -626,6 +626,7 @@ send_muc_rsm_messages(Config) ->
     Room = ?config(room, Config),
     RoomAddr = room_address(Room),
     P = ?config(props, Config),
+    N = 15,
     F = fun(Alice, Bob) ->
         escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
         escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
@@ -637,18 +638,16 @@ send_muc_rsm_messages(Config) ->
         lists:foreach(fun(N) ->
                               escalus:send(Alice, escalus_stanza:groupchat_to(
                                                     RoomAddr, generate_message_text(N)))
-                      end, lists:seq(1, 15)),
-        %% Bob is waiting for 15 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 15, 5000),
-        escalus:wait_for_stanzas(Alice, 15, 5000),
+                      end, lists:seq(1, N)),
+        assert_list_size(N, escalus:wait_for_stanzas(Bob, N)),
+        assert_list_size(N, escalus:wait_for_stanzas(Alice, N)),
+        wait_for_room_archive_size(muc_host(), Room, N),
 
-        maybe_wait_for_archive(Config),
-
-        %% Get whole history.
+        %% Get the whole history.
         escalus:send(Alice,
             stanza_to_room(stanza_archive_request(P, <<"all_room_messages">>), Room)),
         AllMessages =
-            respond_messages(assert_respond_size(15, wait_archive_respond(Alice))),
+            respond_messages(assert_respond_size(N, wait_archive_respond(Alice))),
         ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
         Pid ! {parsed_messages, ParsedMessages},
         ok
@@ -662,20 +661,21 @@ send_muc_rsm_messages(Config) ->
     [{all_messages, ParsedMessages}|Config].
 
 send_rsm_messages(Config) ->
+    N = 15,
     Pid = self(),
-    %%    Room = ?config(room, Config),
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
                 %% Alice sends messages to Bob.
                 [escalus:send(Alice,
-                              escalus_stanza:chat_to(Bob, generate_message_text(N))) || N <- lists:seq(1, 15)],
-                %% Bob is waiting for 15 messages for 5 seconds.
-                escalus:wait_for_stanzas(Bob, 15, 5000),
-                maybe_wait_for_archive(Config),
-                %% Get whole history.
+                              escalus_stanza:chat_to(Bob, generate_message_text(N)))
+                 || N <- lists:seq(1, N)],
+                assert_list_size(N, escalus:wait_for_stanzas(Bob, N)),
+                wait_for_archive_size(Alice, N),
+
+                %% Get the whole history.
                 rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
-                AllMessages =
-                respond_messages(assert_respond_size(15, wait_archive_respond(Alice))),
+                AllMessages = respond_messages(
+                                assert_respond_size(N, wait_archive_respond(Alice))),
                 ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
                 Pid ! {parsed_messages, ParsedMessages},
                 ok
@@ -1298,3 +1298,5 @@ rewrite_nodename($<) -> <<>>;
 rewrite_nodename($>) -> <<>>;
 rewrite_nodename($.) -> <<"-">>;
 rewrite_nodename(X)  -> <<X>>.
+
+assert_list_size(N, List) when N =:= length(List) -> List.
