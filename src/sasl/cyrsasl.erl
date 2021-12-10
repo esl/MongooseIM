@@ -29,11 +29,10 @@
 -export([listmech/1,
          server_new/6,
          server_start/4,
-         server_step/2]).
+         server_step/2,
+         default_modules/0]).
 
 -ignore_xref([behaviour_info/1]).
-
--include("mongoose.hrl").
 
 -type sasl_module() :: module().
 -type mechanism() :: binary().

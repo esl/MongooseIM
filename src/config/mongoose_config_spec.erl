@@ -102,12 +102,13 @@
 
 root() ->
     General = general(),
+    Auth = auth(),
     #section{
        items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
                                                   process = fun ?MODULE:process_general/1,
                                                   defaults = general_defaults()},
                  <<"listen">> => listen(),
-                 <<"auth">> => auth(),
+                 <<"auth">> => Auth#section{include = always},
                  <<"outgoing_pools">> => outgoing_pools(),
                  <<"services">> => services(),
                  <<"modules">> => modules(),
@@ -483,8 +484,11 @@ auth() ->
                                                 validate = {module, cyrsasl},
                                                 process = fun ?MODULE:process_sasl_mechanism/1}}
                      },
-       wrap = host_config,
-       format_items = map
+       format_items = map,
+       defaults = #{<<"methods">> => [],
+                    <<"sasl_external">> => [standard],
+                    <<"sasl_mechanisms">> => cyrsasl:default_modules()},
+       wrap = host_config
       }.
 
 all_auth_methods() ->

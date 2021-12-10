@@ -126,13 +126,9 @@ minimal_config_opts() ->
      {mongooseimctl_access_commands, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
-     {routing_modules, [mongoose_router_global,
-                        mongoose_router_localdomain,
-                        mongoose_router_external_localnode,
-                        mongoose_router_external,
-                        mongoose_router_dynamic_domains,
-                        ejabberd_s2s]},
+     {routing_modules, ejabberd_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
+     {{auth,<<"localhost">>}, config_parser_helper:default_auth()},
      {{replaced_wait_timeout, <<"localhost">>}, 2000}].
 
 start_slave_node(Config) ->
