@@ -44,7 +44,6 @@ groups() ->
                          modules,
                          outgoing_pools]},
      {host_types_group, [], [host_types_file,
-                             host_types_missing_auth_methods_and_modules,
                              host_types_unsupported_modules,
                              host_types_unsupported_auth_methods,
                              host_types_unsupported_auth_methods_and_modules]},
@@ -234,7 +233,8 @@ groups() ->
                             mod_vcard_ldap_search_fields,
                             mod_vcard_ldap_search_reported,
                             mod_version,
-                            modules_without_config]},
+                            modules_without_config,
+                            incorrect_module]},
      {services, [parallel], [service_admin_extra,
                              service_mongoose_system_metrics]}
     ].
@@ -249,7 +249,7 @@ end_per_suite(_Config) ->
 
 init_per_group(host_types_group, Config) ->
     Modules = [test_mim_module1, test_mim_module2, test_mim_module3],
-    AuthModules = [ejabberd_auth_test1, ejabberd_auth_test2, ejabberd_auth_test3],
+    AuthModules = [ejabberd_auth_external, ejabberd_auth_http, ejabberd_auth_rdbms],
     [{mocked_modules, Modules ++ AuthModules} | Config];
 init_per_group(_, Config) ->
     Config.
@@ -284,22 +284,13 @@ outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
 
 host_types_file(Config) ->
-    Modules = [test_mim_module1, test_mim_module2,
-               ejabberd_auth_test1, ejabberd_auth_test2],
+    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_external, ejabberd_auth_http],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     test_config_file(Config, "host_types").
 
-host_types_missing_auth_methods_and_modules(Config) ->
-    Modules = [ejabberd_auth_test1, test_mim_module1, test_mim_module2],
-    [meck:unload(M) || M <- Modules],
-    {'EXIT', {{config_error, "Could not read the TOML configuration file", ErrorList}, _}}
-        = (catch test_config_file(Config, "host_types")),
-    MissingModules = [M || #{reason := module_not_found, module := M} <- ErrorList],
-    ?assertEqual(lists:sort(Modules), lists:usort(MissingModules)).
-
 host_types_unsupported_modules(Config) ->
-    Modules = [ejabberd_auth_test1, ejabberd_auth_test2],
+    Modules = [ejabberd_auth_external, ejabberd_auth_http],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
@@ -312,30 +303,30 @@ host_types_unsupported_modules(Config) ->
                  test_config_file(Config, "host_types")).
 
 host_types_unsupported_auth_methods(Config) ->
-    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_test1],
+    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_external],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
                   %% please note that the sequence of these errors is not
                   %% guarantied and may change in the future
-                  [#{reason := not_supported_auth_method, auth_method := test2,
+                  [#{reason := not_supported_auth_method, auth_method := http,
                      host_type := <<"yet another host type">>},
-                   #{reason := not_supported_auth_method, auth_method := test2,
+                   #{reason := not_supported_auth_method, auth_method := http,
                      host_type := <<"some host type">>}]},
                  test_config_file(Config, "host_types")).
 
 host_types_unsupported_auth_methods_and_modules(Config) ->
-    Modules = [test_mim_module1, ejabberd_auth_test1],
+    Modules = [test_mim_module1, ejabberd_auth_external],
     FN = fun() -> [dynamic_domains] end,
     [meck:expect(M, supported_features, FN) || M <- Modules],
     ?assertError({config_error, "Invalid host type configuration",
                   %% please note that the sequence of these errors is not
                   %% guarantied and may change in the future
-                  [#{reason := not_supported_auth_method, auth_method := test2,
+                  [#{reason := not_supported_auth_method, auth_method := http,
                      host_type := <<"yet another host type">>},
                    #{reason := not_supported_module, module := test_mim_module2,
                      host_type := <<"another host type">>},
-                   #{reason := not_supported_auth_method, auth_method := test2,
+                   #{reason := not_supported_auth_method, auth_method := http,
                      host_type := <<"some host type">>}]},
                  test_config_file(Config, "host_types")).
 
@@ -820,9 +811,20 @@ listen_http_handlers_domain(_Config) ->
 auth_methods(_Config) ->
     ?cfg([{auth, global}, methods], [], #{}), % global default
     ?cfgh([auth, methods], [], #{<<"auth">> => #{}}), % default
-    ?cfgh([auth, methods], [internal, rdbms],
-          #{<<"auth">> => #{<<"methods">> => [<<"internal">>, <<"rdbms">>]}}),
-    ?errh(#{<<"auth">> => #{<<"methods">> => [<<"supernatural">>]}}).
+    ?cfgh([auth, methods], [internal, rdbms], % default alphabetical order
+          #{<<"auth">> => #{<<"internal">> => #{},
+                            <<"rdbms">> => #{}}}),
+    ?cfgh([auth, methods], [rdbms, internal], % specified order
+          #{<<"auth">> => #{<<"internal">> => #{},
+                            <<"rdbms">> => #{},
+                            <<"methods">> => [<<"rdbms">>, <<"internal">>]}}),
+    ?cfgh([auth, methods], [internal], % only one of the defined methods is enabled
+          #{<<"auth">> => #{<<"internal">> => #{},
+                            <<"rdbms">> => #{},
+                            <<"methods">> => [<<"internal">>]}}),
+    ?errh(#{<<"auth">> => #{<<"rdbms">> => <<"enabled">>}}),
+    ?errh(#{<<"auth">> => #{<<"supernatural">> => #{}}}),
+    ?errh(#{<<"auth">> => #{<<"methods">> => [<<"rdbms">>]}}).
 
 auth_password_format(_Config) ->
     ?cfgh([auth, password_format], {scram, [sha, sha256]},
@@ -2897,6 +2899,9 @@ mod_version(_Config) ->
 modules_without_config(_Config) ->
     ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
+
+incorrect_module(_Config) ->
+    ?errh(#{<<"modules">> => #{<<"mod_incorrect">> => #{}}}).
 
 %% Services
 
