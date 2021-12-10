@@ -21,6 +21,7 @@
          process_http_handler/2,
          process_sasl_external/1,
          process_sasl_mechanism/1,
+         process_auth/1,
          process_auth_password/1,
          process_pool/2,
          process_cassandra_auth/1,
@@ -485,14 +486,11 @@ auth() ->
                                                 process = fun ?MODULE:process_sasl_mechanism/1}}
                      },
        format_items = map,
-       defaults = #{<<"methods">> => [],
-                    <<"sasl_external">> => [standard],
+       defaults = #{<<"sasl_external">> => [standard],
                     <<"sasl_mechanisms">> => cyrsasl:default_modules()},
+       process = fun ?MODULE:process_auth/1,
        wrap = host_config
       }.
-
-all_auth_methods() ->
-    [anonymous, dummy, external, http, internal, jwt, ldap, pki, rdbms, riak].
 
 %% path: (host_config[].)auth.password
 auth_password() ->
@@ -1105,6 +1103,22 @@ process_sasl_external(M) ->
 
 process_sasl_mechanism(V) ->
     list_to_atom("cyrsasl_" ++ atom_to_list(V)).
+
+process_auth(Opts = #{methods := Methods}) ->
+    [check_auth_method(Method, Opts) || Method <- Methods],
+    Opts;
+process_auth(Opts) ->
+    MethodsFromSections = lists:filter(fun(K) -> maps:is_key(K, Opts) end, all_auth_methods()),
+    Opts#{methods => MethodsFromSections}.
+
+all_auth_methods() ->
+    [anonymous, dummy, external, http, internal, jwt, ldap, pki, rdbms, riak].
+
+check_auth_method(Method, Opts) ->
+    case maps:is_key(Method, Opts) of
+        true -> ok;
+        false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
+    end.
 
 process_auth_password(KVs) ->
     {[FormatOpts, HashOpts], []} = proplists:split(KVs, [format, hash]),
