@@ -39,6 +39,8 @@
   remove_personal_data_pubsub],
  "at the moment mod_pubsub doesn't support dynamic domains"}.
 
+{suites, "tests", graphql_SUITE}.
+
 {suites, "tests", inbox_SUITE}.
 
 {suites, "tests", inbox_extensions_SUITE}.

@@ -1,0 +1,1 @@
+-module(mongoose_graphql_user_query).

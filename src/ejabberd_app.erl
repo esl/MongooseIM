@@ -46,6 +46,7 @@ start(normal, _Args) ->
     db_init(),
     application:start(cache_tab),
 
+    mongoose_graphql:init(),
     translate:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),

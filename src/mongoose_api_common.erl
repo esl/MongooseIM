@@ -76,7 +76,8 @@
          get_auth_details/1,
          is_known_auth_method/1,
          error_response/4,
-         make_unauthorized_response/2]).
+         make_unauthorized_response/2,
+         check_password/2]).
 
 -ignore_xref([reload_dispatches/1]).
 
@@ -381,3 +382,20 @@ is_known_auth_method(_) -> false.
 
 make_unauthorized_response(Req, State) ->
     {{false, <<"Basic realm=\"mongooseim\"">>}, Req, State}.
+
+-spec check_password(jid:jid() | error, binary()) -> {true, mongoose_credentials:t()} | false.
+check_password(error, _) ->
+    false;
+check_password(JID, Password) ->
+    {LUser, LServer} = jid:to_lus(JID),
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            Creds0 = mongoose_credentials:new(LServer, HostType),
+            Creds1 = mongoose_credentials:set(Creds0, username, LUser),
+            Creds2 = mongoose_credentials:set(Creds1, password, Password),
+            case ejabberd_auth:authorize(Creds2) of
+                {ok, Creds} -> {true, Creds};
+                _ -> false
+            end;
+        {error, not_found} -> false
+    end.

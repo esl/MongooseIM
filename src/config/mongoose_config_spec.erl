@@ -408,6 +408,7 @@ http_handlers() ->
             <<"mongoose_api">>,
             <<"mongoose_api_admin">>,
             <<"mongoose_domain_handler">>,
+            <<"mongoose_graphql_cowboy_handler">>,
             default],
     #section{
        items = maps:from_list([{Key, #list{items = http_handler(Key),
@@ -457,6 +458,10 @@ http_handler_items(<<"mongoose_api_admin">>) ->
 http_handler_items(<<"mongoose_domain_handler">>) ->
     #{<<"username">> => #option{type = binary},
       <<"password">> => #option{type = binary}};
+http_handler_items(<<"mongoose_graphql_cowboy_handler">>) ->
+    #{<<"username">> => #option{type = binary},
+      <<"password">> => #option{type = binary},
+      <<"schema_endpoint">> => #option{type = binary}};
 http_handler_items(_) ->
     #{}.
 
@@ -1085,6 +1090,20 @@ process_http_handler_opts(<<"mongoose_domain_handler">>, Opts) ->
         {[{username, _User}], [{password, _Pass}]} -> ok;
         _ -> error(#{what => both_username_and_password_required,
                      handler => mongoose_domain_handler, opts => Opts})
+    end,
+    Opts;
+process_http_handler_opts(<<"mongoose_graphql_cowboy_handler">>, Opts) ->
+    {[UserOpts, PassOpts, SchemaOpts], []} = proplists:split(Opts, [username, password, schema_endpoint]),
+    case SchemaOpts of
+        [] -> error(#{what => schema_endpoint_required,
+                     handler => mongoose_graphql_cowboy_handler, opts => Opts});
+        _ -> ok
+    end,
+    case {UserOpts, PassOpts} of
+        {[], []} -> ok;
+        {[{username, _User}], [{password, _Pass}]} -> ok;
+        _ -> error(#{what => both_username_and_password_required,
+                     handler => mongoose_graphql_cowboy_handler, opts => Opts})
     end,
     Opts;
 process_http_handler_opts(<<"cowboy_swagger_redirect_handler">>, []) -> #{};

@@ -177,7 +177,20 @@ process(["mnesia", Arg]) when is_list(Arg) ->
         Return -> ?PRINT("~p~n", [Return])
     end,
     ?STATUS_SUCCESS;
-
+process(["graphql", Arg]) when is_list(Arg) ->
+    Doc = list_to_binary(Arg),
+    Ep = mongoose_graphql:get_endpoint(admin),
+    case mongoose_graphql:execute(Ep, undefined, Doc) of
+        {ok, Result} ->
+            PrettyResult = jiffy:encode(Result, [pretty]),
+            ?PRINT("~s\n", [PrettyResult]);
+        {error, _} = Err ->
+            ?PRINT("~p\n", [Err])
+    end,
+    ?STATUS_SUCCESS;
+process(["graphql" | _]) ->
+    ?PRINT("This command requires one string type argument!\n", []),
+    ?STATUS_ERROR;
 
 %% @doc The arguments --long and --dual are not documented because they are
 %% automatically selected depending in the number of columns of the shell
@@ -557,7 +570,8 @@ print_usage(HelpMode, MaxC, ShCode) ->
          {"stop", [], "Stop MongooseIM"},
          {"restart", [], "Restart MongooseIM"},
          {"help", ["[--tags [tag] | com?*]"], "Show help (try: mongooseimctl help help)"},
-         {"mnesia", ["[info]"], "show information of Mnesia system"}] ++
+         {"mnesia", ["[info]"], "show information of Mnesia system"},
+         {"graphql", ["query"], "Execute graphql query or mutation"}] ++
         get_list_commands() ++
         get_list_ctls(),
 

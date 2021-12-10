@@ -50,6 +50,7 @@
         creds => credentials(),
         path := binary(),
         body := binary(),
+        headers => [{binary(), binary()}],
         return_headers := boolean(),
         server := distributed_helper:rpc_spec(),
         port => inet:port_number(),
@@ -196,15 +197,17 @@ fusco_request(#{ role := Role, method := Method, creds := {User, Password},
                  path := Path, body := Body, server := Server } = Params) ->
     EncodedAuth = base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password)),
     Basic = list_to_binary("Basic " ++ EncodedAuth),
-    Headers = [{<<"authorization">>, Basic}],
+    Headers = [{<<"authorization">>, Basic} | maps:get(headers, Params, [])],
     fusco_request(Method, Path, Body, Headers,
                   get_port(Role, Server, Params), get_ssl_status(Role, Server), Params);
 %% an API to just send a request to a given port, without authentication
 fusco_request(#{ method := Method, path := Path, body := Body, port := Port} = Params) ->
-    fusco_request(Method, Path, Body, [], Port, false, Params);
+    Headers = maps:get(headers, Params, []),
+    fusco_request(Method, Path, Body, Headers, Port, false, Params);
 %% without credentials it is for admin (secure) interface
 fusco_request(#{ role := Role, method := Method, path := Path, body := Body, server := Server } = Params) ->
-    fusco_request(Method, Path, Body, [], get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
+    Headers = maps:get(headers, Params, []),
+    fusco_request(Method, Path, Body, Headers, get_port(Role, Server, Params), get_ssl_status(Role, Server), Params).
 
 fusco_request(Method, Path, Body, HeadersIn, Port, SSL, Params) ->
     {ok, Client} = fusco_cp:start_link({"localhost", Port, SSL}, [], 1),
@@ -312,6 +315,14 @@ is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
     {value, {modules, ModulesConfs}} = lists:keysearch(modules, 1, Opts),
     ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_"); (_) -> [] end, ModulesConfs),
     lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
+is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, {graphql, SchemaEndpoint}) ->
+    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+    lists:any(fun({_, _Path,  Mod, Args}) ->
+                      Mod == mongoose_graphql_cowboy_handler andalso
+                      SchemaEndpoint == proplists:get_value(schema_endpoint, Args);
+                 (_) ->
+                      false
+              end, Modules);
 is_roles_config(_, _) -> false.
 
 mapfromlist(L) ->
