@@ -149,7 +149,8 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
                   "just_tls" -> escalus_config:get_config(ssl_options, Config, "") ++ VerifyMode;
                   "fast_tls" -> ""
               end,
-    AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "\"pki\""}]),
+    AuthMethods = escalus_config:get_config(auth_methods, Config,
+                                            [{auth_method, "pki"}, {auth_method_opts, false}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "tls.module = \"" ++ TLSModule ++ "\"\n"
