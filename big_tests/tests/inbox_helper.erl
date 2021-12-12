@@ -79,12 +79,6 @@
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
--define(ROOM, <<"testroom1">>).
--define(ROOM2, <<"testroom2">>).
--define(ROOM3, <<"testroom3">>).
--define(ROOM4, <<"testroom4">>).
--define(ROOM_MARKERS, <<"room_markers">>).
--define(MUC_DOMAIN, (ct:get_config({hosts, mim, muc_service}))).
 
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
