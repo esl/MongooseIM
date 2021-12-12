@@ -316,6 +316,7 @@ archive_archived_entry_gets_active_on_request(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then bob decides to recover the conversation
         set_inbox_properties(Bob, Alice, [{archive, false}]),
@@ -329,6 +330,7 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
@@ -342,6 +344,7 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % Alice sends a message to Bob and then she archives the conversation
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
@@ -355,6 +358,7 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
         % Alice sends a message to Bob, but Bob archives it without reading it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         check_box(active, Bob, []),
         % Then Bob queries his archive and the conversation is there still unread
@@ -366,6 +370,7 @@ archive_full_archive_can_be_fetched(Config) ->
         % Several people write to Alice, and Alice reads and archives all of them
         check_box(archive, Alice, []),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        inbox_helper:check_inbox(Alice, AliceConvs),
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         set_inbox_properties(Alice, Kate, [{archive, true}]),
         set_inbox_properties(Alice, Mike, [{archive, true}]),
@@ -380,6 +385,7 @@ mute_unmuted_entry_gets_muted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
@@ -394,6 +400,7 @@ mute_muted_entry_gets_unmuted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
@@ -411,6 +418,7 @@ mute_after_timestamp_gets_unmuted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation (for a very short 1 second for testing purposes)
         set_inbox_properties(Bob, Alice, [{mute, 1}]),
         % Alice keeps writing
@@ -431,6 +439,7 @@ mute_muted_conv_restarts_timestamp(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, ?HOUR}]),
         % Alice keeps writing
@@ -461,6 +470,7 @@ properties_can_be_get(Config) ->
         % Alice sends a message to Bob
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
@@ -470,6 +480,7 @@ properties_many_can_be_set(Config) ->
         % Alice sends a message to Bob, and Bob sets a bunch of properties about it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
         % Then Bob queries his boxes and everything is as expected
         check_box(active, Bob, []),
