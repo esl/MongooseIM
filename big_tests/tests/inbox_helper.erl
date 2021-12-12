@@ -16,7 +16,7 @@
          muclight_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
-         check_inbox/2, check_inbox/4,
+         check_inbox/2, check_inbox/3, check_inbox/4,
          get_inbox/2, get_inbox/3,
          reset_inbox/2,
          get_result_el/2,
@@ -164,7 +164,11 @@ foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
 
 -spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> ok | no_return().
 check_inbox(Client, Convs) ->
-    check_inbox(Client, Convs, #{}, #{}).
+    check_inbox(Client, Convs, #{}).
+
+-spec check_inbox(escalus:client(), [conv()], inbox_query_params()) -> ok | no_return().
+check_inbox(Client, Convs, QueryOpts) ->
+    check_inbox(Client, Convs, QueryOpts, #{}).
 
 -spec check_inbox(Client :: escalus:client(),
                   Convs :: [conv()],
@@ -225,7 +229,6 @@ get_inbox(Client, ExpectedResult) ->
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
-
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
     GetInbox = make_inbox_stanza(GetParams),
     escalus:send(Client, GetInbox),
@@ -309,7 +312,7 @@ make_inbox_stanza(GetParams) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams)]},
+                      children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
@@ -317,8 +320,19 @@ make_inbox_stanza(GetParams, Verify) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams, Verify)]},
+                      children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
+
+
+rsm_max(#{limit := Value}) ->
+    [#xmlel{name = <<"set">>,
+            attrs = [{<<"xmlns">>, ?NS_RSM}],
+            children = [#xmlel{name = <<"max">>,
+                               children = [#xmlcdata{content = itb(Value)}]}]}];
+rsm_max(_) -> [].
+
+itb(N) when is_integer(N) -> integer_to_binary(N);
+itb(Bin) when is_binary(Bin) -> Bin.
 
 
 -spec reset_inbox(
@@ -382,6 +396,11 @@ make_inbox_form(GetParams) ->
 
 -spec make_inbox_form(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_form(GetParams, true) ->
+    BoxL = case maps:get(box, GetParams, both) of
+               both -> [];
+               archive -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, <<"true">>)];
+               active -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, <<"false">>)]
+           end,
     OrderL = case maps:get(order, GetParams, undefined) of
                  undefined -> [];
                  Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
@@ -395,13 +414,13 @@ make_inbox_form(GetParams, true) ->
                End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
            end,
     Archive = case maps:get(archive, GetParams, undefined) of
-               undefined -> [];
-               ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
-           end,
+                  undefined -> [];
+                  ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
+              end,
     FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
     HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                            bool_to_bin(maps:get(hidden_read, GetParams, false)))],
-    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
+    Fields = FormTypeL ++ BoxL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
     escalus_stanza:x_data_form(<<"submit">>, Fields);
 
 make_inbox_form(GetParams, false) ->
@@ -585,11 +604,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
     mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-    GetInbox = make_inbox_stanza(),
-    escalus:send(User, GetInbox),
-    Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
-    ResIQ = escalus:wait_for_stanza(User),
-    ExpectedCount = get_result_el(ResIQ, <<"count">>),
+    Stanzas = get_inbox(User, #{}, #{count => ExpectedCount}),
     LastMsg = lists:last(Stanzas),
     [InnerMsg] = get_inner_msg(LastMsg),
     MsgId = exml_query:attr(InnerMsg, <<"id">>),
