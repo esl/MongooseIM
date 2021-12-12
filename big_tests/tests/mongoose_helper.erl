@@ -359,27 +359,28 @@ wait_until(Fun, ExpectedValue) ->
 
 %% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
 wait_until(Fun, ExpectedValue, Opts) ->
-    Defaults = #{time_left => timer:seconds(5),
+    Defaults = #{validator => fun(NewValue) -> ExpectedValue =:= NewValue end,
+                 expected_value => ExpectedValue,
+                 time_left => timer:seconds(5),
                  sleep_time => 100,
                  history => [],
                  name => timeout},
-    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
+    do_wait_until(Fun, maps:merge(Defaults, Opts)).
 
-do_wait_until(_Fun, ExpectedValue, #{
-                                      time_left := TimeLeft,
-                                      history := History,
-                                      name := Name
-                                     }) when TimeLeft =< 0 ->
+do_wait_until(_Fun, #{expected_value := ExpectedValue,
+                      time_left := TimeLeft,
+                      history := History,
+                      name := Name}) when TimeLeft =< 0 ->
     error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1)});
 
-do_wait_until(Fun, ExpectedValue, Opts) ->
+do_wait_until(Fun, #{validator := Validator} = Opts) ->
     try Fun() of
-        ExpectedValue ->
-            {ok, ExpectedValue};
-        OtherValue ->
-            wait_and_continue(Fun, ExpectedValue, OtherValue, Opts)
+        Value -> case Validator(Value) of
+                     true -> {ok, Value};
+                     _ -> wait_and_continue(Fun, Value, Opts)
+                 end
     catch Error:Reason ->
-            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, Opts)
+              wait_and_continue(Fun, {Error, Reason}, Opts)
     end.
 
 simplify_history([H|[H|_]=T], Times) ->
@@ -389,22 +390,20 @@ simplify_history([H|T], Times) ->
 simplify_history([], 1) ->
     [].
 
-wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
-                                                   sleep_time := SleepTime,
-                                                   history := History} = Opts) ->
+wait_and_continue(Fun, FunResult, #{time_left := TimeLeft,
+                                    sleep_time := SleepTime,
+                                    history := History} = Opts) ->
     timer:sleep(SleepTime),
-    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
-                                            history => [FunResult | History]}).
+    do_wait_until(Fun, Opts#{time_left => TimeLeft - SleepTime,
+                             history => [FunResult | History]}).
 
 wait_for_user(Config, User, LeftTime) ->
-    mongoose_helper:wait_until(fun() ->
-                                escalus_users:verify_creation(escalus_users:create_user(Config, User))
-                               end, ok,
-                               #{
-                                 sleep_time => 400,
-                                 left_time => LeftTime,
-                                 name => 'escalus_users:create_user'
-                                }).
+    wait_until(fun() ->
+                       escalus_users:verify_creation(escalus_users:create_user(Config, User))
+               end, ok,
+               #{sleep_time => 400,
+                 left_time => LeftTime,
+                 name => 'escalus_users:create_user'}).
 
 % Loads a module present in big tests into a MongooseIM node
 -spec inject_module(Module :: module()) -> ok.
