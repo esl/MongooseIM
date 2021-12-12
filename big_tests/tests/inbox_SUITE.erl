@@ -1291,24 +1291,19 @@ private_messages_are_handled_as_one2one(Config) ->
 
 timestamp_is_updated_on_new_message(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-         Msg1 = escalus_stanza:chat_to(Bob, <<"Hello Bob">>),
-         Msg2 = escalus_stanza:chat_to(Bob, <<"Are you there?">>),
-
-         escalus:send(Alice, Msg1),
+         Body1 = <<"Hello Bob">>,
+         Body2 = <<"Are you there?">>,
+         %% We capture the timestamp after the first message
+         escalus:send(Alice, escalus_stanza:chat_to(Bob, Body1)),
          _M1 = escalus:wait_for_stanza(Bob),
-
-         %% We capture a timestamp after first message
-         [Item1] = inbox_helper:get_inbox(Alice, #{count => 1}),
+         [Item1] = check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body1}]),
          TStamp1 = inbox_helper:timestamp_from_item(Item1),
-
-         escalus:send(Alice, Msg2),
+         %% We capture the timestamp after the second message
+         escalus:send(Alice, escalus_stanza:chat_to(Bob, Body2)),
          _M2 = escalus:wait_for_stanza(Bob),
-
-         %% Timestamp after second message must be higher
-         [Item2] = inbox_helper:get_inbox(Alice, #{count => 1}),
-
+         [Item2] = check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body2}]),
          TStamp2 = inbox_helper:timestamp_from_item(Item2),
-
+         %% Timestamp after second message must be higher
          case TStamp2 > TStamp1 of
              true -> ok;
              false -> error(#{ type => timestamp_is_not_greater,

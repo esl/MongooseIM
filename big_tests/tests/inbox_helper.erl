@@ -195,7 +195,8 @@ check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
                                  maps:get(check_resource, CheckOpts, true)),
     lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
                           process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
-                  end, Merged).
+                  end, Merged),
+    ResultStanzas.
 
 process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = To,
                                              content = Content, verify = Fun}, JIDVerifyFun) ->
