@@ -6,8 +6,7 @@
 -export([set_info/3]).
 -export([get_resource/1]).
 
--ignore_xref([behaviour_info/1, check_deps/1, ensure_loaded/1, get_service_opts/1,
-              purge_service/1, start_service/2, stop/0, get_info/1, set_info/3]).
+-ignore_xref([get_info/1, set_info/3]).
 
 -include("session.hrl").
 
