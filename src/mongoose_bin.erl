@@ -57,13 +57,10 @@ string_to_binary(S) when is_list(S) ->
 string_to_binary(B) when is_binary(B) ->
     B.
 
-
 %% ---------------------------------------------------
 %% Internal functions
 %% ---------------------------------------------------
-
 join_s([], _Sep) ->
     [];
 join_s([H|T], Sep) ->
     [H, [[Sep, X] || X <- T]].
-

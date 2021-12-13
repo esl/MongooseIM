@@ -8,12 +8,12 @@
 -behaviour(mongoose_module_metrics).
 
 %% gen_mod callbacks
--export([start/2, 
-         stop/1, 
-         config_spec/0, 
+-export([start/2,
+         stop/1,
+         config_spec/0,
          supported_features/0]).
 
-%% Hook handlers 
+%% Hook handlers
 -export([c2s_stream_features/3]).
 
 -ignore_xref([c2s_stream_features/3]).

@@ -156,4 +156,3 @@ call_riak(F, ArgsIn) ->
 get_worker() ->
     {ok, Worker} = mongoose_wpool:get_worker(riak),
     Worker.
-

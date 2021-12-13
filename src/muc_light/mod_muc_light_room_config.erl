@@ -107,4 +107,3 @@ b2value(ValBin, float) -> binary_to_float(ValBin).
 value2b(Val, binary) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
 value2b(Val, float) -> float_to_binary(Val).
-

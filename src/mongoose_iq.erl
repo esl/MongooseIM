@@ -89,4 +89,3 @@ sub_el_to_command(#xmlel{ name = Name }) -> Name.
 update_and_get(Field, Acc0) ->
     Acc1 = update_acc_info(Acc0),
     {mongoose_acc:get(iq, Field, Acc1), Acc1}.
-

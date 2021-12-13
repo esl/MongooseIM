@@ -1,9 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @doc
-%%%
-%%% @end
-%%% Created : 27. Jun 2018 17:16
-%%%-------------------------------------------------------------------
 -module(mongoose_redis).
 -author("bartlomiej.gorny@erlang-solutions.com").
 
@@ -46,4 +40,3 @@ cmd(Cmd, Timeout) ->
 cmds(Cmd, Timeout) ->
     {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     eredis:qp(Worker, Cmd, Timeout).
-

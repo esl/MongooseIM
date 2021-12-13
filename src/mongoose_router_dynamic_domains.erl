@@ -29,4 +29,3 @@ route(From, To, Acc, Packet) ->
             mongoose_router_localdomain:route(From, To, Acc, Packet);
         false -> {From, To, Acc, Packet}
     end.
-

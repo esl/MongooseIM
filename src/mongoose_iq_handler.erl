@@ -1,4 +1,3 @@
-
 -module(mongoose_iq_handler).
 -include("mongoose.hrl").
 -include("jlib.hrl").
