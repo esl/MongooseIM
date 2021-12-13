@@ -1,8 +1,6 @@
 -module(service_admin_extra_upload).
 
 -include("ejabberd_commands.hrl").
--include("mongoose_logger.hrl").
--include("jlib.hrl").
 
 -export([commands/0, get_urls/5]).
 

@@ -25,8 +25,6 @@
 %% API
 -export([from_binary_kv_diff/2, from_binary_kv/2, to_binary_kv/2]).
 
--include("jlib.hrl").
--include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
 -export_type([binary_kv/0, kv/0, schema/0]).

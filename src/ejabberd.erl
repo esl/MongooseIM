@@ -35,8 +35,6 @@
 
 -ignore_xref([get_bin_path/0, stop/0]).
 
--include("jlib.hrl").
-
 -type lang() :: binary().
 
 -type sockmod() :: gen_tcp

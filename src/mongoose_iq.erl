@@ -24,7 +24,6 @@
 
 -ignore_xref([command/1, empty_result_iq/1, iq_to_sub_el/1, update_acc_info/1]).
 
--include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
 %% ---------------------------------------------------------

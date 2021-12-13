@@ -28,7 +28,6 @@
 
 -ignore_xref([items_to_xml/1]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type feature_acc() :: acc(feature()).

@@ -18,7 +18,6 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_http_client).
 -author("bartlomiej.gorny@erlang-solutions.com").
--include("mongoose.hrl").
 
 %% API
 -export([get/4, post/5]).

@@ -15,7 +15,6 @@
 %%==============================================================================
 -module(mongoose_riak).
 
--include("mongoose.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
 %% API
