@@ -41,6 +41,7 @@
 
 -export([config_metrics/1]).
 
+-type message_type() :: one2one | groupchat.
 -type entry_key() :: {LUser :: jid:luser(),
                       LServer :: jid:lserver(),
                       ToBareJid :: jid:literal_jid()}.
@@ -226,9 +227,9 @@ disco_local_features(Acc) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> mongoose_acc:t().
+                            Dir :: mod_mam_utils:direction()) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
-    case should_be_stored_in_inbox(Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
+    case should_be_stored_in_inbox(Acc, From, To, Msg, Dir) of
         true ->
             do_maybe_process_message(Acc, From, To, Msg, Dir);
         false ->
@@ -254,20 +255,9 @@ do_maybe_process_message(Acc, From, To, Msg, Dir) ->
             Acc
     end.
 
--spec inbox_owner_exists(Acc :: mongoose_acc:t(),
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         Dir :: outgoing | incoming) -> boolean().
-inbox_owner_exists(Acc, From, _To, outgoing) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, From, stored);
-inbox_owner_exists(Acc, _From, To, incoming) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, To, stored).
-
 -spec maybe_process_acceptable_message(
         mongooseim:host_type(), jid:jid(), jid:jid(), exml:element(),
-        mongoose_acc:t(), outgoing | incoming, one2one | groupchat) ->
+        mongoose_acc:t(), mod_mam_utils:direction(), message_type()) ->
     count_res().
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
     process_message(HostType, From, To, Msg, Acc, Dir, one2one);
@@ -282,8 +272,8 @@ maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) -
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Acc :: mongoose_acc:t(),
-                      Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> count_res().
+                      Dir :: mod_mam_utils:direction(),
+                      Type :: message_type()) -> count_res().
 process_message(HostType, From, To, Message, Acc, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(HostType, From, To, Message, Acc);
 process_message(HostType, From, To, Message, Acc, incoming, one2one) ->
@@ -573,7 +563,7 @@ muclight_enabled(HostType) ->
     Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
--spec get_message_type(mongoose_acc:t()) -> groupchat | one2one.
+-spec get_message_type(mongoose_acc:t()) -> message_type().
 get_message_type(Acc) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"groupchat">> -> groupchat;
@@ -582,7 +572,19 @@ get_message_type(Acc) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
--spec should_be_stored_in_inbox(Msg :: exml:element(), outgoing | incoming) -> boolean().
-should_be_stored_in_inbox(Msg, Dir) ->
-    mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true) andalso
-    mod_inbox_entries:should_be_stored_in_inbox(Msg).
+-spec should_be_stored_in_inbox(
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mod_mam_utils:direction()) ->
+    boolean().
+should_be_stored_in_inbox(Acc, From, To, Msg, Dir) ->
+    mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true)
+    andalso mod_inbox_entries:should_be_stored_in_inbox(Msg)
+    andalso inbox_owner_exists(Acc, From, To, Dir).
+
+-spec inbox_owner_exists(mongoose_acc:t(), jid:jid(), jid:jid(), mod_mam_utils:direction()) ->
+    boolean().
+inbox_owner_exists(Acc, From, _To, outgoing) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_auth:does_user_exist(HostType, From, stored);
+inbox_owner_exists(Acc, _From, To, incoming) ->
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_auth:does_user_exist(HostType, To, stored).
