@@ -302,9 +302,7 @@ session_resumed_and_old_session_dead_doesnt_route_error_to_new_session(Config) -
     escalus_connection:stop(Alice2).
 
 basic_ack(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sm_after_session),
     escalus_connection:send(Alice, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
@@ -316,9 +314,7 @@ basic_ack(Config) ->
 %% - SM is enabled *before* the session is established
 %% - <r/> is sent *before* the session is established
 h_ok_before_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_bind),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sm_after_bind),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_sm_ack, [0],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
@@ -327,9 +323,7 @@ h_ok_before_session(Config) ->
 %% - SM is enabled *before* the session is established
 %% - <r/> is sent *after* the session is established
 h_ok_after_session_enabled_before_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_bind) ++ [session],
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sm_before_session),
     escalus_connection:send(Alice, escalus_stanza:sm_request()),
     escalus:assert(is_sm_ack, [1],
                    escalus_connection:get_stanza(Alice, stream_mgmt_ack)).
@@ -338,9 +332,7 @@ h_ok_after_session_enabled_before_session(Config) ->
 %% - SM is enabled *after* the session is established
 %% - <r/> is sent *after* the session is established
 h_ok_after_session_enabled_after_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sm_after_session),
     escalus_connection:send(Alice, escalus_stanza:roster_get()),
     escalus:assert(is_roster_result,
                    escalus_connection:get_stanza(Alice, roster_result)),
@@ -388,8 +380,7 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
     end).
 
 client_acks_more_than_sent(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec),
+    Alice = connect_fresh(Config, alice, sm_after_session),
     escalus:send(Alice, escalus_stanza:sm_ack(5)),
     StreamErrorStanza = escalus:wait_for_stanza(Alice),
     %% Assert "undefined-condition" children
@@ -403,13 +394,12 @@ client_acks_more_than_sent(Config) ->
     <<"0">> = exml_query:attr(HandledCountSubElement, <<"send-count">>),
     %% Assert graceful stream end
     escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
-    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
+    true = escalus_connection:wait_for_close(Alice, timer:seconds(5)).
 
 too_many_unacked_stanzas(Config) ->
     Bob = connect_fresh(Config, bob, presence),
     Alice = connect_fresh(Config, alice, sm_presence),
-
-    escalus:wait_for_stanza(Alice), %% wait for ack request
+    get_ack(Alice),
     [escalus:send(Bob, escalus_stanza:chat_to(Alice,
         <<(integer_to_binary(N))/binary, ": Hi, Alice!">>))
      || N <- lists:seq(1,?SMALL_SM_BUFFER)],
@@ -447,9 +437,7 @@ server_requests_ack_freq_2(Config) ->
     server_requests_ack(Config1, 2).
 
 server_requests_ack_after_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_bind) ++ [session],
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sm_before_session),
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, stream_mgmt_req)).
 
 
@@ -550,7 +538,6 @@ receive_all_ordered(Conn, N) ->
         #xmlel{} = Stanza ->
             NN = case Stanza#xmlel.name of
                      <<"message">> ->
-                         %ct:pal("~p~n", [Stanza]),
                          escalus:assert(is_chat_message, [integer_to_binary(N)], Stanza),
                          N + 1;
                      _ ->
@@ -578,12 +565,8 @@ resend_unacked_after_resume_timeout(Config) ->
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_session()),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
 
-    Stanzas =[escalus_connection:get_stanza(NewAlice, msg),
-              escalus_connection:get_stanza(NewAlice, msg)],
-
-    escalus_new_assert:mix_match([is_presence,
-                                  is_chat(<<"msg-1">>)],
-                                 Stanzas),
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)],
+                                 escalus:wait_for_stanzas(NewAlice, 2)),
 
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice).
@@ -831,10 +814,7 @@ resume_session(Config) ->
         {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
-        Stanzas = [escalus_connection:get_stanza(Alice, {msg, I})
-                   || I <- lists:seq(1, 3)],
-        [escalus:assert(is_chat_message, [Msg], Stanza)
-         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+        wait_for_messages(Alice, Messages),
         %% Alice acks the received messages.
         escalus_connection:send(Alice, escalus_stanza:sm_ack(5)),
         escalus_connection:stop(Alice)
@@ -946,7 +926,7 @@ connection_steps_to_enable_stream_resumption_and_presence() ->
 connection_steps_to_presence() ->
     connection_steps_to_session() ++ [fun initial_presence_step/2].
 
-connection_steps_to_enable_stream_mgmt_and_presene() ->
+connection_steps_to_enable_stream_mgmt_and_presence() ->
     connection_steps_to_enable_stream_mgmt(after_session) ++ [fun initial_presence_step/2].
 
 connection_steps_to_stream_resumption(SMID, H) ->
@@ -1460,7 +1440,13 @@ final_step_to_steps(presence_with_manual_ack) ->
 final_step_to_steps(sr_presence) ->
     connection_steps_to_enable_stream_resumption_and_presence();
 final_step_to_steps(sm_presence) ->
-    connection_steps_to_enable_stream_mgmt_and_presene().
+    connection_steps_to_enable_stream_mgmt_and_presence();
+final_step_to_steps(sm_after_session) ->
+    connection_steps_to_enable_stream_mgmt(after_session);
+final_step_to_steps(sm_after_bind) ->
+    connection_steps_to_enable_stream_mgmt(after_bind);
+final_step_to_steps(sm_before_session) ->
+    connection_steps_to_enable_stream_mgmt(after_bind) ++ [session].
 
 final_step_to_extra_opts(presence_with_manual_ack) ->
     [{manual_ack, true}];
