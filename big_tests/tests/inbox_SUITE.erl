@@ -5,6 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("jid/include/jid.hrl").
 -include_lib("inbox.hrl").
 
 %% tests
@@ -90,7 +91,8 @@ groups() ->
        create_groupchat,
        leave_and_remove_conversation,
        groupchat_markers_one_reset_room_created,
-       groupchat_markers_all_reset_room_created
+       groupchat_markers_all_reset_room_created,
+       inbox_does_not_trigger_does_user_exist
       ]},
      {muclight_config, [sequence],
       [
@@ -140,6 +142,7 @@ init_per_suite(Config0) ->
               {groupchat, [muclight]},
               {markers, [displayed]}]}]),
     InboxOptions = inbox_opts(),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
 
 end_per_suite(Config) ->
@@ -963,6 +966,20 @@ groupchat_markers_all_reset_room_created(Config) ->
         inbox_helper:foreach_check_inbox([Bob, Kate, Alice], 0, AliceRoomJid, Msg)
       end).
 
+inbox_does_not_trigger_does_user_exist(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Msg = <<"Mark me!">>,
+        RoomName = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(RoomName),
+        HookHandlerExtra = start_hook_listener(),
+        Stanza = escalus_stanza:groupchat_to(RoomJid, Msg),
+        %% Alice sends message to a room
+        escalus:send(Alice, Stanza),
+        [escalus:wait_for_stanza(User) || User <- [Alice, Bob, Kate]],
+        stop_hook_listener(HookHandlerExtra),
+        verify_hook_listener(RoomName)
+      end).
+
 system_message_is_correctly_avoided(Config) ->
     escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(Alice, AliceBis, Bob) ->
         %% Variables
@@ -1303,3 +1320,36 @@ get_with_end_timestamp(Config) ->
         %% TODO: Improve this test to store 3+ conversations in Alice's inbox
         check_inbox(Alice, [ConvWithBob], #{ 'end' => TimeAfterBob }, #{})
     end).
+
+
+
+start_hook_listener() ->
+    TestCasePid = self(),
+    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, domain_helper:host_type()]).
+
+stop_hook_listener(HookExtra) ->
+    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, domain_helper:host_type()]).
+
+rpc_start_hook_handler(TestCasePid, HostType) ->
+    Extra = #{test_case_pid => TestCasePid},
+    gen_hook:add_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, Extra, 1),
+    Extra.
+
+rpc_stop_hook_handler(HookExtra, HostType) ->
+    gen_hook:delete_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, HookExtra, 1).
+
+hook_handler_fn(Acc,
+                #{args := [_HostType, User, _Stored]} = _Params,
+                #{test_case_pid := Pid} = _Extra) ->
+    Pid ! {input, User#jid.user},
+    {ok, Acc}.
+
+verify_hook_listener(RoomName) ->
+    receive
+        {input, RoomName} ->
+            ct:fail("does_user_exist was called with a room jid");
+        {input, _} ->
+            verify_hook_listener(RoomName)
+    after 100 ->
+              ct:pal("OK")
+    end.
