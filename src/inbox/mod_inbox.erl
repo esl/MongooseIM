@@ -229,19 +229,19 @@ disco_local_features(Acc) ->
                             Msg :: exml:element(),
                             Dir :: mod_mam_utils:direction()) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
-    case should_be_stored_in_inbox(Acc, From, To, Msg, Dir) of
+    Type = get_message_type(Acc),
+    case should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) of
         true ->
-            do_maybe_process_message(Acc, From, To, Msg, Dir);
+            do_maybe_process_message(Acc, From, To, Msg, Dir, Type);
         false ->
             Acc
     end.
 
-do_maybe_process_message(Acc, From, To, Msg, Dir) ->
+do_maybe_process_message(Acc, From, To, Msg, Dir, Type) ->
     %% In case of PgSQL we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
     %% (when push notification is created)
-    Type = get_message_type(Acc),
     HostType = mongoose_acc:host_type(Acc),
     case maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type) of
         ok -> Acc;
@@ -573,18 +573,21 @@ get_message_type(Acc) ->
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
 -spec should_be_stored_in_inbox(
-        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mod_mam_utils:direction()) ->
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mod_mam_utils:direction(), message_type()) ->
     boolean().
-should_be_stored_in_inbox(Acc, From, To, Msg, Dir) ->
+should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) ->
     mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true)
     andalso mod_inbox_entries:should_be_stored_in_inbox(Msg)
-    andalso inbox_owner_exists(Acc, From, To, Dir).
+    andalso inbox_owner_exists(Acc, From, To, Dir, Type).
 
--spec inbox_owner_exists(mongoose_acc:t(), jid:jid(), jid:jid(), mod_mam_utils:direction()) ->
+-spec inbox_owner_exists(
+        mongoose_acc:t(), jid:jid(), jid:jid(), mod_mam_utils:direction(), message_type()) ->
     boolean().
-inbox_owner_exists(Acc, From, _To, outgoing) ->
+inbox_owner_exists(_, _, _, incoming, groupchat) ->
+    true;
+inbox_owner_exists(Acc, _From, To, incoming, _) -> % filter_local_packet
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, From, stored);
-inbox_owner_exists(Acc, _From, To, incoming) ->
+    ejabberd_auth:does_user_exist(HostType, To, stored);
+inbox_owner_exists(Acc, From, _To, outgoing, _) -> % user_send_packet
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, To, stored).
+    ejabberd_auth:does_user_exist(HostType, From, stored).
