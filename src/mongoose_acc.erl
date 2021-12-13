@@ -14,7 +14,6 @@
 -author("piotr.nosek@erlang-solutions.com").
 
 -include("jlib.hrl").
--include("mongoose.hrl").
 
 %% API
 % Constructor

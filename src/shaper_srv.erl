@@ -6,8 +6,6 @@
 %%%-------------------------------------------------------------------
 -module(shaper_srv).
 -behaviour(gen_server).
--include_lib("mongoose.hrl").
--define(SERVER, ?MODULE).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -18,7 +16,6 @@
          wait/5,
          reset_shapers/1,
          reset_all_shapers/1]).
-
 
 -ignore_xref([reset_all_shapers/1, reset_shapers/1, start_link/1]).
 

@@ -15,7 +15,6 @@
 %%==============================================================================
 -module(mongoose_riak).
 
--include("mongoose.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
 %% API
@@ -157,4 +156,3 @@ call_riak(F, ArgsIn) ->
 get_worker() ->
     {ok, Worker} = mongoose_wpool:get_worker(riak),
     Worker.
-

@@ -43,18 +43,18 @@
 -opaque escaped_integer() :: {escaped_integer, sql_query_part()}.
 -opaque escaped_boolean() :: {escaped_boolean, sql_query_part()}.
 -opaque escaped_null() :: {escaped_null, sql_query_part()}.
--type escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
-                         escaped_boolean() | escaped_null().
+-opaque escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
+                           escaped_boolean() | escaped_null().
 
--export_types([escaped_binary/0,
-               escaped_string/0,
-               escaped_like/0,
-               escaped_integer/0,
-               escaped_boolean/0,
-               escaped_null/0,
-               escaped_value/0,
-               sql_query/0,
-               sql_query_part/0]).
+-export_type([escaped_binary/0,
+              escaped_string/0,
+              escaped_like/0,
+              escaped_integer/0,
+              escaped_boolean/0,
+              escaped_null/0,
+              escaped_value/0,
+              sql_query/0,
+              sql_query_part/0]).
 
 %% External exports
 -export([prepare/4,
@@ -137,7 +137,6 @@
 -define(STATE_KEY, mongoose_rdbms_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
--define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 -define(QUERY_TIMEOUT, 5000).
 %% The value is arbitrary; supervisor will restart the connection once

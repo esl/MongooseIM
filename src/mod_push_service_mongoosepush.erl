@@ -15,7 +15,6 @@
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
 
 %%--------------------------------------------------------------------

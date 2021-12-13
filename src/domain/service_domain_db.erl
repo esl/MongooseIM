@@ -9,7 +9,6 @@
 %% This prevents a bug when a default pg server is not running
 -define(SCOPE, mim_scope).
 -define(GROUP, service_domain_db_group).
--define(LAST_EVENT_ID_KEY, {?MODULE, last_event_id}).
 
 -export([start/1, stop/0, restart/0, config_spec/0]).
 -export([start_link/0]).

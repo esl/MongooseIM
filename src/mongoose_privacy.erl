@@ -10,8 +10,7 @@
 -module(mongoose_privacy).
 -author("bartek").
 
--include("mongoose.hrl").
--include_lib("jlib.hrl").
+-include("jlib.hrl").
 -include("mod_privacy.hrl").
 
 %% API

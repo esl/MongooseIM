@@ -330,4 +330,3 @@ undefined_condition(Lang, Text) ->
 
 bad_format_bin() ->
     exml:to_binary(bad_format()).
-

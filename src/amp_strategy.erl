@@ -12,7 +12,6 @@
 -ignore_xref([determine_strategy/5]).
 
 -include("amp.hrl").
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -spec determine_strategy(amp_strategy(), jid:jid() | undefined, jid:jid() | undefined, #xmlel{}, amp_event()) ->

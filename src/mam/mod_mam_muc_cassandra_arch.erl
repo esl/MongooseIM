@@ -38,9 +38,7 @@
          apply_start_border/2,
          apply_end_border/2]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("exml/include/exml.hrl").
 -include("mongoose_rsm.hrl").
 
 -record(mam_muc_ca_filter, {

@@ -25,7 +25,6 @@
          remove_user/3,
          remove_domain/2]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -spec init(mongooseim:host_type(), list()) -> ok.
