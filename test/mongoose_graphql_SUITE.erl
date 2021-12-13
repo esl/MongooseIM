@@ -9,6 +9,7 @@
 all() ->
     [can_create_endpoint,
      can_load_split_schema,
+     admin_and_user_loads_global_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, errors_handling}].
@@ -38,7 +39,7 @@ init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= unauth_cannot_execute_protected_mutation;
                                   C =:= unauth_can_access_introspection ->
     {Mapping, Pattern} = example_schema_protected_data(Config),
-    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, Pattern),
+    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
     [{endpoint, Ep} | Config];
 init_per_testcase(C, Config) when C =:= can_execute_query_with_vars;
@@ -50,7 +51,7 @@ init_per_testcase(C, Config) when C =:= can_execute_query_with_vars;
                                   C =:= should_catch_type_check_errors;
                                   C =:= should_catch_parsing_errors ->
     {Mapping, Pattern} = example_schema_data(Config),
-    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, Pattern),
+    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
     [{endpoint, Ep} | Config];
 init_per_testcase(C, Config) ->
@@ -62,7 +63,7 @@ end_per_testcase(_, _Config) ->
 can_create_endpoint(Config) ->
     Name = ?config(endpoint_name, Config),
     {Mapping, Pattern} = example_schema_protected_data(Config),
-    {ok, Pid} = mongoose_graphql:create_endpoint(Name, Mapping, Pattern),
+    {ok, Pid} = mongoose_graphql:create_endpoint(Name, Mapping, [Pattern]),
 
     Ep = mongoose_graphql:get_endpoint(Name),
     ?assertMatch({endpoint_context, Name, Pid, _, _}, Ep),
@@ -73,7 +74,7 @@ can_create_endpoint(Config) ->
 can_load_split_schema(Config) ->
     Name = ?config(endpoint_name, Config),
     {Mapping, Pattern} = example_split_schema_data(Config),
-    {ok, Pid} = mongoose_graphql:create_endpoint(Name, Mapping, Pattern),
+    {ok, Pid} = mongoose_graphql:create_endpoint(Name, Mapping, [Pattern]),
 
     Ep = mongoose_graphql:get_endpoint(Name),
     ?assertMatch({endpoint_context, Name, Pid, _, _}, Ep),
@@ -82,6 +83,18 @@ can_load_split_schema(Config) ->
                   graphql_schema:get(Ep, 'ROOT')),
     ?assertMatch(#object_type{id = <<"Query">>}, graphql_schema:get(Ep, <<"Query">>)),
     ?assertMatch(#object_type{id = <<"Mutation">>}, graphql_schema:get(Ep, <<"Mutation">>)).
+
+admin_and_user_loads_global_types(_Config) ->
+    mongoose_graphql:init(),
+    AdminEp = mongoose_graphql:get_endpoint(admin),
+    ?assertMatch(#object_type{id = <<"JID">>}, graphql_schema:get(AdminEp, <<"JID">>)),
+    ?assertMatch(#directive_type{id = <<"protected">>},
+                 graphql_schema:get(AdminEp, <<"protected">>)),
+
+    UserEp = mongoose_graphql:get_endpoint(user),
+    ?assertMatch(#object_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
+    ?assertMatch(#directive_type{id = <<"protected">>},
+                 graphql_schema:get(UserEp, <<"protected">>)).
 
 auth_can_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),

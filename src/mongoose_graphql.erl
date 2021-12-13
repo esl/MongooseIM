@@ -28,8 +28,8 @@
 %% @doc Create and initialize endpoints for user and admin.
 -spec init() -> ok.
 init() ->
-    create_endpoint(?USER_EP_NAME, user_mapping_rules(), schema_pattern("user")),
-    create_endpoint(?ADMIN_EP_NAME, admin_mapping_rules(), schema_pattern("admin")),
+    create_endpoint(?USER_EP_NAME, user_mapping_rules(), schema_global_patterns("user")),
+    create_endpoint(?ADMIN_EP_NAME, admin_mapping_rules(), schema_global_patterns("admin")),
     ok.
 
 %% @doc Get endpoint_context for passed endpoint name.
@@ -42,11 +42,11 @@ get_endpoint(Name) ->
     graphql_schema:get_endpoint_ctx(Name).
 
 %% @doc Create a new endpoint and load schema.
--spec create_endpoint(atom(), map(), file:filename_all()) -> gen:start_ret().
-create_endpoint(Name, Mapping, Pattern) ->
+-spec create_endpoint(atom(), map(), [file:filename_all()]) -> gen:start_ret().
+create_endpoint(Name, Mapping, Patterns) ->
     Res = graphql_schema:start_link(Name),
     Ep = graphql_schema:get_endpoint_ctx(Name),
-    {ok, SchemaData} = load_multiple_file_schema(Pattern),
+    {ok, SchemaData} = load_multiple_file_schema(Patterns),
     ok = graphql:load_schema(Ep, Mapping, SchemaData),
     ok = graphql:validate_schema(Ep),
     Res.
@@ -88,8 +88,14 @@ execute(Ep, OpName, Doc)  ->
 
 % Internal
 
+schema_global_patterns(SchemaDir) ->
+    [schema_pattern(SchemaDir), schema_pattern(global)].
+
 schema_pattern(DirName) ->
-    filename:join([code:priv_dir(mongooseim), "graphql/schemas", DirName, "*.gql"]).
+    schema_pattern(DirName, "*.gql").
+
+schema_pattern(DirName, Pattern) ->
+    filename:join([code:priv_dir(mongooseim), "graphql/schemas", DirName, Pattern]).
 
 graphql_parse(Doc) ->
     case graphql:parse(Doc) of
@@ -116,8 +122,8 @@ user_mapping_rules() ->
            }
          }.
 
-load_multiple_file_schema(Pattern) ->
-    Paths = filelib:wildcard(Pattern),
+load_multiple_file_schema(Patterns) ->
+    Paths = lists:flatmap(fun(P) -> filelib:wildcard(P) end, Patterns),
     try
         SchemaData = [read_schema_file(P) || P <- Paths],
         {ok, lists:flatten(SchemaData)}

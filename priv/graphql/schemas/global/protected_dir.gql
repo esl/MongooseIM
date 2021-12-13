@@ -1,0 +1,2 @@
+"Marks the resource to be accessed only by authorized requests"
+directive @protected on FIELD_DEFINITION | OBJECT

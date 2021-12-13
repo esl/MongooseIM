@@ -3,8 +3,6 @@ schema{
   mutation: AdminMutation
 }
 
-directive @protected on FIELD_DEFINITION | OBJECT
-
 """
 Contains all admin available queries.
 Only an authenticated admin can execute these queries.

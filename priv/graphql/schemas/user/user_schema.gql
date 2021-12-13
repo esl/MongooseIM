@@ -3,8 +3,6 @@ schema{
   mutation: UserMutation
 }
 
-directive @protected on FIELD_DEFINITION | OBJECT
-
 """
 Contains all user available queries.
 Only authenticated user can execute this queries.
