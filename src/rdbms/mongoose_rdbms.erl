@@ -137,7 +137,6 @@
 -define(STATE_KEY, mongoose_rdbms_state).
 -define(MAX_TRANSACTION_RESTARTS, 10).
 -define(TRANSACTION_TIMEOUT, 60000). % milliseconds
--define(KEEPALIVE_TIMEOUT, 60000).
 -define(KEEPALIVE_QUERY, <<"SELECT 1;">>).
 -define(QUERY_TIMEOUT, 5000).
 %% The value is arbitrary; supervisor will restart the connection once

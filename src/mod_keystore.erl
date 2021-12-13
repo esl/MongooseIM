@@ -34,7 +34,6 @@
 -include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_RAM_KEY_SIZE, 2048).
--define(IOL2B(L), iolist_to_binary(L)).
 
 %% A key name is used in the config file to name a key (a class of keys).
 %% The name doesn't differentiate between virtual hosts

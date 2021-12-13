@@ -41,7 +41,6 @@
 
 -export([config_metrics/1]).
 
--define(MOD_PRIVATE_BACKEND, mod_private_backend).
 -ignore_xref([
     behaviour_info/1, get_personal_data/3, remove_user/3, remove_domain/3
 ]).
