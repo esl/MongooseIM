@@ -616,7 +616,7 @@ resume_session_state_send_message(Config) ->
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     %% alice comes back and receives unacked message
-    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_session()),
+    NewAlice = connect_spec(AliceSpec, session),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
     escalus:assert(is_presence, escalus_connection:get_stanza(NewAlice, presence)),
     %% now we can resume c2s process of the old connection
@@ -661,7 +661,7 @@ resume_session_state_stop_c2s(Config) ->
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     %% alice comes back and receives unacked message
-    NewAlice = connect_spec(AliceSpec, presence),
+    NewAlice = connect_same(Alice, presence),
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
@@ -674,10 +674,9 @@ resume_session_state_stop_c2s(Config) ->
 %% assert_no_offline_msgs, assert_c2s_state) written for wait_for_resumption
 %% testcase.
 session_established(Config) ->
-    Alice = connect_fresh(Config, alice, presence_with_manual_ack),
-    AliceSpec = client_to_spec(Alice),
+    Alice = connect_fresh(Config, alice, presence),
     C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
-    assert_no_offline_msgs(AliceSpec),
+    assert_no_offline_msgs(Alice),
     assert_c2s_state(C2SPid, session_established),
     escalus_connection:stop(Alice).
 
@@ -690,7 +689,7 @@ wait_for_resumption(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
     %% Ensure the c2s process is waiting for resumption.
-    assert_no_offline_msgs(AliceSpec),
+    assert_no_offline_msgs_spec(AliceSpec),
     wait_for_c2s_state_change(C2SPid, resume_session).
 
 unacknowledged_message_hook_resume(Config) ->
@@ -861,7 +860,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     escalus_client:kill_connection(Config, Alice),
 
     %% Ensure the c2s process is waiting for resumption.
-    assert_no_offline_msgs(AliceSpec),
+    assert_no_offline_msgs(Alice),
     wait_for_c2s_state_change(C2SPid, resume_session),
 
     %% Resume the session.
@@ -1220,13 +1219,14 @@ discard_offline_messages(Config, User, H) ->
             discard_offline_messages(Config, User, H+1)
     end.
 
-assert_no_offline_msgs(Spec) ->
+assert_no_offline_msgs(Client) ->
+    Spec = client_to_spec(Alice),
+    assert_no_offline_msgs_spec(Spec).
+
+assert_no_offline_msgs_spec(Spec) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Spec)),
     Server = proplists:get_value(server, Spec),
     0 = mongoose_helper:total_offline_messages({Username, Server}).
-
-assert_no_offline_msgs() ->
-    0 = mongoose_helper:total_offline_messages().
 
 wait_for_c2s_state_change(C2SPid, NewStateName) ->
     mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName,
@@ -1421,6 +1421,9 @@ connect_spec(Spec, FinalStep) ->
     Steps = final_step_to_steps(FinalStep),
     {ok, Client, _} = escalus_connection:start(Spec, Steps),
     Client.
+
+connect_same(Client, FinalStep) ->
+    connect_spec(client_to_spec0(Client), FinalStep).
 
 final_step_to_steps(auth) ->
     connection_steps_to_authenticate();
