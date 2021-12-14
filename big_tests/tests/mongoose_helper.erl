@@ -50,6 +50,7 @@
 -export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
 -export([restore_config/1, restore_config_option/2]).
 -export([wait_for_n_offline_messages/2]).
+-export([wait_for_c2s_state_name/2, get_c2s_state_name/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -442,7 +443,7 @@ make_jid(User, Server) ->
 make_jid(User, Server, Resource) ->
     jid:make(User, Server, Resource).
 
-get_session_pid(User, Node) ->
+get_session_pid(User) ->
     get_session_pid(User, mim()).
 
 get_session_pid(User, Node) ->
@@ -572,4 +573,17 @@ wait_for_n_offline_messages(Client, N) ->
     LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
     LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
     WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
-    mongoose_helper:wait_until(WaitFn, N).
+    wait_until(WaitFn, N).
+
+wait_for_c2s_state_name(C2SPid, NewStateName) ->
+    wait_until(fun() -> get_c2s_state_name(C2SPid) end, NewStateName,
+                #{name => get_c2s_state_name, time_left => timer:seconds(5)}).
+
+get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
+    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
+    extract_state_name(SysStatus).
+
+extract_state_name(SysStatus) ->
+    {status, _Pid, {module, _},
+     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
+    proplists:get_value("StateName", FSMData).

@@ -601,7 +601,7 @@ resume_session_state_send_message(Config) ->
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
-    wait_for_c2s_state_change(C2SPid, resume_session),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
     assert_alive_resources(Alice, 1),
 
     %% send some messages and check if c2s can handle it
@@ -651,7 +651,7 @@ resume_session_state_stop_c2s(Config) ->
     % session should be alive
     assert_alive_resources(Alice, 1),
     rpc(mim(), ejabberd_c2s, stop, [C2SPid]),
-    wait_for_c2s_state_change(C2SPid, resume_session),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
     %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
     ok = rpc(mim(), sys, suspend, [C2SPid]),
@@ -667,13 +667,13 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:stop(NewAlice).
 
 %% This test only verifies the validity of helpers (get_session_pid,
-%% assert_no_offline_msgs, assert_c2s_state) written for wait_for_resumption
+%% assert_no_offline_msgs, get_c2s_state_name) written for wait_for_resumption
 %% testcase.
 session_established(Config) ->
     Alice = connect_fresh(Config, alice, presence),
     C2SPid = mongoose_helper:get_session_pid(Alice),
     assert_no_offline_msgs(Alice),
-    assert_c2s_state(C2SPid, session_established),
+    StateName = mongoose_helper:get_c2s_state_name(C2SPid),
     escalus_connection:stop(Alice).
 
 %% Ensure that after a violent disconnection,
@@ -685,7 +685,7 @@ wait_for_resumption(Config) ->
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts),
     %% Ensure the c2s process is waiting for resumption.
     assert_no_offline_msgs_spec(AliceSpec),
-    wait_for_c2s_state_change(C2SPid, resume_session).
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session).
 
 unacknowledged_message_hook_resume(Config) ->
     unacknowledged_message_hook_common(fun unacknowledged_message_hook_resume/4, Config).
@@ -745,7 +745,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
-    wait_for_c2s_state_change(C2SPid, resume_session),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
     assert_alive_resources(Alice, 1),
 
     escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(0, Resource, 100)),
@@ -771,7 +771,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
 
     NewC2SPid = mongoose_helper:get_session_pid(NewAlice),
     escalus_connection:kill(NewAlice),
-    wait_for_c2s_state_change(NewC2SPid, resume_session),
+    mongoose_helper:wait_for_c2s_state_name(NewC2SPid, resume_session),
 
     escalus:assert(is_chat_message, [<<"msg-1">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
     escalus:assert(is_chat_message, [<<"msg-2">>], wait_for_unacked_msg_hook(1, NewResource, 100)),
@@ -848,7 +848,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
 
     %% Ensure the c2s process is waiting for resumption.
     assert_no_offline_msgs(Alice),
-    wait_for_c2s_state_change(C2SPid, resume_session),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
 
     %% Resume the session.
     NewAlice = connect_resume(Alice, 1),
@@ -1043,7 +1043,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus_client:kill_connection(Config, Alice),
         %% The receiver process would stop now
         C2SPid = mongoose_helper:get_session_pid(Alice),
-        wait_for_c2s_state_change(C2SPid, resume_session),
+        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
 
         wait_for_queue_length(C2SPid, 0),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
@@ -1082,7 +1082,7 @@ messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
         C2SPid = mongoose_helper:get_session_pid(Alice),
-        wait_for_c2s_state_change(C2SPid, resume_session),
+        mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         %% send some dummy event. ignored by c2s but ensures that
@@ -1206,29 +1206,13 @@ assert_no_offline_msgs_spec(Spec) ->
     Server = proplists:get_value(server, Spec),
     0 = mongoose_helper:total_offline_messages({Username, Server}).
 
-wait_for_c2s_state_change(C2SPid, NewStateName) ->
-    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName,
-                                #{name => get_c2s_state, time_left => timer:seconds(5)}).
-
 wait_for_c2s_unacked_count(C2SPid, Count) ->
     mongoose_helper:wait_until(fun() -> get_c2s_unacked_count(C2SPid) end, Count,
-                                #{name => get_c2s_state, time_left => timer:seconds(5)}).
+                                #{name => get_c2s_unacked_count, time_left => timer:seconds(5)}).
 
 get_c2s_unacked_count(C2SPid) ->
      Info = rpc(mim(), ejabberd_c2s, get_info, [C2SPid]),
      maps:get(stream_mgmt_buffer_size, Info).
-
-assert_c2s_state(C2SPid, StateName) ->
-    StateName = get_c2s_state(C2SPid).
-
-get_c2s_state(C2SPid) when is_pid(C2SPid) ->
-    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
-    extract_state_name(SysStatus).
-
-extract_state_name(SysStatus) ->
-    {status, _Pid, {module, _},
-     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
-    proplists:get_value("StateName", FSMData).
 
 wait_until_disconnected(Client) ->
     wait_for_resource_count(Client, 0).
