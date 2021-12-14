@@ -119,12 +119,12 @@
                    valid_behavior/1]}).
 -endif.
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([is_valid_message/4]).
 -endif.
 
 -include("mod_mam.hrl").
