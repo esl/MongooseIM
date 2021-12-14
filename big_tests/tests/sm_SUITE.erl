@@ -1042,9 +1042,9 @@ messages_are_properly_flushed_during_resumption(Config) ->
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
         %% The receiver process would stop now
-        wait_for_c2s_state(Alice, resume_session),
-
         C2SPid = mongoose_helper:get_session_pid(Alice),
+        wait_for_c2s_state_change(C2SPid, resume_session),
+
         wait_for_queue_length(C2SPid, 0),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
@@ -1081,8 +1081,8 @@ messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
         Alice = connect_fresh(Config, alice, sr_presence),
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
-        wait_for_c2s_state(Alice, resume_session),
         C2SPid = mongoose_helper:get_session_pid(Alice),
+        wait_for_c2s_state_change(C2SPid, resume_session),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         %% send some dummy event. ignored by c2s but ensures that
@@ -1357,10 +1357,6 @@ stop_client_and_wait_for_termination(Alice) ->
     C2SRef = monitor_session(Alice),
     escalus_connection:stop(Alice),
     ok = wait_for_process_termination(C2SRef).
-
-wait_for_c2s_state(Alice, StateName) ->
-    C2SPid = mongoose_helper:get_session_pid(Alice),
-    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, StateName).
 
 kill_and_connect_with_resume_session_without_waiting_for_result(Alice) ->
     SMH = escalus_connection:get_sm_h(Alice),
