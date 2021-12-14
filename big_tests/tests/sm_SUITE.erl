@@ -42,8 +42,7 @@ groups() ->
          {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
          {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
-%   ct_helper:repeat_all_until_all_ok(G).
-    G.
+    ct_helper:repeat_all_until_all_ok(G).
 
 
 parallel_test_cases() ->
@@ -261,7 +260,7 @@ client_enables_sm_twice_fails_with_correct_error_stanza(Config) ->
                    escalus_connection:get_stanza(Alice, enable_sm_failed)),
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, enable_sm_failed)),
-    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
+    true = escalus_connection:wait_for_close(Alice, timer:seconds(5)).
 
 session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(Config) ->
     %% GIVEN USER WITH STREAM RESUMPTION ENABLED
@@ -1344,8 +1343,7 @@ stop_client_and_wait_for_termination(Alice) ->
 
 kill_and_connect_with_resume_session_without_waiting_for_result(Alice) ->
     SMH = escalus_connection:get_sm_h(Alice),
-    AliceSpec = client_to_spec(Alice),
-    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_authenticate()),
+    NewAlice = connect_same(Alice, auth),
     SMID = client_to_smid(Alice),
     %% kill alice connection
     escalus_connection:kill(Alice),
