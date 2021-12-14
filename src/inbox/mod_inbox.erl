@@ -41,6 +41,7 @@
 
 -export([config_metrics/1]).
 
+-type message_type() :: one2one | groupchat.
 -type entry_key() :: {LUser :: jid:luser(),
                       LServer :: jid:lserver(),
                       ToBareJid :: jid:literal_jid()}.
@@ -226,21 +227,21 @@ disco_local_features(Acc) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> mongoose_acc:t().
+                            Dir :: mod_mam_utils:direction()) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
-    case should_be_stored_in_inbox(Msg, Dir) andalso inbox_owner_exists(Acc, From, To, Dir) of
+    Type = get_message_type(Acc),
+    case should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) of
         true ->
-            do_maybe_process_message(Acc, From, To, Msg, Dir);
+            do_maybe_process_message(Acc, From, To, Msg, Dir, Type);
         false ->
             Acc
     end.
 
-do_maybe_process_message(Acc, From, To, Msg, Dir) ->
+do_maybe_process_message(Acc, From, To, Msg, Dir, Type) ->
     %% In case of PgSQL we can update inbox and obtain unread_count in one query,
     %% so we put it in accumulator here.
     %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
     %% (when push notification is created)
-    Type = get_message_type(Acc),
     HostType = mongoose_acc:host_type(Acc),
     case maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, Type) of
         ok -> Acc;
@@ -254,20 +255,9 @@ do_maybe_process_message(Acc, From, To, Msg, Dir) ->
             Acc
     end.
 
--spec inbox_owner_exists(Acc :: mongoose_acc:t(),
-                         From :: jid:jid(),
-                         To :: jid:jid(),
-                         Dir :: outgoing | incoming) -> boolean().
-inbox_owner_exists(Acc, From, _To, outgoing) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, From, stored);
-inbox_owner_exists(Acc, _From, To, incoming) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, To, stored).
-
 -spec maybe_process_acceptable_message(
         mongooseim:host_type(), jid:jid(), jid:jid(), exml:element(),
-        mongoose_acc:t(), outgoing | incoming, one2one | groupchat) ->
+        mongoose_acc:t(), mod_mam_utils:direction(), message_type()) ->
     count_res().
 maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, one2one) ->
     process_message(HostType, From, To, Msg, Acc, Dir, one2one);
@@ -282,8 +272,8 @@ maybe_process_acceptable_message(HostType, From, To, Msg, Acc, Dir, groupchat) -
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Acc :: mongoose_acc:t(),
-                      Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> count_res().
+                      Dir :: mod_mam_utils:direction(),
+                      Type :: message_type()) -> count_res().
 process_message(HostType, From, To, Message, Acc, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(HostType, From, To, Message, Acc);
 process_message(HostType, From, To, Message, Acc, incoming, one2one) ->
@@ -573,7 +563,7 @@ muclight_enabled(HostType) ->
     Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
--spec get_message_type(mongoose_acc:t()) -> groupchat | one2one.
+-spec get_message_type(mongoose_acc:t()) -> message_type().
 get_message_type(Acc) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"groupchat">> -> groupchat;
@@ -582,7 +572,39 @@ get_message_type(Acc) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
--spec should_be_stored_in_inbox(Msg :: exml:element(), outgoing | incoming) -> boolean().
-should_be_stored_in_inbox(Msg, Dir) ->
-    mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true) andalso
-    mod_inbox_entries:should_be_stored_in_inbox(Msg).
+-spec should_be_stored_in_inbox(
+        mongoose_acc:t(), jid:jid(), jid:jid(), exml:element(), mod_mam_utils:direction(), message_type()) ->
+    boolean().
+should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) ->
+    mod_mam_utils:is_archivable_message(?MODULE, Dir, Msg, true)
+    andalso mod_inbox_entries:should_be_stored_in_inbox(Msg)
+    andalso inbox_owner_exists(Acc, From, To, Dir, Type).
+
+-spec inbox_owner_exists(mongoose_acc:t(),
+                         From :: jid:jid(),
+                         To ::jid:jid(),
+                         mod_mam_utils:direction(),
+                         message_type()) -> boolean().
+inbox_owner_exists(Acc, _, To, incoming, groupchat) ->
+    case is_to_room(To) of
+        true -> false;
+        false ->
+            HostType = mongoose_acc:host_type(Acc),
+            ejabberd_auth:does_user_exist(HostType, To, stored)
+    end;
+inbox_owner_exists(Acc, _, To, incoming, _) -> % filter_local_packet
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_auth:does_user_exist(HostType, To, stored);
+inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
+    HostType = mongoose_acc:host_type(Acc),
+    ejabberd_auth:does_user_exist(HostType, From, stored).
+
+%% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
+%%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
+%%  - For each member of the room:
+%%      From the room to each member: runs with From=Room/Sender, To=Member
+%% So, as inbox is a per-user concept, it is on the second routing step only when we want to do act.
+%% NOTE: ideally for groupchats, we could instead act on `filter_room_packet`, like MAM.
+-spec is_to_room(jid:jid()) -> boolean().
+is_to_room(Jid) ->
+    {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).

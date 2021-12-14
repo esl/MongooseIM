@@ -1,81 +1,14 @@
 -module(inbox_SUITE).
+-compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
--include_lib("exml/include/exml.hrl").
--include_lib("inbox.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("exml/include/exml.hrl").
+-include_lib("jid/include/jid.hrl").
+-include_lib("inbox.hrl").
 
--export([all/0,
-         groups/0,
-         suite/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2]).
 %% tests
--export([disco_service/1,
-         returns_valid_form/1,
-         returns_error_when_first_bad_form_field_encountered/1,
-         returns_error_when_bad_form_field_start_sent/1,
-         returns_error_when_bad_form_field_end_sent/1,
-         returns_error_when_bad_form_field_order_sent/1,
-         returns_error_when_bad_form_field_hidden_read_sent/1,
-         returns_error_when_bad_reset_field_jid/1,
-         returns_error_when_no_reset_field_jid/1,
-         returns_error_when_unknown_field_sent/1
-        ]).
--export([msg_sent_stored_in_inbox/1,
-         msg_with_no_store_is_not_stored_in_inbox/1,
-         msg_with_store_hint_is_always_stored/1,
-         carbons_are_not_stored/1,
-         user_has_empty_inbox/1,
-         user_has_two_unread_messages/1,
-         other_resources_do_not_interfere/1,
-         reset_unread_counter_with_reset_chat_marker/1,
-         reset_unread_counter_with_reset_stanza/1,
-         try_to_reset_unread_counter_with_bad_marker/1,
-         non_reset_marker_should_not_affect_inbox/1,
-         user_has_two_conversations/1,
-         msg_sent_to_offline_user/1,
-         msg_sent_to_not_existing_user/1,
-         user_has_only_unread_messages_or_only_read/1,
-         reset_unread_counter_and_show_only_unread/1,
-         check_total_unread_count_and_active_conv_count/1,
-         check_total_unread_count_when_there_are_no_active_conversations/1,
-         total_unread_count_and_active_convs_are_zero_at_no_activity/1
-        ]).
--export([simple_groupchat_stored_in_all_inbox/1,
-         advanced_groupchat_stored_in_all_inbox/1,
-         groupchat_markers_one_reset/1,
-         non_reset_marker_should_not_affect_muclight_inbox/1,
-         groupchat_reset_stanza_resets_inbox/1,
-         create_groupchat/1,
-         create_groupchat_no_affiliation_stored/1,
-         leave_and_remove_conversation/1,
-         leave_and_store_conversation/1,
-         groupchat_markers_one_reset_room_created/1,
-         groupchat_markers_all_reset_room_created/1,
-         system_message_is_correctly_avoided/1,
-         no_aff_stored_and_remove_on_kicked/1,
-         no_stored_and_remain_after_kicked/1,
-         simple_groupchat_stored_in_all_inbox_muc/1,
-         simple_groupchat_stored_in_offline_users_inbox_muc/1,
-         unread_count_is_the_same_after_going_online_again/1,
-         unread_count_is_reset_after_sending_chatmarker/1,
-         non_reset_marker_should_not_affect_muc_inbox/1,
-         unread_count_is_reset_after_sending_reset_stanza/1,
-         private_messages_are_handled_as_one2one/1
-        ]).
--export([timestamp_is_updated_on_new_message/1,
-         order_by_timestamp_ascending/1,
-         get_by_timestamp_range/1,
-         get_with_start_timestamp/1,
-         get_with_end_timestamp/1]).
-
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(inbox_helper, [
                        inbox_modules/0,
@@ -158,7 +91,8 @@ groups() ->
        create_groupchat,
        leave_and_remove_conversation,
        groupchat_markers_one_reset_room_created,
-       groupchat_markers_all_reset_room_created
+       groupchat_markers_all_reset_room_created,
+       inbox_does_not_trigger_does_user_exist
       ]},
      {muclight_config, [sequence],
       [
@@ -208,6 +142,7 @@ init_per_suite(Config0) ->
               {groupchat, [muclight]},
               {markers, [displayed]}]}]),
     InboxOptions = inbox_opts(),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
 
 end_per_suite(Config) ->
@@ -1031,6 +966,20 @@ groupchat_markers_all_reset_room_created(Config) ->
         inbox_helper:foreach_check_inbox([Bob, Kate, Alice], 0, AliceRoomJid, Msg)
       end).
 
+inbox_does_not_trigger_does_user_exist(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Msg = <<"Mark me!">>,
+        RoomName = inbox_helper:create_room(Alice, [Bob, Kate]),
+        RoomJid = room_bin_jid(RoomName),
+        HookHandlerExtra = start_hook_listener(),
+        Stanza = escalus_stanza:groupchat_to(RoomJid, Msg),
+        %% Alice sends message to a room
+        escalus:send(Alice, Stanza),
+        [escalus:wait_for_stanza(User) || User <- [Alice, Bob, Kate]],
+        stop_hook_listener(HookHandlerExtra),
+        verify_hook_listener(RoomName)
+      end).
+
 system_message_is_correctly_avoided(Config) ->
     escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(Alice, AliceBis, Bob) ->
         %% Variables
@@ -1366,3 +1315,36 @@ get_with_end_timestamp(Config) ->
         %% TODO: Improve this test to store 3+ conversations in Alice's inbox
         check_inbox(Alice, [ConvWithBob], #{ 'end' => TimeAfterBob }, #{})
     end).
+
+
+
+start_hook_listener() ->
+    TestCasePid = self(),
+    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_start_hook_handler, [TestCasePid, domain_helper:host_type()]).
+
+stop_hook_listener(HookExtra) ->
+    distributed_helper:rpc(distributed_helper:mim(), ?MODULE, rpc_stop_hook_handler, [HookExtra, domain_helper:host_type()]).
+
+rpc_start_hook_handler(TestCasePid, HostType) ->
+    Extra = #{test_case_pid => TestCasePid},
+    gen_hook:add_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, Extra, 1),
+    Extra.
+
+rpc_stop_hook_handler(HookExtra, HostType) ->
+    gen_hook:delete_handler(does_user_exist, HostType, fun ?MODULE:hook_handler_fn/3, HookExtra, 1).
+
+hook_handler_fn(Acc,
+                #{args := [_HostType, User, _Stored]} = _Params,
+                #{test_case_pid := Pid} = _Extra) ->
+    Pid ! {input, User#jid.user},
+    {ok, Acc}.
+
+verify_hook_listener(RoomName) ->
+    receive
+        {input, RoomName} ->
+            ct:fail("does_user_exist was called with a room jid");
+        {input, _} ->
+            verify_hook_listener(RoomName)
+    after 100 ->
+              ct:pal("OK")
+    end.
