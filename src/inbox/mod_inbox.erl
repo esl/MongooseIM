@@ -580,14 +580,31 @@ should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) ->
     andalso mod_inbox_entries:should_be_stored_in_inbox(Msg)
     andalso inbox_owner_exists(Acc, From, To, Dir, Type).
 
--spec inbox_owner_exists(
-        mongoose_acc:t(), jid:jid(), jid:jid(), mod_mam_utils:direction(), message_type()) ->
-    boolean().
-inbox_owner_exists(_, _, _, incoming, groupchat) ->
-    true;
-inbox_owner_exists(Acc, _From, To, incoming, _) -> % filter_local_packet
+-spec inbox_owner_exists(mongoose_acc:t(),
+                         From :: jid:jid(),
+                         To ::jid:jid(),
+                         mod_mam_utils:direction(),
+                         message_type()) -> boolean().
+inbox_owner_exists(Acc, _, To, incoming, groupchat) ->
+    case is_to_room(To) of
+        true -> false;
+        false ->
+            HostType = mongoose_acc:host_type(Acc),
+            ejabberd_auth:does_user_exist(HostType, To, stored)
+    end;
+inbox_owner_exists(Acc, _, To, incoming, _) -> % filter_local_packet
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, To, stored);
-inbox_owner_exists(Acc, From, _To, outgoing, _) -> % user_send_packet
+inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, From, stored).
+
+%% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
+%%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
+%%  - For each member of the room:
+%%      From the room to each member: runs with From=Room/Sender, To=Member
+%% So, as inbox is a per-user concept, it is on the second routing step only when we want to do act.
+%% NOTE: ideally for groupchats, we could instead act on `filter_room_packet`, like MAM.
+-spec is_to_room(jid:jid()) -> boolean().
+is_to_room(Jid) ->
+    {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).
