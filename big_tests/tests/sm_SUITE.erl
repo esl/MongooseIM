@@ -511,22 +511,22 @@ preserve_order(Config) ->
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"6">>)),
 
-    receive_all_ordered(NewAlice, 1),
+    receive_all_ordered(NewAlice, 1, 6),
 
     % replace connection
     {ok, NewAlice2, _} = escalus_connection:start(AliceSpec, connection_steps_to_session()),
     % allow messages to go to the offline storage
-    ct:sleep(1000),
+    mongoose_helper:wait_for_n_offline_messages(NewAlice, 6),
 
     escalus_connection:send(NewAlice2, escalus_stanza:presence(<<"available">>)),
 
     % receves messages in correct order
-    receive_all_ordered(NewAlice2, 1),
+    receive_all_ordered(NewAlice2, 1, 6),
 
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice2).
 
-receive_all_ordered(Conn, N) ->
+receive_all_ordered(Conn, N, Total) ->
     case catch escalus_connection:get_stanza(Conn, msg) of
         #xmlel{} = Stanza ->
             NN = case Stanza#xmlel.name of
@@ -536,8 +536,8 @@ receive_all_ordered(Conn, N) ->
                      _ ->
                          N
                  end,
-            receive_all_ordered(Conn, NN);
-        _Error ->
+            receive_all_ordered(Conn, NN, Total);
+        _Error when N =:= Total ->
             ok
     end.
 

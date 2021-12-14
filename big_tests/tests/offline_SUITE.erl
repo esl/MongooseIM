@@ -18,6 +18,7 @@
 -define(NS_FEATURE_MSGOFFLINE,  <<"msgoffline">>).
 
 -import(domain_helper, [host_type/0]).
+-import(mongoose_helper, [wait_for_n_offline_messages/2]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -370,12 +371,6 @@ has_element_with_ns(Stanza, Element, NS) ->
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
-wait_for_n_offline_messages(Client, N) ->
-    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
-    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
-    WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
-    mongoose_helper:wait_until(WaitFn, N).
-
 logout(Config, User) ->
     mongoose_helper:logout_user(Config, User).
 

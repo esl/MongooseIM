@@ -48,6 +48,7 @@
 -export([print_debug_info_for_module/1]).
 -export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
 -export([restore_config/1, restore_config_option/2]).
+-export([wait_for_n_offline_messages/2]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -562,3 +563,9 @@ do_restore_config_option(Option, {ok, Value}) ->
     rpc(mim(), mongoose_config, set_opt, [Option, Value]);
 do_restore_config_option(Option, {error, not_found}) ->
     rpc(mim(), mongoose_config, unset_opt, [Option]).
+
+wait_for_n_offline_messages(Client, N) ->
+    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
+    mongoose_helper:wait_until(WaitFn, N).
