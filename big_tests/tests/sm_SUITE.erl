@@ -782,14 +782,12 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     escalus_connection:stop(Bob).
 
 resume_session(Config) ->
-    AliceSpec = [{manual_ack, true}
-                 | escalus_fresh:create_fresh_user(Config, alice)],
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Texts = three_texts(),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts),
         %% Resume the session.
-        Steps = connection_steps_to_stream_resumption(SMID, 1),
-        {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+        Alice = connect_spec(AliceSpec, {resume, SMID, 1}, manual),
         %% Alice receives the unacked messages from the previous
         %% interrupted session.
         wait_for_messages(Alice, Texts),
@@ -799,15 +797,12 @@ resume_session(Config) ->
     end).
 
 resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
-    AliceSpec = [{manual_ack, true}
-                 | escalus_fresh:create_fresh_user(Config, alice)],
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Messages = three_texts(),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
-
         {_, SMID} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
         %% Resume the session.
-        Steps = connection_steps_to_authenticate(),
-        {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+        Alice = connect_spec(AliceSpec, auth, manual),
         Resumed = try_to_resume_stream(Alice, SMID, 30),
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
 
@@ -820,9 +815,7 @@ resume_session_with_wrong_sid_returns_item_not_found(Config) ->
     session_resumption_expects_item_not_found(Config, <<"wrong-sid">>).
 
 resume_session_with_wrong_namespace_is_a_noop(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_authenticate(),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, auth),
     #xmlel{attrs = Attrs} = Resume = escalus_stanza:resume(<<"doesnt_matter">>, 4),
     Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"not-stream-mgnt">>}),
     escalus_connection:send(Alice, Resume#xmlel{attrs = Attrs2}),
