@@ -35,6 +35,7 @@
 -export([make_jid/2]).
 -export([make_jid/3]).
 -export([make_jid_noprep/3]).
+-export([get_session_pid/1]).
 -export([get_session_pid/2]).
 -export([get_session_info/2]).
 -export([wait_for_route_message_count/2]).
@@ -440,6 +441,9 @@ make_jid(User, Server) ->
 
 make_jid(User, Server, Resource) ->
     jid:make(User, Server, Resource).
+
+get_session_pid(User, Node) ->
+    get_session_pid(User, mim()).
 
 get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),

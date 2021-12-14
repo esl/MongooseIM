@@ -358,7 +358,7 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
     Config = escalus_users:update_userspec(ConfigIn, alice,
                                            stream_management, true),
     escalus:fresh_story(Config, [{alice,1}], fun(Alice) ->
-        C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+        C2SPid = mongoose_helper:get_session_pid(Alice),
         escalus:send(Alice, AStanza),
         escalus:assert(is_stream_error,
                        [<<"policy-violation">>, <<>>],
@@ -599,7 +599,7 @@ resume_session_state_send_message(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
     %% kill alice connection
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
     wait_for_c2s_state_change(C2SPid, resume_session),
     assert_alive_resources(Alice, 1),
@@ -641,7 +641,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
     %% get pid of c2s
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     %% Wait c2s process to process our presence ack.
     %% Otherwise, we can receive two initial presences sometimes.
     wait_for_c2s_unacked_count(C2SPid, 1),
@@ -671,7 +671,7 @@ resume_session_state_stop_c2s(Config) ->
 %% testcase.
 session_established(Config) ->
     Alice = connect_fresh(Config, alice, presence),
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     assert_no_offline_msgs(Alice),
     assert_c2s_state(C2SPid, session_established),
     escalus_connection:stop(Alice).
@@ -743,7 +743,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-2">>)),
     %% kill alice connection
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
     wait_for_c2s_state_change(C2SPid, resume_session),
     assert_alive_resources(Alice, 1),
@@ -769,7 +769,7 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
             ok
         end, ok),
 
-    NewC2SPid = mongoose_helper:get_session_pid(NewAlice, mim()),
+    NewC2SPid = mongoose_helper:get_session_pid(NewAlice),
     escalus_connection:kill(NewAlice),
     wait_for_c2s_state_change(NewC2SPid, resume_session),
 
@@ -840,7 +840,7 @@ session_resumption_expects_item_not_found(Config, SMID) ->
 
 resume_session_kills_old_C2S_gracefully(Config) ->
     Alice = connect_fresh(Config, alice, sr_presence, manual),
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
 
     %% Monitor the C2S process and disconnect Alice.
     MonitorRef = erlang:monitor(process, C2SPid),
@@ -920,7 +920,7 @@ buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->
     wait_for_messages(Alice, Texts),
     %% Alice's connection is violently terminated.
     escalus_client:kill_connection(Config, Alice),
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     SMID = client_to_smid(Alice),
     {C2SPid, SMID}.
 
@@ -1044,7 +1044,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         %% The receiver process would stop now
         wait_for_c2s_state(Alice, resume_session),
 
-        C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+        C2SPid = mongoose_helper:get_session_pid(Alice),
         wait_for_queue_length(C2SPid, 0),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
@@ -1082,7 +1082,7 @@ messages_are_properly_flushed_during_resumption_p1_fsm_old(Config) ->
         SMH = escalus_connection:get_sm_h(Alice),
         escalus_client:kill_connection(Config, Alice),
         wait_for_c2s_state(Alice, resume_session),
-        C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+        C2SPid = mongoose_helper:get_session_pid(Alice),
         ok = rpc(mim(), sys, suspend, [C2SPid]),
 
         %% send some dummy event. ignored by c2s but ensures that
@@ -1238,7 +1238,7 @@ wait_for_resource_count(Client, N) ->
                                N, #{name => get_user_alive_resources}).
 
 monitor_session(Client) ->
-    C2SPid = mongoose_helper:get_session_pid(Client, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Client),
     erlang:monitor(process, C2SPid).
 
 -spec wait_for_process_termination(MRef :: reference()) -> ok.
@@ -1359,7 +1359,7 @@ stop_client_and_wait_for_termination(Alice) ->
     ok = wait_for_process_termination(C2SRef).
 
 wait_for_c2s_state(Alice, StateName) ->
-    C2SPid = mongoose_helper:get_session_pid(Alice, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
     mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, StateName).
 
 kill_and_connect_with_resume_session_without_waiting_for_result(Alice) ->
@@ -1445,7 +1445,7 @@ kill_and_connect_resume(Client) ->
 connect_resume(Client, SMH) ->
     SMID = client_to_smid(Client),
     Spec = client_to_spec(Client),
-    C2SPid = mongoose_helper:get_session_pid(Client, mim()),
+    C2SPid = mongoose_helper:get_session_pid(Client),
     Steps = connection_steps_to_stream_resumption(SMID, SMH),
     try
         {ok, Client2, _} = escalus_connection:start(Spec, Steps),
