@@ -229,14 +229,10 @@ server_announces_sm(Config) ->
 
 
 server_enables_sm_before_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_bind),
-    {ok, _, _} = escalus_connection:start(AliceSpec, Steps).
+    connect_fresh(Config, alice, sm_after_bind).
 
 server_enables_sm_after_session(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_mgmt(after_session),
-    {ok, _, _} = escalus_connection:start(AliceSpec, Steps).
+    connect_fresh(Config, alice, sm_after_session).
 
 server_returns_failed_after_start(Config) ->
     server_returns_failed(Config, []).
@@ -245,10 +241,7 @@ server_returns_failed_after_auth(Config) ->
     server_returns_failed(Config, [authenticate]).
 
 server_enables_resumption(Config) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    %% Assert matches {ok, _, _, _}
-    Steps = connection_steps_to_enable_stream_resumption(),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
+    Alice = connect_fresh(Config, alice, sr_presence),
     escalus_connection:stop(Alice).
 
 server_returns_failed(Config, ConnActions) ->
