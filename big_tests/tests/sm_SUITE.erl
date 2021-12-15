@@ -238,7 +238,7 @@ init_per_group(Group, Config) when Group =:= unacknowledged_message_hook;
     dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
     Config;
 init_per_group(stale_h, Config) ->
-    escalus_users:update_userspec(Config, alice, manual_ack, true);
+    Config;
 init_per_group(stream_mgmt_disabled, Config) ->
     dynamic_modules:stop(host_type(), ?MOD_SM),
     rpc(mim(), mnesia, delete_table, [sm_session]),
@@ -665,12 +665,13 @@ resend_unacked_after_resume_timeout(Config) ->
 resume_expired_session_returns_correct_h(Config) ->
     %% connect bob and alice
     Bob = connect_fresh(Config, bob, sr_presence),
-    Alice = connect_fresh(Config, alice, sr_presence),
+    Alice = connect_fresh(Config, alice, sr_presence, manual),
     %% Bob sends a message to Alice, and Alice receives it but doesn't acknowledge
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     escalus:wait_for_stanza(Alice),
     %% alice comes back, but too late, so resumption doesn't work,
     %% but she receives the previous h = 1 anyway
+    %% NewAlice is also manual ack
     NewAlice = kill_and_connect_with_resume_session_without_waiting_for_result(Alice),
     FailedResumption = escalus_connection:get_stanza(NewAlice, failed_resumption),
     <<"1">> = exml_query:attr(FailedResumption, <<"h">>),
@@ -1037,7 +1038,7 @@ replies_are_processed_by_resumed_session(Config) ->
 %% 7. Packet rerouting crashes on the buffered sub request, preventing resending whole buffer
 %% 8. B doesn't receive the buffered message
 subscription_requests_are_buffered_properly(Config) ->
-    AliceSpec = [{manual_ack, true} | escalus_fresh:create_fresh_user(Config, alice)],
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     MsgBody = <<"buffered">>,
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         % GIVEN Bob's pending subscription to Alice's presence
@@ -1046,7 +1047,7 @@ subscription_requests_are_buffered_properly(Config) ->
         _RosterPushReq = escalus:wait_for_stanza(Bob),
 
         % WHEN Alice becomes online...
-        Alice = connect_spec(AliceSpec, sr_session),
+        Alice = connect_spec(AliceSpec, sr_session, manual),
         send_initial_presence(Alice),
         %% subscribe could come before the initial presence
         escalus:assert_many([is_presence(<<"available">>), is_presence(<<"subscribe">>)],
@@ -1061,7 +1062,7 @@ subscription_requests_are_buffered_properly(Config) ->
         escalus_client:kill_connection(Config, Alice),
 
         % ...and reconnects with session replacement.
-        Alice2 = connect_spec(AliceSpec, session),
+        Alice2 = connect_spec(AliceSpec, session, manual),
 
         % THEN Alice receives (without sending initial presence):
         % * buffered available presence (because it's addressed to full JID)
