@@ -64,8 +64,7 @@ is_authorized(Req, State) ->
             {true, Req, State2}
     catch
         exit:Err ->
-            Msg = #{phase => authorize, error_term => Err},
-            reply_error(400, Msg, Req, State)
+            reply_error(400, make_error(authorize, Err), Req, State)
     end.
 
 resource_exists(#{method := <<"GET">>} = Req, State) ->
@@ -113,7 +112,7 @@ auth_admin(_, State) ->
     State#{authorized => true}.
 
 run_request(#{document := undefined}, Req, State) ->
-    reply_error(400, no_query_supplied, Req, State);
+    reply_error(400, make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
     Ep = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
@@ -137,7 +136,7 @@ gather(Req) ->
             gather(Req2, JSON, Bindings)
     catch
         _:_ ->
-            {error, invalid_json_body}
+            {error, make_error(decode, invalid_json_body)}
     end.
 
 gather(Req, Body, Params) ->
@@ -162,10 +161,10 @@ variables([#{<<"variables">> := Vars} | _]) ->
           try jiffy:decode(Vars, [return_maps]) of
               null -> {ok, #{}};
               JSON when is_map(JSON) -> {ok, JSON};
-              _ -> {error, variables_invalid_json}
+              _ -> {error, make_error(decode, variables_invalid_json)}
           catch
               _:_ ->
-                  {error, variables_invalid_json}
+                  {error, make_error(decode, variables_invalid_json)}
           end;
       is_map(Vars) ->
           {ok, Vars};
@@ -184,9 +183,12 @@ operation_name([_ | Next]) ->
 operation_name([]) ->
     undefined.
 
+make_error(Phase, Term) ->
+    #{error_term => Term, phase => Phase}.
+
 reply_error(Code, Msg, Req, State) ->
-    Errors = mongoose_graphql_errors:format_error(Msg),
-    Body = jiffy:encode(#{errors => Errors}),
+    Error = mongoose_graphql_errors:format_error(Msg),
+    Body = jiffy:encode(#{errors => [Error]}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.

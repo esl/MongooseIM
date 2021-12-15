@@ -148,27 +148,31 @@ invalid_json_body_error(Config) ->
     Body = <<"">>,
     {Status, Data} = execute(Ep, Body, undefined),
     ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"invalid_json_body">>}]}, Data).
+    assert_code(invalid_json_body, Data).
 
 no_query_supplied_error(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{},
     {Status, Data} = execute(Ep, Body, undefined),
     ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"no_query_supplied">>}]}, Data).
+    assert_code(no_query_supplied, Data).
 
 variables_invalid_json_error(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
     {Status, Data} = execute(Ep, Body, undefined),
     ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"variables_invalid_json">>}]}, Data).
+    assert_code(variables_invalid_json, Data).
 
 %% Helpers
 
+assert_code(Code, Data) ->
+    BinCode = atom_to_binary(Code),
+    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
+
 assert_no_permissions(Status, Data) ->
     ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    ?assertMatch(#{<<"errors">> := [#{<<"message">> := <<"no_permissions">>}]}, Data).
+    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := <<"no_permissions">>}}]}, Data).
 
 assert_access_granted(Status, Data) ->
     ?assertEqual({<<"200">>,<<"OK">>}, Status),
