@@ -14,6 +14,7 @@
 -define(cfg(ExpectedOpts, RawConfig), assert_options(ExpectedOpts, parse(RawConfig))).
 
 %% global config error
+-define(err(Pattern, RawConfig), ?assertMatch(Pattern, assert_error(parse(RawConfig)))).
 -define(err(RawConfig), assert_error(parse(RawConfig))).
 
 %% host-or-global config options
@@ -25,8 +26,11 @@
 %% host-or-global config error
 -define(errh(RawConfig), assert_error_host_or_global(RawConfig)).
 
+-import(mongoose_config_parser_toml, [extract_errors/1]).
+
 all() ->
     [{group, file},
+     {group, dynamic_domains},
      {group, general},
      {group, listen},
      {group, auth},
@@ -34,19 +38,17 @@ all() ->
      {group, shaper_acl_access},
      {group, s2s},
      {group, modules},
-     {group, services},
-     {group, host_types_group}].
+     {group, services}].
 
 groups() ->
     [{file, [parallel], [sample_pgsql,
                          miscellaneous,
                          s2s,
                          modules,
-                         outgoing_pools]},
-     {host_types_group, [], [host_types_file,
-                             host_types_unsupported_modules,
-                             host_types_unsupported_auth_methods,
-                             host_types_unsupported_auth_methods_and_modules]},
+                         outgoing_pools,
+                         host_types]},
+     {dynamic_domains, [parallel], [supported_features,
+                                    unsupported_features]},
      {general, [parallel], [loglevel,
                             hosts,
                             host_types,
@@ -247,26 +249,25 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
-init_per_group(host_types_group, Config) ->
-    Modules = [test_mim_module1, test_mim_module2, test_mim_module3],
-    AuthModules = [ejabberd_auth_external, ejabberd_auth_http, ejabberd_auth_rdbms],
-    [{mocked_modules, Modules ++ AuthModules} | Config];
+init_per_group(dynamic_domains, Config) ->
+    meck:new(ejabberd_auth_http, [passthrough, no_link]),
+    meck:new(mod_test, [non_strict, no_link]),
+    meck:expect(ejabberd_auth_http, supported_features, fun() -> [] end),
+    meck:expect(mod_test, supported_features, fun() -> [] end),
+    Config;
 init_per_group(_, Config) ->
     Config.
 
-end_per_group(_, Config) ->
-    Config.
+end_per_group(dynamic_domains, _Config) ->
+    meck:unload();
+end_per_group(_, _Config) ->
+    ok.
 
 init_per_testcase(_, Config) ->
-    case proplists:get_value(mocked_modules, Config, no_mocks) of
-        no_mocks -> ok;
-        Modules -> [meck:new(M, [non_strict, no_link]) || M <- Modules]
-    end,
     Config.
 
-end_per_testcase(_, Config) ->
-    meck:unload(),
-    Config.
+end_per_testcase(_, _Config) ->
+    ok.
 
 sample_pgsql(Config) ->
     test_config_file(Config,  "mongooseim-pgsql").
@@ -284,51 +285,40 @@ outgoing_pools(Config) ->
     test_config_file(Config,  "outgoing_pools").
 
 host_types_file(Config) ->
-    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_external, ejabberd_auth_http],
-    FN = fun() -> [dynamic_domains] end,
-    [meck:expect(M, supported_features, FN) || M <- Modules],
     test_config_file(Config, "host_types").
 
-host_types_unsupported_modules(Config) ->
-    Modules = [ejabberd_auth_external, ejabberd_auth_http],
-    FN = fun() -> [dynamic_domains] end,
-    [meck:expect(M, supported_features, FN) || M <- Modules],
-    ?assertError({config_error, "Invalid host type configuration",
-                  %% please note that the sequence of these errors is not
-                  %% guarantied and may change in the future
-                  [#{reason := not_supported_module, module := test_mim_module1,
-                     host_type := <<"yet another host type">>},
-                   #{reason := not_supported_module, module := test_mim_module2,
-                     host_type := <<"another host type">>}]},
-                 test_config_file(Config, "host_types")).
+supported_features(_Config) ->
+    Gen = #{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type2">>]}},
+    Auth = #{<<"auth">> => #{<<"internal">> => #{}}},
+    Mod = #{<<"modules">> => #{<<"mod_amp">> => #{}}},
+    ?cfg([{auth, global}, methods], [internal], maps:merge(Gen, Auth)),
+    ?cfg([{auth, <<"type1">>}, methods], [internal],
+         Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
+    ?cfg([{modules, global}], [{mod_amp, []}], maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}], [{mod_amp, []}],
+          Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
-host_types_unsupported_auth_methods(Config) ->
-    Modules = [test_mim_module1, test_mim_module2, ejabberd_auth_external],
-    FN = fun() -> [dynamic_domains] end,
-    [meck:expect(M, supported_features, FN) || M <- Modules],
-    ?assertError({config_error, "Invalid host type configuration",
-                  %% please note that the sequence of these errors is not
-                  %% guarantied and may change in the future
-                  [#{reason := not_supported_auth_method, auth_method := http,
-                     host_type := <<"yet another host type">>},
-                   #{reason := not_supported_auth_method, auth_method := http,
-                     host_type := <<"some host type">>}]},
-                 test_config_file(Config, "host_types")).
-
-host_types_unsupported_auth_methods_and_modules(Config) ->
-    Modules = [test_mim_module1, ejabberd_auth_external],
-    FN = fun() -> [dynamic_domains] end,
-    [meck:expect(M, supported_features, FN) || M <- Modules],
-    ?assertError({config_error, "Invalid host type configuration",
-                  %% please note that the sequence of these errors is not
-                  %% guarantied and may change in the future
-                  [#{reason := not_supported_auth_method, auth_method := http,
-                     host_type := <<"yet another host type">>},
-                   #{reason := not_supported_module, module := test_mim_module2,
-                     host_type := <<"another host type">>},
-                   #{reason := not_supported_auth_method, auth_method := http,
-                     host_type := <<"some host type">>}]},
-                 test_config_file(Config, "host_types")).
+unsupported_features(_Config) ->
+    % ejabberd_auth_http and mod_test are mocked and they don't support dynamic domains
+    Gen = #{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type2">>]}},
+    Auth = #{<<"auth">> => #{<<"http">> => #{}}},
+    Mod = #{<<"modules">> => #{<<"mod_test">> => #{}}},
+    ?err([#{reason := dynamic_domains_not_supported,
+            unsupported_auth_methods := [http],
+            unsupported_modules := []}],
+         maps:merge(Gen, Auth)),
+    ?err([#{reason := dynamic_domains_not_supported,
+            unsupported_auth_methods := [http],
+            unsupported_modules := []}],
+         Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
+    ?err([#{reason := dynamic_domains_not_supported,
+            unsupported_auth_methods := [],
+            unsupported_modules := [mod_test]}],
+         maps:merge(Gen, Mod)),
+    ?err([#{reason := dynamic_domains_not_supported,
+            unsupported_auth_methods := [],
+            unsupported_modules := [mod_test]}],
+         Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 %% tests: general
 loglevel(_Config) ->
@@ -3094,10 +3084,17 @@ get_config_value([TopKey | Rest], Config) ->
 get_config_value(Key, Config) ->
     get_config_value([Key], Config).
 
--spec assert_error([mongoose_config_parser_toml:config()]) -> any().
+-spec assert_error([mongoose_config_parser_toml:config()]) ->
+          [mongoose_config_parser_toml:config_error()].
 assert_error(Config) ->
-    ?assertMatch([#{class := error, what := _}|_],
-                 mongoose_config_parser_toml:extract_errors(Config)).
+    case extract_errors(Config) of
+        [] ->
+            ct:fail({"Expected errors but found none", Config});
+        Errors ->
+            [?assertMatch(#{class := error,
+                            what := toml_processing_failed}, Error) || Error <- Errors],
+            Errors
+    end.
 
 %% helpers for file tests
 

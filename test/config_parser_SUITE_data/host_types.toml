@@ -12,7 +12,7 @@
 [auth.external]
 [auth.http]
 
-[modules.test_mim_module1]
+[modules.mod_amp]
 
 [[host_config]]
   host_type = "this is host type"
@@ -30,11 +30,11 @@
 [[host_config]]
   host_type = "another host type"
   ## reseting the modules for this host type
-  [host_config.modules.test_mim_module2]
+  [host_config.modules.mod_offline]
   [host_config.auth]
 
 [[host_config]]
   host_type = "localhost"
   ## reseting the modules for this host type
-  [host_config.modules.test_mim_module3]
+  [host_config.modules.mod_vcard]
   [host_config.auth.rdbms]
