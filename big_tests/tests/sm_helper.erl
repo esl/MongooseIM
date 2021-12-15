@@ -61,6 +61,8 @@ get_sid_by_stream_id(SMID) ->
 
 %% Connection helpers
 
+final_step_to_steps(before_auth) ->
+    connection_steps_before_auth();
 final_step_to_steps(auth) ->
     connection_steps_to_authenticate();
 final_step_to_steps(session) ->
@@ -83,11 +85,12 @@ final_step_to_steps({resume, SMID, H}) ->
     connection_steps_to_stream_resumption(SMID, H).
 
 %% Connection steps
-connection_steps_to_authenticate() ->
+connection_steps_before_auth() ->
     [start_stream,
      stream_features,
-     maybe_use_ssl,
-     authenticate].
+     maybe_use_ssl].
+connection_steps_to_authenticate() ->
+    connection_steps_before_auth() ++ [authenticate].
 
 connection_steps_to_bind() ->
     connection_steps_to_authenticate() ++ [bind].

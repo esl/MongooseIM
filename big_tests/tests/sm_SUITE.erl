@@ -344,22 +344,18 @@ server_enables_sm_after_session(Config) ->
     connect_fresh(Config, alice, sm_after_session).
 
 server_returns_failed_after_start(Config) ->
-    server_returns_failed(Config, []).
+    Alice = connect_fresh(Config, alice, before_auth),
+    server_returns_failed(Alice).
 
 server_returns_failed_after_auth(Config) ->
-    server_returns_failed(Config, [authenticate]).
+    Alice = connect_fresh(Config, alice, auth),
+    server_returns_failed(Alice).
 
 server_enables_resumption(Config) ->
     Alice = connect_fresh(Config, alice, sr_presence),
     escalus_connection:stop(Alice).
 
-server_returns_failed(Config, ConnActions) ->
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    {ok, Alice, _} = escalus_connection:start(AliceSpec,
-                                                 [start_stream,
-                                                  stream_features,
-                                                  maybe_use_ssl]
-                                                 ++ ConnActions),
+server_returns_failed(Alice) ->
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
     escalus:assert(is_sm_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
