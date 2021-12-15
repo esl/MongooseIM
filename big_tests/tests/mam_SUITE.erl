@@ -1897,15 +1897,9 @@ retract_message_on_stanza_id(Config) ->
         RecvRetract = escalus:wait_for_stanza(Bob),
         ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
 
-        maybe_wait_for_archive(Config),
-
         %% ... and Alice and Bob have both messages in their archives
-        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-        check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
-        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
-        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
-
-        ok
+        query_and_check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
+        query_and_check_archive_after_retraction(Config, Bob, ApplyToElement, Body)
     end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -1939,15 +1933,9 @@ retract_message(Config) ->
         RecvRetract = escalus:wait_for_stanza(Bob),
         ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
 
-        maybe_wait_for_archive(Config),
-
         %% ... and Alice and Bob have both messages in their archives
-        escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
-        check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
-        escalus:send(Bob, stanza_archive_request(P, <<"q2">>)),
-        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
-
-        ok
+        query_and_check_archive_after_retraction(Config, Alice, ApplyToElement, Body),
+        query_and_check_archive_after_retraction(Config, Bob, ApplyToElement, Body)
     end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -2060,7 +2048,6 @@ retract_wrong_muc_message(Config) ->
     retract_muc_message([{origin_id, <<"wrong-id">>} | Config]).
 
 retract_muc_message(Config) ->
-    P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
@@ -2094,13 +2081,8 @@ retract_muc_message(Config) ->
         RecvRetract = escalus:wait_for_stanza(Bob),
         ?assert_equal(ApplyToElement, exml_query:subelement(RecvRetract, <<"apply-to">>)),
 
-        maybe_wait_for_archive(Config),
-
         %% ... and finds both messages in the room archive
-        escalus:send(Bob, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
-        check_archive_after_retraction(Config, Bob, ApplyToElement, Body),
-
-        ok
+        query_room_and_check_archive_after_retraction(Config, Bob, ApplyToElement, Body)
     end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -3219,10 +3201,48 @@ then_pm_message_is_received(Receiver, Body) ->
 
 %% Message retraction helpers
 
-check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
+nth_query_id(N) ->
+    list_to_binary("q" ++ integer_to_list(N)).
+
+query_and_check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
+    P = ?config(props, Config),
+    R = retract_strategy(Config),
+    Q = fun(N) ->
+                S = stanza_archive_request(P, nth_query_id(N)),
+                escalus:send(Client, S),
+                wait_archive_respond(Client)
+        end,
+    check_archive_after_retraction(ApplyToElement, Body, Q, R).
+
+%% Check that the archive is correct eventually
+query_room_and_check_archive_after_retraction(Config, Client, ApplyToElement, Body) ->
+    Room = ?config(room, Config),
+    P = ?config(props, Config),
+    R = retract_strategy(Config),
+    Q = fun(N) ->
+                S = stanza_archive_request(P, nth_query_id(N)),
+                escalus:send(Client, stanza_to_room(S, Room)),
+                wait_archive_respond(Client)
+        end,
+    check_archive_after_retraction(ApplyToElement, Body, Q, R).
+
+check_archive_after_retraction(ApplyToElement, _Body, Q, retract) ->
+    V = fun(Messages) ->
+            expect_tombstone_and_retraction_message(ApplyToElement, Messages)
+        end,
+    N = expect_tombstone_and_retraction_message,
+    mongoose_helper:wait_until(Q, ok, #{name => N, validator => V});
+check_archive_after_retraction(ApplyToElement, Body, Q, ignore) ->
+    V = fun(Messages) ->
+            expect_original_and_retraction_message(ApplyToElement, Body, Messages)
+        end,
+    N = expect_original_and_retraction_message,
+    mongoose_helper:wait_until(Q, ok, #{name => N, validator => V}).
+
+retract_strategy(Config) ->
     case message_should_be_retracted(Config) of
-        true -> expect_tombstone_and_retraction_message(Client, ApplyToElement);
-        false -> expect_original_and_retraction_message(Client, ApplyToElement, Body)
+        true -> retract;
+        false -> ignore
     end.
 
 message_should_be_retracted(Config) ->
@@ -3236,18 +3256,20 @@ message_retraction_is_enabled(Config) ->
     BasicGroup = ?config(basic_group, Config),
     BasicGroup =/= disabled_retraction andalso BasicGroup =/= muc_disabled_retraction.
 
-expect_tombstone_and_retraction_message(Client, ApplyToElement) ->
-    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
+expect_tombstone_and_retraction_message(ApplyToElement, Messages) ->
+    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, Messages)),
     #forwarded_message{message_body = undefined,
                        message_children = [#xmlel{name = <<"retracted">>}]} = parse_forwarded_message(ArcMsg1),
     #forwarded_message{message_body = undefined,
-                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2).
+                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2),
+    true.
 
-expect_original_and_retraction_message(Client, ApplyToElement, Body) ->
-    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, wait_archive_respond(Client))),
+expect_original_and_retraction_message(ApplyToElement, Body, Messages) ->
+    [ArcMsg1, ArcMsg2] = respond_messages(assert_respond_size(2, Messages)),
     #forwarded_message{message_body = Body} = parse_forwarded_message(ArcMsg1),
     #forwarded_message{message_body = undefined,
-                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2).
+                       message_children = [ApplyToElement]} = parse_forwarded_message(ArcMsg2),
+    true.
 
 retraction_message(Type, To, ApplyToElement) ->
     #xmlel{name = <<"message">>,

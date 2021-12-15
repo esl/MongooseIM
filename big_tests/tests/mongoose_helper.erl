@@ -358,29 +358,40 @@ wait_until(Fun, ExpectedValue) ->
     wait_until(Fun, ExpectedValue, #{}).
 
 %% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
-wait_until(Fun, ExpectedValue, Opts) ->
+wait_until(Fun, ExpectedValue, Opts) when is_function(Fun, 0) ->
+    F = fun(_N) -> Fun() end,
+    wait_until(F, ExpectedValue, Opts);
+wait_until(Fun, ExpectedValue, Opts) when is_function(Fun, 1) ->
     Defaults = #{validator => fun(NewValue) -> ExpectedValue =:= NewValue end,
                  expected_value => ExpectedValue,
                  time_left => timer:seconds(5),
                  sleep_time => 100,
                  history => [],
                  name => timeout},
-    do_wait_until(Fun, maps:merge(Defaults, Opts)).
+    do_wait_until(Fun, 1, maps:merge(Defaults, Opts)).
 
-do_wait_until(_Fun, #{expected_value := ExpectedValue,
-                      time_left := TimeLeft,
-                      history := History,
-                      name := Name}) when TimeLeft =< 0 ->
+do_wait_until(_Fun, _N, #{expected_value := ExpectedValue,
+                          time_left := TimeLeft,
+                          history := History,
+                          name := Name}) when TimeLeft =< 0 ->
     error({Name, ExpectedValue, simplify_history(lists:reverse(History), 1)});
 
-do_wait_until(Fun, #{validator := Validator} = Opts) ->
-    try Fun() of
-        Value -> case Validator(Value) of
-                     true -> {ok, Value};
-                     _ -> wait_and_continue(Fun, Value, Opts)
-                 end
-    catch Error:Reason ->
-              wait_and_continue(Fun, {Error, Reason}, Opts)
+do_wait_until(Fun, N, #{validator := Validator} = Opts) ->
+    try Fun(N) of
+        Value ->
+            try Validator(Value) of
+                true ->
+                    {ok, Value};
+                false ->
+                    wait_and_continue(Fun, N, Value, Opts);
+                Other ->
+                    wait_and_continue(Fun, N, {validator_returns, Other, Value}, Opts)
+            catch Error:Reason:Stacktrace ->
+                      E = {validator_fails, Value, {Error, Reason, Stacktrace}},
+                      wait_and_continue(Fun, N, E, Opts)
+            end
+    catch Error:Reason:Stacktrace ->
+              wait_and_continue(Fun, N, {Error, Reason, Stacktrace}, Opts)
     end.
 
 simplify_history([H|[H|_]=T], Times) ->
@@ -390,12 +401,12 @@ simplify_history([H|T], Times) ->
 simplify_history([], 1) ->
     [].
 
-wait_and_continue(Fun, FunResult, #{time_left := TimeLeft,
-                                    sleep_time := SleepTime,
-                                    history := History} = Opts) ->
+wait_and_continue(Fun, N, FunResult, #{time_left := TimeLeft,
+                                       sleep_time := SleepTime,
+                                       history := History} = Opts) ->
     timer:sleep(SleepTime),
-    do_wait_until(Fun, Opts#{time_left => TimeLeft - SleepTime,
-                             history => [FunResult | History]}).
+    do_wait_until(Fun, N + 1, Opts#{time_left => TimeLeft - SleepTime,
+                                    history => [FunResult | History]}).
 
 wait_for_user(Config, User, LeftTime) ->
     wait_until(fun() ->
