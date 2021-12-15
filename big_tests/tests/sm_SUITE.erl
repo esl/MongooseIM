@@ -274,7 +274,7 @@ session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(
                    escalus_connection:get_stanza(Alice, close_old_stream)),
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, close_old_stream)),
-    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)),
+    true = escalus_connection:wait_for_close(Alice, timer:seconds(5)),
     true = escalus_connection:is_connected(Alice2),
     escalus_connection:stop(Alice2).
 
@@ -364,7 +364,7 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
                        escalus:wait_for_stanza(Alice)),
         mongoose_helper:wait_for_pid_to_die(C2SPid),
         escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
-        true = escalus_connection:wait_for_close(Alice,timer:seconds(5))
+        true = escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
 
 client_acks_more_than_sent(Config) ->
@@ -1207,7 +1207,7 @@ assert_no_offline_msgs_spec(Spec) ->
 
 wait_for_c2s_unacked_count(C2SPid, Count) ->
     mongoose_helper:wait_until(fun() -> get_c2s_unacked_count(C2SPid) end, Count,
-                                #{name => get_c2s_unacked_count, time_left => timer:seconds(5)}).
+                                #{name => get_c2s_unacked_count}).
 
 get_c2s_unacked_count(C2SPid) ->
      Info = rpc(mim(), ejabberd_c2s, get_info, [C2SPid]),

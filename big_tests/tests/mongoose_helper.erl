@@ -577,7 +577,7 @@ wait_for_n_offline_messages(Client, N) ->
 
 wait_for_c2s_state_name(C2SPid, NewStateName) ->
     wait_until(fun() -> get_c2s_state_name(C2SPid) end, NewStateName,
-                #{name => get_c2s_state_name, time_left => timer:seconds(5)}).
+                #{name => get_c2s_state_name}).
 
 get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
     SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
