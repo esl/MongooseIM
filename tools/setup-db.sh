@@ -278,6 +278,7 @@ elif [ "$db" = 'mssql' ]; then
     # Otherwise we get an error in logs
     # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
     docker run -d -p $MSSQL_PORT:1433                           \
+               --user root                                      \
                --name=$NAME                                     \
                -e "ACCEPT_EULA=Y"                               \
                -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
