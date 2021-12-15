@@ -64,7 +64,7 @@ is_rdbms_enabled(HostType) ->
 -spec mnesia_or_rdbms_backend() -> atom().
 mnesia_or_rdbms_backend() ->
     Host = ct:get_config({hosts, mim, domain}),
-    case mongoose_helper:is_rdbms_enabled(Host) of
+    case is_rdbms_enabled(Host) of
         true -> rdbms;
         false -> mnesia
     end.
@@ -462,7 +462,7 @@ get_session_info(RpcDetails, User) ->
     Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
-    mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+    wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
 
 count_route_messages(C2sPid) when is_pid(C2sPid) ->
      {messages, Messages} = rpc:pinfo(C2sPid, messages),
@@ -572,7 +572,7 @@ do_restore_config_option(Option, {error, not_found}) ->
 wait_for_n_offline_messages(Client, N) ->
     LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
     LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
-    WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
+    WaitFn = fun() -> total_offline_messages({LUser, LServer}) end,
     wait_until(WaitFn, N).
 
 wait_for_c2s_state_name(C2SPid, NewStateName) ->
