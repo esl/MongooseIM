@@ -8,7 +8,8 @@
          iqdisc/0]).
 
 %% callbacks for the 'process' step
--export([process_host/1,
+-export([process_root/1,
+         process_host/1,
          process_general/1,
          process_sm_backend/1,
          process_ctl_access_rule/1,
@@ -121,6 +122,7 @@ root() ->
                                             wrap = none}
                 },
        required = [<<"general">>],
+       process = fun ?MODULE:process_root/1,
        wrap = none
       }.
 
@@ -963,6 +965,54 @@ s2s_domain_cert() ->
       }.
 
 %% Callbacks for 'process'
+
+%% Check that all auth methods and modules enabled for any host type support dynamic domains
+process_root(Items) ->
+    case proplists:lookup(host_types, Items) of
+        {_, [_|_] = HostTypes} ->
+            HTItems = lists:filter(fun(Item) -> is_host_type_item(Item, HostTypes) end, Items),
+            case {unsupported_auth_methods(HTItems), unsupported_modules(HTItems)} of
+                {[], []} ->
+                    Items;
+                {Methods, Modules} ->
+                    error(#{what => dynamic_domains_not_supported,
+                            text => ("Dynamic modules not supported by the specified authentication "
+                                     "methods and/or extension modules"),
+                            unsupported_auth_methods => Methods,
+                            unsupported_modules => Modules})
+            end;
+        _ ->
+            Items
+    end.
+
+unsupported_auth_methods(KVs) ->
+    Methods = extract_auth_methods(KVs),
+    lists:filter(fun is_unsupported_auth_method/1, Methods).
+
+unsupported_modules(KVs) ->
+    Modules = extract_modules(KVs),
+    lists:filter(fun is_unsupported_module/1, Modules).
+
+extract_auth_methods(KVs) ->
+    lists:usort(lists:flatmap(fun({{auth, _}, Auth}) -> maps:get(methods, Auth);
+                                 (_) -> []
+                              end, KVs)).
+
+extract_modules(KVs) ->
+    lists:usort(lists:flatmap(fun({{modules, _}, Modules}) -> proplists:get_keys(Modules);
+                                 (_) -> []
+                              end, KVs)).
+
+is_unsupported_auth_method(Method) ->
+    not ejabberd_auth:does_method_support(Method, dynamic_domains).
+
+is_unsupported_module(Module) ->
+    not gen_mod:does_module_support(Module, dynamic_domains).
+
+is_host_type_item({{_, HostType}, _}, HostTypes) ->
+    HostType =:= global orelse lists:member(HostType, HostTypes);
+is_host_type_item(_, _) ->
+    false.
 
 process_ctl_access_rule(KVs) ->
     Commands = proplists:get_value(commands, KVs, all),
