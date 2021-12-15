@@ -1,75 +1,11 @@
-%% Session Management tests
+%% Stream Management tests
 -module(sm_SUITE).
 
--export([suite/0,
-         all/0,
-         groups/0,
-         init_per_suite/1,
-         end_per_suite/1,
-         init_per_group/2,
-         end_per_group/2,
-         init_per_testcase/2,
-         end_per_testcase/2]).
-
-%% parallel group
--export([server_announces_sm/1,
-         server_enables_sm_before_session/1,
-         server_enables_sm_after_session/1,
-         server_returns_failed_after_start/1,
-         server_returns_failed_after_auth/1,
-         server_enables_resumption/1,
-         client_enables_sm_twice_fails_with_correct_error_stanza/1,
-         session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza/1,
-         session_resumed_and_old_session_dead_doesnt_route_error_to_new_session/1,
-         basic_ack/1,
-         h_ok_before_session/1,
-         h_ok_after_session_enabled_before_session/1,
-         h_ok_after_session_enabled_after_session/1,
-         h_ok_after_a_chat/1,
-         h_non_given_closes_stream_gracefully/1,
-         resend_unacked_on_reconnection/1,
-         session_established/1,
-         wait_for_resumption/1,
-         resume_session/1,
-         resume_session_with_wrong_h_does_not_leak_sessions/1,
-         resume_session_with_wrong_sid_returns_item_not_found/1,
-         resume_session_with_wrong_namespace_is_a_noop/1,
-         resume_dead_session_results_in_item_not_found/1,
-         resume_session_kills_old_C2S_gracefully/1,
-         aggressively_pipelined_resume/1,
-         replies_are_processed_by_resumed_session/1,
-         subscription_requests_are_buffered_properly/1,
-         messages_are_properly_flushed_during_resumption/1,
-         messages_are_properly_flushed_during_resumption_p1_fsm_old/1]).
-
-%% manual_ack_freq_2 group
--export([server_requests_ack_freq_2/1]).
-
--export([client_acks_more_than_sent/1,
-         too_many_unacked_stanzas/1,
-         resend_unacked_after_resume_timeout/1,
-         resume_session_state_send_message/1,
-         resume_session_state_stop_c2s/1,
-         server_requests_ack_after_session/1,
-         resend_more_offline_messages_than_buffer_size/1,
-         server_requests_ack/1]).
-
-%% stale_h group
--export([resume_expired_session_returns_correct_h/1,
-         gc_repeat_after_never_means_no_cleaning/1,
-         gc_repeat_after_timeout_does_clean/1]).
-
-%% stream_mgmt_disabled group
--export([no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt/1,
-         no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption/1]).
-
-%% manual_ack_freq_long_session_timeout group
--export([preserve_order/1]).
-
-%% unacknowledged_message_hook group
--export([unacknowledged_message_hook_bounce/1,
-         unacknowledged_message_hook_offline/1,
-         unacknowledged_message_hook_resume/1]).
+-compile(export_all).
+-include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("escalus/include/escalus.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 %% Injected code callbacks
 -export([rpc_start_hook_handler/3,
@@ -77,19 +13,9 @@
          hook_handler_fn/3,
          regression_handler/5]).
 
--include_lib("exml/include/exml.hrl").
--include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
-
--define(MOD_SM, mod_stream_management).
--define(CONSTRAINT_CHECK_TIMEOUT, 5000).
-
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
-
--import(escalus_stanza, [setattr/3]).
 
 -import(domain_helper, [host_type/0]).
 
@@ -103,9 +29,7 @@
                     client_to_spec0/1,
                     client_to_spec/1,
                     client_to_smid/1,
-                    wait_until_disconnected/1,
                     try_to_resume_stream/3,
-                    kill_and_connect_with_resume_session_without_waiting_for_result/1,
                     stop_client_and_wait_for_termination/1,
                     assert_alive_resources/2,
                     get_user_present_resources/1,
@@ -124,6 +48,8 @@
                     get_ack/1,
                     ack_initial_presence/1]).
 
+-define(MOD_SM, mod_stream_management).
+-define(CONSTRAINT_CHECK_TIMEOUT, 5000).
 -define(LONG_TIMEOUT, 3600).
 -define(SHORT_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
@@ -132,27 +58,21 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+suite() ->
+    require_rpc_nodes([mim]) ++ escalus:suite().
+
 all() ->
-    [{group, parallel},
-     {group, parallel_manual_ack_freq_1},
-     {group, manual_ack_freq_2},
-     {group, stale_h},
-     {group, stream_mgmt_disabled},
-     {group, unacknowledged_message_hook}
-     ].
+    ct_helper:groups_to_all(groups()).
 
 groups() ->
-    G = [{parallel, [parallel], parallel_test_cases()},
-         {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
-         {manual_ack_freq_2, [], [server_requests_ack_freq_2]},
-         {stale_h, [], stale_h_test_cases()},
-         {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
-         {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]},
-         {unacknowledged_message_hook, [parallel], unacknowledged_message_hook()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    P = [parallel],
+    [{parallel, P, parallel_cases()},
+     {parallel_manual_ack_freq_1, P, parallel_manual_ack_freq_1_cases()},
+     {manual_ack_freq_2, [], manual_ack_freq_2_cases()},
+     {stale_h, [], stale_h_cases()},
+     {parallel_unacknowledged_message_hook, P, parallel_unacknowledged_message_hook_cases()}].
 
-
-parallel_test_cases() ->
+parallel_cases() ->
     [server_announces_sm,
      server_enables_sm_before_session,
      server_enables_sm_after_session,
@@ -181,10 +101,9 @@ parallel_test_cases() ->
      replies_are_processed_by_resumed_session,
      subscription_requests_are_buffered_properly,
      messages_are_properly_flushed_during_resumption,
-     messages_are_properly_flushed_during_resumption_p1_fsm_old
-    ].
+     messages_are_properly_flushed_during_resumption_p1_fsm_old].
 
-parallel_manual_ack_test_cases() ->
+parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
      resend_unacked_after_resume_timeout,
@@ -192,29 +111,27 @@ parallel_manual_ack_test_cases() ->
      resume_session_state_stop_c2s,
      server_requests_ack_after_session,
      resend_more_offline_messages_than_buffer_size,
-     server_requests_ack
-     ].
+     server_requests_ack].
 
-stale_h_test_cases() ->
-    [
-     resume_expired_session_returns_correct_h,
+manual_ack_freq_2_cases() ->
+    [server_requests_ack_freq_2].
+
+stale_h_cases() ->
+    [resume_expired_session_returns_correct_h,
      gc_repeat_after_never_means_no_cleaning,
-     gc_repeat_after_timeout_does_clean
-    ].
+     gc_repeat_after_timeout_does_clean].
 
 stream_mgmt_disabled_cases() ->
-    [
-     no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt,
-     no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption
-    ].
+    [no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt,
+     no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption].
 
-unacknowledged_message_hook() ->
+manual_ack_freq_long_session_timeout_cases() ->
+    [preserve_order].
+
+parallel_unacknowledged_message_hook_cases() ->
     [unacknowledged_message_hook_bounce,
      unacknowledged_message_hook_offline,
      unacknowledged_message_hook_resume].
-
-suite() ->
-    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -231,7 +148,7 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(Group, Config) when Group =:= unacknowledged_message_hook;
+init_per_group(Group, Config) when Group =:= parallel_unacknowledged_message_hook;
                                    Group =:= manual_ack_freq_long_session_timeout;
                                    Group =:= parallel_manual_ack_freq_1;
                                    Group =:= manual_ack_freq_2 ->
@@ -282,7 +199,7 @@ end_per_testcase(CaseName, Config) ->
 required_modules(Scope, Name) ->
     SMConfig = case required_sm_opts(Scope, Name) of
                    stopped -> stopped;
-                   ExtraOpts -> common_sm_opts() ++ ExtraOpts
+                   ExtraOpts -> merge_proplists(common_sm_opts(), ExtraOpts)
                end,
     [{mod_stream_management, SMConfig}, {mod_offline, []}].
 
@@ -295,9 +212,10 @@ required_sm_opts(group, manual_ack_freq_2) ->
     [{ack_freq, 2}];
 required_sm_opts(group, stream_mgmt_disabled) ->
     stopped;
-required_sm_opts(group, Group) when Group =:= unacknowledged_message_hook;
-                                    Group =:= manual_ack_freq_long_session_timeout ->
+required_sm_opts(group, parallel_unacknowledged_message_hook) ->
     [{ack_freq, 1}];
+required_sm_opts(group, manual_ack_freq_long_session_timeout) ->
+    [{ack_freq, 1}, {buffer_max, 1000}];
 required_sm_opts(testcase, resume_expired_session_returns_correct_h) ->
     [{ack_freq, 1},
      {resume_timeout, ?SHORT_TIMEOUT} | stale_h(?LONG_TIMEOUT, ?LONG_TIMEOUT)];
@@ -308,6 +226,12 @@ required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
 
 common_sm_opts() ->
     [{buffer_max, ?SMALL_SM_BUFFER}].
+
+merge_proplists(Defaults, Values) ->
+    Values ++ delete_keys(proplists:get_keys(Values), Defaults).
+
+delete_keys(Keys, List) ->
+    lists:foldl(fun proplists:delete/2, List, Keys).
 
 stale_h(RepeatAfter, Geriatric) ->
     [{stale_h, [{enabled, true},
@@ -580,7 +504,7 @@ resend_unacked_on_reconnection(Config) ->
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     NewAlice = connect_spec(AliceSpec, session, manual),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
     wait_for_messages(NewAlice, Texts),
     %% Alice acks the delayed messages so they won't go again
     %% to the offline store.
@@ -589,34 +513,35 @@ resend_unacked_on_reconnection(Config) ->
 preserve_order(Config) ->
     %% connect bob and alice
     Bob = connect_fresh(Config, bob, presence),
-    Alice = connect_fresh(Config, alice, sr_presence),
+    Alice = connect_fresh(Config, alice, sr_presence, manual),
     AliceSpec = client_to_spec(Alice),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"1">>)),
 
     %% kill alice connection
     escalus_connection:kill(Alice),
-    wait_until_disconnected(Alice),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"3">>)),
 
-    NewAlice = connect_spec(AliceSpec, session),
+    NewAlice = connect_spec(AliceSpec, session, manual),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"4">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"5">>)),
 
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"6">>)),
 
     receive_all_ordered(NewAlice, 1, 6),
 
     % replace connection
-    NewAlice2 = connect_spec(AliceSpec, session),
+    NewAlice2 = connect_spec(AliceSpec, session, manual),
     % allow messages to go to the offline storage
     mongoose_helper:wait_for_n_offline_messages(NewAlice, 6),
 
-    escalus_connection:send(NewAlice2, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice2),
 
     % receves messages in correct order
     receive_all_ordered(NewAlice2, 1, 6),
@@ -624,20 +549,20 @@ preserve_order(Config) ->
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice2).
 
-receive_all_ordered(Conn, N, Total) ->
-    case catch escalus_connection:get_stanza(Conn, msg) of
-        #xmlel{} = Stanza ->
-            NN = case Stanza#xmlel.name of
-                     <<"message">> ->
-                         escalus:assert(is_chat_message, [integer_to_binary(N)], Stanza),
-                         N + 1;
-                     _ ->
-                         N
-                 end,
-            receive_all_ordered(Conn, NN, Total);
-        _Error when N =:= Total ->
-            ok
-    end.
+%% Receive messages from N to Last
+receive_all_ordered(_Conn, N, Last) when N > Last ->
+    ok;
+receive_all_ordered(Conn, N, Last) ->
+    %% Ignores acks and presences
+    Stanza = escalus_connection:get_stanza(Conn, {msg, N}),
+    NN = case Stanza#xmlel.name of
+             <<"message">> ->
+                 escalus:assert(is_chat_message, [integer_to_binary(N)], Stanza),
+                 N + 1;
+             _ ->
+                 N
+         end,
+    receive_all_ordered(Conn, NN, Last).
 
 resend_unacked_after_resume_timeout(Config) ->
     %% connect bob and alice
@@ -650,11 +575,12 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_connection:kill(Alice),
 
     %% ensure there is no session
-    wait_until_disconnected(Alice),
+    C2SPid = mongoose_helper:get_session_pid(Alice),
+    mongoose_helper:wait_for_c2s_state_name(C2SPid, resume_session),
 
     %% alice come back and receives unacked message
     NewAlice = connect_spec(AliceSpec, session),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
 
     escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)],
                                  escalus:wait_for_stanzas(NewAlice, 2)),
@@ -666,20 +592,22 @@ resume_expired_session_returns_correct_h(Config) ->
     %% connect bob and alice
     Bob = connect_fresh(Config, bob, sr_presence),
     Alice = connect_fresh(Config, alice, sr_presence, manual),
+    get_ack(Alice),
+
     %% Bob sends a message to Alice, and Alice receives it but doesn't acknowledge
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
-    escalus:wait_for_stanza(Alice),
+    escalus:assert(is_chat_message, [<<"msg-1">>], escalus:wait_for_stanza(Alice)),
     %% alice comes back, but too late, so resumption doesn't work,
     %% but she receives the previous h = 1 anyway
     %% NewAlice is also manual ack
-    NewAlice = kill_and_connect_with_resume_session_without_waiting_for_result(Alice),
+    NewAlice = sm_helper:kill_and_connect_with_resume_session_without_waiting_for_result(Alice),
     FailedResumption = escalus_connection:get_stanza(NewAlice, failed_resumption),
     <<"1">> = exml_query:attr(FailedResumption, <<"h">>),
     %% And we can continue with bind and session
     escalus_session:session(escalus_session:bind(NewAlice)),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    Stanzas = [escalus_connection:get_stanza(NewAlice, msg),
-               escalus_connection:get_stanza(NewAlice, msg)],
+    send_initial_presence(NewAlice),
+    Stanzas = [escalus_connection:get_stanza(NewAlice, {msg, 1}),
+               escalus_connection:get_stanza(NewAlice, {msg, 2})],
     escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)], Stanzas),
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice).
@@ -719,9 +647,7 @@ resume_session_state_send_message(Config) ->
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     %% alice comes back and receives unacked message
-    NewAlice = connect_same(Alice, session),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    escalus:assert(is_presence, escalus_connection:get_stanza(NewAlice, presence)),
+    NewAlice = connect_same(Alice, presence),
     %% now we can resume c2s process of the old connection
     %% and let it process session resumption timeout
     ok = rpc(mim(), sys, resume, [C2SPid]),
@@ -796,7 +722,7 @@ unacknowledged_message_hook_resume(Config) ->
 
 unacknowledged_message_hook_resume(AliceSpec, Resource, SMID, _C2SPid) ->
     NewAlice = connect_spec(AliceSpec, {resume, SMID, 1}, manual),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
     {Resource, NewAlice}.
 
 unacknowledged_message_hook_bounce(Config) ->
@@ -806,7 +732,7 @@ unacknowledged_message_hook_bounce(AliceSpec, Resource, _SMID, C2SPid) ->
     NewResource = <<"new_", Resource/binary>>,
     NewSpec = lists:keystore(resource, 1, AliceSpec, {resource, NewResource}),
     NewAlice = connect_spec(NewSpec, sr_session, manual),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
     %% ensure second C2S is registered so all the messages are bounced properly
     wait_for_resource_count(NewAlice, 2),
     ok = rpc(mim(), sys, terminate, [C2SPid, normal]),
@@ -826,7 +752,7 @@ unacknowledged_message_hook_offline(AliceSpec, Resource, _SMID, C2SPid) ->
     %% C2S, but the message sequence is broken (the bounced messages
     %% delivered before the messages from the mod_offline storage)
     wait_for_process_termination(C2SRef),
-    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    send_initial_presence(NewAlice),
     {Resource, NewAlice}.
 
 unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
@@ -947,7 +873,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     C2SPid = mongoose_helper:get_session_pid(Alice),
 
     %% Monitor the C2S process and disconnect Alice.
-    MonitorRef = erlang:monitor(process, C2SPid),
+    MonitorRef = monitor_session(Alice),
     escalus_client:kill_connection(Config, Alice),
 
     %% Ensure the c2s process is waiting for resumption.
@@ -957,14 +883,7 @@ resume_session_kills_old_C2S_gracefully(Config) ->
     NewAlice = connect_resume(Alice, 1),
 
     %% C2S process should die gracefully with Reason=normal.
-    receive
-        {'DOWN', MonitorRef, process, C2SPid, normal} ->
-            ok;
-        Msg ->
-            ct:fail("C2S did not die gracefully. Instead received: ~p", [Msg])
-    after timer:seconds(1) ->
-        ct:fail("Old C2S did not die in time after session resumption.")
-    end,
+    wait_for_process_termination(MonitorRef),
     escalus_connection:stop(NewAlice).
 
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Texts) ->

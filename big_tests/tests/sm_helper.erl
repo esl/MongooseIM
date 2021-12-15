@@ -1,4 +1,4 @@
-%% Session Management helpers
+%% Stream Management helpers
 -module(sm_helper).
 
 -export([client_to_spec0/1,
@@ -16,8 +16,7 @@
          connect_resume/2]).
 
 %% Waiting and introspection helpers
--export([wait_until_disconnected/1,
-         try_to_resume_stream/3,
+-export([try_to_resume_stream/3,
          kill_and_connect_with_resume_session_without_waiting_for_result/1,
          stop_client_and_wait_for_termination/1,
          assert_alive_resources/2,
@@ -180,14 +179,19 @@ connect_resume(Client, SMH) ->
 
 kill_and_connect_with_resume_session_without_waiting_for_result(Alice) ->
     SMH = escalus_connection:get_sm_h(Alice),
-    NewAlice = connect_same(Alice, auth),
+    %% SMID could be anything,
+    %% we would fail anyway because C2S process would be dead when resuming
     SMID = client_to_smid(Alice),
     %% kill alice connection
-    escalus_connection:kill(Alice),
-    %% ensure there is no session
-    wait_until_disconnected(Alice),
+    kill_client_and_wait_for_termination(Alice),
+    NewAlice = connect_same(Alice, auth),
     escalus_connection:send(NewAlice, escalus_stanza:resume(SMID, SMH)),
     NewAlice.
+
+kill_client_and_wait_for_termination(Alice) ->
+    C2SRef = monitor_session(Alice),
+    escalus_connection:kill(Alice),
+    ok = wait_for_process_termination(C2SRef).
 
 stop_client_and_wait_for_termination(Alice) ->
     C2SRef = monitor_session(Alice),
@@ -208,8 +212,7 @@ wait_for_process_termination(MRef) ->
             ok
     after 5000 ->
               ct:fail(wait_for_process_termination_timeout)
-    end,
-    ok.
+    end.
 
 wait_for_queue_length(Pid, Length) ->
     F = fun() ->
@@ -231,9 +234,6 @@ wait_for_c2s_unacked_count(C2SPid, Count) ->
 get_c2s_unacked_count(C2SPid) ->
      Info = rpc(mim(), ejabberd_c2s, get_info, [C2SPid]),
      maps:get(stream_mgmt_buffer_size, Info).
-
-wait_until_disconnected(Client) ->
-    wait_for_resource_count(Client, 0).
 
 wait_for_resource_count(Client, N) ->
     mongoose_helper:wait_until(fun() -> length(get_user_alive_resources(Client)) end,
@@ -280,8 +280,6 @@ wait_for_messages(Alice, Texts) ->
     [escalus:assert(is_chat_message, [Text], Stanza)
      || {Text, Stanza} <- lists:zip(Texts, Stanzas)],
     ok.
-
-assert_same_length(List1, List2) when length(List1) =:= length(List2) -> ok.
 
 get_ack(Client) ->
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Client, ack)).

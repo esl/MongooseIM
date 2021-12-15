@@ -382,8 +382,8 @@ do_wait_until(Fun, #{validator := Validator} = Opts) ->
                      true -> {ok, Value};
                      _ -> wait_and_continue(Fun, Value, Opts)
                  end
-    catch Error:Reason ->
-              wait_and_continue(Fun, {Error, Reason}, Opts)
+    catch Error:Reason:Stacktrace ->
+              wait_and_continue(Fun, {Error, Reason, Stacktrace}, Opts)
     end.
 
 simplify_history([H|[H|_]=T], Times) ->
