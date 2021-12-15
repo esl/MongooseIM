@@ -1,0 +1,11 @@
+"""
+Jabber Identifiers (JIDs) uniquely identify individual entities in the xmpp network.
+"""
+type JID{
+  "The user identifier"
+  user: String
+  "The server identifier"
+  server: String!
+  "The resource identifier"
+  resource: String
+}
