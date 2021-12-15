@@ -22,14 +22,13 @@
          stop_client_and_wait_for_termination/1,
          assert_alive_resources/2,
          get_user_present_resources/1,
-         wait_for_c2s_unacked_count/2,
+         wait_for_queue_length/2,
          wait_for_resource_count/2,
+         wait_for_c2s_unacked_count/2,
          wait_for_process_termination/1,
          process_initial_stanza/1,
          kill_and_connect_resume/1,
-         monitor_session/1,
-         wait_for_process_termination/1,
-         wait_for_queue_length/2]).
+         monitor_session/1]).
 
 %% Stanza helpers
 -export([send_initial_presence/1,
@@ -259,17 +258,6 @@ get_us_from_spec(UserSpec) ->
     U = proplists:get_value(username, UserSpec),
     S = proplists:get_value(server, UserSpec),
     {U, S}.
-
-
-%% Cleaning helpers
-
-clear_session_table() ->
-    Node = ct:get_config({hosts, mim, node}),
-    SessionBackend  = rpc(mim(), ejabberd_sm, sm_backend, []),
-    rpc(mim(), SessionBackend, cleanup, [Node]).
-
-clear_sm_session_table() ->
-    rpc(mim(), mnesia, clear_table, [sm_session]).
 
 
 %% Stanza helpers
