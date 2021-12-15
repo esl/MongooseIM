@@ -9,7 +9,7 @@
 all() ->
     [can_create_endpoint,
      can_load_split_schema,
-     admin_and_user_loads_global_types,
+     admin_and_user_load_global_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, errors_handling}].
@@ -84,7 +84,7 @@ can_load_split_schema(Config) ->
     ?assertMatch(#object_type{id = <<"Query">>}, graphql_schema:get(Ep, <<"Query">>)),
     ?assertMatch(#object_type{id = <<"Mutation">>}, graphql_schema:get(Ep, <<"Mutation">>)).
 
-admin_and_user_loads_global_types(_Config) ->
+admin_and_user_load_global_types(_Config) ->
     mongoose_graphql:init(),
     AdminEp = mongoose_graphql:get_endpoint(admin),
     ?assertMatch(#object_type{id = <<"JID">>}, graphql_schema:get(AdminEp, <<"JID">>)),

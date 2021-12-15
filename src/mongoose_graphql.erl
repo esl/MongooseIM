@@ -88,12 +88,15 @@ execute(Ep, OpName, Doc)  ->
 
 % Internal
 
+-spec schema_global_patterns(file:name_all()) -> [file:filename_all()].
 schema_global_patterns(SchemaDir) ->
-    [schema_pattern(SchemaDir), schema_pattern(global)].
+    [schema_pattern(SchemaDir), schema_pattern("global")].
 
+-spec schema_pattern(file:name_all()) -> file:filename_all().
 schema_pattern(DirName) ->
     schema_pattern(DirName, "*.gql").
 
+-spec schema_pattern(file:name_all(), file:name_all()) -> file:filename_all().
 schema_pattern(DirName, Pattern) ->
     filename:join([code:priv_dir(mongooseim), "graphql/schemas", DirName, Pattern]).
 
