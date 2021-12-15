@@ -484,23 +484,23 @@ preserve_order(Config) ->
     Bob = connect_fresh(Config, bob, presence),
     Alice = connect_fresh(Config, alice, sr_presence),
     AliceSpec = client_to_spec(Alice),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"1">>)),
 
     %% kill alice connection
     escalus_connection:kill(Alice),
     wait_until_disconnected(Alice),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"2">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"3">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"3">>)),
 
     NewAlice = connect_spec(AliceSpec, session),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"4">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"5">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"4">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"5">>)),
 
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"6">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"6">>)),
 
     receive_all_ordered(NewAlice, 1, 6),
 
@@ -538,7 +538,7 @@ resend_unacked_after_resume_timeout(Config) ->
     Alice = connect_fresh(Config, alice, sr_presence),
     AliceSpec = client_to_spec(Alice),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     %% kill alice connection
     escalus_connection:kill(Alice),
 
@@ -560,7 +560,7 @@ resume_expired_session_returns_correct_h(Config) ->
     Bob = connect_fresh(Config, bob, sr_presence),
     Alice = connect_fresh(Config, alice, sr_presence),
     %% Bob sends a message to Alice, and Alice receives it but doesn't acknowledge
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     escalus:wait_for_stanza(Alice),
     %% alice comes back, but too late, so resumption doesn't work,
     %% but she receives the previous h = 1 anyway
@@ -596,7 +596,7 @@ resume_session_state_send_message(Config) ->
     Alice = connect_fresh(Config, alice, sr_presence, manual),
     ack_initial_presence(Alice),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
@@ -604,8 +604,8 @@ resume_session_state_send_message(Config) ->
     assert_alive_resources(Alice, 1),
 
     %% send some messages and check if c2s can handle it
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-2">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-3">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-3">>)),
     %% suspend the process to ensure that Alice has enough time to reconnect,
     %% before resumption timeout occurs.
     ok = rpc(mim(), sys, suspend, [C2SPid]),
@@ -636,7 +636,7 @@ resume_session_state_stop_c2s(Config) ->
     get_ack(Alice),
     ack_initial_presence(Alice),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     escalus:assert(is_chat_message, [<<"msg-1">>], escalus_connection:get_stanza(Alice, msg)),
 
     %% get pid of c2s
@@ -739,8 +739,8 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
 
     SMID = client_to_smid(Alice),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-1">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-2">>)),
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
     escalus_connection:kill(Alice),
@@ -752,8 +752,8 @@ unacknowledged_message_hook_common(RestartConnectionFN, Config) ->
     ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
 
     %% send some messages and check if c2s can handle it
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-3">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(Alice, <<"msg-4">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-3">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-4">>)),
     escalus:assert(is_chat_message, [<<"msg-3">>], wait_for_unacked_msg_hook(0, Resource, 100)),
     escalus:assert(is_chat_message, [<<"msg-4">>], wait_for_unacked_msg_hook(0, Resource, 100)),
     ?assertEqual(timeout, wait_for_unacked_msg_hook(0, Resource, 100)),
