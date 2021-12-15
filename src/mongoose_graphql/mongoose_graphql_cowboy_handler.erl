@@ -58,9 +58,15 @@ charsets_provided(Req, State) ->
     {[<<"utf-8">>], Req, State}.
 
 is_authorized(Req, State) ->
-    Auth = cowboy_req:parse_header(<<"authorization">>, Req),
-    State2 = check_auth(Auth, State),
-    {true, Req, State2}.
+    try cowboy_req:parse_header(<<"authorization">>, Req) of
+        Auth ->
+            State2 = check_auth(Auth, State),
+            {true, Req, State2}
+    catch
+        exit:Err ->
+            Msg = #{phase => authorize, error_term => Err},
+            reply_error(400, Msg, Req, State)
+    end.
 
 resource_exists(#{method := <<"GET">>} = Req, State) ->
     {true, Req, State};
@@ -179,15 +185,7 @@ operation_name([]) ->
     undefined.
 
 reply_error(Code, Msg, Req, State) ->
-    Errors =
-        case Msg of
-            {error, E} ->
-                graphql_err:format_errors(#{}, [E]);
-            _ ->
-                Formatted = iolist_to_binary(io_lib:format("~p", [Msg])),
-                [#{type => error, message => Formatted}]
-            end,
-
+    Errors = mongoose_graphql_errors:format_error(Msg),
     Body = jiffy:encode(#{errors => Errors}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),

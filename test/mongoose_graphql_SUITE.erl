@@ -150,13 +150,13 @@ unauth_cannot_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"{ field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertEqual({error, no_permissions}, Res).
+    ?assertMatch({error, #{error_term := {no_permissions, <<"ROOT">>}}}, Res).
 
 unauth_cannot_execute_protected_mutation(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"mutation { field }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertEqual({error, no_permissions}, Res).
+    ?assertMatch({error, #{error_term := {no_permissions, <<"ROOT">>}}}, Res).
 
 unauth_can_access_introspection(Config) ->
     Ep = ?config(endpoint, Config),

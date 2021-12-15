@@ -104,8 +104,8 @@ graphql_parse(Doc) ->
     case graphql:parse(Doc) of
         {ok, _} = Ok ->
             Ok;
-        {error, _} = Err ->
-            throw(Err)
+        {error, Err} ->
+            graphql_err:abort([], parse, Err)
     end.
 
 admin_mapping_rules() ->
