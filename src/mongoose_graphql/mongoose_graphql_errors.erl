@@ -54,6 +54,8 @@ err_msg(authorize, Result) ->
 
 authorize_err_msg({request_error, {header, <<"authorization">>}, _}) ->
     "Malformed authorization header. Please consult the relevant specification";
+authorize_err_msg(wrong_credentials) ->
+    "The provided credentials are wrong";
 authorize_err_msg({no_permissions, Op}) ->
     io_lib:format("Cannot execute query ~s without permissions", [Op]).
 

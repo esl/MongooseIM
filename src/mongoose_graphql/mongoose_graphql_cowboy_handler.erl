@@ -60,8 +60,13 @@ charsets_provided(Req, State) ->
 is_authorized(Req, State) ->
     try cowboy_req:parse_header(<<"authorization">>, Req) of
         Auth ->
-            State2 = check_auth(Auth, State),
-            {true, Req, State2}
+            case check_auth(Auth, State) of
+                {ok, State2} ->
+                    {true, Req, State2};
+                error ->
+                    Msg = make_error(authorize, wrong_credentials),
+                    reply_error(401, Msg, Req, State)
+            end
     catch
         exit:Err ->
             reply_error(400, make_error(authorize, Err), Req, State)
@@ -97,19 +102,21 @@ check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
 
 auth_user({basic, User, Password}, State) ->
     case mongoose_api_common:check_password(jid:from_binary(User), Password) of
-        {true, _} -> State#{authorized => true, schema_ctx => #{username => User}};
-        _ ->  State#{authorized => false}
+        {true, _} -> {ok, State#{authorized => true, schema_ctx => #{username => User}}};
+        _ -> error
     end;
 auth_user(_, State) ->
-    State#{authorized => false}.
+    {ok, State#{authorized => false}}.
 
 auth_admin({basic, Username, Password}, #{username := Username, password := Password} = State) ->
-    State#{authorized => true};
+    {ok, State#{authorized => true}};
+auth_admin({basic, _, _}, _) ->
+    error;
 auth_admin(_, #{username := _, password := _} = State) ->
-    State#{authorized => false};
+    {ok, State#{authorized => false}};
 auth_admin(_, State) ->
     % auth credentials not provided in config
-    State#{authorized => true}.
+    {ok, State#{authorized => true}}.
 
 run_request(#{document := undefined}, Req, State) ->
     reply_error(400, make_error(decode, no_query_supplied), Req, State);
