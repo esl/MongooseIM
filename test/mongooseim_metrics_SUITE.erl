@@ -116,9 +116,18 @@ up_time_positive(_C) ->
     ?assert(X > 0).
 
 function_ensure_subscribed_metric_subscribes(_C) ->
-    Metric = [cool_metric],
-    mongoose_metrics:ensure_subscribed_metric(global, Metric, spiral),
-    ct:fail(exometer_reporter:list_subscriptions(exometer_report_graphite)).
+    SubMetric = [happy_metric],
+    UnsubMetric = [sad_metric],
+    mongoose_metrics:ensure_subscribed_metric(global, SubMetric, spiral),
+    mongoose_metrics:ensure_metric(global, UnsubMetric, spiral),
+    Subs = exometer_report:list_subscriptions(exometer_report_graphite),
+    try
+        true = lists:keymember([global|SubMetric], 1, Subs),
+        false = lists:keymember([global|UnsubMetric], 1, Subs)
+    catch C:E:S ->
+              ct:pal("Subs ~p", [Subs]),
+              erlang:raise(C, E, S)
+    end.
 
 get_new_tcp_metric_value(OldValue) ->
     Validator = fun(NewValue) -> OldValue =/= NewValue end,
