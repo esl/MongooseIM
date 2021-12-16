@@ -31,7 +31,6 @@
 {mod_vcard, "  host = \"vjud.@HOST@\"\n"}.
 {sm_backend, "\"mnesia\""}.
 {auth_method, "internal"}.
-{cyrsasl_external, "\"standard\""}.
 {tls_config, "tls.certfile = \"priv/ssl/fake_server.pem\"
   tls.mode = \"starttls\""}.
 {https_config, "tls.certfile = \"priv/ssl/fake_cert.pem\"

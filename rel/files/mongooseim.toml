@@ -168,7 +168,9 @@
   {{#scram_iterations}}
   scram_iterations = {{{scram_iterations}}}
   {{/scram_iterations}}
+  {{#cyrsasl_external}}
   sasl_external = [{{{cyrsasl_external}}}]
+  {{/cyrsasl_external}}
   {{#sasl_mechanisms}}
   sasl_mechanisms = [{{{sasl_mechanisms}}}]
   {{/sasl_mechanisms}}
