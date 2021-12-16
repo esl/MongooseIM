@@ -493,6 +493,9 @@ resend_unacked_on_reconnection(Config) ->
     %% to the offline store.
     escalus_connection:send(NewAlice, escalus_stanza:sm_ack(3)).
 
+%% Remove wait_for_n_offline_messages and you will get anything, but preserve_order
+%% TODO Test without wait_for_n_offline_messages. It would require changes in SM
+%%      and more strict tests, reproducing delays in SM and in mod_offline.
 preserve_order(Config) ->
     %% connect bob and alice
     Bob = connect_fresh(Config, bob, presence),
@@ -514,10 +517,16 @@ preserve_order(Config) ->
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"4">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"5">>)),
 
+    %% Without this check we will get stuff out of order
+    mongoose_helper:wait_for_n_offline_messages(NewAlice, 5),
+
     send_initial_presence(NewAlice),
+    %% Without this check we can get "6, 1, 2, 3, 4, 5" messages in the next receive_all_ordered
+    mongoose_helper:wait_for_n_offline_messages(NewAlice, 0),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"6">>)),
 
-    receive_all_ordered(NewAlice, 1, 6),
+    %% "2, 3, 4, 5, 6, 1" is possible (where only 1 is from offline storage, the rest is from sm)
+    receive_all_ordered(NewAlice, 6),
 
     % replace connection
     NewAlice2 = connect_spec(AliceSpec, session, manual),
@@ -527,25 +536,30 @@ preserve_order(Config) ->
     send_initial_presence(NewAlice2),
 
     % receves messages in correct order
-    receive_all_ordered(NewAlice2, 1, 6),
+    receive_all_ordered(NewAlice2, 6),
 
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice2).
 
-%% Receive messages from N to Last
-receive_all_ordered(_Conn, N, Last) when N > Last ->
-    ok;
-receive_all_ordered(Conn, N, Last) ->
-    %% Ignores acks and presences
-    Stanza = escalus_connection:get_stanza(Conn, {msg, N}),
-    NN = case Stanza#xmlel.name of
-             <<"message">> ->
-                 escalus:assert(is_chat_message, [integer_to_binary(N)], Stanza),
-                 N + 1;
-             _ ->
-                 N
-         end,
-    receive_all_ordered(Conn, NN, Last).
+receive_all_ordered(Conn, Last) ->
+    receive_all_ordered(Conn, 1, Last, []).
+
+%% Receive messages from N to Last.
+%% Ignores acks and presences.
+%% Handles case when out of order and when not enough stanzas.
+receive_all_ordered(_Conn, N, Last, Acc) when N > Last ->
+    Texts = lists:map(fun integer_to_binary/1, lists:seq(1, Last)),
+    sm_helper:assert_messages(Acc, Texts);
+receive_all_ordered(Conn, N, Last, Acc) ->
+    Stanzas = escalus:wait_for_stanzas(Conn, 1),
+    case Stanzas of
+        [#xmlel{name = <<"message">>}] ->
+            receive_all_ordered(Conn, N + 1, Last, Acc ++ Stanzas);
+        [_] -> %% Ack or presence
+            receive_all_ordered(Conn, N, Last, Acc);
+        [] ->
+            ct:fail({timeout_waiting, N, Acc})
+    end.
 
 resend_unacked_after_resume_timeout(Config) ->
     %% connect bob and alice

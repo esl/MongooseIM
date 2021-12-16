@@ -114,22 +114,3 @@ is_ct_started() ->
 
 groups_to_all(Groups) ->
     [{group, Name} || {Name, _Opts, _Cases} <- Groups].
-<<<<<<< HEAD
-
-%% Module needs to be compiled with export_helper
-make_groups(Module) ->
-    Info = Module:groups_info(),
-    [prepare_group(GroupAndCases) || GroupAndCases <- Info].
-
-prepare_group({Group, Cases}) ->
-    {Group, group_name_to_props(Group), Cases}.
-
-group_name_to_props(Group) ->
-    case lists:prefix("parallel", atom_to_list(Group)) of
-        true ->
-            [parallel];
-        false ->
-            []
-    end.
-=======
->>>>>>> c9bce834d... x

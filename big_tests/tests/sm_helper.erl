@@ -33,6 +33,7 @@
 -export([send_initial_presence/1,
          send_messages/3,
          wait_for_messages/2,
+         assert_messages/2,
          get_ack/1,
          ack_initial_presence/1]).
 
@@ -276,10 +277,18 @@ send_messages(Bob, Alice, Texts) ->
 
 wait_for_messages(Alice, Texts) ->
     Stanzas = escalus:wait_for_stanzas(Alice, length(Texts)),
+    assert_messages(Stanzas, Texts).
+
+assert_messages(Stanzas, Texts) ->
     assert_same_length(Stanzas, Texts),
-    [escalus:assert(is_chat_message, [Text], Stanza)
-     || {Text, Stanza} <- lists:zip(Texts, Stanzas)],
-    ok.
+    Checks = [escalus_pred:is_chat_message(Text, Stanza)
+              || {Text, Stanza} <- lists:zip(Texts, Stanzas)],
+    case lists:usort(Checks) of
+        [true] ->
+            ok;
+        _ ->
+            ct:fail({assert_messages_failed, Checks, Stanzas, Texts})
+    end.
 
 get_ack(Client) ->
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Client, ack)).
