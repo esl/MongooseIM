@@ -5,7 +5,10 @@
 
 -ignore_xref([format_error/1, err/2, crash/2]).
 
+-type err_msg() :: #{message := binary(), extensions => map(), path => list()}.
+
 %% callback invoked when resolver returns error tuple
+-spec err(map(), term()) -> err_msg().
 err(_Ctx, domain_not_found) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => resolver_error}};
 err(_Ctx, ErrorTerm) ->
@@ -13,11 +16,13 @@ err(_Ctx, ErrorTerm) ->
       extensions => #{code => resolver_error}}.
 
 %% callback invoked when resolver crashes
+-spec crash(map(), term()) -> err_msg().
 crash(_Ctx, #{type := Type}) ->
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
 
 %% @doc Format error that occurred in any phase including HTTP request decoding.
+-spec format_error(term())-> {integer(), err_msg()}.
 format_error(#{phase := Phase, error_term := Term}) when Phase =:= authorize;
                                                          Phase =:= decode;
                                                          Phase =:= parse ->
@@ -28,7 +33,12 @@ format_error(#{error_term := _, phase := Phase} = Err) when Phase =:= execute;
                                                             Phase =:= type_check;
                                                             Phase =:= validate;
                                                             Phase =:= uncategorized ->
-    {400, graphql:format_errors(#{}, [Err])};
+    [ErrMsg] = graphql:format_errors(#{}, [Err]),
+    {400, ErrMsg};
+format_error(internal_crash) ->
+    Msg = #{message => <<"GraphQL Internal Server Error">>,
+            extensions => #{code => internal_server_error}},
+    {500, Msg};
 format_error(Err) ->
     Msg = #{extensions => #{code => uncathegorized},
             message => iolist_to_binary(io_lib:format("~p", [Err]))},

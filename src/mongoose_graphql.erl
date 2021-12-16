@@ -72,7 +72,13 @@ execute(Ep, #{document := Doc,
         {ok, graphql:execute(Ep, Ctx2, Ast2)}
     catch
         throw:{error, Err} ->
-            {error, Err}
+            {error, Err};
+        Class:Reason:Stacktrace ->
+            Err = #{what => graphql_internal_crash,
+                    class => Class, reason => Reason,
+                    stacktrace => Stacktrace},
+            ?LOG_ERROR(Err),
+            {error, internal_crash}
     end.
 
 %% @doc Execute selected operation on a given endpoint with authorization.
