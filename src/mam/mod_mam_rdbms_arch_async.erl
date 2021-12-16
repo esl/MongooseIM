@@ -72,7 +72,7 @@ add_callback(muc, Opts) ->
 defaults() ->
     #{flush_interval => 2000,
       batch_size => 30,
-      pool_size => 2 * erlang:system_info(schedulers_online)}.
+      pool_size => 4 * erlang:system_info(schedulers_online)}.
 
 prepare_insert_queries(pm, Opts) ->
     MaxSize = gen_mod:get_opt(batch_size, Opts, 30),

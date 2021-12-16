@@ -84,7 +84,7 @@ gen_pool_name(HostType, PoolId) ->
 make_wpool_opts(HostType, PoolId, Opts) ->
     Interval = gen_mod:get_opt(flush_interval, Opts, 1000),
     MaxSize = gen_mod:get_opt(batch_size, Opts, 100),
-    NumWorkers = gen_mod:get_opt(pool_size, Opts, 2 * erlang:system_info(schedulers_online)),
+    NumWorkers = gen_mod:get_opt(pool_size, Opts, 4 * erlang:system_info(schedulers_online)),
     FlushCallback = gen_mod:get_opt(flush_callback, Opts),
     FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],
