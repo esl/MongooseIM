@@ -280,15 +280,18 @@ wait_for_messages(Alice, Texts) ->
     assert_messages(Stanzas, Texts).
 
 assert_messages(Stanzas, Texts) ->
-    assert_same_length(Stanzas, Texts),
-    Checks = [escalus_pred:is_chat_message(Text, Stanza)
-              || {Text, Stanza} <- lists:zip(Texts, Stanzas)],
-    case lists:usort(Checks) of
-        [true] ->
+    Bodies = lists:map(fun get_body/1, Stanzas),
+    case Bodies of
+        Texts ->
             ok;
         _ ->
-            ct:fail({assert_messages_failed, Checks, Stanzas, Texts})
+            ct:fail({assert_messages_failed, Stanzas,
+                     {expected, Texts},
+                     {received, Bodies}})
     end.
+
+get_body(Stanza) ->
+      exml_query:path(Stanza, [{element, <<"body">>}, cdata]).
 
 get_ack(Client) ->
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Client, ack)).
