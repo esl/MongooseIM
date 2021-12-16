@@ -1,9 +1,9 @@
 %% @doc Implements callbacks that format custom errors returned from resolvers or crashes. 
 -module(mongoose_graphql_errors).
 
--export([format_error/1, format_errors/1, err/2, crash/2]).
+-export([format_error/1, err/2, crash/2]).
 
--ignore_xref([format_error/1, format_errors/1, err/2, crash/2]).
+-ignore_xref([format_error/1, err/2, crash/2]).
 
 %% callback invoked when resolver returns error tuple
 err(_Ctx, domain_not_found) ->
@@ -17,26 +17,29 @@ crash(_Ctx, #{type := Type}) ->
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
 
-%% @doc Format errors that occured in any phase.
-format_errors(Errors) ->
-    [format_error(E) || E <- Errors].
-
 %% @doc Format error that occurred in any phase including HTTP request decoding.
 format_error(#{phase := Phase, error_term := Term}) when Phase =:= authorize;
                                                          Phase =:= decode;
                                                          Phase =:= parse ->
-    #{extensions => #{code => err_code(Phase, Term)},
-      message => iolist_to_binary(err_msg(Phase, Term))};
+    Msg = #{extensions => #{code => err_code(Phase, Term)},
+            message => iolist_to_binary(err_msg(Phase, Term))},
+    {err_http_code(Phase), Msg};
 format_error(#{error_term := _, phase := Phase} = Err) when Phase =:= execute;
                                                             Phase =:= type_check;
                                                             Phase =:= validate;
                                                             Phase =:= uncategorized ->
-    graphql:format_errors(#{}, [Err]);
+    {400, graphql:format_errors(#{}, [Err])};
 format_error(Err) ->
-    #{extensions => #{code => uncathegorized},
-      message => iolist_to_binary(io_lib:format("~p", [Err]))}.
+    Msg = #{extensions => #{code => uncathegorized},
+            message => iolist_to_binary(io_lib:format("~p", [Err]))},
+    {400, Msg}.
 
 %% Internal
+
+err_http_code(authorize) ->
+    401;
+err_http_code(_) ->
+    400.
 
 err_code(_, Term) ->
     simplify(Term).

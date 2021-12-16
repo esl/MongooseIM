@@ -65,11 +65,11 @@ is_authorized(Req, State) ->
                     {true, Req, State2};
                 error ->
                     Msg = make_error(authorize, wrong_credentials),
-                    reply_error(401, Msg, Req, State)
+                    reply_error(Msg, Req, State)
             end
     catch
         exit:Err ->
-            reply_error(400, make_error(authorize, Err), Req, State)
+            reply_error(make_error(authorize, Err), Req, State)
     end.
 
 resource_exists(#{method := <<"GET">>} = Req, State) ->
@@ -85,7 +85,7 @@ to_html(Req, #{index_location := {priv_file, App, FileLocation}} = State) ->
 json_request(Req, State) ->
     case gather(Req) of
         {error, Reason} ->
-            reply_error(400, Reason, Req, State);
+            reply_error(Reason, Req, State);
         {ok, Req2, Decoded} ->
             run_request(Decoded, Req2, State)
     end.
@@ -119,7 +119,7 @@ auth_admin(_, State) ->
     {ok, State#{authorized => true}}.
 
 run_request(#{document := undefined}, Req, State) ->
-    reply_error(400, make_error(decode, no_query_supplied), Req, State);
+    reply_error(make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
     Ep = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
@@ -132,7 +132,7 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
             Reply = cowboy_req:reply(200, Req2),
             {stop, Reply, State};
         {error, Reason} ->
-            reply_error(400, Reason, Req, State)
+            reply_error(Reason, Req, State)
     end.
 
 gather(Req) ->
@@ -193,8 +193,8 @@ operation_name([]) ->
 make_error(Phase, Term) ->
     #{error_term => Term, phase => Phase}.
 
-reply_error(Code, Msg, Req, State) ->
-    Error = mongoose_graphql_errors:format_error(Msg),
+reply_error(Msg, Req, State) ->
+    {Code, Error} = mongoose_graphql_errors:format_error(Msg),
     Body = jiffy:encode(#{errors => [Error]}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
