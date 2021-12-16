@@ -27,7 +27,8 @@ all_metrics_list() ->
      tcp_connections_detected,
      tcp_metric_varies_with_tcp_variations,
      up_time_positive,
-     queued_messages_increase
+     queued_messages_increase,
+     function_ensure_subscribed_metric_subscribes
     ].
 
 init_per_suite(C) ->
@@ -113,6 +114,11 @@ end_per_testcase(_N, C) ->
 up_time_positive(_C) ->
     {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
     ?assert(X > 0).
+
+function_ensure_subscribed_metric_subscribes(_C) ->
+    Metric = [cool_metric],
+    mongoose_metrics:ensure_subscribed_metric(global, Metric, spiral),
+    ct:fail(exometer_reporter:list_subscriptions(exometer_report_graphite)).
 
 get_new_tcp_metric_value(OldValue) ->
     Validator = fun(NewValue) -> OldValue =/= NewValue end,
