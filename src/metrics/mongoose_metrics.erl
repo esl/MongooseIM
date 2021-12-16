@@ -56,7 +56,7 @@
 -type use_or_skip() :: use | skip.
 -type hook_name() :: atom().
 -type metric_name() :: atom() | list(atom() | binary()).
--type short_metric_type() :: spiral | histogram | counter.
+-type short_metric_type() :: spiral | histogram | counter | gauge.
 -type metric_type() :: tuple() | short_metric_type().
 -type host_type_or_global() :: mongooseim:host_type() | global.
 
