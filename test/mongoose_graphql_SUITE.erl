@@ -7,7 +7,7 @@
 -include_lib("graphql/src/graphql_schema.hrl").
 
 -define(assertPermissionsFailed(Config, Doc),
-        ?assertThrow({error, no_permissions},
+        ?assertThrow({error, #{error_term := {no_permissions, _}}},
                      check_permissions(Config, Doc))).
 -define(assertPermissionsSuccess(Config, Doc),
         ?assertMatch(ok, check_permissions(Config, Doc))).

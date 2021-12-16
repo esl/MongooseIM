@@ -1133,7 +1133,7 @@ can_handle_execution_error(Config) ->
     Res = mongooseimctl("graphql", [Query], Config),
     ?assertMatch({_, 0}, Res),
     Data = element(1, Res),
-    ?assertNotEqual(nomatch, string:find(Data, "{error,{parser_error")).
+    ?assertNotEqual(nomatch, string:find(Data, "parser_error")).
 
 graphql_wrong_arguments_number(Config) ->
     ExpectedFragment = "This command requires",

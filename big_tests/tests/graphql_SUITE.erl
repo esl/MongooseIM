@@ -30,7 +30,8 @@ admin_handler() ->
     [auth_admin_can_access_protected_types | common_tests()].
 
 common_tests() ->
-    [wrong_creds_cannot_access_protected_types,
+    [malformed_auth_header_error,
+     wrong_creds_cannot_access_protected_types,
      unauth_cannot_access_protected_types,
      unauth_can_access_unprotected_types,
      can_execute_query_with_variables,
@@ -86,7 +87,7 @@ unauth_cannot_access_protected_types(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, undefined),
-    assert_no_permissions(Status, Data).
+    assert_no_permissions(no_permissions, Status, Data).
 
 unauth_can_access_unprotected_types(Config) ->
     Ep = ?config(schema_endpoint, Config),
@@ -98,7 +99,19 @@ wrong_creds_cannot_access_protected_types(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {<<"user">>, <<"wrong_password">>}),
-    assert_no_permissions(Status, Data).
+    assert_no_permissions(wrong_credentials, Status, Data).
+
+malformed_auth_header_error(Config) ->
+    EpName = ?config(schema_endpoint, Config),
+    Request =
+      #{port => get_port(EpName),
+        role => {graphql, atom_to_binary(EpName)},
+        method => <<"POST">>,
+        headers => [{<<"Authorization">>, <<"Basic YWRtaW46c2VjcmV">>}],
+        return_maps => true,
+        path => "/graphql"},
+    {Status, Data} = rest_helper:make_request(Request),
+    assert_no_permissions(request_error, Status, Data).
 
 auth_user_can_access_protected_types(Config) ->
     escalus:fresh_story(
@@ -170,9 +183,9 @@ assert_code(Code, Data) ->
     BinCode = atom_to_binary(Code),
     ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
 
-assert_no_permissions(Status, Data) ->
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := <<"no_permissions">>}}]}, Data).
+assert_no_permissions(ExpectedCode, Status, Data) ->
+    ?assertEqual({<<"401">>,<<"Unauthorized">>}, Status),
+    assert_code(ExpectedCode, Data).
 
 assert_access_granted(Status, Data) ->
     ?assertEqual({<<"200">>,<<"OK">>}, Status),
