@@ -1,4 +1,4 @@
-The `auth` section is used to choose and configure the **methods** which are used by MongooseIM to authenticate connecting users.
+The `auth` section is used to choose and configure the **method** which is used by MongooseIM to authenticate connecting users.
 The following methods are supported:
 
 * `internal` - stores the user accounts in an internal Mnesia database,
@@ -12,23 +12,31 @@ The following methods are supported:
 * [`pki`](../authentication-methods/pki.md) - uses the certificate provided by the user to authenticate them,
 * [`dummy`](../authentication-methods/dummy.md) - no authentication, only for development and testing.
 
-To enable user connections, you need to set up at least one of the methods listed above (see `auth.methods` below).
-Some methods have more complex setup procedures - the method names above are links to their descriptions,
-which list their specific configuration options. The general options are described below.
+To allow the users to connect, you need to choose the authentication method from the list above and enable it by adding a corresponding section. For example, the default configuration file has the `[auth.internal]` section, which enables the `internal` method, using the internal Mnesia database to store users and their passwords. However, for production systems other methods like `rdbms` are recommended, as using an external database offers easier maintenance, flexibility, scalability and configurability in a typical setup. Some methods have more complex setup procedures and have their own specific options - the method names above are links to their descriptions. There are some general authentication options as well, which are described below.
+
+!!! Warning
+    Make sure that the compatible SASL mechanisms are enabled, see [capabilities](#authentication-method-capabilities).
 
 ## General Options
 
-The options listed here are used to configure the authentication methods.
+The options listed here affect more than one configuration method.
 
 ### `auth.methods`
 * **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
 * **Default:** not set
 * **Example:** `methods = ["internal", "anonymous"]`
 
-Specifies the methods used to authenticate connecting users. Methods from the list are queried one after another until one of them replies positively. By default there are no methods, so nobody can authenticate.
+It is possible to enable more than one method - they are queried one by one in the alphabetical order until one of them succeeds or there are no more methods. You can change the default order by using this option. Make sure that all methods from the list have their corresponding sections included in the `auth` section, e.g.
 
-!!! Warning
-    Make sure that the compatible SASL mechanisms are enabled, see [capabilities](#authentication-method-capabilities).
+```toml
+[auth]
+  methods = ["internal", "dummy"]
+
+  [auth.internal]
+
+  [auth.dummy]
+    variance = 1000
+```
 
 ### `auth.sasl_mechanisms`
 * **Syntax:** array of strings. Allowed values: `"scram_sha512_plus"`, `"scram_sha512"`, `"scram_sha384_plus"`, `"scram_sha384"`, `"scram_sha256_plus"`, `"scram_sha256"`, `"scram_sha224_plus"`, `"scram_sha224"`, `"scram_sha1_plus"`, `"scram_sha1"`, `"plain"`, `"anonymous"`, `"oauth"`, `"external"`, `"digest"`
@@ -38,8 +46,8 @@ Specifies the methods used to authenticate connecting users. Methods from the li
 Specifies the list of allowed SASL mechanisms, which are announced during stream negotiation and eventually enforced (users can't pick a mechanism not listed here).
 
 !!! Notes
-    
-    * This list is still filtered by [capabilities](#authentication-method-capabilities).
+
+    * This list is still filtered by [capabilities](#authentication-method-capabilities). For example, if you use the `internal` method, only the `PLAIN`, `DIGEST-MD5` and `SCRAM-SHA-*` mechanisms from the list will be supported. If there are no compatible mechanisms on the list, the users will not be able to authenticate.
     * Configuring the `sasl_mechanisms` replaces the default list entirely.
     * The order in which the mechanisms are listed in the config will be taken as the order in which they are advertised.
     * All `SCRAM-SHA-*` mechanisms (specified as `scram_sha*`) have their counterparts which support channel binding and are advertised as separate authentication mechanisms suffixed by `-PLUS` (specified as `scram_sha*_plus`).
@@ -60,6 +68,7 @@ The table below shows the supported SASL mechanisms (columns) for each authentic
 | riak      |   x   |   x    |     x      |           |          |
 | http      |   x   |   x    |     x      |           |          |
 | pki       |       |        |            |           |    x     |
+| dummy     |   x   |        |            |           |          |
 
 ### `auth.sasl_external`
 * **Syntax:** list of strings, allowed values: `"standard"`, `"common_name"`, `"auth_id"`
@@ -99,9 +108,12 @@ MongooseIM supports SHA-1, SHA-224, SHA-256, SHA-384 and SHA-512 for SCRAM hashi
 You can use this option to limit the supported hash functions by listing them explicitly.
 The value `"sha"` stands for the SHA-1 algorithm.
 
+!!! Warning
+    This option limits the supported `SCRAM-SHA-*` SASL mechanisms to the ones compatible with the specified hash functions.
+
 ### `auth.scram_iterations`
 * **Syntax:** positive integer
-* **Default:** 10000,  as recommended in this [XEP](https://xmpp.org/extensions/xep-0438.html#pbkdf2) and this [NIST Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html#sec5)
+* **Default:** 10000, as recommended in this [XEP](https://xmpp.org/extensions/xep-0438.html#pbkdf2) and this [NIST Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html#sec5)
 * **Example:** `scram_iterations = 20_000`
 
 Hash function round count.
@@ -111,18 +123,25 @@ But it adds load on both client and server, so this parameter should be tuned as
 Note that increasing the security of a password has a higher impact over the security of the algorithm, without impacting its load.
 See more information in this [NIST guide, Appendix A.2.2](https://csrc.nist.gov/publications/detail/sp/800-132/final)
 
-## Example
+## Examples
 
-This minimal authentication setup uses the internal Mnesia database to store users and their passwords:
+Internal authentication method without any general options - you can skip the `auth` section in this case:
+
+```toml
+[auth.internal]
+```
+
+Internal authentication method with some general options:
 
 ```toml
 [auth]
-  methods = ["internal"]
+  password.hash = ["sha512"]
+  scram_iterations = 20000
+
+  [auth.internal]
 ```
 
-According to the [capabilities](#authentication-method-capabilities) of the `internal` method, the `PLAIN`, `DIGEST-MD5` and `SCRAM-SHA-*` mechanisms will be supported.
-
-However, for production systems other methods like `rdbms` are recommended, as using an external database offers easier maintenance, flexibility, scalability and configurability in a typical setup.
+For more specific examples, see the links below.
 
 ## Method-specific options
 

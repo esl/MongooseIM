@@ -140,10 +140,7 @@ Specifies whether or not to dereference aliases: `finding` means to dereference 
 ### Example
 
 ```toml
-[auth]
-  methods = ["ldap"]
-
-  [auth.ldap]
-    base = "ou=Users,dc=example,dc=com"
-    filter = "(objectClass=inetOrgPerson)"
+[auth.ldap]
+  base = "ou=Users,dc=example,dc=com"
+  filter = "(objectClass=inetOrgPerson)"
 ```

@@ -23,11 +23,8 @@ Optional HTTP Basic Authentication in format `"username:password"` - used to aut
 Authentication:
 
 ```toml
-[auth]
-  methods = ["http"]
-
-  [auth.http]
-    basic_auth = "mongooseim:DzviNQw3qyGJDrJDu+ClyA"
+[auth.http]
+  basic_auth = "mongooseim:DzviNQw3qyGJDrJDu+ClyA"
 ```
 
 Outgoing pools:

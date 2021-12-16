@@ -25,10 +25,7 @@ Specifies the SASL mechanisms supported by the `anonymous` authentication method
 ### Example
 
 ```toml
-[auth]
-  methods = ["anonymous"]
-
-  [auth.anonymous]
-    allow_multiple_connections = true
-    protocol = "both"
+[auth.anonymous]
+  allow_multiple_connections = true
+  protocol = "both"
 ```

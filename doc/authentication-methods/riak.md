@@ -20,11 +20,8 @@ Bucket type for storing users in Riak.
 Authentication:
 
 ```toml
-[auth]
-  methods = ["riak"]
-
-  [auth.riak]
-    bucket_type = "user"
+[auth.riak]
+  bucket_type = "user"
 ```
 
 Outgoing pools:
