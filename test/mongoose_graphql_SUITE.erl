@@ -12,6 +12,9 @@
 -define(assertPermissionsSuccess(Config, Doc),
         ?assertMatch(ok, check_permissions(Config, Doc))).
 
+-define(assertErrMsg(Code, MsgContains, ErrorMsg),
+        assert_err_msg(Code, MsgContains, ErrorMsg)).
+
 all() ->
     [can_create_endpoint,
      can_load_split_schema,
@@ -19,12 +22,14 @@ all() ->
      {group, unprotected_graphql},
      {group, protected_graphql},
      {group, error_handling},
+     {group, error_formatting},
      {group, permissions}].
 
 groups() ->
     [{protected_graphql, [parallel], protected_graphql()},
      {unprotected_graphql, [parallel], unprotected_graphql()},
      {error_handling, [parallel], error_handling()},
+     {error_formatting, [parallel], error_formatting()},
      {permissions, [parallel], permissions()}].
 
 protected_graphql() ->
@@ -45,6 +50,17 @@ error_handling() ->
     [should_catch_parsing_errors,
      should_catch_type_check_params_errors,
      should_catch_type_check_errors].
+
+error_formatting() ->
+    [format_internal_crash,
+     format_parse_errors,
+     format_decode_errors,
+     format_authorize_error,
+     format_validate_error,
+     format_type_check_error,
+     format_execute_error,
+     format_uncategorized_error,
+     format_any_error].
 
 permissions() ->
     [check_object_permissions,
@@ -291,7 +307,87 @@ check_union_permissions(Config) ->
     ?assertPermissionsFailed(Config, FDoc),
     ?assertPermissionsFailed(Config, FDoc2).
 
+format_internal_crash(_Config) ->
+    {Code, Res} = mongoose_graphql_errors:format_error(internal_crash),
+    ?assertEqual(500, Code),
+    ?assertMatch(#{extensions := #{code := internal_server_error}}, Res).
+
+format_parse_errors(_Config) ->
+    ParserError = make_error(parse, {parser_error, {0, graphql_parser, "parser_error_msg"}}),
+    ScannerError = make_error(parse, {scanner_error,
+                                      {0, graphql_scanner, {illegal, "illegal_characters"}}}),
+    ScannerError2 = make_error(parse, {scanner_error,
+                                      {0, graphql_scanner, {user, "user_scanner_err"}}}),
+
+    {400, ResParser} = mongoose_graphql_errors:format_error(ParserError),
+    {400, ResScanner} = mongoose_graphql_errors:format_error(ScannerError),
+    {400, ResScanner2} = mongoose_graphql_errors:format_error(ScannerError2),
+    ?assertErrMsg(parser_error, <<"parser_error_msg">>, ResParser),
+    ?assertErrMsg(scanner_error, <<"illegal_characters">>, ResScanner),
+    ?assertErrMsg(scanner_error, <<"user_scanner_err">>, ResScanner2).
+
+format_decode_errors(_Config) ->
+    {400, Msg1} = mongoose_graphql_errors:format_error(make_error(decode, no_query_supplied)),
+    {400, Msg2} = mongoose_graphql_errors:format_error(make_error(decode, invalid_json_body)),
+    {400, Msg3} = mongoose_graphql_errors:format_error(make_error(decode, variables_invalid_json)),
+
+    ?assertErrMsg(no_query_supplied, <<"The query was not supplied">>, Msg1),
+    ?assertErrMsg(invalid_json_body, <<"invalid">>, Msg2),
+    ?assertErrMsg(variables_invalid_json, <<"invalid">>, Msg3).
+
+format_authorize_error(_Config) ->
+    {401, Msg1} = mongoose_graphql_errors:format_error(make_error(authorize, wrong_credentials)),
+    {401, Msg2} = mongoose_graphql_errors:format_error(
+                    make_error(authorize, {no_permissions, <<"ROOT">>})),
+    {401, Msg3} = mongoose_graphql_errors:format_error(
+                    make_error(authorize, {request_error, {header, <<"authorization">>}, 'msg'})),
+
+    ?assertErrMsg(wrong_credentials, <<"provided credentials are wrong">>, Msg1),
+    ?assertErrMsg(no_permissions, <<"without permissions">>, Msg2),
+    ?assertErrMsg(request_error, <<"Malformed authorization header">>, Msg3).
+
+format_validate_error(_Config) ->
+    % Ensure the module can format this phase
+    {400, Msg} = mongoose_graphql_errors:format_error(
+                   make_error(validate, {not_unique, <<"OpName">>})),
+    ?assertMatch(#{extensions := #{code := not_unique}}, Msg).
+
+format_type_check_error(_Config) ->
+    % Ensure the module can format this phase
+    {400, Msg} = mongoose_graphql_errors:format_error(
+                   make_error(type_check, non_null)),
+    ?assertMatch(#{extensions := #{code := non_null}}, Msg).
+
+format_execute_error(_Config) ->
+    % Ensure the module can format this phase
+    {400, Msg} = mongoose_graphql_errors:format_error(
+                   make_error(execute, {resolver_error, any_error})),
+    ?assertMatch(#{extensions := #{code := resolver_error}}, Msg).
+
+format_uncategorized_error(_Config) ->
+    % Ensure the module can format this phase
+    {400, Msg} = mongoose_graphql_errors:format_error(
+                   make_error(uncategorized, any_error)),
+    ?assertMatch(#{extensions := #{code := any_error}}, Msg).
+
+format_any_error(_Config) ->
+    {400, Msg1} = mongoose_graphql_errors:format_error(any_error),
+    {400, Msg2} = mongoose_graphql_errors:format_error(<<"any_error">>),
+    {400, Msg3} = mongoose_graphql_errors:format_error({1, any_error}),
+    {400, Msg4} = mongoose_graphql_errors:format_error(#{msg => any_error}),
+    ?assertErrMsg(uncategorized, <<"any_error">>, Msg1),
+    ?assertErrMsg(uncategorized, <<"any_error">>, Msg2),
+    ?assertErrMsg(uncategorized, <<"any_error">>, Msg3),
+    ?assertErrMsg(uncategorized, <<"any_error">>, Msg4).
+
 %% Helpers
+
+assert_err_msg(Code, MsgContains, #{message := Msg} = ErrorMsg) ->
+    ?assertMatch(#{extensions := #{code := Code}}, ErrorMsg),
+    ?assertNotEqual(nomatch, binary:match(Msg, MsgContains)).
+
+make_error(Phase, Term) ->
+    #{phase => Phase, error_term => Term}.
 
 check_permissions(Config, Doc) ->
     Ep = ?config(endpoint, Config),

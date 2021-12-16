@@ -33,14 +33,15 @@ format_error(#{error_term := _, phase := Phase} = Err) when Phase =:= execute;
                                                             Phase =:= type_check;
                                                             Phase =:= validate;
                                                             Phase =:= uncategorized ->
-    [ErrMsg] = graphql:format_errors(#{}, [Err]),
+    Err2 = maps:merge(#{path => []}, Err),
+    [ErrMsg] = graphql:format_errors(#{}, [Err2]),
     {400, ErrMsg};
 format_error(internal_crash) ->
     Msg = #{message => <<"GraphQL Internal Server Error">>,
             extensions => #{code => internal_server_error}},
     {500, Msg};
 format_error(Err) ->
-    Msg = #{extensions => #{code => uncathegorized},
+    Msg = #{extensions => #{code => uncategorized},
             message => iolist_to_binary(io_lib:format("~p", [Err]))},
     {400, Msg}.
 
