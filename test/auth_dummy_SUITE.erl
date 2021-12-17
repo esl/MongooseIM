@@ -36,8 +36,8 @@ all() -> [
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
     mongoose_config:set_opt({auth, ?HOST_TYPE}, #{methods => [dummy],
-                                                  dummy_base_timeout => 5,
-                                                  dummy_variance => 10}),
+                                                  dummy => #{base_time => 5,
+                                                             variance => 10}}),
     C.
 
 end_per_suite(_C) ->

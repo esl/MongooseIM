@@ -80,7 +80,8 @@ given_user_registered() ->
 set_opts(Config) ->
     DataDir = ?config(data_dir, Config),
     mongoose_config:set_opt({auth, ?HOST_TYPE},
-                            #{external => #{program => DataDir ++ "sample_external_auth.py"}}).
+                            #{external => #{program => DataDir ++ "sample_external_auth.py",
+                                            instances => 1}}).
 
 unset_opts() ->
     mongoose_config:unset_opt({auth, ?HOST_TYPE}).
