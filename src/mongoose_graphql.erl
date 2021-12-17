@@ -110,20 +110,18 @@ graphql_parse(Doc) ->
 
 admin_mapping_rules() ->
     #{objects => #{
-            'AdminQuery' => mongoose_graphql_admin_query,
-            'AdminMutation' => mongoose_graphql_admin_mutation,
-            'Domain' => mongoose_graphql_domain,
-            default => mongoose_graphql_default
-           }
-         }.
+        'AdminQuery' => mongoose_graphql_admin_query,
+        'AdminMutation' => mongoose_graphql_admin_mutation,
+        'Domain' => mongoose_graphql_domain,
+        default => mongoose_graphql_default},
+      interfaces => #{default => mongoose_graphql_default}}.
 
 user_mapping_rules() ->
     #{objects => #{
-            'UserQuery' => mongoose_graphql_user_query,
-            'UserMutation' => mongoose_graphql_user_mutation,
-            default => mongoose_graphql_default
-           }
-         }.
+        'UserQuery' => mongoose_graphql_user_query,
+        'UserMutation' => mongoose_graphql_user_mutation,
+        default => mongoose_graphql_default},
+      interfaces => #{default => mongoose_graphql_default}}.
 
 load_multiple_file_schema(Patterns) ->
     Paths = lists:flatmap(fun(P) -> filelib:wildcard(P) end, Patterns),

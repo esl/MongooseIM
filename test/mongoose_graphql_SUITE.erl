@@ -6,32 +6,57 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("graphql/src/graphql_schema.hrl").
 
+-define(assertPermissionsFailed(Config, Doc),
+        ?assertThrow({error, no_permissions},
+                     check_permissions(Config, Doc))).
+-define(assertPermissionsSuccess(Config, Doc),
+        ?assertMatch(ok, check_permissions(Config, Doc))).
+
 all() ->
     [can_create_endpoint,
      can_load_split_schema,
      admin_and_user_load_global_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
-     {group, errors_handling}].
+     {group, error_handling},
+     {group, permissions}].
 
 groups() ->
-    [{protected_graphql, [parallel],
-     [auth_can_execute_protected_query,
-      auth_can_execute_protected_mutation,
-      unauth_cannot_execute_protected_query,
-      unauth_cannot_execute_protected_mutation,
-      unauth_can_access_introspection]},
-     {unprotected_graphql, [parallel],
-      [can_execute_query_with_vars,
-       auth_can_execute_query,
-       auth_can_execute_mutation,
-       unauth_can_execute_query,
-       unauth_can_execute_mutation]},
-     {errors_handling, [parallel],
-      [should_catch_parsing_errors,
-       should_catch_type_check_params_errors,
-       should_catch_type_check_errors
-      ]}].
+    [{protected_graphql, [parallel], protected_graphql()},
+     {unprotected_graphql, [parallel], unprotected_graphql()},
+     {error_handling, [parallel], error_handling()},
+     {permissions, [parallel], permissions()}].
+
+protected_graphql() ->
+    [auth_can_execute_protected_query,
+     auth_can_execute_protected_mutation,
+     unauth_cannot_execute_protected_query,
+     unauth_cannot_execute_protected_mutation,
+     unauth_can_access_introspection].
+
+unprotected_graphql() ->
+    [can_execute_query_with_vars,
+     auth_can_execute_query,
+     auth_can_execute_mutation,
+     unauth_can_execute_query,
+     unauth_can_execute_mutation].
+
+error_handling() ->
+    [should_catch_parsing_errors,
+     should_catch_type_check_params_errors,
+     should_catch_type_check_errors].
+
+permissions() ->
+    [check_object_permissions,
+     check_field_permissions,
+     check_child_object_permissions,
+     check_child_object_field_permissions,
+     check_fragment_permissions,
+     check_interface_permissions,
+     check_interface_field_permissions,
+     check_inline_fragment_permissions,
+     check_union_permissions
+    ].
 
 init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= auth_can_execute_protected_mutation;
@@ -51,6 +76,19 @@ init_per_testcase(C, Config) when C =:= can_execute_query_with_vars;
                                   C =:= should_catch_type_check_errors;
                                   C =:= should_catch_parsing_errors ->
     {Mapping, Pattern} = example_schema_data(Config),
+    {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
+    Ep = mongoose_graphql:get_endpoint(C),
+    [{endpoint, Ep} | Config];
+init_per_testcase(C, Config) when C =:= check_object_permissions;
+                                  C =:= check_field_permissions;
+                                  C =:= check_child_object_permissions;
+                                  C =:= check_child_object_field_permissions;
+                                  C =:= check_fragment_permissions;
+                                  C =:= check_interface_permissions;
+                                  C =:= check_interface_field_permissions;
+                                  C =:= check_inline_fragment_permissions;
+                                  C =:= check_union_permissions ->
+    {Mapping, Pattern} = example_permissions_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
     [{endpoint, Ep} | Config];
@@ -194,7 +232,74 @@ should_catch_type_check_params_errors(Config) ->
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
     ?assertMatch({error, _}, Res).
 
+check_object_permissions(Config) ->
+    Doc = <<"query { field }">>,
+    FDoc = <<"mutation { field }">>,
+    ?assertPermissionsSuccess(Config, Doc),
+    ?assertPermissionsFailed(Config, FDoc).
+
+check_field_permissions(Config) ->
+    Doc = <<"{ field protectedField }">>,
+    ?assertPermissionsFailed(Config, Doc).
+
+check_child_object_permissions(Config) ->
+    Doc = <<"{ protectedObj{ type } }">>,
+    ?assertPermissionsFailed(Config, Doc).
+
+check_child_object_field_permissions(Config) ->
+    Doc = <<"{ obj { field } }">>,
+    FDoc = <<"{ obj { field protectedField } }">>,
+    ?assertPermissionsSuccess(Config, Doc),
+    ?assertPermissionsFailed(Config, FDoc).
+
+check_fragment_permissions(Config) ->
+    Config2 = [{op, <<"Q1">>} | Config],
+    Doc = <<"query Q1{ obj { ...body } } fragment body on Object { name field }">>,
+    FDoc = <<"query Q1{ obj { ...body } } fragment body on Object { name field protectedField }">>,
+    ?assertPermissionsSuccess(Config2, Doc),
+    ?assertPermissionsFailed(Config2, FDoc).
+
+check_interface_permissions(Config) ->
+    Doc = <<"{ interface { name } }">>,
+    FDoc = <<"{ protInterface { name } }">>,
+    ?assertPermissionsSuccess(Config, Doc),
+    ?assertPermissionsFailed(Config, FDoc).
+
+check_interface_field_permissions(Config) ->
+    Doc = <<"{ interface { protectedName } }">>,
+    FieldProtectedNotEnaugh = <<"{ obj { protectedName } }">>,
+    FieldProtectedEnaugh = <<"{ obj { otherName } }">>,
+    % field is protected in interface and object, so cannnot be accessed.
+    ?assertPermissionsFailed(Config, Doc),
+    ?assertPermissionsFailed(Config, FieldProtectedEnaugh),
+    % field is protected only in interface, so can by accessed from implementing objects.
+    ?assertPermissionsSuccess(Config, FieldProtectedNotEnaugh).
+
+check_inline_fragment_permissions(Config) ->
+    Doc = <<"{ interface { name otherName ... on Object { field } } }">>,
+    FDoc = <<"{ interface { name otherName ... on Object { field protectedField } } }">>,
+    FDoc2 = <<"{ interface { name ... on Object { field otherName} } }">>,
+    ?assertPermissionsSuccess(Config, Doc),
+    ?assertPermissionsFailed(Config, FDoc),
+    ?assertPermissionsFailed(Config, FDoc2).
+
+check_union_permissions(Config) ->
+    Doc = <<"{ union { ... on O1 { field1 } } }">>,
+    FDoc = <<"{ union { ... on O1 { field1 field1Protected } } }">>,
+    FDoc2 = <<"{ union { ... on O1 { field1 } ... on O2 { field2 } } }">>,
+    ?assertPermissionsSuccess(Config, Doc),
+    ?assertPermissionsFailed(Config, FDoc),
+    ?assertPermissionsFailed(Config, FDoc2).
+
 %% Helpers
+
+check_permissions(Config, Doc) ->
+    Ep = ?config(endpoint, Config),
+    Op = proplists:get_value(op, Config, undefined),
+    {ok, Ast} = graphql:parse(Doc),
+    {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
+    ok = graphql:validate(Ast2),
+    ok = mongoose_graphql_permissions:check_permissions(Op, false, Ast2).
 
 request(Doc, Authorized) ->
     #{document => Doc,
@@ -229,4 +334,15 @@ example_schema_data(Config) ->
               #{'UserQuery' => mongoose_graphql_default_resolver,
                 'UserMutation' => mongoose_graphql_default_resolver,
                 default => mongoose_graphql_default_resolver}},
+    {Mapping, Pattern}.
+
+example_permissions_schema_data(Config) ->
+    Pattern = filename:join([proplists:get_value(data_dir, Config), "permissions_schema.gql"]),
+    Mapping =
+        #{objects =>
+              #{'UserQuery' => mongoose_graphql_default_resolver,
+                'UserMutation' => mongoose_graphql_default_resolver,
+                default => mongoose_graphql_default_resolver},
+         interfaces => #{default => mongoose_graphql_default_resolver},
+         unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
