@@ -866,21 +866,25 @@ auth_anonymous_protocol(_Config) ->
     ?errh(auth_raw(<<"anonymous">>, #{<<"protocol">> => <<"none">>})).
 
 auth_ldap_pool(_Config) ->
-    ?cfgh([auth, ldap], #{pool_tag => ldap_pool},
+    ?cfgh([auth, ldap, pool_tag], default, auth_ldap_raw(#{})), % default
+    ?cfgh([auth, ldap, pool_tag], ldap_pool,
           auth_ldap_raw(#{<<"pool_tag">> => <<"ldap_pool">>})),
     ?errh(auth_ldap_raw(#{<<"pool_tag">> => <<>>})).
 
 auth_ldap_bind_pool(_Config) ->
-    ?cfgh([auth, ldap], #{bind_pool_tag => ldap_bind_pool},
+    ?cfgh([auth, ldap, bind_pool_tag], bind, auth_ldap_raw(#{})), % default
+    ?cfgh([auth, ldap, bind_pool_tag], ldap_bind_pool,
           auth_ldap_raw(#{<<"bind_pool_tag">> => <<"ldap_bind_pool">>})),
     ?errh(auth_ldap_raw(#{<<"bind_pool_tag">> => true})).
 
 auth_ldap_base(_Config) ->
+    ?cfgh([auth, ldap, base], <<>>, auth_ldap_raw(#{})), % default
     ?cfgh([auth, ldap, base], <<"ou=Users,dc=example,dc=com">>,
           auth_ldap_raw(#{<<"base">> => <<"ou=Users,dc=example,dc=com">>})),
     ?errh(auth_ldap_raw(#{<<"base">> => 10})).
 
 auth_ldap_uids(_Config) ->
+    ?cfgh([auth, ldap, uids], [{<<"uid">>, <<"%u">>}], auth_ldap_raw(#{})), % default
     ?cfgh([auth, ldap, uids], [{<<"uid1">>, <<"user=%u">>}],
           auth_ldap_raw(#{<<"uids">> => [#{<<"attr">> => <<"uid1">>,
                                            <<"format">> => <<"user=%u">>}]})),
@@ -889,11 +893,13 @@ auth_ldap_uids(_Config) ->
     ?errh(auth_ldap_raw(#{<<"uids">> => [#{<<"format">> => <<"user=%u">>}]})).
 
 auth_ldap_filter(_Config) ->
+    ?cfgh([auth, ldap, filter], <<>>, auth_ldap_raw(#{})), % default
     ?cfgh([auth, ldap, filter], <<"(objectClass=inetOrgPerson)">>,
           auth_ldap_raw(#{<<"filter">> => <<"(objectClass=inetOrgPerson)">>})),
     ?errh(auth_ldap_raw(#{<<"filter">> => 10})).
 
 auth_ldap_dn_filter(_Config) ->
+    ?cfgh([auth, ldap, dn_filter], {undefined, []}, auth_ldap_raw(#{})), % default
     ?cfgh([auth, ldap, dn_filter], {<<"(user=%u@%d)">>, []},
           auth_ldap_raw(#{<<"dn_filter">> => #{<<"filter">> => <<"(user=%u@%d)">>}})),
     Pattern = <<"(&(name=%s)(owner=%D)(user=%u@%d))">>,
@@ -906,6 +912,7 @@ auth_ldap_dn_filter(_Config) ->
                                                <<"attributes">> => <<"sn">>}})).
 
 auth_ldap_local_filter(_Config) ->
+    ?cfgh([auth, ldap, local_filter], undefined, auth_ldap_raw(#{})), % default
     Filter = #{<<"operation">> => <<"equal">>,
                <<"attribute">> => <<"accountStatus">>,
                <<"values">> => [<<"enabled">>]},
@@ -918,12 +925,14 @@ auth_ldap_local_filter(_Config) ->
     ?errh(auth_ldap_raw(#{<<"local_filter">> => Filter#{<<"values">> := []}})).
 
 auth_ldap_deref(_Config) ->
+    ?cfgh([auth, ldap, deref], never, auth_ldap_raw(#{})), % default
     ?cfgh([auth, ldap, deref], always, auth_ldap_raw(#{<<"deref">> => <<"always">>})),
     ?errh(auth_ldap_raw(#{<<"deref">> => <<"sometimes">>})).
 
 auth_external(_Config) ->
     RequiredOpts = #{<<"program">> => <<"/usr/bin/auth">>},
-    Config = #{program => "/usr/bin/auth"},
+    Config = #{program => "/usr/bin/auth",
+               instances => 1}, % default
     ?cfgh([auth, external], Config,
           auth_raw(<<"external">>, RequiredOpts)),
     ?cfgh([auth, external, instances], 2,
@@ -960,20 +969,21 @@ auth_jwt(_Config) ->
     [?errh(auth_raw(<<"jwt">>, maps:without([K], Opts))) || K <- maps:keys(Opts)].
 
 auth_riak_bucket_type(_Config) ->
+    ?cfgh([auth, riak, bucket_type], <<"users">>, auth_raw(<<"riak">>, #{})), % default
     ?cfgh([auth, riak, bucket_type], <<"buckethead">>,
           auth_raw(<<"riak">>, #{<<"bucket_type">> => <<"buckethead">>})),
     ?errh(auth_raw(<<"riak">>, #{<<"bucket_type">> => <<>>})).
 
 auth_rdbms_users_number_estimate(_Config) ->
+    ?cfgh([auth, rdbms, users_number_estimate], false, auth_raw(<<"rdbms">>, #{})), % default
     ?cfgh([auth, rdbms, users_number_estimate], true,
           auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => true})),
     ?errh(auth_raw(<<"rdbms">>, #{<<"users_number_estimate">> => 1200})).
 
 auth_dummy(_Config) ->
-    ?cfgh([auth, dummy, base_time], 0,
-          auth_raw(<<"dummy">>, #{<<"base_time">> => 0})),
-    ?cfgh([auth, dummy, variance], 10,
-          auth_raw(<<"dummy">>, #{<<"variance">> => 10})),
+    ?cfgh([auth, dummy], #{base_time => 50, variance => 450}, auth_raw(<<"dummy">>, #{})), % default
+    ?cfgh([auth, dummy, base_time], 0, auth_raw(<<"dummy">>, #{<<"base_time">> => 0})),
+    ?cfgh([auth, dummy, variance], 10, auth_raw(<<"dummy">>, #{<<"variance">> => 10})),
     ?errh(auth_raw(<<"dummy">>, #{<<"base_time">> => -5})),
     ?errh(auth_raw(<<"dummy">>, #{<<"variance">> => 0})).
 
