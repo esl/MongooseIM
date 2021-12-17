@@ -80,6 +80,7 @@ config_spec() ->
                                           validate = non_empty}
                 },
        required = [<<"program">>],
+       defaults = #{<<"instances">> => 1},
        format_items = map
       }.
 

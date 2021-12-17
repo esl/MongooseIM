@@ -986,12 +986,12 @@ process_root(Items) ->
     end.
 
 unsupported_auth_methods(KVs) ->
-    Methods = extract_auth_methods(KVs),
-    lists:filter(fun is_unsupported_auth_method/1, Methods).
+    [Method || Method <- extract_auth_methods(KVs),
+               not ejabberd_auth:does_method_support(Method, dynamic_domains)].
 
 unsupported_modules(KVs) ->
-    Modules = extract_modules(KVs),
-    lists:filter(fun is_unsupported_module/1, Modules).
+    [Module || Module <- extract_modules(KVs),
+               not gen_mod:does_module_support(Module, dynamic_domains)].
 
 extract_auth_methods(KVs) ->
     lists:usort(lists:flatmap(fun({{auth, _}, Auth}) -> maps:get(methods, Auth);
@@ -1002,12 +1002,6 @@ extract_modules(KVs) ->
     lists:usort(lists:flatmap(fun({{modules, _}, Modules}) -> proplists:get_keys(Modules);
                                  (_) -> []
                               end, KVs)).
-
-is_unsupported_auth_method(Method) ->
-    not ejabberd_auth:does_method_support(Method, dynamic_domains).
-
-is_unsupported_module(Module) ->
-    not gen_mod:does_module_support(Module, dynamic_domains).
 
 is_host_type_item({{_, HostType}, _}, HostTypes) ->
     HostType =:= global orelse lists:member(HostType, HostTypes);
