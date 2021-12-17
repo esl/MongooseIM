@@ -35,6 +35,7 @@
 -export([make_jid/2]).
 -export([make_jid/3]).
 -export([make_jid_noprep/3]).
+-export([get_session_pid/1]).
 -export([get_session_pid/2]).
 -export([get_session_info/2]).
 -export([wait_for_route_message_count/2]).
@@ -48,6 +49,8 @@
 -export([print_debug_info_for_module/1]).
 -export([backup_and_set_config/2, backup_and_set_config_option/3, change_config_option/3]).
 -export([restore_config/1, restore_config_option/2]).
+-export([wait_for_n_offline_messages/2]).
+-export([wait_for_c2s_state_name/2, get_c2s_state_name/1]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
@@ -61,7 +64,7 @@ is_rdbms_enabled(HostType) ->
 -spec mnesia_or_rdbms_backend() -> atom().
 mnesia_or_rdbms_backend() ->
     Host = ct:get_config({hosts, mim, domain}),
-    case mongoose_helper:is_rdbms_enabled(Host) of
+    case is_rdbms_enabled(Host) of
         true -> rdbms;
         false -> mnesia
     end.
@@ -379,8 +382,8 @@ do_wait_until(Fun, #{validator := Validator} = Opts) ->
                      true -> {ok, Value};
                      _ -> wait_and_continue(Fun, Value, Opts)
                  end
-    catch Error:Reason ->
-              wait_and_continue(Fun, {Error, Reason}, Opts)
+    catch Error:Reason:Stacktrace ->
+              wait_and_continue(Fun, {Error, Reason, Stacktrace}, Opts)
     end.
 
 simplify_history([H|[H|_]=T], Times) ->
@@ -440,6 +443,9 @@ make_jid(User, Server) ->
 make_jid(User, Server, Resource) ->
     jid:make(User, Server, Resource).
 
+get_session_pid(User) ->
+    get_session_pid(User, mim()).
+
 get_session_pid(User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
@@ -456,7 +462,7 @@ get_session_info(RpcDetails, User) ->
     Info.
 
 wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
-    mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+    wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
 
 count_route_messages(C2sPid) when is_pid(C2sPid) ->
      {messages, Messages} = rpc:pinfo(C2sPid, messages),
@@ -562,3 +568,22 @@ do_restore_config_option(Option, {ok, Value}) ->
     rpc(mim(), mongoose_config, set_opt, [Option, Value]);
 do_restore_config_option(Option, {error, not_found}) ->
     rpc(mim(), mongoose_config, unset_opt, [Option]).
+
+wait_for_n_offline_messages(Client, N) ->
+    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    WaitFn = fun() -> total_offline_messages({LUser, LServer}) end,
+    wait_until(WaitFn, N).
+
+wait_for_c2s_state_name(C2SPid, NewStateName) ->
+    wait_until(fun() -> get_c2s_state_name(C2SPid) end, NewStateName,
+                #{name => get_c2s_state_name}).
+
+get_c2s_state_name(C2SPid) when is_pid(C2SPid) ->
+    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
+    extract_state_name(SysStatus).
+
+extract_state_name(SysStatus) ->
+    {status, _Pid, {module, _},
+     [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
+    proplists:get_value("StateName", FSMData).
