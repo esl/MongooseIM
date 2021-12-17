@@ -18,13 +18,13 @@ all() ->
      admin_and_user_load_global_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
-     {group, errors_handling},
+     {group, error_handling},
      {group, permissions}].
 
 groups() ->
     [{protected_graphql, [parallel], protected_graphql()},
      {unprotected_graphql, [parallel], unprotected_graphql()},
-     {errors_handling, [parallel], errors_handling()},
+     {error_handling, [parallel], error_handling()},
      {permissions, [parallel], permissions()}].
 
 protected_graphql() ->
@@ -41,7 +41,7 @@ unprotected_graphql() ->
      unauth_can_execute_query,
      unauth_can_execute_mutation].
 
-errors_handling() ->
+error_handling() ->
     [should_catch_parsing_errors,
      should_catch_type_check_params_errors,
      should_catch_type_check_errors].
@@ -299,8 +299,7 @@ check_permissions(Config, Doc) ->
     {ok, Ast} = graphql:parse(Doc),
     {ok, #{ast := Ast2}} = graphql:type_check(Ep, Ast),
     ok = graphql:validate(Ast2),
-    ok = mongoose_graphql_permissions:check_permissions(Op, false, Ast2),
-    ok.
+    ok = mongoose_graphql_permissions:check_permissions(Op, false, Ast2).
 
 request(Doc, Authorized) ->
     #{document => Doc,
