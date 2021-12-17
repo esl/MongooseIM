@@ -30,13 +30,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-        {group, manage},
-        {group, effect},
-        {group, offline},
-        {group, errors},
-        {group, pushes}
-    ].
+    ct_helper:groups_to_all(groups()).
 
 groups() ->
     G = [
