@@ -1101,21 +1101,6 @@ vcard_field_to_ldap(Map, Field) ->
             undefined
     end.
 
-delete_vcards(Config) ->
-    AllVCards = escalus_config:get_ct({vcard, data, all_search, expected_vcards}),
-    lists:foreach(
-      fun({JID, _}) ->
-              case binary:match(JID, <<"@">>) of
-                  nomatch ->
-                      ok;
-                  _ ->
-                      RJID = get_jid_record(JID),
-                      ok = vcard_rpc(RJID,
-                                     escalus_stanza:vcard_update(JID, []))
-              end
-      end, AllVCards),
-    Config.
-
 get_jid_record(JID) ->
     [User, Server] = binary:split(JID, <<"@">>),
     {jid, User, Server, <<"">>, User, Server, <<"">>}.
