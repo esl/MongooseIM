@@ -150,12 +150,6 @@ get_http_request() ->
     ets:delete(?ETS_TABLE, Key),
     Bins.
 
-login_send_presence(Config, User) ->
-    Spec = escalus_users:get_userspec(Config, User),
-    {ok, Client} = escalus_client:start(Config, Spec, <<"dummy">>),
-    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
-    Client.
-
 is_chat(Content) ->
     fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
 
