@@ -34,6 +34,7 @@
          send_messages/3,
          wait_for_messages/2,
          assert_messages/2,
+         send_and_receive/3,
          get_ack/1,
          ack_initial_presence/1]).
 
@@ -289,6 +290,11 @@ assert_messages(Stanzas, Texts) ->
                      {expected, Texts},
                      {received, Bodies}})
     end.
+
+%% Useful to ensure no other stanzas buffered
+send_and_receive(From, To, Text) ->
+    escalus:send(From, escalus_stanza:chat_to(To, Text)),
+    escalus:assert(is_chat_message, [Text], escalus:wait_for_stanza(To)).
 
 get_body(Stanza) ->
       exml_query:path(Stanza, [{element, <<"body">>}, cdata]).
