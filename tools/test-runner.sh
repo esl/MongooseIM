@@ -12,6 +12,9 @@
 # Fail on errors
 set -e
 
+# Because rebar3 compiles tests anyway
+export SKIP_AUTO_COMPILE=true
+
 USAGE=$(cat <<-END
 This script runs small and big tests for MongooseIM
 

@@ -348,7 +348,14 @@ maybe_compile_cover(Nodes) ->
 
     cover:start(Nodes),
     Dir = call(hd(Nodes), code, lib_dir, [mongooseim, ebin]),
+    TestDir = code:lib_dir(mongoose_tests, ebin),
 
+    cover_compile_directory(Dir),
+    %% For test cover to work, there should not be any beam files in big_tests/tests
+    cover_compile_directory(TestDir),
+    ok.
+
+cover_compile_directory(Dir) ->
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
                             Results = cover:compile_beam_directory(Dir),
@@ -359,8 +366,7 @@ maybe_compile_cover(Nodes) ->
     github_actions_fold("cover compiled output", fun() ->
             io:format("cover: compiled ~p~n", [Compiled])
         end),
-    report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]),
-    ok.
+    report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]).
 
 analyze(Props, CoverOpts) ->
     io:format("Coverage analyzing~n"),
@@ -654,6 +660,7 @@ load_test_modules(Opts) ->
     %% Read test spec properties
     Props = read_file(Spec),
     Modules = lists:usort(test_modules(Props)),
+    io:format(user, "~1000p", [code:all_loaded()]),
     [try_load_module(M) || M <- Modules].
 
 test_modules([H|T]) when is_tuple(H) ->
@@ -674,8 +681,8 @@ test_modules_list(_) ->
 
 try_load_module(Module) ->
     case code:is_loaded(Module) of
-        true -> already_loaded;
-        _ -> code:load_file(Module)
+        false -> code:load_file(Module);
+        _ -> already_loaded
     end.
 
 assert_all_presets_present(PresetsToCheck, PresetConfs) ->
