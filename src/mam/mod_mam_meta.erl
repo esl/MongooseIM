@@ -74,21 +74,13 @@ config_items() ->
       <<"cache">> => mongoose_user_cache:config_spec(),
       <<"rdbms_message_format">> => #option{type = atom,
                                             validate = {enum, [simple, internal]}},
-      <<"async_writer">> => #option{type = boolean},
-      <<"flush_interval">> => #option{type = integer,
-                                      validate = non_negative},
-      <<"max_batch_size">> => #option{type = integer,
-                                      validate = non_negative},
-      <<"pool_size">> => #option{type = integer,
-                                 validate = non_negative},
+      <<"async_writer">> => mod_mam_rdbms_arch_async:config_spec(),
 
       %% Low-level options
       <<"default_result_limit">> => #option{type = integer,
                                             validate = non_negative},
       <<"max_result_limit">> => #option{type = integer,
                                         validate = non_negative},
-      <<"async_writer_rdbms_pool">> => #option{type = atom,
-                                               validate = pool_name},
       <<"db_jid_format">> => #option{type = atom,
                                      validate = module},
       <<"db_message_format">> => #option{type = atom,
@@ -175,7 +167,8 @@ valid_core_mod_opts(mod_mam_muc) ->
     [host] ++ common_opts().
 
 common_opts() ->
-    [is_archivable_message,
+    [async_writer,
+     is_archivable_message,
      send_message,
      archive_chat_markers,
      extra_fin_element,
@@ -213,13 +206,13 @@ parse_backend_opts(riak, Type, Opts, Deps0) ->
     end;
 
 parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
-    Opts1 = add_default_rdbms_opts(Opts0),
+    Opts1 = add_rdbms_async_opts(Opts0),
     Opts = add_rdbms_cache_opts(Opts1),
 
     {ModRDBMSArch, ModAsyncWriter} =
         case Type of
-            pm -> {mod_mam_rdbms_arch, mod_mam_rdbms_async_pool_writer};
-            muc -> {mod_mam_muc_rdbms_arch, mod_mam_muc_rdbms_async_pool_writer}
+            pm -> {mod_mam_rdbms_arch, mod_mam_rdbms_arch_async};
+            muc -> {mod_mam_muc_rdbms_arch, mod_mam_rdbms_arch_async}
         end,
 
     Deps1 = add_dep(ModRDBMSArch, [Type], Deps0),
@@ -265,15 +258,18 @@ add_dep(Dep, Args, Deps) ->
     maps:put(Dep, NewArgs, Deps).
 
 
--spec add_default_rdbms_opts(Opts :: proplists:proplist()) -> proplists:proplist().
-add_default_rdbms_opts(Opts) ->
-    lists:foldl(
-      fun({Key, _} = DefaultOpt, Acc) ->
-              case proplists:lookup(Key, Opts) of
-                  none -> [DefaultOpt | Acc];
-                  _ -> Acc
-              end
-      end, Opts, [{async_writer, true}]).
+-spec add_rdbms_async_opts(proplists:proplist()) -> proplists:proplist().
+add_rdbms_async_opts(Opts) ->
+    case lists:keyfind(async_writer, 1, Opts) of
+        {async_writer, AsyncOpts} ->
+            case lists:keyfind(enabled, 1, AsyncOpts) of
+                {enabled, false} -> lists:keydelete(async_writer, 1, Opts);
+                _ -> Opts
+            end;
+        false ->
+            [{async_writer, []} | Opts]
+    end.
+
 
 add_rdbms_cache_opts(Opts) ->
     case {lists:keyfind(cache_users, 1, Opts), lists:keyfind(cache, 1, Opts)} of
@@ -303,11 +299,9 @@ parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
             add_dep(mod_mam_mnesia_prefs, [Type], Deps);
         {rdbms_message_format, simple} ->
             add_dep(ModRDBMSArch, rdbms_simple_opts(), Deps);
-        {async_writer, true} ->
+        {async_writer, Opts} ->
             DepsWithNoWriter = add_dep(ModRDBMSArch, [no_writer], Deps),
-            add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
-        {async_writer_rdbms_pool, PoolName} ->
-            add_dep(ModAsyncWriter, [{rdbms_pool, PoolName}], Deps);
+            add_dep(ModAsyncWriter, [{Type, Opts}], DepsWithNoWriter);
         _ -> Deps
     end.
 

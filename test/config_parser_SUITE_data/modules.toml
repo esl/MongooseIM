@@ -158,7 +158,7 @@
   pm.full_text_search =  false
   muc.host = "muc.example.com"
   muc.rdbms_message_format = "simple"
-  muc.async_writer = false
+  muc.async_writer.enabled = false
   muc.user_prefs_store = "mnesia"
 
 [modules.mod_muc]
