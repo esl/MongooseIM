@@ -162,20 +162,23 @@
 {{/listen_service}}
 
 [auth]
-  {{#auth_ldap}}
-  {{{auth_ldap}}}
-  {{/auth_ldap}}
-  methods = [{{{auth_method}}}]
   {{#password_format}}
   {{{password_format}}}
   {{/password_format}}
   {{#scram_iterations}}
   scram_iterations = {{{scram_iterations}}}
   {{/scram_iterations}}
+  {{#cyrsasl_external}}
   sasl_external = [{{{cyrsasl_external}}}]
+  {{/cyrsasl_external}}
   {{#sasl_mechanisms}}
   sasl_mechanisms = [{{{sasl_mechanisms}}}]
   {{/sasl_mechanisms}}
+  {{#auth_method}}
+
+  [auth.{{{auth_method}}}]{{#auth_method_opts}}
+    {{{auth_method_opts}}}{{/auth_method_opts}}
+  {{/auth_method}}
 
 {{#outgoing_pools}}
 {{{outgoing_pools}}}
@@ -395,8 +398,7 @@
 #[[host_config]]
 #  host = "anonymous.localhost"
 #
-#  [host_config.auth]
-#    methods = ["anonymous"]
-#    anonymous.allow_multiple_connections = true
-#    anonymous.protocol = "both"
+#  [host_config.auth.anonymous]
+#    allow_multiple_connections = true
+#    protocol = "both"
 {{/host_config}}

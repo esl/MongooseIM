@@ -40,11 +40,8 @@ Name of the JWT key that contains the user name to verify.
 ### Example
 
 ```toml
-[auth]
-  methods = ["jwt"]
-
-  [auth.jwt]
-    secret.value = "top-secret123"
-    algorithm = "HS256"
-    username_key = "user"
+[auth.jwt]
+  secret.value = "top-secret123"
+  algorithm = "HS256"
+  username_key = "user"
 ```

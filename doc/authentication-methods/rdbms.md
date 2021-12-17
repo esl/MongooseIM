@@ -23,11 +23,8 @@ Enabling this option makes MongooseIM use an alternative query that might be not
 Authentication:
 
 ```toml
-[auth]
-  methods = ["rdbms"]
-
-  [auth.rdbms]
-    users_number_estimate = true
+[auth.rdbms]
+  users_number_estimate = true
 ```
 
 Outgoing pools:

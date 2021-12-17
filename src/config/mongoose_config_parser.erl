@@ -44,9 +44,7 @@
 parse_file(FileName) ->
     ParserModule = parser_module(filename:extension(FileName)),
     try
-        State = ParserModule:parse_file(FileName),
-        check_dynamic_domains_support(State),
-        State
+        ParserModule:parse_file(FileName)
     catch
         error:{config_error, ExitMsg, Errors} ->
             halt_with_msg(ExitMsg, Errors)
@@ -139,88 +137,9 @@ add_dep_modules_opt(Other) ->
 -spec halt_with_msg(string(), [any()]) -> no_return().
 -ifdef(TEST).
 halt_with_msg(ExitMsg, Errors) ->
-    config_error(ExitMsg, Errors).
+    error({config_error, ExitMsg, Errors}).
 -else.
 halt_with_msg(ExitMsg, Errors) ->
     [?LOG_ERROR(Error) || Error <- Errors],
     mongoose_config_utils:exit_or_halt(ExitMsg).
 -endif.
-
-config_error(ErrorMsg, Errors) ->
-    error({config_error, ErrorMsg, Errors}).
-
--spec check_dynamic_domains_support(mongoose_config_parser:state()) -> any().
-check_dynamic_domains_support(State) ->
-    %% we must check that all the the modules configured for
-    %% the pure host types support dynamic domains feature
-    Config = get_opts(State),
-    HostTypes = state_to_host_types(State),
-    FoldFN = fun(ConfigEl, ErrorsAcc) ->
-                 ErrorsAcc ++
-                     maybe_check_modules_for_host_type(ConfigEl, HostTypes) ++
-                     maybe_check_auth_methods_for_host_types(ConfigEl, HostTypes)
-             end,
-    case lists:foldl(FoldFN, [], Config) of
-        [] -> ok;
-        Errors ->
-            config_error("Invalid host type configuration", Errors)
-    end.
-
-maybe_check_modules_for_host_type({{modules, HostOrHostType}, ModulesWithOpts}, HostTypes) ->
-    case lists:member(HostOrHostType, HostTypes) of
-        false -> [];
-        true ->
-            BadModules = check_modules_for_host_type(ModulesWithOpts),
-            invalid_modules_for_host_type(HostOrHostType, BadModules)
-    end;
-maybe_check_modules_for_host_type(_, _) -> [].
-
-check_modules_for_host_type(ModulesWithOpts) ->
-    FilterMapFN = fun({Module, _}) ->
-                      case gen_mod:does_module_support(Module, dynamic_domains) of
-                          true -> false;
-                          false -> {true, Module}
-                      end
-                  end,
-    lists:filtermap(FilterMapFN, ModulesWithOpts).
-
-invalid_modules_for_host_type(HostType, Modules) ->
-    MapFN = fun(Module) ->
-                #{class => error,
-                  module => Module,
-                  host_type => HostType,
-                  reason => not_supported_module,
-                  text => "this module doesn't support dynamic domains",
-                  what => toml_processing_failed}
-            end,
-    lists:map(MapFN, Modules).
-
-maybe_check_auth_methods_for_host_types({{auth, HostOrHostType}, #{methods := Methods}},
-                                        HostTypes) ->
-    case lists:member(HostOrHostType, HostTypes) of
-        false -> [];
-        true ->
-            BadModules = check_auth_methods_for_host_type(Methods),
-            invalid_auth_methods_for_host_type(HostOrHostType, BadModules)
-    end;
-maybe_check_auth_methods_for_host_types(_, _) -> [].
-
-check_auth_methods_for_host_type(ListOfMethods) ->
-    FilterMapFN = fun(Method) ->
-                      case ejabberd_auth:does_method_support(Method, dynamic_domains) of
-                          true -> false;
-                          false -> {true, Method}
-                      end
-                  end,
-    lists:filtermap(FilterMapFN, ListOfMethods).
-
-invalid_auth_methods_for_host_type(HostType, Methods) ->
-    MapFN = fun(Method) ->
-                #{class => error,
-                  auth_method => Method,
-                  host_type => HostType,
-                  reason => not_supported_auth_method,
-                  text => "this auth method doesn't support dynamic domains",
-                  what => toml_processing_failed}
-            end,
-    lists:map(MapFN, Methods).
