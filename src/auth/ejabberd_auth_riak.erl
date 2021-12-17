@@ -55,6 +55,7 @@ config_spec() ->
     #section{
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
+       defaults = #{<<"bucket_type">> => <<"users">>},
        format_items = map
       }.
 
@@ -182,7 +183,7 @@ remove_user(HostType, LUser, LServer) ->
 
 -spec bucket_type(mongooseim:host_type(), jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(HostType, LServer) ->
-    BucketType = mongoose_config:get_opt([{auth, HostType}, riak, bucket_type], <<"users">>),
+    BucketType = mongoose_config:get_opt([{auth, HostType}, riak, bucket_type]),
     {BucketType, LServer}.
 
 %% -----------------------------------------------------------------------------

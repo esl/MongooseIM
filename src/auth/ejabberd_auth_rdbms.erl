@@ -88,6 +88,7 @@ stop(_HostType) ->
 config_spec() ->
     #section{
        items = #{<<"users_number_estimate">> => #option{type = boolean}},
+       defaults = #{<<"users_number_estimate">> => false},
        format_items = map
       }.
 
@@ -441,7 +442,7 @@ prepare_queries(HostType) ->
             <<"DELETE FROM users WHERE server = ?">>).
 
 prepare_count_users(HostType) ->
-    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate], false),
+    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate]),
           mongoose_rdbms:db_engine(HostType)} of
         {true, mysql} ->
             prepare(auth_count_users_estimate, 'information_schema.tables', [],
@@ -512,7 +513,7 @@ execute_count_users(HostType, LServer, #{prefix := Prefix}) ->
     Args = [LServer, prefix_to_like(Prefix)],
     execute_successfully(HostType, auth_count_users_prefix, Args);
 execute_count_users(HostType, LServer, #{}) ->
-    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate], false),
+    case {mongoose_config:get_opt([{auth, HostType}, rdbms, users_number_estimate]),
           mongoose_rdbms:db_engine(LServer)} of
         {true, mysql} ->
             execute_successfully(HostType, auth_count_users_estimate, []);

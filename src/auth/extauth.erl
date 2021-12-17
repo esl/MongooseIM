@@ -131,7 +131,7 @@ random_instance(MaxNum) ->
 
 -spec get_instances(mongooseim:host_type()) -> integer().
 get_instances(HostType) ->
-    mongoose_config:get_opt([{auth, HostType}, external, instances], 1).
+    mongoose_config:get_opt([{auth, HostType}, external, instances]).
 
 
 -spec loop(port(), integer(), atom(), any()) -> no_return().
