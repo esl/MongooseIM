@@ -101,19 +101,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [
-     {group, accounts},
-     {group, sessions},
-     {group, vcard},
-     {group, roster},
-     {group, roster_advanced},
-     {group, last},
-     {group, private},
-     {group, stanza},
-     {group, stats},
-     {group, basic},
-     {group, upload}
-    ].
+    ct_helper:groups_to_all(groups()).
 
 groups() ->
     [{accounts, [sequence], accounts()},
