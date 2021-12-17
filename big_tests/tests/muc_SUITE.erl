@@ -5003,11 +5003,6 @@ is_with_role(Stanza, Role) ->
         exml_query:attr(Item, <<"role">>) =:= Role
     end, Items).
 
-is_presence_with_nick(Stanza, Nick) ->
-    escalus_pred:is_presence(Stanza) andalso
-    exml_query:path(Stanza,[{element, <<"x">>},
-        {element, <<"item">>}, {attribute, <<"nick">>}]) == Nick.
-
 is_presence_with_affiliation(Stanza, Affiliation) ->
     is_affiliation(exml_query:subelement(Stanza, <<"x">>), Affiliation).
 
@@ -5020,27 +5015,13 @@ is_affiliation(Stanza, Affiliation) ->
         exml_query:attr(Item, <<"affiliation">>) =:= Affiliation
     end, Items).
 
-is_presence_with_jid(Stanza, User) ->
-    is_jid(exml_query:subelement(Stanza, <<"x">>), User).
-
-is_presence_with_full_jid(Stanza, User) ->
-    is_full_jid(exml_query:subelement(Stanza, <<"x">>), User).
-
 is_iq_with_jid(Stanza, User) ->
     is_jid(exml_query:subelement(Stanza, <<"query">>), User).
-
-is_full_jid(Stanza, User) ->
-    Item = exml_query:subelement(Stanza, <<"item">>),
-    JID = escalus_utils:get_jid(User),
-    JID = exml_query:attr(Item, <<"jid">>).
 
 is_jid(Stanza, User) ->
     Items = exml_query:subelements(Stanza, <<"item">>),
     JID = escalus_utils:get_jid(User),
     lists:any(fun(Item) -> exml_query:attr(Item, <<"jid">>) =:= JID end, Items).
-
-is_presence_with_short_jid(Stanza, User) ->
-    is_short_jid(exml_query:subelement(Stanza, <<"x">>), User).
 
 is_iq_with_short_jid(Stanza, User) ->
     is_short_jid(exml_query:subelement(Stanza, <<"query">>), User).
