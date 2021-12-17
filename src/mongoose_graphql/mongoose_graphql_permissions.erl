@@ -50,7 +50,8 @@ check_permissions(OpName, false, #document{definitions = Definitions}) ->
                         true ->
                             ok;
                         false ->
-                            graphql_err:abort([], authorize, {no_permissions, op_name(OpName)})
+                            OpName2 = op_name(OpName),
+                            graphql_err:abort([OpName2], authorize, {no_permissions, OpName2})
                     end;
                 false ->
                     ok

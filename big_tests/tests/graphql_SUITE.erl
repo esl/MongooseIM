@@ -87,6 +87,7 @@ unauth_cannot_access_protected_types(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, undefined),
+    ?assertMatch(#{<<"errors">> := [#{<<"path">> := [<<"ROOT">>]}]}, Data),
     assert_no_permissions(no_permissions, Status, Data).
 
 unauth_can_access_unprotected_types(Config) ->

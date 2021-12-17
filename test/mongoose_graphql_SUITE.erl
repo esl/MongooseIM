@@ -338,12 +338,13 @@ format_decode_errors(_Config) ->
 format_authorize_error(_Config) ->
     {401, Msg1} = mongoose_graphql_errors:format_error(make_error(authorize, wrong_credentials)),
     {401, Msg2} = mongoose_graphql_errors:format_error(
-                    make_error(authorize, {no_permissions, <<"ROOT">>})),
+                    make_error([<<"ROOT">>], authorize, {no_permissions, <<"ROOT">>})),
     {401, Msg3} = mongoose_graphql_errors:format_error(
                     make_error(authorize, {request_error, {header, <<"authorization">>}, 'msg'})),
 
     ?assertErrMsg(wrong_credentials, <<"provided credentials are wrong">>, Msg1),
     ?assertErrMsg(no_permissions, <<"without permissions">>, Msg2),
+    ?assertMatch(#{path := [<<"ROOT">>]}, Msg2),
     ?assertErrMsg(request_error, <<"Malformed authorization header">>, Msg3).
 
 format_validate_error(_Config) ->
@@ -388,6 +389,9 @@ assert_err_msg(Code, MsgContains, #{message := Msg} = ErrorMsg) ->
 
 make_error(Phase, Term) ->
     #{phase => Phase, error_term => Term}.
+
+make_error(Path, Phase, Term) ->
+    #{path => Path, phase => Phase, error_term => Term}.
 
 check_permissions(Config, Doc) ->
     Ep = ?config(endpoint, Config),

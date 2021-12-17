@@ -1,4 +1,7 @@
-%% @doc Implements callbacks that format custom errors returned from resolvers or crashes. 
+%% @doc Implements callbacks that format custom errors returned from resolvers or crashes.
+%% In addition, it can format each type of error that occurred in any graphql
+%% or mongoose_graphql phase.
+%% @end
 -module(mongoose_graphql_errors).
 
 -export([format_error/1, err/2, crash/2]).
@@ -23,12 +26,12 @@ crash(_Ctx, #{type := Type}) ->
 
 %% @doc Format error that occurred in any phase including HTTP request decoding.
 -spec format_error(term())-> {integer(), err_msg()}.
-format_error(#{phase := Phase, error_term := Term}) when Phase =:= authorize;
-                                                         Phase =:= decode;
-                                                         Phase =:= parse ->
+format_error(#{phase := Phase, error_term := Term} = Err) when Phase =:= authorize;
+                                                               Phase =:= decode;
+                                                               Phase =:= parse ->
     Msg = #{extensions => #{code => err_code(Phase, Term)},
             message => iolist_to_binary(err_msg(Phase, Term))},
-    {err_http_code(Phase), Msg};
+    {err_http_code(Phase), add_path(Err, Msg)};
 format_error(#{error_term := _, phase := Phase} = Err) when Phase =:= execute;
                                                             Phase =:= type_check;
                                                             Phase =:= validate;
@@ -85,3 +88,8 @@ decode_err_mgs(invalid_json_body) ->
     "The request json body is invalid";
 decode_err_mgs(variables_invalid_json) ->
     "The variables' json is invalid".
+
+add_path(#{path := Path}, ErrMsg) ->
+    ErrMsg#{path => Path};
+add_path(_, ErrMsg) ->
+    ErrMsg.
