@@ -98,18 +98,18 @@ execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
                      QueryName :: atom(),
                      TableName :: atom(),
                      InsertFields :: [binary()],
-                     Updates :: [binary()],
+                     Updates :: [binary() | {binary(), binary()}],
                      UniqueKeyFields :: [binary()]) ->
     {ok, QueryName :: atom()} | {error, already_exists}.
 prepare_upsert(Host, Name, Table, InsertFields, Updates, UniqueKeyFields) ->
     SQL = upsert_query(Host, Table, InsertFields, Updates, UniqueKeyFields),
     Query = iolist_to_binary(SQL),
-    ?LOG_DEBUG(#{what => rdbms_upsert_query, query => Query}),
+    ?LOG_DEBUG(#{what => rdbms_upsert_query, name => Name, query => Query}),
     Fields = prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields),
     mongoose_rdbms:prepare(Name, Table, Fields, Query).
 
 prepared_upsert_fields(InsertFields, Updates, UniqueKeyFields) ->
-    UpdateFields = lists:filter(fun is_field/1, Updates),
+    UpdateFields = lists:filtermap(fun get_field_name/1, Updates),
     case mongoose_rdbms:db_type() of
         mssql ->
             UniqueKeyFields ++ InsertFields ++ UpdateFields;
@@ -185,12 +185,26 @@ mssql_on_conflict(Updates) ->
      [" WHEN MATCHED THEN UPDATE SET ", update_fields_on_conflict(Updates), ";"].
 
 update_field_expression(Update) ->
-    case is_field(Update) of
+    case get_field_expression(Update) of
+        {true, Expr} -> Expr;
         true -> [Update, " = ?"];
         false -> Update
     end.
 
-is_field(FieldExpr) ->
+get_field_expression({_, FieldExpr}) ->
+    case binary:match(FieldExpr, <<"=">>) of
+        nomatch -> false;
+        _ -> {true, FieldExpr}
+    end;
+get_field_expression(FieldExpr) ->
+    binary:match(FieldExpr, <<"=">>) =:= nomatch.
+
+get_field_name({Field, _}) ->
+    case binary:match(Field, <<"=">>) of
+        nomatch -> {true, Field};
+        _ -> false
+    end;
+get_field_name(FieldExpr) ->
     binary:match(FieldExpr, <<"=">>) =:= nomatch.
 
 %% F can be either a fun or a list of queries
