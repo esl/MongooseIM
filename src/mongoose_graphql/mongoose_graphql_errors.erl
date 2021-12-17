@@ -65,7 +65,7 @@ simplify(T) when is_tuple(T) -> element(1, T).
 err_msg(parse, Result) ->
     parse_err_msg(Result);
 err_msg(decode, Result) ->
-    decode_err_mgs(Result);
+    decode_err_msg(Result);
 err_msg(authorize, Result) ->
     authorize_err_msg(Result).
 
@@ -82,12 +82,12 @@ parse_err_msg({scanner_error, {Line, graphql_scanner, Msg}}) ->
     Formatted = lists:flatten(graphql_scanner:format_error(Msg)),
     io_lib:format("Cannot scan line ~B because of ~s", [Line, Formatted]).
 
-decode_err_mgs(no_query_supplied) ->
-    "The query was not supplied in request body";
-decode_err_mgs(invalid_json_body) ->
-    "The request json body is invalid";
-decode_err_mgs(variables_invalid_json) ->
-    "The variables' json is invalid".
+decode_err_msg(no_query_supplied) ->
+    "The query was not supplied in the request body";
+decode_err_msg(invalid_json_body) ->
+    "The request JSON body is invalid";
+decode_err_msg(variables_invalid_json) ->
+    "The variables' JSON is invalid".
 
 add_path(#{path := Path}, ErrMsg) ->
     ErrMsg#{path => Path};

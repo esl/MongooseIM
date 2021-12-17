@@ -18,6 +18,7 @@
 all() ->
     [can_create_endpoint,
      can_load_split_schema,
+     unexpected_internal_error,
      admin_and_user_load_global_types,
      {group, unprotected_graphql},
      {group, protected_graphql},
@@ -138,6 +139,12 @@ can_load_split_schema(Config) ->
     ?assertMatch(#object_type{id = <<"Query">>}, graphql_schema:get(Ep, <<"Query">>)),
     ?assertMatch(#object_type{id = <<"Mutation">>}, graphql_schema:get(Ep, <<"Mutation">>)).
 
+unexpected_internal_error(Config) ->
+    Name = ?config(endpoint_name, Config),
+    Doc = <<"mutation { field }">>,
+    Res = mongoose_graphql:execute(Name, undefined, Doc),
+    ?assertEqual({error, internal_crash}, Res).
+
 admin_and_user_load_global_types(_Config) ->
     mongoose_graphql:init(),
     AdminEp = mongoose_graphql:get_endpoint(admin),
@@ -164,9 +171,9 @@ auth_can_execute_protected_mutation(Config) ->
 
 unauth_cannot_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),
-    Doc = <<"{ field }">>,
-    Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertMatch({error, #{error_term := {no_permissions, <<"ROOT">>}}}, Res).
+    Doc = <<"query Q1 { field }">>,
+    Res = mongoose_graphql:execute(Ep, request(<<"Q1">>, Doc, false)),
+    ?assertMatch({error, #{error_term := {no_permissions, <<"Q1">>}, path := [<<"Q1">>]}}, Res).
 
 unauth_cannot_execute_protected_mutation(Config) ->
     Ep = ?config(endpoint, Config),
@@ -402,8 +409,11 @@ check_permissions(Config, Doc) ->
     ok = mongoose_graphql_permissions:check_permissions(Op, false, Ast2).
 
 request(Doc, Authorized) ->
+    request(undefined, Doc, Authorized).
+
+request(Op, Doc, Authorized) ->
     #{document => Doc,
-      operation_name => undefined,
+      operation_name => Op,
       vars => #{},
       authorized => Authorized,
       ctx => #{}}.
