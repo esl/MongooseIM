@@ -288,6 +288,7 @@ groups() ->
 register_cases() ->
     [user_asks_for_registration_form,
      user_submits_registration_form,
+     user_submits_registration_form_over_s2s,
      user_submits_registration_form_twice,
      user_changes_nick,
      user_unregisters_nick,
