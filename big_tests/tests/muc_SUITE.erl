@@ -5118,50 +5118,6 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
     end,
     lists:any(RoomPred, Rooms).
 
-count_rooms(#xmlel{children = [ #xmlel{children = Rooms} ]}, N) ->
-    ?assert_equal(N, length(Rooms)).
-
-has_muc(#xmlel{children = [ #xmlel{children = Services} ]}) ->
-    %% should be along the lines of (taken straight from the XEP):
-    %% <iq from='shakespeare.lit'
-    %%     id='h7ns81g'
-    %%     to='hag66@shakespeare.lit/pda'
-    %%     type='result'>
-    %%   <query xmlns='http://jabber.org/protocol/disco#items'>
-    %%     <item jid='chat.shakespeare.lit'
-    %%           name='Chatroom Service'/>
-    %%   </query>
-    %% </iq>
-
-    %% is like this:
-    %% {xmlel,<<"iq">>,
-    %%     [{<<"from">>,<<"localhost">>},
-    %%         {<<"to">>,<<"alice@localhost/res1">>},
-    %%         {<<"id">>,<<"a5eb1dc70826598893b15f1936b18a34">>},
-    %%         {<<"type">>,<<"result">>}],
-    %%     [{xmlel,<<"query">>,
-    %%             [{<<"xmlns">>,
-    %%                     <<"http://jabber.org/protocol/disco#items">>}],
-    %%             [{xmlel,<<"item">>,
-    %%                     [{<<"jid">>,<<"vjud.localhost">>}],
-    %%                     []},
-    %%                 {xmlel,<<"item">>,
-    %%                     [{<<"jid">>,<<"pubsub.localhost">>}],
-    %%                     []},
-    %%                 {xmlel,<<"item">>,
-    %%                     [{<<"jid">>,<<"muc.localhost">>}],
-    %%                     []},
-    %%                 {xmlel,<<"item">>,
-    %%                     [{<<"jid">>,<<"irc.localhost">>}],
-    %%                     []}]}]}
-    %% how to obtaing output like the above? simply put this in the test case:
-    %% S = escalus:wait_for_stanza(Alice),
-    %% error_logger:info_msg("~p~n", [S]),
-    IsMUC = fun(Item) ->
-        exml_query:attr(Item, <<"jid">>) == muc_host()
-    end,
-    lists:any(IsMUC, Services).
-
 is_room_locked(Stanza) ->
     escalus_pred:is_presence(Stanza)
     andalso
