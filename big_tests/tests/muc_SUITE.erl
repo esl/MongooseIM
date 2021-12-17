@@ -4897,17 +4897,6 @@ stanza_get_rooms() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
         muc_host()).
 
-
-stanza_get_services(_Config) ->
-    %% <iq from='hag66@shakespeare.lit/pda'
-    %%     id='h7ns81g'
-    %%     to='shakespeare.lit'
-    %%     type='get'>
-    %%   <query xmlns='http://jabber.org/protocol/disco#items'/>
-    %% </iq>
-    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
-        domain()).
-
 get_nick_form_iq() ->
     GetIQ = escalus_stanza:iq_get(<<"jabber:iq:register">>, []),
     escalus_stanza:to(GetIQ, muc_host()).
