@@ -1196,13 +1196,11 @@ process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData)
                            acc => Acc, state_name => StateName, c2s_state => StateData}),
             finish_state(ok, StateName, StateData);
         _ -> %% Continue processing
-            ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
             process_incoming_stanza(From, To, Acc, StateName, StateData)
     end.
 
 check_receiver_sid_conflict(Acc, #state{sid = Sid}) ->
-    ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
-    case ReceiverSID of
+    case mongoose_acc:get(c2s, receiver_sid, undefined, Acc) of
         undefined ->
             ok;
         Sid ->
