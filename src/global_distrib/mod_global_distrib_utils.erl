@@ -53,25 +53,7 @@ binary_to_metric_atom(Binary) ->
     list_to_atom(List).
 
 ensure_metric(Metric, Type) ->
-    case mongoose_metrics:ensure_metric(global, Metric, Type) of
-        ok ->
-            Reporters = exometer_report:list_reporters(),
-            Interval = mongoose_metrics:get_report_interval(),
-            lists:foreach(
-              fun(Reporter) ->
-                      mongoose_metrics:subscribe_metric(Reporter, {[global | Metric], Type, []},
-                                                        Interval)
-              end,
-              Reporters);
-        {ok, already_present} ->
-            ?LOG_DEBUG(#{what => metric_already_present,
-                         metric => Metric, type => Type}),
-            ok;
-        Other ->
-            ?LOG_WARNING(#{what => cannot_create_metric,
-                           metric => Metric, type => Type, reason => Other}),
-            Other
-    end.
+    mongoose_metrics:ensure_subscribed_metric(global, Metric, Type).
 
 -spec any_binary_to_atom(binary()) -> atom().
 any_binary_to_atom(Binary) ->
