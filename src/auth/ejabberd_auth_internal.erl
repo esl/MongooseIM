@@ -325,7 +325,8 @@ scram_passwords() ->
 
 -spec scramming_function(passwd()) -> passwd().
 scramming_function(#passwd{us = {_, Server}, password = Password} = P) ->
-    Scram = mongoose_scram:password_to_scram(Server, Password, mongoose_scram:iterations(Server)),
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Server),
+    Scram = mongoose_scram:password_to_scram(HostType, Password, mongoose_scram:iterations(HostType)),
     P#passwd{password = Scram}.
 
 -spec dirty_read_passwd(US :: jid:simple_bare_jid()) -> [passwd()].
