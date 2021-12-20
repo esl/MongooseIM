@@ -236,12 +236,15 @@ creds_with_cert(Config, Username) ->
                                            {username, Username}]).
 
 set_opts(Config) ->
-    AuthOpts = case lists:keyfind(scram_group, 1, Config) of
-                    {_, false} -> #{password_format => plain};
-                    _ -> #{}
-                end,
+    PasswordFormat = case lists:keyfind(scram_group, 1, Config) of
+                         {_, false} -> plain;
+                         _ -> scram
+                     end,
     HttpOpts = #{basic_auth => ?BASIC_AUTH},
-    mongoose_config:set_opt({auth, ?HOST_TYPE}, AuthOpts#{http => HttpOpts}).
+    mongoose_config:set_opt({auth, ?HOST_TYPE}, #{methods => [http],
+                                                  password => #{format => PasswordFormat,
+                                                                scram_iterations => 10},
+                                                  http => HttpOpts}).
 
 unset_opts() ->
     mongoose_config:unset_opt({auth, ?HOST_TYPE}).

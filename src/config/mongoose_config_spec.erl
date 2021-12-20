@@ -23,7 +23,6 @@
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
-         process_auth_password/1,
          process_pool/2,
          process_cassandra_auth/1,
          process_rdbms_connection/1,
@@ -477,8 +476,6 @@ auth() ->
        items = Items#{<<"methods">> => #list{items = #option{type = atom,
                                                              validate = {module, ejabberd_auth}}},
                       <<"password">> => auth_password(),
-                      <<"scram_iterations">> => #option{type = integer,
-                                                        validate = positive},
                       <<"sasl_external">> =>
                           #list{items = #option{type = atom,
                                                 process = fun ?MODULE:process_sasl_external/1}},
@@ -503,10 +500,14 @@ auth_password() ->
                                                      validate = {enum, [sha, sha224, sha256,
                                                                         sha384, sha512]}},
                                      validate = unique_non_empty
-                                    }
+                                    },
+                 <<"scram_iterations">> => #option{type = integer,
+                                                   validate = positive}
                 },
-       process = fun ?MODULE:process_auth_password/1,
-       wrap = {kv, password_format}
+       format_items = map,
+       defaults = #{<<"format">> => scram,
+                    <<"scram_iterations">> => mongoose_scram:iterations()},
+       include = always
       }.
 
 %% path: outgoing_pools
@@ -1162,14 +1163,6 @@ check_auth_method(Method, Opts) ->
     case maps:is_key(Method, Opts) of
         true -> ok;
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
-    end.
-
-process_auth_password(KVs) ->
-    {[FormatOpts, HashOpts], []} = proplists:split(KVs, [format, hash]),
-    case {FormatOpts, HashOpts} of
-        {[{format, Format}], []} -> Format;
-        {[{format, scram}], [{hash, Hashes}]} -> {scram, Hashes};
-        {[], [{hash, Hashes}]} -> {scram, Hashes}
     end.
 
 process_pool([Tag, Type|_], KVs) ->

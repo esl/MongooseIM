@@ -162,20 +162,20 @@
 {{/listen_service}}
 
 [auth]
-  {{#password_format}}
-  {{{password_format}}}
-  {{/password_format}}
-  {{#scram_iterations}}
-  scram_iterations = {{{scram_iterations}}}
-  {{/scram_iterations}}
   {{#cyrsasl_external}}
   sasl_external = [{{{cyrsasl_external}}}]
   {{/cyrsasl_external}}
   {{#sasl_mechanisms}}
   sasl_mechanisms = [{{{sasl_mechanisms}}}]
   {{/sasl_mechanisms}}
+  {{#auth_password_opts}}
+
+  [auth.password]
+    {{{auth_password_opts}}}
+  {{/auth_password_opts}}
   {{#auth_method}}
 
+  # methods
   [auth.{{{auth_method}}}]{{#auth_method_opts}}
     {{{auth_method_opts}}}{{/auth_method_opts}}
   {{/auth_method}}

@@ -12,10 +12,18 @@ init_per_suite(C) ->
     application:ensure_all_started(jid),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    ejabberd_auth_internal:start(<<"server">>),
+    mongoose_config:set_opt({auth, host_type()}, #{methods => [internal],
+                                                   internal => #{},
+                                                   password => #{format => scram,
+                                                                 scram_iterations => 10}}),
+    mongoose_domain_core:start([{domain(), host_type()}], []),
+    ejabberd_auth_internal:start(host_type()),
     C.
 
 end_per_suite(_C) ->
+    ejabberd_auth_internal:stop(host_type()),
+    mongoose_domain_core:stop(),
+    mongoose_config:unset_opt({auth, host_type()}),
     mnesia:stop(),
     mnesia:delete_schema([node()]).
 
@@ -78,7 +86,7 @@ passwords_in_plain_can_be_converted_to_scram(_C) ->
 
 gen_user() ->
     {base64:encode(crypto:strong_rand_bytes(5)),
-     <<"server">>,
+     domain(),
      base64:encode(crypto:strong_rand_bytes(6))}.
 
 old_password_to_scram(Password, IterationCount) ->
@@ -91,6 +99,9 @@ old_password_to_scram(Password, IterationCount) ->
            serverkey = base64:encode(ServerKey),
            salt = base64:encode(Salt),
            iterationcount = IterationCount}.
+
+domain() ->
+    <<"server">>.
 
 host_type() ->
     <<"test host type">>.

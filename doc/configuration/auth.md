@@ -94,10 +94,14 @@ These options are common to the `http`, `rdbms`, `internal` and `riak` methods.
 
 Decide whether user passwords will be kept plain or hashed in the database.
 Currently, popular XMPP clients support the SCRAM method and it is strongly recommended to use the hashed version.
-The older XMPP clients can still use the `PLAIN` mechanism.
+The older XMPP clients can still use the `PLAIN` mechanism even if the format is set to `scram`.
 
 !!! Note
     The `DIGEST-MD5` mechanism is not available with the `scram` password format.
+
+### SCRAM options
+
+For these options to take effect, `password.format` should be set to `scram`.
 
 ### `auth.password.hash`
 * **Syntax:** list of strings, allowed values: `"sha"`, `"sha224"`, `"sha256"`, `"sha384"`, `"sha512"`
@@ -111,10 +115,10 @@ The value `"sha"` stands for the SHA-1 algorithm.
 !!! Warning
     This option limits the supported `SCRAM-SHA-*` SASL mechanisms to the ones compatible with the specified hash functions.
 
-### `auth.scram_iterations`
+### `auth.password.scram_iterations`
 * **Syntax:** positive integer
 * **Default:** 10000, as recommended in this [XEP](https://xmpp.org/extensions/xep-0438.html#pbkdf2) and this [NIST Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html#sec5)
-* **Example:** `scram_iterations = 20_000`
+* **Example:** `password.scram_iterations = 20_000`
 
 Hash function round count.
 This is a tradeoff between latency and security.
@@ -136,7 +140,7 @@ Internal authentication method with some general options:
 ```toml
 [auth]
   password.hash = ["sha512"]
-  scram_iterations = 20000
+  password.scram_iterations = 20000
 
   [auth.internal]
 ```
