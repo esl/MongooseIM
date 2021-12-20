@@ -633,7 +633,8 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg1 = <<"Hi Room!">>,
         Msg2 = <<"How are you?">>,
-        Id = <<"MyID">>,
+        Id1 = <<"id-1">>,
+        Id2 = <<"id-2">>,
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         BobJid = inbox_helper:to_bare_lower(Bob),
         AliceJid = inbox_helper:to_bare_lower(Alice),
@@ -641,7 +642,7 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
         RoomJid = room_bin_jid(Room),
         BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
         Stanza1 = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
+                    escalus_stanza:groupchat_to(RoomJid, Msg1), Id1),
         %% Alice sends msg to room
         escalus:send(Alice, Stanza1),
         R0 = escalus:wait_for_stanza(Alice),
@@ -652,7 +653,7 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
         escalus:assert(is_groupchat_message, R2),
         %% Bob sends second message
         Stanza2 = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg2), Id),
+                    escalus_stanza:groupchat_to(RoomJid, Msg2), Id2),
         escalus:send(Bob, Stanza2),
         R3 = escalus:wait_for_stanza(Alice),
         R4 = escalus:wait_for_stanza(Bob),
@@ -995,7 +996,8 @@ inbox_does_not_trigger_does_user_exist(Config) ->
 system_message_is_correctly_avoided(Config) ->
     escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(Alice, AliceBis, Bob) ->
         %% Variables
-        Id = <<"MyID">>,
+        Id1 = <<"id-1">>,
+        Id2 = <<"id-2">>,
         Msg1 = <<"Hi Room!">>,
         Msg2 = <<"How are you?">>,
         Users = [Alice, AliceBis, Bob],
@@ -1008,12 +1010,12 @@ system_message_is_correctly_avoided(Config) ->
         %% Given a room
         muc_light_helper:given_muc_light_room(Room, Alice, InitOccupants),
         BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
-        Stanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
+        Stanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg1), Id1),
         %% Alice sends msg to room
         escalus:send(Alice, Stanza1),
         [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
         %% Bob sends second message
-        Stanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg2), Id),
+        Stanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg2), Id2),
         escalus:send(Bob, Stanza2),
         [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
         %% Alice has one unread message (from Bob)
