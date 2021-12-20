@@ -90,7 +90,8 @@ parallel_manual_ack_freq_1_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
      resend_unacked_after_resume_timeout,
-     resume_session_state_send_message,
+     resume_session_state_send_message_with_ack,
+     resume_session_state_send_message_without_ack,
      resume_session_state_stop_c2s,
      server_requests_ack_after_session,
      resend_more_offline_messages_than_buffer_size,
@@ -623,12 +624,17 @@ gc_repeat_after_timeout_does_clean(Config) ->
                                {error, smid_not_found},
                                #{name => smid_garbage_collected}).
 
-resume_session_state_send_message(Config) ->
+resume_session_state_send_message_without_ack(Config) ->
+    resume_session_state_send_message_generic(Config, no_ack).
+
+resume_session_state_send_message_with_ack(Config) ->
+    resume_session_state_send_message_generic(Config, ack).
+
+resume_session_state_send_message_generic(Config, AckInitialPresence) ->
     %% connect bob and alice
     Bob = connect_fresh(Config, bob, presence),
     Alice = connect_fresh(Config, alice, sr_presence, manual),
-    ack_initial_presence(Alice),
-
+    maybe_ack_initial_presence(Alice, AckInitialPresence),
     escalus_connection:send(Bob, escalus_stanza:chat_to_short_jid(Alice, <<"msg-1">>)),
     %% kill alice connection
     C2SPid = mongoose_helper:get_session_pid(Alice),
@@ -981,14 +987,24 @@ subscription_requests_are_buffered_properly(Config) ->
         Alice2 = connect_spec(AliceSpec, session, manual),
 
         % THEN Alice receives (without sending initial presence):
-        % * buffered available presence (because it's addressed to full JID)
         % * buffered Bob's message (like above)
         % Alice DOESN'T receive:
         % * buffered subscription request because it is dropped by ejabberd_sm
         %   because it's treated like repeated sub request to bare JID, so it's not
         %   processed by any sub req handler (like mod_roster)
-        escalus:assert_many([is_presence(<<"available">>), is_chat(MsgBody)],
+        % * buffered available presence from Alice - because it is addressed to another SID
+        %   and Alice2 is a brand new session
+        escalus:assert(is_chat_message, [MsgBody], escalus:wait_for_stanza(Alice2)),
+        sm_helper:send_and_receive(Bob, Alice2, <<"flush1">>),
+        escalus_assert:has_no_stanzas(Alice2),
+
+        %% Only once an initial presence is sent, a subscription request is sent
+        send_initial_presence(Alice2),
+        escalus:assert_many([is_presence(<<"available">>), is_presence(<<"subscribe">>)],
                             escalus:wait_for_stanzas(Alice2, 2)),
+
+        sm_helper:send_and_receive(Bob, Alice2, <<"flush2">>),
+        escalus_assert:has_no_stanzas(Alice2),
 
         escalus_connection:stop(Alice2)
     end).
@@ -1194,3 +1210,8 @@ wait_for_session(JID, Retries, SleepTime) ->
         _ ->
             ok
     end.
+
+maybe_ack_initial_presence(Alice, ack) ->
+    ack_initial_presence(Alice);
+maybe_ack_initial_presence(_Alice, no_ack) ->
+    ok.

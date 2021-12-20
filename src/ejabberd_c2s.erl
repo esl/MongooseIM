@@ -1175,17 +1175,38 @@ handle_incoming_message(Info, StateName, StateData) ->
     fsm_next_state(StateName, StateData).
 
 process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData) ->
-    case check_incoming_accum_for_conflicts(Acc, StateData) of
-        conflict -> %% A race condition detected
+    Check1 = check_incoming_accum_for_conflicts(Acc, StateData),
+    Check2 = check_receiver_sid_conflict(Acc, StateData),
+    case {Check1, Check2} of
+        {conflict, _} -> %% A race condition detected
             %% Same jid, but different sids
             OriginSID = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
             ?LOG_WARNING(#{what => conflict_check_failed,
-                           text => <<"Drop Acc that is addressed to another connection">>,
+                           text => <<"Drop Acc that is addressed to another connection "
+                                     "(origin SID check failed)">>,
                            c2s_sid => StateData#state.sid, origin_sid => OriginSID,
+                           acc => Acc, state_name => StateName, c2s_state => StateData}),
+            finish_state(ok, StateName, StateData);
+        {_, conflict} ->
+            ReceiverSID = mongoose_acc:get(c2s, receiver_sid, undefined, Acc),
+            ?LOG_WARNING(#{what => conflict_check_failed,
+                           text => <<"Drop Acc that is addressed to another connection "
+                                     "(receiver SID check failed)">>,
+                           c2s_sid => StateData#state.sid, receiver_sid => ReceiverSID,
                            acc => Acc, state_name => StateName, c2s_state => StateData}),
             finish_state(ok, StateName, StateData);
         _ -> %% Continue processing
             process_incoming_stanza(From, To, Acc, StateName, StateData)
+    end.
+
+check_receiver_sid_conflict(Acc, #state{sid = Sid}) ->
+    case mongoose_acc:get(c2s, receiver_sid, undefined, Acc) of
+        undefined ->
+            ok;
+        Sid ->
+            ok;
+        _ ->
+            conflict
     end.
 
 %% If jid is the same, but sid is not, then we have a conflict.
@@ -1563,7 +1584,7 @@ reroute_unacked_messages(StateData, UnreadMessages) ->
                  unread_messages => UnreadMessages, c2s_state => StateData}),
     flush_stream_mgmt_buffer(StateData),
     bounce_csi_buffer(StateData),
-    bounce_messages(UnreadMessages).
+    bounce_messages(UnreadMessages, StateData).
 
 %%%----------------------------------------------------------------------
 %%% Internal functions
@@ -1652,7 +1673,6 @@ do_send_element(El, #state{sockmod = SockMod} = StateData)
         {xmlstreamelement, El});
 do_send_element(El, StateData) ->
     send_text(StateData, exml:to_binary(El)).
-
 
 -spec send_header(State :: state(),
                   Server :: jid:server(),
@@ -2494,17 +2514,17 @@ fsm_limit_opts(Opts) ->
             end
     end.
 
--spec bounce_messages(list()) -> 'ok'.
-bounce_messages(UnreadMessages) ->
+-spec bounce_messages(list(), #state{}) -> 'ok'.
+bounce_messages(UnreadMessages, StateData) ->
     case get_msg(UnreadMessages) of
         {ok, {route, From, To, Acc}, RemainedUnreadMessages} ->
-            ejabberd_router:route(From, To, Acc),
-            bounce_messages(RemainedUnreadMessages);
+            reroute(From, To, Acc, StateData),
+            bounce_messages(RemainedUnreadMessages, StateData);
         {ok, {store_session_info, JID, Key, Value, _FromPid}, _} ->
             ejabberd_sm:store_info(JID, Key, Value);
         {ok, _, RemainedUnreadMessages} ->
             % ignore this one, get the next message
-            bounce_messages(RemainedUnreadMessages);
+            bounce_messages(RemainedUnreadMessages, StateData);
         {error, no_messages} ->
             ok
     end.
@@ -2741,8 +2761,8 @@ flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
 
 bounce_csi_buffer(#state{csi_buffer = []}) ->
     ok;
-bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
-    re_route_packets(Buffer).
+bounce_csi_buffer(#state{csi_buffer = Buffer} = State) ->
+    re_route_packets(Buffer, State).
 
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
@@ -2980,15 +3000,33 @@ stream_mgmt_request() ->
 flush_stream_mgmt_buffer(#state{stream_mgmt = StreamMgmt})
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     false;
-flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
-    re_route_packets(Buffer).
+flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer} = State) ->
+    re_route_packets(Buffer, State).
 
-re_route_packets(Buffer) ->
-    [begin
-         {From, To, _El} = mongoose_acc:packet(Acc),
-         ejabberd_router:route(From, To, Acc)
-     end || Acc <- lists:reverse(Buffer)],
+re_route_packets(Buffer, StateData) ->
+    [reroute(Acc, StateData) || Acc <- lists:reverse(Buffer)],
     ok.
+
+reroute(Acc, StateData) ->
+    {From, To, _El} = mongoose_acc:packet(Acc),
+    reroute(From, To, Acc, StateData).
+
+reroute(From, To, Acc, #state{sid = SID}) ->
+    Acc2 = patch_acc_for_reroute(Acc, SID),
+    ejabberd_router:route(From, To, Acc2).
+
+patch_acc_for_reroute(Acc, SID) ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
+            Acc;
+        _ -> %% IQs and presences are allowed to come to the same SID only
+            case mongoose_acc:get(c2s, receiver_sid, undefined, Acc) of
+                undefined ->
+                    mongoose_acc:set_permanent(c2s, receiver_sid, SID, Acc);
+                _ ->
+                    Acc
+            end
+    end.
 
 notify_unacknowledged_messages(#state{stream_mgmt_buffer = Buffer} = State) ->
     NewBuffer = [maybe_notify_unacknowledged_msg(Acc, State) || Acc <- lists:reverse(Buffer)],
