@@ -1084,12 +1084,27 @@ login_send_presence(Config, User) ->
     Client.
 
 maybe_wait_for_archive(Config) ->
+    wait_for_parallel_writer(Config),
     case ?config(archive_wait, Config) of
         undefined ->
             ok;
         Value ->
             timer:sleep(Value)
     end.
+
+wait_for_parallel_writer(Config) ->
+    case ?config(wait_for_parallel_writer, Config) of
+        undefined ->
+            ok;
+        Types ->
+            HostType = domain_helper:host_type(),
+            [wait_for_parallel_writer(Type, HostType) || Type <- Types]
+    end.
+
+wait_for_parallel_writer(pm, HostType) ->
+    rpc(mim(), mongoose_hooks, mam_archive_sync, [HostType]);
+wait_for_parallel_writer(muc, HostType) ->
+    rpc(mim(), mongoose_hooks, mam_muc_archive_sync, [HostType]).
 
 %% Bob and Alice are friends.
 %% Kate and Alice are not friends.

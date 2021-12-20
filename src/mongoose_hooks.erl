@@ -95,7 +95,8 @@
          mam_remove_archive/3,
          mam_lookup_messages/2,
          mam_archive_message/2,
-         mam_flush_messages/2]).
+         mam_flush_messages/2,
+         mam_archive_sync/1]).
 
 -export([mam_muc_archive_id/2,
          mam_muc_archive_size/3,
@@ -105,7 +106,8 @@
          mam_muc_remove_archive/3,
          mam_muc_lookup_messages/2,
          mam_muc_archive_message/2,
-         mam_muc_flush_messages/2]).
+         mam_muc_flush_messages/2,
+         mam_muc_archive_sync/1]).
 
 -export([get_mam_pm_gdpr_data/2,
          get_mam_muc_gdpr_data/2,
@@ -154,6 +156,7 @@
          node_cleanup/1]).
 
 -ignore_xref([node_cleanup/1, remove_domain/2]).
+-ignore_xref([mam_archive_sync/1, mam_muc_archive_sync/1]).
 
 %% Just a map, used by some hooks as a first argument.
 %% Not mongoose_acc:t().
@@ -1017,6 +1020,11 @@ mam_flush_messages(HookServer, MessageCount) ->
     run_hook_for_host_type(mam_flush_messages, HookServer, ok,
                            [HookServer, MessageCount]).
 
+%% @doc Waits until all pending messages are written
+-spec mam_archive_sync(HostType :: mongooseim:host_type()) -> ok.
+mam_archive_sync(HostType) ->
+    run_hook_for_host_type(mam_archive_sync, HostType, ok, [HostType]).
+
 
 %% MAM MUC related hooks
 
@@ -1132,6 +1140,11 @@ mam_muc_archive_message(HostType, Params) ->
 mam_muc_flush_messages(HookServer, MessageCount) ->
     run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok,
                            [HookServer, MessageCount]).
+
+%% @doc Waits until all pending messages are written
+-spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.
+mam_muc_archive_sync(HostType) ->
+    run_hook_for_host_type(mam_muc_archive_sync, HostType, ok, [HostType]).
 
 %% GDPR related hooks
 
