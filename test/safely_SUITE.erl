@@ -25,7 +25,7 @@ handles_errors_similar_to_catch(_) ->
 
 handles_exits_similar_to_errors(_) ->
     ExitF = fun() -> exit(i_quit) end,
-    {exit, i_quit} = safely:apply(ExitF,[]),
+    {exit, {i_quit, _S}} = safely:apply(ExitF,[]),
     {'EXIT', i_quit} = (catch apply(ExitF,[])),
     ok.
 
