@@ -48,9 +48,10 @@ unprotected_graphql() ->
      unauth_can_execute_mutation].
 
 error_handling() ->
-    [should_catch_parsing_errors,
-     should_catch_type_check_params_errors,
-     should_catch_type_check_errors].
+    [should_catch_parsing_error,
+     should_catch_type_check_params_error,
+     should_catch_type_check_error,
+     should_catch_validation_error].
 
 error_formatting() ->
     [format_internal_crash,
@@ -89,9 +90,10 @@ init_per_testcase(C, Config) when C =:= can_execute_query_with_vars;
                                   C =:= auth_can_execute_mutation;
                                   C =:= unauth_can_execute_query;
                                   C =:= unauth_can_execute_mutation;
-                                  C =:= should_catch_type_check_params_errors;
-                                  C =:= should_catch_type_check_errors;
-                                  C =:= should_catch_parsing_errors ->
+                                  C =:= should_catch_type_check_params_error;
+                                  C =:= should_catch_type_check_error;
+                                  C =:= should_catch_parsing_error;
+                                  C =:= should_catch_validation_error ->
     {Mapping, Pattern} = example_schema_data(Config),
     {ok, _} = mongoose_graphql:create_endpoint(C, Mapping, [Pattern]),
     Ep = mongoose_graphql:get_endpoint(C),
@@ -237,23 +239,33 @@ auth_can_execute_mutation(Config) ->
     Res = mongoose_graphql:execute(Ep, request(Doc, true)),
     ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
-should_catch_parsing_errors(Config) ->
+should_catch_parsing_error(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { field ">>,
-    Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertMatch({error, _}, Res).
+    DocScan = <<"query { id(value: \"ala) }">>,
+    ResParseErr = mongoose_graphql:execute(Ep, request(Doc, false)),
+    ?assertMatch({error, #{phase := parse, error_term := {parser_error, _}}}, ResParseErr),
+    ResScanErr = mongoose_graphql:execute(Ep, request(DocScan, false)),
+    ?assertMatch({error, #{phase := parse, error_term := {scanner_error, _}}}, ResScanErr).
 
-should_catch_type_check_errors(Config) ->
+should_catch_type_check_error(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { notExistingField(value: \"Hello\") }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertMatch({error, _}, Res).
+    ?assertMatch({error, #{phase := type_check, error_term := unknown_field}}, Res).
 
-should_catch_type_check_params_errors(Config) ->
+should_catch_type_check_params_error(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { id(value: 12) }">>,
     Res = mongoose_graphql:execute(Ep, request(Doc, false)),
-    ?assertMatch({error, _}, Res).
+    ?assertMatch({error, #{phase := type_check, error_term := {input_coercion, _, _, _}}}, Res).
+
+should_catch_validation_error(Config) ->
+    Ep = ?config(endpoint, Config),
+    Doc = <<"query Q1{ id(value: \"ok\") } query Q1{ id(value: \"ok\") }">>,
+    % Query name must be unique
+    Res = mongoose_graphql:execute(Ep, request(<<"Q1">>, Doc, false)),
+    ?assertMatch({error, #{phase := validate, error_term := {not_unique, _}}}, Res).
 
 check_object_permissions(Config) ->
     Doc = <<"query { field }">>,

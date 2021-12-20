@@ -111,6 +111,7 @@ malformed_auth_header_error(Config) ->
         headers => [{<<"Authorization">>, <<"Basic YWRtaW46c2VjcmV">>}],
         return_maps => true,
         path => "/graphql"},
+    % The encoded credentials value is malformed and cannot be decoded.
     {Status, Data} = rest_helper:make_request(Request),
     assert_no_permissions(request_error, Status, Data).
 
