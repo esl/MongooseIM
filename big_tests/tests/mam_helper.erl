@@ -56,6 +56,7 @@
          start_alice_protected_room/1,
          start_alice_anonymous_room/1,
          maybe_wait_for_archive/1,
+         set_wait_for_parallel_writer/2,
          stanza_archive_request/2,
          stanza_text_search_archive_request/3,
          stanza_date_range_archive_request_not_empty/3,
@@ -1084,12 +1085,32 @@ login_send_presence(Config, User) ->
     Client.
 
 maybe_wait_for_archive(Config) ->
+    wait_for_parallel_writer(Config),
     case ?config(archive_wait, Config) of
         undefined ->
             ok;
         Value ->
             timer:sleep(Value)
     end.
+
+set_wait_for_parallel_writer(Type, Config) ->
+    Old = proplists:get_value(wait_for_parallel_writer, Config, []),
+    Config2 = proplists:delete(wait_for_parallel_writer, Config),
+    [{wait_for_parallel_writer, lists:usort([Type] ++ Old)}|Config2].
+
+wait_for_parallel_writer(Config) ->
+    case ?config(wait_for_parallel_writer, Config) of
+        undefined ->
+            ok;
+        Types ->
+            HostType = domain_helper:host_type(),
+            [wait_for_parallel_writer(Type, HostType) || Type <- Types]
+    end.
+
+wait_for_parallel_writer(pm, HostType) ->
+    rpc(mim(), mongoose_hooks, mam_archive_sync, [HostType]);
+wait_for_parallel_writer(muc, HostType) ->
+    rpc(mim(), mongoose_hooks, mam_muc_archive_sync, [HostType]).
 
 %% Bob and Alice are friends.
 %% Kate and Alice are not friends.

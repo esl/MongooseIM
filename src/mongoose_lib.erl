@@ -178,3 +178,45 @@ does_local_user_exist(HostType, To, _) ->
 -spec is_to_room(jid:jid()) -> boolean().
 is_to_room(Jid) ->
     {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).
+
+%% ------------------------------------------------------------------
+%% parallel map
+%% ------------------------------------------------------------------
+
+%% Runs a function for each element on the same node
+pmap(F, Es) ->
+    pmap(F, Es, 5000).
+
+pmap(F, Es, Timeout) ->
+    TimerRef = erlang:start_timer(Timeout, self(), pmap_timeout),
+    Running = 
+        [spawn_monitor(fun() -> exit({pmap_result, F(E)}) end)
+            || E <- Es],
+    Result = collect(Running, TimerRef),
+    cancel_and_flush_timer(TimerRef),
+    Result.
+
+collect([], _TimerRef) -> [];
+collect([{Pid, MRef} | Next] = In, TimerRef) ->
+    receive
+        {'DOWN', MRef, process, Pid, Reason} ->
+            [reason_to_result(Reason) | collect(Next, TimerRef)];
+        {timeout, TimerRef, pmap_timeout} ->
+            stop_processes(In),
+            collect(In, TimerRef)
+    end.
+
+stop_processes(In) ->
+    [erlang:exit(Pid, timeout) || {Pid, _} <- In].
+
+reason_to_result({pmap_result, Result}) ->
+    {ok, Result};
+reason_to_result(Reason) ->
+    {error, Reason}.
+
+cancel_and_flush_timer(TimerRef) ->
+    erlang:cancel_timer(TimerRef),
+    receive
+        {timeout, TimerRef, _} -> ok
+    after 0 -> ok
+    end.

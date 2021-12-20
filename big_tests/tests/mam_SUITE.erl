@@ -198,7 +198,8 @@
          parse_messages/1,
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
-         host_type/0
+         host_type/0,
+         set_wait_for_parallel_writer/2
         ]).
 
 -import(muc_light_helper,
@@ -629,7 +630,7 @@ do_init_per_group(C, ConfigIn) ->
         elasticsearch ->
             [{archive_wait, 2500} | Config0];
         _ ->
-            [{archive_wait, 200} | Config0]
+            Config0
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
@@ -698,7 +699,7 @@ init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
-    Config;
+    set_wait_for_parallel_writer(muc, Config);
 init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, []),
@@ -725,7 +726,7 @@ init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
     init_module(host_type(), mod_mam_cache_user, [muc]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
-    Config;
+    set_wait_for_parallel_writer(muc, Config);
 init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
                                                      C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, []),
@@ -790,7 +791,7 @@ init_modules(rdbms_async_pool, C, Config) ->
     init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
+    set_wait_for_parallel_writer(pm, Config);
 init_modules(rdbms_mnesia, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, []),
@@ -811,7 +812,7 @@ init_modules(rdbms_async_cache, C, Config) ->
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
     init_module(host_type(), mod_mam_cache_user, [pm]),
-    Config;
+    set_wait_for_parallel_writer(pm, Config);
 init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, []),

@@ -11,11 +11,13 @@
 -export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 -export([archive_pm_message/3, archive_muc_message/3]).
+-export([mam_archive_sync/2, mam_muc_archive_sync/2]).
 -export([flush_pm/2, flush_muc/2]).
 
 -type writer_type() :: pm | muc.
 
 -ignore_xref([archive_pm_message/3, archive_muc_message/3]).
+-ignore_xref([mam_archive_sync/2, mam_muc_archive_sync/2]).
 
 -spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
           ok | {error, timeout}.
@@ -29,6 +31,16 @@ archive_muc_message(_Result, HostType, Params0 = #{archive_id := RoomID}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
     PoolName = mongoose_async_pools:pool_name(HostType, muc_mam),
     wpool:cast(PoolName, {task, Params}, {hash_worker, RoomID}).
+
+-spec mam_archive_sync(term(), mongooseim:host_type()) -> term().
+mam_archive_sync(Result, HostType) ->
+    mongoose_async_pools:sync(HostType, pm_mam),
+    Result.
+
+-spec mam_muc_archive_sync(term(), mongooseim:host_type()) -> term().
+mam_muc_archive_sync(Result, HostType) ->
+    mongoose_async_pools:sync(HostType, muc_mam),
+    Result.
 
 %%% gen_mod callbacks
 -spec start(mongooseim:host_type(), [{writer_type(), gen_mod:module_opts()}]) -> any().
@@ -91,8 +103,10 @@ ensure_metrics(muc, HostType) ->
     mongoose_metrics:ensure_metric(HostType, ?MUC_FLUSH_TIME, histogram).
 
 register_hooks(pm, HostType) ->
+    ejabberd_hooks:add(mam_archive_sync, HostType, ?MODULE, mam_archive_sync, 50),
     ejabberd_hooks:add(mam_archive_message, HostType, ?MODULE, archive_pm_message, 50);
 register_hooks(muc, HostType) ->
+    ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
     ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50).
 
 start_pool(pm, HostType, Opts) ->
@@ -103,8 +117,10 @@ start_pool(muc, HostType, Opts) ->
 -spec stop_pool(mongooseim:host_type(), {writer_type(), term()}) -> ok.
 stop_pool(HostType, {pm, _}) ->
     ejabberd_hooks:delete(mam_archive_message, HostType, ?MODULE, archive_pm_message, 50),
+    ejabberd_hooks:delete(mam_archive_sync, HostType, ?MODULE, mam_archive_sync, 50),
     mongoose_async_pools:stop_pool(HostType, pm_mam);
 stop_pool(HostType, {muc, _}) ->
+    ejabberd_hooks:delete(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
     ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
     mongoose_async_pools:stop_pool(HostType, muc_mam).
 
