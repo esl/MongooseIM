@@ -72,7 +72,13 @@ execute(Ep, #{document := Doc,
         {ok, graphql:execute(Ep, Ctx2, Ast2)}
     catch
         throw:{error, Err} ->
-            {error, Err}
+            {error, Err};
+        Class:Reason:Stacktrace ->
+            Err = #{what => graphql_internal_crash,
+                    class => Class, reason => Reason,
+                    stacktrace => Stacktrace},
+            ?LOG_ERROR(Err),
+            {error, internal_crash}
     end.
 
 %% @doc Execute selected operation on a given endpoint with authorization.
@@ -104,8 +110,8 @@ graphql_parse(Doc) ->
     case graphql:parse(Doc) of
         {ok, _} = Ok ->
             Ok;
-        {error, _} = Err ->
-            throw(Err)
+        {error, Err} ->
+            graphql_err:abort([], parse, Err)
     end.
 
 admin_mapping_rules() ->

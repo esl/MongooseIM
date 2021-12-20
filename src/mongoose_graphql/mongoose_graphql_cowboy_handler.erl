@@ -58,9 +58,19 @@ charsets_provided(Req, State) ->
     {[<<"utf-8">>], Req, State}.
 
 is_authorized(Req, State) ->
-    Auth = cowboy_req:parse_header(<<"authorization">>, Req),
-    State2 = check_auth(Auth, State),
-    {true, Req, State2}.
+    try cowboy_req:parse_header(<<"authorization">>, Req) of
+        Auth ->
+            case check_auth(Auth, State) of
+                {ok, State2} ->
+                    {true, Req, State2};
+                error ->
+                    Msg = make_error(authorize, wrong_credentials),
+                    reply_error(Msg, Req, State)
+            end
+    catch
+        exit:Err ->
+            reply_error(make_error(authorize, Err), Req, State)
+    end.
 
 resource_exists(#{method := <<"GET">>} = Req, State) ->
     {true, Req, State};
@@ -75,7 +85,7 @@ to_html(Req, #{index_location := {priv_file, App, FileLocation}} = State) ->
 json_request(Req, State) ->
     case gather(Req) of
         {error, Reason} ->
-            reply_error(400, Reason, Req, State);
+            reply_error(Reason, Req, State);
         {ok, Req2, Decoded} ->
             run_request(Decoded, Req2, State)
     end.
@@ -92,22 +102,24 @@ check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
 
 auth_user({basic, User, Password}, State) ->
     case mongoose_api_common:check_password(jid:from_binary(User), Password) of
-        {true, _} -> State#{authorized => true, schema_ctx => #{username => User}};
-        _ ->  State#{authorized => false}
+        {true, _} -> {ok, State#{authorized => true, schema_ctx => #{username => User}}};
+        _ -> error
     end;
 auth_user(_, State) ->
-    State#{authorized => false}.
+    {ok, State#{authorized => false}}.
 
 auth_admin({basic, Username, Password}, #{username := Username, password := Password} = State) ->
-    State#{authorized => true};
+    {ok, State#{authorized => true}};
+auth_admin({basic, _, _}, _) ->
+    error;
 auth_admin(_, #{username := _, password := _} = State) ->
-    State#{authorized => false};
+    {ok, State#{authorized => false}};
 auth_admin(_, State) ->
     % auth credentials not provided in config
-    State#{authorized => true}.
+    {ok, State#{authorized => true}}.
 
 run_request(#{document := undefined}, Req, State) ->
-    reply_error(400, no_query_supplied, Req, State);
+    reply_error(make_error(decode, no_query_supplied), Req, State);
 run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
                                  authorized := AuthStatus} = State) ->
     Ep = mongoose_graphql:get_endpoint(binary_to_existing_atom(EpName)),
@@ -120,7 +132,7 @@ run_request(#{} = ReqCtx, Req, #{schema_endpoint := EpName,
             Reply = cowboy_req:reply(200, Req2),
             {stop, Reply, State};
         {error, Reason} ->
-            reply_error(400, Reason, Req, State)
+            reply_error(Reason, Req, State)
     end.
 
 gather(Req) ->
@@ -131,7 +143,7 @@ gather(Req) ->
             gather(Req2, JSON, Bindings)
     catch
         _:_ ->
-            {error, invalid_json_body}
+            {error, make_error(decode, invalid_json_body)}
     end.
 
 gather(Req, Body, Params) ->
@@ -156,10 +168,10 @@ variables([#{<<"variables">> := Vars} | _]) ->
           try jiffy:decode(Vars, [return_maps]) of
               null -> {ok, #{}};
               JSON when is_map(JSON) -> {ok, JSON};
-              _ -> {error, variables_invalid_json}
+              _ -> {error, make_error(decode, variables_invalid_json)}
           catch
               _:_ ->
-                  {error, variables_invalid_json}
+                  {error, make_error(decode, variables_invalid_json)}
           end;
       is_map(Vars) ->
           {ok, Vars};
@@ -178,17 +190,12 @@ operation_name([_ | Next]) ->
 operation_name([]) ->
     undefined.
 
-reply_error(Code, Msg, Req, State) ->
-    Errors =
-        case Msg of
-            {error, E} ->
-                graphql_err:format_errors(#{}, [E]);
-            _ ->
-                Formatted = iolist_to_binary(io_lib:format("~p", [Msg])),
-                [#{type => error, message => Formatted}]
-            end,
+make_error(Phase, Term) ->
+    #{error_term => Term, phase => Phase}.
 
-    Body = jiffy:encode(#{errors => Errors}),
+reply_error(Msg, Req, State) ->
+    {Code, Error} = mongoose_graphql_errors:format_error(Msg),
+    Body = jiffy:encode(#{errors => [Error]}),
     Req2 = cowboy_req:set_resp_body(Body, Req),
     Reply = cowboy_req:reply(Code, Req2),
     {stop, Reply, State}.

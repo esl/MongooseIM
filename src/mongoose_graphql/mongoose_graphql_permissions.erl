@@ -50,7 +50,8 @@ check_permissions(OpName, false, #document{definitions = Definitions}) ->
                         true ->
                             ok;
                         false ->
-                            throw({error, no_permissions})
+                            OpName2 = op_name(OpName),
+                            graphql_err:abort([OpName2], authorize, {no_permissions, OpName2})
                     end;
                 false ->
                     ok
@@ -62,6 +63,11 @@ check_permissions(_, true, _) ->
     ok.
 
 % Internal
+
+op_name(undefined) ->
+    <<"ROOT">>;
+op_name(Name) ->
+    Name.
 
 is_req_operation(#op{id = 'ROOT'}, undefined) ->
     true;
