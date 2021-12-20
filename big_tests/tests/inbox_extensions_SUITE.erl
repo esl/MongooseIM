@@ -361,7 +361,7 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % Alice sends a message to Bob and then she archives the conversation
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
