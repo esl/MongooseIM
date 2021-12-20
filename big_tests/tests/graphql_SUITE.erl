@@ -31,6 +31,9 @@ admin_handler() ->
 
 common_tests() ->
     [malformed_auth_header_error,
+     document_parse_error,
+     document_type_check_error,
+     document_validate_error,
      wrong_creds_cannot_access_protected_types,
      unauth_cannot_access_protected_types,
      unauth_can_access_unprotected_types,
@@ -114,6 +117,32 @@ malformed_auth_header_error(Config) ->
     % The encoded credentials value is malformed and cannot be decoded.
     {Status, Data} = rest_helper:make_request(Request),
     assert_no_permissions(request_error, Status, Data).
+
+document_parse_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"{ field ">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(parser_error, Data),
+
+    BodyScanner = #{<<"query">> => <<"mutation { id(value: \"asdfsad) } ">>},
+    {StatusScanner, DataScanner} = execute(Ep, BodyScanner, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, StatusScanner),
+    assert_code(scanner_error, DataScanner).
+
+document_type_check_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"mutation { id(value: 12) }">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(input_coercion, Data).
+
+document_validate_error(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>, <<"operationName">> => <<"Q1">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(not_unique, Data).
 
 auth_user_can_access_protected_types(Config) ->
     escalus:fresh_story(
