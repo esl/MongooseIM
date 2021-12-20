@@ -55,11 +55,7 @@ salted_password(Sha, Password, Salt, IterationCount) ->
     fast_scram:salted_password(Sha, jid:resourceprep(Password), Salt, IterationCount).
 
 enabled(HostType) ->
-    case mongoose_config:get_opt([{auth, HostType}, password_format], scram) of
-        plain -> false;
-        {scram, _Sha} -> true;
-        scram -> true
-    end.
+    mongoose_config:get_opt([{auth, HostType}, password, format]) =:= scram.
 
 enabled(HostType, cyrsasl_scram_sha1)   -> is_password_format_allowed(HostType, sha);
 enabled(HostType, cyrsasl_scram_sha224) -> is_password_format_allowed(HostType, sha224);
@@ -74,18 +70,16 @@ enabled(HostType, cyrsasl_scram_sha512_plus) -> is_password_format_allowed(HostT
 enabled(_HostType, _Mechanism) -> false.
 
 is_password_format_allowed(HostType, Sha) ->
-    case mongoose_config:get_opt([{auth, HostType}, password_format], scram) of
-        plain -> true;
-        scram -> true;
-        {scram, ConfiguredSha} -> lists:member(Sha, ConfiguredSha)
+    case mongoose_config:get_opt([{auth, HostType}, password]) of
+        #{format := scram, hash := ConfiguredSha} -> lists:member(Sha, ConfiguredSha);
+        #{format := _PlainOrScram} -> true
     end.
 
 %% This function is exported and used from other modules
 iterations() -> ?SCRAM_DEFAULT_ITERATION_COUNT.
 
 iterations(HostType) ->
-    mongoose_config:get_opt([{auth, HostType}, scram_iterations],
-                            ?SCRAM_DEFAULT_ITERATION_COUNT).
+    mongoose_config:get_opt([{auth, HostType}, password, scram_iterations]).
 
 password_to_scram(HostType, Password) ->
     password_to_scram(HostType, Password, ?SCRAM_DEFAULT_ITERATION_COUNT).
@@ -223,8 +217,8 @@ supported_sha_types() ->
      {sha512,   <<?SCRAM_SHA512_PREFIX>>}].
 
 configured_sha_types(HostType) ->
-    case mongoose_config:lookup_opt([{auth, HostType}, password_format]) of
-        {ok, {scram, ScramSha}} when length(ScramSha) > 0 ->
+    case mongoose_config:lookup_opt([{auth, HostType}, password, hash]) of
+        {ok, ScramSha} ->
             lists:filter(fun({Sha, _Prefix}) ->
                             lists:member(Sha, ScramSha) end, supported_sha_types());
         _ -> supported_sha_types()
