@@ -17,6 +17,7 @@
 -type writer_type() :: pm | muc.
 
 -ignore_xref([archive_pm_message/3, archive_muc_message/3]).
+-ignore_xref([mam_archive_sync/2, mam_muc_archive_sync/2]).
 
 -spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
           ok | {error, timeout}.
