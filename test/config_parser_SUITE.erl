@@ -103,8 +103,7 @@ groups() ->
                            listen_http_handlers_api,
                            listen_http_handlers_domain]},
      {auth, [parallel], [auth_methods,
-                         auth_password_format,
-                         auth_scram_iterations,
+                         auth_password,
                          auth_sasl_external,
                          auth_allow_multiple_connections,
                          auth_anonymous_protocol,
@@ -816,24 +815,21 @@ auth_methods(_Config) ->
     ?errh(#{<<"auth">> => #{<<"supernatural">> => #{}}}),
     ?errh(#{<<"auth">> => #{<<"methods">> => [<<"rdbms">>]}}).
 
-auth_password_format(_Config) ->
-    ?cfgh([auth, password_format], {scram, [sha, sha256]},
-          #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                <<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
-    ?cfgh([auth, password_format], scram,
-          #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>}}}),
-    ?cfgh([auth, password_format], plain,
+auth_password(_Config) ->
+    Defaults = #{format => scram, scram_iterations => 10000},
+    ?cfg([{auth, global}, password], Defaults, #{}), % global default
+    ?cfgh([auth, password], Defaults, #{<<"auth">> => #{}}), % default
+    ?cfgh([auth, password], Defaults, #{<<"auth">> => #{<<"password">> => #{}}}), % default
+    ?cfgh([auth, password, format], plain,
           #{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plain">>}}}),
-    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"no password">>}}}),
-    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                <<"hash">> => []}}}),
-    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"scram">>,
-                                                <<"hash">> => [<<"sha1234">>]}}}).
-
-auth_scram_iterations(_Config) ->
-    ?cfgh([auth, scram_iterations], 1000,
-          #{<<"auth">> => #{<<"scram_iterations">> => 1000}}),
-    ?errh(#{<<"auth">> => #{<<"scram_iterations">> => false}}).
+    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"format">> => <<"plane">>}}}),
+    ?cfgh([auth, password, hash], [sha, sha256],
+          #{<<"auth">> => #{<<"password">> => #{<<"hash">> => [<<"sha">>, <<"sha256">>]}}}),
+    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"hash">> => [<<"sha1234">>]}}}),
+    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"harsh">> => [<<"sha">>]}}}),
+    ?cfgh([auth, password, scram_iterations], 1000,
+          #{<<"auth">> => #{<<"password">> => #{<<"scram_iterations">> => 1000}}}),
+    ?errh(#{<<"auth">> => #{<<"password">> => #{<<"scram_iterations">> => false}}}).
 
 auth_sasl_external(_Config) ->
     ?cfg([{auth, global}, sasl_external], [standard], #{}), % global default

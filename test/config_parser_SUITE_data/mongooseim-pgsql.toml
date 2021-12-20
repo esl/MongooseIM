@@ -182,7 +182,7 @@
 [auth]
   password.format = "scram"
   password.hash = ["sha256"]
-  scram_iterations = 64
+  password.scram_iterations = 64
   sasl_external = ["standard"]
 
   [auth.rdbms]

@@ -23,7 +23,6 @@
          process_sasl_external/1,
          process_sasl_mechanism/1,
          process_auth/1,
-         process_auth_password/1,
          process_pool/2,
          process_cassandra_auth/1,
          process_rdbms_connection/1,
@@ -507,7 +506,7 @@ auth_password() ->
                 },
        format_items = map,
        defaults = #{<<"format">> => scram,
-                    <<"scram_interations">> => mongoose_scram:iterations()},
+                    <<"scram_iterations">> => mongoose_scram:iterations()},
        include = always
       }.
 
