@@ -18,7 +18,8 @@
 
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
--export_type([microseconds/0, message_type/0]).
+-export_type([microseconds/0]).
+-export([pmap/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -169,6 +170,9 @@ does_local_user_exist(HostType, To, groupchat) ->
 does_local_user_exist(HostType, To, _) ->
     ejabberd_auth:does_user_exist(HostType, To, stored).
 
+%% ------------------------------------------------------------------
+%% parallel map
+%% ------------------------------------------------------------------
 %% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
 %%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
 %%  - For each member of the room:
@@ -178,3 +182,26 @@ does_local_user_exist(HostType, To, _) ->
 -spec is_to_room(jid:jid()) -> boolean().
 is_to_room(Jid) ->
     {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).
+
+%% Runs a function for each element on the same node
+pmap(F, Es) ->
+    pmap(F, Es, 5000).
+
+pmap(F, Es, Timeout) ->
+    Parent = self(),
+    Running = 
+        [spawn_monitor(fun() -> Parent ! {pmap_result, self(), F(E)} end)
+            || E <- Es],
+    collect(Running, Timeout).
+
+collect([], _Timeout) -> [];
+collect([{Pid, MRef} | Next], Timeout) ->
+    receive
+        {pmap_result, Pid, Res} ->
+            erlang:demonitor(MRef, [flush]),
+            [{ok, Res} | collect(Next, Timeout)];
+        {'DOWN', MRef, process, Pid, Reason} ->
+            [{error, Reason} | collect(Next, Timeout)]
+    after Timeout ->
+        exit(pmap_timeout)
+    end.

@@ -12,10 +12,6 @@
 -export([get_workers/2, sync/2]).
 -ignore_xref([get_workers/2]).
 
-%% Callback
--export([call_sync/2]).
--ignore_xref([call_sync/2]).
-
 -type pool_id() :: atom().
 -type pool_name() :: atom().
 -type pool_opts() :: gen_mod:module_opts().
@@ -53,17 +49,11 @@ pool_name(HostType, PoolId) ->
 -spec sync(mongooseim:host_type(), pool_id()) -> [pid()].
 sync(HostType, PoolId) ->
     Pids = mongoose_async_pools:get_workers(HostType, PoolId),
-    rpc:pmap({?MODULE, call_sync}, [HostType], Pids).
-
-call_sync(Pid, HostType) ->
-    try
-        gen_server:call(Pid, sync)
-    catch C:E:S ->
-              ?LOG_ERROR(#{what => async_sync_failed,
-                           host_type => HostType,
-                           class => C, reason => E, stacktrace => S}),
-              erlang:raise(C, E, S)
-    end.
+    Context = #{what => sync_failed, host_type => HostType, pool_id => PoolId},
+    F = fun(Pid) -> 
+                safely:apply_and_log(gen_server, call, [Pid, sync], Context)
+        end,
+    mongoose_lib:pmap(F, Pids).
 
 -spec get_workers(mongooseim:host_type(), pool_id()) -> [pid()].
 get_workers(HostType, PoolId) ->
