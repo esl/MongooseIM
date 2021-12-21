@@ -49,6 +49,8 @@
 
 {suites, "tests", mam_SUITE}.
 
+{suites, "tests", mam_proper_SUITE}.
+
 {suites, "tests", mam_send_message_SUITE}.
 
 {suites, "tests", metrics_c2s_SUITE}.
