@@ -506,10 +506,7 @@ leave_room(User, Room, Occupants) ->
     lists:foreach(fun escalus:wait_for_stanza/1, Occupants).
 
 wait_for_groupchat_msg(Users) ->
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps).
+    [escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users].
 
 make_members(Room, Admin, Users) ->
     Items = lists:map(fun(User) -> {escalus_utils:get_short_jid(User),<<"member">>} end,

@@ -606,22 +606,18 @@ simple_groupchat_stored_in_all_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg = <<"Hi Room!">>,
         Id = <<"MyID">>,
+        Users = [Alice, Bob, Kate],
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
         BobJid = inbox_helper:to_bare_lower(Bob),
         RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), Id),
         %% Alice sends message to a room
         escalus:send(Alice, Stanza),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Alice has 0 unread messages
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         %% Bob and Kate have one conv with 1 unread message
@@ -635,32 +631,23 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
         Msg2 = <<"How are you?">>,
         Id1 = <<"id-1">>,
         Id2 = <<"id-2">>,
+        Users = [Alice, Bob, Kate],
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         BobJid = inbox_helper:to_bare_lower(Bob),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = room_bin_jid(Room),
-        BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
+        BobRoomJid = <<RoomJid/binary, "/", BobJid/binary>>,
         Stanza1 = escalus_stanza:set_id(
                     escalus_stanza:groupchat_to(RoomJid, Msg1), Id1),
         %% Alice sends msg to room
         escalus:send(Alice, Stanza1),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob sends second message
         Stanza2 = escalus_stanza:set_id(
                     escalus_stanza:groupchat_to(RoomJid, Msg2), Id2),
         escalus:send(Bob, Stanza2),
-        R3 = escalus:wait_for_stanza(Alice),
-        R4 = escalus:wait_for_stanza(Bob),
-        R5 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R3),
-        escalus:assert(is_groupchat_message, R4),
-        escalus:assert(is_groupchat_message, R5),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Alice have one unread message (from Bob)
         check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg2}]),
         %% Bob has 0 unread messages because he sent the last message
@@ -676,17 +663,13 @@ groupchat_markers_one_reset(Config) ->
         KateJid = inbox_helper:to_bare_lower(Kate),
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Id = <<"markerId">>,
+        Users = [Alice, Bob, Kate],
         Stanza1 = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), Id),
+                    escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), Id),
         escalus:send(Alice, Stanza1),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         ChatMarkerWOType = escalus_stanza:chat_marker(RoomJid,<<"displayed">>, Id),
         ChatMarker = escalus_stanza:setattr(ChatMarkerWOType, <<"type">>, <<"groupchat">>),
         %% User marks last message
@@ -713,18 +696,14 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
         KateJid = inbox_helper:to_bare_lower(Kate),
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Msg = <<"marker time!">>,
+        Users = [Alice, Bob, Kate],
         % %% WHEN DONE
         Stanza1 = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), escalus_stanza:id()),
         escalus:send(Alice, Stanza1),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         % %% AND MARKED WRONG
         inbox_helper:mark_last_muclight_message(Bob, [Alice, Bob, Kate], <<"received">>),
         inbox_helper:mark_last_muclight_message(Kate, [Alice, Bob, Kate], <<"acknowledged">>),
@@ -748,7 +727,7 @@ groupchat_reset_stanza_resets_inbox(Config) ->
         KateJid = inbox_helper:to_bare_lower(Kate),
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         % %% WHEN A MESSAGE IS SENT
         MsgStanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), <<"some_ID">>),
@@ -789,41 +768,35 @@ create_groupchat(Config) ->
 %%{aff_changes, false},
 %%{remove_on_kicked, true},
 create_groupchat_no_affiliation_stored(Config) ->
-     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-         InitOccupants = [{Alice, member}, {Kate, member}],
-         FinalOccupants = [{Bob, owner} | InitOccupants],
-         Msg = <<"Hi all!">>,
-         InitConfig = [{<<"roomname">>, <<"Bob's room2">>}],
-         RoomNode = <<"bobroom2">>,
-         RoomJid = room_bin_jid(RoomNode),
-         AliceJid = inbox_helper:to_bare_lower(Alice),
-         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
-         BobJid = inbox_helper:to_bare_lower(Bob),
-         KateJid = inbox_helper:to_bare_lower(Kate),
-         %% Bob creates room
-         escalus:send(Bob, muc_light_helper:stanza_create_room(RoomNode, InitConfig, InitOccupants)),
-         muc_light_helper:verify_aff_bcast(FinalOccupants, FinalOccupants),
-         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-         %% affiliation change messages are not stored in inbox
-         check_inbox(Alice, []),
-         check_inbox(Bob, []),
-         check_inbox(Kate, []),
-         Stanza = escalus_stanza:set_id(
-           escalus_stanza:groupchat_to(RoomJid, Msg), <<"123">>),
-         %% Alice sends a message
-         escalus:send(Alice, Stanza),
-         R0 = escalus:wait_for_stanza(Alice),
-         R1 = escalus:wait_for_stanza(Bob),
-         R2 = escalus:wait_for_stanza(Kate),
-         escalus:assert(is_groupchat_message, R0),
-         escalus:assert(is_groupchat_message, R1),
-         escalus:assert(is_groupchat_message, R2),
-         %% Alice has 0 unread because she sent the last message
-         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
-         %% Bob and Kate have one unread message
-         check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]),
-         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}])
-       end).
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        InitOccupants = [{Alice, member}, {Kate, member}],
+        FinalOccupants = [{Bob, owner} | InitOccupants],
+        Msg = <<"Hi all!">>,
+        Users = [Alice, Bob, Kate],
+        InitConfig = [{<<"roomname">>, <<"Bob's room2">>}],
+        RoomNode = <<"bobroom2">>,
+        RoomJid = room_bin_jid(RoomNode),
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        KateJid = inbox_helper:to_bare_lower(Kate),
+        %% Bob creates room
+        escalus:send(Bob, muc_light_helper:stanza_create_room(RoomNode, InitConfig, InitOccupants)),
+        muc_light_helper:verify_aff_bcast(FinalOccupants, FinalOccupants),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+        %% affiliation change messages are not stored in inbox
+        [ check_inbox(User, []) || User <- Users ],
+        Stanza = escalus_stanza:set_id(
+                   escalus_stanza:groupchat_to(RoomJid, Msg), <<"123">>),
+        %% Alice sends a message
+        escalus:send(Alice, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+        %% Alice has 0 unread because she sent the last message
+        check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
+        %% Bob and Kate have one unread message
+        check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]),
+        check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}])
+    end).
 
 
 %% this test combines options:
@@ -834,21 +807,17 @@ leave_and_remove_conversation(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         Msg = <<"Hi Room!">>,
         Id = <<"MyID">>,
+        Users = [Alice, Bob, Kate],
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
         Room = inbox_helper:create_room(Alice, [Bob, Kate]),
         RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), Id),
         %% Alice sends msg to room
         escalus:send(Alice, Stanza),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob leaves the room
         muc_light_helper:user_leave(Room, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have one message
@@ -869,7 +838,7 @@ leave_and_store_conversation(Config) ->
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = room_bin_jid(RoomName),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Msg = <<"Hi all">>,
         %% Alice creates a room and send msg
         inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName,
@@ -896,16 +865,12 @@ no_aff_stored_and_remove_on_kicked(Config) ->
         RoomJid = room_bin_jid(?ROOM3),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Msg = <<"Hi all">>,
+        Users = [Alice, Bob, Kate],
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), <<"33">>),
         %% Alice sends a message
         escalus:send(Alice, Stanza),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob leaves the room
         muc_light_helper:user_leave(?ROOM3, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have message in groupchats
@@ -928,16 +893,12 @@ no_stored_and_remain_after_kicked(Config) ->
         RoomJid = room_bin_jid(?ROOM4),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Msg = <<"Hi all">>,
+        Users = [Alice, Bob, Kate],
         Stanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, Msg), <<"33">>),
         %% Alice sends a message
         escalus:send(Alice, Stanza),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob leaves the room
         muc_light_helper:user_leave(?ROOM4, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have message in groupchats
@@ -955,7 +916,7 @@ groupchat_markers_one_reset_room_created(Config) ->
         RoomName = <<"markers_room">>,
         RoomJid = room_bin_jid(RoomName),
         AliceJid = inbox_helper:to_bare_lower(Alice),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
         inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"1-id">>),
@@ -972,7 +933,7 @@ groupchat_markers_all_reset_room_created(Config) ->
         RoomName = <<"markers_room2">>,
         AliceJid = inbox_helper:to_bare_lower(Alice),
         RoomJid = room_bin_jid(RoomName),
-        AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Msg = <<"Mark me!">>,
         inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"2-id">>),
         [inbox_helper:mark_last_muclight_message(U, [Alice, Bob, Kate]) || U <- [Bob, Kate]],
@@ -1009,15 +970,15 @@ system_message_is_correctly_avoided(Config) ->
         RoomJid = room_bin_jid(Room),
         %% Given a room
         muc_light_helper:given_muc_light_room(Room, Alice, InitOccupants),
-        BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
+        BobRoomJid = <<RoomJid/binary, "/", BobJid/binary>>,
         Stanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg1), Id1),
         %% Alice sends msg to room
         escalus:send(Alice, Stanza1),
-        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob sends second message
         Stanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, Msg2), Id2),
         escalus:send(Bob, Stanza2),
-        [ escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users],
+        inbox_helper:wait_for_groupchat_msg(Users),
         %% Alice has one unread message (from Bob)
         check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg2}]),
         %% Bob has 0 unread messages because he sent the last message
