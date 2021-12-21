@@ -18,7 +18,9 @@
 
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
--export_type([microseconds/0, message_type/0]).
+-export_type([microseconds/0]).
+-export([pmap/2, pmap/3]).
+-ignore_xref([pmap/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -169,6 +171,9 @@ does_local_user_exist(HostType, To, groupchat) ->
 does_local_user_exist(HostType, To, _) ->
     ejabberd_auth:does_user_exist(HostType, To, stored).
 
+%% ------------------------------------------------------------------
+%% parallel map
+%% ------------------------------------------------------------------
 %% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
 %%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
 %%  - For each member of the room:
@@ -179,10 +184,13 @@ does_local_user_exist(HostType, To, _) ->
 is_to_room(Jid) ->
     {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).
 
+<<<<<<< HEAD
 %% ------------------------------------------------------------------
 %% parallel map
 %% ------------------------------------------------------------------
 
+=======
+>>>>>>> 353db984e... Use my own pmap function
 %% Runs a function for each element on the same node
 pmap(F, Es) ->
     pmap(F, Es, 5000).
