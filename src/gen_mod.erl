@@ -59,8 +59,6 @@
          get_opt/4,
          set_opt/3,
          get_module_opt/4,
-         set_module_opt/4,
-         set_module_opts/3,
          get_module_opts/2,
          get_loaded_module_opts/2,
          get_opt_subhost/3,
@@ -79,8 +77,7 @@
 -export([is_app_running/1]). % we have to mock it in some tests
 
 -ignore_xref([behaviour_info/1, loaded_modules_with_opts/0,
-              loaded_modules_with_opts/1, set_module_opt/4, set_module_opts/3,
-              hosts_and_opts_with_module/1]).
+              loaded_modules_with_opts/1, hosts_and_opts_with_module/1]).
 
 -include("mongoose.hrl").
 
@@ -356,28 +353,6 @@ get_loaded_module_opts(HostType, Module) ->
         [] -> error({module_not_loaded, HostType, Module});
         [#ejabberd_module{opts = Opts} | _] -> Opts
     end.
-
-%% @doc use this function only on init stage
-%% Non-atomic! You have been warned.
--spec set_module_opt(host_type(), module(), _Opt, _Value) -> boolean().
-set_module_opt(HostType, Module, Opt, Value) ->
-    case ets:lookup(ejabberd_modules, {Module, HostType}) of
-        [] ->
-            false;
-        [#ejabberd_module{opts = Opts}] ->
-            Updated = set_opt(Opt, Opts, Value),
-            set_module_opts(HostType, Module, Updated)
-    end.
-
-
-%% @doc Replaces all module options, use  this function
-%% for integration tests only
--spec set_module_opts(host_type(), module(), _Opts) -> true.
-set_module_opts(HostType, Module, Opts0) ->
-    Opts = proplists:unfold(Opts0),
-    ets:insert(ejabberd_modules,
-               #ejabberd_module{module_host_type = {Module, HostType},
-                                opts = Opts}).
 
 -spec get_opt_subhost(domain_name(),
                       list(),
