@@ -31,7 +31,8 @@
 %% For Administration API
 -export([try_to_create_room/3,
          change_room_config/5,
-         delete_room/1]).
+         delete_room/1,
+         equal_occupants/1]).
 
 %% gen_mod callbacks
 -export([start/2, stop/1, config_spec/0, supported_features/0]).
