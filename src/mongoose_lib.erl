@@ -19,7 +19,8 @@
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
 -export_type([microseconds/0]).
--export([pmap/2]).
+-export([pmap/2, pmap/3]).
+-ignore_xref([pmap/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -188,20 +189,35 @@ pmap(F, Es) ->
     pmap(F, Es, 5000).
 
 pmap(F, Es, Timeout) ->
-    Parent = self(),
+    TimerRef = erlang:start_timer(Timeout, self(), pmap_timeout),
     Running = 
-        [spawn_monitor(fun() -> Parent ! {pmap_result, self(), F(E)} end)
+        [spawn_monitor(fun() -> exit({pmap_result, F(E)}) end)
             || E <- Es],
-    collect(Running, Timeout).
+    Result = collect(Running, TimerRef),
+    cancel_and_flush_timer(TimerRef),
+    Result.
 
-collect([], _Timeout) -> [];
-collect([{Pid, MRef} | Next], Timeout) ->
+collect([], _TimerRef) -> [];
+collect([{Pid, MRef} | Next] = In, TimerRef) ->
     receive
-        {pmap_result, Pid, Res} ->
-            erlang:demonitor(MRef, [flush]),
-            [{ok, Res} | collect(Next, Timeout)];
         {'DOWN', MRef, process, Pid, Reason} ->
-            [{error, Reason} | collect(Next, Timeout)]
-    after Timeout ->
-        exit(pmap_timeout)
+            [reason_to_result(Reason) | collect(Next, TimerRef)];
+        {timeout, TimerRef, pmap_timeout} ->
+            stop_processes(In),
+            collect(In, TimerRef)
+    end.
+
+stop_processes(In) ->
+    [erlang:exit(Pid, timeout) || {Pid, _} <- In].
+
+reason_to_result({pmap_result, Result}) ->
+    {ok, Result};
+reason_to_result(Reason) ->
+    {error, Reason}.
+
+cancel_and_flush_timer(TimerRef) ->
+    erlang:cancel_timer(TimerRef),
+    receive
+        {timeout, TimerRef, _} -> ok
+    after 0 -> ok
     end.
