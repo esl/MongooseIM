@@ -229,7 +229,7 @@ disco_local_features(Acc) ->
                             Msg :: exml:element(),
                             Dir :: mod_mam_utils:direction()) -> mongoose_acc:t().
 maybe_process_message(Acc, From, To, Msg, Dir) ->
-    Type = get_message_type(Acc),
+    Type = mongoose_lib:get_message_type(Acc),
     case should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) of
         true ->
             do_maybe_process_message(Acc, From, To, Msg, Dir, Type);
@@ -563,13 +563,6 @@ muclight_enabled(HostType) ->
     Groupchats = get_groupchat_types(HostType),
     lists:member(muclight, Groupchats).
 
--spec get_message_type(mongoose_acc:t()) -> message_type().
-get_message_type(Acc) ->
-    case mongoose_acc:stanza_type(Acc) of
-        <<"groupchat">> -> groupchat;
-        _ -> one2one
-    end.
-
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
 -spec should_be_stored_in_inbox(
@@ -585,26 +578,9 @@ should_be_stored_in_inbox(Acc, From, To, Msg, Dir, Type) ->
                          To ::jid:jid(),
                          mod_mam_utils:direction(),
                          message_type()) -> boolean().
-inbox_owner_exists(Acc, _, To, incoming, groupchat) ->
-    case is_to_room(To) of
-        true -> false;
-        false ->
-            HostType = mongoose_acc:host_type(Acc),
-            ejabberd_auth:does_user_exist(HostType, To, stored)
-    end;
-inbox_owner_exists(Acc, _, To, incoming, _) -> % filter_local_packet
+inbox_owner_exists(Acc, _, To, incoming, MessageType) -> % filter_local_packet
     HostType = mongoose_acc:host_type(Acc),
-    ejabberd_auth:does_user_exist(HostType, To, stored);
+    mongoose_lib:does_local_user_exist(HostType, To, MessageType);
 inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, From, stored).
-
-%% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
-%%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
-%%  - For each member of the room:
-%%      From the room to each member: runs with From=Room/Sender, To=Member
-%% So, as inbox is a per-user concept, it is on the second routing step only when we want to do act.
-%% NOTE: ideally for groupchats, we could instead act on `filter_room_packet`, like MAM.
--spec is_to_room(jid:jid()) -> boolean().
-is_to_room(Jid) ->
-    {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).

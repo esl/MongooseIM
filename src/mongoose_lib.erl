@@ -10,17 +10,21 @@
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
 
+-export([get_message_type/1, does_local_user_exist/3]).
+
 %% Private, just for warning
 -export([deprecated_logging/1]).
 -deprecated({deprecated_logging, 1, eventually}).
 
 -ignore_xref([pairs_foreach/2, wait_until/3]).
 
--export_type([microseconds/0]).
+-export_type([microseconds/0, message_type/0]).
 
 -include("mongoose.hrl").
+-include("jlib.hrl").
 
 -type microseconds() :: integer().
+-type message_type() :: one2one | groupchat.
 
 %% ------------------------------------------------------------------
 %% Logging
@@ -113,10 +117,10 @@ deprecated_logging(Location) ->
     Map = #{what => deprecated_logging_macro,
             text => <<"Deprecated logging macro is used in your code">>},
     mongoose_deprecations:log(Location, Map, [{log_level, warning}]).
+
 %% ------------------------------------------------------------------
 %% Parse IP
 %% ------------------------------------------------------------------
-
 parse_ip_netmask(S) ->
     case string:tokens(S, "/") of
         [IPStr] -> parse_ip_netmask(IPStr, undefined);
@@ -148,3 +152,29 @@ parse_ip_netmask(IPStr, MaskStr) ->
         _ ->
             error
     end.
+
+%% ------------------------------------------------------------------
+%% does_local_user_exist
+%% ------------------------------------------------------------------
+-spec get_message_type(mongoose_acc:t()) -> message_type().
+get_message_type(Acc) ->
+    case mongoose_acc:stanza_type(Acc) of
+        <<"groupchat">> -> groupchat;
+        _ -> one2one
+    end.
+
+-spec does_local_user_exist(mongooseim:host_type(), jid:jid(), message_type()) -> boolean().
+does_local_user_exist(HostType, To, groupchat) ->
+    (not is_to_room(To)) andalso ejabberd_auth:does_user_exist(HostType, To, stored);
+does_local_user_exist(HostType, To, _) ->
+    ejabberd_auth:does_user_exist(HostType, To, stored).
+
+%% WHY: filter_local_packet is executed twice in the pipeline of muc messages. in two routing steps:
+%%  - From the sender to the room: runs filter_local_packet with From=Sender, To=Room
+%%  - For each member of the room:
+%%      From the room to each member: runs with From=Room/Sender, To=Member
+%% So, as inbox is a per-user concept, it is on the second routing step only when we want to do act.
+%% NOTE: ideally for groupchats, we could instead act on `filter_room_packet`, like MAM.
+-spec is_to_room(jid:jid()) -> boolean().
+is_to_room(Jid) ->
+    {error, not_found} =:= mongoose_domain_api:get_domain_host_type(Jid#jid.lserver).
