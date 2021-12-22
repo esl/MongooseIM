@@ -7,6 +7,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+%% Common Test init/teardown functions
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
@@ -38,6 +39,27 @@ init_per_testcase(Name, C) ->
 end_per_testcase(Name, C) ->
     escalus:end_per_testcase(Name, C).
 
+%% Common Test Cases
+async_writer_store(C) ->
+    run_prop(async_writer_store, async_writer_store_prop(C)).
+
+%% Proper Test Cases
+async_writer_store_prop(_C) ->
+    HostType = domain_helper:host_type(),
+    ?FORALL(ParamsList, params_list(), async_writer_store_check(HostType, ParamsList)).
+
+async_writer_store_check(HostType, ParamsList) ->
+    clean_db(HostType),
+    Name = prepare_insert(length(ParamsList)),
+    Rows = [prepare_message(HostType, Params) || Params <- ParamsList],
+    case execute(HostType, Name, lists:append(Rows)) of
+        {updated, _} -> true;
+        Other ->
+            ct:pal("ParamsList ~p~nOther ~p", [ParamsList, Other]),
+            false
+    end.
+
+%% Proper Type Generators
 usernames() ->
    [<<"alice">>, <<"bob">>, <<"bob.1">>, <<"bob44">>, <<"a">>, <<"xd">>,
     <<"admin">>].
@@ -107,24 +129,15 @@ with_unique_message_id(ParamsList) ->
     %% Removes duplicates
     maps:values(maps:from_list(Pairs)).
 
-async_writer_store(C) ->
-    run_prop(async_writer_store, async_writer_store_prop(C)).
+%% Proper Helper Functions
+run_prop(PropName, Property) ->
+    Opts = [verbose, long_result, {numtests, 30}],
+    ?assertEqual(true, quickcheck(PropName, Property, Opts)).
 
-async_writer_store_prop(_C) ->
-    HostType = domain_helper:host_type(),
-    ?FORALL(ParamsList, params_list(), async_writer_store_check(HostType, ParamsList)).
+quickcheck(PropName, Property, Opts) ->
+    proper:quickcheck(proper:conjunction([{PropName, Property}]), Opts).
 
-async_writer_store_check(HostType, ParamsList) ->
-    clean_db(HostType),
-    Name = prepare_insert(length(ParamsList)),
-    Rows = [prepare_message(HostType, Params) || Params <- ParamsList],
-    case execute(HostType, Name, lists:append(Rows)) of
-        {updated, _} -> true;
-        Other ->
-            ct:pal("ParamsList ~p~nOther ~p", [ParamsList, Other]),
-            false
-    end.
-
+%% Helper Functions
 prepare_insert(Len) ->
     Name = multi_name(insert_mam_message_prop, Len),
     rpc(mim(), mod_mam_rdbms_arch, prepare_insert, [Name, Len]),
@@ -142,10 +155,3 @@ execute(HostType, BatchName, Args) ->
 clean_db(HostType) ->
     Q = <<"DELETE FROM mam_message">>,
     rpc(mim(), mongoose_rdbms, sql_query, [HostType, Q]).
-
-run_prop(PropName, Property) ->
-    Opts = [verbose, long_result, {numtests, 30}],
-    ?assertEqual(true, quickcheck(PropName, Property, Opts)).
-
-quickcheck(PropName, Property, Opts) ->
-    proper:quickcheck(proper:conjunction([{PropName, Property}]), Opts).
