@@ -42,6 +42,10 @@ init({HostType, Interval, MaxSize, FlushCallback, FlushExtra}) ->
                 flush_extra = FlushExtra}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, term(), state()}.
+handle_call(sync, _From, State = #state{flush_queue = [_|_]}) ->
+    {reply, ok, run_flush(State)};
+handle_call(sync, _From, State = #state{flush_queue = []}) ->
+    {reply, skipped, State};
 handle_call(Msg, From, State) ->
     ?UNEXPECTED_CALL(Msg, From),
     {reply, unexpected_call, State}.

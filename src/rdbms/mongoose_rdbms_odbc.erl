@@ -178,7 +178,7 @@ tabcol_to_mapper(_ServerType, TableDesc, TabCol) ->
         bigint ->
             fun(P) -> bigint_mapper(P) end;
         _ ->
-            fun(P) -> {ODBCType, [P]} end
+            fun(P) -> generic_mapper(ODBCType, P) end
     end.
 
 tabcol_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
@@ -191,19 +191,37 @@ tabcol_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
             ODBCType
     end.
 
+%% Null should be encoded with the a correct type.
+%% Otherwise when inserting two records, where one value is null
+%% and another is not null, would case:
+%% [FreeTDS][SQL Server]Conversion failed when converting the nvarchar value
+%% 'orig_id' to data type int. SQLSTATE IS: 22018
+unicode_mapper(null) ->
+    {{sql_wlongvarchar, 0}, [null]};
 unicode_mapper(P) ->
     Utf16 = unicode_characters_to_binary(iolist_to_binary(P), utf8, {utf16, little}),
     Len = byte_size(Utf16) div 2,
     {{sql_wlongvarchar, Len}, [Utf16]}.
 
+bigint_mapper(null) ->
+    Type = {'sql_varchar', 0},
+    {Type, [null]};
 bigint_mapper(P) when is_integer(P) ->
     B = integer_to_binary(P),
     Type = {'sql_varchar', byte_size(B)},
     {Type, [B]}.
 
+binary_mapper(null) ->
+    Type = {'sql_longvarbinary', 0},
+    {Type, [null]};
 binary_mapper(P) ->
     Type = {'sql_longvarbinary', byte_size(P)},
     {Type, [P]}.
+
+generic_mapper(ODBCType, null) ->
+    {ODBCType, [null]};
+generic_mapper(ODBCType, P) ->
+    {ODBCType, [P]}.
 
 
 simple_type('SQL_BINARY')           -> binary;
@@ -226,10 +244,8 @@ map_params([Param|Params], [Mapper|Mappers]) ->
 map_params([], []) ->
     [].
 
-map_param(undefined, _Mapper) ->
-    {sql_integer, [null]}; %% some code uses "undefined" instead of "null"
-map_param(null, _Mapper) ->
-    {sql_integer, [null]}; %% Yeah, just random type for null
+map_param(undefined, Mapper) ->
+    map_param(null, Mapper);
 map_param(true, _Mapper) ->
     {sql_integer, [1]};
 map_param(false, _Mapper) ->
