@@ -9,8 +9,7 @@
 
 % API
 -export([start_pool/3, stop_pool/2, pool_name/2, config_spec/0]).
--export([get_workers/2, sync/2]).
--ignore_xref([get_workers/2]).
+-export([sync/2]).
 
 -type pool_id() :: atom().
 -type pool_name() :: atom().
@@ -48,7 +47,7 @@ pool_name(HostType, PoolId) ->
 
 -spec sync(mongooseim:host_type(), pool_id()) -> term().
 sync(HostType, PoolId) ->
-    Pids = mongoose_async_pools:get_workers(HostType, PoolId),
+    Pids = get_workers(HostType, PoolId),
     Context = #{what => sync_failed, host_type => HostType, pool_id => PoolId},
     F = fun(Pid) -> 
                 safely:apply_and_log(gen_server, call, [Pid, sync], Context)
