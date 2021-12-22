@@ -167,9 +167,6 @@ do_flush_pm(Acc, #{host_type := HostType, batch_size := MaxSize, batch_name := B
         {updated, _Count} -> ok;
         {error, Reason} ->
             mongoose_metrics:update(HostType, modMamDropped, MessageCount),
-            [?LOG_ERROR(#{what => archive_message_dropped,
-                          sensitive => true, params => Params})
-             || Params <- Acc],
             ?LOG_ERROR(#{what => archive_message_failed,
                          text => <<"archive_message query failed">>,
                          message_count => MessageCount, reason => Reason}),
@@ -197,9 +194,6 @@ do_flush_muc(Acc, #{host_type := HostType, batch_size := MaxSize, batch_name := 
         {updated, _Count} -> ok;
         {error, Reason} ->
             mongoose_metrics:update(HostType, modMucMamDropped, MessageCount),
-            [?LOG_ERROR(#{what => archive_muc_message_dropped,
-                          sensitive => true, params => Params})
-             || Params <- Acc],
             ?LOG_ERROR(#{what => archive_message_query_failed,
                          text => <<"archive_message query failed, modMucMamDropped metric updated">>,
                          message_count => MessageCount, reason => Reason}),
