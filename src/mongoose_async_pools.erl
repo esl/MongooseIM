@@ -46,18 +46,29 @@ config_spec() ->
 pool_name(HostType, PoolId) ->
     persistent_term:get({?MODULE, HostType, PoolId}).
 
--spec sync(mongooseim:host_type(), pool_id()) -> [pid()].
+-spec sync(mongooseim:host_type(), pool_id()) -> term().
 sync(HostType, PoolId) ->
     Pids = mongoose_async_pools:get_workers(HostType, PoolId),
     Context = #{what => sync_failed, host_type => HostType, pool_id => PoolId},
     F = fun(Pid) -> 
                 safely:apply_and_log(gen_server, call, [Pid, sync], Context)
         end,
-    mongoose_lib:pmap(F, Pids).
+    Results = mongoose_lib:pmap(F, Pids),
+    check_results(Results).
+
+check_results(Results) ->
+    [check_result(Result) || Result <- Results].
+
+check_result({ok, ok}) -> ok;
+check_result({ok, skipped}) -> ok;
+check_result(Other) -> ?LOG_ERROR(#{what => sync_failed, reason => Other}).
 
 -spec get_workers(mongooseim:host_type(), pool_id()) -> [pid()].
 get_workers(HostType, PoolId) ->
     Pool = pool_name(HostType, PoolId),
+    %% TODO Use new worker_pool library.
+    %%      Don't forget to change the fun spec to atoms
+%   wpool:get_workers(Pool),
     [Sup] = [Pid || {_Name, Pid, supervisor, _Mods} <- supervisor:which_children(Pool)],
     [Pid || {_Name, Pid, worker, _Mods} <- supervisor:which_children(Sup)].
 
