@@ -1164,11 +1164,14 @@ unread_count_is_reset_after_sending_reset_stanza(Config) ->
           escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
         escalus:send(Bob, Stanza),
         inbox_helper:wait_for_groupchat_msg(Users),
+        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
+        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
+        %% Make sure Kate gets her inbox updated
+        check_inbox(Kate, [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}],
+                    #{}, #{case_sensitive => true}),
         % %% AND WHEN SEND RESET FOR ROOM
         inbox_helper:reset_inbox(Kate, RoomAddr),
 
-        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
-        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
         %% Bob has 0 unread messages
         check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}],
                     #{}, #{case_sensitive => true}),
