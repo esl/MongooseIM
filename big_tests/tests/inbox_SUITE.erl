@@ -29,8 +29,11 @@
          returns_error_when_unknown_field_sent/1
         ]).
 -export([msg_sent_stored_in_inbox/1,
+         msg_sent_stored_in_inbox_queryid/1,
          msg_with_no_store_is_not_stored_in_inbox/1,
+         msg_with_no_store_is_not_stored_in_inbox_queryid/1,
          msg_with_store_hint_is_always_stored/1,
+         msg_with_store_hint_is_always_stored_queryid/1,
          carbons_are_not_stored/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
@@ -83,7 +86,8 @@
                        inbox_opts/0,
                        muc_domain/0,
                        parse_form_iq/1,
-                       check_inbox/2, check_inbox/4,
+                       check_inbox/2, check_inbox/3,
+                       check_inbox/4,
                        clear_inbox_all/0,
                        given_conversations_between/2,
                        assert_invalid_inbox_form_value_error/3,
@@ -130,8 +134,11 @@ groups() ->
       [
        user_has_empty_inbox,
        msg_sent_stored_in_inbox,
+       msg_sent_stored_in_inbox_queryid,
        msg_with_no_store_is_not_stored_in_inbox,
+       msg_with_no_store_is_not_stored_in_inbox_queryid,
        msg_with_store_hint_is_always_stored,
+       msg_with_store_hint_is_always_stored_queryid,
        carbons_are_not_stored,
        user_has_two_conversations,
        msg_sent_to_offline_user,
@@ -413,6 +420,14 @@ msg_sent_stored_in_inbox(Config) ->
         check_inbox(Bob, BobConvs)
       end).
 
+msg_sent_stored_in_inbox_queryid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        #{ Alice := AliceConvs, Bob := BobConvs } = given_conversations_between(Alice, [Bob]),
+        %% Both check inbox
+        check_inbox(Alice, AliceConvs, <<"Query1">>),
+        check_inbox(Bob, BobConvs, <<"Query2">>)
+      end).
+
 msg_with_no_store_is_not_stored_in_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% Alice sends a message to Bob with a no-store hint
@@ -429,6 +444,22 @@ msg_with_no_store_is_not_stored_in_inbox(Config) ->
         check_inbox(Alice, [])
       end).
 
+msg_with_no_store_is_not_stored_in_inbox_queryid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a no-store hint
+        Body = <<"test">>,
+        Msg1 = escalus_stanza:chat_to(Bob, Body),
+        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
+        Msg3 = mam_helper:add_nostore_hint(Msg2),
+        escalus:send(Alice, Msg3),
+        MsgSent = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_chat_message, MsgSent),
+        %% Bob has no unread messages in conversation with Alice
+        check_inbox(Bob, [], <<"QueryId1">>),
+        %% Alice has no conv in her inbox either
+        check_inbox(Alice, [], <<"QueryId2">>)
+      end).
+
 msg_with_store_hint_is_always_stored(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
@@ -440,6 +471,19 @@ msg_with_store_hint_is_always_stored(Config) ->
         %% Alice and Bob has a body-less message in their inbox
         check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}]),
         check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}])
+      end).
+
+msg_with_store_hint_is_always_stored_queryid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
+        Msg1 = escalus_stanza:to(#xmlel{name = <<"message">>}, Bob),
+        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
+        Msg3 = mam_helper:add_store_hint(Msg2),
+        escalus:send(Alice, Msg3),
+        escalus:wait_for_stanza(Bob),
+        %% Alice and Bob has a body-less message in their inbox
+        check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}], <<"queryid1">>),
+        check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}], <<"queryid2">>)
       end).
 
 carbons_are_not_stored(Config) ->

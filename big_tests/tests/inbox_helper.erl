@@ -16,7 +16,8 @@
          muclight_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
-         check_inbox/2, check_inbox/4,
+         check_inbox/2, check_inbox/3,
+         check_inbox/4, check_inbox/5,
          get_inbox/2, get_inbox/3,
          reset_inbox/2,
          get_result_el/2,
@@ -24,6 +25,7 @@
          make_inbox_stanza/0,
          make_inbox_stanza/1,
          make_inbox_stanza/2,
+         make_inbox_stanza_queryid/2,
          make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
@@ -170,20 +172,32 @@ foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
 
 -spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> ok | no_return().
 check_inbox(Client, Convs) ->
-    check_inbox(Client, Convs, #{}, #{}).
+    check_inbox(Client, Convs, #{}, #{}, undefined).
+
+-spec check_inbox(Client :: escalus:client(), Convs :: [conv()], binary()) -> ok | no_return().
+check_inbox(Client, Convs, QueryId) ->
+    check_inbox(Client, Convs, #{}, #{}, QueryId).
 
 -spec check_inbox(Client :: escalus:client(),
                   Convs :: [conv()],
                   QueryOpts :: inbox_query_params(),
                   CheckOpts :: inbox_check_params()) -> ok | no_return().
 check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
+    check_inbox(Client, Convs, QueryOpts, CheckOpts, undefined).
+
+-spec check_inbox(Client :: escalus:client(),
+                  Convs :: [conv()],
+                  QueryOpts :: inbox_query_params(),
+                  CheckOpts :: inbox_check_params(),
+                  QueryId :: undefined | binary()) -> ok | no_return().
+check_inbox(Client, Convs, QueryOpts, CheckOpts, QueryId) ->
     ExpectedSortedConvs = case maps:get(order, QueryOpts, undefined) of
                               asc -> lists:reverse(Convs);
                               _ -> Convs
                           end,
-    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
+    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}, QueryId),
     try
-        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs, QueryId)
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -196,15 +210,18 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
     end.
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
+    check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList, undefined).
+
+check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList, ExpectedQueryId) ->
     Merged = lists:zip(ResultStanzas, MsgCheckList),
     JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
                                  maps:get(check_resource, CheckOpts, true)),
     lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
-                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
+                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun, ExpectedQueryId)
                   end, Merged).
 
-process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = To,
-                                             content = Content, verify = Fun}, JIDVerifyFun) ->
+process_inbox_message(Client, #xmlel{children = [Children]} = Message, #conv{unread = Unread, from = From, to = To,
+                                             content = Content, verify = Fun}, JIDVerifyFun, ExpectedQueryId) ->
     FromJid = ensure_conv_binary_jid(From),
     ToJid = ensure_conv_binary_jid(To),
     escalus:assert(is_message, Message),
@@ -212,6 +229,7 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     [InnerMsg] = get_inner_msg(Message),
     JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
+    ?assertEqual(ExpectedQueryId, exml_query:attr(Children, <<"queryid">>)),
     InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], <<>>),
     Content = InnerContent,
     case Fun of
@@ -225,14 +243,20 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
 -spec get_inbox(Client :: escalus:client(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 get_inbox(Client, ExpectedResult) ->
-    get_inbox(Client, #{}, ExpectedResult).
+    get_inbox(Client, #{}, ExpectedResult, undefined).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
+get_inbox(Client, GetParams, ExpectedResult) ->
+    get_inbox(Client, GetParams, ExpectedResult, undefined).
 
-get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
-    GetInbox = make_inbox_stanza(GetParams),
+-spec get_inbox(Client :: escalus:client(),
+                GetParams :: inbox_query_params(),
+                ExpectedResult :: inbox_result_params(),
+                QueryId :: undefined | binary()) -> [exml:element()].
+get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult, QueryId) ->
+    GetInbox = make_inbox_stanza_queryid(GetParams, QueryId),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
@@ -304,6 +328,21 @@ get_error_message(Stanza) ->
 
 get_inbox_form_stanza() ->
     escalus_stanza:iq_get(?NS_ESL_INBOX, []).
+
+-spec make_inbox_stanza_queryid(GetParams :: inbox_query_params(), QueryId :: undefined | binary()) -> exml:element().
+make_inbox_stanza_queryid(GetParams, undefined) ->
+    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    QueryTag = #xmlel{name = <<"inbox">>,
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      children = [make_inbox_form(GetParams)]},
+    GetIQ#xmlel{children = [QueryTag]};
+make_inbox_stanza_queryid(GetParams, QueryId) ->
+    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    QueryTag = #xmlel{name = <<"inbox">>,
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
+                               {<<"queryid">>, QueryId}],
+                      children = [make_inbox_form(GetParams)]},
+    GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza() -> exml:element().
 make_inbox_stanza() ->
