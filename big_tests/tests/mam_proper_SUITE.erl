@@ -68,7 +68,17 @@ resources() ->
     [<<"res1">>, <<"PICKLE">>, <<"1">>, <<"xdxd">>].
 
 origin_id() ->
-    oneof([none, <<"orig_id">>, proper_types:non_empty(proper_unicode:utf8(5))]).
+    oneof([none, <<"orig_id">>,
+           proper_types:non_empty(strip_nulls(proper_unicode:utf8(5)))]).
+
+strip_nulls(Gen) ->
+    ?LET(X, Gen, do_strip_nulls(X)).
+
+do_strip_nulls(B) ->
+    %% PostgreSQL doesn't support storing NULL (\0x00) characters in text fields
+    List = unicode:characters_to_list(B),
+    List2 = [X || X <- List, X =/= 0],
+    unicode:characters_to_binary(List2).
 
 username() ->
     ?SUCHTHAT(U, proper_types:non_empty(oneof(usernames())),
@@ -96,7 +106,7 @@ direction() ->
     proper_types:oneof([incoming, outgoing]).
 
 body() ->
-    proper_unicode:utf8(1000).
+    strip_nulls(proper_unicode:utf8(1000)).
 
 packet(To, Body) ->
     escalus_stanza:chat_to(jid:to_binary(To), Body).
