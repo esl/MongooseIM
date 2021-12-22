@@ -18,7 +18,6 @@
                   csv,
                   eredis,
                   eldap,
-                  erlang_pmp,
                   exml,
                   exometer_core,
                   exometer_report_graphite,
