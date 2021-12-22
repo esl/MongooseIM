@@ -191,11 +191,10 @@ tabcol_to_odbc_type(TabCol = {Table, Column}, TableDesc) ->
             ODBCType
     end.
 
-%% Null should be encoded with the a correct type.
-%% Otherwise when inserting two records, where one value is null
-%% and another is not null, would case:
-%% [FreeTDS][SQL Server]Conversion failed when converting the nvarchar value
-%% 'orig_id' to data type int. SQLSTATE IS: 22018
+%% Null should be encoded with the correct type. Otherwise when inserting two records,
+%% where one value is null and the other is not, would cause:
+%% > [FreeTDS][SQL Server]Conversion failed when converting the nvarchar value
+%%   'orig_id' to data type int. SQLSTATE IS: 22018
 unicode_mapper(null) ->
     {{sql_wlongvarchar, 0}, [null]};
 unicode_mapper(P) ->
