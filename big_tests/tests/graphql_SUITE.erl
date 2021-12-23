@@ -5,7 +5,7 @@
 
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [load_test_schema/2]).
+-import(graphql_helper, []).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -30,28 +30,12 @@ admin_handler() ->
     [auth_admin_can_access_protected_types | common_tests()].
 
 common_tests() ->
-    [malformed_auth_header_error,
-     document_parse_error,
-     document_type_check_error,
-     document_validate_error,
-     wrong_creds_cannot_access_protected_types,
-     unauth_cannot_access_protected_types,
-     unauth_can_access_unprotected_types,
-     can_execute_query_with_variables,
-     invalid_json_body_error,
-     no_query_supplied_error,
-     variables_invalid_json_error,
-     can_load_graphiql].
+    [can_load_graphiql].
 
 init_per_suite(Config) ->
-    % reset endpoints and load test schema
-    ok = load_test_schema(admin, Config),
-    ok = load_test_schema(user, Config),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    % reinit endpoints with original schemas
-    ok = rpc(mim(), mongoose_graphql, init, []),
     escalus:end_per_suite(Config).
 
 init_per_group(admin_handler, Config) ->
@@ -86,63 +70,11 @@ can_connect_to_admin(_Config) ->
 can_connect_to_user(_Config) ->
     ?assertMatch({{<<"400">>,<<"Bad Request">>}, _}, execute(user, #{}, undefined)).
 
-unauth_cannot_access_protected_types(Config) ->
+can_load_graphiql(Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertMatch(#{<<"errors">> := [#{<<"path">> := [<<"ROOT">>]}]}, Data),
-    assert_no_permissions(no_permissions, Status, Data).
-
-unauth_can_access_unprotected_types(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "mutation { field }"},
-    {Status, Data} = execute(Ep, Body, undefined),
-    assert_access_granted(Status, Data).
-
-wrong_creds_cannot_access_protected_types(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, {<<"user">>, <<"wrong_password">>}),
-    assert_no_permissions(wrong_credentials, Status, Data).
-
-malformed_auth_header_error(Config) ->
-    EpName = ?config(schema_endpoint, Config),
-    Request =
-      #{port => get_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
-        method => <<"POST">>,
-        headers => [{<<"Authorization">>, <<"Basic YWRtaW46c2VjcmV">>}],
-        return_maps => true,
-        path => "/graphql"},
-    % The encoded credentials value is malformed and cannot be decoded.
-    {Status, Data} = rest_helper:make_request(Request),
-    assert_no_permissions(request_error, Status, Data).
-
-document_parse_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"{ field ">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(parser_error, Data),
-
-    BodyScanner = #{<<"query">> => <<"mutation { id(value: \"asdfsad) } ">>},
-    {StatusScanner, DataScanner} = execute(Ep, BodyScanner, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, StatusScanner),
-    assert_code(scanner_error, DataScanner).
-
-document_type_check_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"mutation { id(value: 12) }">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(input_coercion, Data).
-
-document_validate_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>, <<"operationName">> => <<"Q1">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(not_unique, Data).
+    {Status, Html} = get_graphiql_website(Ep),
+    ?assertEqual({<<"200">>,<<"OK">>}, Status),
+    ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
 
 auth_user_can_access_protected_types(Config) ->
     escalus:fresh_story(
@@ -164,49 +96,6 @@ auth_admin_can_access_protected_types(Config) ->
     Body = #{query => "{ field }"},
     {Status, Data} = execute(Ep, Body, {User, Password}),
     assert_access_granted(Status, Data).
-
-can_execute_query_with_variables(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "mutation M1($value: String!){ id(value: $value) } query Q1{ field }",
-             variables => #{value => <<"Hello">>},
-             operationName => <<"M1">>
-            },
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    % operation M1 was executed, because id is in path
-    % access was granted, an error was returned because valid resolver was not defined
-    ?assertMatch(#{<<"data">> := #{<<"id">> := null},
-                   <<"errors">> :=
-                       [#{<<"extensions">> := #{<<"code">> := <<"resolver_crash">>},
-                          <<"path">> := [<<"id">>]}]},
-                 Data).
-
-can_load_graphiql(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    {Status, Html} = get_graphiql_website(Ep),
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
-
-invalid_json_body_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = <<"">>,
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(invalid_json_body, Data).
-
-no_query_supplied_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(no_query_supplied, Data).
-
-variables_invalid_json_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(variables_invalid_json, Data).
 
 %% Helpers
 
