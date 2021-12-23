@@ -7,9 +7,9 @@ schema{
 Contains all user available queries.
 Only an authenticated user can execute these queries.
 """
-type UserQuery @protected{
-  "Something to not leave type without fields"
-  field: String
+type UserQuery{
+  "Check authorization status"
+  checkAuth: UserAuthInfo
 }
 
 """

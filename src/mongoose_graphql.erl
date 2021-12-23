@@ -68,6 +68,7 @@ execute(Ep, #{document := Doc,
         Coerced = graphql:type_check_params(Ep, FunEnv, OpName, Vars),
         Ctx2 = Ctx#{params => Coerced,
                     operation_name => OpName,
+                    authorized => AuthStatus,
                     error_module => mongoose_graphql_errors},
         {ok, graphql:execute(Ep, Ctx2, Ast2)}
     catch
@@ -120,14 +121,17 @@ admin_mapping_rules() ->
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
-      interfaces => #{default => mongoose_graphql_default}}.
+      interfaces => #{default => mongoose_graphql_default},
+      enums => #{default => mongoose_graphql_enum}}.
 
 user_mapping_rules() ->
     #{objects => #{
         'UserQuery' => mongoose_graphql_user_query,
         'UserMutation' => mongoose_graphql_user_mutation,
+        'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
-      interfaces => #{default => mongoose_graphql_default}}.
+      interfaces => #{default => mongoose_graphql_default},
+      enums => #{default => mongoose_graphql_enum}}.
 
 load_multiple_file_schema(Patterns) ->
     Paths = lists:flatmap(fun(P) -> filelib:wildcard(P) end, Patterns),

@@ -1,0 +1,7 @@
+"All authorization statuses"
+enum AuthStatus{
+  "Request is authorized"
+  AUTHORIZED,
+  "Request is unauthorized"
+  UNAUTHORIZED
+}

@@ -1,0 +1,7 @@
+"Inforamtion about user request authorization"
+type UserAuthInfo{
+  "Authorized as user with name"
+  username: String
+  "Authorization status"
+  authStatus: AuthStatus
+}
