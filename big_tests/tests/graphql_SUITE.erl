@@ -4,8 +4,14 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
+
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
 -import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
+
+-define(assertAdminAuth(Auth, Data), assert_auth(atom_to_binary(Auth), Data)).
+-define(assertUserAuth(Username, Auth, Data),
+        assert_auth(#{<<"username">> => Username,
+                      <<"authStatus">> => atom_to_binary(Auth)}, Data)).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -25,9 +31,11 @@ cowboy_handler() ->
      can_connect_to_user].
 
 user_handler() ->
-    [auth_user_can_access_protected_types | common_tests()].
+    [user_checks_auth,
+     auth_user_checks_auth | common_tests()].
 admin_handler() ->
-    [auth_admin_can_access_protected_types | common_tests()].
+    [admin_checks_auth,
+     auth_admin_checks_auth | common_tests()].
 
 common_tests() ->
     [can_load_graphiql].
@@ -65,54 +73,55 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 can_connect_to_admin(_Config) ->
-    ?assertMatch({{<<"400">>,<<"Bad Request">>}, _}, execute(admin, #{}, undefined)).
+    ?assertMatch({{<<"400">>, <<"Bad Request">>}, _}, execute(admin, #{}, undefined)).
 
 can_connect_to_user(_Config) ->
-    ?assertMatch({{<<"400">>,<<"Bad Request">>}, _}, execute(user, #{}, undefined)).
+    ?assertMatch({{<<"400">>, <<"Bad Request">>}, _}, execute(user, #{}, undefined)).
 
 can_load_graphiql(Config) ->
     Ep = ?config(schema_endpoint, Config),
     {Status, Html} = get_graphiql_website(Ep),
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
     ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
 
-auth_user_can_access_protected_types(Config) ->
+user_checks_auth(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{query => "{ checkAuth { username authStatus } }"},
+    StatusData = execute(Ep, Body, undefined),
+    ?assertUserAuth(null, 'UNAUTHORIZED', StatusData).
+
+auth_user_checks_auth(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}],
         fun(Alice) ->
             Password = user_password(alice),
             AliceJID = escalus_client:short_jid(Alice),
             Ep = ?config(schema_endpoint, Config),
-            Body = #{query => "{ field }"},
-            {Status, Data} = execute(Ep, Body, {AliceJID, Password}),
-            assert_access_granted(Status, Data)
+            Body = #{query => "{ checkAuth { username authStatus } }"},
+            StatusData = execute(Ep, Body, {AliceJID, Password}),
+            ?assertUserAuth(AliceJID, 'AUTHORIZED', StatusData)
         end).
 
-auth_admin_can_access_protected_types(Config) ->
+admin_checks_auth(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{query => "{ checkAuth }"},
+    StatusData = execute(Ep, Body, undefined),
+    ?assertAdminAuth('UNAUTHORIZED', StatusData).
+
+auth_admin_checks_auth(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Opts = get_listener_opts(Ep),
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, {User, Password}),
-    assert_access_granted(Status, Data).
+    Body = #{query => "{ checkAuth }"},
+    StatusData = execute(Ep, Body, {User, Password}),
+    ?assertAdminAuth('AUTHORIZED', StatusData).
 
 %% Helpers
 
-assert_code(Code, Data) ->
-    BinCode = atom_to_binary(Code),
-    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
-
-assert_no_permissions(ExpectedCode, Status, Data) ->
-    ?assertEqual({<<"401">>,<<"Unauthorized">>}, Status),
-    assert_code(ExpectedCode, Data).
-
-assert_access_granted(Status, Data) ->
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    % access was granted, an error was returned because valid resolver was not defined
-    ?assertMatch(#{<<"errors">> :=
-                   [#{<<"extensions">> :=
-                     #{<<"code">> := <<"resolver_crash">>}}]}, Data).
+assert_auth(Auth, {Status, Data}) ->
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
+    ?assertMatch(#{<<"data">> := #{<<"checkAuth">> := Auth}}, Data).
 
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
