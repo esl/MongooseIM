@@ -121,7 +121,7 @@ inbox_opts() ->
     [{aff_changes, true},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
-     {markers, [displayed]}].
+     {reset_markers, [<<"displayed">>]}].
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
