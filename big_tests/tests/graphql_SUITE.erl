@@ -5,7 +5,7 @@
 
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, []).
+-import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -118,10 +118,6 @@ user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
 
-get_port(EpName) ->
-    {PortIpNet, ejabberd_cowboy, _Opts} = get_listener_config(EpName),
-    element(1, PortIpNet).
-
 get_listener_opts(EpName) ->
     {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
     {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
@@ -134,35 +130,9 @@ get_listener_opts(EpName) ->
         end, Modules),
     Opts2.
 
-get_listener_config(EpName) ->
-    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [{_, ejabberd_cowboy, _} = Config] =
-        lists:filter(fun(Config) -> is_graphql_config(Config, EpName) end, Listeners),
-    Config.
-
-is_graphql_config({_PortIpNet, ejabberd_cowboy, Opts}, EpName) ->
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
-    lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                      atom_to_binary(EpName) == proplists:get_value(schema_endpoint, Args);
-                 (_) -> false
-              end, Modules);
-is_graphql_config(_, _EpName) ->
-    false.
-
-execute(EpName, Body, Creds) ->
-    Request =
-      #{port => get_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
-        method => <<"POST">>,
-        return_maps => true,
-        creds => Creds,
-        path => "/graphql",
-        body => Body},
-    rest_helper:make_request(Request).
-
 get_graphiql_website(EpName) ->
     Request =
-      #{port => get_port(EpName),
+      #{port => get_listener_port(EpName),
         role => {graphql, atom_to_binary(EpName)},
         method => <<"GET">>,
         headers => [{<<"Accept">>, <<"text/html">>}],
