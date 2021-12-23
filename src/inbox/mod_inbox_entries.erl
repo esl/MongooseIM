@@ -102,10 +102,10 @@ process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params, QueryId) ->
     {mongoose_acc:t(), jlib:iq()}.
 forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, CurrentTS, QueryId) ->
     Properties = build_result(Result, CurrentTS),
-    X = prepare_children(ToBareJidBin, Properties, QueryId),
+    Children = prepare_children(ToBareJidBin, Properties, QueryId),
     Msg = #xmlel{name = <<"message">>,
                  attrs = [{<<"id">>, IQ#iq.id}],
-                 children = X},
+                 children = Children},
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
     Res = IQ#iq{type = result, sub_el = []},
     {Acc1, Res}.
@@ -131,22 +131,13 @@ maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
             process_reset_stanza(Acc, From, IQ, ResetStanza, InterlocutorJID)
     end.
 
-process_reset_stanza(Acc, From, IQ, ResetStanza, InterlocutorJID) ->
+process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
     HostType = mongoose_acc:host_type(Acc),
     ok = mod_inbox_utils:reset_unread_count_to_zero(HostType, From, InterlocutorJID),
-    case exml_query:attr(ResetStanza, <<"queryid">>) of
-        undefined -> 
-            Res = IQ#iq{type = result,
-                        sub_el = [#xmlel{name = <<"reset">>,
-                                         attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
-                                         children = []}]};
-        QueryId ->
-            Res = IQ#iq{type = result,
-                        id = QueryId,
-                        sub_el = [#xmlel{name = <<"reset">>,
-                                         attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
-                                         children = []}]}
-    end,
+    Res = IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"reset">>,
+                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 children = []}]},
     {Acc, Res}.
 
 %%--------------------------------------------------------------------

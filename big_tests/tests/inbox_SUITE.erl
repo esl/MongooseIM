@@ -66,9 +66,7 @@ groups() ->
        msg_sent_stored_in_inbox,
        msg_sent_stored_in_inbox_queryid,
        msg_with_no_store_is_not_stored_in_inbox,
-       msg_with_no_store_is_not_stored_in_inbox_queryid,
        msg_with_store_hint_is_always_stored,
-       msg_with_store_hint_is_always_stored_queryid,
        carbons_are_not_stored,
        user_has_two_conversations,
        msg_sent_to_offline_user,
@@ -345,20 +343,21 @@ user_has_empty_inbox(Config) ->
       end).
 
 msg_sent_stored_in_inbox(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        #{ Alice := AliceConvs, Bob := BobConvs } = given_conversations_between(Alice, [Bob]),
-        %% Both check inbox
-        check_inbox(Alice, AliceConvs),
-        check_inbox(Bob, BobConvs)
-      end).
+  test_msg_stored_in_inbox(Config, undefined).
 
 msg_sent_stored_in_inbox_queryid(Config) ->
+  test_msg_stored_in_inbox(Config, queryid).
+
+test_msg_stored_in_inbox(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         #{ Alice := AliceConvs, Bob := BobConvs } = given_conversations_between(Alice, [Bob]),
         %% Both check inbox
-        check_inbox(Alice, AliceConvs, <<"Query1">>),
-        check_inbox(Bob, BobConvs, <<"Query2">>)
+        check_inbox(Alice, AliceConvs, maybe_make_queryid(QueryId)),
+        check_inbox(Bob, BobConvs, maybe_make_queryid(QueryId))
       end).
+
+maybe_make_queryid(undefined) -> undefined;
+maybe_make_queryid(queryid) -> base16:encode(crypto:strong_rand_bytes(16)).
 
 msg_with_no_store_is_not_stored_in_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -376,22 +375,6 @@ msg_with_no_store_is_not_stored_in_inbox(Config) ->
         check_inbox(Alice, [])
       end).
 
-msg_with_no_store_is_not_stored_in_inbox_queryid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        %% Alice sends a message to Bob with a no-store hint
-        Body = <<"test">>,
-        Msg1 = escalus_stanza:chat_to(Bob, Body),
-        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
-        Msg3 = mam_helper:add_nostore_hint(Msg2),
-        escalus:send(Alice, Msg3),
-        MsgSent = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_chat_message, MsgSent),
-        %% Bob has no unread messages in conversation with Alice
-        check_inbox(Bob, [], <<"QueryId1">>),
-        %% Alice has no conv in her inbox either
-        check_inbox(Alice, [], <<"QueryId2">>)
-      end).
-
 msg_with_store_hint_is_always_stored(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
@@ -403,19 +386,6 @@ msg_with_store_hint_is_always_stored(Config) ->
         %% Alice and Bob has a body-less message in their inbox
         check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}]),
         check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}])
-      end).
-
-msg_with_store_hint_is_always_stored_queryid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        %% Alice sends a message to Bob with a store hint, that would otherwise be ignored
-        Msg1 = escalus_stanza:to(#xmlel{name = <<"message">>}, Bob),
-        Msg2 = escalus_stanza:set_id(Msg1, escalus_stanza:id()),
-        Msg3 = mam_helper:add_store_hint(Msg2),
-        escalus:send(Alice, Msg3),
-        escalus:wait_for_stanza(Bob),
-        %% Alice and Bob has a body-less message in their inbox
-        check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<>>}], <<"queryid1">>),
-        check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<>>}], <<"queryid2">>)
       end).
 
 carbons_are_not_stored(Config) ->
