@@ -5,6 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("graphql/src/graphql_schema.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -define(assertPermissionsFailed(Config, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
@@ -24,14 +25,18 @@ all() ->
      {group, protected_graphql},
      {group, error_handling},
      {group, error_formatting},
-     {group, permissions}].
+     {group, permissions},
+     {group, user_listener},
+     {group, admin_listener}].
 
 groups() ->
     [{protected_graphql, [parallel], protected_graphql()},
      {unprotected_graphql, [parallel], unprotected_graphql()},
      {error_handling, [parallel], error_handling()},
      {error_formatting, [parallel], error_formatting()},
-     {permissions, [parallel], permissions()}].
+     {permissions, [parallel], permissions()},
+     {admin_listener, [parallel], admin_listener()},
+     {user_listener, [parallel], user_listener()}].
 
 protected_graphql() ->
     [auth_can_execute_protected_query,
@@ -75,6 +80,49 @@ permissions() ->
      check_inline_fragment_permissions,
      check_union_permissions
     ].
+
+user_listener() ->
+    [].
+admin_listener() ->
+    [].
+
+init_per_suite(Config) ->
+    application:ensure_all_started(cowboy),
+    application:ensure_all_started(jid),
+    Config.
+
+end_per_suite(_Config) ->
+    ok.
+
+init_per_group(user_listener, Config) ->
+    meck:new(mongoose_api_common, [no_link]),
+    meck:expect(mongoose_api_common, check_password,
+                fun
+                    (#jid{user = <<"alice">>}, <<"makota">>) -> {true, {}};
+                    (_, _) -> false
+                end),
+    ListenerOpts = [{schema_endpoint, <<"user">>}],
+    init_ep_listener(5557, user_schema_ep, ListenerOpts, Config);
+init_per_group(admin_listener, Config) ->
+    ListenerOpts = [{username, <<"admin">>},
+                    {password, <<"secret">>},
+                    {schema_endpoint, <<"admin">>}],
+    init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
+init_per_group(no_creds_admin_listener, Config) ->
+    ListenerOpts = [{schema_endpoint, <<"admin">>}],
+    init_ep_listener(5559, admin_schema_ep, ListenerOpts, Config);
+init_per_group(_G, Config) ->
+    Config.
+
+end_per_group(user_listener, Config) ->
+    meck:unload(mongoose_api_common),
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(admin_listener, Config) ->
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(_, Config) ->
+    Config.
 
 init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= auth_can_execute_protected_mutation;
@@ -468,3 +516,60 @@ example_permissions_schema_data(Config) ->
          interfaces => #{default => mongoose_graphql_default_resolver},
          unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
+
+example_listener_schema_data(Config) ->
+    Pattern = filename:join([proplists:get_value(data_dir, Config), "listener_schema.gql"]),
+    Mapping =
+        #{objects =>
+              #{'UserQuery' => mongoose_graphql_default_resolver,
+                'UserMutation' => mongoose_graphql_default_resolver,
+                default => mongoose_graphql_default_resolver}},
+    {Mapping, Pattern}.
+
+-spec init_ep_listener(integer(), atom(), [{atom(), term()}], [{atom(), term()}]) ->
+    [{atom(), term()}].
+init_ep_listener(Port, EpName, ListenerOpts, Config) ->
+    Pid = spawn(fun() ->
+                    Name = list_to_atom("gql_listener_" ++ atom_to_list(EpName)),
+                    ok = start_listener(Name, Port, ListenerOpts),
+                    {Mapping, Pattern} = example_listener_schema_data(Config),
+                    {ok, _} = mongoose_graphql:create_endpoint(EpName, Mapping, [Pattern]),
+                    receive
+                        stop ->
+                            ok
+                    end
+                end),
+    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
+
+-spec start_listener(atom(), integer(), [{atom(), term()}]) -> ok.
+start_listener(Ref, Port, Opts) ->
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/graphql", mongoose_graphql_cowboy_handler, Opts}]}
+    ]),
+    {ok, _} = cowboy:start_clear(Ref,
+                                 [{port, Port}],
+                                 #{env => #{dispatch => Dispatch}}),
+    ok.
+
+-spec execute(binary(), map(), undefined | {binary(), binary()}) -> {{binary(), binary()}, map()}.
+execute(EpAddr, Body, undefined) ->
+    post_request(EpAddr, [], Body);
+execute(EpAddr, Body, {Username, Password}) ->
+    Creds = base64:encode(<<Username/binary, ":", Password/binary>>),
+    Headers = [{<<"Authorization">>, <<"Basic ", Creds/binary>>}],
+    post_request(EpAddr, Headers, Body).
+
+post_request(EpAddr, HeadersIn, Body) when is_binary(Body) ->
+    {ok, Client} = fusco:start(EpAddr, []),
+    Headers = [{<<"Content-Type">>, <<"application/json">>},
+               {<<"Request-Id">>, random_request_id()} | HeadersIn],
+    {ok, {ResStatus, _, ResBody, _, _}} = Res =
+        fusco:request(Client, <<"/graphql">>, <<"POST">>, Headers, Body, 5000),
+    fusco:disconnect(Client),
+    ct:log("~p", [Res]),
+    {ResStatus, jiffy:decode(ResBody, [return_maps])};
+post_request(Ep, HeadersIn, Body) ->
+    post_request(Ep, HeadersIn, jiffy:encode(Body)).
+
+random_request_id() ->
+    base16:encode(crypto:strong_rand_bytes(8)).
