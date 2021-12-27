@@ -5,6 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("graphql/src/graphql_schema.hrl").
+-include_lib("jid/include/jid.hrl").
 
 -define(assertPermissionsFailed(Config, Doc),
         ?assertThrow({error, #{error_term := {no_permissions, _}}},
@@ -24,14 +25,18 @@ all() ->
      {group, protected_graphql},
      {group, error_handling},
      {group, error_formatting},
-     {group, permissions}].
+     {group, permissions},
+     {group, user_listener},
+     {group, admin_listener}].
 
 groups() ->
     [{protected_graphql, [parallel], protected_graphql()},
      {unprotected_graphql, [parallel], unprotected_graphql()},
      {error_handling, [parallel], error_handling()},
      {error_formatting, [parallel], error_formatting()},
-     {permissions, [parallel], permissions()}].
+     {permissions, [parallel], permissions()},
+     {admin_listener, [parallel], admin_listener()},
+     {user_listener, [parallel], user_listener()}].
 
 protected_graphql() ->
     [auth_can_execute_protected_query,
@@ -75,6 +80,63 @@ permissions() ->
      check_inline_fragment_permissions,
      check_union_permissions
     ].
+
+user_listener() ->
+    [auth_user_can_access_protected_types | common_tests()].
+admin_listener() ->
+    [no_creds_defined_admin_can_access_protected,
+     auth_admin_can_access_protected_types | common_tests()].
+
+common_tests() ->
+    [malformed_auth_header_error,
+     auth_wrong_creds_error,
+     invalid_json_body_error,
+     no_query_supplied_error,
+     variables_invalid_json_error,
+     listener_reply_with_parsing_error,
+     listener_reply_with_type_check_error,
+     listener_reply_with_validation_error,
+     listener_unauth_cannot_access_protected_types,
+     listener_unauth_can_access_unprotected_types,
+     listener_can_execute_query_with_variables].
+
+init_per_suite(Config) ->
+    application:ensure_all_started(cowboy),
+    application:ensure_all_started(jid),
+    Config.
+
+end_per_suite(_Config) ->
+    ok.
+
+init_per_group(user_listener, Config) ->
+    meck:new(mongoose_api_common, [no_link]),
+    meck:expect(mongoose_api_common, check_password,
+                fun
+                    (#jid{user = <<"alice">>}, <<"makota">>) -> {true, {}};
+                    (_, _) -> false
+                end),
+    ListenerOpts = [{schema_endpoint, <<"user">>}],
+    init_ep_listener(5557, user_schema_ep, ListenerOpts, Config);
+init_per_group(admin_listener, Config) ->
+    ListenerOpts = [{username, <<"admin">>},
+                    {password, <<"secret">>},
+                    {schema_endpoint, <<"admin">>}],
+    init_ep_listener(5558, admin_schema_ep, ListenerOpts, Config);
+init_per_group(no_creds_admin_listener, Config) ->
+    ListenerOpts = [{schema_endpoint, <<"admin">>}],
+    init_ep_listener(5559, admin_schema_ep, ListenerOpts, Config);
+init_per_group(_G, Config) ->
+    Config.
+
+end_per_group(user_listener, Config) ->
+    meck:unload(mongoose_api_common),
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(admin_listener, Config) ->
+    ?config(test_process, Config) ! stop,
+    Config;
+end_per_group(_, Config) ->
+    Config.
 
 init_per_testcase(C, Config) when C =:= auth_can_execute_protected_query;
                                   C =:= auth_can_execute_protected_mutation;
@@ -159,6 +221,8 @@ admin_and_user_load_global_types(_Config) ->
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
 
+%% Protected graphql
+
 auth_can_execute_protected_query(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"{ field }">>,
@@ -203,6 +267,8 @@ unauth_can_access_introspection(Config) ->
         },
     ?assertEqual(Expected, Res).
 
+%% Unprotected graphql
+
 can_execute_query_with_vars(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query Q1($value: String!) { id(value: $value)}">>,
@@ -239,6 +305,8 @@ auth_can_execute_mutation(Config) ->
     Res = mongoose_graphql:execute(Ep, request(Doc, true)),
     ?assertEqual({ok, #{data => #{<<"field">> => <<"Test field">>}}}, Res).
 
+%% Error handling
+
 should_catch_parsing_error(Config) ->
     Ep = ?config(endpoint, Config),
     Doc = <<"query { field ">>,
@@ -266,6 +334,8 @@ should_catch_validation_error(Config) ->
     % Query name must be unique
     Res = mongoose_graphql:execute(Ep, request(<<"Q1">>, Doc, false)),
     ?assertMatch({error, #{phase := validate, error_term := {not_unique, _}}}, Res).
+
+%% Permissions
 
 check_object_permissions(Config) ->
     Doc = <<"query { field }">>,
@@ -325,6 +395,8 @@ check_union_permissions(Config) ->
     ?assertPermissionsSuccess(Config, Doc),
     ?assertPermissionsFailed(Config, FDoc),
     ?assertPermissionsFailed(Config, FDoc2).
+
+%% Error formatting
 
 format_internal_crash(_Config) ->
     {Code, Res} = mongoose_graphql_errors:format_error(internal_crash),
@@ -400,7 +472,126 @@ format_any_error(_Config) ->
     ?assertErrMsg(uncategorized, <<"any_error">>, Msg3),
     ?assertErrMsg(uncategorized, <<"any_error">>, Msg4).
 
+%% Listeners
+
+auth_user_can_access_protected_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"alice@localhost">>, <<"makota">>}),
+    assert_access_granted(Status, Data).
+
+no_creds_defined_admin_can_access_protected(_Config) ->
+    Port = 5559,
+    Ep = "http://localhost:" ++ integer_to_list(Port),
+    start_listener(no_creds_admin_listener, Port, [{schema_endpoint, <<"admin">>}]),
+    Body = #{<<"query">> => <<"{ field }">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    assert_access_granted(Status, Data).
+
+auth_admin_can_access_protected_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"admin">>, <<"secret">>}),
+    assert_access_granted(Status, Data).
+
+malformed_auth_header_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    % The encoded credentials value is malformed and cannot be decoded.
+    Headers = [{<<"Authorization">>, <<"Basic YWRtaW46c2VjcmV">>}],
+    {Status, Data} = post_request(Ep, Headers, <<"">>),
+    assert_no_permissions(request_error, Status, Data).
+
+auth_wrong_creds_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, {<<"user">>, <<"wrong_password">>}),
+    assert_no_permissions(wrong_credentials, Status, Data).
+
+invalid_json_body_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = <<"">>,
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(invalid_json_body, Data).
+
+no_query_supplied_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(no_query_supplied, Data).
+
+variables_invalid_json_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(variables_invalid_json, Data).
+
+listener_reply_with_parsing_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{<<"query">> => <<"{ field ">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(parser_error, Data),
+
+    BodyScanner = #{<<"query">> => <<"mutation { id(value: \"asdfsad) } ">>},
+    {StatusScanner, DataScanner} = execute(Ep, BodyScanner, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, StatusScanner),
+    assert_code(scanner_error, DataScanner).
+
+listener_reply_with_type_check_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{<<"query">> => <<"mutation { id(value: 12) }">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(input_coercion, Data).
+
+listener_reply_with_validation_error(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>,
+             <<"operationName">> => <<"Q1">>},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
+    assert_code(not_unique, Data).
+
+listener_can_execute_query_with_variables(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "mutation M1($value: String!){ id(value: $value) } query Q1{ field }",
+             variables => #{value => <<"Hello">>},
+             operationName => <<"M1">>
+            },
+    {Status, Data} = execute(Ep, Body, undefined),
+    assert_access_granted(Status, Data),
+    ?assertMatch(#{<<"data">> := #{<<"id">> := <<"Hello">>}}, Data).
+
+listener_unauth_cannot_access_protected_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "{ field }"},
+    {Status, Data} = execute(Ep, Body, undefined),
+    ?assertMatch(#{<<"errors">> := [#{<<"path">> := [<<"ROOT">>]}]}, Data),
+    assert_no_permissions(no_permissions, Status, Data).
+
+listener_unauth_can_access_unprotected_types(Config) ->
+    Ep = ?config(endpoint_addr, Config),
+    Body = #{query => "mutation { field }"},
+    {Status, Data} = execute(Ep, Body, undefined),
+    assert_access_granted(Status, Data).
+
 %% Helpers
+
+assert_code(Code, Data) ->
+    BinCode = atom_to_binary(Code),
+    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
+
+assert_no_permissions(ExpectedCode, Status, Data) ->
+    ?assertEqual({<<"401">>,<<"Unauthorized">>}, Status),
+    assert_code(ExpectedCode, Data).
+
+assert_access_granted(Status, Data) ->
+    ?assertEqual({<<"200">>,<<"OK">>}, Status),
+    % access was granted, no error was returned
+    ?assertNotMatch(#{<<"errors">> := _}, Data).
 
 assert_err_msg(Code, MsgContains, #{message := Msg} = ErrorMsg) ->
     ?assertMatch(#{extensions := #{code := Code}}, ErrorMsg),
@@ -468,3 +659,60 @@ example_permissions_schema_data(Config) ->
          interfaces => #{default => mongoose_graphql_default_resolver},
          unions => #{default => mongoose_graphql_default_resolver}},
     {Mapping, Pattern}.
+
+example_listener_schema_data(Config) ->
+    Pattern = filename:join([proplists:get_value(data_dir, Config), "listener_schema.gql"]),
+    Mapping =
+        #{objects =>
+              #{'UserQuery' => mongoose_graphql_default_resolver,
+                'UserMutation' => mongoose_graphql_default_resolver,
+                default => mongoose_graphql_default_resolver}},
+    {Mapping, Pattern}.
+
+-spec init_ep_listener(integer(), atom(), [{atom(), term()}], [{atom(), term()}]) ->
+    [{atom(), term()}].
+init_ep_listener(Port, EpName, ListenerOpts, Config) ->
+    Pid = spawn(fun() ->
+                    Name = list_to_atom("gql_listener_" ++ atom_to_list(EpName)),
+                    ok = start_listener(Name, Port, ListenerOpts),
+                    {Mapping, Pattern} = example_listener_schema_data(Config),
+                    {ok, _} = mongoose_graphql:create_endpoint(EpName, Mapping, [Pattern]),
+                    receive
+                        stop ->
+                            ok
+                    end
+                end),
+    [{test_process, Pid}, {endpoint_addr, "http://localhost:" ++ integer_to_list(Port)} | Config].
+
+-spec start_listener(atom(), integer(), [{atom(), term()}]) -> ok.
+start_listener(Ref, Port, Opts) ->
+    Dispatch = cowboy_router:compile([
+        {'_', [{"/graphql", mongoose_graphql_cowboy_handler, Opts}]}
+    ]),
+    {ok, _} = cowboy:start_clear(Ref,
+                                 [{port, Port}],
+                                 #{env => #{dispatch => Dispatch}}),
+    ok.
+
+-spec execute(binary(), map(), undefined | {binary(), binary()}) -> {{binary(), binary()}, map()}.
+execute(EpAddr, Body, undefined) ->
+    post_request(EpAddr, [], Body);
+execute(EpAddr, Body, {Username, Password}) ->
+    Creds = base64:encode(<<Username/binary, ":", Password/binary>>),
+    Headers = [{<<"Authorization">>, <<"Basic ", Creds/binary>>}],
+    post_request(EpAddr, Headers, Body).
+
+post_request(EpAddr, HeadersIn, Body) when is_binary(Body) ->
+    {ok, Client} = fusco:start(EpAddr, []),
+    Headers = [{<<"Content-Type">>, <<"application/json">>},
+               {<<"Request-Id">>, random_request_id()} | HeadersIn],
+    {ok, {ResStatus, _, ResBody, _, _}} = Res =
+        fusco:request(Client, <<"/graphql">>, <<"POST">>, Headers, Body, 5000),
+    fusco:disconnect(Client),
+    ct:log("~p", [Res]),
+    {ResStatus, jiffy:decode(ResBody, [return_maps])};
+post_request(Ep, HeadersIn, Body) ->
+    post_request(Ep, HeadersIn, jiffy:encode(Body)).
+
+random_request_id() ->
+    base16:encode(crypto:strong_rand_bytes(8)).

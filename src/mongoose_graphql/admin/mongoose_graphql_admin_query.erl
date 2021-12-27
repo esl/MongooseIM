@@ -17,4 +17,11 @@ execute(_Ctx, _Obj, <<"domainDetails">>, #{<<"domain">> := Domain}) ->
                          enabled = Enabled}};
         {error, not_found} ->
             {error, domain_not_found}
+    end;
+execute(#{authorized := Authorized}, _Obj, <<"checkAuth">>, _Args) ->
+    case Authorized of
+        true ->
+            {ok, 'AUTHORIZED'};
+        false ->
+            {ok, 'UNAUTHORIZED'}
     end.

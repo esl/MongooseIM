@@ -4,8 +4,14 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -compile([export_all, nowarn_export_all]).
+
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [load_test_schema/2]).
+-import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
+
+-define(assertAdminAuth(Auth, Data), assert_auth(atom_to_binary(Auth), Data)).
+-define(assertUserAuth(Username, Auth, Data),
+        assert_auth(#{<<"username">> => Username,
+                      <<"authStatus">> => atom_to_binary(Auth)}, Data)).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -25,33 +31,19 @@ cowboy_handler() ->
      can_connect_to_user].
 
 user_handler() ->
-    [auth_user_can_access_protected_types | common_tests()].
+    [user_checks_auth,
+     auth_user_checks_auth | common_tests()].
 admin_handler() ->
-    [auth_admin_can_access_protected_types | common_tests()].
+    [admin_checks_auth,
+     auth_admin_checks_auth | common_tests()].
 
 common_tests() ->
-    [malformed_auth_header_error,
-     document_parse_error,
-     document_type_check_error,
-     document_validate_error,
-     wrong_creds_cannot_access_protected_types,
-     unauth_cannot_access_protected_types,
-     unauth_can_access_unprotected_types,
-     can_execute_query_with_variables,
-     invalid_json_body_error,
-     no_query_supplied_error,
-     variables_invalid_json_error,
-     can_load_graphiql].
+    [can_load_graphiql].
 
 init_per_suite(Config) ->
-    % reset endpoints and load test schema
-    ok = load_test_schema(admin, Config),
-    ok = load_test_schema(user, Config),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    % reinit endpoints with original schemas
-    ok = rpc(mim(), mongoose_graphql, init, []),
     escalus:end_per_suite(Config).
 
 init_per_group(admin_handler, Config) ->
@@ -81,157 +73,59 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 can_connect_to_admin(_Config) ->
-    ?assertMatch({{<<"400">>,<<"Bad Request">>}, _}, execute(admin, #{}, undefined)).
+    ?assertMatch({{<<"400">>, <<"Bad Request">>}, _}, execute(admin, #{}, undefined)).
 
 can_connect_to_user(_Config) ->
-    ?assertMatch({{<<"400">>,<<"Bad Request">>}, _}, execute(user, #{}, undefined)).
+    ?assertMatch({{<<"400">>, <<"Bad Request">>}, _}, execute(user, #{}, undefined)).
 
-unauth_cannot_access_protected_types(Config) ->
+can_load_graphiql(Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertMatch(#{<<"errors">> := [#{<<"path">> := [<<"ROOT">>]}]}, Data),
-    assert_no_permissions(no_permissions, Status, Data).
+    {Status, Html} = get_graphiql_website(Ep),
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
+    ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
 
-unauth_can_access_unprotected_types(Config) ->
+user_checks_auth(Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "mutation { field }"},
-    {Status, Data} = execute(Ep, Body, undefined),
-    assert_access_granted(Status, Data).
+    Body = #{query => "{ checkAuth { username authStatus } }"},
+    StatusData = execute(Ep, Body, undefined),
+    ?assertUserAuth(null, 'UNAUTHORIZED', StatusData).
 
-wrong_creds_cannot_access_protected_types(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, {<<"user">>, <<"wrong_password">>}),
-    assert_no_permissions(wrong_credentials, Status, Data).
-
-malformed_auth_header_error(Config) ->
-    EpName = ?config(schema_endpoint, Config),
-    Request =
-      #{port => get_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
-        method => <<"POST">>,
-        headers => [{<<"Authorization">>, <<"Basic YWRtaW46c2VjcmV">>}],
-        return_maps => true,
-        path => "/graphql"},
-    % The encoded credentials value is malformed and cannot be decoded.
-    {Status, Data} = rest_helper:make_request(Request),
-    assert_no_permissions(request_error, Status, Data).
-
-document_parse_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"{ field ">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(parser_error, Data),
-
-    BodyScanner = #{<<"query">> => <<"mutation { id(value: \"asdfsad) } ">>},
-    {StatusScanner, DataScanner} = execute(Ep, BodyScanner, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, StatusScanner),
-    assert_code(scanner_error, DataScanner).
-
-document_type_check_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"mutation { id(value: 12) }">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(input_coercion, Data).
-
-document_validate_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"query Q1 { field } query Q1 { field }">>, <<"operationName">> => <<"Q1">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(not_unique, Data).
-
-auth_user_can_access_protected_types(Config) ->
+auth_user_checks_auth(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}],
         fun(Alice) ->
             Password = user_password(alice),
             AliceJID = escalus_client:short_jid(Alice),
             Ep = ?config(schema_endpoint, Config),
-            Body = #{query => "{ field }"},
-            {Status, Data} = execute(Ep, Body, {AliceJID, Password}),
-            assert_access_granted(Status, Data)
+            Body = #{query => "{ checkAuth { username authStatus } }"},
+            StatusData = execute(Ep, Body, {AliceJID, Password}),
+            ?assertUserAuth(AliceJID, 'AUTHORIZED', StatusData)
         end).
 
-auth_admin_can_access_protected_types(Config) ->
+admin_checks_auth(Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Body = #{query => "{ checkAuth }"},
+    StatusData = execute(Ep, Body, undefined),
+    ?assertAdminAuth('UNAUTHORIZED', StatusData).
+
+auth_admin_checks_auth(Config) ->
     Ep = ?config(schema_endpoint, Config),
     Opts = get_listener_opts(Ep),
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
-    Body = #{query => "{ field }"},
-    {Status, Data} = execute(Ep, Body, {User, Password}),
-    assert_access_granted(Status, Data).
-
-can_execute_query_with_variables(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{query => "mutation M1($value: String!){ id(value: $value) } query Q1{ field }",
-             variables => #{value => <<"Hello">>},
-             operationName => <<"M1">>
-            },
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    % operation M1 was executed, because id is in path
-    % access was granted, an error was returned because valid resolver was not defined
-    ?assertMatch(#{<<"data">> := #{<<"id">> := null},
-                   <<"errors">> :=
-                       [#{<<"extensions">> := #{<<"code">> := <<"resolver_crash">>},
-                          <<"path">> := [<<"id">>]}]},
-                 Data).
-
-can_load_graphiql(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    {Status, Html} = get_graphiql_website(Ep),
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    ?assertNotEqual(nomatch, binary:match(Html, <<"Loading...">>)).
-
-invalid_json_body_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = <<"">>,
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(invalid_json_body, Data).
-
-no_query_supplied_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(no_query_supplied, Data).
-
-variables_invalid_json_error(Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Body = #{<<"query">> => <<"{ field }">>, <<"variables">> => <<"{1: 2}">>},
-    {Status, Data} = execute(Ep, Body, undefined),
-    ?assertEqual({<<"400">>,<<"Bad Request">>}, Status),
-    assert_code(variables_invalid_json, Data).
+    Body = #{query => "{ checkAuth }"},
+    StatusData = execute(Ep, Body, {User, Password}),
+    ?assertAdminAuth('AUTHORIZED', StatusData).
 
 %% Helpers
 
-assert_code(Code, Data) ->
-    BinCode = atom_to_binary(Code),
-    ?assertMatch(#{<<"errors">> := [#{<<"extensions">> := #{<<"code">> := BinCode}}]}, Data).
-
-assert_no_permissions(ExpectedCode, Status, Data) ->
-    ?assertEqual({<<"401">>,<<"Unauthorized">>}, Status),
-    assert_code(ExpectedCode, Data).
-
-assert_access_granted(Status, Data) ->
-    ?assertEqual({<<"200">>,<<"OK">>}, Status),
-    % access was granted, an error was returned because valid resolver was not defined
-    ?assertMatch(#{<<"errors">> :=
-                   [#{<<"extensions">> :=
-                     #{<<"code">> := <<"resolver_crash">>}}]}, Data).
+assert_auth(Auth, {Status, Data}) ->
+    ?assertEqual({<<"200">>, <<"OK">>}, Status),
+    ?assertMatch(#{<<"data">> := #{<<"checkAuth">> := Auth}}, Data).
 
 user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
-
-get_port(EpName) ->
-    {PortIpNet, ejabberd_cowboy, _Opts} = get_listener_config(EpName),
-    element(1, PortIpNet).
 
 get_listener_opts(EpName) ->
     {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
@@ -245,35 +139,9 @@ get_listener_opts(EpName) ->
         end, Modules),
     Opts2.
 
-get_listener_config(EpName) ->
-    Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [{_, ejabberd_cowboy, _} = Config] =
-        lists:filter(fun(Config) -> is_graphql_config(Config, EpName) end, Listeners),
-    Config.
-
-is_graphql_config({_PortIpNet, ejabberd_cowboy, Opts}, EpName) ->
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
-    lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                      atom_to_binary(EpName) == proplists:get_value(schema_endpoint, Args);
-                 (_) -> false
-              end, Modules);
-is_graphql_config(_, _EpName) ->
-    false.
-
-execute(EpName, Body, Creds) ->
-    Request =
-      #{port => get_port(EpName),
-        role => {graphql, atom_to_binary(EpName)},
-        method => <<"POST">>,
-        return_maps => true,
-        creds => Creds,
-        path => "/graphql",
-        body => Body},
-    rest_helper:make_request(Request).
-
 get_graphiql_website(EpName) ->
     Request =
-      #{port => get_port(EpName),
+      #{port => get_listener_port(EpName),
         role => {graphql, atom_to_binary(EpName)},
         method => <<"GET">>,
         headers => [{<<"Accept">>, <<"text/html">>}],

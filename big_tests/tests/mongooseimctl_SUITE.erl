@@ -187,8 +187,7 @@ upload_enabled() ->
 
 graphql() ->
     [graphql_wrong_arguments_number,
-     can_execute_admin_protected_query,
-     can_execute_admin_unprotected_query,
+     can_execute_admin_queries_with_permissions,
      can_handle_execution_error].
 
 suite() ->
@@ -249,10 +248,6 @@ init_per_group(upload_without_acl, Config) ->
 init_per_group(upload_with_acl, Config) ->
     dynamic_modules:start(host_type(), mod_http_upload, ?MINIO_OPTS(true)),
     [{with_acl, true} | Config];
-init_per_group(graphql, Config) ->
-    % reset admin endpoint and load test schema
-    ok = graphql_helper:load_test_schema(admin, Config),
-    Config;
 init_per_group(_GroupName, Config) ->
     Config.
 
@@ -283,9 +278,6 @@ end_per_group(UploadGroup, Config) when UploadGroup =:= upload_without_acl;
                                         UploadGroup =:= upload_with_acl ->
     dynamic_modules:stop(host_type(), mod_http_upload),
     Config;
-end_per_group(graphql, _Config) ->
-    % reinit endpoints with original schemas
-    ok = rpc(mim(), mongoose_graphql, init, []);
 end_per_group(_GroupName, Config) ->
     Config.
 
@@ -1112,21 +1104,12 @@ stats_host(Config) ->
 %% mongoose_graphql tests
 %%--------------------------------------------------------------------
 
-can_execute_admin_protected_query(Config) ->
-    Query = "query { field }",
+can_execute_admin_queries_with_permissions(Config) ->
+    Query = "query { checkAuth }",
     Res = mongooseimctl("graphql", [Query], Config),
     ?assertMatch({_, 0}, Res),
     Data = element(1, Res),
-    % We expect resolver to crash, because valid resolver was not defined.
-    ?assertNotEqual(nomatch, string:find(Data, "resolver_crash")).
-
-can_execute_admin_unprotected_query(Config) ->
-    Query = "mutation { field }",
-    Res = mongooseimctl("graphql", [Query], Config),
-    ?assertMatch({_, 0}, Res),
-    Data = element(1, Res),
-    % We expect resolver to crash, because valid resolver was not defined.
-    ?assertNotEqual(nomatch, string:find(Data, "resolver_crash")).
+    ?assertNotEqual(nomatch, string:find(Data, "AUTHORIZED")).
 
 can_handle_execution_error(Config) ->
     Query = "{}",

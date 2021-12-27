@@ -7,11 +7,13 @@ schema{
 Contains all admin available queries.
 Only an authenticated admin can execute these queries.
 """
-type AdminQuery @protected{
+type AdminQuery{
   "Get all enabled domains by hostType"
-  domainsByHostType(hostType: String!): [String!]
+  domainsByHostType(hostType: String!): [String!] @protected
   "Get information about the domain"
-  domainDetails(domain: String!): Domain
+  domainDetails(domain: String!): Domain @protected
+  "Check authorization status"
+  checkAuth: AuthStatus
 }
 
 """
