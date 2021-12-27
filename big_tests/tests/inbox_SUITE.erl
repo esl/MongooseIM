@@ -356,8 +356,8 @@ test_msg_stored_in_inbox(Config, QueryId) ->
         check_inbox(Bob, BobConvs, maybe_make_queryid(QueryId))
       end).
 
-maybe_make_queryid(undefined) -> undefined;
-maybe_make_queryid(queryid) -> base16:encode(crypto:strong_rand_bytes(16)).
+maybe_make_queryid(undefined) -> #{};
+maybe_make_queryid(queryid) -> #{queryid => base16:encode(crypto:strong_rand_bytes(16))}.
 
 msg_with_no_store_is_not_stored_in_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

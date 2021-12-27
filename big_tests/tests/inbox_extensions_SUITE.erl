@@ -264,19 +264,11 @@ returns_error(Config, Stanza, Value) ->
 
 % read
 read_unread_entry_set_to_read(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        % Alice sends a message to Bob
-        Body = <<"Hi Bob">>,
-        inbox_helper:send_msg(Alice, Bob, Body),
-        % Bob has one unread message
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
-        % Then Bob decides to mark it as read
-        set_inbox_properties(Bob, Alice, [{read, true}]),
-        % Bob's inbox has no unread messages
-        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
-    end).
-
+    read_unread_entry_set_to_read(Config, undefined).
 read_unread_entry_set_to_read_queryid(Config) ->
+    read_unread_entry_set_to_read(Config, queryid).
+
+read_unread_entry_set_to_read(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob
         Body = <<"Hi Bob">>,
@@ -284,7 +276,12 @@ read_unread_entry_set_to_read_queryid(Config) ->
         % Bob has one unread message
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it as read
-        set_inbox_properties(Bob, Alice, [{read, true}], <<"QueryId">>),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Bob, Alice, [{read, true}]);
+            _ -> 
+                set_inbox_properties(Bob, Alice, [{read, true}], maybe_make_queryid(queryid))
+        end,
         % Bob's inbox has no unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
     end).
@@ -385,32 +382,31 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     end).
 
 archive_full_archive_can_be_fetched(Config) ->
+    archive_full_archive_can_be_fetched(Config, undefined).
+archive_full_archive_can_be_fetched_queryid(Config) ->
+    archive_full_archive_can_be_fetched(Config, queryid).
+
+archive_full_archive_can_be_fetched(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice, and Alice reads and archives all of them
         inbox_helper:check_inbox(Alice, [], #{box => archive}),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
         inbox_helper:check_inbox(Alice, AliceConvs),
-        set_inbox_properties(Alice, Bob, [{archive, true}]),
-        set_inbox_properties(Alice, Kate, [{archive, true}]),
-        set_inbox_properties(Alice, Mike, [{archive, true}]),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Alice, Bob, [{archive, true}]),
+                set_inbox_properties(Alice, Kate, [{archive, true}]),
+                set_inbox_properties(Alice, Mike, [{archive, true}]);
+            _ -> 
+                set_inbox_properties(Alice, Bob, [{archive, true}], maybe_make_queryid(queryid)),
+                set_inbox_properties(Alice, Kate, [{archive, true}], maybe_make_queryid(queryid)),
+                set_inbox_properties(Alice, Mike, [{archive, true}], maybe_make_queryid(queryid))
+        end,
         % Then Alice queries her archive and the conversations are there and not in the active box
         inbox_helper:check_inbox(Alice, [], #{box => active}),
         inbox_helper:check_inbox(Alice, AliceConvs, #{box => archive})
     end).
-
-archive_full_archive_can_be_fetched_queryid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
-        % Several people write to Alice, and Alice reads and archives all of them
-        check_box(archive, Alice, []),
-        #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
-        set_inbox_properties(Alice, Bob, [{archive, true}], <<"QueryId1">>),
-        set_inbox_properties(Alice, Kate, [{archive, true}], <<"QueryId2">>),
-        set_inbox_properties(Alice, Mike, [{archive, true}], <<"QueryId3">>),
-        % Then Alice queries her archive and the conversations are there and not in the active box
-        check_box(active, Alice, []),
-        check_box(archive, Alice, AliceConvs)
-    end).
-
+    
 % mute
 mute_unmuted_entry_gets_muted(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -507,31 +503,28 @@ properties_can_be_get(Config) ->
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
-
 properties_many_can_be_set(Config) ->
+    properties_many_can_be_set(Config, undefined).
+properties_many_can_be_set_queryid(Config) ->
+    properties_many_can_be_set(Config, queryid).
+
+properties_many_can_be_set(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob, and Bob sets a bunch of properties about it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
-        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]);
+            _ ->
+                set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}], maybe_make_queryid(queryid))
+        end,
         % Then Bob queries his boxes and everything is as expected
         inbox_helper:check_inbox(Bob, [], #{box => active}),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
                                        verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer)
                                                 end}], #{box => archive})
-    end).
-
-properties_many_can_be_set_queryid(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        % Alice sends a message to Bob, and Bob sets a bunch of properties about it
-        Body = <<"Hi Bob">>,
-        inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}], <<"QueryID">>),
-        % Then Bob queries his boxes and everything is as expected
-        check_box(active, Bob, []),
-        check_box(archive, Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
-                                       verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer) end}])
     end).
 
 max_queries_can_be_limited(Config) ->
@@ -615,6 +608,10 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+maybe_make_queryid(undefined) -> undefined;
+maybe_make_queryid(queryid) -> base16:encode(crypto:strong_rand_bytes(16)).
+
 -type maybe_client() :: undefined | escalus:client().
 -type box() :: both | active | archive.
 

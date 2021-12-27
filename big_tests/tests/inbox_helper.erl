@@ -24,7 +24,6 @@
          make_inbox_stanza/0,
          make_inbox_stanza/1,
          make_inbox_stanza/2,
-         make_inbox_stanza_queryid/2,
          make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
@@ -37,8 +36,7 @@
          assert_invalid_reset_inbox/4,
          assert_message_content/3,
          assert_invalid_form/4,
-         check_result/2,
-         check_inbox_result/4
+         check_result/2
         ]).
 % 1-1 helpers
 -export([
@@ -180,10 +178,9 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                               asc -> lists:reverse(Convs);
                               _ -> Convs
                           end,
-    {QueryOptsNew, QueryId} = maybe_get_queryid(QueryOpts),
-    ResultStanzas = get_inbox(Client, QueryOptsNew, #{count => length(ExpectedSortedConvs)}, QueryId),
+    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
     try
-        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs, QueryId)
+        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs, maps:get(queryid, QueryOpts, undefined))
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -194,12 +191,6 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                        error => Reason,
                        stacktrace => StackTrace })
     end.
-
--spec maybe_get_queryid(inbox_query_params()) -> {inbox_query_params(), binary() | undefined}.
-maybe_get_queryid(#{queryid := QueryId} = QueryOpts) ->
-    {maps:remove(queryid, QueryOpts), QueryId};
-maybe_get_queryid(QueryOpts) ->
-    {QueryOpts, undefined}.
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList, ExpectedQueryId) ->
     Merged = lists:zip(ResultStanzas, MsgCheckList),
@@ -233,20 +224,13 @@ process_inbox_message(Client, #xmlel{children = [Children]} = Message, #conv{unr
 -spec get_inbox(Client :: escalus:client(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 get_inbox(Client, ExpectedResult) ->
-    get_inbox(Client, #{}, ExpectedResult, undefined).
+    get_inbox(Client, #{}, ExpectedResult).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
-get_inbox(Client, GetParams, ExpectedResult) ->
-    get_inbox(Client, GetParams, ExpectedResult, undefined).
-
--spec get_inbox(Client :: escalus:client(),
-                GetParams :: inbox_query_params(),
-                ExpectedResult :: inbox_result_params(),
-                QueryId :: undefined | binary()) -> [exml:element()].
-get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult, QueryId) ->
-    GetInbox = make_inbox_stanza_queryid(GetParams, QueryId),
+get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
+    GetInbox = make_inbox_stanza(GetParams),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
@@ -263,6 +247,8 @@ get_result_el(Packet, Element) ->
         <<>> ->
             ct:fail(#{ error => Element,
                        stanza => Packet });
+        undefined ->
+            io:format(Element);
         _ ->
             binary_to_integer(Val)
     end.
@@ -319,21 +305,6 @@ get_error_message(Stanza) ->
 get_inbox_form_stanza() ->
     escalus_stanza:iq_get(?NS_ESL_INBOX, []).
 
--spec make_inbox_stanza_queryid(GetParams :: inbox_query_params(), QueryId :: undefined | binary()) -> exml:element().
-make_inbox_stanza_queryid(GetParams, undefined) ->
-    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-    QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams)]},
-    GetIQ#xmlel{children = [QueryTag]};
-make_inbox_stanza_queryid(GetParams, QueryId) ->
-    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-    QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
-                               {<<"queryid">>, QueryId}],
-                      children = [make_inbox_form(GetParams)]},
-    GetIQ#xmlel{children = [QueryTag]}.
-
 -spec make_inbox_stanza() -> exml:element().
 make_inbox_stanza() ->
     make_inbox_stanza(#{}).
@@ -342,7 +313,7 @@ make_inbox_stanza() ->
 make_inbox_stanza(GetParams) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
                       children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
@@ -350,10 +321,16 @@ make_inbox_stanza(GetParams) ->
 make_inbox_stanza(GetParams, Verify) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
                       children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
+maybe_query_params(#{queryid := undefined}) ->
+    [];
+maybe_query_params(#{queryid := QueryId}) ->
+    [{<<"queryid">>, QueryId}];
+maybe_query_params(_) ->
+    [].
 
 rsm_max(#{limit := Value}) ->
     [#xmlel{name = <<"set">>,
