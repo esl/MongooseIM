@@ -14,6 +14,7 @@ type AdminQuery{
   domainDetails(domain: String!): Domain @protected
   "Check authorization status"
   checkAuth: AuthStatus
+  stanza: StanzaAdminQuery
 }
 
 """
@@ -29,6 +30,21 @@ type AdminMutation @protected{
   enableDomain(domain: String!): Domain
   "Disable domain"
   disableDomain(domain: String!): Domain
+  stanza: StanzaAdminMutation
+}
+
+type StanzaAdminQuery @protected{
+  "Get n last messages to/from a given contact (optional) with limit and optional date"
+  getLastMessages(caller: JID!, with: JID, limit: Int, before: DateTime): StanzasPayload
+}
+
+type StanzaAdminMutation @protected{
+  "Send a chat message to a local or remote bare or full JID"
+  sendMessage(from: JID!, to: JID!, body: String!): SendStanzaPayload
+  "Send a headline message to a local or remote bare or full JID"
+  sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
+  "Send an arbitrary stanza"
+  sendStanza(stanza: Stanza): SendStanzaPayload
 }
 
 """
@@ -51,3 +67,23 @@ type RemoveDomainPayload{
   "Removed domain data"
   domain: Domain
 }
+
+scalar DateTime
+scalar Stanza
+scalar JID
+
+type StanzasPayload{
+  stanzas: [StanzaMap]
+}
+
+type StanzaMap{
+  sender: JID
+  timestamp: DateTime
+  stanza_id: String
+  stanza: Stanza
+}
+
+type SendStanzaPayload{
+  id: ID
+}
+

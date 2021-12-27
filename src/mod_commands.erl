@@ -28,6 +28,8 @@
         ]).
 
 -export([parse_from_to/2]).
+-export([build_message/3]).
+-export([lookup_recent_messages/4]).
 
 -ignore_xref([add_contact/2, add_contact/3, add_contact/4, change_user_password/3,
               delete_contact/2, delete_contacts/2, get_recent_messages/3,
@@ -442,11 +444,6 @@ term_as_binary(X) ->
 get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
-get_recent_messages(Caller, With, 0, Limit) ->
-    {MegaSecs, Secs, _} = os:timestamp(),
-    % wait a while to make sure we return all messages
-    Future = (MegaSecs + 1) * 1000000 + Secs,
-    get_recent_messages(Caller, With, Future, Limit);
 get_recent_messages(Caller, With, Before, Limit) ->
     Res = lookup_recent_messages(Caller, With, Before, Limit),
     lists:map(fun row_to_map/1, Res).
@@ -495,12 +492,17 @@ lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
 lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     #jid{luser = LUser, lserver = LServer} = ArcJID,
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    EndTS = case Before of
+                0 -> undefined;
+                undefined -> undefined;
+                _ -> round(Before * 1000000)
+            end,
     Params = #{archive_id => mod_mam:archive_id(LServer, LUser),
                owner_jid => ArcJID,
                borders => undefined,
                rsm => #rsm_in{direction = before, id = undefined}, % last msgs
                start_ts => undefined,
-               end_ts => Before * 1000000,
+               end_ts => EndTS,
                now => os:system_time(microsecond),
                with_jid => WithJID,
                search_text => undefined,

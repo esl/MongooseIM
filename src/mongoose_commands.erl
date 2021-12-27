@@ -374,11 +374,8 @@ execute_command(Caller, Command, Args) ->
                     caller => Caller, args => Args,
                     class => Class, reason => Reason, stacktrace => Stacktrace},
             ?LOG_ERROR(Err),
-            {error, internal, term_to_readable_binary(Err)}
+            {error, internal, mongoose_lib:term_to_readable_binary(Err)}
     end.
-
-term_to_readable_binary(X) ->
-    iolist_to_binary(io_lib:format("~0p", [X])).
 
 add_defaults(Args, Opts) when is_map(Args) ->
     COpts = [{K, V} || {K, _, V} <- Opts],
