@@ -310,10 +310,9 @@ tests() ->
         not is_skipped(C, G)].
 
 groups() ->
-    Gs = [{full_group(C, G), Props, Tests}
-          || C <- configurations(), {G, Props, Tests} <- basic_groups(),
-             not is_skipped(C, G)],
-    ct_helper:repeat_all_until_all_ok(Gs).
+    [{full_group(C, G), Props, Tests}
+     || C <- configurations(), {G, Props, Tests} <- basic_groups(),
+        not is_skipped(C, G)].
 
 is_skipped(_, _) ->
     false.
