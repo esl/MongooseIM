@@ -752,7 +752,10 @@ init_modules(BackendType, muc_light, Config) ->
     case BackendType of
         cassandra -> ok;
         elasticsearch -> ok;
-        _ -> init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
+        _ ->
+            init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]},
+                                                                {pm, [{flush_interval, 1}]}]),
+            init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
     end,
     Config1;
 init_modules(rdbms, C, Config) ->
@@ -1162,12 +1165,6 @@ required_modules(retract_message_on_stanza_id, _Config) ->
 required_modules(_, _) ->
     [].
 
-init_module(Host, mod_mam_rdbms_arch_async, Args) ->
-    OldOpts = case stop_module(Host, mod_mam_rdbms_arch_async) of
-                  {ok, O} -> O;
-                  ok -> []
-              end,
-    {ok, _} = start_module(Host, mod_mam_rdbms_arch_async, lists:ukeymerge(1, OldOpts, Args));
 init_module(Host, Mod, Args) ->
     lists:member(Mod, mam_modules()) orelse ct:fail("Unknown module ~p", [Mod]),
     stop_module(Host, Mod),
