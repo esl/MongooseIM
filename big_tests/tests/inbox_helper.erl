@@ -36,8 +36,7 @@
          assert_invalid_reset_inbox/4,
          assert_message_content/3,
          assert_invalid_form/4,
-         check_result/2,
-         check_inbox_result/4
+         check_result/2
         ]).
 % 1-1 helpers
 -export([
@@ -164,7 +163,7 @@ foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
 
 -spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> ok | no_return().
 check_inbox(Client, Convs) ->
-    check_inbox(Client, Convs, #{}).
+    check_inbox(Client, Convs, #{}, #{}).
 
 -spec check_inbox(escalus:client(), [conv()], inbox_query_params()) -> ok | no_return().
 check_inbox(Client, Convs, QueryOpts) ->
@@ -181,7 +180,7 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                           end,
     ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
     try
-        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs, maps:get(queryid, QueryOpts, undefined))
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -193,17 +192,17 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                        stacktrace => StackTrace })
     end.
 
-check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
+check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList, ExpectedQueryId) ->
     Merged = lists:zip(ResultStanzas, MsgCheckList),
     JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
                                  maps:get(check_resource, CheckOpts, true)),
     lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
-                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
+                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun, ExpectedQueryId)
                   end, Merged),
     ResultStanzas.
 
-process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = To,
-                                             content = Content, verify = Fun}, JIDVerifyFun) ->
+process_inbox_message(Client, #xmlel{children = [Children]} = Message, #conv{unread = Unread, from = From, to = To,
+                                             content = Content, verify = Fun}, JIDVerifyFun, ExpectedQueryId) ->
     FromJid = ensure_conv_binary_jid(From),
     ToJid = ensure_conv_binary_jid(To),
     escalus:assert(is_message, Message),
@@ -211,6 +210,7 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     [InnerMsg] = get_inner_msg(Message),
     JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
+    ?assertEqual(ExpectedQueryId, exml_query:attr(Children, <<"queryid">>)),
     InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], <<>>),
     Content = InnerContent,
     case Fun of
@@ -247,6 +247,8 @@ get_result_el(Packet, Element) ->
         <<>> ->
             ct:fail(#{ error => Element,
                        stanza => Packet });
+        undefined ->
+            io:format(Element);
         _ ->
             binary_to_integer(Val)
     end.
@@ -311,7 +313,7 @@ make_inbox_stanza() ->
 make_inbox_stanza(GetParams) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
                       children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
@@ -319,10 +321,16 @@ make_inbox_stanza(GetParams) ->
 make_inbox_stanza(GetParams, Verify) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
                       children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
+maybe_query_params(#{queryid := undefined}) ->
+    [];
+maybe_query_params(#{queryid := QueryId}) ->
+    [{<<"queryid">>, QueryId}];
+maybe_query_params(_) ->
+    [].
 
 rsm_max(#{limit := Value}) ->
     [#xmlel{name = <<"set">>,
