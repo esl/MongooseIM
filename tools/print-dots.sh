@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PIDFILE=/tmp/print-dots.pid
-SLEEPTIME=10s
+SLEEPTIME=10
 
 loop () {
     while true; do
