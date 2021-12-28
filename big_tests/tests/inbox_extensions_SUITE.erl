@@ -47,6 +47,7 @@
 -export([
          % read
          read_unread_entry_set_to_read/1,
+         read_unread_entry_set_to_read_queryid/1,
          read_read_entry_set_to_unread/1,
          read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two/1,
          % archive
@@ -56,6 +57,7 @@
          archive_archived_entry_gets_active_for_the_receiver_on_new_message/1,
          archive_active_unread_entry_gets_archived_and_still_unread/1,
          archive_full_archive_can_be_fetched/1,
+         archive_full_archive_can_be_fetched_queryid/1,
          % mute
          mute_unmuted_entry_gets_muted/1,
          mute_muted_entry_gets_unmuted/1,
@@ -65,6 +67,7 @@
          returns_valid_properties_form/1,
          properties_can_be_get/1,
          properties_many_can_be_set/1,
+         properties_many_can_be_set_queryid/1,
          max_queries_can_be_limited/1,
          max_queries_can_fetch_ahead/1,
          timestamp_is_not_reset_with_setting_properties/1
@@ -119,6 +122,7 @@ groups() ->
      {one_to_one, [], [
         % read
         read_unread_entry_set_to_read,
+        read_unread_entry_set_to_read_queryid,
         read_read_entry_set_to_unread,
         read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two,
         % archive
@@ -128,6 +132,7 @@ groups() ->
         archive_archived_entry_gets_active_for_the_receiver_on_new_message,
         archive_active_unread_entry_gets_archived_and_still_unread,
         archive_full_archive_can_be_fetched,
+        archive_full_archive_can_be_fetched_queryid,
         % mute
         mute_unmuted_entry_gets_muted,
         mute_muted_entry_gets_unmuted,
@@ -137,6 +142,7 @@ groups() ->
         returns_valid_properties_form,
         properties_can_be_get,
         properties_many_can_be_set,
+        properties_many_can_be_set_queryid,
         max_queries_can_be_limited,
         max_queries_can_fetch_ahead,
         timestamp_is_not_reset_with_setting_properties
@@ -258,6 +264,11 @@ returns_error(Config, Stanza, Value) ->
 
 % read
 read_unread_entry_set_to_read(Config) ->
+    read_unread_entry_set_to_read(Config, undefined).
+read_unread_entry_set_to_read_queryid(Config) ->
+    read_unread_entry_set_to_read(Config, queryid).
+
+read_unread_entry_set_to_read(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob
         Body = <<"Hi Bob">>,
@@ -265,7 +276,12 @@ read_unread_entry_set_to_read(Config) ->
         % Bob has one unread message
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it as read
-        set_inbox_properties(Bob, Alice, [{read, true}]),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Bob, Alice, [{read, true}]);
+            _ ->
+                set_inbox_properties(Bob, Alice, [{read, true}], maybe_make_queryid(queryid))
+        end,
         % Bob's inbox has no unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
     end).
@@ -366,14 +382,26 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
     end).
 
 archive_full_archive_can_be_fetched(Config) ->
+    archive_full_archive_can_be_fetched(Config, undefined).
+archive_full_archive_can_be_fetched_queryid(Config) ->
+    archive_full_archive_can_be_fetched(Config, queryid).
+
+archive_full_archive_can_be_fetched(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice, and Alice reads and archives all of them
         inbox_helper:check_inbox(Alice, [], #{box => archive}),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
         inbox_helper:check_inbox(Alice, AliceConvs),
-        set_inbox_properties(Alice, Bob, [{archive, true}]),
-        set_inbox_properties(Alice, Kate, [{archive, true}]),
-        set_inbox_properties(Alice, Mike, [{archive, true}]),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Alice, Bob, [{archive, true}]),
+                set_inbox_properties(Alice, Kate, [{archive, true}]),
+                set_inbox_properties(Alice, Mike, [{archive, true}]);
+            _ ->
+                set_inbox_properties(Alice, Bob, [{archive, true}], maybe_make_queryid(queryid)),
+                set_inbox_properties(Alice, Kate, [{archive, true}], maybe_make_queryid(queryid)),
+                set_inbox_properties(Alice, Mike, [{archive, true}], maybe_make_queryid(queryid))
+        end,
         % Then Alice queries her archive and the conversations are there and not in the active box
         inbox_helper:check_inbox(Alice, [], #{box => active}),
         inbox_helper:check_inbox(Alice, AliceConvs, #{box => archive})
@@ -475,14 +503,23 @@ properties_can_be_get(Config) ->
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
-
 properties_many_can_be_set(Config) ->
+    properties_many_can_be_set(Config, undefined).
+properties_many_can_be_set_queryid(Config) ->
+    properties_many_can_be_set(Config, queryid).
+
+properties_many_can_be_set(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob, and Bob sets a bunch of properties about it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
-        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
+        case QueryId of
+            undefined ->
+                set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]);
+            _ ->
+                set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}], maybe_make_queryid(queryid))
+        end,
         % Then Bob queries his boxes and everything is as expected
         inbox_helper:check_inbox(Bob, [], #{box => active}),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
@@ -571,6 +608,10 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+maybe_make_queryid(undefined) -> undefined;
+maybe_make_queryid(queryid) -> base16:encode(crypto:strong_rand_bytes(16)).
+
 -type maybe_client() :: undefined | escalus:client().
 -type box() :: both | active | archive.
 
@@ -596,6 +637,13 @@ set_inbox_properties(From, To, Properties) ->
     check_message_with_properties(From, Stanza, Properties),
     check_iq_result_for_property(From, Stanza).
 
+-spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist(), binary()) -> ok.
+set_inbox_properties(From, To, Properties, QueryId) ->
+    Stanza = make_inbox_iq_request_with_query_id(To, Properties, QueryId),
+    escalus:send(From, Stanza),
+    check_message_with_properties(From, Stanza, Properties, QueryId),
+    check_iq_result_for_property(From, Stanza).
+
 -spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist()) -> ok.
 check_message_with_properties(From, Stanza, Properties) ->
     Message = escalus:wait_for_stanza(From),
@@ -603,6 +651,16 @@ check_message_with_properties(From, Stanza, Properties) ->
     ?assert(has_same_id(Stanza, Message)),
     [X] = exml_query:subelements(Message, <<"x">>),
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
+    lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
+
+-spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist(), binary()) -> ok.
+check_message_with_properties(From, Stanza, Properties, QueryId) ->
+    Message = escalus:wait_for_stanza(From),
+    ?assert(escalus_pred:is_message(Message)),
+    ?assert(has_same_id(Stanza, Message)),
+    [X] = exml_query:subelements(Message, <<"x">>),
+    ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
+    ?assertEqual(QueryId, exml_query:attr(X, <<"queryid">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
 
 -spec check_iq_result_for_property(escalus:client(), exml:element()) -> ok.
@@ -619,6 +677,13 @@ make_inbox_iq_request(ToClient, Properties) when is_list(Properties) ->
     JidAttr = jid_attr(ToClient),
     Children = props_to_children(Properties),
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr, Children),
+    escalus_stanza:iq(<<"set">>, [Query]).
+
+-spec make_inbox_iq_request_with_query_id(maybe_client(), proplists:proplist(), binary()) -> exml:element().
+make_inbox_iq_request_with_query_id(ToClient, Properties, QueryId) ->
+    JidAttr = jid_attr(ToClient),
+    Children = props_to_children(Properties),
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr ++ [{<<"queryid">>, QueryId}], Children),
     escalus_stanza:iq(<<"set">>, [Query]).
 
 assert_invalid_request(From, Stanza, Value) ->
