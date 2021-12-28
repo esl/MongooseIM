@@ -72,45 +72,56 @@ process_iq_conversation_set(
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         EntryJID ->
-            extract_requests(Acc, IQ, From, EntryJID, Requests)
+            extract_requests(Acc, IQ, From, EntryJID, Requests, exml_query:attr(Query, <<"queryid">>))
     end.
 
--spec extract_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), [exml:element()]) ->
+-spec extract_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), [exml:element()], binary() | undefined) ->
     {mongoose_acc:t(), jlib:iq()}.
-extract_requests(Acc, IQ, From, EntryJID, Requests) ->
+extract_requests(Acc, IQ, From, EntryJID, Requests, QueryId) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
     case form_to_query(CurrentTS, Requests, #{}) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Params ->
-            process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params)
+            process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params, QueryId)
     end.
 
--spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map()) ->
+-spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map(), binary() | undefined) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params) ->
+process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params, QueryId) ->
     HostType = mongoose_acc:host_type(Acc),
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
     case mod_inbox_backend:set_entry_properties(HostType, InboxEntryKey, Params) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
-            forward_result(Acc, IQ, From, InboxEntryKey, Result, CurrentTS)
+            forward_result(Acc, IQ, From, InboxEntryKey, Result, CurrentTS, QueryId)
     end.
 
--spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties(), integer()) ->
+-spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties(), integer(), binary() | undefined) ->
     {mongoose_acc:t(), jlib:iq()}.
-forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, CurrentTS) ->
+forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, CurrentTS, QueryId) ->
     Properties = build_result(Result, CurrentTS),
-    X = [#xmlel{name = <<"x">>,
-                attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
-                         {<<"jid">>, ToBareJidBin}],
-                children = Properties}],
+    Children = prepare_children(ToBareJidBin, Properties, QueryId),
     Msg = #xmlel{name = <<"message">>,
                  attrs = [{<<"id">>, IQ#iq.id}],
-                 children = X},
+                 children = Children},
     Acc1 = ejabberd_router:route(From, jid:to_bare(From), Acc, Msg),
-    {Acc1, IQ#iq{type = result, sub_el = []}}.
+    Res = IQ#iq{type = result, sub_el = []},
+    {Acc1, Res}.
+
+-spec prepare_children(binary(), [exml:element()], undefined | binary()) -> [exml:element()].
+prepare_children(Jid, Properties, undefined) ->
+    [#xmlel{name = <<"x">>,
+            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                     {<<"jid">>, Jid}],
+            children = Properties}];
+prepare_children(Jid, Properties, QueryId) ->
+    [#xmlel{name = <<"x">>,
+            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                     {<<"jid">>, Jid},
+                     {<<"queryid">>, QueryId}],
+            children = Properties}].
 
 maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of
@@ -123,10 +134,11 @@ maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
 process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
     HostType = mongoose_acc:host_type(Acc),
     ok = mod_inbox_utils:reset_unread_count_to_zero(HostType, From, InterlocutorJID),
-    {Acc, IQ#iq{type = result,
+    Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
-                                 children = []}]}}.
+                                 children = []}]},
+    {Acc, Res}.
 
 %%--------------------------------------------------------------------
 %% Helpers
