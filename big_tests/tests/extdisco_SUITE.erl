@@ -320,9 +320,7 @@ set_external_services(Opts, Config) ->
     Config.
 
 remove_external_services(Config) ->
-    OldModules = rpc(mim(), gen_mod, loaded_modules_with_opts, [domain()]),
-    NewModules = lists:keydelete(mod_extdisco, 1, OldModules),
-    ok = rpc(mim(), gen_mod_deps, replace_modules, [domain(), OldModules, NewModules]),
+    dynamic_modules:ensure_stopped(domain(), [mod_extdisco]),
     Config.
 
 request_external_services(To) ->

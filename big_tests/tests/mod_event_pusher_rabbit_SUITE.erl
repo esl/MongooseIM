@@ -623,10 +623,10 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %%--------------------------------------------------------------------
 
 start_mod_event_pusher_rabbit(Config) ->
-    rpc(mim(), gen_mod, start_module, [domain(), mod_event_pusher_rabbit, Config]).
+    dynamic_modules:start(domain(), mod_event_pusher_rabbit, Config).
 
 stop_mod_event_pusher_rabbit() ->
-    rpc(mim(), gen_mod, stop_module, [domain(), mod_event_pusher_rabbit]).
+    dynamic_modules:stop(domain(), mod_event_pusher_rabbit).
 
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).

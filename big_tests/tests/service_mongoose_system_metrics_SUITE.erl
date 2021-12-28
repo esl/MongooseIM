@@ -106,7 +106,6 @@ groups() ->
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-
     case system_metrics_service_is_enabled(mim()) of
         false ->
             ct:fail("service_mongoose_system_metrics is not running");
@@ -114,13 +113,15 @@ init_per_suite(Config) ->
             [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
             http_helper:start(8765, "/[...]", fun handler_init/1),
             Config1 = escalus:init_per_suite(Config),
-            ejabberd_node_utils:init(Config1)
+            Config2 = ejabberd_node_utils:init(Config1),
+            dynamic_modules:save_modules(host_type(), Config2)
     end.
 
 end_per_suite(Config) ->
     http_helper:stop(),
     Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
     [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
@@ -161,7 +162,7 @@ init_per_testcase(xmpp_components_are_reported, Config) ->
     Config1;
 init_per_testcase(module_backend_is_reported, Config) ->
     create_events_collection(),
-    maybe_start_module(mod_vcard),
+    dynamic_modules:ensure_modules(host_type(), [{mod_vcard, []}]),
     enable_system_metrics(mim()),
     Config;
 init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->
@@ -424,10 +425,6 @@ events_are_reported_to_tracking_ids(ConfiguredTrackingIds) ->
     ActualTrackingIds = lists:usort([Tid || #event{tid = Tid} <- Tab]),
     ExpectedTrackingIds = lists:sort([list_to_binary(Tid) || Tid <- ConfiguredTrackingIds]),
     ?assertEqual(ExpectedTrackingIds, ActualTrackingIds).
-
-maybe_start_module(Module) ->
-    Options = [],
-    distributed_helper:rpc(mim(), gen_mod, start_module, [host_type(), Module, Options]).
 
 feature_is_reported(EventCategory, EventAction) ->
     length(match_events(EventCategory, EventAction)) > 0.
