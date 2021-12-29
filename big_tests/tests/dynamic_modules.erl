@@ -1,15 +1,12 @@
 -module(dynamic_modules).
 
--include_lib("common_test/include/ct.hrl").
-
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
-save_modules_for_host_types(HostTypes, Config) ->
-    save_modules(mim(), HostTypes, Config).
-
-save_modules(HostType, Config) ->
+save_modules(HostTypes, Config) when is_list(HostTypes) ->
+    save_modules(mim(), HostTypes, Config);
+save_modules(HostType, Config) when is_binary(HostType) ->
     save_modules(mim(), [HostType], Config).
 
 %% Save modules from Node for HostTypes, overwriting previously saved modules

@@ -45,7 +45,7 @@ modules() ->
      {mod_muc_light, [{host, MucHost}]}].
 
 init_per_group(two_domains, Config) ->
-    Config2 = dynamic_modules:save_modules_for_host_types(host_types(), Config),
+    Config2 = dynamic_modules:save_modules(host_types(), Config),
     [dynamic_modules:ensure_modules(HostType, modules()) || HostType <- host_types()],
     Config2.
 
