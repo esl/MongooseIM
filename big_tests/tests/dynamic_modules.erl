@@ -116,32 +116,3 @@ restart(Node, HostType, Mod, Args) ->
             stop(Node, HostType, list_to_atom(lists:reverse(Str)++"_rdbms"))
     end,
     start(Node, HostType, Mod, Args).
-
-start_running(Config) ->
-    HostType = domain_helper:host_type(mim),
-    case ?config(running, Config) of
-        List when is_list(List) ->
-            _ = [start(HostType, Mod, Args) || {Mod, Args} <- List];
-        _ ->
-            ok
-    end.
-
-stop_running(Mod, Config) ->
-    ModL = atom_to_list(Mod),
-    HostType = domain_helper:host_type(mim),
-    Modules = rpc(mim(), mongoose_config, get_opt, [{modules, HostType}]),
-    Filtered = lists:filter(fun({Module, _}) ->
-                    ModuleL = atom_to_list(Module),
-                    case lists:sublist(ModuleL, 1, length(ModL)) of
-                        ModL -> true;
-                        _ -> false
-                    end;
-                (_) -> false
-            end, Modules),
-    case Filtered of
-        [] ->
-            Config;
-        [{Module,_Args}=Head|_] ->
-            stop(HostType, Module),
-            [{running, [Head]} | Config]
-    end.
