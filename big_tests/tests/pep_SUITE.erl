@@ -95,7 +95,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(cache_tests, Config) ->
@@ -109,7 +109,7 @@ init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(cache_tests, Config) ->
-    dynamic_modules:restore_modules(domain(), Config);
+    dynamic_modules:restore_modules(Config);
 
 end_per_group(_GroupName, Config) ->
     Config.

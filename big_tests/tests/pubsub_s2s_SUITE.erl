@@ -83,7 +83,7 @@ plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
 plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(domain(), Config).
+    dynamic_modules:restore_modules(Config).
 
 init_per_testcase(_TestName, Config) ->
     escalus:init_per_testcase(_TestName, Config).

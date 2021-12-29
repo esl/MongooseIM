@@ -103,7 +103,7 @@ chatmarkers_modules() ->
 
 end_per_group(Group, C) when Group =:= chatmarkers;
                              Group =:= with_groupchat ->
-    dynamic_modules:restore_modules(host_type(), C),
+    dynamic_modules:restore_modules(C),
     C;
 end_per_group(_, C) -> C.
 

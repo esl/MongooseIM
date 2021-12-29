@@ -93,13 +93,13 @@ init_per_testcase(Name, Config) ->
 end_per_testcase(Name, Config) when
     Name == external_services_discovery_not_supported;
     Name == no_external_services_configured_no_services_returned ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(Name, Config);
 end_per_testcase(Name, Config) ->
     escalus:end_per_testcase(Name, Config).
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     Config.
 
 end_per_suite(Config) ->

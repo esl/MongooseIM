@@ -91,8 +91,7 @@ init_per_group(_, Config0) ->
     Config.
 
 end_per_group(_, Config) ->
-    Domain = domain(),
-    dynamic_modules:restore_modules(Domain, Config),
+    dynamic_modules:restore_modules(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(muc_messages = C, Config0) ->

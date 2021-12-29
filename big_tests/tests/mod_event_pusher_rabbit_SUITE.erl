@@ -156,7 +156,7 @@ end_per_group(_, Config) ->
     delete_exchanges(),
     Domain = domain(),
     dynamic_modules:stop(Domain, mod_event_pusher),
-    dynamic_modules:restore_modules(Domain, Config),
+    dynamic_modules:restore_modules(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->

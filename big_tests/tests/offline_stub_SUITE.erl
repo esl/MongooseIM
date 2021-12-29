@@ -36,7 +36,7 @@ init_per_testcase(Name, Config0) ->
 
 end_per_testcase(Name, Config) ->
     HostType = domain_helper:host_type(),
-    dynamic_modules:restore_modules(HostType, Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(Name, Config).
 
 %%%===================================================================

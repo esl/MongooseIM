@@ -205,7 +205,7 @@ end_per_suite(Config) ->
     restore_conf(mim2(), Conf2),
     restore_conf(mim3(), Conf3),
     domain_helper:insert_configured_domains(),
-    dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 

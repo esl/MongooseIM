@@ -170,7 +170,7 @@ ensure_pusher_module_and_save_old_mods(Config) ->
     [{push_opts, PushOpts} | Config1].
 
 restore_modules(Config) ->
-    dynamic_modules:restore_modules(domain_helper:host_type(), Config).
+    dynamic_modules:restore_modules(Config).
 
 %%--------------------------------------------------------------------
 %% GROUP disco

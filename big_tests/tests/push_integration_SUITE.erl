@@ -169,7 +169,7 @@ init_per_group(G, Config) ->
     C.
 
 end_per_group(_, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     Config.
 
 init_per_testcase(CaseName, Config) ->

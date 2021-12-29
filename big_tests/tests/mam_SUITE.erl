@@ -638,10 +638,10 @@ end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     Config;
 end_per_group(configurable_archiveid, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);

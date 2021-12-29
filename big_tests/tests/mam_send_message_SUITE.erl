@@ -68,7 +68,7 @@ init_per_group(Group, Config) ->
 end_per_group(_Groupname, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(host_type(), Config);
+            dynamic_modules:restore_modules(Config);
         false ->
             ok
     end,
