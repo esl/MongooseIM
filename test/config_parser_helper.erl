@@ -21,16 +21,18 @@ options("host_types") ->
      {registration_timeout, 600},
      {routing_modules, ejabberd_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
-     {{auth, <<"another host type">>}, auth_with_methods([])},
-     {{auth, <<"localhost">>}, auth_with_methods([rdbms])},
-     {{auth, <<"some host type">>}, auth_with_methods([http])},
-     {{auth, <<"this is host type">>}, auth_with_methods([external])},
-     {{auth, <<"yet another host type">>}, auth_with_methods([external, http])},
-     {{modules, <<"another host type">>}, [{mod_offline, []}]},
-     {{modules, <<"localhost">>}, [{mod_vcard, []}]},
-     {{modules, <<"some host type">>}, []},
-     {{modules, <<"this is host type">>}, []},
-     {{modules, <<"yet another host type">>}, [{mod_amp, []}]},
+     {{auth, <<"another host type">>}, auth_with_methods(#{})},
+     {{auth, <<"localhost">>},
+      auth_with_methods(#{rdbms => #{users_number_estimate => false}})},
+     {{auth, <<"some host type">>},
+      auth_with_methods(#{http => #{}})},
+     {{auth, <<"this is host type">>},
+      auth_with_methods(#{external => #{instances => 1,
+                                        program => "/usr/bin/bash"}})},
+     {{auth, <<"yet another host type">>},
+      auth_with_methods(#{external => #{instances => 1,
+                                        program => "/usr/bin/bash"},
+                          http => #{}})},
      {{replaced_wait_timeout, <<"another host type">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"some host type">>}, 2000},
@@ -667,8 +669,7 @@ pgsql_modules() ->
      {mod_carboncopy, []}].
 
 auth_with_methods(Methods) ->
-    MethodSections = maps:from_keys(Methods, #{}),
-    maps:merge(default_auth(), MethodSections#{methods => Methods}).
+    maps:merge(default_auth(), Methods#{methods => lists:sort(maps:keys(Methods))}).
 
 custom_auth() ->
     maps:merge(default_auth(), extra_auth()).

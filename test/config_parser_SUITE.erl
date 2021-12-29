@@ -46,7 +46,7 @@ groups() ->
                          s2s,
                          modules,
                          outgoing_pools,
-                         host_types]},
+                         host_types_file]},
      {dynamic_domains, [parallel], [supported_features,
                                     unsupported_features]},
      {general, [parallel], [loglevel,
