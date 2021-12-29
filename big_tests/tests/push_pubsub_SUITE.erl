@@ -60,7 +60,7 @@ init_per_suite(Config) ->
     escalus:create_users(Config3, escalus:get_users([bob, alice])).
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])),
     escalus:end_per_suite(Config).
 
@@ -440,6 +440,6 @@ required_modules(APIVersion) ->
      ]}].
 
 restart_modules(Config, APIVersion) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     dynamic_modules:ensure_modules(domain(), required_modules(APIVersion)),
     Config.

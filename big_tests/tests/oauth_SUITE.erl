@@ -81,31 +81,16 @@ suite() ->
 init_per_suite(Config0) ->
     case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
         true ->
-            Config = dynamic_modules:stop_running(mod_last, Config0),
             HostType = domain_helper:host_type(),
-            KeyStoreOpts = [{keys, [
-                                    {token_secret, ram},
-                                    %% This is a hack for tests! As the name implies,
-                                    %% a pre-shared key should be read from a file stored
-                                    %% on disk. This way it can be shared with trusted 3rd
-                                    %% parties who can use it to sign tokens for users
-                                    %% to authenticate with and MongooseIM to verify.
-                                    {provision_pre_shared, ram}
-                                   ]}],
-            AuthOpts = [{ {validity_period, access}, {60, minutes} },
-                        { {validity_period, refresh}, {1, days} }],
-            dynamic_modules:start(HostType, mod_keystore, KeyStoreOpts),
-            dynamic_modules:start(HostType, mod_auth_token, AuthOpts),
-            escalus:init_per_suite([{auth_opts, AuthOpts} | Config]);
+            Config = dynamic_modules:save_modules(HostType, Config0),
+            dynamic_modules:ensure_modules(HostType, required_modules()),
+            escalus:init_per_suite(Config);
         false ->
             {skip, "RDBMS not available"}
     end.
 
 end_per_suite(Config) ->
-    HostType = domain_helper:host_type(),
-    dynamic_modules:start_running(Config),
-    dynamic_modules:stop(HostType, mod_auth_token),
-    dynamic_modules:stop(HostType, mod_keystore),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config0) ->
@@ -140,8 +125,7 @@ init_per_testcase(CaseName, Config) ->
 
 end_per_testcase(check_for_oauth_with_mod_auth_token_not_loaded, Config) ->
     HostType = domain_helper:host_type(),
-    AuthOpts = ?config(auth_opts, Config),
-    dynamic_modules:start(HostType, mod_auth_token, AuthOpts),
+    dynamic_modules:start(HostType, mod_auth_token, auth_token_opts()),
     end_per_testcase(generic, Config);
 end_per_testcase(CaseName, Config) ->
     clean_token_db(),
@@ -475,3 +459,21 @@ serialize(ServerSideToken) ->
 
 to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
+
+required_modules() ->
+    KeyStoreOpts = [{keys, [
+                            {token_secret, ram},
+                            %% This is a hack for tests! As the name implies,
+                            %% a pre-shared key should be read from a file stored
+                            %% on disk. This way it can be shared with trusted 3rd
+                            %% parties who can use it to sign tokens for users
+                            %% to authenticate with and MongooseIM to verify.
+                            {provision_pre_shared, ram}
+                           ]}],
+    [{mod_last, stopped},
+     {mod_keystore, KeyStoreOpts},
+     {mod_auth_token, auth_token_opts()}].
+
+auth_token_opts() ->
+    [{ {validity_period, access}, {60, minutes} },
+     { {validity_period, refresh}, {1, days} }].

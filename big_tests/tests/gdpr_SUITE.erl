@@ -192,7 +192,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     delete_files(),
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
@@ -290,7 +290,7 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
         skip ->
             {skip, no_mam_backend_configured};
         Backend ->
-            dynamic_modules:restore_modules(host_type(), Config),
+            dynamic_modules:restore_modules(Config),
             RequiredModules = mam_required_modules(CN, Backend),
             dynamic_modules:ensure_modules(host_type(), RequiredModules),
             ct:log("required modules: ~p~n", [RequiredModules]),

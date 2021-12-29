@@ -193,21 +193,20 @@ init_per_group_generic(Config0) ->
                             {resend_after_ms, 500}]),
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
+                  VirtHosts = virtual_hosts(NodeName),
+                  Node = node_spec(NodeName),
+                  Config2 = dynamic_modules:save_modules(Node, VirtHosts, Config1),
+
                   %% To reduce load when sending many messages
-                  VirtHosts = virtual_hosts(),
                   ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last,
                                    mod_stream_management],
+                  [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) ||
+                      VirtHost <- VirtHosts],
 
-                  OldMods = save_modules(NodeName, VirtHosts),
-
-                  [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod])
-                   || Mod <- ModulesToStop, VirtHost <- VirtHosts],
-
-                  rpc(NodeName, gen_mod_deps, start_modules,
-                      [domain(), [{mod_global_distrib, Opts},
-                                  {mod_stream_management, [{resume_timeout, 1}]}]]),
-
-                  OldMods ++ Config1
+                  dynamic_modules:ensure_modules(Node, domain(),
+                                                 [{mod_global_distrib, Opts},
+                                                  {mod_stream_management, [{resume_timeout, 1}]}]),
+                  Config2
           end,
           Config0,
           get_hosts()),
@@ -234,12 +233,7 @@ end_per_group(_, Config) ->
     end_per_group_generic(Config).
 
 end_per_group_generic(Config) ->
-    lists:foreach(
-      fun({NodeName, _, _}) ->
-              VirtHosts = virtual_hosts(),
-              [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts]
-      end,
-      get_hosts()).
+    dynamic_modules:restore_modules(#{timeout => timer:seconds(30)},  Config).
 
 init_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
@@ -335,7 +329,9 @@ generic_end_per_testcase(CaseName, Config) ->
       get_hosts()),
     escalus:end_per_testcase(CaseName, Config).
 
-virtual_hosts() ->
+virtual_hosts(asia_node) ->
+    [domain()];
+virtual_hosts(_) ->
     [domain(), secondary_domain()].
 
 secondary_domain() ->
@@ -790,8 +786,8 @@ test_component_unregister(_Config) ->
 test_error_on_wrong_hosts(_Config) ->
     Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
     ?assertException(error, {badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}},
-                     rpc(europe_node1, gen_mod, start_module,
-                         [<<"localhost">>, mod_global_distrib, Opts])).
+                     dynamic_modules:start(node_spec(europe_node1), <<"localhost">>,
+                                           mod_global_distrib, Opts)).
 
 refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
@@ -1043,6 +1039,10 @@ listen_endpoint(NodeName) when is_atom(NodeName) ->
 listen_endpoint(Port) when is_integer(Port) ->
     {{127, 0, 0, 1}, Port}.
 
+%% For dynamic_modules
+node_spec(NodeName) ->
+    #{node => ct:get_config(NodeName), timeout => timer:seconds(30)}.
+
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
     mongoose_helper:successful_rpc(#{node => Node}, M, F, A, timer:seconds(30)).
@@ -1229,8 +1229,8 @@ restart_receiver(NodeName, NewEndpoints) ->
     OldOpts = rpc(NodeName, gen_mod, get_module_opts,
                   [<<"localhost">>, mod_global_distrib_receiver]),
     NewOpts = lists:keyreplace(endpoints, 1, OldOpts, {endpoints, NewEndpoints}),
-    {ok, _} = rpc(NodeName, gen_mod, reload_module,
-             [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
+    Node = node_spec(NodeName),
+    dynamic_modules:restart(Node, <<"localhost">>, mod_global_distrib_receiver, NewOpts).
 
 trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain) ->
     %% To ensure that the manager exists,
@@ -1366,26 +1366,3 @@ custom_loglevels() ->
     ].
 
 test_hosts() -> [mim, mim2, reg].
-
-
-%% -----------------------------------------------------------------------
-%% Module loading/restoration with multi node support
-
-loaded_modules_with_opts(NodeName, VirtHost) ->
-    rpc(NodeName, gen_mod, loaded_modules_with_opts, [VirtHost]).
-
-save_modules(NodeName, VirtHosts) ->
-    [{{old_mods, NodeName, VirtHost}, loaded_modules_with_opts(NodeName, VirtHost)}
-     || VirtHost <- VirtHosts].
-
-restore_modules(NodeName, VirtHost, Config) ->
-    CurrentMods = loaded_modules_with_opts(NodeName, VirtHost),
-    case ?config({old_mods, NodeName, VirtHost}, Config) of
-        OldMods when is_list(OldMods) ->
-            rpc(NodeName, gen_mod_deps, replace_modules,
-                [VirtHost, CurrentMods, OldMods]);
-        Other ->
-            ct:fail({replace_modules_failed, NodeName, VirtHost, Other})
-    end.
-
-%% -----------------------------------------------------------------------

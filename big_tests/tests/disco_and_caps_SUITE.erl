@@ -45,7 +45,7 @@ init_per_group(Name, C) ->
     C2.
 
 end_per_group(_Name, C) ->
-    dynamic_modules:restore_modules(host_type(), C).
+    dynamic_modules:restore_modules(C).
 
 init_per_testcase(Name, C) ->
     escalus:init_per_testcase(Name, C).

@@ -63,7 +63,7 @@ init_per_group(with_prefix, Config) ->
     set_modules(Config, [{path, "/prefix"}]).
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     ok.
 
 init_per_testcase(CaseName, Config) ->

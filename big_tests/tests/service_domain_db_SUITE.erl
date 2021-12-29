@@ -205,7 +205,7 @@ end_per_suite(Config) ->
     restore_conf(mim2(), Conf2),
     restore_conf(mim3(), Conf3),
     domain_helper:insert_configured_domains(),
-    dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -275,7 +275,7 @@ init_per_testcase2(TestcaseName, Config)
     when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
     HostType = dummy_auth_host_type(),
     Mods = [{mod_mam_meta, [{backend, rdbms}, {pm, []}]}],
-    rpc(mim(), gen_mod_deps, start_modules, [HostType, Mods]),
+    dynamic_modules:ensure_modules(HostType, Mods),
     escalus:init_per_testcase(TestcaseName, Config);
 init_per_testcase2(_, Config) ->
     Config.

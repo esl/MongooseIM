@@ -58,7 +58,7 @@ init_per_group(Group, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
             HostTypes = domain_helper:host_types(),
-            Config2 = dynamic_modules:save_modules_for_host_types(HostTypes, Config),
+            Config2 = dynamic_modules:save_modules(HostTypes, Config),
             [dynamic_modules:ensure_modules(HostType, group_to_modules(Group)) ||
                 HostType <- HostTypes],
             Config2;

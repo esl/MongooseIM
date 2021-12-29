@@ -56,7 +56,7 @@ init_per_group(GroupName, Config) ->
     escalus:create_users(Config2, escalus:get_users([alice, bob])).
 
 end_per_group(_, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
 init_per_testcase(CaseName, Config) ->

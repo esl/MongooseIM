@@ -24,7 +24,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--import(domain_helper, [host_type/1, domain/0]).
+-import(domain_helper, [host_type/0, domain/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -59,12 +59,14 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    Config1 = dynamic_modules:stop_running(mod_offline, Config),
+    HostType = host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_stopped(HostType, [mod_offline]),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    escalus:end_per_suite(Config),
-    dynamic_modules:start_running(Config).
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) ->
     metrics_helper:prepare_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
@@ -386,7 +388,7 @@ find(CounterName, CounterList) ->
 fetch_counter_value(Counter, _Config) ->
     Metric = atom_to_binary(Counter, utf8),
 
-    HostType = host_type(mim),
+    HostType = host_type(),
     HostTypeName = metrics_helper:make_host_type_name(HostType),
 
     Result = simple_request(<<"GET">>,

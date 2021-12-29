@@ -84,7 +84,7 @@ init_modules(_, Config) ->
     Config.
 
 restore_modules(disco_visible, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config);
+    dynamic_modules:restore_modules(Config);
 restore_modules(_, _Config) ->
     ok.
 

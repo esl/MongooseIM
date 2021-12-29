@@ -1,14 +1,12 @@
 %%%===================================================================
 %%% @copyright (C) 2011, Erlang Solutions Ltd.
-%%% @doc Suite for testing mod_offline* modules
+%%% @doc Suite for testing mod_sic module
 %%% @end
 %%%===================================================================
 
 -module(sic_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
@@ -47,14 +45,15 @@ end_per_suite(Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_suite(Config).
 
-init_per_group(mod_offline_tests, Config) ->
-    start_module(mod_sic, []),
-    Config;
+init_per_group(mod_sic_tests, Config) ->
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), [{mod_sic, []}]),
+    Config1;
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(mod_offline_tests, _Config) ->
-    stop_module(mod_sic);
+end_per_group(mod_sic_tests, Config) ->
+    dynamic_modules:restore_modules(Config);
 end_per_group(_GroupName, _Config) ->
     ok.
 
@@ -106,14 +105,6 @@ is_sic_response() ->
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
-
-start_module(ModuleName, Options) ->
-    Args = [host_type(), ModuleName, Options],
-    rpc(mim(), gen_mod, start_module, Args).
-
-stop_module(ModuleName) ->
-    Args = [host_type(), ModuleName],
-    rpc(mim(), gen_mod, stop_module, Args).
 
 sic_iq_get() ->
     escalus_stanza:iq(<<"get">>, [#xmlel{

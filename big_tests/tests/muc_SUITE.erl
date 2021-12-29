@@ -331,7 +331,7 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
     unload_muc(),
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 
@@ -448,7 +448,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
-    dynamic_modules:restore_modules(host_type(), Config);
+    dynamic_modules:restore_modules(Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->

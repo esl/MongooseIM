@@ -59,7 +59,7 @@ init_per_group(Group, Config) ->
         true ->
             load_custom_module(),
             Config2 = dynamic_modules:save_modules(host_type(), Config),
-            rpc(mim(), gen_mod_deps, start_modules, [host_type(), group_to_modules(Group)]),
+            dynamic_modules:ensure_modules(host_type(), group_to_modules(Group)),
             [{props, mam_helper:mam06_props()}|Config2];
         false ->
             {skip, require_rdbms}
@@ -68,7 +68,7 @@ init_per_group(Group, Config) ->
 end_per_group(_Groupname, Config) ->
     case mongoose_helper:is_rdbms_enabled(host_type()) of
         true ->
-            dynamic_modules:restore_modules(host_type(), Config);
+            dynamic_modules:restore_modules(Config);
         false ->
             ok
     end,

@@ -156,7 +156,7 @@ end_per_group(_, Config) ->
     delete_exchanges(),
     Domain = domain(),
     dynamic_modules:stop(Domain, mod_event_pusher),
-    dynamic_modules:restore_modules(Domain, Config),
+    dynamic_modules:restore_modules(Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
 init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
@@ -623,10 +623,10 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %%--------------------------------------------------------------------
 
 start_mod_event_pusher_rabbit(Config) ->
-    rpc(mim(), gen_mod, start_module, [domain(), mod_event_pusher_rabbit, Config]).
+    dynamic_modules:start(domain(), mod_event_pusher_rabbit, Config).
 
 stop_mod_event_pusher_rabbit() ->
-    rpc(mim(), gen_mod, stop_module, [domain(), mod_event_pusher_rabbit]).
+    dynamic_modules:stop(domain(), mod_event_pusher_rabbit).
 
 start_rabbit_wpool(Host) ->
     start_rabbit_wpool(Host, ?WPOOL_CFG).

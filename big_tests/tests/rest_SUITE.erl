@@ -127,14 +127,15 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
     {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
     rpc(code, load_binary, [Mod, "mod_commands_test.erl", Code]),
-    rpc(gen_mod, start_module, [host_type(), mod_commands_test, []]),
-    escalus:init_per_testcase(CaseName, Config);
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), [{mod_commands_test, []}]),
+    escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
 end_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
-    rpc(gen_mod, stop_module, [host_type(), mod_commands_test]),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
