@@ -128,7 +128,8 @@ minimal_config_opts() ->
      {registration_timeout, 600},
      {routing_modules, ejabberd_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
-     {{auth,<<"localhost">>}, config_parser_helper:default_auth()},
+     {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
+     {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000}].
 
 start_slave_node(Config) ->

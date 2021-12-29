@@ -61,6 +61,8 @@ init_per_testcase(misconfigured, C) ->
 init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
     mongoose_config:set_opt(hosts, [<<"localhost">>]),
+    mongoose_config:set_opt(host_types, []),
+    mongoose_config:set_opt({modules, <<"localhost">>}, #{module_a => []}),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
     meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),
@@ -91,6 +93,8 @@ end_per_testcase(misconfigured, C) ->
 
 end_per_testcase(module_deps, C) ->
     mongoose_config:unset_opt(hosts),
+    mongoose_config:unset_opt(host_types),
+    mongoose_config:unset_opt({modules, <<"localhost">>}),
     meck:unload(module_a),
     end_per_testcase(generic, C);
 end_per_testcase(_, C) ->
