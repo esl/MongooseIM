@@ -50,7 +50,6 @@
          start_backend_module/2,
          start_backend_module/3,
          stop_module/2,
-         reload_module/3,
          does_module_support/2,
          config_spec/1,
          % Get/set opts by host or from a list
@@ -254,12 +253,6 @@ stop_module_for_host_type(HostType, Module) ->
                          class => Class, reason => Reason, stacktrace => Stacktrace}),
             {error, Reason}
     end.
-
--spec reload_module(host_type(), module(), [any()]) ->
-    {ok, term()} | {error, already_started}.
-reload_module(HostType, Module, Opts) ->
-    stop_module(HostType, Module),
-    start_module(HostType, Module, Opts).
 
 -spec does_module_support(module(), module_feature()) -> boolean().
 does_module_support(Module, Feature) ->
