@@ -1149,8 +1149,7 @@ restart_mod(Params) ->
     ok.
 
 restart_mod(HostType, Params) ->
-    dynamic_modules:stop(HostType, mod_vcard),
-    {ok, _Pid} = dynamic_modules:start(HostType, mod_vcard, Params).
+    dynamic_modules:restart(HostType, mod_vcard, Params).
 
 prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
