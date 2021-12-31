@@ -547,7 +547,11 @@ init(Opts) ->
 
 
 handle_call({sql_cmd, Command, Timestamp}, From, State) ->
-    run_sql_cmd(Command, From, State, Timestamp);
+    {Result, NewState} = run_sql_cmd(Command, From, State, Timestamp),
+    case abort_on_driver_error(Result) of
+        {stop, Reason} -> {stop, Reason, Result, NewState};
+        continue -> {reply, Result, NewState}
+    end;
 handle_call(get_db_info, _, #state{db_ref = DbRef} = State) ->
     {reply, {ok, db_engine(global), DbRef}, State};
 handle_call(Request, From, State) ->
@@ -555,9 +559,10 @@ handle_call(Request, From, State) ->
     {reply, {error, badarg}, State}.
 
 handle_cast({sql_cmd, Command, Timestamp}, State) ->
-    case run_sql_cmd(Command, undefined, State, Timestamp) of
-        {reply, _, NewState} -> {noreply, NewState};
-        Other -> Other
+    {Result, NewState} = run_sql_cmd(Command, undefined, State, Timestamp),
+    case abort_on_driver_error(Result) of
+        {stop, Reason} -> {stop, Reason, NewState};
+        continue -> {noreply, NewState}
     end;
 handle_cast(Request, State) ->
     ?UNEXPECTED_CAST(Request),
@@ -596,13 +601,12 @@ print_state(State) ->
 %%%----------------------------------------------------------------------
 
 -spec run_sql_cmd(Command :: any(), From :: any(), State :: state(), Timestamp :: integer()) ->
-    {reply, Reply :: any(), state()} | {stop, Reason :: term(), state()} |
-    {noreply, state()}.
+    {Result :: term(), state()}.
 run_sql_cmd(Command, _From, State, Timestamp) ->
     Now = erlang:monotonic_time(millisecond),
     case Now - Timestamp of
         Age when Age  < ?TRANSACTION_TIMEOUT ->
-            abort_on_driver_error(outer_op(Command, State));
+            outer_op(Command, State);
         Age ->
             ?LOG_ERROR(#{what => rdbms_db_not_available_or_too_slow,
                          text => <<"Discarding request">>, age => Age, command => Command}),
@@ -753,18 +757,13 @@ lookup_statement(Name) ->
         [] -> error({lookup_statement_failed, Name})
     end.
 
-%% @doc Generate the OTP callback return tuple depending on the driver result.
--spec abort_on_driver_error({_, state()}) ->
-                                   {reply, Reply :: term(), state()} |
-                                   {stop, timeout | closed, state()}.
-abort_on_driver_error({{error, "query timed out"} = Reply, State}) ->
-    %% mysql driver error
-    {stop, timeout, Reply, State};
-abort_on_driver_error({{error, "Failed sending data on socket" ++ _} = Reply, State}) ->
-    %% mysql driver error
-    {stop, closed, Reply, State};
-abort_on_driver_error({Reply, State}) ->
-    {reply, Reply, State}.
+-spec abort_on_driver_error(_) -> continue | {stop, timeout | closed}.
+abort_on_driver_error({error, "query timed out"}) -> %% mysql driver error
+    {stop, timeout};
+abort_on_driver_error({error, "Failed sending data on socket" ++ _}) -> %% mysql driver error
+    {stop, closed};
+abort_on_driver_error(_) ->
+    continue.
 
 -spec db_engine(HostType :: server()) -> odbc | mysql | pgsql | undefined.
 db_engine(_HostType) ->
