@@ -77,6 +77,8 @@ start_link(HostType, PoolId, Opts) ->
 -spec init(term()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([HostType, PoolId, Opts]) ->
     PoolName = gen_pool_name(HostType, PoolId),
+    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, timed_flushes], counter),
+    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, batch_flushes], counter),
     store_pool_name(HostType, PoolId, PoolName),
     WPoolOpts = make_wpool_opts(HostType, PoolId, Opts),
     WorkerSpec = #{id => PoolName,
@@ -111,7 +113,7 @@ make_wpool_opts(HostType, PoolId, Opts) ->
     FlushCallback = gen_mod:get_opt(flush_callback, Opts),
     FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],
-    WorkerOpts = {HostType, Interval, MaxSize, FlushCallback, FlushExtra},
+    WorkerOpts = {HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra},
     Worker = {mongoose_batch_worker, WorkerOpts},
     [{worker, Worker},
      {workers, NumWorkers},

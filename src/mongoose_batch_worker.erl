@@ -15,6 +15,7 @@
 
 -record(state, {
           host_type :: mongooseim:host_type(),
+          pool_id :: atom(),
           batch_size :: non_neg_integer(),
           flush_interval :: non_neg_integer(), %% milliseconds
           flush_interval_tref :: undefined | reference(),
@@ -29,13 +30,15 @@
 
 %% gen_server callbacks
 -spec init({mongooseim:host_type(),
+            atom(),
             pos_integer(),
             pos_integer(),
             flush_callback(),
             map()}) -> {ok, state()}.
-init({HostType, Interval, MaxSize, FlushCallback, FlushExtra}) ->
-    ?LOG_DEBUG(#{what => batch_worker_start, host_type => HostType, pool_id => FlushCallback}),
+init({HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra}) ->
+    ?LOG_DEBUG(#{what => batch_worker_start, host_type => HostType, pool_id => PoolId}),
     {ok, #state{host_type = HostType,
+                pool_id = PoolId,
                 batch_size = MaxSize,
                 flush_interval = Interval,
                 flush_callback = FlushCallback,
@@ -58,7 +61,10 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 -spec handle_info({timeout, reference(), flush} | term(), state()) -> {noreply, state()}.
-handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = TimerRef}) ->
+handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = TimerRef,
+                                                       host_type = HostType,
+                                                       pool_id = PoolId}) ->
+    mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, timed_flushes], 1),
     {noreply, run_flush(State)};
 handle_info({timeout, _, flush}, State) -> % expired timeout, ignore
     {noreply, State};
@@ -88,7 +94,9 @@ format_status(_Opt, [_PDict, State | _]) ->
              {"Task Queue Length", length(State#state.flush_queue)}]}].
 
 %% Batched tasks callbacks
-handle_task(Task, State = #state{batch_size = MaxSize,
+handle_task(Task, State = #state{host_type = HostType,
+                                 pool_id = PoolId,
+                                 batch_size = MaxSize,
                                  flush_interval = Interval,
                                  flush_interval_tref = TRef0,
                                  flush_queue = Acc0}) ->
@@ -98,7 +106,9 @@ handle_task(Task, State = #state{batch_size = MaxSize,
                          flush_queue = [Task | Acc0]},
     case Length + 1 >= MaxSize of
         false -> State1;
-        true -> run_flush(State1)
+        true ->
+            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, batch_flushes], 1),
+            run_flush(State1)
     end.
 
 maybe_schedule_flush(undefined, 0, Interval) ->
