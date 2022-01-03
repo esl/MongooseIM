@@ -134,23 +134,21 @@ stop_pool(HostType, {muc, _}) ->
     mongoose_async_pools:stop_pool(HostType, muc_mam).
 
 %%% flush callbacks
-flush_pm(Acc, Extra = #{host_type := HostType}) ->
-    MessageCount = length(Acc),
+flush_pm(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
     {FlushTime, Result} = timer:tc(fun do_flush_pm/2, [Acc, Extra]),
     mongoose_metrics:update(HostType, ?PM_PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
     mongoose_metrics:update(HostType, ?PM_FLUSH_TIME, FlushTime),
     Result.
 
-flush_muc(Acc, Extra = #{host_type := HostType}) ->
-    MessageCount = length(Acc),
+flush_muc(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
     {FlushTime, Result} = timer:tc(fun do_flush_muc/2, [Acc, Extra]),
     mongoose_metrics:update(HostType, ?MUC_PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
     mongoose_metrics:update(HostType, ?MUC_FLUSH_TIME, FlushTime),
     Result.
 
 %% mam workers callbacks
-do_flush_pm(Acc, #{host_type := HostType, batch_size := MaxSize, batch_name := BatchName}) ->
-    MessageCount = length(Acc),
+do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
+                   batch_size := MaxSize, batch_name := BatchName}) ->
     Rows = [mod_mam_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
     InsertResult =
         case MessageCount of
@@ -176,8 +174,8 @@ do_flush_pm(Acc, #{host_type := HostType, batch_size := MaxSize, batch_name := B
     mongoose_hooks:mam_flush_messages(HostType, MessageCount),
     ok.
 
-do_flush_muc(Acc, #{host_type := HostType, batch_size := MaxSize, batch_name := BatchName}) ->
-    MessageCount = length(Acc),
+do_flush_muc(Acc, #{host_type := HostType, queue_length := MessageCount,
+                    batch_size := MaxSize, batch_name := BatchName}) ->
     Rows = [mod_mam_muc_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
     InsertResult =
         case MessageCount of
