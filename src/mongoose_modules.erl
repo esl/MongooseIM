@@ -85,7 +85,7 @@ ensure_started(HostType, Module, Opts) ->
 
 -spec start_module(mongooseim:host_type(), module(), module_opts(), module_map()) -> {ok, term()}.
 start_module(HostType, Module, Opts, Modules) ->
-    set_modules(HostType, Modules#{Module => proplists:unfold(Opts)}),
+    set_modules(HostType, Modules#{Module => Opts}),
     try
         {ok, _} = gen_mod:start_module(HostType, Module, Opts)
     catch
