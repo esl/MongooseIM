@@ -26,7 +26,7 @@
 
 -import(domain_helper, [host_type/0]).
 
--import(roster_helper, [set_versioning/3, restore_versioning/1]).
+-import(roster_helper, [set_versioning/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -52,8 +52,8 @@ groups() ->
                                add_contact,
                                fail_to_add_contact_for_another_user,
                                remove_contact]},
-         {roster_versioning, [parallel], [versioning,
-                                          versioning_no_store]},
+         {roster_versioning, [], [versioning,
+                                  versioning_no_store]},
          {subscribe_group, [parallel], [subscribe,
                                         subscribe_decline,
                                         subscribe_relog,
