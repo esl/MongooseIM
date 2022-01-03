@@ -20,7 +20,7 @@ start() ->
                                                   {Mod, Opts} <- sorted_modules(HostType)],
     ok.
 
-%% @doc Stop all configured modules in the reverse dependency order.
+%% @doc Stop all configured modules in the reverse dependency order
 %% to avoid stopping modules which have other modules dependent on them.
 -spec stop() -> 'ok'.
 stop() ->
@@ -51,7 +51,7 @@ replace_modules(HostType, ToStop, ToEnsure) ->
         {Module, Opts} <- gen_mod_deps:sort_deps(HostType, Target)],
     ok.
 
-%% @doc Make sure the module is stopped
+%% @doc Make sure the module is stopped.
 -spec ensure_stopped(mongooseim:host_type(), module()) ->
           already_stopped | {stopped, module_opts()}.
 ensure_stopped(HostType, Module) ->
@@ -64,7 +64,7 @@ ensure_stopped(HostType, Module) ->
             {stopped, Opts}
     end.
 
-%% @doc Make sure the module is running with the provided options
+%% @doc Make sure the module is running with the provided options.
 -spec ensure_started(mongooseim:host_type(), module(), module_opts()) ->
           already_started | {started, term()} | {restarted, module_opts(), term()}.
 ensure_started(HostType, Module, Opts) ->
