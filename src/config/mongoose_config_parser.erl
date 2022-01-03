@@ -19,7 +19,7 @@
 
 %% config post-processing
 -export([dedup_state_opts/1,
-         add_dep_modules/1]).
+         post_process_modules/1]).
 
 -ignore_xref([behaviour_info/1, get_opts/1,
               state_to_global_opt/3, state_to_host_types/1, state_to_hosts/1]).
@@ -118,19 +118,19 @@ dedup_state_opts_list([{K, _V} = H|List], Removed, Keep, Set) ->
 dedup_state_opts_list([], Removed, Keep, _Set) ->
     {Keep, Removed}.
 
--spec add_dep_modules(state()) -> state().
-add_dep_modules(State = #state{opts = Opts}) ->
-    Opts2 = add_dep_modules_opts(Opts),
+-spec post_process_modules(state()) -> state().
+post_process_modules(State = #state{opts = Opts}) ->
+    Opts2 = lists:map(fun post_process_modules_opt/1, Opts),
     State#state{opts = Opts2}.
 
-add_dep_modules_opts(Opts) ->
-    lists:map(fun add_dep_modules_opt/1, Opts).
-
-add_dep_modules_opt({{modules, Host}, Modules}) ->
-    ModulesWithDeps = gen_mod_deps:resolve_deps(Host, Modules),
-    {{modules, Host}, ModulesWithDeps};
-add_dep_modules_opt(Other) ->
+post_process_modules_opt({{modules, HostType}, Modules}) ->
+    ModulesWithDeps = gen_mod_deps:resolve_deps(HostType, Modules),
+    {{modules, HostType}, unfold_opts(ModulesWithDeps)};
+post_process_modules_opt(Other) ->
     Other.
+
+unfold_opts(Modules) ->
+    maps:map(fun(_Mod, Opts) -> proplists:unfold(Opts) end, Modules).
 
 %% local functions
 
