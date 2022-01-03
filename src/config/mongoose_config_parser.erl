@@ -127,8 +127,8 @@ add_dep_modules_opts(Opts) ->
     lists:map(fun add_dep_modules_opt/1, Opts).
 
 add_dep_modules_opt({{modules, Host}, Modules}) ->
-    Modules2 = gen_mod_deps:add_deps(Host, Modules),
-    {{modules, Host}, Modules2};
+    ModulesWithDeps = gen_mod_deps:resolve_deps(Host, Modules),
+    {{modules, Host}, ModulesWithDeps};
 add_dep_modules_opt(Other) ->
     Other.
 

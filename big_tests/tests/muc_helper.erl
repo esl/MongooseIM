@@ -46,8 +46,6 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc() ->
-    %% Stop modules before trying to start them
-    unload_muc(),
     Backend = muc_backend(),
     HostType = domain_helper:host_type(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),

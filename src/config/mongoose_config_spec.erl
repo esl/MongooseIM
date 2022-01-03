@@ -104,6 +104,7 @@
 root() ->
     General = general(),
     Auth = auth(),
+    Modules = modules(),
     #section{
        items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
                                                   process = fun ?MODULE:process_general/1,
@@ -112,7 +113,7 @@ root() ->
                  <<"auth">> => Auth#section{include = always},
                  <<"outgoing_pools">> => outgoing_pools(),
                  <<"services">> => services(),
-                 <<"modules">> => modules(),
+                 <<"modules">> => Modules#section{include = always},
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
@@ -737,6 +738,7 @@ modules() ->
     #section{
        items = Items#{default => #section{items = #{}}},
        validate_keys = module,
+       format_items = map,
        wrap = host_config
       }.
 
@@ -1000,7 +1002,7 @@ extract_auth_methods(KVs) ->
                               end, KVs)).
 
 extract_modules(KVs) ->
-    lists:usort(lists:flatmap(fun({{modules, _}, Modules}) -> proplists:get_keys(Modules);
+    lists:usort(lists:flatmap(fun({{modules, _}, Modules}) -> maps:keys(Modules);
                                  (_) -> []
                               end, KVs)).
 

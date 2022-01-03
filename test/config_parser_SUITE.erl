@@ -46,7 +46,7 @@ groups() ->
                          s2s,
                          modules,
                          outgoing_pools,
-                         host_types]},
+                         host_types_file]},
      {dynamic_domains, [parallel], [supported_features,
                                     unsupported_features]},
      {general, [parallel], [loglevel,
@@ -293,8 +293,8 @@ supported_features(_Config) ->
     ?cfg([{auth, global}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, global}], [{mod_amp, []}], maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}], [{mod_amp, []}],
+    ?cfg([{modules, global}, mod_amp], [], maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], [],
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -2952,7 +2952,7 @@ check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
     ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
-    [{modules, [{Mod, Opts}]}].
+    [{modules, #{Mod => Opts}}].
 
 servopts(Service, Opts) ->
     [{services, [{Service, Opts}]}].
@@ -3141,7 +3141,7 @@ compare_values({auth, _}, V1, V2) ->
 compare_values(outgoing_pools, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
 compare_values({modules, _}, V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_module/2);
+    compare_maps(V1, V2, fun handle_module/2);
 compare_values(services, V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
 compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
@@ -3216,7 +3216,7 @@ handle_module({Name, Opts}, {Name2, Opts2}) ->
 
 handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
     compare_unordered_lists(Configs1, Configs2, fun handle_module_options/2);
-handle_module_options({Name, Opts}, {Name2, Opts2}) ->
+handle_module_options({Name, Opts = [{_, _}|_]}, {Name2, Opts2 = [{_, _}|_]}) ->
     ?eq(Name, Name2),
     compare_unordered_lists(Opts, Opts2, fun handle_module_options/2);
 handle_module_options(V1, V2) ->
@@ -3235,15 +3235,15 @@ compare_ordered_lists([H1|T1], [H1|T2], F) ->
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([H1|T1] = L1, [H2|T2] = L2, F) ->
     try F(H1, H2)
-    catch C:R:S ->
-            ct:fail({"Failed to compare ordered lists", L1, L2, {C, R, S}})
+    catch error:R:S ->
+            ct:fail({"Failed to compare ordered lists", L1, L2, R, S})
     end,
     compare_ordered_lists(T1, T2, F);
 compare_ordered_lists([], [], _) ->
     ok.
 
 compare_maps(M1, M2) ->
-    ?eq(M1, M2).
+    compare_maps(M1, M2, fun(V1, V2) -> ?eq(V1, V2) end).
 
 compare_maps(M1, M2, F) ->
     compare_unordered_lists(maps:to_list(M1), maps:to_list(M2), F).

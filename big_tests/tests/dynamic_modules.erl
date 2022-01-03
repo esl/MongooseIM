@@ -28,31 +28,15 @@ ensure_modules(HostType, RequiredModules) ->
     ensure_modules(mim(), HostType, RequiredModules).
 
 ensure_modules(Node, HostType, RequiredModules) ->
-    CurrentModules = get_current_modules(Node, HostType),
-    {ToReplace, ReplaceWith} = to_replace(RequiredModules, CurrentModules, [], []),
-    ok = rpc(Node, gen_mod_deps, replace_modules, [HostType, ToReplace, ReplaceWith]).
+    ToStop = [M || {M, stopped} <- RequiredModules],
+    ToEnsure = [{M, Opts} || {M, Opts} <- RequiredModules, Opts =/= stopped],
+    rpc(Node, mongoose_modules, replace_modules, [HostType, ToStop, ToEnsure]).
 
 ensure_stopped(HostType, ModulesToStop) ->
     ensure_stopped(mim(), HostType, ModulesToStop).
 
 ensure_stopped(Node, HostType, ModulesToStop) ->
-    CurrentModules = get_current_modules(HostType),
-    [stop(Node, HostType, Mod) || {Mod, _Opts} <- CurrentModules,
-                                  lists:member(Mod, ModulesToStop)].
-
-to_replace([], _CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
-    {lists:usort(ReplaceAcc), ReplaceWithAcc};
-to_replace([RequiredModule | Rest], CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
-    {Mod, Opts} = RequiredModule,
-    {NewReplaceAcc, NewReplaceWithAcc} =
-        case lists:keyfind(Mod, 1, CurrentModules) of
-            false when Opts =:= stopped -> {ReplaceAcc, ReplaceWithAcc};
-            false -> {ReplaceAcc, [RequiredModule | ReplaceWithAcc]};
-            {Mod, Opts} -> {ReplaceAcc, ReplaceWithAcc};
-            ExistingMod when Opts =:= stopped -> {[ExistingMod | ReplaceAcc], ReplaceWithAcc};
-            ExistingMod -> {[ExistingMod | ReplaceAcc], [RequiredModule | ReplaceWithAcc]}
-        end,
-    to_replace(Rest, CurrentModules, NewReplaceAcc, NewReplaceWithAcc).
+    [{Mod, stop(Node, HostType, Mod)} || Mod <- ModulesToStop].
 
 restore_modules(Config) ->
     restore_modules(#{}, Config).
@@ -64,7 +48,8 @@ restore_modules(RPCSpec, Config) when is_map(RPCSpec) ->
 
 restore_modules(Node, HostType, SavedModules) ->
     CurrentModules = get_current_modules(Node, HostType),
-    rpc(Node, gen_mod_deps, replace_modules, [HostType, CurrentModules, SavedModules]).
+    ToStop = proplists:get_keys(CurrentModules) -- proplists:get_keys(SavedModules),
+    rpc(Node, mongoose_modules, replace_modules, [HostType, ToStop, SavedModules]).
 
 get_current_modules(HostType) ->
     get_current_modules(mim(), HostType).
@@ -76,40 +61,17 @@ stop(HostType, Mod) ->
     stop(mim(), HostType, Mod).
 
 stop(Node, HostType, Mod) ->
-    IsLoaded = rpc(Node, gen_mod, is_loaded, [HostType, Mod]),
-    case IsLoaded of
-        true -> unsafe_stop(Node, HostType, Mod);
-        false -> {error, stopped}
-    end.
-
-unsafe_stop(Node, HostType, Mod) ->
-    case rpc(Node, gen_mod, stop_module, [HostType, Mod]) of
-        {badrpc, Reason} ->
-            ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
-        R -> R
-    end.
+    rpc(Node, mongoose_modules, ensure_stopped, [HostType, Mod]).
 
 start(HostType, Mod, Args) ->
     start(mim(), HostType, Mod, Args).
 
 start(Node, HostType, Mod, Args) ->
-    case rpc(Node, gen_mod, start_module, [HostType, Mod, Args]) of
-        {ok, _} = R ->
-            R;
-        Reason ->
-            ct:fail("Cannot start module ~p reason ~p", [Mod, Reason])
-    end.
+    rpc(Node, mongoose_modules, ensure_started, [HostType, Mod, Args]).
 
 restart(HostType, Mod, Args) ->
     restart(mim(), HostType, Mod, Args).
 
 restart(Node, HostType, Mod, Args) ->
     stop(Node, HostType, Mod),
-    ModStr = atom_to_list(Mod),
-    case lists:reverse(ModStr) of
-        "smbdr_" ++ Str -> %%check if we need to start rdbms module or regular
-            stop(Node, HostType, list_to_atom(lists:reverse(Str)));
-        Str ->
-            stop(Node, HostType, list_to_atom(lists:reverse(Str)++"_rdbms"))
-    end,
     start(Node, HostType, Mod, Args).
