@@ -52,25 +52,24 @@ init_per_testcase(Test, Config)
              Test =:= validation_property;
              Test =:= choose_key_by_token_type ->
     mock_mongoose_metrics(),
-    Config1 = async_helper:start(Config, [{gen_hook, start_link, []},
-                                          {gen_mod, start, []}]),
+    Config1 = async_helper:start(Config, [{gen_hook, start_link, []}]),
     mock_keystore(),
     mock_rdbms_backend(),
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
+    mongoose_config:set_opt({modules, host_type()},
+                            #{?TESTED => validity_period_cfg(access, {13, hours})}),
     mock_rdbms_backend(),
     mock_mongoose_metrics(),
     mock_gen_iq_handler(),
     mock_ejabberd_commands(),
-    async_helper:start(Config, [{gen_mod, start, []},
-                                {gen_hook, start_link, []}]);
+    async_helper:start(Config, [{gen_hook, start_link, []}]);
 
 init_per_testcase(revoked_token_is_not_valid, Config) ->
     mock_mongoose_metrics(),
     mock_tested_backend(),
-    Config1 = async_helper:start(Config, [{gen_mod, start, []},
-                                          {gen_hook, start_link, []}]),
+    Config1 = async_helper:start(Config, [{gen_hook, start_link, []}]),
     mock_keystore(),
     Config1;
 
@@ -87,6 +86,7 @@ end_per_testcase(Test, C)
     C;
 
 end_per_testcase(validity_period_test, C) ->
+    mongoose_config:unset_opt({modules, host_type()}),
     meck:unload(mod_auth_token_backend),
     meck:unload(mongoose_metrics),
     meck:unload(gen_iq_handler),
@@ -139,8 +139,7 @@ validation_property(_) ->
 
 validity_period_test(_) ->
     %% given
-    ok = ?TESTED:start(host_type(),
-                       validity_period_cfg(access, {13, hours})),
+    ok = ?TESTED:start(host_type(), mongoose_config:get_opt([{modules, host_type()}, ?TESTED])),
     UTCSeconds = utc_now_as_seconds(),
     ExpectedSeconds = UTCSeconds + (    13 %% hours
                                     * 3600 %% seconds per hour
@@ -223,9 +222,7 @@ utc_now_as_seconds() ->
 %%                              {{validity_period, refresh}, {13, days}}]}
 %%           ]}.
 validity_period_cfg(Type, Period) ->
-    Opts = [ {{validity_period, Type}, Period} ],
-    ets:insert(ejabberd_modules, {ejabberd_module, {?TESTED, host_type()}, Opts}),
-    Opts.
+    [{{validity_period, Type}, Period}].
 
 %% This is a negative test case helper - that's why we invert the logic below.
 %% I.e. we expect the property to fail.
