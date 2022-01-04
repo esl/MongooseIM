@@ -32,14 +32,14 @@ stop() ->
 %% Running modules from ToStop are stopped and modules from ToEnsure are (re)started when needed.
 %% Unused dependencies are stopped if no running modules depend on them anymore.
 %% To prevent an unused dependency from being stopped, you need to include it in ToEnsure.
--spec replace_modules(mongooseim:host_type(), [module()], module_list()) -> ok.
+-spec replace_modules(mongooseim:host_type(), [module()], module_map()) -> ok.
 replace_modules(HostType, ToStop, ToEnsure) ->
     Current = get_modules(HostType),
-    Old = maps:with(ToStop ++ proplists:get_keys(ToEnsure), Current),
+    Old = maps:with(ToStop ++ maps:keys(ToEnsure), Current),
     OldWithDeps = gen_mod_deps:resolve_deps(HostType, Old),
     SortedOldWithDeps = gen_mod_deps:sort_deps(HostType, OldWithDeps),
     WithoutOld = maps:without(maps:keys(OldWithDeps), Current),
-    WithNew = maps:merge(WithoutOld, maps:from_list(ToEnsure)),
+    WithNew = maps:merge(WithoutOld, ToEnsure),
     Target = gen_mod_deps:resolve_deps(HostType, WithNew),
 
     %% Stop each affected module if it is not in Target (stop deps first)
@@ -88,7 +88,7 @@ ensure_started(HostType, Module, RawOpts) ->
 start_module(HostType, Module, Opts, Modules) ->
     set_modules(HostType, Modules#{Module => Opts}),
     try
-        {ok, _} = gen_mod:start_module(HostType, Module, Opts)
+        gen_mod:start_module(HostType, Module, Opts)
     catch
         C:R:S ->
             set_modules(HostType, Modules),
@@ -97,7 +97,7 @@ start_module(HostType, Module, Opts, Modules) ->
 
 -spec stop_module(mongooseim:host_type(), module(), module_map()) -> ok.
 stop_module(HostType, Module, Modules) ->
-    {ok, _} = gen_mod:stop_module(HostType, Module),
+    gen_mod:stop_module(HostType, Module),
     set_modules(HostType, maps:remove(Module, Modules)).
 
 -spec sorted_modules(mongooseim:host_type()) -> module_list().
