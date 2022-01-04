@@ -52,7 +52,6 @@ start(normal, _Args) ->
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_service:start(),
-    gen_mod:start(),
     mongoose_config:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),

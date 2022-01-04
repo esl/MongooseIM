@@ -336,20 +336,17 @@ get_module_opt_subhost(Host, Module, Default) ->
 
 -spec loaded_modules() -> [module()].
 loaded_modules() ->
-    gb_sets:to_list(lists:foldl(
-                      fun(HostType, ModSetIn) ->
-                              gb_sets:union(ModSetIn, gb_sets:from_list(loaded_modules(HostType)))
-                      end, gb_sets:new(), ?ALL_HOST_TYPES)).
+    lists:usort(lists:flatmap(fun loaded_modules/1, ?ALL_HOST_TYPES)).
 
 -spec loaded_modules(host_type()) -> [module()].
 loaded_modules(HostType) ->
     maps:keys(mongoose_config:get_opt({modules, HostType})).
 
--spec loaded_modules_with_opts(host_type()) -> #{module() => list()}.
+-spec loaded_modules_with_opts(host_type()) -> #{module() => module_opts()}.
 loaded_modules_with_opts(HostType) ->
     mongoose_config:get_opt({modules, HostType}).
 
--spec loaded_modules_with_opts() -> #{host_type() => #{module() => list()}}.
+-spec loaded_modules_with_opts() -> #{host_type() => #{module() => module_opts()}}.
 loaded_modules_with_opts() ->
     maps:from_list([{HostType, loaded_modules_with_opts(HostType)} || HostType <- ?ALL_HOST_TYPES]).
 
@@ -357,14 +354,15 @@ loaded_modules_with_opts() ->
 hosts_with_module(Module) ->
     [HostType || HostType <- ?ALL_HOST_TYPES, is_loaded(HostType, Module)].
 
--spec hosts_and_opts_with_module(module()) -> [{host_type(), module_opts()}].
+-spec hosts_and_opts_with_module(module()) -> #{host_type() => module_opts()}.
 hosts_and_opts_with_module(Module) ->
-    lists:flatmap(fun(HostType) ->
-                          case mongoose_config:lookup_opt([{modules, HostType}, Module]) of
-                              {error, not_found} -> [];
-                              {ok, Opts} -> [{HostType, Opts}]
-                          end
-                  end, ?ALL_HOST_TYPES).
+    maps:from_list(
+      lists:flatmap(fun(HostType) ->
+                            case mongoose_config:lookup_opt([{modules, HostType}, Module]) of
+                                {error, not_found} -> [];
+                                {ok, Opts} -> [{HostType, Opts}]
+                            end
+                    end, ?ALL_HOST_TYPES)).
 
 -spec get_module_proc(binary() | string(), module()) -> atom().
 %% TODO:
