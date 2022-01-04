@@ -393,7 +393,7 @@ options("s2s_only") ->
                                           <<"reg1">> => deny}}].
 
 all_modules() ->
-    #{mod_mam_rdbms_user => [muc, pm],
+    #{mod_mam_rdbms_user => [{muc, true}, {pm, true}],
       mod_event_pusher_hook_translator => [],
       mod_mam_muc =>
           [{archive_chat_markers, true},
@@ -402,7 +402,7 @@ all_modules() ->
            {host, {fqdn, <<"muc.example.com">>}},
            {is_archivable_message, mod_mam_utils}],
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
-      mod_mam_cache_user => [muc, pm],
+      mod_mam_cache_user => [{muc, true}, {pm, true}],
       mod_offline =>
           [{access_max_user_messages, max_user_offline_messages},
            {backend, riak},
@@ -510,14 +510,14 @@ all_modules() ->
            {ldap_rfilter, "(objectClass=inetOrgPerson)"},
            {ldap_user_cache_validity, 1},
            {ldap_userdesc, "cn"}],
-      mod_mam_mnesia_prefs => [muc],
+      mod_mam_mnesia_prefs => [{muc, true}],
       mod_jingle_sip =>
           [{listen_port, 5600},
            {local_host, "localhost"},
            {proxy_host, "localhost"},
            {proxy_port, 5600},
            {sdp_origin, "127.0.0.1"}],
-      mod_mam_rdbms_prefs => [pm],
+      mod_mam_rdbms_prefs => [{pm, true}],
       mod_extdisco =>
           [[{host, "stun1"},
             {password, "password"},
@@ -606,7 +606,7 @@ all_modules() ->
            {password_strength, 32},
            {registration_watchers, [<<"JID1">>, <<"JID2">>]},
            {welcome_message, {"Subject", "Body"}}],
-      mod_mam_rdbms_arch => [no_writer, pm],
+      mod_mam_rdbms_arch => [{no_writer, true}, {pm, true}],
       mod_event_pusher_rabbit =>
           [{chat_msg_exchange,
             [{name, <<"chat_msg">>},
@@ -641,7 +641,7 @@ all_modules() ->
            {matches, 1},
            {search, true}],
       mod_mam_muc_rdbms_arch =>
-          [muc, {db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
+          [{muc, true}, {db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
       mod_stream_management =>
           [{ack_freq, 1},
            {buffer_max, 30},

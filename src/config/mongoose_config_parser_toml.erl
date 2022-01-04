@@ -329,7 +329,7 @@ build_state(Hosts, HostTypes, Opts) ->
                  fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
                  fun mongoose_config_parser:dedup_state_opts/1,
-                 fun mongoose_config_parser:add_dep_modules/1]).
+                 fun mongoose_config_parser:post_process_modules/1]).
 
 %% Any nested config_part() may be a config_error() - this function extracts them all recursively
 -spec extract_errors([config()]) -> [config_error()].

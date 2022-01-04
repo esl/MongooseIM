@@ -132,9 +132,8 @@ start_module(HostType, Module, Opts) ->
         false -> start_module_for_host_type(HostType, Module, Opts)
     end.
 
-start_module_for_host_type(HostType, Module, Opts0) ->
+start_module_for_host_type(HostType, Module, Opts) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
-    Opts = proplists:unfold(Opts0),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host_type = {Module, HostType},
                                                   opts = Opts}),
     try
