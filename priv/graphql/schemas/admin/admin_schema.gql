@@ -33,20 +33,6 @@ type AdminMutation @protected{
   stanza: StanzaAdminMutation
 }
 
-type StanzaAdminQuery @protected{
-  "Get n last messages to/from a given contact (optional) with limit and optional date"
-  getLastMessages(caller: JID!, with: JID, limit: Int, before: DateTime): StanzasPayload
-}
-
-type StanzaAdminMutation @protected{
-  "Send a chat message to a local or remote bare or full JID"
-  sendMessage(from: JID!, to: JID!, body: String!): SendStanzaPayload
-  "Send a headline message to a local or remote bare or full JID"
-  sendMessageHeadLine(from: JID!, to: JID!, subject: String, body: String): SendStanzaPayload
-  "Send an arbitrary stanza"
-  sendStanza(stanza: Stanza): SendStanzaPayload
-}
-
 """
 A dynamic domain representation.
 Some operation could return incomplete object i.e. some fields can be null.
@@ -67,23 +53,3 @@ type RemoveDomainPayload{
   "Removed domain data"
   domain: Domain
 }
-
-scalar DateTime
-scalar Stanza
-scalar JID
-
-type StanzasPayload{
-  stanzas: [StanzaMap]
-}
-
-type StanzaMap{
-  sender: JID
-  timestamp: DateTime
-  stanza_id: String
-  stanza: Stanza
-}
-
-type SendStanzaPayload{
-  id: ID
-}
-

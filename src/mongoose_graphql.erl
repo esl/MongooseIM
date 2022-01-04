@@ -119,8 +119,8 @@ admin_mapping_rules() ->
     #{objects => #{
         'AdminQuery' => mongoose_graphql_admin_query,
         'AdminMutation' => mongoose_graphql_admin_mutation,
-        'StanzaAdminMutation' => mongoose_graphql_admin_stanza_mutation,
-        'StanzaAdminQuery' => mongoose_graphql_admin_stanza_query,
+        'StanzaAdminMutation' => mongoose_graphql_stanza_admin_mutation,
+        'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},

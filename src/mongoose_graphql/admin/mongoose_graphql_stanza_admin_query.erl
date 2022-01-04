@@ -1,4 +1,4 @@
--module(mongoose_graphql_admin_stanza_query).
+-module(mongoose_graphql_stanza_admin_query).
 
 -export([execute/4]).
 

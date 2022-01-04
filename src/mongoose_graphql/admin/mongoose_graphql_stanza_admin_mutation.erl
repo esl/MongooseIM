@@ -1,4 +1,4 @@
--module(mongoose_graphql_admin_stanza_mutation).
+-module(mongoose_graphql_stanza_admin_mutation).
 
 -export([execute/4]).
 

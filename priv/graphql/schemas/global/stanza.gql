@@ -1,0 +1,14 @@
+type StanzasPayload{
+  stanzas: [StanzaMap]
+}
+
+type StanzaMap{
+  sender: JID
+  timestamp: DateTime
+  stanza_id: String
+  stanza: Stanza
+}
+
+type SendStanzaPayload{
+  id: ID
+}
