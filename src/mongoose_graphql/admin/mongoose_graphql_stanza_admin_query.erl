@@ -16,7 +16,7 @@ get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
     With2 = null_as_undefined(With),
     BeforeSeconds = maybe_datetime_to_seconds(Before),
     Limit2 = min(500, Limit),
-    Rows = mod_commands:lookup_recent_messages(Caller, With2, BeforeSeconds, Limit2),
+    Rows = mongoose_stanza_api:lookup_recent_messages(Caller, With2, BeforeSeconds, Limit2),
     Maps = lists:map(fun row_to_map/1, Rows),
     {ok, #{<<"stanzas">> => Maps, <<"limit">> => Limit2}}.
 

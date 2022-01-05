@@ -29,7 +29,6 @@
 
 -export([parse_from_to/2]).
 -export([build_message/3]).
--export([lookup_recent_messages/4]).
 
 -ignore_xref([add_contact/2, add_contact/3, add_contact/4, change_user_password/3,
               delete_contact/2, delete_contacts/2, get_recent_messages/3,
@@ -445,7 +444,7 @@ get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
 get_recent_messages(Caller, With, Before, Limit) ->
-    Res = lookup_recent_messages(Caller, With, Before, Limit),
+    Res = mongoose_stanza_api:lookup_recent_messages(Caller, With, Before, Limit),
     lists:map(fun row_to_map/1, Res).
 
 change_user_password(Host, User, Password) ->
@@ -482,37 +481,6 @@ build_message(From, To, Body) ->
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]
           }.
-
-lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
-    throw({error, message_limit_too_high});
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
-    lookup_recent_messages(jid:from_binary(ArcJID), With, Before, Limit);
-lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(With) ->
-    lookup_recent_messages(ArcJID, jid:from_binary(With), Before, Limit);
-lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
-    #jid{luser = LUser, lserver = LServer} = ArcJID,
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    EndTS = case Before of
-                0 -> undefined;
-                undefined -> undefined;
-                _ -> round(Before * 1000000)
-            end,
-    Params = #{archive_id => mod_mam:archive_id(LServer, LUser),
-               owner_jid => ArcJID,
-               borders => undefined,
-               rsm => #rsm_in{direction = before, id = undefined}, % last msgs
-               start_ts => undefined,
-               end_ts => EndTS,
-               now => os:system_time(microsecond),
-               with_jid => WithJID,
-               search_text => undefined,
-               page_size => Limit,
-               limit_passed => false,
-               max_result_limit => 1,
-               is_simple => true},
-    R = mod_mam:lookup_messages(HostType, Params),
-    {ok, {_, _, L}} = R,
-    L.
 
 subscription(Caller, Other, Action) ->
     case decode_action(Action) of
