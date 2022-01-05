@@ -18,43 +18,81 @@
 -compile([export_all, nowarn_export_all]).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
--include_lib("common_test/include/ct.hrl").
-
+-include_lib("eunit/include/eunit.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 all() ->
-    [start_and_stop].
+    [start_and_stop,
+     start_error,
+     stop_error,
+     loaded_modules,
+     loaded_modules_with_opts,
+     hosts_with_module,
+     hosts_and_opts_with_module].
 
 init_per_testcase(_, Config) ->
-    mongoose_config:set_opt(hosts, [<<"localhost">>, <<"localhost.bis">>]),
-    meck:new(a_module, [non_strict]),
-    meck:expect(a_module, start, fun(_, _) -> ok end),
-    meck:expect(a_module, stop, fun(_) -> ok end),
+    [mongoose_config:set_opt(Opt, Val) || {Opt, Val} <- opts()],
+    [setup_meck(Module) || Module <- [a_module, b_module]],
     Config.
 
 end_per_testcase(_, Config) ->
-    mongoose_config:unset_opt(hosts),
-    meck:unload(a_module),
+    [mongoose_config:unset_opt(Opt) || Opt <- opts()],
+    [meck:unload(Module) || Module <- [a_module, b_module]],
     Config.
 
 start_and_stop(_Config) ->
-    gen_mod:start(),
-    gen_mod:stop_module(host(a), a_module),
-    gen_mod:stop_module(host(b), a_module),
-    {ok, _} = gen_mod:start_module(host(a), a_module, []),
-    {ok, _} = gen_mod:start_module(host(b), a_module, []),
-    {error, already_started} = gen_mod:start_module(host(a), a_module, []),
-    {error, already_started} = gen_mod:start_module(host(b), a_module, []),
-    {ok, []} = gen_mod:stop_module(host(a), a_module),
-    {ok, []} = gen_mod:stop_module(host(b), a_module),
-    {error, not_loaded} = gen_mod:stop_module(host(a), a_module),
-    {error, not_loaded} = gen_mod:stop_module(host(b), a_module),
-    ok.
+    ?assertEqual({ok, ok}, gen_mod:start_module(host(a), a_module, [])),
+    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(a), b_module, [{k, v}])),
+    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(b), a_module, [])),
+    ?assertEqual({ok, ok}, gen_mod:start_module(host(b), b_module, [{k, v}])),
+    ?assertEqual(ok, gen_mod:stop_module(host(a), a_module)),
+    ?assertError(#{what := module_not_loaded}, gen_mod:stop_module(host(a), b_module)),
+    ?assertError(#{what := module_not_loaded}, gen_mod:stop_module(host(b), a_module)),
+    ?assertEqual(ok, gen_mod:stop_module(host(b), b_module)).
+
+start_error(_Config) ->
+    meck:expect(a_module, start, fun(_, _) -> error(bad_weather) end),
+    ?assertError(bad_weather, gen_mod:start_module(host(a), a_module, [])).
+
+stop_error(_Config) ->
+    meck:expect(a_module, stop, fun(_) -> error(bad_mood) end),
+    ?assertError(bad_mood, gen_mod:stop_module(host(a), a_module)).
+
+loaded_modules(_Config) ->
+    ?assertEqual([a_module], gen_mod:loaded_modules(host(a))),
+    ?assertEqual([b_module], gen_mod:loaded_modules(host(b))),
+    ?assertEqual([a_module, b_module], gen_mod:loaded_modules()).
+
+loaded_modules_with_opts(_Config) ->
+    MA = #{a_module => []},
+    MB = #{b_module => [{k, v}]},
+    ?assertEqual(MA, gen_mod:loaded_modules_with_opts(host(a))),
+    ?assertEqual(MB, gen_mod:loaded_modules_with_opts(host(b))),
+    ?assertEqual(#{host(a) => MA, host(b) => MB}, gen_mod:loaded_modules_with_opts()).
+
+hosts_with_module(_Config) ->
+    ?assertEqual([host(a)], gen_mod:hosts_with_module(a_module)),
+    ?assertEqual([host(b)], gen_mod:hosts_with_module(b_module)).
+
+hosts_and_opts_with_module(_Config) ->
+    ?assertEqual(#{host(a) => []}, gen_mod:hosts_and_opts_with_module(a_module)),
+    ?assertEqual(#{host(b) => [{k, v}]}, gen_mod:hosts_and_opts_with_module(b_module)).
 
 host(a) ->
     <<"localhost">>;
 host(b) ->
     <<"localhost.bis">>.
+
+setup_meck(Module) ->
+    meck:new(Module, [non_strict]),
+    meck:expect(Module, start, fun(_, _) -> ok end),
+    meck:expect(Module, stop, fun(_) -> ok end).
+
+opts() ->
+    [{hosts, [host(a), host(b)]},
+     {host_types, []},
+     {{modules, host(a)}, #{a_module => []}},
+     {{modules, host(b)}, #{b_module => [{k, v}]}}].

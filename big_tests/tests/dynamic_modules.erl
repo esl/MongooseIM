@@ -22,14 +22,14 @@ get_saved_config(HostType, Module, Config) ->
 
 get_saved_config(#{node := NodeName}, HostType, Module, Config) ->
     SavedModules = proplists:get_value({saved_modules, NodeName, HostType}, Config),
-    proplists:get_value(Module, SavedModules).
+    maps:get(Module, SavedModules).
 
 ensure_modules(HostType, RequiredModules) ->
     ensure_modules(mim(), HostType, RequiredModules).
 
 ensure_modules(Node, HostType, RequiredModules) ->
     ToStop = [M || {M, stopped} <- RequiredModules],
-    ToEnsure = [{M, Opts} || {M, Opts} <- RequiredModules, Opts =/= stopped],
+    ToEnsure = maps:without(ToStop, maps:from_list(RequiredModules)),
     rpc(Node, mongoose_modules, replace_modules, [HostType, ToStop, ToEnsure]).
 
 ensure_stopped(HostType, ModulesToStop) ->
@@ -48,7 +48,7 @@ restore_modules(RPCSpec, Config) when is_map(RPCSpec) ->
 
 restore_modules(Node, HostType, SavedModules) ->
     CurrentModules = get_current_modules(Node, HostType),
-    ToStop = proplists:get_keys(CurrentModules) -- proplists:get_keys(SavedModules),
+    ToStop = maps:keys(CurrentModules) -- maps:keys(SavedModules),
     rpc(Node, mongoose_modules, replace_modules, [HostType, ToStop, SavedModules]).
 
 get_current_modules(HostType) ->

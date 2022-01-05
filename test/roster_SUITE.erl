@@ -55,24 +55,24 @@ end_per_suite(C) ->
     mnesia:delete_schema([node()]),
     C.
 
-opts() ->
-    [{hosts, []},
-     {all_metrics_are_global, false}].
-
 init_per_testcase(_TC, C) ->
     init_ets(),
     gen_hook:start_link(),
-    gen_mod:start(),
-    gen_mod:start_module(host_type(), mod_roster, []),
+    mongoose_modules:start(),
     C.
 
 end_per_testcase(_TC, C) ->
     Acc = mongoose_acc:new(?ACC_PARAMS),
     mod_roster:remove_user(Acc, a(), domain()),
-    gen_mod:stop_module(host_type(), mod_roster),
+    mongoose_modules:stop(),
     delete_ets(),
     C.
 
+opts() ->
+    [{hosts, [host_type()]},
+     {host_types, []},
+     {all_metrics_are_global, false},
+     {{modules, host_type()}, #{mod_roster => []}}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%
