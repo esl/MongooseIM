@@ -47,9 +47,8 @@ do_routing(HostType, LServer, From, To, Packet) ->
     MessID = mod_mam_utils:get_mam_id_ext(Acc2),
     {ok, #{ <<"id">> => MessID }}.
 
-build_message_with_headline(FromBin, ToBin, Opts) ->
-    Body = maps:get(<<"body">>, Opts, <<>>),
-    Subject = maps:get(<<"subject">>, Opts, <<>>),
+build_message_with_headline(FromBin, ToBin,
+                            #{<<"body">> := Body, <<"subject">> := Subject}) ->
     Children = maybe_cdata_elem(<<"subject">>, Subject) ++
                maybe_cdata_elem(<<"body">>, Body),
     Attrs = [{<<"type">>, <<"headline">>},
@@ -58,6 +57,7 @@ build_message_with_headline(FromBin, ToBin, Opts) ->
              {<<"to">>, ToBin}],
     #xmlel{name = <<"message">>, attrs = Attrs, children = Children}.
 
+maybe_cdata_elem(_, null) -> [];
 maybe_cdata_elem(_, <<>>) -> [];
 maybe_cdata_elem(Name, Text) when is_binary(Text) ->
     [cdata_elem(Name, Text)].
