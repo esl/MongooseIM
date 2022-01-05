@@ -25,6 +25,7 @@ admin_stanza_category() ->
      get_last_messages,
      get_last_messages_with,
      get_last_messages_limit,
+     get_last_messages_limit_enforced,
      get_last_messages_before].
 
 init_per_suite(Config) ->
@@ -121,11 +122,11 @@ get_last_messages_story(Config, Alice, Bob) ->
     Vars2 = #{caller => escalus_client:full_jid(Bob)},
     Res1 = ok_result(<<"stanza">>, <<"getLastMessages">>,
                      execute_get_last_messages(Vars1, Config)),
-    #{<<"stanzas">> := [M1]} = Res1,
+    #{<<"stanzas">> := [M1], <<"limit">> := 50} = Res1,
     check_stanza_map(M1, Alice),
     Res2 = ok_result(<<"stanza">>, <<"getLastMessages">>,
                      execute_get_last_messages(Vars2, Config)),
-    #{<<"stanzas">> := [M2]} = Res2,
+    #{<<"stanzas">> := [M2], <<"limit">> := 50} = Res2,
     check_stanza_map(M2, Alice).
 
 get_last_messages_with(Config) ->
@@ -141,7 +142,7 @@ get_last_messages_with_story(Config, Alice, Bob, Kate) ->
              with => escalus_client:short_jid(Bob)},
     Res = ok_result(<<"stanza">>, <<"getLastMessages">>,
                     execute_get_last_messages(Vars, Config)),
-    #{<<"stanzas">> := [M1]} = Res,
+    #{<<"stanzas">> := [M1], <<"limit">> := 50} = Res,
     check_stanza_map(M1, Alice).
 
 get_last_messages_limit(Config) ->
@@ -156,8 +157,22 @@ get_last_messages_limit_story(Config, Alice, Bob) ->
     Vars = #{caller => escalus_client:full_jid(Alice), limit => 1},
     Res = ok_result(<<"stanza">>, <<"getLastMessages">>,
                     execute_get_last_messages(Vars, Config)),
-    #{<<"stanzas">> := [M1]} = Res,
+    #{<<"stanzas">> := [M1], <<"limit">> := 1} = Res,
     check_stanza_map(M1, Bob).
+
+get_last_messages_limit_enforced(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun get_last_messages_limit_enforced_story/3).
+
+get_last_messages_limit_enforced_story(Config, Alice, Bob) ->
+    send_message_story(Config, Alice, Bob),
+    mam_helper:wait_for_archive_size(Alice, 1),
+    Vars = #{caller => escalus_client:full_jid(Alice), limit => 1000},
+    Res = ok_result(<<"stanza">>, <<"getLastMessages">>,
+                    execute_get_last_messages(Vars, Config)),
+    %% The actual limit is returned
+    #{<<"stanzas">> := [M1], <<"limit">> := 500} = Res,
+    check_stanza_map(M1, Alice).
 
 get_last_messages_before(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -173,13 +188,12 @@ get_last_messages_before_story(Config, Alice, Bob) ->
     Vars1 = #{caller => escalus_client:full_jid(Alice)},
     Res1 = ok_result(<<"stanza">>, <<"getLastMessages">>,
                      execute_get_last_messages(Vars1, Config)),
-    #{<<"stanzas">> := [M1, M2, _M3]} = Res1,
+    #{<<"stanzas">> := [M1, M2, _M3], <<"limit">> := 50} = Res1,
     Vars2 = #{caller => escalus_client:full_jid(Alice),
               before => maps:get(<<"timestamp">>, M2)},
     Res2 = ok_result(<<"stanza">>, <<"getLastMessages">>,
                      execute_get_last_messages(Vars2, Config)),
-    #{<<"stanzas">> := [M1, M2]} = Res2.
-
+    #{<<"stanzas">> := [M1, M2], <<"limit">> := 50} = Res2.
 
 %% Helpers
 
@@ -206,7 +220,7 @@ execute_get_last_messages(Vars, Config) ->
     Q = <<"query Q1($caller: JID!, $with: JID, $limit: Int, $before: DateTime) "
           "{ stanza { getLastMessages(caller: $caller, with: $with, "
                  " limit: $limit, before: $before) "
-                     "{ stanzas { stanza_id stanza sender timestamp } } } }">>,
+                     "{ stanzas { stanza_id stanza sender timestamp } limit } } }">>,
     execute_auth(#{query => Q, variables => Vars,
                    operationName => <<"Q1">>}, Config).
 

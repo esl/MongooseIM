@@ -1,6 +1,6 @@
 type StanzaAdminQuery @protected{
   "Get n last messages to/from a given contact (optional) with limit and optional date"
-  getLastMessages(caller: JID!, with: JID, limit: Int, before: DateTime): StanzasPayload
+  getLastMessages(caller: JID!, with: JID, limit: Int = 50, before: DateTime): StanzasPayload
 }
 
 type StanzaAdminMutation @protected{

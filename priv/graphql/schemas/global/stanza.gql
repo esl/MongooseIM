@@ -1,5 +1,6 @@
 type StanzasPayload{
   stanzas: [StanzaMap]
+  limit: Int
 }
 
 type StanzaMap{

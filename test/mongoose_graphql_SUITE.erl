@@ -217,6 +217,7 @@ admin_and_user_load_global_types(_Config) ->
                  graphql_schema:get(AdminEp, <<"protected">>)),
 
     UserEp = mongoose_graphql:get_endpoint(user),
+    ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
 
