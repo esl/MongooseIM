@@ -16,7 +16,7 @@ execute(_Ctx, _Obj, <<"sendStanza">>, Opts) ->
     send_stanza(Opts).
 
 send_message(Opts = #{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
-    Packet = mod_commands:build_message(jid:to_binary(From), jid:to_binary(To), Body),
+    Packet = mongoose_stanza_helper:build_message(jid:to_binary(From), jid:to_binary(To), Body),
     do_routing(From, To, Packet).
 
 send_message_headline(Opts = #{<<"from">> := From, <<"to">> := To}) ->

@@ -27,9 +27,6 @@
          send_stanza/1
         ]).
 
--export([parse_from_to/2]).
--export([build_message/3]).
-
 -ignore_xref([add_contact/2, add_contact/3, add_contact/4, change_user_password/3,
               delete_contact/2, delete_contacts/2, get_recent_messages/3,
               get_recent_messages/4, kick_session/3, list_contacts/1,
@@ -297,9 +294,9 @@ unregister(Host, User) ->
     end.
 
 send_message(From, To, Body) ->
-    case parse_from_to(From, To) of
+    case mongoose_stanza_helper:parse_from_to(From, To) of
         {ok, FromJID, ToJID} ->
-            Packet = build_message(From, To, Body),
+            Packet = mongoose_stanza_helper:build_message(From, To, Body),
             do_send_packet(FromJID, ToJID, Packet);
         Error ->
             Error
@@ -310,7 +307,7 @@ send_stanza(BinStanza) ->
         {ok, Packet} ->
             From = exml_query:attr(Packet, <<"from">>),
             To = exml_query:attr(Packet, <<"to">>),
-            case parse_from_to(From, To) of
+            case mongoose_stanza_helper:parse_from_to(From, To) of
                 {ok, FromJID, ToJID} ->
                     do_send_packet(FromJID, ToJID, Packet);
                 {error, missing} ->
@@ -334,16 +331,6 @@ do_send_packet(From, To, Packet) ->
             ok;
         {error, not_found} ->
             {error, unknown_domain}
-    end.
-
--spec parse_from_to(jid:jid() | binary() | undefined, jid:jid() | binary() | undefined) ->
-    {ok, jid:jid(), jid:jid()} | {error, missing} | {error, type_error, string()}.
-parse_from_to(F, T) when F == undefined; T == undefined ->
-    {error, missing};
-parse_from_to(F, T) ->
-    case parse_jid_list([F, T]) of
-        {ok, [Fjid, Tjid]} -> {ok, Fjid, Tjid};
-        E -> E
     end.
 
 list_contacts(Caller) ->
@@ -370,7 +357,7 @@ add_contact(Caller, JabberID, Name) ->
     add_contact(Caller, JabberID, Name, []).
 
 add_contact(Caller, Other, Name, Groups) ->
-    case parse_from_to(Caller, Other) of
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
         {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
             case mongoose_domain_api:get_domain_host_type(LServer) of
                 {ok, HostType} ->
@@ -395,7 +382,7 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
     end.
 
 delete_contact(Caller, Other) ->
-    case parse_from_to(Caller, Other) of
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
         {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
             case mongoose_domain_api:get_domain_host_type(LServer) of
                 {ok, HostType} ->
@@ -471,23 +458,12 @@ row_to_map(#{id := Id, jid := From, packet := Msg}) ->
     #{sender => Jbin, timestamp => round(Msec / 1000000), message_id => MsgId,
       body => Body}.
 
--spec build_message(From :: binary(), To :: binary(), Body :: binary()) -> exml:element().
-build_message(From, To, Body) ->
-    #xmlel{name = <<"message">>,
-           attrs = [{<<"type">>, <<"chat">>},
-                    {<<"id">>, mongoose_bin:gen_from_crypto()},
-                    {<<"from">>, From},
-                    {<<"to">>, To}],
-           children = [#xmlel{name = <<"body">>,
-                              children = [#xmlcdata{content = Body}]}]
-          }.
-
 subscription(Caller, Other, Action) ->
     case decode_action(Action) of
         error ->
             {error, bad_request, <<"invalid action">>};
         Act ->
-            case parse_from_to(Caller, Other) of
+            case mongoose_stanza_helper:parse_from_to(Caller, Other) of
                 {ok, CallerJid, OtherJid} ->
                     run_subscription(Act, CallerJid, OtherJid);
                 E ->
@@ -518,7 +494,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
 
 
 set_subscription(Caller, Other, Action) ->
-    case parse_from_to(Caller, Other) of
+    case mongoose_stanza_helper:parse_from_to(Caller, Other) of
         {ok, CallerJid, OtherJid} ->
             case Action of
                 A when A == <<"connect">>; A == <<"disconnect">> ->
@@ -542,20 +518,3 @@ do_set_subscription(Caller, Other, <<"disconnect">>) ->
     delete_contact(Caller, Other),
     delete_contact(Other, Caller),
     ok.
-
--spec parse_jid_list(BinJids :: [binary()]) -> {ok, [jid:jid()]} | {error, type_error, string()}.
-parse_jid_list([_ | _] = BinJids) ->
-    Jids = lists:map(fun parse_jid/1, BinJids),
-    case [Msg || {error, Msg} <- Jids] of
-        [] -> {ok, Jids};
-        Errors -> {error, type_error, lists:join("; ", Errors)}
-    end.
-
--spec parse_jid(binary() | jid:jid()) -> jid:jid() | {error, string()}.
-parse_jid(#jid{} = Jid) ->
-    Jid;
-parse_jid(Jid) when is_binary(Jid) ->
-    case jid:from_binary(Jid) of
-        error -> {error, io_lib:format("Invalid jid: ~p", [Jid])};
-        B -> B
-    end.
