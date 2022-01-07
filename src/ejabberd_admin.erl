@@ -363,29 +363,25 @@ registered_users(Host) ->
                                              {null_password, jid:user()} |
                                              {bad_csv, binary()}].
 import_users(File) ->
-    FileStream = stdio:file(File),
-    CsvStream = csv:stream(FileStream),
+    {ok, CsvStream} = erl_csv:decode_new_s(File),
     Workers = spawn_link_workers(),
     WorkersQueue = queue:from_list(Workers),
     do_import(CsvStream, WorkersQueue).
 
--spec do_import(CsvStream :: stdio:stream(), Workers :: queue:queue()) ->
+-spec do_import(erl_csv:csv_stream(), Workers :: queue:queue()) ->
     [{ok, jid:user()} |
      {exists, jid:user()} |
      {not_allowed, jid:user()} |
      {invalid_jid, jid:user()} |
      {null_password, jid:user()} |
      {bad_csv, binary()}].
-do_import({}, WorkersQueue) ->
-    Workers = queue:to_list(WorkersQueue),
+do_import(stream_end, WQueue) ->
+    Workers = queue:to_list(WQueue),
     lists:flatmap(fun get_results_from_registrator/1, Workers);
-
-
-do_import({s, UserData, TailFun}, WorkersQueue) ->
-    {{value, Worker}, Q1} = queue:out(WorkersQueue),
-    send_job_to_registrator(Worker, UserData),
-    Q2 = queue:in(Worker, Q1),
-    do_import(TailFun(), Q2).
+do_import(Stream, WQueue) ->
+    {ok, Decoded, MoreStream} = erl_csv:decode_s(Stream),
+    WQueue1 = send_job_to_next_worker(Decoded, WQueue),
+    do_import(MoreStream, WQueue1).
 
 -spec spawn_link_workers() -> [pid()].
 spawn_link_workers() ->
@@ -405,8 +401,12 @@ get_results_from_registrator(Pid) ->
         {result, Result} -> Result
     end.
 
-send_job_to_registrator(Pid, Data) ->
-    Pid ! {proccess, Data}.
+send_job_to_next_worker([], WQueue) ->
+    WQueue;
+send_job_to_next_worker([Record], WQueue) ->
+    {{value, Worker}, Q1} = queue:out(WQueue),
+    Worker ! {proccess, Record},
+    queue:in(Worker, Q1).
 
 -spec registrator_proc(Manager :: pid()) -> ok.
 registrator_proc(Manager) ->
