@@ -49,7 +49,7 @@ pool_name(HostType, PoolId) ->
 sync(HostType, PoolId) ->
     Pids = get_workers(HostType, PoolId),
     Context = #{what => sync_failed, host_type => HostType, pool_id => PoolId},
-    F = fun(Pid) -> 
+    F = fun(Pid) ->
                 safely:apply_and_log(gen_server, call, [Pid, sync], Context)
         end,
     Results = mongoose_lib:pmap(F, Pids),
@@ -62,14 +62,10 @@ check_result({ok, ok}) -> ok;
 check_result({ok, skipped}) -> ok;
 check_result(Other) -> ?LOG_ERROR(#{what => sync_failed, reason => Other}).
 
--spec get_workers(mongooseim:host_type(), pool_id()) -> [pid()].
+-spec get_workers(mongooseim:host_type(), pool_id()) -> [atom()].
 get_workers(HostType, PoolId) ->
     Pool = pool_name(HostType, PoolId),
-    %% TODO Use new worker_pool library.
-    %%      Don't forget to change the fun spec to atoms
-%   wpool:get_workers(Pool),
-    [Sup] = [Pid || {_Name, Pid, supervisor, _Mods} <- supervisor:which_children(Pool)],
-    [Pid || {_Name, Pid, worker, _Mods} <- supervisor:which_children(Sup)].
+    wpool:get_workers(Pool).
 
 %%% Supervisor callbacks
 -spec start_link(mongooseim:host_type(), pool_id(), pool_opts()) ->
