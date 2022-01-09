@@ -1334,7 +1334,7 @@ filter_room_packet(HostType, Packet, EventData) ->
     Room :: jid:luser(),
     Result :: any().
 forget_room(HostType, MucHost, Room) ->
-    run_hook_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
+    run_hook_for_host_type(forget_room, HostType, #{}, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),
