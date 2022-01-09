@@ -34,7 +34,7 @@
          delete_room/1]).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0, deps/2]).
 
 %% config processing callback
 -export([process_config_schema/1]).
@@ -187,6 +187,15 @@ stop(HostType) ->
     mod_muc_light_db_backend:stop(HostType),
     ok.
 
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod:deps_list().
+deps(_HostType, Opts) ->
+    case gen_mod:get_opt(cache_affs, Opts, undefined) of
+        undefined ->
+            [];
+        CacheOpts ->
+            [{mod_muc_light_cache, CacheOpts, hard}]
+    end.
+
 %% Init helpers
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
@@ -208,6 +217,7 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
+                 <<"cache_affs">> => mongoose_user_cache:config_spec(),
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -519,7 +529,7 @@ get_room_affiliations_from_acc(Acc) ->
 -spec get_room_affiliations_from_acc(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
 get_room_affiliations_from_acc(Acc1, RoomJid) ->
-    Acc2 = acc_room_affiliations(Acc1, RoomJid),
+    Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, RoomJid),
     {Acc2, mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc2)}.
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
