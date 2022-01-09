@@ -910,7 +910,7 @@ can_access_room(HostType, Acc, Room, User) ->
       Room :: jid:jid(),
       NewAcc :: mongoose_acc:t().
 acc_room_affiliations(Acc, Room) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
 
 %% MAM related hooks
