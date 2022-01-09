@@ -85,7 +85,8 @@
 -export([is_muc_room_owner/4,
          can_access_identity/3,
          can_access_room/4,
-         acc_room_affiliations/2]).
+         acc_room_affiliations/2,
+         room_new_affiliations/4]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -912,6 +913,16 @@ can_access_room(HostType, Acc, Room, User) ->
 acc_room_affiliations(Acc, Room) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
+
+-spec room_new_affiliations(Acc, Room, NewAffs, Version) -> NewAcc when
+      Acc :: mongoose_acc:t(),
+      Room :: jid:jid(),
+      NewAffs :: mod_muc_light:aff_users(),
+      Version :: binary(),
+      NewAcc :: mongoose_acc:t().
+room_new_affiliations(Acc, Room, NewAffs, Version) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    run_hook_for_host_type(room_new_affiliations, HostType, Acc, [Room, NewAffs, Version]).
 
 %% MAM related hooks
 

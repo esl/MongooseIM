@@ -388,7 +388,7 @@ remove_user(Acc, User, Server) ->
             Acc;
         AffectedRooms ->
             bcast_removed_user(Acc, UserJid, AffectedRooms, Version),
-            maybe_forget_rooms(Acc, AffectedRooms),
+            maybe_forget_rooms(Acc, AffectedRooms, Version),
             Acc
     end.
 
@@ -789,12 +789,13 @@ bcast_removed_user(Acc, UserJID, [{{RoomU, RoomS} = _RoomUS, Error} | RAffected]
     bcast_removed_user(Acc, UserJID, RAffected, Version, ID).
 
 -spec maybe_forget_rooms(Acc :: mongoose_acc:t(),
-                         AffectedRooms :: mod_muc_light_db_backend:remove_user_return()) -> ok.
-maybe_forget_rooms(_Acc, []) ->
+                         AffectedRooms :: mod_muc_light_db_backend:remove_user_return(),
+                         Version :: binary()) -> ok.
+maybe_forget_rooms(_Acc, [], _) ->
     ok;
-maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
-    mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers),
-    maybe_forget_rooms(Acc, RAffectedRooms).
+maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms], Version) ->
+    mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers, Version),
+    maybe_forget_rooms(Acc, RAffectedRooms, Version).
 
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
