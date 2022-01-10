@@ -64,6 +64,7 @@ groups() ->
       [
        user_has_empty_inbox,
        msg_sent_stored_in_inbox,
+       msg_sent_stored_in_inbox_iq_id_as_queryid_fallback,
        msg_sent_stored_in_inbox_queryid,
        msg_with_no_store_is_not_stored_in_inbox,
        msg_with_store_hint_is_always_stored,
@@ -343,21 +344,21 @@ user_has_empty_inbox(Config) ->
       end).
 
 msg_sent_stored_in_inbox(Config) ->
-  test_msg_stored_in_inbox(Config, undefined).
+    test_msg_stored_in_inbox(Config, undefined).
+
+msg_sent_stored_in_inbox_iq_id_as_queryid_fallback(Config) ->
+    test_msg_stored_in_inbox(Config, iq_id).
 
 msg_sent_stored_in_inbox_queryid(Config) ->
-  test_msg_stored_in_inbox(Config, queryid).
+    test_msg_stored_in_inbox(Config, queryid).
 
 test_msg_stored_in_inbox(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         #{ Alice := AliceConvs, Bob := BobConvs } = given_conversations_between(Alice, [Bob]),
         %% Both check inbox
-        check_inbox(Alice, AliceConvs, maybe_make_queryid(QueryId)),
-        check_inbox(Bob, BobConvs, maybe_make_queryid(QueryId))
+        check_inbox(Alice, AliceConvs, inbox_helper:maybe_make_queryid(QueryId)),
+        check_inbox(Bob, BobConvs, inbox_helper:maybe_make_queryid(QueryId))
       end).
-
-maybe_make_queryid(undefined) -> #{iq_id => base16:encode(crypto:strong_rand_bytes(16))};
-maybe_make_queryid(queryid) -> #{queryid => base16:encode(crypto:strong_rand_bytes(16))}.
 
 msg_with_no_store_is_not_stored_in_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
