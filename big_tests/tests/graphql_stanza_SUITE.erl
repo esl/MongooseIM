@@ -23,6 +23,7 @@ admin_stanza_category() ->
      send_message_to_unparsable_jid,
      send_message_headline,
      send_stanza,
+     send_unparsable_stanza,
      get_last_messages,
      get_last_messages_with,
      get_last_messages_limit,
@@ -128,6 +129,22 @@ send_stanza_story(Config, Alice, Bob) ->
     Res = ok_result(<<"stanza">>, <<"sendStanza">>, execute_send_stanza(Vars, Config)),
     #{<<"id">> := MamID} = Res,
     assert_not_empty(MamID).
+
+send_unparsable_stanza(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun send_unparsable_stanza_story/3).
+
+send_unparsable_stanza_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
+    Vars = #{stanza => <<"<test">>},
+    Res = execute_send_stanza(Vars, Config),
+    {{<<"400">>, <<"Bad Request">>}, #{<<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"input_coercion">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual(<<"Input coercion failed for type Stanza with value <<\"<test\">>. "
+                   "The reason it failed is: \"expected >\"">>, ErrMsg),
+    ?assertEqual([<<"M1">>, <<"stanza">>], ErrPath).
 
 get_last_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
