@@ -13,6 +13,14 @@ execute(_Ctx, _Obj, <<"getLastMessages">>, Opts) ->
 get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before})
         when is_integer(Limit) ->
+    case mongoose_graphql_helper:check_user(Caller) of
+        {ok, _HostType} ->
+            get_last_messages2(Caller, Limit, With, Before);
+        Error ->
+            Error
+    end.
+
+get_last_messages2(Caller, Limit, With, Before) ->
     With2 = null_as_undefined(With),
     BeforeSeconds = maybe_datetime_to_seconds(Before),
     Limit2 = min(500, Limit),

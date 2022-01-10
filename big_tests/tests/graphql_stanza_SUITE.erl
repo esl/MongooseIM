@@ -27,6 +27,7 @@ admin_stanza_category() ->
      send_stanza_from_non_existing_user,
      send_stanza_from_unknown_domain,
      get_last_messages,
+     get_last_messages_for_unknown_user,
      get_last_messages_with,
      get_last_messages_limit,
      get_last_messages_limit_enforced,
@@ -198,6 +199,19 @@ get_last_messages_story(Config, Alice, Bob) ->
                      execute_get_last_messages(Vars2, Config)),
     #{<<"stanzas">> := [M2], <<"limit">> := 50} = Res2,
     check_stanza_map(M2, Alice).
+
+get_last_messages_for_unknown_user(Config) ->
+    Domain = domain_helper:domain(),
+    Vars = #{caller => <<"maybemaybebutnot@", Domain/binary>>},
+    Res = execute_get_last_messages(Vars, Config),
+    {{<<"200">>, <<"OK">>},
+     #{<<"data">> := #{<<"stanza">> := #{<<"getLastMessages">> := null}},
+       <<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual([<<"stanza">>, <<"getLastMessages">>], ErrPath),
+    ?assertEqual(<<"#{jid => <<\"maybemaybebutnot@", Domain/binary, "\">>,"
+                     "what => non_existing_user}">>, ErrMsg).
 
 get_last_messages_with(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],

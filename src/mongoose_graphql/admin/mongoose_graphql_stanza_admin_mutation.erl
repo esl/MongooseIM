@@ -29,19 +29,11 @@ send_stanza(Opts = #{<<"stanza">> := Packet}) ->
     do_routing(From, To, Packet).
 
 do_routing(From = #jid{lserver = LServer}, To, Packet) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
+    case mongoose_graphql_helper:check_user(From) of
         {ok, HostType} ->
-            do_routing(HostType, LServer, From, To, Packet);
-        _ ->
-            {error, #{what => unknown_domain, domain => LServer}}
-    end.
-
-do_routing(HostType, LServer, From, To, Packet) ->
-   case ejabberd_auth:does_user_exist(HostType, From, stored) of
-       true ->
-           do_routing2(HostType, LServer, From, To, Packet);
-       false ->
-            {error, #{what => non_existing_user, jid => jid:to_binary(From)}}
+            do_routing2(HostType, LServer, From, To, Packet);
+        Error ->
+            Error
     end.
 
 do_routing2(HostType, LServer, From, To, Packet) ->
