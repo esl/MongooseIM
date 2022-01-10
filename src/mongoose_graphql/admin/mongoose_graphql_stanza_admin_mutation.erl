@@ -37,6 +37,14 @@ do_routing(From = #jid{lserver = LServer}, To, Packet) ->
     end.
 
 do_routing(HostType, LServer, From, To, Packet) ->
+   case ejabberd_auth:does_user_exist(HostType, From, stored) of
+       true ->
+           do_routing2(HostType, LServer, From, To, Packet);
+       false ->
+            {error, #{what => non_existing_user, jid => jid:to_binary(From)}}
+    end.
+
+do_routing2(HostType, LServer, From, To, Packet) ->
     %% Based on mod_commands:do_send_packet/3
     Acc = mongoose_acc:new(#{location => ?LOCATION,
                               host_type => HostType,

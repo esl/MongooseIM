@@ -24,6 +24,8 @@ admin_stanza_category() ->
      send_message_headline,
      send_stanza,
      send_unparsable_stanza,
+     send_stanza_from_non_existing_user,
+     send_stanza_from_unknown_domain,
      get_last_messages,
      get_last_messages_with,
      get_last_messages_limit,
@@ -131,12 +133,6 @@ send_stanza_story(Config, Alice, Bob) ->
     assert_not_empty(MamID).
 
 send_unparsable_stanza(Config) ->
-    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
-                                    fun send_unparsable_stanza_story/3).
-
-send_unparsable_stanza_story(Config, Alice, Bob) ->
-    Body = <<"Hi!">>,
-    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
     Vars = #{stanza => <<"<test">>},
     Res = execute_send_stanza(Vars, Config),
     {{<<"400">>, <<"Bad Request">>}, #{<<"errors">> := Errors}} = Res,
@@ -145,6 +141,44 @@ send_unparsable_stanza_story(Config, Alice, Bob) ->
     ?assertEqual(<<"Input coercion failed for type Stanza with value <<\"<test\">>. "
                    "The reason it failed is: \"expected >\"">>, ErrMsg),
     ?assertEqual([<<"M1">>, <<"stanza">>], ErrPath).
+
+send_stanza_from_non_existing_user(Config) ->
+    escalus:fresh_story_with_config(Config, [{bob, 1}],
+                                    fun send_stanza_from_non_existing_user_story/2).
+
+send_stanza_from_non_existing_user_story(Config, Bob) ->
+    Body = <<"Hi!">>,
+    Server = escalus_client:server(Bob),
+    From = <<"YeeeAH@", Server/binary>>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
+    Vars = #{stanza => exml:to_binary(Stanza)},
+    Res = execute_send_stanza(Vars, Config),
+    {{<<"200">>,<<"OK">>},
+         #{<<"data">> := #{<<"stanza">> := #{<<"sendStanza">> := null}},
+           <<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual(<<"#{jid => <<\"YeeeAH@", Server/binary,
+                   "\">>,what => non_existing_user}">>, ErrMsg),
+    ?assertEqual([<<"stanza">>, <<"sendStanza">>], ErrPath).
+
+send_stanza_from_unknown_domain(Config) ->
+    escalus:fresh_story_with_config(Config, [{bob, 1}],
+                                    fun send_stanza_from_unknown_domain_story/2).
+
+send_stanza_from_unknown_domain_story(Config, Bob) ->
+    Body = <<"Hi!">>,
+    From = <<"YeeeAH@oopsie">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), From),
+    Vars = #{stanza => exml:to_binary(Stanza)},
+    Res = execute_send_stanza(Vars, Config),
+    {{<<"200">>, <<"OK">>},
+     #{<<"data">> := #{<<"stanza">> := #{<<"sendStanza">> := null}},
+       <<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual([<<"stanza">>, <<"sendStanza">>], ErrPath),
+    ?assertEqual(<<"#{domain => <<\"oopsie\">>,what => unknown_domain}">>, ErrMsg).
 
 get_last_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
