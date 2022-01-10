@@ -104,6 +104,8 @@ remove_domain(Acc, HostType, Domain) ->
     mongoose_acc:t().
 room_new_affiliations(Acc, RoomJid, NewAffs, NewVersion) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    % make sure other nodes forget about stale values
+    mongoose_user_cache:delete_user(HostType, ?MODULE, RoomJid),
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{affs => {ok, NewAffs, NewVersion}}),
     Acc.
 
@@ -112,7 +114,15 @@ room_new_affiliations(Acc, RoomJid, NewAffs, NewVersion) ->
 %%====================================================================
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    mongoose_user_cache:start_new_cache(HostType, ?MODULE, Opts).
+    FinalOpts = maps:to_list(maps:merge(defaults(), maps:from_list(Opts))),
+    mongoose_user_cache:start_new_cache(HostType, ?MODULE, FinalOpts).
+
+defaults() ->
+    #{module => internal,
+      strategy => fifo,
+      time_to_live => 2,
+      number_of_segments => 3
+     }.
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->
