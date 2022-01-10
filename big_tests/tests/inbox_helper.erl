@@ -36,7 +36,9 @@
          assert_invalid_reset_inbox/4,
          assert_message_content/3,
          assert_invalid_form/4,
-         check_result/2
+         check_result/2,
+         maybe_make_queryid/1,
+         maybe_check_queryid/2
         ]).
 % 1-1 helpers
 -export([
@@ -266,6 +268,13 @@ check_result(Packet, ExpectedResult) ->
                         V == get_result_el(Packet, key_to_binary(K))
                 end,
                 ExpectedResult).
+
+maybe_make_queryid(iq_id) ->
+    #{iq_id => base16:encode(crypto:strong_rand_bytes(16))};
+maybe_make_queryid(queryid) ->
+    #{queryid => base16:encode(crypto:strong_rand_bytes(16))};
+maybe_make_queryid(undefined) ->
+    #{}.
 
 timestamp_from_item(Item) ->
     ISOTStamp = exml_query:path(Item, [{element, <<"result">>}, {element, <<"forwarded">>},
