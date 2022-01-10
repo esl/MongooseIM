@@ -14,6 +14,9 @@
               pre_room_exists/3, post_room_exists/3,
               forget_room/4, remove_domain/3, room_new_affiliations/4]).
 
+%% For tests
+-export([force_clear/1]).
+
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     start_cache(HostType, Opts),
@@ -108,6 +111,12 @@ room_new_affiliations(Acc, RoomJid, NewAffs, NewVersion) ->
     mongoose_user_cache:delete_user(HostType, ?MODULE, RoomJid),
     mongoose_user_cache:merge_entry(HostType, ?MODULE, RoomJid, #{affs => {ok, NewAffs, NewVersion}}),
     Acc.
+
+-spec force_clear(mongooseim:host_type()) -> ok.
+force_clear(HostType) ->
+    CacheName = gen_mod:get_module_proc(HostType, ?MODULE),
+    segmented_cache:delete_pattern(CacheName, {'_', '_'}),
+    ok.
 
 %%====================================================================
 %% internal
