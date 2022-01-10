@@ -20,6 +20,7 @@ groups() ->
 
 admin_stanza_category() ->
     [send_message,
+     send_message_to_unparsable_jid,
      send_message_headline,
      send_stanza,
      get_last_messages,
@@ -81,6 +82,24 @@ send_message_story(Config, Alice, Bob) ->
                     execute_send_message(Vars, Config)),
     #{<<"id">> := MamID} = Res,
     assert_not_empty(MamID).
+
+send_message_to_unparsable_jid(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun send_message_to_unparsable_jid_story/2).
+
+send_message_to_unparsable_jid_story(Config, Alice) ->
+    Body = <<"Hi!">>,
+    Vars = #{from => escalus_client:full_jid(Alice),
+             to => <<"test@">>,
+             body => Body},
+    Res = execute_send_message(Vars, Config),
+    {{<<"400">>, <<"Bad Request">>}, #{<<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"input_coercion">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual([<<"M1">>, <<"to">>], ErrPath),
+    ?assertEqual(<<"Input coercion failed for type JID with value "
+                   "<<\"test@\">>. The reason it failed is: failed_to_parse_jid">>,
+                 ErrMsg).
 
 send_message_headline(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
