@@ -67,12 +67,12 @@ get_properties_for_jid(Acc, IQ, From, EntryJID) ->
 -spec process_iq_conversation_set(mongoose_acc:t(), jlib:iq(), jid:jid(), exml:element()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_iq_conversation_set(
-  Acc, IQ, From, #xmlel{name = <<"query">>, children = Requests} = Query) ->
+  Acc, #iq{id = IqId} = IQ, From, #xmlel{name = <<"query">>, children = Requests} = Query) ->
     case mod_inbox_utils:extract_attr_jid(Query) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         EntryJID ->
-            extract_requests(Acc, IQ, From, EntryJID, Requests, exml_query:attr(Query, <<"queryid">>))
+            extract_requests(Acc, IQ, From, EntryJID, Requests, exml_query:attr(Query, <<"queryid">>, IqId))
     end.
 
 -spec extract_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), [exml:element()], binary() | undefined) ->
