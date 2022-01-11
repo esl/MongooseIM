@@ -16,5 +16,5 @@ check_auth(HostType, Jid) ->
        true ->
            {ok, HostType};
        false ->
-            {error, #{what => non_existing_user, jid => jid:to_binary(Jid)}}
+            {error, #{what => unknown_user, jid => jid:to_binary(Jid)}}
     end.

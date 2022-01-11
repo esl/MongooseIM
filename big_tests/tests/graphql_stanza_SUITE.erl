@@ -24,7 +24,7 @@ admin_stanza_category() ->
      send_message_headline,
      send_stanza,
      send_unparsable_stanza,
-     send_stanza_from_non_existing_user,
+     send_stanza_from_unknown_user,
      send_stanza_from_unknown_domain,
      get_last_messages,
      get_last_messages_for_unknown_user,
@@ -143,11 +143,11 @@ send_unparsable_stanza(Config) ->
                    "The reason it failed is: \"expected >\"">>, ErrMsg),
     ?assertEqual([<<"M1">>, <<"stanza">>], ErrPath).
 
-send_stanza_from_non_existing_user(Config) ->
+send_stanza_from_unknown_user(Config) ->
     escalus:fresh_story_with_config(Config, [{bob, 1}],
-                                    fun send_stanza_from_non_existing_user_story/2).
+                                    fun send_stanza_from_unknown_user_story/2).
 
-send_stanza_from_non_existing_user_story(Config, Bob) ->
+send_stanza_from_unknown_user_story(Config, Bob) ->
     Body = <<"Hi!">>,
     Server = escalus_client:server(Bob),
     From = <<"YeeeAH@", Server/binary>>,
@@ -157,10 +157,10 @@ send_stanza_from_non_existing_user_story(Config, Bob) ->
     {{<<"200">>,<<"OK">>},
          #{<<"data">> := #{<<"stanza">> := #{<<"sendStanza">> := null}},
            <<"errors">> := Errors}} = Res,
-    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+    [#{<<"extensions">> := #{<<"code">> := <<"unknown_user">>,
+                             <<"jid">> := From},
        <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
-    ?assertEqual(<<"#{jid => <<\"YeeeAH@", Server/binary,
-                   "\">>,what => non_existing_user}">>, ErrMsg),
+    ?assertEqual(<<"Given user does not exist">>, ErrMsg),
     ?assertEqual([<<"stanza">>, <<"sendStanza">>], ErrPath).
 
 send_stanza_from_unknown_domain(Config) ->
@@ -176,10 +176,11 @@ send_stanza_from_unknown_domain_story(Config, Bob) ->
     {{<<"200">>, <<"OK">>},
      #{<<"data">> := #{<<"stanza">> := #{<<"sendStanza">> := null}},
        <<"errors">> := Errors}} = Res,
-    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+    [#{<<"extensions">> := #{<<"code">> := <<"unknown_domain">>,
+                             <<"domain">> := <<"oopsie">>},
        <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
     ?assertEqual([<<"stanza">>, <<"sendStanza">>], ErrPath),
-    ?assertEqual(<<"#{domain => <<\"oopsie\">>,what => unknown_domain}">>, ErrMsg).
+    ?assertEqual(<<"Given domain does not exist">>, ErrMsg).
 
 get_last_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -202,16 +203,17 @@ get_last_messages_story(Config, Alice, Bob) ->
 
 get_last_messages_for_unknown_user(Config) ->
     Domain = domain_helper:domain(),
-    Vars = #{caller => <<"maybemaybebutnot@", Domain/binary>>},
+    Jid = <<"maybemaybebutnot@", Domain/binary>>,
+    Vars = #{caller => Jid},
     Res = execute_get_last_messages(Vars, Config),
     {{<<"200">>, <<"OK">>},
      #{<<"data">> := #{<<"stanza">> := #{<<"getLastMessages">> := null}},
        <<"errors">> := Errors}} = Res,
-    [#{<<"extensions">> := #{<<"code">> := <<"resolver_error">>},
+    [#{<<"extensions">> := #{<<"code">> := <<"unknown_user">>,
+                             <<"jid">> := Jid},
        <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
     ?assertEqual([<<"stanza">>, <<"getLastMessages">>], ErrPath),
-    ?assertEqual(<<"#{jid => <<\"maybemaybebutnot@", Domain/binary, "\">>,"
-                     "what => non_existing_user}">>, ErrMsg).
+    ?assertEqual(<<"Given user does not exist">>, ErrMsg).
 
 get_last_messages_with(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],

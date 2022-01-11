@@ -12,6 +12,10 @@
 
 %% callback invoked when resolver returns error tuple
 -spec err(map(), term()) -> err_msg().
+err(_Ctx, #{jid := Jid, what := unknown_user}) when is_binary(Jid) ->
+    #{message => <<"Given user does not exist">>, extensions => #{code => unknown_user, jid => Jid}};
+err(_Ctx, #{domain := Domain, what := unknown_domain}) when is_binary(Domain) ->
+    #{message => <<"Given domain does not exist">>, extensions => #{code => unknown_domain, domain => Domain}};
 err(_Ctx, domain_not_found) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => resolver_error}};
 err(_Ctx, ErrorTerm) ->
