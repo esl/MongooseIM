@@ -45,26 +45,26 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(PortIPProto :: ejabberd_listener:port_ip_proto(),
+-spec start_link(Id :: mongoose_listener_config:listener_id(),
                  Module :: atom(),
                  Opts :: [any(), ...],
                  SockOpts :: [gen_tcp:listen_option()],
                  Port :: inet:port_number(),
                  IPS :: [any()]) -> any().
-start_link(PortIP, Module, Opts, SockOpts, Port, IPS) ->
-    supervisor:start_link(?MODULE, {PortIP, Module, Opts, SockOpts, Port, IPS}).
+start_link(Id, Module, Opts, SockOpts, Port, IPS) ->
+    supervisor:start_link(?MODULE, {Id, Module, Opts, SockOpts, Port, IPS}).
 
--spec init({PortIPProto :: ejabberd_listener:port_ip_proto(),
+-spec init({Id :: mongoose_listener_config:listener_id(),
             Module :: atom(),
             Opts :: [any(), ...],
             SockOpts :: [gen_tcp:listen_option()],
             Port :: inet:port_number(),
             IPS :: [any()]}) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-init({PortIP, Module, Opts, SockOpts, Port, IPS}) ->
+init({Id, Module, Opts, SockOpts, Port, IPS}) ->
     try
         AcceptorsNum = proplists:get_value(acceptors_num, Opts, 100),
-        ListenSocket = listen_tcp(PortIP, Module, SockOpts, Port, IPS),
-        Children = [make_childspec({PortIP, I}, ListenSocket, Module, Opts)
+        ListenSocket = listen_tcp(Id, Module, SockOpts, Port, IPS),
+        Children = [make_childspec({Id, I}, ListenSocket, Module, Opts)
                     || I <- lists:seq(1, AcceptorsNum)],
         {ok, {#{strategy => one_for_one, intensity => 100, period => 1}, Children}}
     catch
@@ -143,12 +143,12 @@ make_childspec(Id, ListenSock, Module, Opts) ->
       type => worker,
       modules => [?MODULE]}.
 
--spec listen_tcp(PortIPPRoto :: ejabberd_listener:port_ip_proto(),
+-spec listen_tcp(Id :: mongoose_listener_config:listener_id(),
                  Module :: atom(),
                  SockOpts :: [gen_tcp:listen_option()],
                  Port :: inet:port_number(),
                  IPS :: [any()]) -> port().
-listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
+listen_tcp(Id, Module, SockOpts, Port, IPS) ->
     DefaultSockOpts = [binary,
                        {backlog, 100},
                        {packet, 0},
@@ -164,7 +164,7 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
         {ok, ListenSocket} ->
             ListenSocket;
         {error, Reason} ->
-            ejabberd_listener:socket_error(Reason, PortIPProto, Module, SockOpts, Port, IPS)
+            ejabberd_listener:socket_error(Reason, Id, Module, SockOpts, Port, IPS)
     end.
 
 %% Process exit and socket release are not transactional
