@@ -86,7 +86,8 @@
          can_access_identity/3,
          can_access_room/4,
          acc_room_affiliations/2,
-         room_new_affiliations/4]).
+         room_new_affiliations/4,
+         room_exists/2]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -913,6 +914,13 @@ can_access_room(HostType, Acc, Room, User) ->
 acc_room_affiliations(Acc, Room) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
+
+-spec room_exists(HostType, Room) -> Result when
+      HostType :: mongooseim:host_type(),
+      Room :: jid:jid(),
+      Result :: boolean().
+room_exists(HostType, Room) ->
+    run_hook_for_host_type(room_exists, HostType, false, [HostType, Room]).
 
 -spec room_new_affiliations(Acc, Room, NewAffs, Version) -> NewAcc when
       Acc :: mongoose_acc:t(),

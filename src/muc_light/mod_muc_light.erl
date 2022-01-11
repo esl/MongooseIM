@@ -53,6 +53,7 @@
          is_muc_room_owner/4,
          can_access_room/4,
          acc_room_affiliations/2,
+         room_exists/3,
          can_access_identity/4]).
 -export([get_room_affiliations_from_acc/1]).
 
@@ -69,7 +70,7 @@
 
 -ignore_xref([
     add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
-    default_schema/0, disco_local_items/1, acc_room_affiliations/2,
+    default_schema/0, disco_local_items/1, acc_room_affiliations/2, room_exists/3,
     force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
     process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
     server_host_to_muc_host/2
@@ -260,6 +261,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
      {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
+     {room_exists, HostType, ?MODULE, room_exists, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
       %% Prevent sending service-unavailable on groupchat messages
      {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
@@ -329,7 +331,7 @@ process_decoded_packet(_HostType, From, To, Acc, El,
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, RequestToRoom})
   when To#jid.luser =/= <<>> ->
-    case mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(To)) of
+    case mongoose_hooks:room_exists(HostType, To) of
         true -> mod_muc_light_room:handle_request(From, To, El, RequestToRoom, Acc);
         false -> make_err(From, To, El, Acc, {error, item_not_found})
     end;
@@ -504,6 +506,10 @@ acc_room_affiliations(Acc1, Room) ->
         _Affs ->
             Acc1
     end.
+
+-spec room_exists(boolean(), mongooseim:host_type(), jid:jid()) -> boolean().
+room_exists(_, HostType, RoomJid) ->
+    mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid)).
 
 -spec get_room_affiliations_from_acc(mongoose_acc:t()) ->
     {ok, aff_users(), binary()} | {error, not_exists}.
