@@ -32,32 +32,24 @@ end_per_testcase(_Case, Config) ->
     Config.
 
 init_per_suite(C) ->
-   C.
+    C.
 
 end_per_suite(_C) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]).
 
 tcp_socket_is_started_with_default_backlog(_C) ->
-   {ok, _Pid} = listener_started([]),
-
-   [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
-
+    {ok, _Pid} = listener_started(#{}),
+    [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
     100 = proplists:get_value(backlog, Opts).
 
-
 tcp_socket_is_started_with_options(_C) ->
-
-    OverrideBacklog = {backlog, 50},
-    {ok, _Pid} = listener_started([OverrideBacklog]),
-
+    {ok, _Pid} = listener_started(#{backlog => 50}),
     [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
-
     50 = proplists:get_value(backlog, Opts).
 
 tcp_socket_has_connection_details(_C) ->
-    {ok, _Pid} = listener_started([]),
-
+    {ok, _Pid} = listener_started(#{}),
     {Port, _, _} = tcp_port_ip(),
 
     meck:new(ejabberd_socket),
@@ -85,8 +77,7 @@ tcp_socket_has_connection_details(_C) ->
     end.
 
 tcp_socket_supports_proxy_protocol(_C) ->
-    ProxyProtocol = {proxy_protocol, true},
-    {ok, _Pid} = listener_started([ProxyProtocol]),
+    {ok, _Pid} = listener_started(#{proxy_protocol => true}),
 
     CommonProxyInfo = #{src_address => {1, 2, 3, 4},
                         src_port => 444,
@@ -119,28 +110,36 @@ tcp_socket_supports_proxy_protocol(_C) ->
     end.
 
 udp_socket_is_started_with_defaults(_C) ->
-    {ok, _Pid} = receiver_started([]),
+    {ok, _Pid} = receiver_started(#{}),
 
     [{_Pid, {gen_udp, open, [_, Opts]}, _Result}] =  meck:history(gen_udp),
 
     {0,0,0,0} = proplists:get_value(ip, Opts).
 
-listener_started(RawOpts) ->
-    {tcp, Opts, SockOpts, Port, IPS} =
-        ejabberd_listener:opts_to_listener_args(tcp_port_ip(), [{acceptors_num, 5} | RawOpts]),
-    mongoose_tcp_listener:start_link(tcp_port_ip(), ?MODULE, Opts, SockOpts, Port, IPS).
+listener_started(Opts) ->
+    mim_ct_sup:start_link(ejabberd_sup),
+    ejabberd_listener:start_link(),
+    ejabberd_listener:start_listener(maps:merge(listener_opts(tcp), Opts)).
 
-receiver_started(RawOpts) ->
+receiver_started(Opts) ->
+    mim_ct_sup:start_link(ejabberd_sup),
+    ejabberd_listener:start_link(),
     ets:new(listen_sockets, [named_table, public]),
-    {udp, Opts, SockOpts, Port, IPS} =
-        ejabberd_listener:opts_to_listener_args(udp_port_ip(), RawOpts),
-    mongoose_udp_listener:start_link(udp_port_ip(), ?MODULE, Opts, SockOpts, Port, IPS).
+    ejabberd_listener:start_listener(maps:merge(listener_opts(udp), Opts)).
 
 udp_port_ip() ->
     {1805, {0,0,0,0}, udp}.
 
 tcp_port_ip() ->
     {1805, {0,0,0,0}, tcp}.
+
+listener_opts(Proto) ->
+    #{module => ?MODULE,
+      ip_address => "0",
+      ip_tuple => {0, 0, 0, 0},
+      ip_version => 4,
+      port => 1805,
+      proto => Proto}.
 
 tcp_start_stop_reload(C) ->
     %% start server
@@ -193,11 +192,5 @@ assert_connected(Sock, Port) ->
             ct:fail("Failed: connection to ~p is broken, error was: ~p", [Port, Else])
     end.
 
-%%assert_disconnected(Sock, Port) ->
-%%    case gen_tcp:recv(Sock, 0, 500) of
-%%        {error, timeout} ->
-%%            ct:fail("Failed: connection to ~p is still open", [Port]),
-%%            ok;
-%%        _ ->
-%%            ok
-%%    end.
+socket_type() ->
+    xml_stream.
