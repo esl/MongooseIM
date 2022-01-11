@@ -249,20 +249,14 @@ get_port(_Role, _Node, #{port := Port}) ->
     Port;
 get_port(Role, Node, _Params) ->
     Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
-    [{PortIpNet, ejabberd_cowboy, _Opts}] =
-        lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
-    case PortIpNet of
-        {Port, _Host, _Net} -> Port;
-        {Port, _Host} -> Port;
-        Port -> Port
-    end.
+    [#{port := Port}] = lists:filter(fun(Config) -> is_roles_config(Config, Role) end, Listeners),
+    Port.
 
 -spec get_ssl_status(Role :: role(), Server :: distributed_helper:rpc_spec()) -> boolean().
 get_ssl_status(Role, Node) ->
     Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
-    [{_PortIpNet, _Module, Opts}] =
-        lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
-    lists:keymember(ssl, 1, Opts).
+    [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
+    maps:is_key(ssl, Opts).
 
 % @doc Changes the control credentials for admin by restarting the listener
 % with new options.
@@ -274,22 +268,22 @@ change_admin_creds(Creds) ->
 -spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_admin_listener() ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [{PortIpNet, Module, _Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
-    rpc(mim(), ejabberd_listener, stop_listener, [PortIpNet, Module]).
+    [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
+    rpc(mim(), ejabberd_listener, stop_listener, [Opts]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [{PortIpNet, Module, Opts}] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
+    [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
-    rpc(mim(), ejabberd_listener, start_listener, [PortIpNet, Module, NewOpts]).
+    rpc(mim(), ejabberd_listener, start_listener, [NewOpts]).
 
-insert_creds(Opts, Creds) ->
-    Modules = proplists:get_value(modules, Opts),
+insert_creds(Opts = #{modules := Modules}, Creds) ->
     {Host, Path, mongoose_api_admin, PathOpts} = lists:keyfind(mongoose_api_admin, 3, Modules),
     NewPathOpts = inject_creds_to_opts(PathOpts, Creds),
-    NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules, {Host, Path, mongoose_api_admin,  NewPathOpts}),
-    lists:keyreplace(modules, 1, Opts, {modules, NewModules}).
+    NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules,
+                                  {Host, Path, mongoose_api_admin,  NewPathOpts}),
+    Opts#{modules := NewModules}.
 
 inject_creds_to_opts(PathOpts, any) ->
     lists:keydelete(auth, 1, PathOpts);
@@ -305,12 +299,12 @@ inject_creds_to_opts(PathOpts, Creds) ->
 % This is determined based on modules used. If there is any mongoose_api_admin module used,
 % it is admin config. If not and there is at least one mongoose_api_client* module used,
 % it's clients.
-is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, admin) ->
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, admin) ->
     lists:any(fun({_, _Path,  Mod, _Args}) -> Mod == mongoose_api_admin; (_) -> false  end, Modules);
-is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, client) ->
-    {value, {modules, ModulesConfs}} = lists:keysearch(modules, 1, Opts),
-    ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_"); (_) -> [] end, ModulesConfs),
+is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, client) ->
+    ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_");
+                                 (_) -> []
+                              end, Modules),
     lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
 is_roles_config(_, _) -> false.
 

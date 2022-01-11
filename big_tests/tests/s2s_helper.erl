@@ -9,7 +9,6 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -record(s2s_opts, {
@@ -28,12 +27,14 @@ init_s2s(Config) ->
     Node1S2SCertfile = rpc(mim(), mongoose_config, get_opt, [s2s_certfile, undefined]),
     Node1S2SUseStartTLS = rpc(mim(), mongoose_config, get_opt, [s2s_use_starttls, undefined]),
     Node1S2SPort = ct:get_config({hosts, mim, incoming_s2s_port}),
-    [Node1S2SListener] = mongoose_helper:get_listener_opts(mim(), Node1S2SPort),
+    [Node1S2SListener] = mongoose_helper:get_listeners(mim(), #{port => Node1S2SPort,
+                                                                module => ejabberd_s2s_in}),
 
     Node2S2SCertfile = rpc(fed(), mongoose_config, get_opt, [s2s_certfile, undefined]),
     Node2S2SUseStartTLS = rpc(fed(), mongoose_config, get_opt, [s2s_use_starttls, undefined]),
     Node2S2SPort = ct:get_config({hosts, fed, incoming_s2s_port}),
-    [Node2S2SListener] = mongoose_helper:get_listener_opts(fed(), Node2S2SPort),
+    [Node2S2SListener] = mongoose_helper:get_listeners(fed(), #{port => Node2S2SPort,
+                                                                module => ejabberd_s2s_in}),
     S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
                     node1_s2s_use_starttls = Node1S2SUseStartTLS,
                     node1_s2s_listener = Node1S2SListener,
@@ -97,13 +98,13 @@ configure_s2s(node1_tls_required_node2_tls_false, Config) ->
     Config;
 configure_s2s(node1_tls_optional_node2_tls_required_trusted_with_cachain, Config) ->
     S2S = ?config(s2s_opts, Config),
-    {S2SPortIPProto, Mod, Opts} = S2S#s2s_opts.node2_s2s_listener,
+    S2SListener = #{tls := TLSOpts} = S2S#s2s_opts.node2_s2s_listener,
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca", "cacert.pem"]),
-    NewOpts = [{cafile, CACertFile} | Opts],
+    NewTLSOpts = lists:keystore(cafile, 1, TLSOpts, {cafile, CACertFile}),
     configure_s2s(S2S#s2s_opts{node2_s2s_use_starttls = required_trusted,
-                               node2_s2s_listener = {S2SPortIPProto, Mod, NewOpts}
-                               }),
+                               node2_s2s_listener = S2SListener#{tls => NewTLSOpts}
+                              }),
     Config.
 
 configure_s2s(#s2s_opts{node1_s2s_certfile = Certfile1,
@@ -137,6 +138,4 @@ restart_s2s(#{} = Spec, S2SListener) ->
     [rpc(Spec, erlang, exit, [Pid, kill]) ||
      {_, Pid, _, _} <- ChildrenIn],
 
-    {_PortIPProto, ejabberd_s2s_in, Opts} = S2SListener,
-    mongoose_helper:restart_listener_with_opts(Spec, S2SListener, Opts).
-
+    mongoose_helper:restart_listener(Spec, S2SListener).

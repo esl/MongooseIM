@@ -42,8 +42,8 @@
 -export([wait_for_pid_to_die/1]).
 -export([supports_sasl_module/1]).
 -export([auth_opts_with_password_format/1]).
--export([get_listener_opts/2]).
--export([restart_listener_with_opts/3]).
+-export([get_listeners/2]).
+-export([restart_listener/2]).
 -export([should_minio_be_running/1]).
 -export([new_mongoose_acc/1]).
 -export([print_debug_info_for_module/1]).
@@ -492,14 +492,15 @@ build_new_password_opts(scram, PassOpts) ->
 build_new_password_opts(Type, PassOpts) ->
     PassOpts#{format => Type}.
 
-get_listener_opts(#{} = Spec, Port) ->
+get_listeners(#{} = Spec, Pattern) ->
+    Keys = maps:keys(Pattern),
     Listeners = rpc(Spec, mongoose_config, get_opt, [listen]),
-    [Item || {{ListenerPort, _, _}, _, _} = Item <- Listeners, ListenerPort =:= Port].
+    lists:filter(fun(Listener) -> maps:with(Keys, Listener) =:= Pattern end, Listeners).
 
-restart_listener_with_opts(Spec, Listener, NewOpts) ->
-    {PortIPProto, Module, _Opts} = Listener,
-    rpc(Spec, ejabberd_listener, stop_listener, [PortIPProto, Module]),
-    rpc(Spec, ejabberd_listener, start_listener, [PortIPProto, Module, NewOpts]).
+%% 'port', 'ip_tuple' and 'proto' options need to stay unchanged for a successful restart
+restart_listener(Spec, Listener) ->
+    rpc(Spec, ejabberd_listener, stop_listener, [Listener]),
+    rpc(Spec, ejabberd_listener, start_listener, [Listener]).
 
 should_minio_be_running(Config) ->
     case proplists:get_value(preset, Config, undefined) of
