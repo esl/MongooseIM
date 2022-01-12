@@ -85,7 +85,9 @@
 -export([is_muc_room_owner/4,
          can_access_identity/3,
          can_access_room/4,
-         acc_room_affiliations/2]).
+         acc_room_affiliations/2,
+         room_new_affiliations/4,
+         room_exists/2]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -910,8 +912,25 @@ can_access_room(HostType, Acc, Room, User) ->
       Room :: jid:jid(),
       NewAcc :: mongoose_acc:t().
 acc_room_affiliations(Acc, Room) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
+
+-spec room_exists(HostType, Room) -> Result when
+      HostType :: mongooseim:host_type(),
+      Room :: jid:jid(),
+      Result :: boolean().
+room_exists(HostType, Room) ->
+    run_hook_for_host_type(room_exists, HostType, false, [HostType, Room]).
+
+-spec room_new_affiliations(Acc, Room, NewAffs, Version) -> NewAcc when
+      Acc :: mongoose_acc:t(),
+      Room :: jid:jid(),
+      NewAffs :: mod_muc_light:aff_users(),
+      Version :: binary(),
+      NewAcc :: mongoose_acc:t().
+room_new_affiliations(Acc, Room, NewAffs, Version) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    run_hook_for_host_type(room_new_affiliations, HostType, Acc, [Room, NewAffs, Version]).
 
 %% MAM related hooks
 
@@ -1334,7 +1353,7 @@ filter_room_packet(HostType, Packet, EventData) ->
     Room :: jid:luser(),
     Result :: any().
 forget_room(HostType, MucHost, Room) ->
-    run_hook_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
+    run_hook_for_host_type(forget_room, HostType, #{}, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),

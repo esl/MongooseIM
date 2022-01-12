@@ -2076,24 +2076,27 @@ test_mod_mam_meta(T, M) ->
 test_cache_config(T, M) ->
     ?cfgh(M([{cache_users, false}]),
           T(#{<<"cache_users">> => false})),
-    ?cfgh(M([{cache, [{module, internal}]}]),
-          T(#{<<"cache">> => #{<<"module">> => <<"internal">>}})),
-    ?cfgh(M([{cache, [{time_to_live, 8600}]}]),
-          T(#{<<"cache">> => #{<<"time_to_live">> => 8600}})),
-    ?cfgh(M([{cache, [{time_to_live, infinity}]}]),
-          T(#{<<"cache">> => #{<<"time_to_live">> => <<"infinity">>}})),
-    ?cfgh(M([{cache, [{number_of_segments, 10}]}]),
-          T(#{<<"cache">> => #{<<"number_of_segments">> => 10}})),
-    ?cfgh(M([{cache, [{strategy, fifo}]}]),
-          T(#{<<"cache">> => #{<<"strategy">> => <<"fifo">>}})),
     ?errh(T(#{<<"cache_users">> => []})),
-    ?errh(T(#{<<"cache">> => #{<<"module">> => <<"mod_wrong_cache">>}})),
-    ?errh(T(#{<<"cache">> => #{<<"module">> => <<"mod_cache_users">>,
+    test_segmented_cache_config(<<"cache">>, cache, T, M).
+
+test_segmented_cache_config(NameK, NameV, T, M) ->
+    ?cfgh(M([{NameV, [{module, internal}]}]),
+          T(#{NameK => #{<<"module">> => <<"internal">>}})),
+    ?cfgh(M([{NameV, [{time_to_live, 8600}]}]),
+          T(#{NameK => #{<<"time_to_live">> => 8600}})),
+    ?cfgh(M([{NameV, [{time_to_live, infinity}]}]),
+          T(#{NameK => #{<<"time_to_live">> => <<"infinity">>}})),
+    ?cfgh(M([{NameV, [{number_of_segments, 10}]}]),
+          T(#{NameK => #{<<"number_of_segments">> => 10}})),
+    ?cfgh(M([{NameV, [{strategy, fifo}]}]),
+          T(#{NameK => #{<<"strategy">> => <<"fifo">>}})),
+    ?errh(T(#{NameK => #{<<"module">> => <<"mod_wrong_cache">>}})),
+    ?errh(T(#{NameK => #{<<"module">> => <<"mod_cache_users">>,
                                <<"time_to_live">> => 8600}})),
-    ?errh(T(#{<<"cache">> => #{<<"time_to_live">> => 0}})),
-    ?errh(T(#{<<"cache">> => #{<<"strategy">> => <<"lifo">>}})),
-    ?errh(T(#{<<"cache">> => #{<<"number_of_segments">> => 0}})),
-    ?errh(T(#{<<"cache">> => #{<<"number_of_segments">> => <<"infinity">>}})).
+    ?errh(T(#{NameK => #{<<"time_to_live">> => 0}})),
+    ?errh(T(#{NameK => #{<<"strategy">> => <<"lifo">>}})),
+    ?errh(T(#{NameK => #{<<"number_of_segments">> => 0}})),
+    ?errh(T(#{NameK => #{<<"number_of_segments">> => <<"infinity">>}})).
 
 test_async_worker(T, M) ->
     ?cfgh(M([{async_writer, [{flush_interval, 1500}]}]),
@@ -2324,6 +2327,7 @@ mod_muc_log_top_link(_Config) ->
 mod_muc_light(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
     M = fun(Cfg) -> modopts(mod_muc_light, Cfg) end,
+    test_segmented_cache_config(<<"cache_affs">>, cache_affs, T, M),
     ?cfgh(M([{backend, mnesia}]),
           T(#{<<"backend">> => <<"mnesia">>})),
     ?cfgh(M([{host, {prefix, <<"muclight.">>}}]),

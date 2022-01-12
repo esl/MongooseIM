@@ -283,6 +283,10 @@ schema_opts(CaseName) ->
 common_muc_light_opts() ->
     [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+     {cache_affs, [{module, internal},
+                   {strategy, fifo},
+                   {time_to_live, 2},
+                   {number_of_segments, 3}]},
      {rooms_in_rosters, true}].
 
 mam_muc_config(CaseName) when CaseName =:= disco_features_with_mam;

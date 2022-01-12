@@ -79,7 +79,7 @@ remove_domain(Acc, HostType, Domain) ->
                              HostType :: mongooseim:host_type(),
                              Jid :: jid:jid(),
                              RequestType :: ejabberd_auth:exist_type()) ->
-    boolean().
+    boolean() | {stop, true}.
 does_cached_user_exist(false, HostType, Jid, stored) ->
     case mongoose_user_cache:is_member(HostType, ?MODULE, Jid) of
         true -> {stop, true};
@@ -94,6 +94,7 @@ does_cached_user_exist(Status, _, _, _) ->
                                 RequestType :: ejabberd_auth:exist_type()) ->
     boolean().
 maybe_put_user_into_cache(true, HostType, Jid, stored) ->
-    mongoose_user_cache:merge_entry(HostType, ?MODULE, Jid, #{});
+    mongoose_user_cache:merge_entry(HostType, ?MODULE, Jid, #{}),
+    true;
 maybe_put_user_into_cache(Status, _, _, _) ->
     Status.
