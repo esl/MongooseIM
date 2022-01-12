@@ -37,8 +37,8 @@ ensure_ip_options(Opts = #{ip_version := 6}) ->
 ensure_ip_options(Opts) ->
     ensure_ip_options(Opts#{ip_address => "0"}).
 
-ip_version(T) when size(T) =:= 4 -> 4;
-ip_version(T) when size(T) =:= 8 -> 6.
+ip_version(T) when tuple_size(T) =:= 4 -> 4;
+ip_version(T) when tuple_size(T) =:= 8 -> 6.
 
 %% @doc Verify that all listeners have unique socket addresses
 -spec verify_unique_listeners([listener()]) -> [listener()].

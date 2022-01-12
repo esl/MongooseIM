@@ -166,7 +166,7 @@ init_per_group(tls, Config) ->
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
     [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
-    configure_c2s_listener(Config, #{zlib => 100000,
+    configure_c2s_listener(Config, #{zlib => 10000,
                                      tls => [starttls_required | common_tls_opts(Config)]}),
     Config;
 init_per_group(just_tls,Config)->

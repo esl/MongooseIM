@@ -51,22 +51,18 @@ init(_) ->
     {ok, {{one_for_one, 10, 1}, []}}.
 
 
--spec start_listeners() -> 'ignore' | {'ok', {{_, _, _}, [any()]}}.
+-spec start_listeners() -> {'ok', {{_, _, _}, [any()]}}.
 start_listeners() ->
-    case mongoose_config:get_opt(listen) of
-        [] ->
-            ignore;
-        Ls ->
-            Ls2 = lists:map(
-                fun(Listener) ->
-                        case start_listener(Listener) of
-                            {ok, _Pid} = R -> R;
-                            {error, Error} ->
-                                throw(Error)
-                        end
-                end, Ls),
-            {ok, {{one_for_one, 10, 1}, Ls2}}
-    end.
+    Ls = mongoose_config:get_opt(listen),
+    Ls2 = lists:map(
+            fun(Listener) ->
+                    case start_listener(Listener) of
+                        {ok, _Pid} = R -> R;
+                        {error, Error} ->
+                            throw(Error)
+                    end
+            end, Ls),
+    {ok, {{one_for_one, 10, 1}, Ls2}}.
 
 -spec start_listener(mongoose_listenet_config:listener()) -> {'error', pid()} | {'ok', _}.
 start_listener(Opts = #{module := Module}) ->
