@@ -104,6 +104,11 @@ stop(_State) ->
 %%% Internal functions
 %%%
 db_init() ->
+    %% One init at a time across the cluster
+    F = fun() -> global:trans({mongoose_db_init, self()}, fun do_db_init/0) end,
+    mongoose_progress:run(F, #{task => db_init}).
+
+do_db_init() ->
     case mnesia:system_info(extra_db_nodes) of
         [] ->
             application:stop(mnesia),
@@ -112,7 +117,14 @@ db_init() ->
         _ ->
             ok
     end,
-    mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
+    %% We copy one by one table to limit concurrency and load.
+    %% (but it would take a bit longer to sync).
+    [wait_for_table(Tab) || Tab <- mnesia:system_info(local_tables)],
+    ok.
+
+wait_for_table(Tab) ->
+    F = fun() -> mnesia:wait_for_tables([Tab], infinity) end,
+    mongoose_progress:run(F, #{task => wait_for_table, table => Tab}).
 
 %% @doc Start all the modules in all the hosts
 -spec start_modules() -> 'ok'.

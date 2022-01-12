@@ -17,7 +17,7 @@
 
 -include("mongoose.hrl").
 
--define(NODE_CLEANUP_LOCK(Node), {node_cleanup_lock, Node}).
+-define(NODE_CLEANUP_LOCK(_Node), node_cleanup_lock).
 -define(SERVER, ?MODULE).
 
 -record(state, {}).

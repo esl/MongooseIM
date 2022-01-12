@@ -224,4 +224,4 @@ with_app_stopped(App, F) ->
     end.
 
 node_trans(F) ->
-    global:trans({{mongoose_cluster_op, node()}, self()}, F).
+    global:trans({mongoose_cluster_op, self()}, F).
