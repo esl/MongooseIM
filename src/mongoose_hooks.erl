@@ -98,7 +98,8 @@
          mam_lookup_messages/2,
          mam_archive_message/2,
          mam_flush_messages/2,
-         mam_archive_sync/1]).
+         mam_archive_sync/1,
+         mam_retraction/3]).
 
 -export([mam_muc_archive_id/2,
          mam_muc_archive_size/3,
@@ -109,7 +110,8 @@
          mam_muc_lookup_messages/2,
          mam_muc_archive_message/2,
          mam_muc_flush_messages/2,
-         mam_muc_archive_sync/1]).
+         mam_muc_archive_sync/1,
+         mam_muc_retraction/3]).
 
 -export([get_mam_pm_gdpr_data/2,
          get_mam_muc_gdpr_data/2,
@@ -1044,6 +1046,13 @@ mam_flush_messages(HookServer, MessageCount) ->
 mam_archive_sync(HostType) ->
     run_hook_for_host_type(mam_archive_sync, HostType, ok, [HostType]).
 
+%% @doc Notifies of a message retraction
+-spec mam_retraction(mongooseim:host_type(),
+                     mod_mam_utils:retraction_info(),
+                     mod_mam_rdbms_arch:env_vars()) ->
+    mod_mam_utils:retraction_info().
+mam_retraction(HostType, RetractionInfo, Env) ->
+    run_fold(mam_retraction, HostType, RetractionInfo, Env).
 
 %% MAM MUC related hooks
 
@@ -1164,6 +1173,14 @@ mam_muc_flush_messages(HookServer, MessageCount) ->
 -spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.
 mam_muc_archive_sync(HostType) ->
     run_hook_for_host_type(mam_muc_archive_sync, HostType, ok, [HostType]).
+
+%% @doc Notifies of a muc message retraction
+-spec mam_muc_retraction(mongooseim:host_type(),
+                     mod_mam_utils:retraction_info(),
+                     mod_mam_rdbms_arch:env_vars()) ->
+    mod_mam_utils:retraction_info().
+mam_muc_retraction(HostType, RetractionInfo, Env) ->
+    run_fold(mam_muc_retraction, HostType, RetractionInfo, Env).
 
 %% GDPR related hooks
 
