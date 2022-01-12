@@ -274,7 +274,8 @@ make_tombstone(_HostType, ArcID, RetractionId, skip, _Env) ->
 make_tombstone(HostType, ArcID, _RetractionId,
                RetractionInfo = #{message_id := MessID},
                #{archive_jid := ArcJID} = Env) ->
-    Tombstone = mod_mam_utils:tombstone(RetractionInfo, ArcJID),
+    RetractionInfo1 = mongoose_hooks:mam_muc_retraction(HostType, RetractionInfo, Env),
+    Tombstone = mod_mam_utils:tombstone(RetractionInfo1, ArcJID),
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
     execute_make_tombstone(HostType, TombstoneData, ArcID, MessID).
 
