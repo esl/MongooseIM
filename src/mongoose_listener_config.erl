@@ -48,7 +48,7 @@ verify_unique_listeners(Listeners) ->
                          end, #{}, Listeners),
     case [K || {K, V} <- maps:to_list(Counts), V > 1] of
         [] -> Listeners;
-        Dups -> error(#{what => duplicated_port_ips, duplicates => Dups,
+        Dups -> error(#{what => duplicate_listeners, duplicates => Dups,
                         text => <<"Some listeners have duplicate listening socket addresses">>})
     end.
 

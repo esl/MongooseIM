@@ -67,6 +67,7 @@ groups() ->
                             hide_service_name]},
      {listen, [parallel], [listen_portip,
                            listen_proto,
+                           listen_duplicate,
                            listen_ip_version,
                            listen_backlog,
                            listen_proxy_protocol,
@@ -451,6 +452,7 @@ hide_service_name(_Config) ->
 %% tests: listen
 
 listen_portip(_Config) ->
+    ?cfg(listen, [], #{}),
     ?cfg(listener_config(ejabberd_c2s, #{}), listen_raw(<<"c2s">>, #{})),
     ?cfg(listener_config(ejabberd_c2s, #{ip_address => "192.168.1.16",
                                          ip_tuple => {192, 168, 1, 16}}),
@@ -470,6 +472,18 @@ listen_proto(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, #{proto => udp}),
          listen_raw(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
     ?err(listen_raw(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
+
+listen_duplicate(_Config) ->
+    ?cfg(listen, [listener(ejabberd_c2s, #{}),
+                  listener(ejabberd_c2s, #{port => 5223})],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
+                                             <<"ip_address">> => <<"0">>},
+                                           #{<<"port">> => 5223}]}}),
+    ?err([#{reason := duplicate_listeners,
+            duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
+                                             <<"ip_address">> => <<"0">>},
+                                           #{<<"port">> => 5222}]}}).
 
 listen_ip_version(_Config) ->
     ?cfg(listener_config(ejabberd_c2s, #{}),
@@ -2968,13 +2982,15 @@ servopts(Service, Opts) ->
 %% helpers for 'listen' tests
 
 listener_config(Mod, Opts) ->
-    [{listen, [maps:merge(#{port => 5222,
-                            ip_address => "0",
-                            ip_tuple => {0, 0, 0, 0},
-                            ip_version => 4,
-                            proto => tcp,
-                            module => Mod}, Opts)
-              ]}].
+    [{listen, [listener(Mod, Opts)]}].
+
+listener(Mod, Opts) ->
+    maps:merge(#{port => 5222,
+                 ip_address => "0",
+                 ip_tuple => {0, 0, 0, 0},
+                 ip_version => 4,
+                 proto => tcp,
+                 module => Mod}, Opts).
 
 http_handler_raw(Type, Opts) ->
     listen_raw(<<"http">>, #{<<"handlers">> =>
