@@ -254,12 +254,12 @@ retract_message(HostType, #{local_jid := ArcJID} = Params)  ->
 
 -spec retract_message(mongooseim:host_type(), mod_mam:archive_message_params(), env_vars()) -> ok.
 retract_message(HostType, #{archive_id := ArcID, sender_id := SenderID,
-                            packet := Packet}, Env) ->
+                            packet := Packet} = Params, Env) ->
     case get_retract_id(Packet, Env) of
         none -> ok;
         RetractionId ->
             Info = get_retraction_info(HostType, ArcID, SenderID, RetractionId, Env),
-            make_tombstone(HostType, ArcID, RetractionId, Info, Env)
+            make_tombstone(HostType, ArcID, RetractionId, Info, Params, Env)
     end.
 
 get_retraction_info(HostType, ArcID, SenderID, RetractionId, Env) ->
@@ -267,14 +267,14 @@ get_retraction_info(HostType, ArcID, SenderID, RetractionId, Env) ->
         execute_select_messages_to_retract(HostType, ArcID, SenderID, RetractionId),
     mam_decoder:decode_retraction_info(Env, Rows, RetractionId).
 
-make_tombstone(_HostType, ArcID, RetractionId, skip, _Env) ->
+make_tombstone(_HostType, ArcID, RetractionId, skip, _Params, _Env) ->
     ?LOG_INFO(#{what => make_tombstone_failed,
                 text => <<"Message to retract was not found">>,
                 user_id => ArcID, retraction_context => RetractionId});
 make_tombstone(HostType, ArcID, _RetractionId,
-               RetractionInfo = #{message_id := MessID},
+               RetractionInfo = #{message_id := MessID}, Params,
                #{archive_jid := ArcJID} = Env) ->
-    RetractionInfo1 = mongoose_hooks:mam_muc_retraction(HostType, RetractionInfo, Env),
+    RetractionInfo1 = mongoose_hooks:mam_muc_retraction(HostType, RetractionInfo, Params),
     Tombstone = mod_mam_utils:tombstone(RetractionInfo1, ArcJID),
     TombstoneData = mam_encoder:encode_packet(Tombstone, Env),
     execute_make_tombstone(HostType, TombstoneData, ArcID, MessID).
