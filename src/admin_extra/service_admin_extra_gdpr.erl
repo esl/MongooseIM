@@ -70,12 +70,12 @@ get_data_from_modules(JID) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(JID#jid.lserver),
     mongoose_hooks:get_personal_data(HostType, JID).
 
--spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
+-spec to_csv_file(file:name_all(), gdpr:schema(), gdpr:entries(), file:name()) -> ok.
 to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->
     FilePath = <<(list_to_binary(TmpDir))/binary, "/", Filename/binary>>,
     {ok, File} = file:open(FilePath, [write]),
-    csv_gen:row(File, DataSchema),
-    lists:foreach(fun(Row) -> csv_gen:row(File, Row) end, DataRows),
+    Encoded = erl_csv:encode([DataSchema | DataRows]),
+    file:write(File, Encoded),
     file:close(File).
 
 -spec user_exists(jid:jid()) -> boolean().

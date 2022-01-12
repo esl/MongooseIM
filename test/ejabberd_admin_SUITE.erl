@@ -17,6 +17,7 @@ groups() ->
                          import_from_invalid_csv]}].
 
 init_per_suite(Config) ->
+    {ok, _} = application:ensure_all_started(jid),
     Config.
 
 end_per_suite(_Config) ->
