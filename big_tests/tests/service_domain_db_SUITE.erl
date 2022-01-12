@@ -22,9 +22,8 @@
          patch_custom/4]).
 
 -import(domain_rest_helper,
-        [start_listener/0,
-         start_listener/1,
-         stop_listener/0]).
+        [start_listener/1,
+         stop_listener/1]).
 
 -import(domain_helper, [domain/0]).
 
@@ -218,7 +217,7 @@ init_per_group(db, Config) ->
         false -> {skip, require_rdbms}
     end;
 init_per_group(rest_with_auth, Config) ->
-    start_listener(),
+    start_listener(#{}),
     [{auth_creds, valid}|Config];
 init_per_group(rest_without_auth, Config) ->
     start_listener(#{skip_auth => true}),
@@ -232,9 +231,9 @@ init_per_group(GroupName, Config) ->
     Config1.
 
 end_per_group(rest_with_auth, _Config) ->
-    stop_listener();
+    stop_listener(#{});
 end_per_group(rest_without_auth, _Config) ->
-    stop_listener();
+    stop_listener(#{skip_auth => true});
 end_per_group(_GroupName, Config) ->
     case ?config(service_setup, Config) of
         per_group -> teardown_service();

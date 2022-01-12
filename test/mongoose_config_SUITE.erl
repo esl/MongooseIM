@@ -122,6 +122,7 @@ minimal_config_opts() ->
      {host_types, []},
      {hosts, [<<"localhost">>]},
      {language, <<"en">>},
+     {listen, []},
      {loglevel, warning},
      {mongooseimctl_access_commands, []},
      {rdbms_server_type, generic},

@@ -147,8 +147,8 @@ handle_default(Path, Value, Spec) ->
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node(), [step()]) -> [config_part()].
 handle(Path, Value, Spec, Steps) ->
-    lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
-                        Error;
+    lists:foldl(fun(_, [#{what := _, class := error}|_] = Errors) ->
+                        Errors;
                    (Step, Acc) ->
                         try_step(Step, Path, Value, Acc, Spec)
                 end, Value, Steps).

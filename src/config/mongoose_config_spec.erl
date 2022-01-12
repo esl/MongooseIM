@@ -13,7 +13,6 @@
          process_general/1,
          process_sm_backend/1,
          process_ctl_access_rule/1,
-         process_ip_version/1,
          process_listener/2,
          process_verify_peer/1,
          process_sni/1,
@@ -103,13 +102,14 @@
 
 root() ->
     General = general(),
+    Listen = listen(),
     Auth = auth(),
     Modules = modules(),
     #section{
        items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
                                                   process = fun ?MODULE:process_general/1,
                                                   defaults = general_defaults()},
-                 <<"listen">> => listen(),
+                 <<"listen">> => Listen#section{include = always},
                  <<"auth">> => Auth#section{include = always},
                  <<"outgoing_pools">> => outgoing_pools(),
                  <<"services">> => services(),
@@ -251,6 +251,7 @@ listen() ->
     #section{
        items = maps:from_list([{Key, #list{items = listener(Key),
                                            wrap = none}} || Key <- Keys]),
+       process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config
       }.
 
@@ -263,12 +264,13 @@ listener(Type) ->
                            <<"ip_address">> => #option{type = string,
                                                        validate = ip_address},
                            <<"proto">> => #option{type = atom,
-                                                  validate = {enum, [tcp, udp, ws, wss]}},
+                                                  validate = {enum, [tcp, udp]}},
                            <<"ip_version">> => #option{type = integer,
-                                                       validate = {enum, [4, 6]},
-                                                       process = fun ?MODULE:process_ip_version/1,
-                                                       wrap = item}},
+                                                       validate = {enum, [4, 6]}}
+                          },
+       format_items = map,
        required = [<<"port">>],
+       defaults = #{<<"proto">> => tcp},
        process = fun ?MODULE:process_listener/2
       }.
 
@@ -334,11 +336,11 @@ c2s_tls() ->
                  <<"verify_peer">> => #option{type = boolean,
                                               process = fun ?MODULE:process_verify_peer/1},
                  <<"certfile">> => #option{type = string,
-                                           validate = non_empty},
+                                           validate = filename},
                  <<"cacertfile">> => #option{type = string,
-                                             validate = non_empty},
+                                             validate = filename},
                  <<"dhfile">> => #option{type = string,
-                                         validate = non_empty},
+                                         validate = filename},
                  <<"ciphers">> => #option{type = string},
 
                  %% fast_tls
@@ -357,23 +359,21 @@ c2s_tls() ->
                                                          process = fun ?MODULE:process_sni/1},
                  <<"versions">> => #list{items = #option{type = atom}}
                 },
-       process = fun ?MODULE:process_xmpp_tls/1,
-       wrap = none
+       process = fun ?MODULE:process_xmpp_tls/1
       }.
 
 %% path: listen.s2s[].tls
 s2s_tls() ->
     #section{
        items = #{<<"cacertfile">> => #option{type = string,
-                                             validate = non_empty},
+                                             validate = filename},
                  <<"dhfile">> => #option{type = string,
-                                         validate = non_empty},
+                                         validate = filename},
                  <<"ciphers">> => #option{type = string},
                  <<"protocol_options">> => #list{items = #option{type = string,
                                                                  validate = non_empty}}
                 },
-       process = fun ?MODULE:process_fast_tls/1,
-       wrap = none
+       process = fun ?MODULE:process_fast_tls/1
       }.
 
 %% path: listen.http[].tls
@@ -1092,18 +1092,8 @@ is_external_tls_opt({_, _}) -> false.
 ssl_opts([]) -> [];
 ssl_opts(Opts) -> [{ssl_options, Opts}].
 
-process_ip_version(4) -> inet;
-process_ip_version(6) -> inet6.
-
-process_listener([item, Type | _], KVs) ->
-    {[PortOpts, IPOpts], Opts} = proplists:split(KVs, [port, ip_address]),
-    PortIP = listener_portip(PortOpts, IPOpts),
-    {Port, IPT, _, _, Proto, OptsClean} =
-        ejabberd_listener:parse_listener_portip(PortIP, Opts),
-    {{Port, IPT, Proto}, listener_module(Type), OptsClean}.
-
-listener_portip([{port, Port}], []) -> Port;
-listener_portip([{port, Port}], [{ip_address, Addr}]) -> {Port, Addr}.
+process_listener([item, Type | _], Opts) ->
+    mongoose_listener_config:ensure_ip_options(Opts#{module => listener_module(Type)}).
 
 listener_module(<<"http">>) -> ejabberd_cowboy;
 listener_module(<<"c2s">>) -> ejabberd_c2s;

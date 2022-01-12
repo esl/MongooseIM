@@ -67,6 +67,7 @@ groups() ->
                             hide_service_name]},
      {listen, [parallel], [listen_portip,
                            listen_proto,
+                           listen_duplicate,
                            listen_ip_version,
                            listen_backlog,
                            listen_proxy_protocol,
@@ -451,10 +452,14 @@ hide_service_name(_Config) ->
 %% tests: listen
 
 listen_portip(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, []), listen_raw(<<"c2s">>, #{})),
-    ?cfg(listen, [{{5222, {192, 168, 1, 16}, tcp}, ejabberd_c2s, []}],
+    ?cfg(listen, [], #{}),
+    ?cfg(listener_config(ejabberd_c2s, #{}), listen_raw(<<"c2s">>, #{})),
+    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "192.168.1.16",
+                                         ip_tuple => {192, 168, 1, 16}}),
          listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.16">>})),
-    ?cfg(listen, [{{5222, {8193, 3512, 3, 4, 5, 6, 7, 8}, tcp}, ejabberd_c2s, []}],
+    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "2001:db8:3:4:5:6:7:8",
+                                         ip_tuple => {8193, 3512, 3, 4, 5, 6, 7, 8},
+                                         ip_version => 6}),
          listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"2001:db8:3:4:5:6:7:8">>})),
     ?err(listen_raw(<<"c2s">>, #{<<"ip_address">> => <<"192.168.1.999">>})),
     ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"ip_address">> => <<"192.168.1.16">>}]}}),
@@ -462,132 +467,147 @@ listen_portip(_Config) ->
     ?err(#{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 522222}]}}).
 
 listen_proto(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{proto, tcp}]),
+    ?cfg(listener_config(ejabberd_c2s, #{}),
          listen_raw(<<"c2s">>, #{<<"proto">> => <<"tcp">>})),
-    ?cfg(listen, [{{5222, {0, 0, 0, 0}, udp}, ejabberd_c2s, [{proto, udp}]}],
+    ?cfg(listener_config(ejabberd_c2s, #{proto => udp}),
          listen_raw(<<"c2s">>, #{<<"proto">> => <<"udp">>})),
     ?err(listen_raw(<<"c2s">>, #{<<"proto">> => <<"pigeon">>})).
 
+listen_duplicate(_Config) ->
+    ?cfg(listen, [listener(ejabberd_c2s, #{}),
+                  listener(ejabberd_c2s, #{port => 5223})],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
+                                             <<"ip_address">> => <<"0">>},
+                                           #{<<"port">> => 5223}]}}),
+    ?err([#{reason := duplicate_listeners,
+            duplicates := [{5222, {0, 0, 0, 0}, tcp}]}],
+         #{<<"listen">> => #{<<"c2s">> => [#{<<"port">> => 5222,
+                                             <<"ip_address">> => <<"0">>},
+                                           #{<<"port">> => 5222}]}}).
+
 listen_ip_version(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [inet]),
+    ?cfg(listener_config(ejabberd_c2s, #{}),
          listen_raw(<<"c2s">>, #{<<"ip_version">> => 4})),
-    ?cfg(listen, [{{5222, {0, 0, 0, 0, 0, 0, 0, 0}, tcp}, ejabberd_c2s, []}],
+    ?cfg(listener_config(ejabberd_c2s, #{ip_address => "::",
+                                         ip_tuple => {0, 0, 0, 0, 0, 0, 0, 0},
+                                         ip_version => 6}),
          listen_raw(<<"c2s">>, #{<<"ip_version">> => 6})),
     ?err(listen_raw(<<"c2s">>, #{<<"ip_version">> => 7})).
 
 listen_backlog(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{backlog, 10}]),
+    ?cfg(listener_config(ejabberd_c2s, #{backlog => 10}),
          listen_raw(<<"c2s">>, #{<<"backlog">> => 10})),
     ?err(listen_raw(<<"c2s">>, #{<<"backlog">> => -10})).
 
 listen_proxy_protocol(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{proxy_protocol, true}]),
+    ?cfg(listener_config(ejabberd_c2s, #{proxy_protocol => true}),
          listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => true})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{proxy_protocol, true}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{proxy_protocol => true}),
          listen_raw(<<"s2s">>, #{<<"proxy_protocol">> => true})),
-    ?cfg(listener_config(ejabberd_service, [{proxy_protocol, true}]),
+    ?cfg(listener_config(ejabberd_service, #{proxy_protocol => true}),
          listen_raw(<<"service">>, #{<<"proxy_protocol">> => true})),
     ?err(listen_raw(<<"c2s">>, #{<<"proxy_protocol">> => <<"awesome">>})).
 
 listen_num_acceptors(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{acceptors_num, 100}]),
+    ?cfg(listener_config(ejabberd_c2s, #{acceptors_num => 100}),
          listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 100})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{acceptors_num, 100}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{acceptors_num => 100}),
          listen_raw(<<"s2s">>, #{<<"num_acceptors">> => 100})),
-    ?cfg(listener_config(ejabberd_service, [{acceptors_num, 100}]),
+    ?cfg(listener_config(ejabberd_service, #{acceptors_num => 100}),
          listen_raw(<<"service">>, #{<<"num_acceptors">> => 100})),
     ?err(listen_raw(<<"c2s">>, #{<<"num_acceptors">> => 0})).
 
 listen_access(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{access, rule1}]),
+    ?cfg(listener_config(ejabberd_c2s, #{access => rule1}),
          listen_raw(<<"c2s">>, #{<<"access">> => <<"rule1">>})),
-    ?cfg(listener_config(ejabberd_service, [{access, rule1}]),
+    ?cfg(listener_config(ejabberd_service, #{access => rule1}),
          listen_raw(<<"service">>, #{<<"access">> => <<"rule1">>})),
     ?err(listen_raw(<<"c2s">>, #{<<"access">> => <<>>})).
 
 listen_shaper(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{shaper, c2s_shaper}]),
+    ?cfg(listener_config(ejabberd_c2s, #{shaper => c2s_shaper}),
          listen_raw(<<"c2s">>, #{<<"shaper">> => <<"c2s_shaper">>})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{shaper, s2s_shaper}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{shaper => s2s_shaper}),
          listen_raw(<<"s2s">>, #{<<"shaper">> => <<"s2s_shaper">>})),
-    ?cfg(listener_config(ejabberd_service, [{shaper_rule, fast}]),
+    ?cfg(listener_config(ejabberd_service, #{shaper_rule => fast}),
          listen_raw(<<"service">>, #{<<"shaper_rule">> => <<"fast">>})),
     ?err(listen_raw(<<"s2s">>, #{<<"shaper">> => <<>>})).
 
 listen_xml_socket(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{xml_socket, true}]),
+    ?cfg(listener_config(ejabberd_c2s, #{xml_socket => true}),
          listen_raw(<<"c2s">>, #{<<"xml_socket">> => true})),
     ?err(listen_raw(<<"c2s">>, #{<<"xml_socket">> => 10})).
 
 listen_zlib(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{zlib, 1024}]),
+    ?cfg(listener_config(ejabberd_c2s, #{zlib => 1024}),
          listen_raw(<<"c2s">>, #{<<"zlib">> => 1024})),
     ?err(listen_raw(<<"c2s">>, #{<<"zlib">> => 0})).
 
 listen_hibernate_after(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{hibernate_after, 10}]),
+    ?cfg(listener_config(ejabberd_c2s, #{hibernate_after => 10}),
          listen_raw(<<"c2s">>, #{<<"hibernate_after">> => 10})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{hibernate_after, 10}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{hibernate_after => 10}),
          listen_raw(<<"s2s">>, #{<<"hibernate_after">> => 10})),
-    ?cfg(listener_config(ejabberd_service, [{hibernate_after, 10}]),
+    ?cfg(listener_config(ejabberd_service, #{hibernate_after => 10}),
          listen_raw(<<"service">>, #{<<"hibernate_after">> => 10})),
     ?err(listen_raw(<<"c2s">>, #{<<"hibernate_after">> => -10})).
 
 listen_max_stanza_size(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{max_stanza_size, 10000}]),
+    ?cfg(listener_config(ejabberd_c2s, #{max_stanza_size => 10000}),
          listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{max_stanza_size, 10000}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{max_stanza_size => 10000}),
          listen_raw(<<"s2s">>, #{<<"max_stanza_size">> => 10000})),
-    ?cfg(listener_config(ejabberd_service, [{max_stanza_size, 10000}]),
+    ?cfg(listener_config(ejabberd_service, #{max_stanza_size => 10000}),
          listen_raw(<<"service">>, #{<<"max_stanza_size">> => 10000})),
     ?err(listen_raw(<<"c2s">>, #{<<"max_stanza_size">> => <<"infinity">>})).
 
 listen_max_fsm_queue(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{max_fsm_queue, 1000}]),
+    ?cfg(listener_config(ejabberd_c2s, #{max_fsm_queue => 1000}),
          listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 1000})),
-    ?cfg(listener_config(ejabberd_service, [{max_fsm_queue, 1000}]),
+    ?cfg(listener_config(ejabberd_service, #{max_fsm_queue => 1000}),
          listen_raw(<<"service">>, #{<<"max_fsm_queue">> => 1000})),
     ?err(listen_raw(<<"s2s">>, #{<<"max_fsm_queue">> => 1000})), % only for c2s and service
     ?err(listen_raw(<<"c2s">>, #{<<"max_fsm_queue">> => 0})).
 
 listen_tls_mode(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [starttls]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [starttls]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"starttls">>}})),
     ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"mode">> => <<"stoptls">>}})).
 
 listen_tls_module(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>}})),
-    ?cfg(listener_config(ejabberd_c2s, []),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => []}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"fast_tls">>}})),
     ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"slow_tls">>}})).
 
 listen_tls_verify(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [verify_peer]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [verify_peer]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_c2s, [verify_none]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [verify_none]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}, verify_peer]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}, verify_peer]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{verify, verify_peer}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{verify, verify_peer}]}),
          listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls}, verify_none]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls}, verify_none]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"verify_peer">> => false}})),
     ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"verify_peer">> => <<"maybe">>}})).
 
 listen_tls_verify_mode(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{verify_fun, {peer, true}}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options, [{verify_fun, {peer, true}}]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"verify_mode">> => <<"peer">>}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{verify_fun, {selfsigned_peer, false}}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options, [{verify_fun,
+                                                                 {selfsigned_peer, false}}]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"verify_mode">> => <<"selfsigned_peer">>,
                                                 <<"disconnect_on_failure">> => false}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{verify_mode, peer}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{verify_mode, peer}]}),
          listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"peer">>}})),
     ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"verify_mode">> => <<"peer">>,
@@ -597,8 +617,8 @@ listen_tls_verify_mode(_Config) ->
     ?err(listen_raw(<<"http">>, #{<<"tls">> => #{<<"verify_mode">> => <<"whatever">>}})).
 
 listen_tls_crl_files(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {crlfiles, ["file1", "file2"]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {crlfiles, ["file1", "file2"]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                                 <<"crl_files">> => [<<"file1">>,
                                                                     <<"file2">>]}})),
@@ -609,63 +629,65 @@ listen_tls_crl_files(_Config) ->
                                                                     <<"file2">>]}})).
 
 listen_tls_certfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{certfile, "mycert.pem"}]),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{certfile, "mycert.pem"}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{certfile, "priv/cert.pem"}]}),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"priv/cert.pem">>}})),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options, [{certfile, "priv/cert.pem"}]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"certfile">> => <<"mycert.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{certfile, "mycert.pem"}]}]),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"mycert.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<>>}})).
+                                                <<"certfile">> => <<"priv/cert.pem">>}})),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{certfile, "priv/cert.pem"}]}),
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"priv/cert.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"certfile">> => <<"no_such_file.pem">>}})).
 
 listen_tls_cacertfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{cafile, "cacert.pem"}]),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{cafile, "cacert.pem"}]),
-         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{cacertfile, "cacert.pem"}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{cafile, "priv/ca.pem"}]}),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
+    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{cafile, "priv/ca.pem"}]}),
+         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options, [{cacertfile, "priv/ca.pem"}]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"cacertfile">> => <<"cacert.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{cacertfile, "cacert.pem"}]}]),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<>>}})).
+                                                <<"cacertfile">> => <<"priv/ca.pem">>}})),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{cacertfile, "priv/ca.pem"}]}),
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"cacertfile">> => <<"priv/ca.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"cacertfile">> => <<"no_such_file.pem">>}})).
 
 listen_tls_dhfile(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{dhfile, "dh.pem"}]),
-         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{dhfile, "dh.pem"}]),
-         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{dhfile, "dh.pem"}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{dhfile, "priv/dh.pem"}]}),
+         listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
+    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{dhfile, "priv/dh.pem"}]}),
+         listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options, [{dhfile, "priv/dh.pem"}]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
-                                                <<"dhfile">> => <<"dh.pem">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{dhfile, "dh.pem"}]}]),
-         listen_raw(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"dh.pem">>}})),
-    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<>>}})).
+                                                <<"dhfile">> => <<"priv/dh.pem">>}})),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{dhfile, "priv/dh.pem"}]}),
+         listen_raw(<<"http">>, #{<<"tls">> => #{<<"dhfile">> => <<"priv/dh.pem">>}})),
+    ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"dhfile">> => <<"no_such_file.pem">>}})).
 
 listen_tls_ciphers(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
          listen_raw(<<"c2s">>,
                     #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options,
+                                                  [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]}),
          listen_raw(<<"c2s">>,
                     #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                      <<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
          listen_raw(<<"s2s">>,
                     #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{ssl, [{ciphers, "TLS_AES_256_GCM_SHA384"}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{ssl => [{ciphers, "TLS_AES_256_GCM_SHA384"}]}),
          listen_raw(<<"http">>,
                     #{<<"tls">> => #{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>}})),
     ?err(listen_raw(<<"c2s">>,
                     #{<<"tls">> => #{<<"ciphers">> => [<<"TLS_AES_256_GCM_SHA384">>]}})).
 
 listen_tls_versions(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{tls_module, just_tls},
-                                        {ssl_options, [{versions, ['tlsv1.2', 'tlsv1.3']}]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{tls_module, just_tls},
+                                                 {ssl_options,
+                                                  [{versions, ['tlsv1.2', 'tlsv1.3']}]}]}),
          listen_raw(<<"c2s">>,
                     #{<<"tls">> => #{<<"module">> => <<"just_tls">>,
                                      <<"versions">> => [<<"tlsv1.2">>, <<"tlsv1.3">>]}})),
@@ -674,9 +696,9 @@ listen_tls_versions(_Config) ->
                                      <<"versions">> => <<"tlsv1.2">>}})).
 
 listen_tls_protocol_options(_Config) ->
-    ?cfg(listener_config(ejabberd_c2s, [{protocol_options, ["nosslv2"]}]),
+    ?cfg(listener_config(ejabberd_c2s, #{tls => [{protocol_options, ["nosslv2"]}]}),
          listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
-    ?cfg(listener_config(ejabberd_s2s_in, [{protocol_options, ["nosslv2"]}]),
+    ?cfg(listener_config(ejabberd_s2s_in, #{tls => [{protocol_options, ["nosslv2"]}]}),
          listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<"nosslv2">>]}})),
     ?err(listen_raw(<<"c2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
     ?err(listen_raw(<<"s2s">>, #{<<"tls">> => #{<<"protocol_options">> => [<<>>]}})),
@@ -684,45 +706,45 @@ listen_tls_protocol_options(_Config) ->
                                                 <<"protocol_options">> => [<<"nosslv2">>]}})).
 
 listen_check_from(_Config) ->
-    ?cfg(listener_config(ejabberd_service, [{service_check_from, false}]),
+    ?cfg(listener_config(ejabberd_service, #{service_check_from => false}),
          listen_raw(<<"service">>, #{<<"check_from">> => false})),
     ?err(listen_raw(<<"service">>, #{<<"check_from">> => 1})).
 
 listen_hidden_components(_Config) ->
-    ?cfg(listener_config(ejabberd_service, [{hidden_components, true}]),
+    ?cfg(listener_config(ejabberd_service, #{hidden_components => true}),
          listen_raw(<<"service">>, #{<<"hidden_components">> => true})),
     ?err(listen_raw(<<"service">>, #{<<"hidden_components">> => <<"yes">>})).
 
 listen_conflict_behaviour(_Config) ->
-    ?cfg(listener_config(ejabberd_service, [{conflict_behaviour, kick_old}]),
+    ?cfg(listener_config(ejabberd_service, #{conflict_behaviour => kick_old}),
          listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kick_old">>})),
     ?err(listen_raw(<<"service">>, #{<<"conflict_behaviour">> => <<"kill_server">>})).
 
 listen_password(_Config) ->
-    ?cfg(listener_config(ejabberd_service, [{password, "secret"}]),
+    ?cfg(listener_config(ejabberd_service, #{password => "secret"}),
          listen_raw(<<"service">>, #{<<"password">> => <<"secret">>})),
     ?err(listen_raw(<<"service">>, #{<<"password">> => <<>>})).
 
 listen_http_num_acceptors(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{num_acceptors, 10}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{num_acceptors, 10}]}),
          listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 10}})),
     ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"num_acceptors">> => 0}})).
 
 listen_http_max_connections(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{max_connections, 100}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{max_connections, 100}]}),
          listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => 100}})),
-    ?cfg(listener_config(ejabberd_cowboy, [{transport_options, [{max_connections, infinity}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{transport_options => [{max_connections, infinity}]}),
          listen_raw(<<"http">>, #{<<"transport">> =>
                                       #{<<"max_connections">> => <<"infinity">>}})),
     ?err(listen_raw(<<"http">>, #{<<"transport">> => #{<<"max_connections">> => -1}})).
 
 listen_http_compress(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{protocol_options, [{compress, true}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{protocol_options => [{compress, true}]}),
          listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => true}})),
     ?err(listen_raw(<<"http">>, #{<<"protocol">> => #{<<"compress">> => 0}})).
 
 listen_http_handlers(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"_", "/http-bind", mod_bosh, []}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"_", "/http-bind", mod_bosh, []}]}),
          listen_raw(<<"http">>, #{<<"handlers">> =>
                                       #{<<"mod_bosh">> =>
                                             [#{<<"host">> => <<"_">>,
@@ -743,27 +765,27 @@ listen_http_handlers(_Config) ->
                                             [#{<<"path">> => <<"hostless">>}]}})).
 
 listen_http_handlers_websockets(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mod_websockets, []}]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mod_websockets, []}]}),
          http_handler_raw(<<"mod_websockets">>, #{})),
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mod_websockets,
-                                                       [{ejabberd_service, [{access, all}]}]
-                                                      }]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mod_websockets,
+                                                         [{ejabberd_service, [{access, all}]}]
+                                                        }]}),
          http_handler_raw(<<"mod_websockets">>, #{<<"service">> => #{<<"access">> => <<"all">>}})),
     ?err(http_handler_raw(<<"mod_websockets">>, #{<<"service">> => <<"unbelievable">>})).
 
 listen_http_handlers_lasse(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", lasse_handler,
-                                                       [mongoose_client_api_sse]
-                                                      }]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", lasse_handler,
+                                                         [mongoose_client_api_sse]
+                                                        }]}),
          http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mongoose_client_api_sse">>})),
     ?err(http_handler_raw(<<"lasse_handler">>, #{<<"module">> => <<"mooongooose_api_ssie">>})),
     ?err(http_handler_raw(<<"lasse_handler">>, #{})).
 
 listen_http_handlers_static(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", cowboy_static,
-                                                       {priv_dir, cowboy_swagger, "swagger",
-                                                        [{mimetypes, cow_mimetypes, all}]}
-                                                      }]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", cowboy_static,
+                                                         {priv_dir, cowboy_swagger, "swagger",
+                                                          [{mimetypes, cow_mimetypes, all}]}
+                                                        }]}),
          http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
                                                  <<"app">> => <<"cowboy_swagger">>,
                                                  <<"content_path">> => <<"swagger">>})),
@@ -771,10 +793,10 @@ listen_http_handlers_static(_Config) ->
                                                  <<"app">> => <<"cowboy_swagger">>})).
 
 listen_http_handlers_api(_Config) ->
-    ?cfg(listener_config(ejabberd_cowboy, [{modules, [{"localhost", "/api", mongoose_api,
-                                                       [{handlers, [mongoose_api_metrics,
-                                                                    mongoose_api_users]}]}
-                                                     ]}]),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", mongoose_api,
+                                                         [{handlers, [mongoose_api_metrics,
+                                                                      mongoose_api_users]}]}
+                                                       ]}),
          http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"mongoose_api_metrics">>,
                                                                    <<"mongoose_api_users">>]})),
     ?err(http_handler_raw(<<"mongoose_api">>, #{<<"handlers">> => [<<"not_an_api_module">>]})),
@@ -782,14 +804,14 @@ listen_http_handlers_api(_Config) ->
 
 listen_http_handlers_domain(_Config) ->
     ?cfg(listener_config(ejabberd_cowboy,
-                         [{modules, [{"localhost", "/api", mongoose_domain_handler,
-                                      [{password, <<"cool">>}, {username, <<"admin">>}]
-                                     }]}]),
+                         #{modules => [{"localhost", "/api", mongoose_domain_handler,
+                                        [{password, <<"cool">>}, {username, <<"admin">>}]
+                                       }]}),
          http_handler_raw(<<"mongoose_domain_handler">>,
                           #{<<"username">> => <<"admin">>, <<"password">> => <<"cool">>})),
     ?cfg(listener_config(ejabberd_cowboy,
-                         [{modules, [{"localhost", "/api", mongoose_domain_handler,
-                                      [] }]}]),
+                         #{modules => [{"localhost", "/api", mongoose_domain_handler,
+                                        [] }]}),
          http_handler_raw(<<"mongoose_domain_handler">>, #{})),
     %% Both username and password required. Or none.
     ?err(http_handler_raw(<<"mongoose_domain_handler">>, #{<<"username">> => <<"admin">>})),
@@ -2964,7 +2986,15 @@ servopts(Service, Opts) ->
 %% helpers for 'listen' tests
 
 listener_config(Mod, Opts) ->
-    [{listen, [{{5222, {0, 0, 0, 0}, tcp}, Mod, Opts}]}].
+    [{listen, [listener(Mod, Opts)]}].
+
+listener(Mod, Opts) ->
+    maps:merge(#{port => 5222,
+                 ip_address => "0",
+                 ip_tuple => {0, 0, 0, 0},
+                 ip_version => 4,
+                 proto => tcp,
+                 module => Mod}, Opts).
 
 http_handler_raw(Type, Opts) ->
     listen_raw(<<"http">>, #{<<"handlers">> =>
@@ -3157,11 +3187,11 @@ compare_values(s2s_dns_options, V1, V2) ->
 compare_values(K, V1, V2) ->
     ?eq({K, V1}, {K, V2}).
 
-handle_listener({P1, M1, O1}, {P2, M2, O2}) ->
-    ?eq(P1, P2),
-    ?eq(M1, M2),
-    compare_unordered_lists(O1, O2, fun handle_listener_option/2).
+handle_listener(V1, V2) ->
+    compare_maps(V1, V2, fun handle_listener_option/2).
 
+handle_listener_option({tls, O1}, {tls, O2}) ->
+    compare_unordered_lists(O1, O2);
 handle_listener_option({modules, M1}, {modules, M2}) ->
     compare_unordered_lists(M1, M2, fun handle_listener_module/2);
 handle_listener_option({transport_options, O1}, {transport_options, O2}) ->
@@ -3259,12 +3289,14 @@ create_files(Config) ->
     PrivkeyPath = filename:join(Root, "tools/ssl/mongooseim/privkey.pem"),
     CertPath = filename:join(Root, "tools/ssl/mongooseim/cert.pem"),
     CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
+    DHPath = filename:join(Root, "tools/ssl/mongooseim/dh_server.pem"),
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
     ok = filelib:ensure_dir("www/muc/dummy"),
     ensure_copied(CaPath, "priv/ca.pem"),
     ensure_copied(CertPath, "priv/cert.pem"),
-    ensure_copied(PrivkeyPath, "priv/dc1.pem").
+    ensure_copied(PrivkeyPath, "priv/dc1.pem"),
+    ensure_copied(DHPath, "priv/dh.pem").
 
 ensure_copied(From, To) ->
     case file:copy(From, To) of
