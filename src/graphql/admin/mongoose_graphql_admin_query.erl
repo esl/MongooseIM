@@ -8,13 +8,14 @@
 
 execute(_Ctx, _Obj, <<"domains">>, _Args) ->
     {ok, admin};
-
+execute(_Ctx, _Obj, <<"account">>, _Args) ->
+    {ok, account};
+execute(_Ctx, _Obj, <<"stanza">>, _Opts) ->
+    {ok, #{}};
 execute(#{authorized := Authorized}, _Obj, <<"checkAuth">>, _Args) ->
     case Authorized of
         true ->
             {ok, 'AUTHORIZED'};
         false ->
             {ok, 'UNAUTHORIZED'}
-    end;
-execute(_Ctx, _Obj, <<"stanza">>, _Opts) ->
-    {ok, #{}}.
+    end.

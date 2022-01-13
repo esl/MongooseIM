@@ -8,6 +8,8 @@
 
 -ignore_xref([format_error/1, err/2, crash/2]).
 
+-include("mongoose_graphql_types.hrl").
+
 -type err_msg() :: #{message := binary(), extensions => map(), path => list()}.
 
 %% callback invoked when resolver returns error tuple
@@ -30,6 +32,8 @@ err(_Ctx, #{term := Term, what := db_error}) ->
     #{message => <<"Database error">>, extensions => #{code => db_error, term => Term}};
 err(_Ctx, #{host_type := HostType, what := service_disabled}) when is_binary(HostType) ->
     #{message => <<"Service disabled">>, extensions => #{code => service_disabled, hostType => HostType}};
+err(_Ctx, #resolver_error{reason = Code, msg = Msg, context = Ext}) ->
+    #{message => iolist_to_binary(Msg), extensions => Ext#{code => Code}};
 err(_Ctx, ErrorTerm) ->
     #{message => iolist_to_binary(io_lib:format("~p", [ErrorTerm])),
       extensions => #{code => resolver_error}}.
