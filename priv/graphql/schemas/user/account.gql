@@ -1,0 +1,16 @@
+"""
+Allow user to get information about account.
+"""
+type AccountUserQuery @protected{
+  field: Bool
+}
+
+"""
+Allow user to manage own account.
+"""
+type AccountUserMutation @protected{
+  "Remove an account"
+  unregister: String
+  "Change the password of an account"
+  changePassword(newPassword: String!): String
+}
