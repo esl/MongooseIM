@@ -361,7 +361,7 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % Alice sends a message to Bob and then she archives the conversation
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
@@ -573,10 +573,11 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
         RoomJid = muc_light_helper:room_bin_jid(?ROOM_MARKERS_RESET),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         %%% WHEN A MESSAGE IS SENT (two times the same message)
-        MsgStanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"some_ID">>),
-        escalus:send(Alice, MsgStanza),
+        MsgStanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"id-1">>),
+        MsgStanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"id-2">>),
+        escalus:send(Alice, MsgStanza1),
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
-        escalus:send(Alice, MsgStanza),
+        escalus:send(Alice, MsgStanza2),
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
         % verify that Bob has the message on inbox, reset it, and verify is still there but read
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = AliceRoomJid, to = BobJid, content = MsgBody}]),

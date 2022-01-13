@@ -64,7 +64,7 @@ init(HostType, _Options) ->
                            <<"DELETE FROM inbox WHERE luser = ? AND lserver = ?">>),
     mongoose_rdbms:prepare(inbox_delete_domain, inbox,
                            [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>),
-        UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
+    UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
     InsertFields =
         UniqueKeyFields ++ [<<"content">>, <<"unread_count">>, <<"msg_id">>, <<"timestamp">>],
     rdbms_queries:prepare_upsert(HostType, inbox_upsert, inbox,
@@ -74,8 +74,8 @@ init(HostType, _Options) ->
                                  UniqueKeyFields),
     rdbms_queries:prepare_upsert(HostType, inbox_upsert_incr_unread, inbox,
                                  InsertFields,
-                                 [<<"content">>, <<"unread_count = inbox.unread_count + 1">>,
-                                  <<"msg_id">>, <<"timestamp">>, <<"archive">>],
+                                 [<<"content">>, <<"msg_id">>, <<"timestamp">>, <<"archive">>,
+                                  {<<"unread_count">>, <<"unread_count = inbox.unread_count + ?">>}],
                                  UniqueKeyFields),
     ok.
 
@@ -133,17 +133,22 @@ remove_domain(HostType, LServer) ->
     execute_delete_domain(HostType, LServer),
     ok.
 
-%% This function was not refatorected to use the generic upsert helper
-%% becase this helper doesn't support parametrized queries for incremental change
+-spec set_inbox_incr_unread(
+        mongooseim:host_type(), mod_inbox:entry_key(), binary(), binary(), integer()) ->
+    mod_inbox:count_res().
+set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
+    set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp, 1).
+
 -spec set_inbox_incr_unread(HostType :: mongooseim:host_type(),
                             InboxEntryKey :: mod_inbox:entry_key(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: integer()) -> mod_inbox:count_res().
-set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Timestamp) ->
+                            Timestamp :: integer(),
+                            Incrs :: pos_integer()) -> mod_inbox:count_res().
+set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Timestamp, Incrs) ->
     LToBareJid = jid:nameprep(ToBareJid),
-    InsertParams = [LUser, LServer, LToBareJid, Content, 1, MsgId, Timestamp],
-    UpdateParams = [Content, MsgId, Timestamp, false],
+    InsertParams = [LUser, LServer, LToBareJid, Content, Incrs, MsgId, Timestamp],
+    UpdateParams = [Content, MsgId, Timestamp, false, Incrs],
     UniqueKeyValues  = [LUser, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread,
                                        InsertParams, UpdateParams, UniqueKeyValues),
