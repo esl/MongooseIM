@@ -1049,7 +1049,7 @@ mam_archive_sync(HostType) ->
 %% @doc Notifies of a message retraction
 -spec mam_retraction(mongooseim:host_type(),
                      mod_mam_utils:retraction_info(),
-                     mod_mam_rdbms_arch:env_vars()) ->
+                     mod_mam:archive_message_params()) ->
     mod_mam_utils:retraction_info().
 mam_retraction(HostType, RetractionInfo, Env) ->
     run_fold(mam_retraction, HostType, RetractionInfo, Env).
@@ -1176,8 +1176,8 @@ mam_muc_archive_sync(HostType) ->
 
 %% @doc Notifies of a muc message retraction
 -spec mam_muc_retraction(mongooseim:host_type(),
-                     mod_mam_utils:retraction_info(),
-                     mod_mam_rdbms_arch:env_vars()) ->
+                         mod_mam_utils:retraction_info(),
+                         mod_mam:archive_message_params()) ->
     mod_mam_utils:retraction_info().
 mam_muc_retraction(HostType, RetractionInfo, Env) ->
     run_fold(mam_muc_retraction, HostType, RetractionInfo, Env).
