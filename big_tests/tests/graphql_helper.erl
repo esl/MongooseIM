@@ -46,7 +46,7 @@ init_admin_handler(Config) ->
         true ->
             [{schema_endpoint, Endpoint}, {listener_opts, Opts} | Config];
         false ->
-            {skipped, <<"Admin credentials are not defined in config">>}
+            ct:fail(<<"Admin credentials are not defined in config">>)
     end.
 
 get_listener_opts(EpName) ->

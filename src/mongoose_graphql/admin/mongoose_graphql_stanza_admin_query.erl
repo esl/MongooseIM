@@ -7,6 +7,10 @@
 -include("../mongoose_graphql_types.hrl").
 -include("mongoose_logger.hrl").
 
+-type result() :: {ok, map()} | {error, term()}.
+
+-spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
+        result().
 execute(_Ctx, _Obj, <<"getLastMessages">>, Opts) ->
     get_last_messages(Opts).
 
@@ -22,14 +26,11 @@ get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
 
 get_last_messages2(Caller, Limit, With, Before) ->
     With2 = null_as_undefined(With),
-    BeforeSeconds = maybe_datetime_to_seconds(Before),
+    Before2 = null_as_undefined(Before), %% Before is in microseconds
     Limit2 = min(500, Limit),
-    Rows = mongoose_stanza_api:lookup_recent_messages(Caller, With2, BeforeSeconds, Limit2),
+    Rows = mongoose_stanza_api:lookup_recent_messages(Caller, With2, Before2, Limit2),
     Maps = lists:map(fun row_to_map/1, Rows),
     {ok, #{<<"stanzas">> => Maps, <<"limit">> => Limit2}}.
-
-maybe_datetime_to_seconds(null) -> undefined;
-maybe_datetime_to_seconds(Microseconds) -> Microseconds / 1000000. %% Could be float
 
 null_as_undefined(null) -> undefined;
 null_as_undefined(Value) -> Value.

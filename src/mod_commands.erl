@@ -431,8 +431,14 @@ get_recent_messages(Caller, Before, Limit) ->
     get_recent_messages(Caller, undefined, Before, Limit).
 
 get_recent_messages(Caller, With, Before, Limit) ->
-    Res = mongoose_stanza_api:lookup_recent_messages(Caller, With, Before, Limit),
+    Before2 = maybe_seconds_to_microseconds(Before),
+    Res = mongoose_stanza_api:lookup_recent_messages(Caller, With, Before2, Limit),
     lists:map(fun row_to_map/1, Res).
+
+maybe_seconds_to_microseconds(X) when is_number(X) ->
+    X * 1000000;
+maybe_seconds_to_microseconds(X) ->
+    X.
 
 change_user_password(Host, User, Password) ->
     JID = jid:make(User, Host, <<>>),

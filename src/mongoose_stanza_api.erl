@@ -4,6 +4,13 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
+%% Before is in microseconds
+-spec lookup_recent_messages(
+        ArcJID :: jid:jid(),
+        With :: jid:jid() | undefined,
+        Before :: non_neg_integer() | undefined,
+        Limit :: non_neg_integer()) ->
+    [mod_mam:message_row()].
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->
     throw({error, message_limit_too_high});
 lookup_recent_messages(ArcJID, With, Before, Limit) when is_binary(ArcJID) ->
@@ -15,8 +22,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     EndTS = case Before of
                 0 -> undefined;
-                undefined -> undefined;
-                _ -> round(Before * 1000000)
+                _ -> Before
             end,
     Params = #{archive_id => mod_mam:archive_id(LServer, LUser),
                owner_jid => ArcJID,
