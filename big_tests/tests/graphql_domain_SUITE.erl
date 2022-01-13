@@ -29,21 +29,18 @@ domain_handler() ->
      delete_domain,
      get_domains_after_deletion].
 
-init_per_group(domain_handler, Config) ->
+init_per_suite(Config) ->
     Endpoint = admin,
     Opts = get_listener_opts(Endpoint),
     case proplists:is_defined(username, Opts) of
         true ->
-            [{schema_endpoint, Endpoint} | Config];
+            case mongoose_helper:is_rdbms_enabled(?HOST_TYPE) of
+                true -> escalus:init_per_suite([{schema_endpoint, Endpoint} | Config]);
+                false -> {skip, require_rdbms}
+            end;
         false ->
-            {skipped, <<"Admin credentials are not defined in config">>}
+            ct:fail(<<"Admin credentials are not defined in config">>)
     end.
-
-end_per_group(_, _Config) ->
-    ok.
-
-init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).

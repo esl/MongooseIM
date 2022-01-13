@@ -213,7 +213,7 @@ end_per_suite(Config) ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_group(db, Config) ->
-    case mongoose_helper:is_rdbms_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(dummy_auth_host_type()) of
         true -> [{service, true}|Config];
         false -> {skip, require_rdbms}
     end;
