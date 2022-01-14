@@ -57,9 +57,11 @@ handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
--spec handle_info(flush | term(), state()) -> {noreply, state()}.
-handle_info(flush, State) ->
+-spec handle_info({timeout, reference(), flush} | term(), state()) -> {noreply, state()}.
+handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = TimerRef}) ->
     {noreply, run_flush(State)};
+handle_info({timeout, _, flush}, State) -> % expired timeout, ignore
+    {noreply, State};
 handle_info({garbage_collect, asynchronous_gc_triggered, true}, State) ->
     {noreply, State};
 handle_info(Msg, State) ->
@@ -100,7 +102,7 @@ handle_task(Task, State = #state{batch_size = MaxSize,
     end.
 
 maybe_schedule_flush(undefined, 0, Interval) ->
-    erlang:send_after(Interval, self(), flush);
+    erlang:start_timer(Interval, self(), flush);
 maybe_schedule_flush(TRef, _, _) ->
     TRef.
 
@@ -114,14 +116,7 @@ run_flush(State = #state{flush_interval_tref = TRef}) ->
 cancel_and_flush_timer(undefined) ->
     ok;
 cancel_and_flush_timer(TRef) ->
-    case erlang:cancel_timer(TRef) of
-        false ->
-            receive
-                flush -> ok
-            after 0 -> ok
-            end;
-        _ -> ok
-    end.
+    catch erlang:cancel_timer(TRef, [{async, true}]).
 
 do_run_flush(State = #state{flush_callback = FlushCallback,
                             flush_queue = Queue,
