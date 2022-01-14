@@ -26,7 +26,7 @@
 -module(acl).
 -author('alexey@process-one.net').
 
--export([match_rule/4, match_rule/5]).
+-export([match_rule/3, match_rule/4, match_rule/5]).
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -41,6 +41,11 @@
                       | resource | resource_regexp | resource_glob.
 
 -type acl_result() :: allow | deny | term().
+
+%% Skips the domain check for the 'match => current_domain' condition
+-spec match_rule(mongooseim:host_type_or_global(), rule(), jid:jid()) -> acl_result().
+match_rule(HostType, Rule, JID) ->
+    match_rule(HostType, JID#jid.lserver, Rule, JID).
 
 -spec match_rule(mongooseim:host_type_or_global(), jid:lserver(), rule(), jid:jid()) ->
           acl_result().

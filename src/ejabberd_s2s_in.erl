@@ -586,9 +586,10 @@ stream_features(Domain) ->
         {error, not_found} -> []
     end.
 
--spec change_shaper(state(), Host :: 'global' | binary(), jid:jid()) -> any().
+-spec change_shaper(state(), jid:lserver(), jid:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
-    Shaper = acl:match_rule(Host, StateData#state.shaper, JID),
+    {ok, HostType} = mongoose_domain_api:get_host_type(Host),
+    Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
     (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).
 
 
