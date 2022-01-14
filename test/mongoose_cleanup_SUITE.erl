@@ -38,27 +38,27 @@ init_per_suite(Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_domain_api:init(),
     Config.
 
 end_per_suite(Config) ->
+    mongoose_domain_api:stop(),
     [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     Config.
 
 opts() ->
-    [{hosts, []},
+    [{hosts, [?HOST]},
      {host_types, []},
      {all_metrics_are_global, false}].
 
 init_per_testcase(T, Config) ->
     {ok, _HooksServer} = gen_hook:start_link(),
-    ok = mongoose_lazy_routing:start(),
     setup_meck(meck_mods(T)),
     Config.
 
 end_per_testcase(T, Config) ->
-    mongoose_lazy_routing:stop(),
     unload_meck(meck_mods(T)),
     Config.
 

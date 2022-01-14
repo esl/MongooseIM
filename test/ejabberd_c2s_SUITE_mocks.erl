@@ -40,7 +40,7 @@ setup() ->
 
     [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
 
-    meck:expect(acl, match_rule_for_host_type, fun(_, _, _, _) -> allow end),
+    meck:expect(acl, match_rule, fun(_, _, _, _) -> allow end),
 
     meck:new(mongoose_bin, [passthrough]),
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
