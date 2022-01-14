@@ -34,4 +34,6 @@ execute(_Ctx, _Obj, <<"disableDomain">>, #{<<"domain">> := Domain}) ->
             {ok, #domain{enabled = false, domain = Domain}};
         {error, _} = Err ->
             Err
-    end.
+    end;
+execute(_Ctx, _Obj, <<"stanza">>, _) ->
+    {ok, #{}}.

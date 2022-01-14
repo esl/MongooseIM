@@ -2,11 +2,12 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
+-import(graphql_helper, [execute/3]).
 
 -define(assertAdminAuth(Auth, Data), assert_auth(atom_to_binary(Auth), Data)).
 -define(assertUserAuth(Username, Auth, Data),
@@ -41,20 +42,15 @@ common_tests() ->
     [can_load_graphiql].
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = escalus:init_per_suite(Config),
+    dynamic_modules:save_modules(domain_helper:host_type(), Config1).
 
 end_per_suite(Config) ->
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(admin_handler, Config) ->
-    Endpoint = admin,
-    Opts = get_listener_opts(Endpoint),
-    case proplists:is_defined(username, Opts) of
-        true ->
-            [{schema_endpoint, Endpoint} | Config];
-        false ->
-            {skipped, <<"Admin credentials are not defined in config">>}
-    end;
+    graphql_helper:init_admin_handler(Config);
 init_per_group(user_handler, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
     [{schema_endpoint, user} | Config1];
@@ -110,7 +106,7 @@ admin_checks_auth(Config) ->
 
 auth_admin_checks_auth(Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Opts = get_listener_opts(Ep),
+    Opts = ?config(listener_opts, Config),
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
     Body = #{query => "{ checkAuth }"},
@@ -127,21 +123,9 @@ user_password(User) ->
     [{User, Props}] = escalus:get_users([User]),
     proplists:get_value(password, Props).
 
-get_listener_opts(EpName) ->
-    {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
-    [Opts2] = lists:filtermap(
-        fun
-            ({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                {true, Args};
-            (_) ->
-                false
-        end, Modules),
-    Opts2.
-
 get_graphiql_website(EpName) ->
     Request =
-      #{port => get_listener_port(EpName),
+      #{port => graphql_helper:get_listener_port(EpName),
         role => {graphql, atom_to_binary(EpName)},
         method => <<"GET">>,
         headers => [{<<"Accept">>, <<"text/html">>}],
