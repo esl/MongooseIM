@@ -277,7 +277,7 @@ forget_room(Acc, _HostType, MucServer, RoomName) ->
 -spec check_action_allowed(host_type(), mongoose_acc:t(), jid:lserver(), mam_iq:action(), muc_action(),
                         jid:jid(), jid:jid()) -> ok | {error, binary()}.
 check_action_allowed(HostType, Acc, Domain, Action, MucAction, From, To) ->
-    case acl:match_rule_for_host_type(HostType, Domain, MucAction, From, default) of
+    case acl:match_rule(HostType, Domain, MucAction, From, default) of
         allow -> ok;
         deny -> {false, <<"Blocked by service policy.">>};
         default -> check_room_action_allowed_by_default(HostType, Acc, Action, From, To)

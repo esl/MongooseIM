@@ -3316,7 +3316,7 @@ handle_sasl_step(#state{host_type = HostType, server = Server, socket = Sock} = 
     end.
 
 user_allowed(JID, #state{host_type = HostType, server = Server, access = Access}) ->
-    case acl:match_rule_for_host_type(HostType, Server, Access, JID)  of
+    case acl:match_rule(HostType, Server, Access, JID)  of
         allow ->
             open_session_allowed_hook(HostType, JID);
         deny ->

@@ -209,7 +209,7 @@ is_message_count_threshold_reached(HostType, MaxOfflineMsgs, LUser, LServer, Len
 
 
 get_max_user_messages(HostType, AccessRule, LUser, LServer) ->
-    case acl:match_rule(HostType, AccessRule, jid:make_noprep(LUser, LServer, <<>>)) of
+    case acl:match_rule(HostType, LServer, AccessRule, jid:make_noprep(LUser, LServer, <<>>)) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_MESSAGES

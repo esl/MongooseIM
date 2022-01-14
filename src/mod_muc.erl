@@ -582,7 +582,7 @@ process_packet(Acc, From, To, El, #{state := State}) ->
     {AccessRoute, _, _, _} = State#state.access,
     ServerHost = make_server_host(To, State),
     HostType = State#state.host_type,
-    case acl:match_rule_for_host_type(HostType, ServerHost, AccessRoute, From) of
+    case acl:match_rule(HostType, ServerHost, AccessRoute, From) of
         allow ->
             {Room, MucHost, _} = jid:to_lower(To),
             route_to_room(MucHost, Room, {From, To, Acc, El}, State),
@@ -797,7 +797,7 @@ route_by_type(<<"message">>, {From, To, Acc, Packet},
         <<"error">> ->
             ok;
         _ ->
-            case acl:match_rule_for_host_type(HostType, ServerHost, AccessAdmin, From) of
+            case acl:match_rule(HostType, ServerHost, AccessAdmin, From) of
                 allow ->
                     Msg = xml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
                     broadcast_service_message(MucHost, Msg);
@@ -815,7 +815,7 @@ route_by_type(<<"presence">>, _Routed, _State) ->
 -spec check_user_can_create_room(host_type(), jid:lserver(),
         allow | atom(), jid:jid(), room()) -> ok | {error, term()}.
 check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
-    case acl:match_rule_for_host_type(HostType, ServerHost, AccessCreate, From) of
+    case acl:match_rule(HostType, ServerHost, AccessCreate, From) of
         allow ->
             MaxLen = gen_mod:get_module_opt(HostType, mod_muc,
                                             max_room_id, infinity),

@@ -204,7 +204,7 @@ default_shaper() ->
                       Action :: atom(), jid:jid(),
                       Default :: 'none') -> 'allow' | 'none'.
 get_shaper_name(HostType, Domain, Action, FromJID, Default) ->
-    case acl:match_rule_for_host_type(HostType, Domain, Action, FromJID) of
+    case acl:match_rule(HostType, Domain, Action, FromJID) of
         deny -> Default;
         Value -> Value
     end.

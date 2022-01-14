@@ -362,7 +362,7 @@ acc_to_host_type(Acc) ->
                         Action :: mam_iq:action(), From :: jid:jid(),
                         To :: jid:jid()) -> boolean().
 is_action_allowed(HostType, Action, From, To) ->
-    case acl:match_rule_for_host_type(HostType, To#jid.lserver, Action, From, default) of
+    case acl:match_rule(HostType, To#jid.lserver, Action, From, default) of
         allow   -> true;
         deny    -> false;
         default -> is_action_allowed_by_default(Action, From, To)
