@@ -121,9 +121,12 @@ admin_mapping_rules() ->
         'DomainAdminQuery' => mongoose_graphql_domain_admin_query,
         'AdminMutation' => mongoose_graphql_admin_mutation,
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
+        'StanzaAdminMutation' => mongoose_graphql_stanza_admin_mutation,
+        'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
+      scalars => #{default => mongoose_graphql_scalar},
       enums => #{default => mongoose_graphql_enum}}.
 
 user_mapping_rules() ->
@@ -133,6 +136,7 @@ user_mapping_rules() ->
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
+      scalars => #{default => mongoose_graphql_scalar},
       enums => #{default => mongoose_graphql_enum}}.
 
 load_multiple_file_schema(Patterns) ->

@@ -10,6 +10,8 @@
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
 
+-export([term_to_readable_binary/1]).
+
 %% Private, just for warning
 -export([deprecated_logging/1]).
 -deprecated({deprecated_logging, 1, eventually}).
@@ -148,3 +150,6 @@ parse_ip_netmask(IPStr, MaskStr) ->
         _ ->
             error
     end.
+
+term_to_readable_binary(X) ->
+    iolist_to_binary(io_lib:format("~0p", [X])).

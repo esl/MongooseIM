@@ -136,7 +136,7 @@ create_instant_room(Domain, Name, Owner, Nick) ->
     end.
 
 invite_to_room(Domain, Name, Sender, Recipient, Reason) ->
-    case mod_commands:parse_from_to(Sender, Recipient) of
+    case mongoose_stanza_helper:parse_from_to(Sender, Recipient) of
         {ok, SenderJid, RecipientJid} ->
             RoomJid = room_jid(Domain, Name),
             case verify_room(RoomJid, SenderJid) of

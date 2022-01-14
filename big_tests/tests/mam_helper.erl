@@ -1011,7 +1011,7 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     mongoose_helper:make_jid(U, S, R).
 
--spec backend() -> rdbms | riak | cassandra | false.
+-spec backend() -> rdbms | riak | cassandra | disabled.
 backend() ->
     Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).

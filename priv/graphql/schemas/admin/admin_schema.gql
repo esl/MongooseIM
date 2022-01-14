@@ -11,6 +11,7 @@ type AdminQuery{
   domains: DomainAdminQuery
   "Check authorization status"
   checkAuth: AuthStatus
+  stanza: StanzaAdminQuery
 }
 
 """
@@ -19,4 +20,5 @@ Only an authenticated admin can execute these mutations.
 """
 type AdminMutation @protected{
   domains: DomainAdminMutation
+  stanza: StanzaAdminMutation
 }

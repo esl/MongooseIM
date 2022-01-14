@@ -212,12 +212,12 @@ unexpected_internal_error(Config) ->
 admin_and_user_load_global_types(_Config) ->
     mongoose_graphql:init(),
     AdminEp = mongoose_graphql:get_endpoint(admin),
-    ?assertMatch(#object_type{id = <<"JID">>}, graphql_schema:get(AdminEp, <<"JID">>)),
+    ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(AdminEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(AdminEp, <<"protected">>)),
 
     UserEp = mongoose_graphql:get_endpoint(user),
-    ?assertMatch(#object_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
+    ?assertMatch(#scalar_type{id = <<"JID">>}, graphql_schema:get(UserEp, <<"JID">>)),
     ?assertMatch(#directive_type{id = <<"protected">>},
                  graphql_schema:get(UserEp, <<"protected">>)).
 

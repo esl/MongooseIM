@@ -8,3 +8,5 @@
 
 execute(_Ctx, _Obj, <<"domains">>, _Args) ->
     {ok, admin}.
+execute(_Ctx, _Obj, <<"stanza">>, _) ->
+    {ok, #{}}.

@@ -15,4 +15,6 @@ execute(#{authorized := Authorized}, _Obj, <<"checkAuth">>, _Args) ->
             {ok, 'AUTHORIZED'};
         false ->
             {ok, 'UNAUTHORIZED'}
-    end.
+    end;
+execute(_Ctx, _Obj, <<"stanza">>, _Opts) ->
+    {ok, #{}}.
