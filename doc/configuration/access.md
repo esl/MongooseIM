@@ -47,7 +47,7 @@ It has the following logic:
 * if the access class is `blocked`, the returned value is `"deny"`,
 * otherwise, the returned value is `"allow"`.
 
-The `blocked` access class can be defined in the `acl` section and match blacklisted users.
+The `blocked` access class can be defined in the [`acl` section](acl.md) and match blacklisted users.
 
 For this rule to take effect, it needs to be referenced in the options of a [C2S listener](listen.md#listenc2saccess).
 

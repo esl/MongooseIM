@@ -5,29 +5,29 @@ The `acl` section is used to define **access classes** to which the connecting u
     * Key is the name of the access class,
     * Value is a TOML array of patterns - TOML tables, whose format is described below.
 * **Default:** no default - each access class needs to be specified explicitly.
-* **Example:** the `local` access class is used for the regular users connecting to the [C2S listener](listen.md#client-to-server-c2s-listenc2s).
+* **Example:** the `local` access class is used for the regular users connecting to the [C2S listener](listen.md#client-to-server-c2s-listenc2s). The pattern `{}` matches all users from the current server, because it is equivalent to `{match = "current_domain}"` (see below).
 
 ```toml
-  local = [
-    {user_regexp = ""}
-  ]
+  local = [{}]
 ```
 
 When there are multiple patterns listed, the resulting pattern will be the union of all of them.
 
 ## Patterns
 
-The options listed below are used to assign the users to the access class. There are no default values for any of them.
-
-!!! Note
-    The options can NOT be combined with each other unless the description says otherwise.
+Each pattern consists of one or more conditions, specified with the options listed below.
+All defined conditions need to be satisfied for the pattern to be matched successfully.
 
 ### `acl.*.match`
 
-* **Syntax:** string, one of: `"all"`, `"none"`
+* **Syntax:** string, one of: `"all"`, `"current_domain"`, `"none"`
+* **Default:** `"current_domain"`
 * **Example:** `match = "all"`
 
-Matches either all users or none of them. The latter is useful for disabling access to some services.
+By default only users from the *current domain* (the one of the server) are matched.
+You can set this option to `"all"`, extending the pattern to users from other domains.
+This makes a difference for some [access rules](access.md), e.g. MAM, MUC and registration ones.
+Setting the option to `"none"` makes the pattern never match.
 
 ```toml
   everyone = [
@@ -83,6 +83,13 @@ The following class includes `alice@localhost/mobile`, but not `alice@localhost/
 ```toml
   mobile_users = [
     {resource = "mobile"}
+  ]
+```
+This option can be combined with `user` and `server` - only `alice@localhost/mobile` belongs to the following class:
+
+```toml
+  admin = [
+    {user = "alice", server = "localhost", resource = "mobile"}
   ]
 ```
 
