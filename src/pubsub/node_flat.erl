@@ -146,7 +146,8 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
         {<<"">>, Host, <<"">>} ->
             true; % pubsub service always allowed
         _ ->
-            acl:match_rule(ServerHost, Access, Owner) =:= allow
+            {ok, HostType} = mongoose_domain_api:get_domain_host_type(ServerHost),
+            acl:match_rule(HostType, ServerHost, Access, Owner) =:= allow
     end,
     {result, Allowed}.
 

@@ -97,7 +97,8 @@ create_node_permission(Host, _ServerHost, _Node, _ParentNode,
     {result, true}; % pubsub service always allowed
 create_node_permission(Host, ServerHost, _Node, _ParentNode,
                        #jid{ luser = User, lserver = Server } = Owner, Access) ->
-    case acl:match_rule(ServerHost, Access, Owner) of
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(ServerHost),
+    case acl:match_rule(HostType, ServerHost, Access, Owner) of
         allow ->
             case Host of
                 {User, Server, _} -> {result, true};
