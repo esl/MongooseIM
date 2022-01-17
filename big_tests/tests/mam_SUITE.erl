@@ -115,6 +115,7 @@
          check_user_exist/1,
          metric_incremented_on_archive_request/1,
          metric_incremented_when_store_message/1,
+         metrics_incremented_for_async_pools/1,
          archive_chat_markers/1,
          dont_archive_chat_markers/1,
          save_unicode_messages/1,
@@ -400,7 +401,9 @@ muc_text_search_cases() ->
 
 archived_cases() ->
     [archived,
-     filter_forwarded].
+     filter_forwarded,
+     metrics_incremented_for_async_pools
+    ].
 
 stanzaid_cases() ->
     [message_with_stanzaid,
@@ -888,6 +891,13 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
+init_per_testcase(C=metrics_incremented_for_async_pools, Config) ->
+    case ?config(configuration, Config) of
+        rdbms_async_pool ->
+            escalus:init_per_testcase(C, clean_archives(Config));
+        _ ->
+            {skip, "Not an async-pool test"}
+    end;
 init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  rdbms_async_pool ->
@@ -3073,6 +3083,24 @@ metric_incremented_on_archive_request(ConfigIn) ->
     MongooseMetrics = [{[HostTypePrefix, backends, mod_mam, lookup], changed}],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}], F).
+
+metrics_incremented_for_async_pools(Config) ->
+    Val0 = get_mongoose_async_metrics(),
+    archived(Config),
+    Val1 = get_mongoose_async_metrics(),
+    ?assert_equal(false, Val0 =:= Val1).
+
+get_mongoose_async_metrics() ->
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
+    #{batch_flushes => get_mongoose_async_metrics(HostTypePrefix, batch_flushes),
+      timed_flushes => get_mongoose_async_metrics(HostTypePrefix, timed_flushes)}.
+
+get_mongoose_async_metrics(HostTypePrefix, MetricName) ->
+    Metric = [HostTypePrefix, mongoose_async_pools, pm_mam, MetricName],
+    {ok, Value} = rpc(mim(), mongoose_metrics, get_metric_value, [Metric]),
+    {value, Count} = lists:keyfind(value, 1, Value),
+    Count.
 
 metric_incremented_when_store_message(Config) ->
     archived(Config).

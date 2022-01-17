@@ -14,6 +14,11 @@
 -type pool_id() :: atom().
 -type pool_name() :: atom().
 -type pool_opts() :: gen_mod:module_opts().
+-type pool_extra() :: #{host_type := mongooseim:host_type(),
+                        queue_length := non_neg_integer(),
+                        _ => _}.
+
+-export_type([pool_id/0, pool_extra/0]).
 
 %%% API functions
 -spec start_pool(mongooseim:host_type(), pool_id(), pool_opts()) ->
@@ -77,6 +82,8 @@ start_link(HostType, PoolId, Opts) ->
 -spec init(term()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([HostType, PoolId, Opts]) ->
     PoolName = gen_pool_name(HostType, PoolId),
+    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, timed_flushes], counter),
+    mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, batch_flushes], counter),
     store_pool_name(HostType, PoolId, PoolName),
     WPoolOpts = make_wpool_opts(HostType, PoolId, Opts),
     WorkerSpec = #{id => PoolName,
@@ -111,19 +118,20 @@ make_wpool_opts(HostType, PoolId, Opts) ->
     FlushCallback = gen_mod:get_opt(flush_callback, Opts),
     FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],
-    WorkerOpts = {HostType, Interval, MaxSize, FlushCallback, FlushExtra},
+    WorkerOpts = {HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra},
     Worker = {mongoose_batch_worker, WorkerOpts},
     [{worker, Worker},
      {workers, NumWorkers},
      {worker_opt, ProcessOpts},
      {worker_shutdown, 10000}].
 
--spec make_extra(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
+-spec make_extra(mongooseim:host_type(), pool_id(), pool_opts()) -> pool_extra().
 make_extra(HostType, PoolId, Opts) ->
+    DefExtra = #{host_type => HostType, queue_length => 0},
     case {gen_mod:get_opt(init_callback, Opts, undefined),
           gen_mod:get_opt(flush_extra, Opts,
-                          fun(Val) -> Val#{host_type => HostType} end,
-                          #{host_type => HostType})} of
+                          fun(Val) -> maps:merge(Val, DefExtra) end,
+                          DefExtra)} of
         {undefined, Extra} ->
             Extra;
         {InitFun, Extra} when is_function(InitFun, 3) ->
