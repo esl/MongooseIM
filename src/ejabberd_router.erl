@@ -32,6 +32,7 @@
          route/4,
          route_error/4,
          route_error_reply/4,
+         is_component_dirty/1,
          dirty_get_all_components/1,
          register_components/2,
          register_components/3,
@@ -306,13 +307,13 @@ unregister_component(Domain, Node) ->
 
 %% @doc Returns a list of components registered for this domain by any node,
 %% the choice is yours.
--spec lookup_component(Domain :: domain()) -> [external_component()].
+-spec lookup_component(Domain :: jid:lserver()) -> [external_component()].
 lookup_component(Domain) ->
     mnesia:dirty_read(external_component_global, Domain).
 
 %% @doc Returns a list of components registered for this domain at the given node.
 %% (must be only one, or nothing)
--spec lookup_component(Domain :: domain(), Node :: node()) -> [external_component()].
+-spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
     mnesia:dirty_read(external_component, {Domain, Node}).
 
@@ -323,6 +324,9 @@ dirty_get_all_components(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
+-spec is_component_dirty(jid:lserver()) -> boolean().
+is_component_dirty(Domain) ->
+    [] =/= lookup_component(Domain).
 
 %%====================================================================
 %% gen_server callbacks
