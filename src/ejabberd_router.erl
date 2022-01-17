@@ -32,13 +32,7 @@
          route/4,
          route_error/4,
          route_error_reply/4,
-         register_route/2,
-         register_routes/2,
-         unregister_route/1,
-         unregister_routes/1,
-         dirty_get_all_routes/0,
          dirty_get_all_domains/0,
-         dirty_get_all_routes/1,
          dirty_get_all_domains/1,
          dirty_get_all_components/1,
          register_components/2,
@@ -52,8 +46,7 @@
          unregister_component/1,
          unregister_component/2,
          unregister_components/1,
-         unregister_components/2,
-         default_routing_modules/0
+         unregister_components/2
         ]).
 
 -export([start_link/0]).
@@ -65,16 +58,15 @@
 %% debug exports for tests
 -export([update_tables/0]).
 
--ignore_xref([dirty_get_all_domains/1, dirty_get_all_routes/0, dirty_get_all_routes/1,
+-ignore_xref([dirty_get_all_domains/1,
               register_component/2, register_component/3, register_component/4,
-              register_components/2, register_components/3, register_routes/2,
+              register_components/2, register_components/3,
               route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
               unregister_component/1, unregister_component/2, unregister_components/2,
               unregister_routes/1, update_tables/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("route.hrl").
 -include("external_component.hrl").
 
 -record(state, {}).
@@ -255,14 +247,9 @@ check_component(LDomain, Node) ->
 check_dynamic_domains(LDomain)->
     {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
 
+%% check that route for this domain is not already registered
 check_component_route(LDomain) ->
-    %% check that route for this domain is not already registered
-    case mnesia:read(route, LDomain) of
-        [] ->
-            false;
-        _ ->
-            true
-    end.
+    no_route =/= mongoose_router:lookup_route(LDomain).
 
 %% check that there is no local component for domain:node pair
 check_component_local(LDomain, Node) ->
@@ -332,53 +319,9 @@ lookup_component(Domain) ->
 lookup_component(Domain, Node) ->
     mnesia:dirty_read(external_component, {Domain, Node}).
 
--spec register_route(Domain :: domain(),
-                     Handler :: mongoose_packet_handler:t()) -> any().
-register_route(Domain, Handler) ->
-    register_route_to_ldomain(jid:nameprep(Domain), Domain, Handler).
-
--spec register_routes([domain()], mongoose_packet_handler:t()) -> 'ok'.
-register_routes(Domains, Handler) ->
-    lists:foreach(fun(Domain) ->
-                      register_route(Domain, Handler)
-                  end,
-                  Domains).
-
--spec register_route_to_ldomain(binary(), domain(), mongoose_packet_handler:t()) -> any().
-register_route_to_ldomain(error, Domain, _) ->
-    erlang:error({invalid_domain, Domain});
-register_route_to_ldomain(LDomain, _, Handler) ->
-    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
-    % No support for hidden routes yet
-    mongoose_hooks:register_subhost(LDomain, false).
-
-unregister_route(Domain) ->
-    case jid:nameprep(Domain) of
-        error ->
-            erlang:error({invalid_domain, Domain});
-        LDomain ->
-            mnesia:dirty_delete(route, LDomain),
-            mongoose_hooks:unregister_subhost(LDomain)
-    end.
-
-unregister_routes(Domains) ->
-    lists:foreach(fun(Domain) ->
-                      unregister_route(Domain)
-                  end,
-                  Domains).
-
-
--spec dirty_get_all_routes() -> [jid:lserver()].
-dirty_get_all_routes() ->
-    dirty_get_all_routes(all).
-
 -spec dirty_get_all_domains() -> [jid:lserver()].
 dirty_get_all_domains() ->
     dirty_get_all_domains(all).
-
--spec dirty_get_all_routes(return_hidden()) -> [jid:lserver()].
-dirty_get_all_routes(ReturnHidden) ->
-    lists:usort(all_routes(ReturnHidden)) -- ?MYHOSTS.
 
 -spec dirty_get_all_domains(return_hidden()) -> [jid:lserver()].
 dirty_get_all_domains(ReturnHidden) ->
@@ -386,10 +329,10 @@ dirty_get_all_domains(ReturnHidden) ->
 
 -spec all_routes(return_hidden()) -> [jid:lserver()].
 all_routes(all) ->
-    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component_global);
+    mongoose_router:get_all_domains() ++ mnesia:dirty_all_keys(external_component_global);
 all_routes(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
-    mnesia:dirty_all_keys(route)
+    mongoose_router:get_all_domains()
     ++
     mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
@@ -407,10 +350,6 @@ dirty_get_all_components(only_public) ->
 
 init([]) ->
     update_tables(),
-    mnesia:create_table(route,
-                        [{attributes, record_info(fields, route)},
-                         {local_content, true}]),
-    mnesia:add_table_copy(route, node(), ram_copies),
 
     %% add distributed service_component routes
     mnesia:create_table(external_component,
@@ -434,9 +373,6 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -452,14 +388,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
-
-default_routing_modules() ->
-    [mongoose_router_global,
-     mongoose_router_localdomain,
-     mongoose_router_external_localnode,
-     mongoose_router_external,
-     mongoose_router_dynamic_domains,
-     ejabberd_s2s].
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
@@ -495,24 +423,6 @@ route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
     end.
 
 update_tables() ->
-    case catch mnesia:table_info(route, attributes) of
-        [domain, node, pid] ->
-            mnesia:delete_table(route);
-        [domain, pid] ->
-            mnesia:delete_table(route);
-        [domain, pid, local_hint] ->
-            mnesia:delete_table(route);
-        [domain, handler] ->
-            ok;
-        {'EXIT', _} ->
-            ok
-    end,
-    case lists:member(local_route, mnesia:system_info(tables)) of
-        true ->
-            mnesia:delete_table(local_route);
-        false ->
-            ok
-    end,
     case catch mnesia:table_info(external_component, attributes) of
         [domain, handler, node] ->
             mnesia:delete_table(external_component);

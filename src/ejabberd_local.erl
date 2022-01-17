@@ -467,7 +467,7 @@ cancel_timer(TRef) ->
     end.
 
 do_register_host(Host) ->
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
+    mongoose_router:register_route(Host, mongoose_packet_handler:new(?MODULE)).
 
 do_unregister_host(Host) ->
-    ejabberd_router:unregister_route(Host).
+    mongoose_router:unregister_route(Host).

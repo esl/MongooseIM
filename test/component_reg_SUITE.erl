@@ -23,6 +23,7 @@ init_per_suite(C) ->
     C.
 
 init_per_testcase(_, C) ->
+    mongoose_router:start(),
     gen_hook:start_link(),
     C.
 

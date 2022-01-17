@@ -10,9 +10,7 @@
 -behaviour(xmpp_router).
 
 -include("jlib.hrl").
--include("route.hrl").
 
-%% API
 %% xmpp_router callback
 -export([filter/4, route/4]).
 
@@ -21,9 +19,9 @@ filter(From, To, Acc, Packet) ->
 
 route(From, To, Acc0, Packet) ->
     LDstDomain = To#jid.lserver,
-    case mnesia:dirty_read(route, LDstDomain) of
-        [] -> {From, To, Acc0, Packet};
-        [#route{handler = Handler}] ->
+    case mongoose_router:lookup_route(LDstDomain) of
+        no_route -> {From, To, Acc0, Packet};
+        Handler ->
             Acc1 = mongoose_local_delivery:do_route(From, To, Acc0, Packet, Handler),
             {done, Acc1}
     end.
