@@ -116,7 +116,7 @@ get_version() ->
     end.
 
 get_components() ->
-    Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_domains(),
+    Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_components(all),
     Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
     LenComponents = length(lists:flatten(Components)),
     #{report_name => cluster, key => number_of_components, value => LenComponents}.

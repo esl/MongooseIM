@@ -32,8 +32,6 @@
          route/4,
          route_error/4,
          route_error_reply/4,
-         dirty_get_all_domains/0,
-         dirty_get_all_domains/1,
          dirty_get_all_components/1,
          register_components/2,
          register_components/3,
@@ -58,8 +56,7 @@
 %% debug exports for tests
 -export([update_tables/0]).
 
--ignore_xref([dirty_get_all_domains/1,
-              register_component/2, register_component/3, register_component/4,
+-ignore_xref([register_component/2, register_component/3, register_component/4,
               register_components/2, register_components/3,
               route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
               unregister_component/1, unregister_component/2, unregister_components/2,
@@ -318,23 +315,6 @@ lookup_component(Domain) ->
 -spec lookup_component(Domain :: domain(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
     mnesia:dirty_read(external_component, {Domain, Node}).
-
--spec dirty_get_all_domains() -> [jid:lserver()].
-dirty_get_all_domains() ->
-    dirty_get_all_domains(all).
-
--spec dirty_get_all_domains(return_hidden()) -> [jid:lserver()].
-dirty_get_all_domains(ReturnHidden) ->
-    lists:usort(all_routes(ReturnHidden)).
-
--spec all_routes(return_hidden()) -> [jid:lserver()].
-all_routes(all) ->
-    mongoose_router:get_all_domains() ++ mnesia:dirty_all_keys(external_component_global);
-all_routes(only_public) ->
-    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
-    mongoose_router:get_all_domains()
-    ++
-    mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
 -spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
 dirty_get_all_components(all) ->
