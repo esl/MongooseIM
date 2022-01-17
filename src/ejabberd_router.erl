@@ -253,10 +253,7 @@ check_component(LDomain, Node) ->
     end.
 
 check_dynamic_domains(LDomain)->
-    case mongoose_domain_api:get_host_type(LDomain) of
-        {error, not_found} -> false;
-        {ok, _} -> true
-    end.
+    {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
 
 check_component_route(LDomain) ->
     %% check that route for this domain is not already registered
@@ -267,27 +264,17 @@ check_component_route(LDomain) ->
             true
     end.
 
+%% check that there is no local component for domain:node pair
 check_component_local(LDomain, Node) ->
-    %% check that there is no local component for domain:node pair
     NDomain = {LDomain, Node},
-    case mnesia:read(external_component, NDomain) of
-        [] ->
-            false;
-        _ ->
-            true
-    end.
+    [] =/= mnesia:read(external_component, NDomain).
 
+%% check that there is no component registered globally for this node
 check_component_global(LDomain, Node) ->
-    %% check that there is no component registered globally for this node
-    case get_global_component(LDomain, Node) of
-        undefined ->
-            false;
-        _ ->
-            true
-    end.
+    undefined =/= get_global_component(LDomain, Node).
 
+%% Find a component registered globally for this node (internal use)
 get_global_component([], _) ->
-    %% Find a component registered globally for this node (internal use)
     undefined;
 get_global_component([Comp|Tail], Node) ->
     case Comp of
