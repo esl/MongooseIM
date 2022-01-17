@@ -16,6 +16,7 @@
          process_listener/2,
          process_verify_peer/1,
          process_sni/1,
+         process_tls_sni/1,
          process_xmpp_tls/1,
          process_fast_tls/1,
          process_http_handler/2,
@@ -556,7 +557,8 @@ outgoing_pool_connection(<<"cassandra">>) ->
                                         required = all,
                                         process = fun ?MODULE:process_cassandra_auth/1},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, ssl}}
+                                       wrap = {kv, ssl},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"elastic">>) ->
@@ -577,7 +579,8 @@ outgoing_pool_connection(<<"http">>) ->
                  <<"request_timeout">> => #option{type = integer,
                                                   validate = non_negative},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, http_opts}}
+                                       wrap = {kv, http_opts},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"ldap">>) ->
@@ -594,7 +597,8 @@ outgoing_pool_connection(<<"ldap">>) ->
                  <<"connect_interval">> => #option{type = integer,
                                                    validate = positive},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, tls_options}}
+                                       wrap = {kv, tls_options},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"rabbit">>) ->
@@ -694,8 +698,9 @@ riak_credentials() ->
 sql_tls() ->
     Items = tls_items(),
     #section{
-       items = Items#{<<"required">> => #option{type = boolean}}
-      }.
+       items = Items#{<<"required">> => #option{type = boolean}},
+       process = fun ?MODULE:process_tls_sni/1
+    }.
 
 tls_items() ->
     #{<<"verify_peer">> => #option{type = boolean,
@@ -712,6 +717,8 @@ tls_items() ->
       <<"password">> => #option{type = string},
       <<"server_name_indication">> => #option{type = boolean,
                                               process = fun ?MODULE:process_sni/1},
+      <<"server_name_indication_host">> => #option{type = string,
+                                                   validate = non_empty},
       <<"ciphers">> => #option{type = string},
       <<"versions">> => #list{items = #option{type = atom}}
      }.
@@ -1045,7 +1052,9 @@ get_all_hosts_and_host_types(General) ->
                   end, General).
 
 process_sni(false) ->
-    disable.
+    disable;
+process_sni(true) ->
+    enable.
 
 process_verify_peer(false) -> verify_none;
 process_verify_peer(true) -> verify_peer.
@@ -1218,11 +1227,24 @@ ssl_opts(pgsql, Opts) -> [{ssl_opts, Opts}];
 ssl_opts(mysql, Opts) -> Opts.
 
 process_riak_tls(KVs) ->
-    {[CACertFileOpts], SSLOpts} = proplists:split(KVs, [cacertfile]),
+    KVsWithSNI = process_tls_sni(KVs),
+    {[CACertFileOpts], SSLOpts} = proplists:split(KVsWithSNI, [cacertfile]),
     riak_ssl(SSLOpts) ++ CACertFileOpts.
 
 riak_ssl([]) -> [];
 riak_ssl(Opts) -> [{ssl_opts, Opts}].
+
+process_tls_sni(KVs) ->
+    % the SSL library expects either the atom `disabled` or a string with the SNI host
+    % as value for `server_name_indication`
+    case proplists:get_value(server_name_indication, KVs, disable) of
+        enable ->
+            SNIHost = proplists:get_value(server_name_indication_host, KVs),
+            KVs1 = proplists:delete(server_name_indication, KVs),
+            lists:keyreplace(server_name_indication_host, 1, KVs1, {server_name_indication, SNIHost});
+        disable ->
+            proplists:delete(server_name_indication_host, KVs)
+    end.
 
 process_riak_credentials(KVs) ->
     {[[{user, User}], [{password, Pass}]], []} = proplists:split(KVs, [user, password]),
