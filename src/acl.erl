@@ -34,7 +34,7 @@
 -export_type([rule/0]).
 
 -type rule() :: atom().
--type acl_spec() :: #{match := all | none | current_domain,
+-type acl_spec() :: #{match := all | none | current_domain | any_hosted_domain,
                       acl_spec_key() => binary()}.
 -type acl_spec_key() :: user | user_regexp | user_glob
                       | server | server_regexp | server_glob
@@ -131,6 +131,8 @@ match_step(none, _Domain, _JID) ->
 -spec check(acl_spec_key(), binary(), jid:lserver(), jid:jid()) -> boolean().
 check(match, all, _, _) -> true;
 check(match, none, _, _) -> false;
+check(match, any_hosted_domain, _, JID) ->
+    mongoose_domain_api:get_host_type(JID#jid.lserver) =/= {error, not_found};
 check(match, current_domain, Domain, JID) -> JID#jid.lserver =:= Domain;
 check(user, User, _, JID) -> JID#jid.luser =:= User;
 check(user_regexp, Regexp, _, JID) -> is_regexp_match(JID#jid.luser, Regexp);
