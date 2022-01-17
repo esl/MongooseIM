@@ -24,6 +24,8 @@
         assert_options_host_or_global(ExpectedOpts, RawConfig)).
 
 %% host-or-global config error
+-define(errh(Pattern, RawConfig),
+        [?assertMatch(Pattern, Errors) || Errors <- assert_error_host_or_global(RawConfig)]).
 -define(errh(RawConfig), assert_error_host_or_global(RawConfig)).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
@@ -1325,19 +1327,26 @@ shaper(_Config) ->
     ?errh(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
-    ?cfgh({acl, local}, [all],
+    ?cfgh({acl, local}, [#{match => all}],
           #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
-    ?cfgh({acl, local}, [{user_regexp, <<>>}],
+    ?cfgh({acl, local}, [#{match => current_domain,
+                           user_regexp => <<>>}],
           #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
-    ?cfgh({acl, alice}, [{node_regexp, <<"ali.*">>, <<".*host">>}],
-          #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"ali.*">>,
-                                             <<"server_regexp">> => <<".*host">>}]}}),
-    ?cfgh({acl, alice}, [{user, <<"alice">>, <<"localhost">>}],
+    ?cfgh({acl, alice}, [#{match => current_domain,
+                           user_regexp => <<"ali.*">>,
+                           server_regexp => <<".*host">>}],
+          #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"aLi.*">>,
+                                             <<"server_regexp">> => <<".*HosT">>}]}}),
+    ?cfgh({acl, alice}, [#{match => current_domain,
+                           user => <<"alice">>,
+                           server => <<"localhost">>}],
           #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
                                              <<"server">> => <<"localhost">>}]}}),
     ?errh(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
     ?errh(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
-                                             <<"server_blog">> => <<"bloghost">>}]}}).
+                                             <<"server_blog">> => <<"bloghost">>}]}}),
+    ?errh([#{reason := incorrect_acl_condition_value}],
+          #{<<"acl">> => #{<<"local">> => [#{<<"user">> => <<"@@@">>}]}}).
 
 access(_Config) ->
     ?cfgh({access, c2s}, [{deny, blocked}, {allow, all}],
@@ -3075,10 +3084,11 @@ host_key([TopKey | Rest], HostType) when is_atom(TopKey) ->
 host_key(Key, HostType) when is_atom(Key) ->
     {Key, HostType}.
 
--spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) -> any().
+-spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) ->
+          [[mongoose_config_parser_toml:config_error()]].
 assert_error_host_or_global(RawConfig) ->
-    assert_error(parse(RawConfig)),
-    assert_error(parse(host_config(RawConfig))).
+    [assert_error(parse(RawConfig)),
+     assert_error(parse(host_config(RawConfig)))].
 
 host_config(Config) ->
     #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST_TYPE}]}.

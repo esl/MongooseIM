@@ -290,7 +290,7 @@ options("mongooseim-pgsql") ->
      {{access, muc_create, global}, [{allow, local}]},
      {{access, register, global}, [{allow, all}]},
      {{access, s2s_shaper, global}, [{fast, all}]},
-     {{acl, local, global}, [{user_regexp, <<>>}]},
+     {{acl, local, global}, [#{user_regexp => <<>>, match => current_domain}]},
      {{shaper, fast, global}, {maxrate, 50000}},
      {{shaper, mam_global_shaper, global}, {maxrate, 1000}},
      {{shaper, mam_shaper, global}, {maxrate, 1}},

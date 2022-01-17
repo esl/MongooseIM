@@ -30,7 +30,7 @@
          process_riak_credentials/1,
          process_iqdisc/1,
          process_shaper/1,
-         process_acl_item/1,
+         process_acl_condition/1,
          process_access_rule_item/1,
          process_s2s_address_family/1,
          process_s2s_host_policy/1,
@@ -825,21 +825,23 @@ acl() ->
 
 %% path: (host_config[].)acl.*[]
 acl_item() ->
+    Cond = #option{type = binary,
+                   process = fun ?MODULE:process_acl_condition/1},
     #section{
        items = #{<<"match">> => #option{type = atom,
-                                        validate = {enum, [all, none]}},
-                 <<"user">> => #option{type = binary},
-                 <<"server">> => #option{type = binary},
-                 <<"resource">> => #option{type = binary},
-                 <<"user_regexp">> => #option{type = binary},
-                 <<"server_regexp">> => #option{type = binary},
-                 <<"resource_regexp">> => #option{type = binary},
-                 <<"user_glob">> => #option{type = binary},
-                 <<"server_glob">> => #option{type = binary},
-                 <<"resource_glob">> => #option{type = binary}
+                                        validate = {enum, [all, none, current_domain]}},
+                 <<"user">> => Cond,
+                 <<"server">> => Cond,
+                 <<"resource">> => Cond,
+                 <<"user_regexp">> => Cond,
+                 <<"server_regexp">> => Cond,
+                 <<"resource_regexp">> => Cond,
+                 <<"user_glob">> => Cond,
+                 <<"server_glob">> => Cond,
+                 <<"resource_glob">> => Cond
                 },
-       validate_keys = non_empty,
-       process = fun ?MODULE:process_acl_item/1
+       defaults = #{<<"match">> => current_domain},
+       format_items = map
       }.
 
 %% path: (host_config[].)access
@@ -1235,40 +1237,12 @@ wpool_strategy_values() ->
 process_shaper([MaxRate]) ->
     MaxRate.
 
-process_acl_item([{match, V}]) -> V;
-process_acl_item(KVs) ->
-    {AclName, AclKeys} = find_acl(KVs, lists:sort(proplists:get_keys(KVs)), acl_keys()),
-    list_to_tuple([AclName | lists:map(fun(K) ->
-                                               prepare_acl_value(proplists:get_value(K, KVs))
-                                       end, AclKeys)]).
-
-find_acl(KVs, SortedKeys, [{AclName, AclKeys}|Rest]) ->
-    case lists:sort(AclKeys) of
-        SortedKeys -> {AclName, AclKeys};
-        _ -> find_acl(KVs, SortedKeys, Rest)
+process_acl_condition(Value) ->
+    case jid:nodeprep(Value) of
+        error -> error(#{what => incorrect_acl_condition_value,
+                         text => <<"Value could not be parsed as a JID node part">>});
+        Node -> Node
     end.
-
-acl_keys() ->
-    [{user, [user, server]},
-     {user, [user]},
-     {server, [server]},
-     {resource, [resource]},
-     {user_regexp, [user_regexp, server]},
-     {node_regexp, [user_regexp, server_regexp]},
-     {user_regexp, [user_regexp]},
-     {server_regexp, [server_regexp]},
-     {resource_regexp, [resource_regexp]},
-     {user_glob, [user_glob, server]},
-     {node_glob, [user_glob, server_glob]},
-     {user_glob, [user_glob]},
-     {server_glob, [server_glob]},
-     {resource_glob, [resource_glob]}
-    ].
-
-prepare_acl_value(Value) ->
-    Node = jid:nodeprep(Value),
-    true = Node =/= error,
-    Node.
 
 process_access_rule_item(KVs) ->
     {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),

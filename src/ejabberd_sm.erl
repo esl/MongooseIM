@@ -971,7 +971,7 @@ check_max_sessions(HostType, LUser, LServer, ReplacedPIDs) ->
       Result :: infinity | pos_integer().
 get_max_user_sessions(HostType, LUser, LServer) ->
     JID = jid:make_noprep(LUser, LServer, <<>>),
-    case acl:match_rule_for_host_type(HostType, LServer, max_user_sessions, JID) of
+    case acl:match_rule(HostType, LServer, max_user_sessions, JID) of
         Max when is_integer(Max) -> Max;
         infinity -> infinity;
         _ -> ?MAX_USER_SESSIONS

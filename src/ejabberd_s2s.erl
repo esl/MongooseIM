@@ -434,19 +434,18 @@ new_connection(MyServer, Server, From, FromTo = {FromServer, ToServer},
     end,
     TRes.
 
-
 -spec max_s2s_connections_number(fromto()) -> pos_integer().
 max_s2s_connections_number({From, To}) ->
-    case acl:match_rule(
-           From, max_s2s_connections, jid:make(<<"">>, To, <<"">>)) of
+    {ok, HostType} = mongoose_domain_api:get_host_type(From),
+    case acl:match_rule(HostType, max_s2s_connections, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER
     end.
 
 -spec max_s2s_connections_number_per_node(fromto()) -> pos_integer().
 max_s2s_connections_number_per_node({From, To}) ->
-    case acl:match_rule(
-           From, max_s2s_connections_per_node, jid:make(<<"">>, To, <<"">>)) of
+    {ok, HostType} = mongoose_domain_api:get_host_type(From),
+    case acl:match_rule(HostType, max_s2s_connections_per_node, jid:make(<<"">>, To, <<"">>)) of
         Max when is_integer(Max) -> Max;
         _ -> ?DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE
     end.

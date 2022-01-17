@@ -260,7 +260,7 @@ inband_registration_and_cancelation_allowed(_HostType, _ServerDomain, no_JID) ->
     true;
 inband_registration_and_cancelation_allowed(HostType, ServerDomain, JID) ->
     Rule = gen_mod:get_module_opt(HostType, ?MODULE, access, none),
-    allow =:= acl:match_rule_for_host_type(HostType, ServerDomain,  Rule, JID).
+    allow =:= acl:match_rule(HostType, ServerDomain,  Rule, JID).
 
 process_iq_get(_HostType, From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
     true = is_query_element(Child),
@@ -333,7 +333,7 @@ try_register(HostType, User, Server, Password, SourceRaw, Lang) ->
             JID = jid:make(User, Server, <<>>),
             Access = gen_mod:get_module_opt(HostType, ?MODULE, access, all),
             IPAccess = get_ip_access(HostType),
-            case {acl:match_rule_for_host_type(HostType, Server, Access, JID),
+            case {acl:match_rule(HostType, Server, Access, JID),
                   check_ip_access(SourceRaw, IPAccess)} of
                 {deny, _} ->
                     {error, mongoose_xmpp_errors:forbidden()};

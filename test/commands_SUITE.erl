@@ -85,7 +85,7 @@ end_per_testcase(_, _C) ->
 opts() ->
     [{{auth, <<"localhost">>}, #{methods => [dummy]}},
      {{access, experts_only, <<"localhost">>}, [{allow, coder}, {allow, manager}, {deny, all}]},
-     {{acl, coder, <<"localhost">>}, [{user, <<"zenek">>}]}].
+     {{acl, coder, <<"localhost">>}, [#{user => <<"zenek">>, match => current_domain}]}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods

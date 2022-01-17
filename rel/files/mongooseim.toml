@@ -293,9 +293,7 @@
   max_rate = 1000
 
 [acl]
-  local = [
-    {user_regexp = ""}
-  ]
+  local = [{}]
 
 [access]
   max_user_sessions = [

@@ -449,7 +449,7 @@ set_acl_for_blocking(Config, Spec) ->
     User = proplists:get_value(username, Spec),
     LUser = jid:nodeprep(User),
     mongoose_helper:backup_and_set_config_option(Config, {acl, blocked, host_type()},
-                                                 [{user, LUser}]).
+                                                 [#{user => LUser, match => current_domain}]).
 
 unset_acl_for_blocking(Config) ->
     mongoose_helper:restore_config_option(Config, {acl, blocked, host_type()}).
