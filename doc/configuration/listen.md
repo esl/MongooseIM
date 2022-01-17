@@ -314,7 +314,7 @@ The `s2s_shaper` access rule is used, which requires a definition in the `access
 Interface for external services acting as XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)), enabling communication between MongooseIM and external services over the XMPP network. The recommended port number for a component listener is 8888.
 
 According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html) the component's hostname should be given in the <stream:stream> element.
-    
+
 !!! warning
     This interface does not support [dynamic domains](../configuration/general.md#generalhost_types).
     Do not use them both at the same time.
@@ -324,7 +324,7 @@ According to [XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xe
 * **Default:** `"all"`
 * **Example:** `access = "component"`
 
-Determines who is allowed to connect to the listener. By default the rule is `all`, which means that any external component can connect. The access rule referenced here needs to be defined in the `access` configuration section.
+Determines who is allowed to send data to external components. By default the rule is `all`, which means that anyone can communicate with the components.
 
 ### `listen.service.password`
 * **Syntax:** string

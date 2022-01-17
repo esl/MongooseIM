@@ -179,19 +179,22 @@ all_and_none_specs(Config) ->
     ok.
 
 match_domain(Config) ->
-    given_registered_domains(Config, [<<"zakopane">>]),
+    given_registered_domains(Config, [<<"zakopane">>, <<"gdansk">>]),
 
     UserZa = jid:make(<<"pawel">>, <<"zakopane">>, <<"test">>),
     UserGd = jid:make(<<"pawel">>, <<"gdansk">>, <<"test">>),
-    UserGb = jid:make(<<"pawel">>, <<"gdansk">>, <<"best">>),
+    UserTo = jid:make(<<"pawel">>, <<"torun">>, <<"test">>),
+    UserZb = jid:make(<<"pawel">>, <<"zakopane">>, <<"best">>),
 
     set_acl(global, a_users, #{resource => <<"test">>}),
+    set_acl(global, b_users, #{match => any_hosted_domain, resource => <<"test">>}),
     set_acl(global, c_users, #{match => all, resource => <<"test">>}),
 
-    set_global_rule(rule, [{allow, a_users}, {deny, c_users}, {default, all}]),
-    ?assertEqual(allow, acl:match_rule(global, <<"zakopane">>, rule, UserZa)),
-    ?assertEqual(deny, acl:match_rule(global, <<"zakopane">>, rule, UserGd)),
-    ?assertEqual(default, acl:match_rule(global, <<"zakopane">>, rule, UserGb)),
+    set_global_rule(rule, [{a, a_users}, {b, b_users}, {c, c_users}, {d, all}]),
+    ?assertEqual(a, acl:match_rule(global, <<"zakopane">>, rule, UserZa)),
+    ?assertEqual(b, acl:match_rule(global, <<"zakopane">>, rule, UserGd)),
+    ?assertEqual(c, acl:match_rule(global, <<"zakopane">>, rule, UserTo)),
+    ?assertEqual(d, acl:match_rule(global, <<"zakopane">>, rule, UserZb)),
     ok.
 
 match_host_specific_rule_for_host_type(Config) ->

@@ -825,11 +825,12 @@ acl() ->
 
 %% path: (host_config[].)acl.*[]
 acl_item() ->
+    Match = #option{type = atom,
+                    validate = {enum, [all, none, current_domain, any_hosted_domain]}},
     Cond = #option{type = binary,
                    process = fun ?MODULE:process_acl_condition/1},
     #section{
-       items = #{<<"match">> => #option{type = atom,
-                                        validate = {enum, [all, none, current_domain]}},
+       items = #{<<"match">> => Match,
                  <<"user">> => Cond,
                  <<"server">> => Cond,
                  <<"resource">> => Cond,

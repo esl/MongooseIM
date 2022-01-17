@@ -1329,6 +1329,8 @@ shaper(_Config) ->
 acl(_Config) ->
     ?cfgh({acl, local}, [#{match => all}],
           #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
+    ?cfgh({acl, local}, [#{match => any_hosted_domain}],
+          #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"any_hosted_domain">>}]}}),
     ?cfgh({acl, local}, [#{match => current_domain,
                            user_regexp => <<>>}],
           #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
@@ -1343,6 +1345,7 @@ acl(_Config) ->
           #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
                                              <<"server">> => <<"localhost">>}]}}),
     ?errh(#{<<"acl">> => #{<<"local">> => <<"everybody">>}}),
+    ?errh(#{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"lit">>}]}}),
     ?errh(#{<<"acl">> => #{<<"alice">> => [#{<<"user_glob">> => <<"a*">>,
                                              <<"server_blog">> => <<"bloghost">>}]}}),
     ?errh([#{reason := incorrect_acl_condition_value}],

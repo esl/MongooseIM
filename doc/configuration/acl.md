@@ -20,13 +20,14 @@ All defined conditions need to be satisfied for the pattern to be matched succes
 
 ### `acl.*.match`
 
-* **Syntax:** string, one of: `"all"`, `"current_domain"`, `"none"`
+* **Syntax:** string, one of: `"all"`, `"current_domain"`, `"any_hosted_domain"`, `"none"`
 * **Default:** `"current_domain"`
 * **Example:** `match = "all"`
 
 By default only users from the *current domain* (the one of the server) are matched.
-You can set this option to `"all"`, extending the pattern to users from other domains.
-This makes a difference for some [access rules](access.md), e.g. MAM, MUC and registration ones.
+Setting it to `"any_hosted_domain"` results in matching users from all domains hosted by this server.
+You can also set this option to `"all"`, extending the pattern to users from external domains.
+This option makes a difference for some [access rules](access.md), e.g. MAM, MUC and registration ones.
 Setting the option to `"none"` makes the pattern never match.
 
 ```toml
