@@ -8,6 +8,7 @@ Contains all admin available queries.
 Only an authenticated admin can execute these queries.
 """
 type AdminQuery{
+  "Get domains info"
   domains: DomainAdminQuery
   "Check authorization status"
   checkAuth: AuthStatus
@@ -19,6 +20,7 @@ Contains all admin available mutations
 Only an authenticated admin can execute these mutations.
 """
 type AdminMutation @protected{
+  "Modify domains properties or create/destroy domain"
   domains: DomainAdminMutation
   stanza: StanzaAdminMutation
 }

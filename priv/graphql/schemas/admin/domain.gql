@@ -1,11 +1,11 @@
-type DomainAdminQuery{
+type DomainAdminQuery @protected{
   "Get all enabled domains by hostType"
-  domainsByHostType(hostType: String!): [String!] @protected
+  domainsByHostType(hostType: String!): [String!]
   "Get information about the domain"
-  domainDetails(domain: String!): Domain @protected
+  domainDetails(domain: String!): Domain
 }
 
-type DomainAdminMutation{
+type DomainAdminMutation @protected{
   "Add new domain"
   addDomain(domain: String!, hostType: String!): Domain
   "Remove domain"
