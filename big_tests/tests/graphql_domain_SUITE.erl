@@ -10,18 +10,24 @@
 -import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
 
 -define(HOST_TYPE, <<"dummy auth">>).
+-define(SECOND_HOST_TYPE, <<"test type">>).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
- all() ->
+all() ->
      [{group, domain_handler}].
 
 groups() ->
      [{domain_handler, [sequence], domain_handler()}].
 
-domain_handler() -> 
+domain_handler() ->
     [create_domain,
+     unknown_host_type_error_formatting,
+     static_domain_error_formatting,
+     domain_duplicate_error_formatting,
+     domain_not_found_error_formatting,
+     wrong_host_type_error_formatting,
      disable_domain,
      enable_domain,
      get_domains_by_host_type,
@@ -45,10 +51,10 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
- init_per_testcase(CaseName, Config) ->
+init_per_testcase(CaseName, Config) ->
      escalus:init_per_testcase(CaseName, Config).
 
- end_per_testcase(CaseName, Config) ->
+end_per_testcase(CaseName, Config) ->
      escalus:end_per_testcase(CaseName, Config).
 
 create_domain(Config) ->
@@ -71,12 +77,77 @@ create_domain(Config) ->
                    <<"hostType">> => ?HOST_TYPE,
                    <<"enabled">> => null}, ParsedResult2).
 
+unknown_host_type_error_formatting(Config) ->
+    DomainName = <<"exampleDomain">>,
+    HostType = <<"NonExistingHostType">>,
+    Vars = #{domain => DomainName, hostType => HostType},
+    Result = execute_auth(#{query => create_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = error_result(1, Result),
+    ?assertEqual(#{<<"extensions">> =>
+                     #{<<"code">> => <<"unknown_host_type">>,
+                       <<"hostType">> => HostType},
+                   <<"message">> => <<"Unknown host type">>,
+                   <<"path">> => [<<"domains">>, <<"addDomain">>]}, ParsedResult).
+
+static_domain_error_formatting(Config) ->
+    DomainName = <<"localhost">>,
+    Vars = #{domain => DomainName, hostType => ?HOST_TYPE},
+    Result = execute_auth(#{query => create_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = error_result(1, Result),
+    ?assertEqual(#{<<"extensions">> =>
+                     #{<<"code">> => <<"domain_static">>,
+                       <<"domain">> => DomainName},
+                   <<"message">> => <<"Domain static">>,
+                   <<"path">> => [<<"domains">>, <<"addDomain">>]}, ParsedResult).
+
+domain_duplicate_error_formatting(Config) ->
+    DomainName = <<"exampleDomain">>,
+    Vars = #{domain => DomainName, hostType => ?SECOND_HOST_TYPE},
+    Result = execute_auth(#{query => create_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = error_result(1, Result),
+    ?assertEqual(#{<<"extensions">> =>
+                     #{<<"code">> => <<"domain_duplicate">>,
+                       <<"domain">> => DomainName},
+                   <<"message">> => <<"Domain already exists">>,
+                   <<"path">> => [<<"domains">>, <<"addDomain">>]}, ParsedResult).
+
+domain_not_found_error_formatting(Config) ->
+    DomainName = <<"UnexisitingDomain">>,
+    Vars = #{domain => DomainName}, Result = execute_auth(#{query => disable_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = error_result(1, Result),
+    ?assertEqual(#{<<"extensions">> =>
+                     #{<<"code">> => <<"domain_not_found">>,
+                       <<"domain">> => DomainName},
+                   <<"message">> => <<"Given domain does not exist">>,
+                   <<"path">> => [<<"domains">>, <<"disableDomain">>]}, ParsedResult).
+
+wrong_host_type_error_formatting(Config) ->
+    DomainName = <<"exampleDomain">>,
+    Vars = #{domain => DomainName, hostType => ?SECOND_HOST_TYPE},
+    Result = execute_auth(#{query => delete_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    ParsedResult = error_result(1, Result),
+    ?assertEqual(#{<<"extensions">> =>
+                     #{<<"code">> => <<"wrong_host_type">>,
+                       <<"hostType">> => ?SECOND_HOST_TYPE},
+                   <<"message">> => <<"Wrong host type">>,
+                   <<"path">> => [<<"domains">>, <<"removeDomain">>]}, ParsedResult).
+
+
 disable_domain(Config) ->
     Vars = #{domain => <<"exampleDomain">>},
     Result = execute_auth(#{query => disable_domain_call(), variables => Vars,
                    operationName => <<"M1">>}, Config),
     ParsedResult = ok_result(<<"domains">>, <<"disableDomain">>, Result),
-    ?assertEqual(#{<<"domain">> => <<"exampleDomain">>, <<"enabled">> => false}, ParsedResult).
+    ?assertEqual(#{<<"domain">> => <<"exampleDomain">>, <<"enabled">> => false}, ParsedResult),
+    {ok, Domain} = rpc(mim(), mongoose_domain_sql, select_domain, [<<"exampleDomain">>]),
+    ?assertEqual(#{host_type => ?HOST_TYPE,
+                   enabled => false}, Domain).
+
 
 enable_domain(Config) ->
     Vars = #{domain => <<"exampleDomain">>},
@@ -110,7 +181,7 @@ delete_domain(Config) ->
                    operationName => <<"M1">>}, Config),
     ParsedResult1 = ok_result(<<"domains">>, <<"removeDomain">>, Result1),
     ?assertEqual(#{<<"msg">> => <<"Domain removed!">>,
-                   <<"domain">> => #{<<"domain">> => <<"exampleDomain">>}}, 
+                   <<"domain">> => #{<<"domain">> => <<"exampleDomain">>}},
                    ParsedResult1),
 
     Vars2 = #{domain => <<"exampleDomain2">>, hostType => ?HOST_TYPE},
@@ -118,9 +189,9 @@ delete_domain(Config) ->
                    operationName => <<"M1">>}, Config),
     ParsedResult2 = ok_result(<<"domains">>, <<"removeDomain">>, Result2),
     ?assertEqual(#{<<"msg">> => <<"Domain removed!">>,
-                   <<"domain">> => #{<<"domain">> => <<"exampleDomain2">>}}, 
+                   <<"domain">> => #{<<"domain">> => <<"exampleDomain2">>}},
                    ParsedResult2).
-    
+
 get_domains_after_deletion(Config) ->
     Vars = #{hostType => ?HOST_TYPE},
     Result = execute_auth(#{query => get_domains_by_host_type_call(),
@@ -186,7 +257,7 @@ delete_domain_call() ->
            {domains
                {removeDomain(domain: $domain, hostType: $hostType)
                    {
-                       msg 
+                       msg
                        domain
                            {domain}
                    }
@@ -204,6 +275,9 @@ execute_auth(Body, Config) ->
 
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
    maps:get(What2, maps:get(What1, Data)).
+
+error_result(ErrorNumber, {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
+    lists:nth(ErrorNumber, Errors).
 
 get_listener_opts(EpName) ->
     {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
