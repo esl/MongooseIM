@@ -45,9 +45,7 @@
     ban_account/3, num_active_users/2, check_account/2, check_password/3
 ]).
 
--include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
--include("jlib.hrl").
 
 %%%
 %%% Register commands
@@ -106,199 +104,40 @@ commands() ->
 %%%
 
 -spec set_password(jid:user(), jid:server(), binary()) ->
-    {error, string()} | {ok, string()}.
+    mongoose_account_api:change_password_result().
 set_password(User, Host, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:set_password(JID, Password) of
-        ok ->
-            {ok, io_lib:format("Password for user ~s successfully changed", [jid:to_binary(JID)])};
-        {error, Reason} ->
-            {error, Reason}
-    end.
+    mongoose_account_api:change_password(User, Host, Password).
 
--spec check_password(jid:user(), jid:server(), binary()) ->  {Res, string()} when
-    Res :: ok | incorrect | user_does_not_exist.
+-spec check_password(jid:user(), jid:server(), binary()) ->
+    mongoose_account_api:check_password_result().
 check_password(User, Host, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
-        true ->
-            case ejabberd_auth:check_password(JID, Password) of
-                true ->
-                    {ok, io_lib:format("Password '~s' for user ~s is correct",
-                                       [Password, jid:to_binary(JID)])};
-                false ->
-                    {incorrect, io_lib:format("Password '~s' for user ~s is incorrect",
-                                              [Password, jid:to_binary(JID)])}
-            end;
-        false ->
-            {user_does_not_exist,
-            io_lib:format("Password '~s@~s' for user ~s is incorrect because this user does not"
-                          " exist", [Password, User, Host])}
-    end.
+    mongoose_account_api:check_password(User, Host, Password).
 
--spec check_account(jid:user(), jid:server()) -> {Res, string()} when
-    Res :: ok | user_does_not_exist.
+-spec check_account(jid:user(), jid:server()) -> mongoose_account_api:check_account_result().
 check_account(User, Host) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:does_user_exist(JID) of
-        true ->
-            {ok, io_lib:format("User ~s exists", [jid:to_binary(JID)])};
-        false ->
-            {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
-    end.
+    mongoose_account_api:check_account(User, Host).
 
-
--spec check_password_hash(jid:user(), jid:server(),
-                          Hash :: binary(), Method :: string()) ->
-    {error, string()} | {ok, string()} | {incorrect, string()}.
+-spec check_password_hash(jid:user(), jid:server(), string(), string()) ->
+    mongoose_account_api:check_password_hash_result().
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
-    AccountPass = ejabberd_auth:get_password_s(jid:make(User, Host, <<>>)),
-    AccountPassHash = case HashMethod of
-        "md5" -> get_md5(AccountPass);
-        "sha" -> get_sha(AccountPass);
-        _ -> undefined
-    end,
-    case AccountPassHash of
-        undefined ->
-            {error, "Hash for password is undefined"};
-        PasswordHash ->
-            {ok, "Password hash is correct"};
-        _->
-            {incorrect, "Password hash is incorrect"}
-    end.
-
-
--spec get_md5(binary()) -> string().
-get_md5(AccountPass) ->
-    lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
-get_sha(AccountPass) ->
-    lists:flatten([io_lib:format("~.16B", [X])
-                   || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
-
+    mongoose_account_api:check_password_hash(User, Host, PasswordHash, HashMethod).
 
 -spec num_active_users(jid:server(), integer()) -> non_neg_integer().
 num_active_users(Domain, Days) ->
-    TimeStamp = erlang:system_time(second),
-    TS = TimeStamp - Days * 86400,
-    try
-        {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
-        mod_last:count_active_users(HostType, Domain, TS)
-    catch _:_ ->
-        0
-    end.
+    mongoose_account_api:num_active_users(Domain, Days).
 
-
--spec delete_old_users(integer()) -> {'ok', string()}.
+-spec delete_old_users(integer()) -> mongoose_account_api:delete_old_users().
 delete_old_users(Days) ->
-    Users = lists:append([delete_and_return_old_users(Domain, Days) ||
-                             HostType <- ?ALL_HOST_TYPES,
-                             Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]),
-    {ok, format_deleted_users(Users)}.
+    {Res, _} = mongoose_account_api:delete_old_users(Days),
+    Res.
 
+-spec delete_old_users_for_domain(jid:server(), integer()) ->
+    mongoose_account_api:delete_old_users().
 delete_old_users_for_domain(Domain, Days) ->
-    Users = delete_and_return_old_users(Domain, Days),
-    {ok, format_deleted_users(Users)}.
-
-delete_and_return_old_users(Domain, Days) ->
-    Users = ejabberd_auth:get_vh_registered_users(Domain),
-    delete_old_users(Days, Users).
-
--spec delete_old_users(Days, Users) -> Users when Days :: integer(),
-                                                  Users :: [jid:simple_bare_jid()].
-delete_old_users(Days, Users) ->
-    %% Convert older time
-    SecOlder = Days*24*60*60,
-
-    %% Get current time
-    TimeStampNow = erlang:system_time(second),
-
-    %% Apply the remove function to every user in the list
-    lists:filter(fun(User) ->
-                         delete_old_user(User, TimeStampNow, SecOlder)
-                 end, Users).
-
-format_deleted_users(Users) ->
-    io_lib:format("Deleted ~p users: ~p", [length(Users), Users]).
-
--spec delete_old_user(User :: jid:simple_bare_jid(),
-                      TimeStampNow :: non_neg_integer(),
-                      SecOlder :: non_neg_integer()) -> boolean().
-delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
-    %% Check if the user is logged
-    JID = jid:make(LUser, LServer, <<>>),
-    case ejabberd_sm:get_user_resources(JID) of
-        [] -> delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder);
-        _ -> false
-    end.
-
--spec delete_old_user_if_nonactive_long_enough(JID :: jid:jid(),
-                                               TimeStampNow :: non_neg_integer(),
-                                               SecOlder :: non_neg_integer()) -> boolean().
-delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
-    {LUser, LServer} = jid:to_lus(JID),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    case mod_last:get_last_info(HostType, LUser, LServer) of
-        {ok, TimeStamp, _Status} ->
-            %% get his age
-            Sec = TimeStampNow - TimeStamp,
-            %% If he is younger than SecOlder:
-            case Sec < SecOlder of
-                true ->
-                    %% do nothing
-                    false;
-                %% older:
-                false ->
-                    %% remove the user
-                    ejabberd_auth:remove_user(JID),
-                    true
-            end;
-        not_found ->
-            ejabberd_auth:remove_user(JID),
-            true
-    end.
+    {Res, _} = mongoose_account_api:delete_old_users_for_domain(Domain, Days),
+    Res.
 
 -spec ban_account(jid:user(), jid:server(), binary() | string()) ->
-    {ok, string()} | {error, string()}.
+    mongoose_account_api:change_password_result().
 ban_account(User, Host, ReasonText) ->
-    JID = jid:make(User, Host, <<>>),
-    Reason = service_admin_extra_sessions:prepare_reason(ReasonText),
-    kick_sessions(JID, Reason),
-    case set_random_password(JID, Reason) of
-        ok ->
-            {ok, io_lib:format("User ~s successfully banned with reason: ~s",
-                               [jid:to_binary(JID), ReasonText])};
-        {error, ErrorReason} ->
-            {error, ErrorReason}
-    end.
-
--spec kick_sessions(jid:jid(), binary()) -> [ok].
-kick_sessions(JID, Reason) ->
-    lists:map(
-        fun(Resource) ->
-                service_admin_extra_sessions:kick_session(
-                  jid:replace_resource(JID, Resource), Reason)
-        end,
-        ejabberd_sm:get_user_resources(JID)).
-
-
--spec set_random_password(JID, Reason) -> Result when
-      JID :: jid:jid(),
-      Reason :: binary(),
-      Result :: 'ok' | {error, any()}.
-set_random_password(JID, Reason) ->
-    NewPass = build_random_password(Reason),
-    ejabberd_auth:set_password(JID, NewPass).
-
-
--spec build_random_password(Reason :: binary()) -> binary().
-build_random_password(Reason) ->
-    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:universal_time(),
-    Date = list_to_binary(
-             lists:flatten(
-               io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
-                             [Year, Month, Day, Hour, Minute, Second]))),
-    RandomString = mongoose_bin:gen_from_crypto(),
-    <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
-
-
+    mongoose_account_api:ban_account(User, Host, ReasonText).
