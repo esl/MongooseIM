@@ -1137,12 +1137,12 @@ graphql_wrong_arguments_number(Config) ->
 simple_register(Config) ->
     %% given
     Domain = domain(),
-    {_, Password} = {<<"tyler">>, <<"durden">>},
+    {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {R1, 0} = mongooseimctl("registered_users", [Domain], Config),
     Before = length(string:tokens(R1, "\n")),
     {_, 0} = mongooseimctl("register", [Domain, Password], Config),
-    {_, 0} = mongooseimctl("register", [Domain, Password], Config),
+    {_, 0} = mongooseimctl("register_identified", [Name, Domain, Password], Config),
 
     {R2, 0} = mongooseimctl("registered_users", [Domain], Config),
     After = length(string:tokens(R2, "\n")),

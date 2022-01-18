@@ -47,6 +47,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(admin_handler, Config) ->

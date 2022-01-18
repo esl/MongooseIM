@@ -397,10 +397,10 @@ password_can_be_changed(Config) ->
     % test invalid calls
     Res1 = putt(admin, path("users", ["bob"]),
                            #{newpass => <<>>}),
-    {?BAD_REQUEST, <<"empty password">>} = Res1,
+    {?BAD_REQUEST, <<"Empty password">>} = Res1,
     Res2 = putt(admin, path("users", ["b@b"]),
                 #{newpass => NewPass}),
-    {?BAD_REQUEST, <<"invalid jid">>} = Res2,
+    {?BAD_REQUEST, <<"Invalid jid">>} = Res2,
     ok.
 
 list_contacts(Config) ->
