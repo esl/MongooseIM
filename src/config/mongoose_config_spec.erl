@@ -230,7 +230,7 @@ general_defaults() ->
       <<"sm_backend">> => {mnesia, []},
       <<"rdbms_server_type">> => generic,
       <<"mongooseimctl_access_commands">> => [],
-      <<"routing_modules">> => ejabberd_router:default_routing_modules(),
+      <<"routing_modules">> => mongoose_router:default_routing_modules(),
       <<"replaced_wait_timeout">> => 2000,
       <<"hide_service_name">> => false}.
 

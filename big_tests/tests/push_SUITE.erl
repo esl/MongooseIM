@@ -696,12 +696,12 @@ start_route_listener(Config) ->
                push_form_ns => push_helper:push_form_type() },
     Handler = rpc(mongoose_packet_handler, new, [?MODULE, #{state => State}]),
     Domain = pubsub_domain(Config),
-    rpc(ejabberd_router, register_route, [Domain, Handler]),
+    rpc(mongoose_router, register_route, [Domain, Handler]),
     Config.
 
 stop_route_listener(Config) ->
     Domain = pubsub_domain(Config),
-    rpc(ejabberd_router, unregister_route, [Domain]).
+    rpc(mongoose_router, unregister_route, [Domain]).
 
 process_packet(_Acc, _From, To, El, #{state := State}) ->
     #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
