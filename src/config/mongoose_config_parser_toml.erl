@@ -6,7 +6,7 @@
 -export([parse_file/1]).
 
 -ifdef(TEST).
--export([parse/1,
+-export([process/1,
          extract_errors/1]).
 -endif.
 

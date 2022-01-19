@@ -3,30 +3,32 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(HOST_TYPE, <<"my host type">>).
+-define(HOST, <<"example.com">>).
 
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 
 %% Assertions
 
 %% global config options
--define(cfg(Key, Value, RawConfig), assert_option(Key, Value, parse(RawConfig))).
+-define(cfg(Key, Value, RawConfig), ?cfg([{Key, Value}], RawConfig)).
 -define(cfg(ExpectedOpts, RawConfig), assert_options(ExpectedOpts, parse(RawConfig))).
 
 %% global config error
--define(err(Pattern, RawConfig), ?assertMatch(Pattern, assert_error(parse(RawConfig)))).
--define(err(RawConfig), assert_error(parse(RawConfig))).
+-define(err(RawConfig), ?err(_, RawConfig)).
+-define(err(Pattern, RawConfig), ?assertError({config_error, _, Pattern}, parse(RawConfig))).
 
 %% host-or-global config options
--define(cfgh(KeyPrefix, Value, RawConfig),
-        assert_option_host_or_global(KeyPrefix, Value, RawConfig)).
+-define(cfgh(KeyPrefix, Value, RawConfig), ?cfgh([{KeyPrefix, Value}], RawConfig)).
 -define(cfgh(ExpectedOpts, RawConfig),
         assert_options_host_or_global(ExpectedOpts, RawConfig)).
 
 %% host-or-global config error
+-define(errh(RawConfig), ?errh(_, RawConfig)).
 -define(errh(Pattern, RawConfig),
-        [?assertMatch(Pattern, Errors) || Errors <- assert_error_host_or_global(RawConfig)]).
--define(errh(RawConfig), assert_error_host_or_global(RawConfig)).
+        begin
+            ?err(Pattern, RawConfig),
+            ?err(Pattern, host_config(RawConfig))
+        end).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
 
@@ -293,10 +295,10 @@ supported_features(_Config) ->
     Gen = #{<<"general">> => #{<<"host_types">> => [<<"type1">>, <<"type2">>]}},
     Auth = #{<<"auth">> => #{<<"internal">> => #{}}},
     Mod = #{<<"modules">> => #{<<"mod_amp">> => #{}}},
-    ?cfg([{auth, global}, methods], [internal], maps:merge(Gen, Auth)),
+    ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, global}, mod_amp], [], maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
     ?cfg([{modules, <<"type1">>}, mod_amp], [],
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
@@ -442,7 +444,7 @@ routing_modules(_Config) ->
     ?err(#{<<"general">> => #{<<"routing_modules">> => [<<"moongoose_router_global">>]}}).
 
 replaced_wait_timeout(_Config) ->
-    ?cfg({replaced_wait_timeout, global}, 2000, #{}), % global default
+    ?cfg({replaced_wait_timeout, ?HOST}, 2000, #{}), % global default
     ?cfgh(replaced_wait_timeout, 1000, #{<<"general">> => #{<<"replaced_wait_timeout">> => 1000}}),
     ?errh(#{<<"general">> => #{<<"replaced_wait_timeout">> => 0}}).
 
@@ -822,7 +824,7 @@ listen_http_handlers_domain(_Config) ->
 %% tests: auth
 
 auth_methods(_Config) ->
-    ?cfg([{auth, global}, methods], [], #{}), % global default
+    ?cfg([{auth, ?HOST}, methods], [], #{}), % global default
     ?cfgh([auth, methods], [], #{<<"auth">> => #{}}), % default
     ?cfgh([auth, methods], [internal, rdbms], % default alphabetical order
           #{<<"auth">> => #{<<"internal">> => #{},
@@ -841,7 +843,7 @@ auth_methods(_Config) ->
 
 auth_password(_Config) ->
     Defaults = #{format => scram, scram_iterations => 10000},
-    ?cfg([{auth, global}, password], Defaults, #{}), % global default
+    ?cfg([{auth, ?HOST}, password], Defaults, #{}), % global default
     ?cfgh([auth, password], Defaults, #{<<"auth">> => #{}}), % default
     ?cfgh([auth, password], Defaults, #{<<"auth">> => #{<<"password">> => #{}}}), % default
     ?cfgh([auth, password, format], plain,
@@ -856,7 +858,7 @@ auth_password(_Config) ->
     ?errh(#{<<"auth">> => #{<<"password">> => #{<<"scram_iterations">> => false}}}).
 
 auth_sasl_external(_Config) ->
-    ?cfg([{auth, global}, sasl_external], [standard], #{}), % global default
+    ?cfg([{auth, ?HOST}, sasl_external], [standard], #{}), % global default
     ?cfgh([auth, sasl_external], [standard], #{<<"auth">> => #{}}), % default
     ?cfgh([auth, sasl_external], [standard,
                                   common_name,
@@ -869,8 +871,8 @@ auth_sasl_external(_Config) ->
 
 auth_sasl_mechanisms(_Config) ->
     Default = cyrsasl:default_modules(),
-    ?cfg([{auth, global}, sasl_mechanisms], Default, #{}), % global default
-    ?cfg([{auth, global}, sasl_mechanisms], Default, #{<<"auth">> => #{}}), % default
+    ?cfg([{auth, ?HOST}, sasl_mechanisms], Default, #{}), % global default
+    ?cfg([{auth, ?HOST}, sasl_mechanisms], Default, #{<<"auth">> => #{}}), % default
     ?cfgh([auth, sasl_mechanisms], [cyrsasl_external, cyrsasl_scram],
           #{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"external">>, <<"scram">>]}}),
     ?errh(#{<<"auth">> => #{<<"sasl_mechanisms">> => [<<"none">>]}}).
@@ -2990,7 +2992,7 @@ check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
     ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 modopts(Mod, Opts) ->
-    [{modules, #{Mod => Opts}}].
+    [{[modules, Mod], Opts}].
 
 servopts(Service, Opts) ->
     [{services, [{Service, Opts}]}].
@@ -3068,7 +3070,7 @@ assert_options_global(ExpectedOptions, RawConfig) ->
                           mongoose_config_parser_toml:toml_section()) -> any().
 assert_options_host(ExpectedOptions, RawConfig) ->
     HostConfig = parse(host_config(RawConfig)),
-    HostOptions = [{host_key(Key, ?HOST_TYPE), Value} || {Key, Value} <- ExpectedOptions],
+    HostOptions = [{host_key(Key, ?HOST), Value} || {Key, Value} <- ExpectedOptions],
     assert_options(HostOptions, HostConfig).
 
 -type key_prefix() :: top_level_key_prefix() | key_path_prefix().
@@ -3082,10 +3084,10 @@ host_key({Key, Tag}, HostType) when Key =:= shaper;
                                     Key =:= acl;
                                     Key =:= access ->
     {Key, Tag, HostType};
-host_key([TopKey | Rest], HostType) when is_atom(TopKey) ->
-    [{TopKey, HostType} | Rest];
-host_key(Key, HostType) when is_atom(Key) ->
-    {Key, HostType}.
+host_key([TopKey | Rest], _HostType) when is_atom(TopKey) ->
+    [{TopKey, ?HOST} | Rest];
+host_key(Key, _HostType) when is_atom(Key) ->
+    {Key, ?HOST}.
 
 -spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) ->
           [[mongoose_config_parser_toml:config_error()]].
@@ -3094,7 +3096,7 @@ assert_error_host_or_global(RawConfig) ->
      assert_error(parse(host_config(RawConfig)))].
 
 host_config(Config) ->
-    #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST_TYPE}]}.
+    #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}.
 
 -spec parse(map()) -> [mongoose_config_parser_toml:config()].
 parse(M0) ->
@@ -3102,13 +3104,12 @@ parse(M0) ->
     %% this function inserts them with dummy values if they are missing.
     %% To prevent the insertion, add a 'without' option to the map, e.g. without => [<<"hosts">>]
     %% The resulting map is then passed to the TOML config parser.
-    DummyDomainName = <<"dummy.domain.name">>,
-    M = maybe_insert_dummy_domain(M0, DummyDomainName),
-    mongoose_config_parser_toml:parse(M).
+    M = maybe_insert_dummy_domain(M0),
+    mongoose_config_parser:get_opts(mongoose_config_parser_toml:process(M)).
 
-maybe_insert_dummy_domain(M, DomainName) ->
-    DummyGenM = #{<<"default_server_domain">> => DomainName,
-                  <<"hosts">> => [DomainName]},
+maybe_insert_dummy_domain(M) ->
+    DummyGenM = #{<<"default_server_domain">> => ?HOST,
+                  <<"hosts">> => [?HOST]},
     {FilteredGenM, RawConfig} = case maps:take(without, M) of
                                     {Keys, Cfg} -> {maps:without(Keys, DummyGenM), Cfg};
                                     error -> {DummyGenM, M}
@@ -3126,19 +3127,18 @@ assert_options(ExpectedOptions, Config) ->
 
 -spec assert_option(mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value(),
                     [mongoose_config_parser_toml:config()]) -> any().
+assert_option(KeyPath, Value, Config) when is_list(KeyPath) ->
+    compare_nodes(KeyPath, Value, get_config_value(KeyPath, Config));
 assert_option(Key, Value, Config) ->
-    compare_values(Key, Value, get_config_value(Key, Config)).
+    assert_option([Key], Value, Config).
 
--spec get_config_value(mongoose_config:key() | mongoose_config:key_path(),
-                       [mongoose_config_parser_toml:config()]) ->
+-spec get_config_value(mongoose_config:key_path(), [mongoose_config_parser_toml:config()]) ->
           mongoose_config:value().
 get_config_value([TopKey | Rest], Config) ->
     case lists:keyfind(TopKey, 1, Config) of
         false -> ct:fail({"option not found", TopKey, Config});
         {_, TopValue} -> lists:foldl(fun maps:get/2, TopValue, Rest)
-    end;
-get_config_value(Key, Config) ->
-    get_config_value([Key], Config).
+    end.
 
 -spec assert_error([mongoose_config_parser_toml:config()]) ->
           [mongoose_config_parser_toml:config_error()].
@@ -3177,28 +3177,39 @@ compare_config(C1, C2) ->
 
 handle_config_option({K1, V1}, {K2, V2}) ->
     ?eq(K1, K2),
-    compare_values(K1, V1, V2);
+    compare_nodes([K1], V1, V2);
 handle_config_option(Opt1, Opt2) ->
     ?eq(Opt1, Opt2).
 
-compare_values(listen, V1, V2) ->
+%% Comparisons for config options that have paths (top-level or nested in maps)
+
+-spec compare_nodes(mongoose_config:key_path(), mongoose_config:value(), mongoose_config:value()) ->
+          any().
+compare_nodes([listen], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
-compare_values({auth, _}, V1, V2) ->
-    compare_maps(V1, V2);
-compare_values(outgoing_pools, V1, V2) ->
+compare_nodes([outgoing_pools], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
-compare_values({modules, _}, V1, V2) ->
-    compare_maps(V1, V2, fun handle_module/2);
-compare_values(services, V1, V2) ->
+compare_nodes([services], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
-compare_values({auth_method, _}, V1, V2) when is_atom(V1) ->
+compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
-compare_values({s2s_addr, _}, {_, _, _, _} = IP1, IP2) ->
+compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
-compare_values(s2s_dns_options, V1, V2) ->
+compare_nodes([s2s_dns_options], V1, V2) ->
     compare_unordered_lists(V1, V2);
-compare_values(K, V1, V2) ->
-    ?eq({K, V1}, {K, V2}).
+compare_nodes([{modules, _}, mod_extdisco], V1, V2) ->
+    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
+compare_nodes([{modules, _}, _Module], V1, V2) ->
+    compare_unordered_lists(V1, V2, fun handle_module_options/2);
+compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
+    compare_maps(V1, V2, fun({K1, MV1}, {K2, MV2}) ->
+                                 ?eq(K1, K2),
+                                 compare_nodes(Node ++ [K1], MV1, MV2)
+                         end);
+compare_nodes(Node, V1, V2) ->
+    ?eq({Node, V1}, {Node, V2}).
+
+%% Comparisons of internal config option parts
 
 handle_listener(V1, V2) ->
     compare_maps(V1, V2, fun handle_listener_option/2).
@@ -3254,12 +3265,6 @@ handle_conn_opt(V1, V2) -> ?eq(V1, V2).
 handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
-
-handle_module({mod_extdisco, Opts}, {mod_extdisco, Opts2}) ->
-    compare_ordered_lists(Opts, Opts2, fun compare_unordered_lists/2);
-handle_module({Name, Opts}, {Name2, Opts2}) ->
-    ?eq(Name, Name2),
-    compare_unordered_lists(Opts, Opts2, fun handle_module_options/2).
 
 handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
     compare_unordered_lists(Configs1, Configs2, fun handle_module_options/2);
