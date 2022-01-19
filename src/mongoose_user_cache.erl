@@ -54,6 +54,12 @@ process_cache_config(KVs) ->
 
 -spec start_new_cache(mongooseim:host_type(), module(), gen_mod:module_opts()) -> any().
 start_new_cache(HostType, Module, Opts) ->
+    case gen_mod:get_opt(module, Opts, internal) of
+        internal -> do_start_new_cache(HostType, Module, Opts);
+        _ -> ok
+    end.
+
+do_start_new_cache(HostType, Module, Opts) ->
     CacheName = gen_mod:get_module_proc(HostType, Module),
     CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
                   segment_num => gen_mod:get_opt(number_of_segments, Opts, 3),
