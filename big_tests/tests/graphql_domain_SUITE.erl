@@ -7,7 +7,7 @@
  -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, get_listener_port/1, get_listener_config/1]).
+-import(graphql_helper, [execute_auth/2, init_admin_handler/1]).
 
 -define(HOST_TYPE, <<"dummy auth">>).
 -define(SECOND_HOST_TYPE, <<"test type">>).
@@ -26,7 +26,8 @@ domain_handler() ->
      unknown_host_type_error_formatting,
      static_domain_error_formatting,
      domain_duplicate_error_formatting,
-     domain_not_found_error_formatting_after_mutation,
+     domain_not_found_error_formatting_after_mutation_disable_domain,
+     domain_not_found_error_formatting_after_mutation_enable_domain,
      domain_not_found_error_formatting_after_query,
      wrong_host_type_error_formatting,
      disable_domain,
@@ -37,16 +38,9 @@ domain_handler() ->
      get_domains_after_deletion].
 
 init_per_suite(Config) ->
-    Endpoint = admin,
-    Opts = get_listener_opts(Endpoint),
-    case proplists:is_defined(username, Opts) of
-        true ->
-            case mongoose_helper:is_rdbms_enabled(?HOST_TYPE) of
-                true -> escalus:init_per_suite([{schema_endpoint, Endpoint} | Config]);
-                false -> {skip, require_rdbms}
-            end;
-        false ->
-            ct:fail(<<"Admin credentials are not defined in config">>)
+    case mongoose_helper:is_rdbms_enabled(?HOST_TYPE) of
+        true -> escalus:init_per_suite(init_admin_handler(Config));
+        false -> {skip, require_rdbms}
     end.
 
 end_per_suite(Config) ->
@@ -108,29 +102,34 @@ domain_duplicate_error_formatting(Config) ->
                    <<"message">> => <<"Domain already exists">>,
                    <<"path">> => [<<"domains">>, <<"addDomain">>]}, ParsedResult).
 
-domain_not_found_error_formatting_after_mutation(Config) ->
+domain_not_found_error_formatting_after_mutation_enable_domain(Config) ->
+    DomainName = <<"UnexisitingDomain">>,
+    Vars = #{domain => DomainName},
+    Result = execute_auth(#{query => enable_domain_call(), variables => Vars,
+                   operationName => <<"M1">>}, Config),
+    domain_not_found_error_formatting(Result, DomainName, <<"enableDomain">>).
+
+domain_not_found_error_formatting_after_mutation_disable_domain(Config) ->
     DomainName = <<"UnexisitingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => disable_domain_call(), variables => Vars,
                    operationName => <<"M1">>}, Config),
-    ParsedResult = error_result(1, Result),
-    ?assertEqual(#{<<"extensions">> =>
-                     #{<<"code">> => <<"domain_not_found">>,
-                       <<"domain">> => DomainName},
-                   <<"message">> => <<"Given domain does not exist">>,
-                   <<"path">> => [<<"domains">>, <<"disableDomain">>]}, ParsedResult).
+    domain_not_found_error_formatting(Result, DomainName, <<"disableDomain">>).
 
 domain_not_found_error_formatting_after_query(Config) ->
     DomainName = <<"UnexisitingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => get_domain_details_call(), variables => Vars,
                    operationName => <<"Q1">>}, Config),
+    domain_not_found_error_formatting(Result, DomainName, <<"domainDetails">>).
+
+domain_not_found_error_formatting(Result, DomainName, GraphqlCall) ->
     ParsedResult = error_result(1, Result),
     ?assertEqual(#{<<"extensions">> =>
                      #{<<"code">> => <<"domain_not_found">>,
                        <<"domain">> => DomainName},
                    <<"message">> => <<"Given domain does not exist">>,
-                   <<"path">> => [<<"domains">>, <<"domainDetails">>]}, ParsedResult).
+                   <<"path">> => [<<"domains">>, GraphqlCall]}, ParsedResult).
 
 wrong_host_type_error_formatting(Config) ->
     DomainName = <<"exampleDomain">>,
@@ -271,28 +270,8 @@ delete_domain_call() ->
            }">>.
 
 %% Helpers
-
-execute_auth(Body, Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Opts = get_listener_opts(Ep),
-    User = proplists:get_value(username, Opts),
-    Password = proplists:get_value(password, Opts),
-    execute(Ep, Body, {User, Password}).
-
 ok_result(What1, What2, {{<<"200">>, <<"OK">>}, #{<<"data">> := Data}}) ->
     maps:get(What2, maps:get(What1, Data)).
 
 error_result(ErrorNumber, {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
     lists:nth(ErrorNumber, Errors).
-
-get_listener_opts(EpName) ->
-    {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
-    [Opts2] = lists:filtermap(
-        fun
-            ({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
-                {true, Args};
-            (_) ->
-                false
-        end, Modules),
-    Opts2.
