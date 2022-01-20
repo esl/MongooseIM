@@ -1138,6 +1138,31 @@ pool_http_request_timeout(_Config) ->
 pool_http_tls(_Config) ->
     ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"} ]}]}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
+    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"},
+                                                               {verify, verify_peer},
+                                                               {cacertfile, "priv/ca.pem"},
+                                                               {server_name_indication, disable}]}]}),
+         pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
+                                                    <<"verify_peer">> => true,
+                                                    <<"cacertfile">> => <<"priv/ca.pem">>,
+                                                    <<"server_name_indication">> => false}})),
+    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"},
+                                                               {verify, verify_peer},
+                                                               {cacertfile, "priv/ca.pem"},
+                                                               {server_name_indication, "domain.com"}]}]}),
+         pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
+                                                    <<"verify_peer">> => true,
+                                                    <<"cacertfile">> => <<"priv/ca.pem">>,
+                                                    <<"server_name_indication">> => true,
+                                                    <<"server_name_indication_host">> => <<"domain.com">>}})),
+    ?cfg(pool_config({http, global, default, [], [{http_opts, [{verify, verify_peer},
+                                                               {cacertfile, "priv/ca.pem"}]}]}),
+         pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
+                                                    <<"cacertfile">> => <<"priv/ca.pem">>}})),
+    ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
+                                                    <<"cacertfile">> => <<"priv/ca.pem">>,
+                                                    <<"server_name_indication">> => <<"domain.com">>,
+                                                    <<"server_name_indication_host">> => <<"domain.com">>}})),
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => true}})),
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => <<"secure">>})).
 
@@ -3216,6 +3241,8 @@ handle_listener(V1, V2) ->
 
 handle_listener_option({tls, O1}, {tls, O2}) ->
     compare_unordered_lists(O1, O2);
+handle_listener_option({ssl, O1}, {ssl, O2}) ->
+    compare_unordered_lists(O1, O2);
 handle_listener_option({modules, M1}, {modules, M2}) ->
     compare_unordered_lists(M1, M2, fun handle_listener_module/2);
 handle_listener_option({transport_options, O1}, {transport_options, O2}) ->
@@ -3260,6 +3287,8 @@ handle_conn_opt({server, {D1, H1, DB1, U1, P1, O1}},
     ?eq(U1, U2),
     ?eq(P1, P2),
     compare_unordered_lists(O1, O2, fun handle_db_server_opt/2);
+handle_conn_opt({http_opts, O1}, {http_opts, O2}) ->
+    compare_unordered_lists(O1, O2);
 handle_conn_opt(V1, V2) -> ?eq(V1, V2).
 
 handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
