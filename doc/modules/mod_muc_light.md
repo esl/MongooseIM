@@ -20,6 +20,21 @@ Domain for the MUC Light service to reside under. `@HOST@` is replaced with each
 
 Database backend to use. 
 
+### `modules.mod_muc_light.cache_affs.*`
+  * **Syntax:** TOML section
+  * **Default:** not declared
+  * **Example:** `[modules.mod_muc_light.cache_affs]`
+
+Enables caching affiliations for rooms, this has the advantage that the list of affiliations of a given room is stored locally, instead of being fetched from the DB on each message delivered to a room. On the other hand, in an edge case of a network split when the affiliations of a room are changed, there's a risk of inconsistencies for the cache having values in one node not yet synchronised with the other.
+
+If caching is enabled, it will spawn its own [segmented cache](https://github.com/esl/segmented_cache) cache. To configure the cache parameters, the same config can be stored under the `cache_affs` section. To see details about the meaning of each flag, see [`mod_cache_users`](./mod_cache_users.md).
+
+```toml
+modules.mod_muc_light.cache_affs.strategy
+modules.mod_muc_light.cache_affs.time_to_live
+modules.mod_muc_light.cache_affs.number_of_segments
+```
+
 ### `modules.mod_muc_light.equal_occupants`
   * **Syntax:** boolean
   * **Default:** `false`
@@ -145,7 +160,10 @@ Each `config_schema` item is a TOML table with the following keys:
   max_occupants = 50
   rooms_per_page = 5
   rooms_in_rosters = true
-  
+
+  [modules.mod_muc_light.cache_affs]
+    time_to_live = 60
+
   [[modules.mod_muc_light.config_schema]] 
     field = "roomname"
     string_value = "The Room"
