@@ -110,7 +110,7 @@ domain_not_found_error_formatting_after_mutation_enable_domain(Config) ->
     domain_not_found_error_formatting(Result, DomainName, <<"enableDomain">>).
 
 domain_not_found_error_formatting_after_mutation_disable_domain(Config) ->
-    DomainName = <<"UnexisitingDomain">>,
+    DomainName = <<"UnexistingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => disable_domain_call(), variables => Vars,
                    operationName => <<"M1">>}, Config),
