@@ -104,21 +104,21 @@ domain_duplicate_error_formatting(Config) ->
                    <<"path">> => [<<"domains">>, <<"addDomain">>]}, ParsedResult).
 
 domain_not_found_error_formatting_after_mutation_enable_domain(Config) ->
-    DomainName = <<"UnexistingDomain">>,
+    DomainName = <<"NonExistingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => enable_domain_call(), variables => Vars,
                    operationName => <<"M1">>}, Config),
     domain_not_found_error_formatting(Result, DomainName, <<"enableDomain">>).
 
 domain_not_found_error_formatting_after_mutation_disable_domain(Config) ->
-    DomainName = <<"UnexistingDomain">>,
+    DomainName = <<"NonExistingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => disable_domain_call(), variables => Vars,
                    operationName => <<"M1">>}, Config),
     domain_not_found_error_formatting(Result, DomainName, <<"disableDomain">>).
 
 domain_not_found_error_formatting_after_query(Config) ->
-    DomainName = <<"UnexistingDomain">>,
+    DomainName = <<"NonExistingDomain">>,
     Vars = #{domain => DomainName},
     Result = execute_auth(#{query => get_domain_details_call(), variables => Vars,
                    operationName => <<"Q1">>}, Config),
