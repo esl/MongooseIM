@@ -34,7 +34,8 @@ admin_account_handler() ->
      admin_check_user,
      admin_register_user,
      admin_register_random_user,
-     admin_remove_user,
+     admin_remove_non_existing_user,
+     admin_remove_existing_user,
      admin_ban_user,
      admin_change_user_password,
      admin_remove_old_users_domain,
@@ -216,16 +217,17 @@ admin_register_random_user(Config) ->
     {ok, _} = rpc(mim(), mongoose_account_api, unregister_user, [Username, Server]).
 
 
-admin_remove_user(Config) ->
-    % Unregister user with not existing domain
+admin_remove_non_existing_user(Config) ->
     Resp = execute_auth(remove_user_body(?NOT_EXISTING_JID), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
-    % Unregister an existing user
-    Path = [data, account, removeUser, message],
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)).
+
+admin_remove_existing_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Path = [data, account, removeUser, message],
         BinJID = escalus_client:full_jid(Alice),
         Resp4 = execute_auth(remove_user_body(BinJID), Config),
-        ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp4), <<"successfully unregister">>))
+        ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp4),
+                                              <<"successfully unregister">>))
     end).
 
 admin_ban_user(Config) ->
