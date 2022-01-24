@@ -438,7 +438,7 @@ get_md5(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 
 
--spec check_access(Access :: acl:rule(), Auth :: auth()) -> boolean().
+-spec check_access(Access :: acl:rule_name(), Auth :: auth()) -> boolean().
 check_access(all, _) ->
     true;
 check_access(_, noauth) ->

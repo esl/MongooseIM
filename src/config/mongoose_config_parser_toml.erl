@@ -67,25 +67,12 @@ process(Content) ->
     Config = parse(Content),
     Hosts = proplists:get_value(hosts, Config, []),
     HostTypes = proplists:get_value(host_types, Config, []),
-    Opts = unfold_globals(Config, Hosts ++ HostTypes),
-    case extract_errors(Opts) of
+    case extract_errors(Config) of
         [] ->
-            build_state(Hosts, HostTypes, Opts);
+            build_state(Hosts, HostTypes, Config);
         Errors ->
             error(config_error(Errors))
     end.
-
-%% @doc Repeat global options for each host type for simpler lookup
-%% Put them at the end so host_config can override them
-%% Options with tags (shaper, acl, access) are left as globals as they can be set on both levels
--spec unfold_globals([config()], [mongooseim:host_type()]) -> [config()].
-unfold_globals(Config, AllHostTypes) ->
-    {GlobalOpts, Opts} = lists:partition(fun is_global_to_unfold/1, Config),
-    Opts ++ [{{Key, HostType}, Value} || {{Key, global}, Value} <- GlobalOpts,
-                                         HostType <- AllHostTypes].
-
-is_global_to_unfold({{_Key, global}, _Value}) -> true;
-is_global_to_unfold(_) -> false.
 
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
@@ -252,8 +239,6 @@ wrap(Path, V, {host_config, Key}) ->
 wrap(Path, V, {global_config, Key}) ->
     global = get_host(Path),
     [{Key, V}];
-wrap([Key|_] = Path, V, {host_or_global_config, Tag}) ->
-    [{{Tag, b2a(Key), get_host(Path)}, V}];
 wrap([item|_] = Path, V, default) ->
     wrap(Path, V, item);
 wrap([Key|_] = Path, V, default) ->
@@ -328,7 +313,7 @@ build_state(Hosts, HostTypes, Opts) ->
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
                  fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
-                 fun mongoose_config_parser:dedup_state_opts/1,
+                 fun mongoose_config_parser:unfold_globals/1,
                  fun mongoose_config_parser:post_process_modules/1]).
 
 %% Any nested config_part() may be a config_error() - this function extracts them all recursively

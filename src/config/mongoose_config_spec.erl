@@ -29,9 +29,7 @@
          process_cassandra_server/1,
          process_riak_credentials/1,
          process_iqdisc/1,
-         process_shaper/1,
          process_acl_condition/1,
-         process_access_rule_item/1,
          process_s2s_address_family/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
@@ -55,11 +53,7 @@
         config_option_wrapper()
 
       % Config option, the key is replaced with NewKey
-      | {config_option_wrapper(), NewKey :: atom()}
-
-      % Inside host_config: [{{Tag, Key, Host}, Value}]
-      % Otherwise: [{{Tag, Key, global}, Value}]
-      | {host_or_global_config, Tag :: atom()}.
+      | {config_option_wrapper(), NewKey :: atom()}.
 
 -type config_option_wrapper() ::
         global_config % [{Key, Value}]
@@ -147,15 +141,12 @@ host_config() ->
                                             wrap = remove},
 
                  %% Sections below are allowed in host_config,
-                 %% but only options with these formats are accepted:
-                 %%  - host_config
-                 %%  - host_or_global_config
-                 %% Any other options would be caught by
-                 %%   mongoose_config_parser_toml:format/3
+                 %% but only options with 'wrap = host_config' are accepted.
+                 %% Options with 'wrap = global_config' would be caught by
+                 %%   mongoose_config_parser_toml:wrap/3
                  <<"general">> => general(),
                  <<"auth">> => auth(),
                  <<"modules">> => modules(),
-                 <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
                  <<"s2s">> => s2s()
@@ -797,30 +788,28 @@ process_iqdisc(KVs) ->
 iqdisc(queues, [{workers, N}]) -> {queues, N};
 iqdisc(Type, []) -> Type.
 
-%% path: (host_config[].)shaper
+%% path: shaper
 shaper() ->
     #section{
        items = #{default =>
                      #section{
                         items = #{<<"max_rate">> => #option{type = integer,
-                                                            validate = positive,
-                                                            wrap = {kv, maxrate}}},
+                                                            validate = positive}},
                         required = all,
-                        process = fun ?MODULE:process_shaper/1,
-                        wrap = {host_or_global_config, shaper}
+                        format_items = map
                        }
                 },
        validate_keys = non_empty,
-       wrap = none
+       format_items = map,
+       wrap = global_config
       }.
 
 %% path: (host_config[].)acl
 acl() ->
     #section{
-       items = #{default => #list{items = acl_item(),
-                                  wrap = {host_or_global_config, acl}}
-                },
-       wrap = none
+       items = #{default => #list{items = acl_item()}},
+       format_items = map,
+       wrap = host_config
       }.
 
 %% path: (host_config[].)acl.*[]
@@ -848,10 +837,9 @@ acl_item() ->
 %% path: (host_config[].)access
 access() ->
     #section{
-       items = #{default => #list{items = access_rule_item(),
-                                  wrap = {host_or_global_config, access}}
-                },
-       wrap = none
+       items = #{default => #list{items = access_rule_item()}},
+       format_items = map,
+       wrap = host_config
       }.
 
 %% path: (host_config[].)access.*[]
@@ -862,7 +850,7 @@ access_rule_item() ->
                  <<"value">> => #option{type = int_or_atom}
                 },
        required = all,
-       process = fun ?MODULE:process_access_rule_item/1
+       format_items = map
       }.
 
 %% path: (host_config[].)s2s
@@ -1235,19 +1223,12 @@ a2b(A) -> atom_to_binary(A, utf8).
 wpool_strategy_values() ->
     [best_worker, random_worker, next_worker, available_worker, next_available_worker].
 
-process_shaper([MaxRate]) ->
-    MaxRate.
-
 process_acl_condition(Value) ->
     case jid:nodeprep(Value) of
         error -> error(#{what => incorrect_acl_condition_value,
                          text => <<"Value could not be parsed as a JID node part">>});
         Node -> Node
     end.
-
-process_access_rule_item(KVs) ->
-    {[[{acl, Acl}], [{value, Value}]], []} = proplists:split(KVs, [acl, value]),
-    {Value, Acl}.
 
 process_s2s_address_family(4) -> ipv4;
 process_s2s_address_family(6) -> ipv6.

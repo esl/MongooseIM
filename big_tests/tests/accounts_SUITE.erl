@@ -15,7 +15,7 @@
 
 -import(mongoose_helper, [wait_for_user/3]).
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [domain/0, host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -173,7 +173,7 @@ end_per_testcase(registration_timeout, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_testcase(registration_timeout, Config);
 end_per_testcase(registration_failure_timeout, Config) ->
-    mongoose_helper:restore_config_option(Config, {access, register, global}),
+    mongoose_helper:restore_config_option(Config, [{access, host_type()}, register]),
     escalus:end_per_testcase(registration_failure_timeout, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -410,7 +410,8 @@ restore_registration_timeout(Config) ->
     mongoose_helper:restore_config_option(Config, registration_timeout).
 
 deny_everyone_registration(Config) ->
-    mongoose_helper:backup_and_set_config_option(Config, {access, register, global}, [{deny, all}]).
+    mongoose_helper:backup_and_set_config_option(Config, [{access, host_type()}, register],
+                                                 [#{acl => all, value => deny}]).
 
 has_registered_element(Stanza) ->
         [#xmlel{name = <<"registered">>}] =:= exml_query:paths(Stanza,
@@ -445,6 +446,3 @@ enable_watcher(Config, Watcher) ->
 
 disable_watcher(Config) ->
     restore_mod_register_options(Config).
-
-host_type() ->
-    domain_helper:host_type(mim).
