@@ -182,13 +182,12 @@ num_active_users(Domain, Days) ->
             {cannot_count, Message}
     end.
 
--spec ban_account(jid:user(), jid:server(), binary() | string()) ->
-    {ok, string()} | {error, string()}.
+-spec ban_account(jid:user(), jid:server(), binary()) -> change_password_result().
 ban_account(User, Host, ReasonText) ->
     JID = jid:make(User, Host, <<>>),
     ban_account(JID, ReasonText).
 
--spec ban_account(jid:jid(), binary() | string()) -> change_password_result().
+-spec ban_account(jid:jid(), binary()) -> change_password_result().
 ban_account(JID, ReasonText) ->
     Reason = service_admin_extra_sessions:prepare_reason(ReasonText),
     kick_sessions(JID, Reason),
