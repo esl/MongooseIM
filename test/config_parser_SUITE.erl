@@ -1363,9 +1363,9 @@ acl(_Config) ->
           #{<<"acl">> => #{<<"local">> => [#{<<"user">> => <<"@@@">>}]}}).
 
 acl_merge_host_and_global(_Config) ->
-    G =  #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"george">>}]}},
-    H1 =  #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"henry">>}]}},
-    H2 =  #{<<"acl">> => #{<<"hostile">> => [#{<<"user">> => <<"hacker">>}]}},
+    G = #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"george">>}]}},
+    H1 = #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"henry">>}]}},
+    H2 = #{<<"acl">> => #{<<"hostile">> => [#{<<"user">> => <<"hacker">>}]}},
     ?cfg([{{acl, global}, #{admin => [#{user => <<"george">>, match => current_domain}]}},
           {{acl, ?HOST}, #{admin => [#{user => <<"george">>, match => current_domain}]}}],
          maps:merge(G, host_config(G))),
