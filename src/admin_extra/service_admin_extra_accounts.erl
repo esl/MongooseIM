@@ -86,7 +86,7 @@ commands() ->
                            desc = "Get number of users active in the last days",
                            module = ?MODULE, function = num_active_users,
                            args = [{host, binary}, {days, integer}],
-                           result = {users, integer}},
+                           result = {res, restuple}},
         #ejabberd_commands{name = check_account, tags = [accounts],
                            desc = "Check if an account exists or not",
                            module = ?MODULE, function = check_account,
@@ -122,9 +122,12 @@ check_account(User, Host) ->
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
     mongoose_account_api:check_password_hash(User, Host, PasswordHash, HashMethod).
 
--spec num_active_users(jid:server(), integer()) -> non_neg_integer().
+-spec num_active_users(jid:lserver(), integer()) -> {ok | cannot_count, string()}.
 num_active_users(Domain, Days) ->
-    mongoose_account_api:num_active_users(Domain, Days).
+    case mongoose_account_api:num_active_users(Domain, Days) of
+        {ok, Num} -> {ok, integer_to_list(Num)};
+        Res -> Res
+    end.
 
 -spec delete_old_users(integer()) -> mongoose_account_api:delete_old_users().
 delete_old_users(Days) ->

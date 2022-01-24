@@ -147,9 +147,12 @@ admin_count_users(Config) ->
     ?assert(0 < get_ok_value([data, account, countUsers], Resp2)).
 
 admin_get_active_users_number(Config) ->
-    % Check domain without users
+    % Check non-existing domain
     Resp = execute_auth(get_active_users_number_body(<<"unknown-domain">>, 5), Config),
-    ?assertEqual(0, get_ok_value([data, account, countActiveUsers], Resp)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"Cannot count">>)),
+    % Check an existing domain without active users
+    Resp2 = execute_auth(get_active_users_number_body(domain_helper:domain(), 5), Config),
+    ?assertEqual(0, get_ok_value([data, account, countActiveUsers], Resp2)).
 
 admin_check_password(Config) ->
     Password = lists:last(escalus_users:get_usp(Config, alice)),

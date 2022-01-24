@@ -7,7 +7,7 @@ type AccountAdminQuery @protected{
   "Get number of users per domain"
   countUsers(domain: String!): Int!
   "Get number of users active in last days"
-  countActiveUsers(domain: String!, days: Int!): Int!
+  countActiveUsers(domain: String!, days: Int!): Int
   "Check if a password is correct"
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
   "Check if a password hash is correct (allowed methods: md5, sha). Works only for plain passwords"

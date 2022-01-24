@@ -6,7 +6,7 @@
 
 -include("../mongoose_graphql_types.hrl").
 
--import(mongoose_graphql_account_helper, [make_error/3]).
+-import(mongoose_graphql_account_helper, [format_result/2, make_error/3]).
 
 execute(_Ctx, _Obj, <<"listUsers">>, Args) ->
     list_users(Args);
@@ -34,10 +34,10 @@ count_users(#{<<"domain">> := Domain}) ->
     Users = mongoose_account_api:list_users(Domain),
     {ok, length(Users)}.
 
--spec get_active_users_number(map()) -> {ok, non_neg_integer()}.
+-spec get_active_users_number(map()) -> {ok, non_neg_integer()} | {error, resolver_error()}.
 get_active_users_number(#{<<"domain">> := Domain, <<"days">> := Days}) ->
-    Number = mongoose_account_api:num_active_users(Domain, Days),
-    {ok, Number}.
+    Result = mongoose_account_api:num_active_users(Domain, Days),
+    format_result(Result, #{domain => Domain}).
 
 -spec check_password(map()) -> {ok, map()} | {error, resolver_error()}.
 check_password(#{<<"user">> := JID, <<"password">> := Password}) ->

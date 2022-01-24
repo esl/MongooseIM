@@ -5,9 +5,9 @@
 -include("mongoose_graphql_types.hrl").
 
 -spec format_result(InResult, Context) -> OutResult when
-      InResult :: {atom(), string() | binary()},
+      InResult :: {atom(), string() | binary() | integer()},
       Context :: map(),
-      OutResult :: {ok, binary()} | {error, resolver_error()}.
+      OutResult :: {ok, binary() | integer()} | {error, resolver_error()}.
 format_result(Result, Context) ->
     case Result of
         {ok, Msg} when is_list(Msg) -> {ok, iolist_to_binary(Msg)};

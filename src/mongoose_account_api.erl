@@ -34,6 +34,8 @@
 
 -type check_account_result() :: {ok | user_does_not_exist, string()}.
 
+-type num_active_users_result() :: {ok, non_neg_integer()} | {cannot_count, string()}.
+
 -type delete_old_users() :: {ok, string()}.
 
 -export_type([register_result/0,
@@ -42,6 +44,7 @@
               check_password_result/0,
               check_password_hash_result/0,
               check_account_result/0,
+              num_active_users_result/0,
               delete_old_users/0]).
 
 %% API
@@ -165,15 +168,18 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
             {incorrect, "Password hash is incorrect"}
     end.
 
--spec num_active_users(jid:server(), integer()) -> non_neg_integer().
+-spec num_active_users(jid:lserver(), integer()) -> num_active_users_result().
 num_active_users(Domain, Days) ->
     TimeStamp = erlang:system_time(second),
     TS = TimeStamp - Days * 86400,
     try
         {ok, HostType} = mongoose_domain_api:get_domain_host_type(Domain),
-        mod_last:count_active_users(HostType, Domain, TS)
-    catch _:_ ->
-        0
+        Num = mod_last:count_active_users(HostType, Domain, TS),
+        {ok, Num}
+    catch
+        _:_ ->
+            Message = io_lib:format("Cannot count active users for domain ~s", [Domain]),
+            {cannot_count, Message}
     end.
 
 -spec ban_account(jid:user(), jid:server(), binary() | string()) ->
