@@ -10,6 +10,8 @@
 
 execute(_Ctx, _Obj, <<"listUsers">>, Args) ->
     list_users(Args);
+execute(_Ctx, _Obj, <<"listOldUsers">>, Args) ->
+    list_old_users(Args);
 execute(_Ctx, _Obj, <<"countUsers">>, Args) ->
     count_users(Args);
 execute(_Ctx, _Obj, <<"countActiveUsers">>, Args) ->
@@ -26,6 +28,16 @@ execute(_Ctx, _Obj, <<"checkUser">>, Args) ->
 -spec list_users(map()) -> {ok, [{ok, binary()}]}.
 list_users(#{<<"domain">> := Domain}) ->
     Users = mongoose_account_api:list_users(Domain),
+    Users2 = lists:map(fun(U) -> {ok, U} end, Users),
+    {ok, Users2}.
+
+-spec list_old_users(map()) -> {ok, [{ok, binary()}]}.
+list_old_users(#{<<"domain">> := null, <<"days">> := Days}) ->
+    {ok, Users} = mongoose_account_api:list_old_users(Days),
+    Users2 = lists:map(fun(U) -> {ok, U} end, Users),
+    {ok, Users2};
+list_old_users(#{<<"domain">> := Domain, <<"days">> := Days}) ->
+    {ok, Users} = mongoose_account_api:list_old_users_for_domain(Domain, Days),
     Users2 = lists:map(fun(U) -> {ok, U} end, Users),
     {ok, Users2}.
 

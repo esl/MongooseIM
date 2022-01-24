@@ -4,13 +4,15 @@ Allow admin to get information about accounts.
 type AccountAdminQuery @protected{
   "List users per domain"
   listUsers(domain: String!): [String!]!
+  "List users that didn't log in last days or never logged in. Globally or for a specified domain"
+  listOldUsers(domain: String, days: Int!): [String!]!
   "Get number of users per domain"
   countUsers(domain: String!): Int!
   "Get number of users active in last days"
   countActiveUsers(domain: String!, days: Int!): Int
   "Check if a password is correct"
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
-  "Check if a password hash is correct (allowed methods: md5, sha). Works only for plain passwords"
+  "Check if a password hash is correct (allowed methods: md5, sha). Works only for a plain passwords"
   checkPasswordHash(user: JID!, passwordHash: String!, hashMethod: String!): CheckPasswordPayload
   "Check if an user exists"
   checkUser(user: JID!): CheckUserPayload
@@ -24,7 +26,10 @@ type AccountAdminMutation @protected{
   registerUser(domain: String!, username: String, password: String!): UserPayload
   "Remove an user"
   removeUser(user: JID!): UserPayload
-  "Delete users that didn't log in last days or never logged. Globally or for specified domain"
+  """
+  Delete users that didn't log in last days or never logged in. Globally or for a specified domain.
+  Please use listOldUsers to check which users will be deleted
+  """
   removeOldUsers(domain: String, days: Int!): OldUsersPayload
   "Ban an account: kick sessions and set random password"
   banUser(user: JID!, reason: String!): UserPayload 

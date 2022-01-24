@@ -38,6 +38,8 @@ admin_account_handler() ->
      admin_remove_existing_user,
      admin_ban_user,
      admin_change_user_password,
+     admin_list_old_users_domain,
+     admin_list_old_users_all,
      admin_remove_old_users_domain,
      admin_remove_old_users_all].
 
@@ -68,7 +70,9 @@ end_per_group(user_account_handler, _Config) ->
 end_per_group(_, _Config) ->
     ok.
 
-init_per_testcase(C, Config) when C =:= admin_remove_old_users_all;
+init_per_testcase(C, Config) when C =:= admin_list_old_users_all;
+                                  C =:= admin_list_old_users_domain;
+                                  C =:= admin_remove_old_users_all;
                                   C =:= admin_remove_old_users_domain ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
     case lists:member(ejabberd_auth_ldap, AuthMods) of
@@ -83,7 +87,9 @@ init_per_testcase(admin_register_user = C, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(C, Config) when C =:= admin_remove_old_users_all;
+end_per_testcase(C, Config) when C =:= admin_list_old_users_all;
+                                 C =:= admin_list_old_users_domain;
+                                 C =:= admin_remove_old_users_all;
                                  C =:= admin_remove_old_users_domain ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, alice_bis]));
 end_per_testcase(admin_register_user = C, Config) ->
@@ -294,6 +300,43 @@ admin_remove_old_users_all(Config) ->
     ?assertMatch({ok, _}, check_account(AliceName, Domain)),
     ?assertMatch({user_does_not_exist, _}, check_account(AliceBisName, BisDomain)).
 
+admin_list_old_users_domain(Config) ->
+    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
+    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
+
+    Now = erlang:system_time(seconds),
+    set_last(AliceName, Domain, Now),
+    set_last(BobName, Domain, Now - 86400 * 30),
+
+    LBob = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, bob)),
+
+    Path = [data, account, listOldUsers],
+    Resp = execute_auth(list_old_users_body(Domain, 10), Config),
+    Users = get_ok_value(Path, Resp),
+    ?assertEqual(1, length(Users)),
+    ?assert(lists:member(LBob, Users)).
+
+admin_list_old_users_all(Config) ->
+    [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
+    [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
+    [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
+
+    Now = erlang:system_time(seconds),
+    OldTime = Now - 86400 * 30,
+    set_last(AliceName, Domain, Now),
+    set_last(BobName, Domain, OldTime),
+    set_last(AliceBisName, BisDomain, OldTime),
+
+    LBob = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, bob)),
+    LAliceBis = escalus_utils:jid_to_lower(escalus_users:get_jid(Config, alice_bis)),
+
+    Path = [data, account, listOldUsers],
+    Resp = execute_auth(list_old_users_body(null, 10), Config),
+    Users = get_ok_value(Path, Resp),
+    ?assertEqual(2, length(Users)),
+    ?assert(lists:member(LBob, Users)),
+    ?assert(lists:member(LAliceBis, Users)).
+
 %% Helpers
 
 set_last(User, Domain, TStamp) ->
@@ -386,6 +429,13 @@ remove_old_users_body(Domain, Days) ->
     Query = <<"mutation M1($domain: String, $days: Int!) 
               { account { removeOldUsers(domain: $domain, days: $days) { message users } } }">>,
     OpName = <<"M1">>,
+    Vars = #{<<"domain">> => Domain, <<"days">> => Days},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+list_old_users_body(Domain, Days) ->
+    Query = <<"query Q1($domain: String, $days: Int!)
+              { account { listOldUsers(domain: $domain, days: $days) } }">>,
+    OpName = <<"Q1">>,
     Vars = #{<<"domain">> => Domain, <<"days">> => Days},
     #{query => Query, operationName => OpName, variables => Vars}.
 

@@ -2,6 +2,8 @@
 -module(mongoose_account_api).
 
 -export([list_users/1,
+         list_old_users/1,
+         list_old_users_for_domain/2,
          register_user/3,
          register_generated_user/2,
          unregister_user/1,
@@ -199,61 +201,62 @@ ban_account(JID, ReasonText) ->
             format_change_password(ErrResult)
     end.
 
--spec delete_old_users(integer()) -> {delete_old_users(), [jid:literal_jid()]}.
+-spec delete_old_users(non_neg_integer()) -> {delete_old_users(), [jid:literal_jid()]}.
 delete_old_users(Days) ->
-    Users = lists:append([delete_and_return_old_users(Domain, Days) ||
-                             HostType <- ?ALL_HOST_TYPES,
-                             Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]),
-    {{ok, format_deleted_users(Users)}, Users}.
+    Users = list_old_users_raw(Days),
+    DeletedUsers = delete_users(Users),
+    {{ok, format_deleted_users(DeletedUsers)}, DeletedUsers}.
 
--spec delete_old_users_for_domain(binary(), integer()) -> {delete_old_users(), [jid:literal_jid()]}.
+-spec delete_old_users_for_domain(binary(), non_neg_integer()) ->
+    {delete_old_users(), [jid:literal_jid()]}.
 delete_old_users_for_domain(Domain, Days) ->
-    Users = delete_and_return_old_users(Domain, Days),
-    {{ok, format_deleted_users(Users)}, Users}.
+    Users = list_old_users_raw(Domain, Days),
+    DeletedUsers = delete_users(Users),
+    {{ok, format_deleted_users(DeletedUsers)}, DeletedUsers}.
+
+-spec list_old_users(non_neg_integer()) -> {ok, [jid:literal_jid()]}.
+list_old_users(Days) ->
+    Users = list_old_users_raw(Days),
+    {ok, lists:map(fun jid:to_binary/1, Users)}.
+
+-spec list_old_users_for_domain(binary(), non_neg_integer()) -> {ok, [jid:literal_jid()]}.
+list_old_users_for_domain(Domain, Days) ->
+    Users = list_old_users_raw(Domain, Days),
+    {ok, lists:map(fun jid:to_binary/1, Users)}.
 
 %% Internal
 
--spec delete_and_return_old_users(jid:server(), integer()) -> [jid:literal_jid()].
-delete_and_return_old_users(Domain, Days) ->
+-spec delete_users([jid:simple_bare_jid()]) -> [jid:literal_jid()].
+delete_users(Users) ->
+    lists:map(fun({LUser, LServer}) ->
+                      JID = jid:make(LUser, LServer, <<>>),
+                      ok = ejabberd_auth:remove_user(JID),
+                      jid:to_binary(JID)
+              end, Users).
+
+-spec list_old_users_raw(non_neg_integer()) -> [jid:simple_bare_jid()].
+list_old_users_raw(Days) ->
+    lists:append([list_old_users_raw(Domain, Days) ||
+                     HostType <- ?ALL_HOST_TYPES,
+                     Domain <- mongoose_domain_api:get_domains_by_host_type(HostType)]).
+
+-spec list_old_users_raw(jid:lserver(), non_neg_integer()) -> [jid:simple_bare_jid()].
+list_old_users_raw(Domain, Days) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
-    DeletedUsers = delete_old_users(Days, Users),
-    lists:map(fun jid:to_binary/1, DeletedUsers).
-
--spec delete_old_users(Days, Users) -> Users when Days :: integer(),
-                                                  Users :: [jid:simple_bare_jid()].
-delete_old_users(Days, Users) ->
-    %% Convert older time
-    SecOlder = Days*24*60*60,
-    %% Get current time
+    % Convert older time
+    SecOlder = Days * 24 * 60 * 60,
+    % Get current time
     TimeStampNow = erlang:system_time(second),
-    %% Apply the remove function to every user in the list
-    lists:filter(fun(User) ->
-                         delete_old_user(User, TimeStampNow, SecOlder)
-                 end, Users).
+    % Filter old users
+    lists:filter(fun(User) -> is_old_user(User, TimeStampNow, SecOlder) end, Users).
 
-format_deleted_users(Users) ->
-    io_lib:format("Deleted ~p users: ~p", [length(Users), Users]).
-
--spec delete_old_user(User :: jid:simple_bare_jid(),
-                      TimeStampNow :: non_neg_integer(),
-                      SecOlder :: non_neg_integer()) -> boolean().
-delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
-    %% Check if the user is logged
+-spec is_old_user(jid:simple_bare_jid(), non_neg_integer(), non_neg_integer()) -> boolean().
+is_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
     JID = jid:make(LUser, LServer, <<>>),
+    % Check if the user is logged
     case ejabberd_sm:get_user_resources(JID) of
-        [] -> delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder);
+        [] -> is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder);
         _ -> false
-    end.
-
--spec delete_old_user_if_nonactive_long_enough(jid:jid(), non_neg_integer(),
-                                               non_neg_integer()) ->boolean().
-delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
-    case is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder) of
-        true ->
-            ejabberd_auth:remove_user(JID),
-            true;
-        false ->
-            false
     end.
 
 -spec is_user_nonactive_long_enough(jid:jid(), non_neg_integer(), non_neg_integer()) -> boolean().
@@ -275,6 +278,9 @@ is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
         not_found ->
             true
     end.
+
+format_deleted_users(Users) ->
+    io_lib:format("Deleted ~p users: ~p", [length(Users), Users]).
 
 format_change_password(ok) ->
     {ok, "Password changed"};
