@@ -11,18 +11,11 @@
          set_opts/2,
          set_hosts/2,
          set_host_types/2,
-         get_opts/1,
-         state_to_opts/1,
-         state_to_hosts/1,
-         state_to_host_types/1,
-         state_to_global_opt/3]).
+         get_opts/1]).
 
 %% config post-processing
--export([dedup_state_opts/1,
+-export([unfold_globals/1,
          post_process_modules/1]).
-
--ignore_xref([behaviour_info/1, get_opts/1,
-              state_to_global_opt/3, state_to_host_types/1, state_to_hosts/1]).
 
 -callback parse_file(FileName :: string()) -> state().
 
@@ -30,12 +23,12 @@
 
 -export_type([state/0]).
 
--record(state, {opts = [] :: list(),
+-record(state, {opts = [] :: opts(),
                 hosts = [] :: [domain_name()],
-                host_types = [] :: [host_type()]}).
+                host_types = [] :: [mongooseim:host_type()]}).
 
+-type opts() :: [{mongoose_config:key(), mongoose_config:value()}].
 -type domain_name() :: jid:server().
--type host_type() :: mongooseim:host_type().
 -type state() :: #state{}.
 
 %% Parser API
@@ -59,7 +52,7 @@ parser_module(".toml") -> mongoose_config_parser_toml.
 new_state() ->
     #state{}.
 
--spec set_opts(Opts :: list(), state()) -> state().
+-spec set_opts(opts(), state()) -> state().
 set_opts(Opts, State) ->
     State#state{opts = Opts}.
 
@@ -67,56 +60,70 @@ set_opts(Opts, State) ->
 set_hosts(Hosts, State) ->
     State#state{hosts = Hosts}.
 
--spec set_host_types([host_type()], state()) -> state().
+-spec set_host_types([mongooseim:host_type()], state()) -> state().
 set_host_types(HostTypes, State) ->
     State#state{host_types = HostTypes}.
 
--spec get_opts(state()) -> list().
-get_opts(State) ->
-    State#state.opts.
-
-%% @doc Final getter - reverses the accumulated options.
--spec state_to_opts(state()) -> list().
-state_to_opts(#state{opts = Opts}) ->
-    lists:reverse(Opts).
-
--spec state_to_hosts(state()) -> [domain_name()].
-state_to_hosts(#state{hosts = Hosts}) ->
-    Hosts.
-
--spec state_to_host_types(state()) -> [host_type()].
-state_to_host_types(#state{host_types = HostTypes}) ->
-    HostTypes.
-
--spec state_to_global_opt(OptName :: atom(), state(), Default :: any()) -> any().
-state_to_global_opt(OptName, State, Default) ->
-    Opts = state_to_opts(State),
-    opts_to_global_opt(Opts, OptName, Default).
-
-opts_to_global_opt([{config, OptName, OptValue}|_], OptName, _Default) ->
-    OptValue;
-opts_to_global_opt([_|Opts], OptName, Default) ->
-    opts_to_global_opt(Opts, OptName, Default);
-opts_to_global_opt([], _OptName, Default) ->
-    Default.
+-spec get_opts(state()) -> opts().
+get_opts(#state{opts = Opts}) ->
+    Opts.
 
 %% Config post-processing
 
--spec dedup_state_opts(state()) -> state().
-dedup_state_opts(State = #state{opts = RevOpts}) ->
-    {RevOpts2, _Removed} = dedup_state_opts_list(RevOpts, [], [], sets:new()),
-    State#state{opts = RevOpts2}.
+%% @doc Repeat global options for each host type for easier lookup
+-spec unfold_globals(state()) -> state().
+unfold_globals(Config = #state{opts = Opts, hosts = Hosts, host_types = HostTypes}) ->
+    {HTOpts, SimpleOpts} = lists:partition(fun({K, _}) -> is_tuple(K) end, Opts),
+    GroupedOpts = maps:to_list(group_opts(HTOpts)),
+    AllHostTypes = Hosts ++ HostTypes,
+    NewHTOpts = lists:flatmap(fun({K, M}) -> merge_opts(K, M, AllHostTypes) end, GroupedOpts),
+    Config#state{opts = SimpleOpts ++ NewHTOpts}.
 
-dedup_state_opts_list([{K, _V} = H|List], Removed, Keep, Set) ->
-    case sets:is_element(K, Set) of
-        true ->
-            dedup_state_opts_list(List, [H|Removed], Keep, Set);
-        false ->
-            Set1 = sets:add_element(K, Set),
-            dedup_state_opts_list(List, Removed, [H|Keep], Set1)
-    end;
-dedup_state_opts_list([], Removed, Keep, _Set) ->
-    {Keep, Removed}.
+%% @doc For each host type, merge the global value with the host-type value (if it exists)
+-spec merge_opts(atom(), #{mongooseim:host_type_or_global() => mongoose_config:value()},
+                 [mongooseim:host_type()]) ->
+          [{mongoose_config:host_type_key(), mongoose_config:value()}].
+merge_opts(Key, Opts = #{global := GlobalValue}, AllHostTypes) ->
+    Global = case keep_global_value(Key) of
+                 true -> [{{Key, global}, GlobalValue}];
+                 false -> []
+             end,
+    Global ++ [{{Key, HT}, merge_values(Key, GlobalValue, maps:get(HT, Opts, GlobalValue))}
+               || HT <- AllHostTypes];
+merge_opts(Key, Opts, _AllHostTypes) ->
+    [{{Key, HT}, Val} || {HT, Val} <- maps:to_list(Opts)].
+
+%% @doc Group host-type options by keys for easier processing (key by key)
+-spec group_opts([{mongoose_config:host_type_key(), mongoose_config:value()}]) ->
+          #{atom() => #{mongooseim:host_type_or_global() => mongoose_config:value()}}.
+group_opts(HTOpts) ->
+    lists:foldl(fun({{Key, HT}, Val}, Acc) ->
+                        maps:update_with(Key, fun(Opts) -> Opts#{HT => Val} end, #{HT => Val}, Acc)
+                end, #{}, HTOpts).
+
+%% @doc Merge global options with host-type ones
+-spec merge_values(atom(), mongoose_config:value(), mongoose_config:value()) ->
+          mongoose_config:value().
+merge_values(acl, GlobalValue, HTValue) ->
+    merge_with(fun(V1, V2) -> V1 ++ V2 end, GlobalValue, HTValue);
+merge_values(access, GlobalValue, HTValue) ->
+    merge_with(fun acl:merge_access_rules/2, GlobalValue, HTValue);
+merge_values(_Key, _GlobalValue, HTValue) ->
+    HTValue.
+
+%% Use maps:merge_with/3 when dropping OTP 23
+merge_with(F, GlobalMap, HTMap) ->
+    maps:fold(fun(Key, HTVal, M) ->
+                      maps:update_with(Key, fun(GVal) when GVal =:= HTVal -> GVal;
+                                               (GVal) -> F(GVal, HTVal)
+                                            end, HTVal, M)
+              end, GlobalMap, HTMap).
+
+%% @doc Global value is retained for access rules and acl as they can be matched on the global level
+-spec keep_global_value(atom()) -> boolean().
+keep_global_value(acl) -> true;
+keep_global_value(access) -> true;
+keep_global_value(_) -> false.
 
 -spec post_process_modules(state()) -> state().
 post_process_modules(State = #state{opts = Opts}) ->
