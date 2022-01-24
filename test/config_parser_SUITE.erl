@@ -20,7 +20,10 @@
 %% host-or-global config options
 -define(cfgh(KeyPrefix, Value, RawConfig), ?cfgh([{KeyPrefix, Value}], RawConfig)).
 -define(cfgh(ExpectedOpts, RawConfig),
-        assert_options_host_or_global(ExpectedOpts, RawConfig)).
+        begin
+            ?cfg(host_opts(ExpectedOpts), RawConfig),
+            ?cfg(host_opts(ExpectedOpts), host_config(RawConfig))
+        end).
 
 %% host-or-global config error
 -define(errh(RawConfig), ?errh(_, RawConfig)).
@@ -31,6 +34,10 @@
         end).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
+
+-type key_prefix() :: top_level_key_prefix() | key_path_prefix().
+-type top_level_key_prefix() :: atom().
+-type key_path_prefix() :: [atom() | binary()].
 
 all() ->
     [{group, file},
@@ -165,7 +172,9 @@ groups() ->
                          pool_ldap_tls]},
      {shaper_acl_access, [parallel], [shaper,
                                       acl,
-                                      access]},
+                                      acl_merge_host_and_global,
+                                      access,
+                                      access_merge_host_and_global]},
      {s2s, [parallel], [s2s_dns_timeout,
                         s2s_dns_retries,
                         s2s_outgoing_port,
@@ -1323,25 +1332,25 @@ pool_ldap_tls(_Config) ->
 
 %% tests: shaper, acl, access
 shaper(_Config) ->
-    ?cfgh({shaper, normal}, {maxrate, 1000},
-          #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
-    ?errh(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
-    ?errh(#{<<"shaper">> => #{<<"fast">> => #{}}}).
+    ?cfg([shaper, normal], #{max_rate => 1000},
+         #{<<"shaper">> => #{<<"normal">> => #{<<"max_rate">> => 1000}}}),
+    ?err(#{<<"shaper">> => #{<<"unlimited">> => #{<<"max_rate">> => <<"infinity">>}}}),
+    ?err(#{<<"shaper">> => #{<<"fast">> => #{}}}).
 
 acl(_Config) ->
-    ?cfgh({acl, local}, [#{match => all}],
+    ?cfgh([acl, local], [#{match => all}],
           #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"all">>}]}}),
-    ?cfgh({acl, local}, [#{match => any_hosted_domain}],
+    ?cfgh([acl, local], [#{match => any_hosted_domain}],
           #{<<"acl">> => #{<<"local">> => [#{<<"match">> => <<"any_hosted_domain">>}]}}),
-    ?cfgh({acl, local}, [#{match => current_domain,
+    ?cfgh([acl, local], [#{match => current_domain,
                            user_regexp => <<>>}],
           #{<<"acl">> => #{<<"local">> => [#{<<"user_regexp">> => <<>>}]}}),
-    ?cfgh({acl, alice}, [#{match => current_domain,
+    ?cfgh([acl, alice], [#{match => current_domain,
                            user_regexp => <<"ali.*">>,
                            server_regexp => <<".*host">>}],
           #{<<"acl">> => #{<<"alice">> => [#{<<"user_regexp">> => <<"aLi.*">>,
                                              <<"server_regexp">> => <<".*HosT">>}]}}),
-    ?cfgh({acl, alice}, [#{match => current_domain,
+    ?cfgh([acl, alice], [#{match => current_domain,
                            user => <<"alice">>,
                            server => <<"localhost">>}],
           #{<<"acl">> => #{<<"alice">> => [#{<<"user">> => <<"alice">>,
@@ -1353,19 +1362,57 @@ acl(_Config) ->
     ?errh([#{reason := incorrect_acl_condition_value}],
           #{<<"acl">> => #{<<"local">> => [#{<<"user">> => <<"@@@">>}]}}).
 
+acl_merge_host_and_global(_Config) ->
+    G =  #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"george">>}]}},
+    H1 =  #{<<"acl">> => #{<<"admin">> => [#{<<"user">> => <<"henry">>}]}},
+    H2 =  #{<<"acl">> => #{<<"hostile">> => [#{<<"user">> => <<"hacker">>}]}},
+    ?cfg([{{acl, global}, #{admin => [#{user => <<"george">>, match => current_domain}]}},
+          {{acl, ?HOST}, #{admin => [#{user => <<"george">>, match => current_domain}]}}],
+         maps:merge(G, host_config(G))),
+    ?cfg([{{acl, global}, #{admin => [#{user => <<"george">>, match => current_domain}]}},
+          {{acl, ?HOST}, #{admin => [#{user => <<"george">>, match => current_domain},
+                                     #{user => <<"henry">>, match => current_domain}]}}],
+         maps:merge(G, host_config(H1))),
+    ?cfg([{{acl, global}, #{admin => [#{user => <<"george">>, match => current_domain}]}},
+          {{acl, ?HOST}, #{admin => [#{user => <<"george">>, match => current_domain}],
+                           hostile => [#{user => <<"hacker">>, match => current_domain}]}}],
+         maps:merge(G, host_config(H2))).
+
 access(_Config) ->
-    ?cfgh({access, c2s}, [{deny, blocked}, {allow, all}],
-          #{<<"access">> => #{<<"c2s">> => [#{<<"acl">> => <<"blocked">>,
-                                              <<"value">> => <<"deny">>},
-                                            #{<<"acl">> => <<"all">>,
-                                              <<"value">> => <<"allow">>}]}}),
-    ?cfgh({access, max_user_sessions}, [{10, all}],
-          #{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>,
-                                                            <<"value">> => 10}]}}),
-    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => <<"all">>}]}}),
-    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"value">> => 10}]}}),
-    ?errh(#{<<"access">> => #{<<"max_user_sessions">> => [#{<<"acl">> => 10,
-                                                            <<"value">> => 10}]}}).
+    ?cfgh([access, c2s], [#{acl => blocked, value => deny},
+                          #{acl => all, value => allow}],
+          access_raw(<<"c2s">>, [#{<<"acl">> => <<"blocked">>, <<"value">> => <<"deny">>},
+                                 #{<<"acl">> => <<"all">>, <<"value">> => <<"allow">>}])),
+    ?cfgh([access, max_user_sessions], [#{acl => all, value => 10}],
+          access_raw(<<"max_user_sessions">>, [#{<<"acl">> => <<"all">>, <<"value">> => 10}])),
+    ?errh(access_raw(<<"max_user_sessions">>, [#{<<"acl">> => <<"all">>}])),
+    ?errh(access_raw(<<"max_user_sessions">>, [#{<<"value">> => 10}])),
+    ?errh(access_raw(<<"max_user_sessions">>, [#{<<"acl">> => 10, <<"value">> => 10}])).
+
+access_merge_host_and_global(_Config) ->
+    G1 = access_raw(<<"c2s">>, [#{<<"acl">> => <<"good">>, <<"value">> => <<"allow">>}]),
+    G2 = access_raw(<<"c2s">>, [#{<<"acl">> => <<"gangsters">>, <<"value">> => <<"deny">>},
+                                #{<<"acl">> => <<"all">>, <<"value">> => <<"allow">>}]),
+    H1 = access_raw(<<"c2s">>, [#{<<"acl">> => <<"harmless">>, <<"value">> => <<"allow">>}]),
+    H2 = access_raw(<<"s2s">>, [#{<<"acl">> => <<"harmless">>, <<"value">> => <<"allow">>}]),
+    H3 = access_raw(<<"c2s">>, [#{<<"acl">> => <<"hackers">>, <<"value">> => <<"deny">>}]),
+    ?cfg([{{access, global}, #{c2s => [#{acl => good, value => allow}]}},
+          {{access, ?HOST}, #{c2s => [#{acl => good, value => allow}]}}],
+         maps:merge(G1, host_config(G1))),
+    ?cfg([{{access, global}, #{c2s => [#{acl => good, value => allow}]}},
+          {{access, ?HOST}, #{c2s => [#{acl => good, value => allow},
+                                      #{acl => harmless, value => allow}]}}],
+         maps:merge(G1, host_config(H1))),
+    ?cfg([{{access, global}, #{c2s => [#{acl => good, value => allow}]}},
+          {{access, ?HOST}, #{c2s => [#{acl => good, value => allow}],
+                              s2s => [#{acl => harmless, value => allow}]}}],
+         maps:merge(G1, host_config(H2))),
+    ?cfg([{{access, global}, #{c2s => [#{acl => gangsters, value => deny},
+                                       #{acl => all, value => allow}]}},
+          {{access, ?HOST}, #{c2s => [#{acl => gangsters, value => deny},
+                                      #{acl => hackers, value => deny},
+                                      #{acl => all, value => allow}]}}],
+         maps:merge(G2, host_config(H3))).
 
 %% tests: s2s
 
@@ -3046,57 +3093,17 @@ rdbms_opts() ->
       <<"username">> => <<"dbuser">>,
       <<"password">> => <<"secret">>}.
 
+%% helpers for 'access' tests
+
+access_raw(RuleName, RuleSpec) ->
+    #{<<"access">> => #{RuleName => RuleSpec}}.
+
 %% helpers for 'host_config' tests
-
--spec assert_option_host_or_global(key_prefix(), mongoose_config:value(),
-                                   mongoose_config_parser_toml:toml_section()) -> any().
-assert_option_host_or_global(KeyPrefix, Value, RawConfig) ->
-    assert_options_host_or_global([{KeyPrefix, Value}], RawConfig).
-
--spec assert_options_host_or_global([{key_prefix(), mongoose_config:value()}],
-                                    mongoose_config_parser_toml:toml_section()) -> any().
-assert_options_host_or_global(ExpectedOptions, RawConfig) ->
-    assert_options_host(ExpectedOptions, RawConfig),
-    assert_options_global(ExpectedOptions, RawConfig).
-
--spec assert_options_global([{key_prefix(), mongoose_config:value()}],
-                            mongoose_config_parser_toml:toml_section()) -> any().
-assert_options_global(ExpectedOptions, RawConfig) ->
-    GlobalConfig = parse(RawConfig),
-    GlobalOptions = [{host_key(Key, global), Value} || {Key, Value} <- ExpectedOptions],
-    assert_options(GlobalOptions, GlobalConfig).
-
--spec assert_options_host([{key_prefix(), mongoose_config:value()}],
-                          mongoose_config_parser_toml:toml_section()) -> any().
-assert_options_host(ExpectedOptions, RawConfig) ->
-    HostConfig = parse(host_config(RawConfig)),
-    HostOptions = [{host_key(Key, ?HOST), Value} || {Key, Value} <- ExpectedOptions],
-    assert_options(HostOptions, HostConfig).
-
--type key_prefix() :: top_level_key_prefix() | key_path_prefix().
--type top_level_key_prefix() :: {shaper | acl | access, atom()} | atom().
--type key_path_prefix() :: [atom() | binary()].
-
-%% @doc Build full per-host config key for host-or-global options
--spec host_key(top_level_key_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key();
-              (key_path_prefix(), mongooseim:host_type_or_global()) -> mongoose_config:key_path().
-host_key({Key, Tag}, HostType) when Key =:= shaper;
-                                    Key =:= acl;
-                                    Key =:= access ->
-    {Key, Tag, HostType};
-host_key([TopKey | Rest], _HostType) when is_atom(TopKey) ->
-    [{TopKey, ?HOST} | Rest];
-host_key(Key, _HostType) when is_atom(Key) ->
-    {Key, ?HOST}.
-
--spec assert_error_host_or_global(mongoose_config_parser_toml:toml_section()) ->
-          [[mongoose_config_parser_toml:config_error()]].
-assert_error_host_or_global(RawConfig) ->
-    [assert_error(parse(RawConfig)),
-     assert_error(parse(host_config(RawConfig)))].
 
 host_config(Config) ->
     #{<<"host_config">> => [Config#{<<"host_type">> => ?HOST}]}.
+
+%% helpers for parsing
 
 -spec parse(map()) -> [mongoose_config_parser_toml:config()].
 parse(M0) ->
@@ -3119,6 +3126,19 @@ maybe_insert_dummy_domain(M) ->
     RawConfig#{<<"general">> => NewGenM}.
 
 %% helpers for testing individual options
+
+-spec host_opts([{key_prefix(), mongoose_config:value()}]) ->
+          [{mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value()}].
+host_opts(ExpectedOptions) ->
+    [{host_key(Key), Value} || {Key, Value} <- ExpectedOptions].
+
+%% @doc Build full per-host config key for host-or-global options
+-spec host_key(top_level_key_prefix()) -> mongoose_config:key();
+              (key_path_prefix()) -> mongoose_config:key_path().
+host_key([TopKey | Rest]) when is_atom(TopKey) ->
+    [{TopKey, ?HOST} | Rest];
+host_key(Key) when is_atom(Key) ->
+    {Key, ?HOST}.
 
 -spec assert_options([{mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value()}],
                      [mongoose_config_parser_toml:config()]) -> any().
@@ -3160,7 +3180,7 @@ test_config_file(Config, File) ->
 
     TOMLPath = ejabberd_helper:data(Config, File ++ ".toml"),
     State = mongoose_config_parser:parse_file(TOMLPath),
-    TOMLOpts = mongoose_config_parser:state_to_opts(State),
+    TOMLOpts = mongoose_config_parser:get_opts(State),
 
     %% Save the parsed TOML options
     %% - for debugging
