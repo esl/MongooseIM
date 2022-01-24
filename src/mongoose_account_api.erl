@@ -46,7 +46,7 @@
 
 %% API
 
--spec list_users(jid:server()) -> [binary()].
+-spec list_users(jid:server()) -> [jid:literal_jid()].
 list_users(Domain) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
     SUsers = lists:sort(Users),
@@ -80,7 +80,7 @@ register_user(User, Host, Password) ->
     end.
 
 -spec unregister_user(jid:user(), jid:server()) -> unregister_result().
-    unregister_user(User, Host) ->
+unregister_user(User, Host) ->
     JID = jid:make(User, Host, <<>>),
     unregister_user(JID).
 
@@ -212,7 +212,7 @@ delete_old_users_for_domain(Domain, Days) ->
 delete_and_return_old_users(Domain, Days) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
     DeletedUsers = delete_old_users(Days, Users),
-    lists:map(fun(U) -> jid:to_binary(U) end, DeletedUsers).
+    lists:map(fun jid:to_binary/1, DeletedUsers).
 
 -spec delete_old_users(Days, Users) -> Users when Days :: integer(),
                                                   Users :: [jid:simple_bare_jid()].
@@ -290,7 +290,7 @@ kick_sessions(JID, Reason) ->
 -spec set_random_password(JID, Reason) -> Result when
       JID :: jid:jid(),
       Reason :: binary(),
-      Result :: 'ok' | {error, any()}.
+      Result :: ok | {error, any()}.
 set_random_password(JID, Reason) ->
     NewPass = build_random_password(Reason),
     ejabberd_auth:set_password(JID, NewPass).
@@ -298,23 +298,22 @@ set_random_password(JID, Reason) ->
 -spec build_random_password(Reason :: binary()) -> binary().
 build_random_password(Reason) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:universal_time(),
-    Date = list_to_binary(
-             lists:flatten(
-               io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
-                             [Year, Month, Day, Hour, Minute, Second]))),
+    Date = iolist_to_binary(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
+                                          [Year, Month, Day, Hour, Minute, Second])),
     RandomString = mongoose_bin:gen_from_crypto(),
     <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
 
 -spec generate_username() -> binary().
 generate_username() ->
     mongoose_bin:join([mongoose_bin:gen_from_timestamp(),
-                      mongoose_bin:gen_from_crypto()],
-                      $-).
+                       mongoose_bin:gen_from_crypto()], $-).
 
 -spec get_md5(binary()) -> string().
 get_md5(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
+
+-spec get_sha(binary()) -> string().
 get_sha(AccountPass) ->
     lists:flatten([io_lib:format("~.16B", [X])
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).

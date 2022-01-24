@@ -10,7 +10,7 @@ type AccountAdminQuery @protected{
   countActiveUsers(domain: String!, days: Int!): Int!
   "Check if a password is correct"
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
-  "Check if a password hash is correct (allowed methods: md5, sha). Work only for plain passwords"
+  "Check if a password hash is correct (allowed methods: md5, sha). Works only for plain passwords"
   checkPasswordHash(user: JID!, passwordHash: String!, hashMethod: String!): CheckPasswordPayload
   "Check if an user exists"
   checkUser(user: JID!): CheckUserPayload
@@ -20,9 +20,9 @@ type AccountAdminQuery @protected{
 Allow admin to manage user accounts.
 """
 type AccountAdminMutation @protected{
-  "Register user. Username can be generated when skipped"
+  "Register an user. Username can be generated when skipped"
   registerUser(domain: String!, username: String, password: String!): UserPayload
-  "Remove user"
+  "Remove an user"
   removeUser(user: JID!): UserPayload
   "Delete users that didn't log in last days or never logged. Globally or for specified domain"
   removeOldUsers(domain: String, days: Int!): OldUsersPayload
@@ -42,7 +42,7 @@ type OldUsersPayload{
 
 "Modify user payload"
 type UserPayload{
-  "User jid"
+  "User JID"
   jid: JID!
   "Result message"
   message: String!

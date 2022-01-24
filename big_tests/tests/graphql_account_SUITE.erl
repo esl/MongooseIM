@@ -46,9 +46,8 @@ init_per_suite(Config) ->
     dynamic_modules:save_modules(domain_helper:host_type(), Config2).
 
 end_per_suite(Config) ->
-    Config1 = lists:keydelete(ctl_auth_mods, 1, Config),
-    dynamic_modules:restore_modules(Config1),
-    escalus:end_per_suite(Config1).
+    dynamic_modules:restore_modules(Config),
+    escalus:end_per_suite(Config).
 
 init_per_group(admin_account_handler, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last, []}]),
@@ -78,7 +77,7 @@ init_per_testcase(C, Config) when C =:= admin_remove_old_users_all;
             escalus:init_per_testcase(C, Config1)
     end;
 init_per_testcase(admin_register_user = C, Config) ->
-    Config1 = [{user, {<<"gql_admin_registration_test">>, <<"localhost">>}} | Config],
+    Config1 = [{user, {<<"gql_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -106,11 +105,10 @@ user_unregister_story(Config, Alice) ->
     Path = [data, account, unregister],
     Resp = execute(Ep, #{query => Query}, Creds),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp), <<"successfully unregistered">>)),
-    % ensure user is removed
+    % Ensure the user is removed
     AllUsers = rpc(mim(), mongoose_account_api, list_users, [<<"localhost">>]),
-    {U, S, _} = jid:to_lower((jid:binary_to_bare(BinJID))),
-    LAliceJID = <<U/binary, "@", S/binary>>,
-    ?assertNot(lists:any(fun(Usr) -> Usr == LAliceJID end, AllUsers)).
+    LAliceJID = jid:to_binary(jid:to_lower((jid:binary_to_bare(BinJID)))),
+    ?assertNot(lists:member(LAliceJID, AllUsers)).
     
 user_change_password(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_password_story/2).
@@ -119,37 +117,37 @@ user_change_password_story(Config, Alice) ->
     Ep = ?config(schema_endpoint, Config),
     Password = lists:last(escalus_users:get_usp(Config, alice)),
     Creds = {escalus_client:full_jid(Alice), Password},
-    % set empty password
-    Resp1 = execute(Ep, user_change_password_body(<<"">>), Creds),
+    % Set an empty password
+    Resp1 = execute(Ep, user_change_password_body(<<>>), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"Empty password">>)),
-    % set correct password
+    % Set a correct password
     Path = [data, account, changePassword],
     Resp2 = execute(Ep, user_change_password_body(<<"kaczka">>), Creds),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp2), <<"Password changed">>)).
 
 admin_list_users(Config) ->
-    % unknown domain
+    % An unknown domain
     Resp = execute_auth(list_users_body(<<"unknown-domain">>), Config),
     ?assertEqual([], get_ok_value([data, account, listUsers], Resp)),
-    % domain with users
+    % A domain with users
     Domain = domain_helper:domain(),
     Username = jid:nameprep(escalus_users:get_username(Config, alice)),
     JID = <<Username/binary, "@", Domain/binary>>,
     Resp2 = execute_auth(list_users_body(Domain), Config),
     Users = get_ok_value([data, account, listUsers], Resp2),
-    ?assert(lists:any(fun(U) -> U == JID end, Users)).
+    ?assert(lists:member(JID, Users)).
     
 admin_count_users(Config) ->
-    % unknown domain
+    % An unknown domain
     Resp = execute_auth(count_users_body(<<"unknown-domain">>), Config),
     ?assertEqual(0, get_ok_value([data, account, countUsers], Resp)),
-    % domain with at least one user
+    % A domain with at least one user
     Domain = domain_helper:domain(),
     Resp2 = execute_auth(count_users_body(Domain), Config),
-    ?assert( 0 < get_ok_value([data, account, countUsers], Resp2)).
+    ?assert(0 < get_ok_value([data, account, countUsers], Resp2)).
 
 admin_get_active_users_number(Config) ->
-    % check domain without users
+    % Check domain without users
     Resp = execute_auth(get_active_users_number_body(<<"unknown-domain">>, 5), Config),
     ?assertEqual(0, get_ok_value([data, account, countActiveUsers], Resp)).
 
@@ -157,13 +155,13 @@ admin_check_password(Config) ->
     Password = lists:last(escalus_users:get_usp(Config, alice)),
     BinJID = escalus_users:get_jid(Config, alice),
     Path = [data, account, checkPassword],
-    % correct password
+    % A correct password
     Resp1 = execute_auth(check_password_body(BinJID, Password), Config),
     ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp1)),
-    % incorrect password
+    % An incorrect password
     Resp2 = execute_auth(check_password_body(BinJID, <<"incorrect_pw">>), Config),
     ?assertMatch(#{<<"correct">> := false, <<"message">> := _}, get_ok_value(Path, Resp2)),
-    % not existing user
+    % A non-existing user
     Resp3 = execute_auth(check_password_body(?NOT_EXISTING_JID, Password), Config),
     ?assertEqual(null, get_ok_value(Path, Resp3)).
 
@@ -177,17 +175,17 @@ admin_check_password_hash(Config) ->
     % SCRAM password user
     Resp1 = execute_auth(check_password_hash_body(UserSCRAM, EmptyHash, Method), Config),
     ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp1)),
-    % not existing user
+    % A non-existing user
     Resp2 = execute_auth(check_password_hash_body(?NOT_EXISTING_JID, EmptyHash, Method), Config),
     ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp2)).
 
 admin_check_user(Config) ->
     BinJID = escalus_users:get_jid(Config, alice),
     Path = [data, account, checkUser],
-    %user exist
+    % An existing user
     Resp1 = execute_auth(check_user_body(BinJID), Config),
     ?assertMatch(#{<<"exist">> := true, <<"message">> := _}, get_ok_value(Path, Resp1)),
-    %user not exist
+    % A non-existing user
     Resp2 = execute_auth(check_user_body(?NOT_EXISTING_JID), Config),
     ?assertMatch(#{<<"exist">> := false, <<"message">> := _}, get_ok_value(Path, Resp2)).
 
@@ -195,10 +193,10 @@ admin_register_user(Config) ->
     Password = <<"my_password">>,
     {Username, Domain} = proplists:get_value(user, Config),
     Path = [data, account, registerUser, message],
-    % register new user
+    % Register a new user
     Resp1 = execute_auth(register_user_body(Domain, Username, Password), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp1), <<"successfully registered">>)),
-    % try to register user with existing name
+    % Try to register a user with existing name
     Resp2 = execute_auth(register_user_body(Domain, Username, Password), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"already registered">>)).
 
@@ -206,7 +204,7 @@ admin_register_random_user(Config) ->
     Password = <<"my_password">>,
     Domain = domain_helper:domain(),
     Path = [data, account, registerUser],
-    % register new user
+    % Register a new user
     Resp1 = execute_auth(register_user_body(Domain, null, Password), Config),
     #{<<"message">> := Msg, <<"jid">> := JID} = get_ok_value(Path, Resp1),
     {Username, Server} = jid:to_lus(jid:from_binary(JID)),
@@ -216,10 +214,10 @@ admin_register_random_user(Config) ->
 
 
 admin_remove_user(Config) ->
-    % unregister user with not existing domain 
-    Resp2 = execute_auth(remove_user_body(?NOT_EXISTING_JID), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)),
-    % unregister existing user 
+    % Unregister user with not existing domain
+    Resp = execute_auth(remove_user_body(?NOT_EXISTING_JID), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp), <<"not exist">>)),
+    % Unregister an existing user
     Path = [data, account, removeUser, message],
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         BinJID = escalus_client:full_jid(Alice),
@@ -230,10 +228,10 @@ admin_remove_user(Config) ->
 admin_ban_user(Config) ->
     Path = [data, account, banUser, message],
     Reason = <<"annoying">>,
-    % ban not existing user
+    % Ban not existing user
     Resp1 = execute_auth(ban_user_body(?NOT_EXISTING_JID, Reason), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"not allowed">>)),
-    % ban existing user
+    % Ban an existing user
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         BinJID = escalus_client:full_jid(Alice),
         Resp2 = execute_auth(ban_user_body(BinJID, Reason), Config),
@@ -242,14 +240,14 @@ admin_ban_user(Config) ->
 
 admin_change_user_password(Config) ->
     Path = [data, account, changeUserPassword, message],
-    NewPassword= <<"new password">>,
-    % change password of not existing user
+    NewPassword = <<"new password">>,
+    % Change password of not existing user
     Resp1 = execute_auth(change_user_password_body(?NOT_EXISTING_JID, NewPassword), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"not allowed">>)),
-    % set empty password
-    Resp2 = execute_auth(change_user_password_body(?NOT_EXISTING_JID, <<"">>), Config),
+    % Set an empty password
+    Resp2 = execute_auth(change_user_password_body(?NOT_EXISTING_JID, <<>>), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"Empty password">>)),
-    % change password of existing user
+    % Change password of an existing user
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         BinJID = escalus_client:full_jid(Alice),
         Resp3 = execute_auth(change_user_password_body(BinJID, NewPassword), Config),
@@ -261,10 +259,9 @@ admin_remove_old_users_domain(Config) ->
     [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
     [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
 
-    {Mega, Secs, _} = os:timestamp(),
-    Now = Mega*1000000+Secs,
+    Now = erlang:system_time(seconds),
     set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, Now-86400*30),
+    set_last(BobName, Domain, Now - 86400 * 30),
 
     Path = [data, account, removeOldUsers, users],
     Resp = execute_auth(remove_old_users_body(Domain, 10), Config),
@@ -279,11 +276,11 @@ admin_remove_old_users_all(Config) ->
     [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
     [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),
 
-    {Mega, Secs, _} = os:timestamp(),
-    Now = Mega*1000000+Secs,
+    Now = erlang:system_time(seconds),
+    OldTime = Now - 86400 * 30,
     set_last(AliceName, Domain, Now),
-    set_last(BobName, Domain, Now-86400*30),
-    set_last(AliceBisName, BisDomain, Now-86400*30),
+    set_last(BobName, Domain, OldTime),
+    set_last(AliceBisName, BisDomain, OldTime),
 
     Path = [data, account, removeOldUsers, users],
     Resp = execute_auth(remove_old_users_body(null, 10), Config),
@@ -315,12 +312,14 @@ get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
 get_err_value([errors | Path], {{<<"400">>, <<"Bad Request">>}, #{<<"errors">> := [Error]}}) ->
     get_value(Path, Error).
 
+% Gets a nested value given a path
 get_value([], Data) -> Data;
 get_value([Field | Fields], Data) ->
     BinField = atom_to_binary(Field),
     Data2 = maps:get(BinField, Data),
     get_value(Fields, Data2).
 
+%% Request bodies
 
 list_users_body(Domain) ->
     Query = <<"query Q1($domain: String!) { account { listUsers(domain: $domain) } }">>,
