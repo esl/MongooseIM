@@ -8,10 +8,8 @@ Contains all admin available queries.
 Only an authenticated admin can execute these queries.
 """
 type AdminQuery{
-  "Get all enabled domains by hostType"
-  domainsByHostType(hostType: String!): [String!] @protected
-  "Get information about the domain"
-  domainDetails(domain: String!): Domain @protected
+  "Get domains info"
+  domains: DomainAdminQuery
   "Check authorization status"
   checkAuth: AuthStatus
   stanza: StanzaAdminQuery
@@ -22,34 +20,7 @@ Contains all admin available mutations
 Only an authenticated admin can execute these mutations.
 """
 type AdminMutation @protected{
-  "Add new domain"
-  addDomain(domain: String!, hostType: String!): Domain
-  "Remove domain"
-  removeDomain(domain: String!, hostType: String!): RemoveDomainPayload
-  "Enable domain"
-  enableDomain(domain: String!): Domain
-  "Disable domain"
-  disableDomain(domain: String!): Domain
+  "Modify domains properties or create/destroy domain"
+  domains: DomainAdminMutation
   stanza: StanzaAdminMutation
-}
-
-"""
-A dynamic domain representation.
-Some operation could return incomplete object i.e. some fields can be null.
-"""
-type Domain{
-  "Domain name"
-  domain: String
-  "Domain hostType"
-  hostType: String
-  "Is domain enabled?"
-  enabled: Boolean
-}
-
-"A result of domain removal"
-type RemoveDomainPayload{
-  "Success message"
-  msg: String
-  "Removed domain data"
-  domain: Domain
 }

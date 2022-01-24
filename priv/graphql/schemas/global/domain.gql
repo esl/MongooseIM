@@ -1,0 +1,12 @@
+"""
+A dynamic domain representation.
+Some operation could return incomplete object i.e. some fields can be null.
+"""
+type Domain{
+  "Domain name"
+  domain: String
+  "Domain hostType"
+  hostType: String
+  "Is domain enabled?"
+  enabled: Boolean
+}
