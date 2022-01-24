@@ -72,13 +72,22 @@ unset_opts(State) ->
     Opts = mongoose_config_parser:get_opts(State),
     lists:foreach(fun unset_opt/1, proplists:get_keys(Opts)).
 
--spec set_opt(key(), value()) -> ok.
+-spec set_opt(key() | key_path(), value()) -> ok.
+set_opt([Key], Value) ->
+    set_opt(Key, Value);
+set_opt([Key | Rest], Value) ->
+    set_opt(Key, set_nested_opt(get_opt(Key), Rest, Value));
 set_opt(Key, Value) ->
     persistent_term:put({?MODULE, Key}, Value).
 
--spec unset_opt(key()) -> boolean().
+-spec unset_opt(key() | key_path()) -> ok.
+unset_opt([Key]) ->
+    unset_opt(Key);
+unset_opt([Key | Rest]) ->
+    set_opt(Key, unset_nested_opt(get_opt(Key), Rest));
 unset_opt(Key) ->
-    persistent_term:erase({?MODULE, Key}).
+    persistent_term:erase({?MODULE, Key}),
+    ok.
 
 %% @doc Use instead of get_opt(Key, undefined)
 -spec lookup_opt(key() | key_path()) -> {ok, value()} | {error, not_found}.
@@ -129,3 +138,15 @@ config_states(Nodes) ->
                            cluster_nodes => Nodes,
                            failed_nodes => FailedNodes})
     end.
+
+%% Internal functions
+
+set_nested_opt(M, [Key], Value) ->
+    M#{Key => Value};
+set_nested_opt(M, [Key | Path], Value) ->
+    M#{Key => set_nested_opt(maps:get(Key, M), Path, Value)}.
+
+unset_nested_opt(M, [Key]) ->
+    maps:remove(Key, M);
+unset_nested_opt(M, [Key | Path]) ->
+    M#{Key := unset_nested_opt(maps:get(Key, M), Path)}.
