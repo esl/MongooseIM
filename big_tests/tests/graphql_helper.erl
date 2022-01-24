@@ -22,7 +22,7 @@ execute(EpName, Body, Creds) ->
 
 execute_auth(Body, Config) ->
     Ep = ?config(schema_endpoint, Config),
-    Opts = ?config(listener_opts, Config),
+    Opts = get_listener_opts(Ep),
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
     execute(Ep, Body, {User, Password}).

@@ -219,10 +219,8 @@ delete_and_return_old_users(Domain, Days) ->
 delete_old_users(Days, Users) ->
     %% Convert older time
     SecOlder = Days*24*60*60,
-
     %% Get current time
     TimeStampNow = erlang:system_time(second),
-
     %% Apply the remove function to every user in the list
     lists:filter(fun(User) ->
                          delete_old_user(User, TimeStampNow, SecOlder)
@@ -242,29 +240,34 @@ delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
         _ -> false
     end.
 
--spec delete_old_user_if_nonactive_long_enough(JID :: jid:jid(),
-                                               TimeStampNow :: non_neg_integer(),
-                                               SecOlder :: non_neg_integer()) -> boolean().
+-spec delete_old_user_if_nonactive_long_enough(jid:jid(), non_neg_integer(),
+                                               non_neg_integer()) ->boolean().
 delete_old_user_if_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
+    case is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder) of
+        true ->
+            ejabberd_auth:remove_user(JID),
+            true;
+        false ->
+            false
+    end.
+
+-spec is_user_nonactive_long_enough(jid:jid(), non_neg_integer(), non_neg_integer()) -> boolean().
+is_user_nonactive_long_enough(JID, TimeStampNow, SecOlder) ->
     {LUser, LServer} = jid:to_lus(JID),
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
     case mod_last:get_last_info(HostType, LUser, LServer) of
         {ok, TimeStamp, _Status} ->
-            %% get his age
+            % Get user age
             Sec = TimeStampNow - TimeStamp,
-            %% If he is younger than SecOlder:
             case Sec < SecOlder of
+                % Younger than SecOlder
                 true ->
-                    %% do nothing
                     false;
-                %% older:
+                %% Older
                 false ->
-                    %% remove the user
-                    ejabberd_auth:remove_user(JID),
                     true
             end;
         not_found ->
-            ejabberd_auth:remove_user(JID),
             true
     end.
 
@@ -285,7 +288,6 @@ kick_sessions(JID, Reason) ->
                   jid:replace_resource(JID, Resource), Reason)
         end,
         ejabberd_sm:get_user_resources(JID)).
-
 
 -spec set_random_password(JID, Reason) -> Result when
       JID :: jid:jid(),

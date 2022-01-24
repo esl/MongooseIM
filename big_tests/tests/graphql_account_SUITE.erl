@@ -106,7 +106,7 @@ user_unregister_story(Config, Alice) ->
     Resp = execute(Ep, #{query => Query}, Creds),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Resp), <<"successfully unregistered">>)),
     % Ensure the user is removed
-    AllUsers = rpc(mim(), mongoose_account_api, list_users, [<<"localhost">>]),
+    AllUsers = rpc(mim(), mongoose_account_api, list_users, [domain_helper:domain()]),
     LAliceJID = jid:to_binary(jid:to_lower((jid:binary_to_bare(BinJID)))),
     ?assertNot(lists:member(LAliceJID, AllUsers)).
     
