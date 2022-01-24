@@ -559,16 +559,15 @@ increase_limits(Config) ->
     Config1.
 
 increased_limits() ->
-    #{{shaper, mam_shaper, global} => {maxrate, 10000},
-      {shaper, normal, global} => {maxrate, 10000000},
-      {shaper, fast, global} => {maxrate, 10000000},
-      {access, max_user_sessions, global} => [{10000, all}]}.
+    #{[shaper, mam_shaper] => #{max_rate => 10000},
+      [shaper, normal] => #{max_rate => 10000000},
+      [shaper, fast] => #{max_rate => 10000000},
+      [{access, host_type()}, max_user_sessions] => [#{acl => all, value => 10000}]}.
 
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];
 init_per_group(mam06, Config) ->
     [{props, mam06_props()}|Config];
-
 
 init_per_group(rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),

@@ -448,11 +448,11 @@ do_verify_format(_, Password, SPassword) ->
 set_acl_for_blocking(Config, Spec) ->
     User = proplists:get_value(username, Spec),
     LUser = jid:nodeprep(User),
-    mongoose_helper:backup_and_set_config_option(Config, {acl, blocked, host_type()},
+    mongoose_helper:backup_and_set_config_option(Config, [{acl, host_type()}, blocked],
                                                  [#{user => LUser, match => current_domain}]).
 
 unset_acl_for_blocking(Config) ->
-    mongoose_helper:restore_config_option(Config, {acl, blocked, host_type()}).
+    mongoose_helper:restore_config_option(Config, [{acl, host_type()}, blocked]).
 
 configure_and_log_scram(Config, Sha, Mech) ->
     set_scram_sha(Config, Sha),
