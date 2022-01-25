@@ -31,6 +31,7 @@ admin_account_handler() ->
      admin_get_active_users_number,
      admin_check_password,
      admin_check_password_hash,
+     admin_check_plain_password_hash,
      admin_check_user,
      admin_register_user,
      admin_register_random_user,
@@ -85,6 +86,18 @@ init_per_testcase(C, Config) when C =:= admin_list_old_users_all;
 init_per_testcase(admin_register_user = C, Config) ->
     Config1 = [{user, {<<"gql_admin_registration_test">>, domain_helper:domain()}} | Config],
     escalus:init_per_testcase(C, Config1);
+init_per_testcase(admin_check_plain_password_hash = C, Config) ->
+    {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
+    case lists:member(ejabberd_auth_ldap, AuthMods) of
+        true ->
+            {skip, not_fully_supported_with_ldap};
+        false ->
+            AuthOpts = mongoose_helper:auth_opts_with_password_format(plain),
+            Config1 = mongoose_helper:backup_and_set_config_option(
+                        Config, {auth, domain_helper:host_type()}, AuthOpts),
+            Config2 = escalus:create_users(Config1, escalus:get_users([carol])),
+            escalus:init_per_testcase(C, Config2)
+    end;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -97,6 +110,9 @@ end_per_testcase(admin_register_user = C, Config) ->
     {Username, Domain} = proplists:get_value(user, Config),
     rpc(mim(), mongoose_account_api, unregister_user, [Username, Domain]),
     escalus:end_per_testcase(C, Config);
+end_per_testcase(admin_check_plain_password_hash, Config) ->
+    mongoose_helper:restore_config(Config),
+    escalus:delete_users(Config, escalus:get_users([carol]));
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -177,18 +193,32 @@ admin_check_password(Config) ->
     ?assertEqual(null, get_ok_value(Path, Resp3)).
 
 admin_check_password_hash(Config) ->
-    % This works only with a plain password. For users with scram passwords or not existing users,
-    % the empty string is returned. Thus it can be matched with an empty string hash.
     UserSCRAM = escalus_users:get_jid(Config, alice),
-    EmptyHash = <<"D41D8CD98F0B24E980998ECF8427E">>,
+    EmptyHash = list_to_binary(get_md5(<<>>)),
     Method = <<"md5">>,
-    Path = [data, account, checkPasswordHash],
     % SCRAM password user
     Resp1 = execute_auth(check_password_hash_body(UserSCRAM, EmptyHash, Method), Config),
-    ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp1)),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp1), <<"SCRAM password">>)),
     % A non-existing user
     Resp2 = execute_auth(check_password_hash_body(?NOT_EXISTING_JID, EmptyHash, Method), Config),
-    ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp2)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp2), <<"not exist">>)).
+
+admin_check_plain_password_hash(Config) ->
+    UserJID = escalus_users:get_jid(Config, carol),
+    Password = lists:last(escalus_users:get_usp(Config, carol)),
+    Method = <<"md5">>,
+    Hash = list_to_binary(get_md5(Password)),
+    WrongHash = list_to_binary(get_md5(<<"wrong password">>)),
+    Path = [data, account, checkPasswordHash],
+    % A correct hash
+    Resp = execute_auth(check_password_hash_body(UserJID, Hash, Method), Config),
+    ?assertMatch(#{<<"correct">> := true, <<"message">> := _}, get_ok_value(Path, Resp)),
+    % An incorrect hash
+    Resp2 = execute_auth(check_password_hash_body(UserJID, WrongHash, Method), Config),
+    ?assertMatch(#{<<"correct">> := false, <<"message">> := _}, get_ok_value(Path, Resp2)),
+    % A not-supported hash method
+    Resp3 = execute_auth(check_password_hash_body(UserJID, Hash, <<"a">>), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Resp3), <<"not supported">>)).
 
 admin_check_user(Config) ->
     BinJID = escalus_users:get_jid(Config, alice),
@@ -222,7 +252,6 @@ admin_register_random_user(Config) ->
 
     ?assertNotEqual(nomatch, binary:match(Msg, <<"successfully registered">>)),
     {ok, _} = rpc(mim(), mongoose_account_api, unregister_user, [Username, Server]).
-
 
 admin_remove_non_existing_user(Config) ->
     Resp = execute_auth(remove_user_body(?NOT_EXISTING_JID), Config),
@@ -338,6 +367,10 @@ admin_list_old_users_all(Config) ->
     ?assert(lists:member(LAliceBis, Users)).
 
 %% Helpers
+
+get_md5(AccountPass) ->
+    lists:flatten([io_lib:format("~.16B", [X])
+                   || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
     rpc(mim(), mod_last, store_last_info,

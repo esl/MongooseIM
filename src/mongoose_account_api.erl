@@ -33,7 +33,7 @@
 
 -type check_password_result() :: {ok | incorrect | user_does_not_exist, string()}.
 
--type check_password_hash_result() :: {ok | incorrect | error, string()}.
+-type check_password_hash_result() :: {ok | incorrect | wrong_user | wrong_method, string()}.
 
 -type check_account_result() :: {ok | user_does_not_exist, string()}.
 
@@ -166,10 +166,14 @@ check_password_hash(JID, PasswordHash, HashMethod) ->
         "sha" -> get_sha(AccountPass);
         _ -> undefined
     end,
-    case AccountPassHash of
-        undefined ->
-            {error, "Hash for password is undefined"};
-        PasswordHash ->
+    case {AccountPass, AccountPassHash} of
+        {<<>>, _} ->
+            {wrong_user, "User does not exist or using SCRAM password"};
+        {_, undefined} ->
+            Msg = io_lib:format("Given hash method `~s` is not supported. Try `md5` or `sha`",
+                                [HashMethod]),
+            {wrong_method, Msg};
+        {_, PasswordHash} ->
             {ok, "Password hash is correct"};
         _->
             {incorrect, "Password hash is incorrect"}

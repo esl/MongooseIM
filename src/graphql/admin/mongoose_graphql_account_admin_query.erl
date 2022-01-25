@@ -67,12 +67,12 @@ check_password_hash(#{<<"user">> := JID, <<"passwordHash">> := Hash,
     Val = binary_to_list(Hash),
     Method = binary_to_list(HashMethod),
     case mongoose_account_api:check_password_hash(JID, Val, Method) of
-        {error, Msg} ->
-            make_error(undefined_hash, Msg, #{jid => JID});
         {incorrect, Msg} ->
             {ok, #{<<"correct">> => false, <<"message">> => Msg}};
         {ok, Msg} ->
-            {ok, #{<<"correct">> => true, <<"message">> => Msg}}
+            {ok, #{<<"correct">> => true, <<"message">> => Msg}};
+        {ErrCode, Msg} ->
+            make_error(ErrCode, Msg, #{jid => JID})
     end.
 
 -spec check_user(map()) -> {ok, map()}.
