@@ -129,7 +129,7 @@ num_active_users(Domain, Days) ->
         Res -> Res
     end.
 
--spec delete_old_users(integer()) -> mongoose_account_api:delete_old_users().
+-spec delete_old_users(integer()) -> mongoose_account_api:delete_old_users_result().
 delete_old_users(Days) ->
     {Res, _} = mongoose_account_api:delete_old_users(Days),
     Res.

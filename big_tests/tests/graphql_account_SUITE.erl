@@ -64,7 +64,8 @@ init_per_group(_, Config) ->
 
 end_per_group(admin_account_handler, Config) ->
     escalus_fresh:clean(),
-    escalus:delete_users(Config, escalus:get_users([alice]));
+    escalus:delete_users(Config, escalus:get_users([alice])),
+    dynamic_modules:restore_modules(Config);
 end_per_group(user_account_handler, _Config) ->
     escalus_fresh:clean();
 end_per_group(_, _Config) ->
@@ -282,7 +283,6 @@ admin_remove_old_users_domain(Config) ->
     ?assertMatch({ok, _}, check_account(AliceBisName, BisDomain)).
 
 admin_remove_old_users_all(Config) ->
-
     [AliceName, Domain, _] = escalus_users:get_usp(Config, alice),
     [BobName, Domain, _] = escalus_users:get_usp(Config, bob),
     [AliceBisName, BisDomain, _] = escalus_users:get_usp(Config, alice_bis),

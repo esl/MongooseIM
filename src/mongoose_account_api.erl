@@ -24,7 +24,7 @@
 
 -include("mongoose.hrl").
 
--type register_result() :: {ok | exists | invalid_jid | cannot_register, string()}.
+-type register_result() :: {ok | exists | invalid_jid | cannot_register, iolist()}.
 
 -type unregister_result() :: {ok | not_allowed | invalid_jid, string()}.
 
@@ -38,7 +38,7 @@
 
 -type num_active_users_result() :: {ok, non_neg_integer()} | {cannot_count, string()}.
 
--type delete_old_users() :: {ok, string()}.
+-type delete_old_users_result() :: {ok, iolist()}.
 
 -export_type([register_result/0,
               unregister_result/0,
@@ -47,7 +47,7 @@
               check_password_hash_result/0,
               check_account_result/0,
               num_active_users_result/0,
-              delete_old_users/0]).
+              delete_old_users_result/0]).
 
 %% API
 
@@ -73,7 +73,7 @@ register_user(User, Host, Password) ->
                               [jid:to_binary(JID), node()]),
             {exists, String};
         {error, invalid_jid} ->
-            String = io_lib:format("Invalid jid ~s@~s", [User, Host]),
+            String = io_lib:format("Invalid JID ~s@~s", [User, Host]),
             {invalid_jid, String};
         {error, Reason} ->
             String =
@@ -95,7 +95,7 @@ unregister_user(JID) ->
         ok ->
             {ok, io_lib:format("User ~s successfully unregistered", [jid:to_binary(JID)])};
         error ->
-            {invalid_jid, "Invalid jid"};
+            {invalid_jid, "Invalid JID"};
         {error, not_allowed} ->
             {not_allowed, "User does not exist or you are not authorised properly"}
     end.
@@ -201,14 +201,14 @@ ban_account(JID, ReasonText) ->
             format_change_password(ErrResult)
     end.
 
--spec delete_old_users(non_neg_integer()) -> {delete_old_users(), [jid:literal_jid()]}.
+-spec delete_old_users(non_neg_integer()) -> {delete_old_users_result(), [jid:literal_jid()]}.
 delete_old_users(Days) ->
     Users = list_old_users_raw(Days),
     DeletedUsers = delete_users(Users),
     {{ok, format_deleted_users(DeletedUsers)}, DeletedUsers}.
 
 -spec delete_old_users_for_domain(binary(), non_neg_integer()) ->
-    {delete_old_users(), [jid:literal_jid()]}.
+    {delete_old_users_result(), [jid:literal_jid()]}.
 delete_old_users_for_domain(Domain, Days) ->
     Users = list_old_users_raw(Domain, Days),
     DeletedUsers = delete_users(Users),
@@ -289,7 +289,7 @@ format_change_password({error, empty_password}) ->
 format_change_password({error, not_allowed}) ->
     {not_allowed, "Password change not allowed"};
 format_change_password({error, invalid_jid}) ->
-    {invalid_jid, "Invalid jid"}.
+    {invalid_jid, "Invalid JID"}.
 
 -spec kick_sessions(jid:jid(), binary()) -> [ok].
 kick_sessions(JID, Reason) ->

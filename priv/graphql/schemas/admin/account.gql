@@ -4,7 +4,7 @@ Allow admin to get information about accounts.
 type AccountAdminQuery @protected{
   "List users per domain"
   listUsers(domain: String!): [String!]!
-  "List users that didn't log in last days or never logged in. Globally or for a specified domain"
+  "List users that didn't log in the last days or have never logged in. Globally or for a specified domain"
   listOldUsers(domain: String, days: Int!): [String!]!
   "Get number of users per domain"
   countUsers(domain: String!): Int!
@@ -14,7 +14,7 @@ type AccountAdminQuery @protected{
   checkPassword(user: JID!, password: String!): CheckPasswordPayload
   "Check if a password hash is correct (allowed methods: md5, sha). Works only for a plain passwords"
   checkPasswordHash(user: JID!, passwordHash: String!, hashMethod: String!): CheckPasswordPayload
-  "Check if an user exists"
+  "Check if a user exists"
   checkUser(user: JID!): CheckUserPayload
 }
 
@@ -22,18 +22,18 @@ type AccountAdminQuery @protected{
 Allow admin to manage user accounts.
 """
 type AccountAdminMutation @protected{
-  "Register an user. Username can be generated when skipped"
+  "Register a user. Username will be generated when skipped"
   registerUser(domain: String!, username: String, password: String!): UserPayload
-  "Remove an user"
+  "Remove a user"
   removeUser(user: JID!): UserPayload
   """
-  Delete users that didn't log in last days or never logged in. Globally or for a specified domain.
+  Delete users that didn't log in the last days or have never logged in. Globally or for a specified domain.
   Please use listOldUsers to check which users will be deleted
   """
   removeOldUsers(domain: String, days: Int!): OldUsersPayload
-  "Ban an account: kick sessions and set random password"
+  "Ban an account: kick sessions and set a random password"
   banUser(user: JID!, reason: String!): UserPayload 
-  "Change the password of an user"
+  "Change the password of a user"
   changeUserPassword(user: JID!, newPassword: String!): UserPayload 
 }
 
@@ -63,7 +63,7 @@ type CheckPasswordPayload{
 
 "Check user existance payload"
 type CheckUserPayload{
-  "Status of the user existance"
+  "Status of the user existence"
   exist: Bool!
   "Result message"
   message: String!
