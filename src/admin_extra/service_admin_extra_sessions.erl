@@ -33,7 +33,6 @@
     resource_num/3,
     kick_session/2,
     kick_session/4,
-    prepare_reason/1,
     status_num/2, status_num/1,
     status_list/2, status_list/1,
     connected_users_info/0,
@@ -44,7 +43,7 @@
 
 -ignore_xref([
     commands/0, num_resources/2, resource_num/3, kick_session/2, kick_session/4,
-    prepare_reason/1, status_num/2, status_num/1, status_list/2, status_list/1,
+    status_num/2, status_num/1, status_list/2, status_list/1,
     connected_users_info/0, connected_users_info/1, set_presence/7,
     user_sessions_info/2
 ]).
@@ -190,27 +189,13 @@ resource_num(User, Host, Num) ->
             lists:flatten(io_lib:format("Error: Wrong resource number: ~p", [Num]))
     end.
 
-
 -spec kick_session(jid:jid(), binary() | list()) -> ok.
 kick_session(JID, ReasonText) ->
-    ejabberd_c2s:terminate_session(JID, prepare_reason(ReasonText)),
-    ok.
+    mongoose_session_api:kick_session(JID, ReasonText).
 
 -spec kick_session(jid:user(), jid:server(), jid:resource(), list() | binary()) -> ok.
 kick_session(User, Server, Resource, ReasonText) ->
-    kick_session(jid:make(User, Server, Resource), prepare_reason(ReasonText)).
-
-
--spec prepare_reason(binary() | string()) -> binary().
-prepare_reason(<<>>) ->
-    <<"Kicked by administrator">>;
-prepare_reason([Reason]) ->
-    prepare_reason(Reason);
-prepare_reason(Reason) when is_list(Reason) ->
-    list_to_binary(Reason);
-prepare_reason(Reason) when is_binary(Reason) ->
-    Reason.
-
+    mongoose_session_api:kick_session(User, Server, Resource, ReasonText).
 
 -spec status_num('all' | jid:server(), status()) -> non_neg_integer().
 status_num(Host, Status) ->

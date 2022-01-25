@@ -43,8 +43,7 @@ list_old_users(#{<<"domain">> := Domain, <<"days">> := Days}) ->
 
 -spec count_users(map()) -> {ok, non_neg_integer()}.
 count_users(#{<<"domain">> := Domain}) ->
-    Users = mongoose_account_api:list_users(Domain),
-    {ok, length(Users)}.
+    {ok, mongoose_account_api:count_users(Domain)}.
 
 -spec get_active_users_number(map()) -> {ok, non_neg_integer()} | {error, resolver_error()}.
 get_active_users_number(#{<<"domain">> := Domain, <<"days">> := Days}) ->

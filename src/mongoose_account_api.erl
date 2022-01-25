@@ -2,6 +2,7 @@
 -module(mongoose_account_api).
 
 -export([list_users/1,
+         count_users/1,
          list_old_users/1,
          list_old_users_for_domain/2,
          register_user/3,
@@ -56,6 +57,10 @@ list_users(Domain) ->
     Users = ejabberd_auth:get_vh_registered_users(Domain),
     SUsers = lists:sort(Users),
     [jid:to_binary(US) || US <- SUsers].
+
+-spec count_users(jid:server()) -> integer().
+count_users(Domain) ->
+    ejabberd_auth:get_vh_registered_users_number(Domain).
 
 -spec register_generated_user(jid:server(), binary()) -> {register_result(), jid:literal_jid()}.
 register_generated_user(Host, Password) ->
@@ -191,8 +196,8 @@ ban_account(User, Host, ReasonText) ->
 
 -spec ban_account(jid:jid(), binary()) -> change_password_result().
 ban_account(JID, ReasonText) ->
-    Reason = service_admin_extra_sessions:prepare_reason(ReasonText),
-    kick_sessions(JID, Reason),
+    Reason = mongoose_session_api:prepare_reason(ReasonText),
+    mongoose_session_api:kick_sessions(JID, Reason),
     case set_random_password(JID, Reason) of
         ok ->
             {ok, io_lib:format("User ~s successfully banned with reason: ~s",
@@ -290,15 +295,6 @@ format_change_password({error, not_allowed}) ->
     {not_allowed, "Password change not allowed"};
 format_change_password({error, invalid_jid}) ->
     {invalid_jid, "Invalid JID"}.
-
--spec kick_sessions(jid:jid(), binary()) -> [ok].
-kick_sessions(JID, Reason) ->
-    lists:map(
-        fun(Resource) ->
-                service_admin_extra_sessions:kick_session(
-                  jid:replace_resource(JID, Resource), Reason)
-        end,
-        ejabberd_sm:get_user_resources(JID)).
 
 -spec set_random_password(JID, Reason) -> Result when
       JID :: jid:jid(),
