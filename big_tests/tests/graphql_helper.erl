@@ -29,13 +29,13 @@ execute_auth(Body, Config) ->
 
 -spec get_listener_port(binary()) -> integer().
 get_listener_port(EpName) ->
-    {PortIpNet, ejabberd_cowboy, _Opts} = get_listener_config(EpName),
-    element(1, PortIpNet).
+    #{port := Port} = get_listener_config(EpName),
+    Port.
 
--spec get_listener_config(binary()) -> tuple().
+-spec get_listener_config(binary()) -> map().
 get_listener_config(EpName) ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
-    [{_, ejabberd_cowboy, _} = Config] =
+    [Config] =
         lists:filter(fun(Config) -> is_graphql_config(Config, EpName) end, Listeners),
     Config.
 
@@ -50,8 +50,7 @@ init_admin_handler(Config) ->
     end.
 
 get_listener_opts(EpName) ->
-    {_, ejabberd_cowboy, Opts} = get_listener_config(EpName),
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+    #{modules := Modules} = get_listener_config(EpName),
     [Opts2] = lists:filtermap(
         fun
             ({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
@@ -63,8 +62,7 @@ get_listener_opts(EpName) ->
 
 %% Internal
 
-is_graphql_config({_PortIpNet, ejabberd_cowboy, Opts}, EpName) ->
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+is_graphql_config(#{module := ejabberd_cowboy, modules := Modules}, EpName) ->
     lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
                       atom_to_binary(EpName) == proplists:get_value(schema_endpoint, Args);
                  (_) -> false

@@ -309,8 +309,7 @@ is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, client) ->
                                  (_) -> []
                               end, Modules),
     lists:any(fun(["mongoose", "client", "api" | _T]) -> true; (_) -> false end, ModulesTokens);
-is_roles_config({_PortIpNet, ejabberd_cowboy, Opts}, {graphql, SchemaEndpoint}) ->
-    {value, {modules, Modules}} = lists:keysearch(modules, 1, Opts),
+is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, {graphql, SchemaEndpoint}) ->
     lists:any(fun({_, _Path,  Mod, Args}) ->
                       Mod == mongoose_graphql_cowboy_handler andalso
                       SchemaEndpoint == proplists:get_value(schema_endpoint, Args);
