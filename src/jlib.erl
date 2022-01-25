@@ -46,7 +46,6 @@
          timestamp_to_xml/3,
          decode_base64/1,
          encode_base64/1,
-         ip_to_list/1,
          rsm_encode/1,
          rsm_decode/1,
          stanza_error/3,
@@ -55,8 +54,6 @@
          stream_error/1,
          stream_errort/3,
          remove_delay_tags/1]).
-
--ignore_xref([ip_to_list/1]).
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
@@ -496,20 +493,6 @@ decode_base64(S) ->
 -spec encode_base64(binary() | string()) -> binary().
 encode_base64(B) ->
     base64:encode(B).
-
-%% @doc Convert Erlang inet IP to list
--spec ip_to_list(inet:ip4_address() | {inet:ip_address(), inet:port_number()}
-                ) -> string().
-ip_to_list({IP, _Port}) ->
-    ip_to_list(IP);
-ip_to_list({_, _, _, _, _, _, _, _} = Ipv6Address) ->
-    inet_parse:ntoa(Ipv6Address);
-%% This function clause could use inet_parse too:
-ip_to_list({A, B, C, D}) ->
-    lists:flatten(io_lib:format("~w.~w.~w.~w", [A, B, C, D]));
-ip_to_list(IP) ->
-    lists:flatten(io_lib:format("~w", [IP])).
-
 
 -spec stanza_error( Code :: binary()
    , Type :: binary()

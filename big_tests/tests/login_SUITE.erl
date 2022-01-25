@@ -17,12 +17,6 @@
 -module(login_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
-
--include_lib("common_test/include/ct.hrl").
--include_lib("eunit/include/eunit.hrl").
-
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0,
@@ -34,9 +28,6 @@
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
-
--define(REGISTRATION_TIMEOUT, 2).  %% seconds
--define(CERT_FILE, "priv/ssl/fake_server.pem").
 
 all() ->
     [
@@ -147,7 +138,7 @@ init_per_group(login_scram_tls = GroupName, ConfigIn) ->
             mongoose_helper:restore_config(Config),
             {skip, "scram password type not supported"};
         true ->
-            Config1 = config_ejabberd_node_tls(Config),
+            Config1 = configure_c2s_listener(Config),
             Config2 = create_tls_users(Config1),
             assert_password_format(scram, Config2)
     end;
@@ -401,12 +392,13 @@ message_zlib_limit(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-config_ejabberd_node_tls(Config) ->
+configure_c2s_listener(Config) ->
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
-    [{_, ejabberd_c2s, Opts} = C2SListener] = mongoose_helper:get_listener_opts(mim(), C2SPort),
+    [C2SListener = #{tls := TLSOpts}] =
+        mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
     %% replace starttls with tls
-    NewOpts = [tls | Opts -- [starttls]],
-    mongoose_helper:restart_listener_with_opts(mim(), C2SListener, NewOpts),
+    NewTLSOpts = [tls | TLSOpts -- [starttls]],
+    mongoose_helper:restart_listener(mim(), C2SListener#{tls := NewTLSOpts}),
     [{c2s_listener, C2SListener} | Config].
 
 create_tls_users(Config) ->
@@ -456,11 +448,11 @@ do_verify_format(_, Password, SPassword) ->
 set_acl_for_blocking(Config, Spec) ->
     User = proplists:get_value(username, Spec),
     LUser = jid:nodeprep(User),
-    mongoose_helper:backup_and_set_config_option(Config, {acl, blocked, host_type()},
-                                                 [{user, LUser}]).
+    mongoose_helper:backup_and_set_config_option(Config, [{acl, host_type()}, blocked],
+                                                 [#{user => LUser, match => current_domain}]).
 
 unset_acl_for_blocking(Config) ->
-    mongoose_helper:restore_config_option(Config, {acl, blocked, host_type()}).
+    mongoose_helper:restore_config_option(Config, [{acl, host_type()}, blocked]).
 
 configure_and_log_scram(Config, Sha, Mech) ->
     set_scram_sha(Config, Sha),
@@ -500,5 +492,5 @@ are_sasl_scram_modules_supported() ->
     [true, true, true, true, true] == IsSupported.
 
 restore_c2s(Config) ->
-   {_, _, Opts} = C2SListener = proplists:get_value(c2s_listener, Config),
-   mongoose_helper:restart_listener_with_opts(mim(), C2SListener, Opts).
+   C2SListener = proplists:get_value(c2s_listener, Config),
+   mongoose_helper:restart_listener(mim(), C2SListener).

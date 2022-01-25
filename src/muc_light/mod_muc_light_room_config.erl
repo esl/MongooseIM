@@ -25,8 +25,6 @@
 %% API
 -export([from_binary_kv_diff/2, from_binary_kv/2, to_binary_kv/2]).
 
--include("jlib.hrl").
--include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
 -export_type([binary_kv/0, kv/0, schema/0]).
@@ -109,4 +107,3 @@ b2value(ValBin, float) -> binary_to_float(ValBin).
 value2b(Val, binary) -> Val;
 value2b(Val, integer) -> integer_to_binary(Val);
 value2b(Val, float) -> float_to_binary(Val).
-

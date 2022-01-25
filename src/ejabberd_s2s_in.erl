@@ -311,7 +311,8 @@ stream_established({xmlstreamelement, El}, StateData) ->
             %% Checks if the from domain is allowed and if the to
             %% domain is handled by this server:
             case {ejabberd_s2s:allow_host(LTo, LFrom),
-                  lists:member(LTo, ejabberd_router:dirty_get_all_domains())} of
+                  mongoose_router:is_registered_route(LTo)
+                  orelse ejabberd_router:is_component_dirty(LTo)} of
                 {true, true} ->
                     ejabberd_s2s_out:terminate_if_waiting_delay(LTo, LFrom),
                     ejabberd_s2s_out:start(LTo, LFrom,
@@ -426,7 +427,8 @@ route_incoming_stanza(From, To, El, StateData) ->
 is_s2s_authenticated(_, _, #state{authenticated = false}) ->
     false;
 is_s2s_authenticated(LFrom, LTo, #state{auth_domain = LFrom}) ->
-    lists:member(LTo, ejabberd_router:dirty_get_all_domains());
+    mongoose_router:is_registered_route(LTo)
+    orelse ejabberd_router:is_component_dirty(LTo);
 is_s2s_authenticated(_, _, _) ->
     false.
 
@@ -586,9 +588,10 @@ stream_features(Domain) ->
         {error, not_found} -> []
     end.
 
--spec change_shaper(state(), Host :: 'global' | binary(), jid:jid()) -> any().
+-spec change_shaper(state(), jid:lserver(), jid:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
-    Shaper = acl:match_rule(Host, StateData#state.shaper, JID),
+    {ok, HostType} = mongoose_domain_api:get_host_type(Host),
+    Shaper = acl:match_rule(HostType, StateData#state.shaper, JID),
     (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).
 
 

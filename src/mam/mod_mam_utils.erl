@@ -120,12 +120,12 @@
                    valid_behavior/1]}).
 -endif.
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([is_valid_message/4]).
 -endif.
 
 -include("mod_mam.hrl").
@@ -134,7 +134,7 @@
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
--export_type([retraction_id/0, retraction_info/0]).
+-export_type([direction/0, retraction_id/0, retraction_info/0]).
 
 %% Constants
 rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
@@ -150,6 +150,7 @@ rsm_ns_binary() -> <<"http://jabber.org/protocol/rsm">>.
 -type archive_behaviour() :: mod_mam:archive_behaviour().
 -type archive_behaviour_bin() :: binary(). % `<<"roster">> | <<"always">> | <<"never">>'.
 
+-type direction() :: incoming | outgoing.
 -type retraction_id() :: {origin_id | stanza_id, binary()}.
 -type retraction_info() :: #{retract_on := origin_id | stanza_id,
                              packet := exml:element(),
@@ -348,8 +349,7 @@ get_one_of_path(_Elem, [], Def) ->
 %% It also must include a body or chat marker, as long as it doesn't include
 %% "result", "delay" or "no-store" elements.
 %% @end
--spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
-                            Packet :: exml:element(), boolean()) -> boolean().
+-spec is_archivable_message(module(), direction(), exml:element(), boolean()) -> boolean().
 is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}, ArchiveChatMarkers) ->
     Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     is_valid_message_type(Mod, Dir, Type) andalso
@@ -357,11 +357,10 @@ is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}, ArchiveChat
 is_archivable_message(_, _, _, _) ->
     false.
 
-is_valid_message_type(mod_inbox, _, <<"groupchat">>) -> true;
 is_valid_message_type(_, _, <<"normal">>) -> true;
 is_valid_message_type(_, _, <<"chat">>) -> true;
+is_valid_message_type(mod_inbox, _, <<"groupchat">>) -> true;
 is_valid_message_type(_, incoming, <<"groupchat">>) -> true;
-is_valid_message_type(_, _, <<"error">>) -> false;
 is_valid_message_type(_, _, _) -> false.
 
 is_valid_message(_Mod, _Dir, Packet, ArchiveChatMarkers) ->

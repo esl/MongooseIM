@@ -58,7 +58,7 @@ maybe_reset_unread_count(HostType, User, Remote, Packet) ->
 
 -spec reset_unread_count_to_zero(mongooseim:host_type(), jid:jid(), jid:jid()) -> ok.
 reset_unread_count_to_zero(HostType, From, Remote) ->
-    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, Remote),
+    InboxEntryKey = build_inbox_entry_key(From, Remote),
     ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined).
 
 -spec reset_unread_count(HostType ::mongooseim:host_type(),
@@ -66,7 +66,7 @@ reset_unread_count_to_zero(HostType, From, Remote) ->
                          Remote :: jid:jid(),
                          MsgId :: id()) -> ok.
 reset_unread_count(HostType, From, Remote, MsgId) ->
-    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, Remote),
+    InboxEntryKey = build_inbox_entry_key(From, Remote),
     ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId).
 
 -spec write_to_sender_inbox(HostType :: mongooseim:host_type(),
@@ -80,7 +80,7 @@ write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     Timestamp = mongoose_acc:timestamp(Acc),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
-    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Sender, Receiver),
+    InboxEntryKey = build_inbox_entry_key(Sender, Receiver),
     mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
 
 -spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
@@ -92,7 +92,7 @@ write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
-    InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(Receiver, Sender),
+    InboxEntryKey = build_inbox_entry_key(Receiver, Sender),
     mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
                                             Content, MsgId, Timestamp).
 

@@ -417,7 +417,7 @@ auth_modules_for_host_type(HostType) ->
 
 -spec auth_methods(mongooseim:host_type()) -> [atom()].
 auth_methods(HostType) ->
-    mongoose_config:get_opt([{auth, HostType}, methods], []).
+    mongoose_config:get_opt([{auth, HostType}, methods]).
 
 -spec auth_method_to_module(atom()) -> authmodule().
 auth_method_to_module(Method) ->

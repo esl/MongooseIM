@@ -16,7 +16,7 @@
          muclight_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
-         check_inbox/2, check_inbox/4,
+         check_inbox/2, check_inbox/3, check_inbox/4,
          get_inbox/2, get_inbox/3,
          reset_inbox/2,
          get_result_el/2,
@@ -37,7 +37,8 @@
          assert_message_content/3,
          assert_invalid_form/4,
          check_result/2,
-         check_inbox_result/4
+         maybe_make_queryid/1,
+         maybe_check_queryid/2
         ]).
 % 1-1 helpers
 -export([
@@ -79,12 +80,6 @@
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
--define(ROOM, <<"testroom1">>).
--define(ROOM2, <<"testroom2">>).
--define(ROOM3, <<"testroom3">>).
--define(ROOM4, <<"testroom4">>).
--define(ROOM_MARKERS, <<"room_markers">>).
--define(MUC_DOMAIN, (ct:get_config({hosts, mim, muc_service}))).
 
 -type inbox_query_params() :: #{
         order => asc | desc | undefined, % by timestamp
@@ -126,7 +121,7 @@ inbox_opts() ->
     [{aff_changes, true},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
-     {markers, [displayed]}].
+     {reset_markers, [<<"displayed">>]}].
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
@@ -172,6 +167,10 @@ foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
 check_inbox(Client, Convs) ->
     check_inbox(Client, Convs, #{}, #{}).
 
+-spec check_inbox(escalus:client(), [conv()], inbox_query_params()) -> ok | no_return().
+check_inbox(Client, Convs, QueryOpts) ->
+    check_inbox(Client, Convs, QueryOpts, #{}).
+
 -spec check_inbox(Client :: escalus:client(),
                   Convs :: [conv()],
                   QueryOpts :: inbox_query_params(),
@@ -183,7 +182,7 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                           end,
     ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
     try
-        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+        check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, ExpectedSortedConvs)
     catch
         _:Reason:StackTrace ->
             ct:fail(#{ reason => inbox_mismatch,
@@ -195,16 +194,17 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                        stacktrace => StackTrace })
     end.
 
-check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
+check_inbox_result(Client, QueryOpts, CheckOpts, ResultStanzas, MsgCheckList) ->
     Merged = lists:zip(ResultStanzas, MsgCheckList),
     JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
                                  maps:get(check_resource, CheckOpts, true)),
     lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
-                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
-                  end, Merged).
+                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun, QueryOpts)
+                  end, Merged),
+    ResultStanzas.
 
-process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = To,
-                                             content = Content, verify = Fun}, JIDVerifyFun) ->
+process_inbox_message(Client, #xmlel{children = [Children]} = Message, #conv{unread = Unread, from = From, to = To,
+                                             content = Content, verify = Fun}, JIDVerifyFun, QueryOpts) ->
     FromJid = ensure_conv_binary_jid(From),
     ToJid = ensure_conv_binary_jid(To),
     escalus:assert(is_message, Message),
@@ -212,6 +212,7 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     [InnerMsg] = get_inner_msg(Message),
     JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
     JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
+    maybe_check_queryid(Children, QueryOpts),
     InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], <<>>),
     Content = InnerContent,
     case Fun of
@@ -222,6 +223,13 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
     end,
     ok.
 
+maybe_check_queryid(Children, #{iq_id := IqId}) ->
+    ?assertEqual(IqId, exml_query:attr(Children, <<"queryid">>));
+maybe_check_queryid(Children, #{queryid := QueryId}) ->
+    ?assertEqual(QueryId, exml_query:attr(Children, <<"queryid">>));
+maybe_check_queryid(_Children, #{}) ->
+    ok.
+
 -spec get_inbox(Client :: escalus:client(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 get_inbox(Client, ExpectedResult) ->
@@ -230,12 +238,12 @@ get_inbox(Client, ExpectedResult) ->
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
-
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
     GetInbox = make_inbox_stanza(GetParams),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
+    ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),
     Stanzas.
 
@@ -249,6 +257,8 @@ get_result_el(Packet, Element) ->
         <<>> ->
             ct:fail(#{ error => Element,
                        stanza => Packet });
+        undefined ->
+            io:format(Element);
         _ ->
             binary_to_integer(Val)
     end.
@@ -258,6 +268,13 @@ check_result(Packet, ExpectedResult) ->
                         V == get_result_el(Packet, key_to_binary(K))
                 end,
                 ExpectedResult).
+
+maybe_make_queryid(iq_id) ->
+    #{iq_id => base16:encode(crypto:strong_rand_bytes(16))};
+maybe_make_queryid(queryid) ->
+    #{queryid => base16:encode(crypto:strong_rand_bytes(16))};
+maybe_make_queryid(undefined) ->
+    #{}.
 
 timestamp_from_item(Item) ->
     ISOTStamp = exml_query:path(Item, [{element, <<"result">>}, {element, <<"forwarded">>},
@@ -311,19 +328,42 @@ make_inbox_stanza() ->
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params()) -> exml:element().
 make_inbox_stanza(GetParams) ->
-    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams)]},
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
+                      children = [make_inbox_form(GetParams) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
 -spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_stanza(GetParams, Verify) ->
-    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    GetIQ = inbox_iq(GetParams),
     QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                      children = [make_inbox_form(GetParams, Verify)]},
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX} | maybe_query_params(GetParams)],
+                      children = [make_inbox_form(GetParams, Verify) | rsm_max(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
+
+inbox_iq(#{iq_id := IqId}) ->
+    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    escalus_stanza:set_id(GetIQ, IqId);
+inbox_iq(_) ->
+    escalus_stanza:iq_set(?NS_ESL_INBOX, []).
+
+maybe_query_params(#{queryid := undefined}) ->
+    [];
+maybe_query_params(#{queryid := QueryId}) ->
+    [{<<"queryid">>, QueryId}];
+maybe_query_params(_) ->
+    [].
+
+rsm_max(#{limit := Value}) ->
+    [#xmlel{name = <<"set">>,
+            attrs = [{<<"xmlns">>, ?NS_RSM}],
+            children = [#xmlel{name = <<"max">>,
+                               children = [#xmlcdata{content = itb(Value)}]}]}];
+rsm_max(_) -> [].
+
+itb(N) when is_integer(N) -> integer_to_binary(N);
+itb(Bin) when is_binary(Bin) -> Bin.
 
 
 -spec reset_inbox(
@@ -387,6 +427,11 @@ make_inbox_form(GetParams) ->
 
 -spec make_inbox_form(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_form(GetParams, true) ->
+    BoxL = case maps:get(box, GetParams, both) of
+               both -> [];
+               archive -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, <<"true">>)];
+               active -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, <<"false">>)]
+           end,
     OrderL = case maps:get(order, GetParams, undefined) of
                  undefined -> [];
                  Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
@@ -400,13 +445,13 @@ make_inbox_form(GetParams, true) ->
                End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
            end,
     Archive = case maps:get(archive, GetParams, undefined) of
-               undefined -> [];
-               ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
-           end,
+                  undefined -> [];
+                  ArchVal -> [escalus_stanza:field_el(<<"archive">>, <<"boolean">>, ArchVal)]
+              end,
     FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
     HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                            bool_to_bin(maps:get(hidden_read, GetParams, false)))],
-    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
+    Fields = FormTypeL ++ BoxL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL ++ Archive,
     escalus_stanza:x_data_form(<<"submit">>, Fields);
 
 make_inbox_form(GetParams, false) ->
@@ -461,10 +506,7 @@ leave_room(User, Room, Occupants) ->
     lists:foreach(fun escalus:wait_for_stanza/1, Occupants).
 
 wait_for_groupchat_msg(Users) ->
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps).
+    [escalus:assert(is_groupchat_message, escalus:wait_for_stanza(User)) || User <- Users].
 
 make_members(Room, Admin, Users) ->
     Items = lists:map(fun(User) -> {escalus_utils:get_short_jid(User),<<"member">>} end,
@@ -590,11 +632,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
     mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-    GetInbox = make_inbox_stanza(),
-    escalus:send(User, GetInbox),
-    Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
-    ResIQ = escalus:wait_for_stanza(User),
-    ExpectedCount = get_result_el(ResIQ, <<"count">>),
+    Stanzas = get_inbox(User, #{}, #{count => ExpectedCount}),
     LastMsg = lists:last(Stanzas),
     [InnerMsg] = get_inner_msg(LastMsg),
     MsgId = exml_query:attr(InnerMsg, <<"id">>),

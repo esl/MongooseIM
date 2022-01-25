@@ -53,16 +53,6 @@
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
--define(DUMMY_LOOKUP_PARAMETERS, #{with_jid => undefined,
-                                   owner_jid => undefined,
-                                   rsm => undefined,
-                                   page_size => undefined,
-                                   borders => undefined,
-                                   start_ts => undefined,
-                                   end_ts => undefined,
-                                   search_text => undefined,
-                                   is_simple => true}).
-
 %% @doc Start module
 %%
 %% Options:

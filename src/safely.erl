@@ -25,16 +25,16 @@
             throw:R ->
                 ?LOG_ERROR(Context#{class => throw, reason => R}),
                 {throw, R};
-            exit:R ->
-                ?LOG_ERROR(Context#{class => exit, reason => R}),
-                {exit, R}
+            exit:R:S ->
+                ?LOG_ERROR(Context#{class => exit, reason => R, stacktrace => S}),
+                {exit, {R, S}}
         end).
 
 -define(MATCH_EXCEPTIONS(F),
         try F catch
             error:R:S -> {error, {R, S}};
             throw:R -> {throw, R};
-            exit:R -> {exit, R}
+            exit:R:S -> {exit, {R, S}}
         end).
 
 -spec apply(fun((...) -> A), [term()]) -> catch_result(A).

@@ -24,7 +24,6 @@
 
 -ignore_xref([command/1, empty_result_iq/1, iq_to_sub_el/1, update_acc_info/1]).
 
--include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
 %% ---------------------------------------------------------
@@ -90,4 +89,3 @@ sub_el_to_command(#xmlel{ name = Name }) -> Name.
 update_and_get(Field, Acc0) ->
     Acc1 = update_acc_info(Acc0),
     {mongoose_acc:get(iq, Field, Acc1), Acc1}.
-

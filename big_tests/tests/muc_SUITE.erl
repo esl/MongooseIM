@@ -331,7 +331,7 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     mongoose_helper:ensure_muc_clean(),
     unload_muc(),
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 
@@ -398,7 +398,8 @@ init_per_group(register_over_s2s, Config) ->
     Users = [{alice,AliceSpec2}|Others],
     escalus:create_users(Config2, Users);
 init_per_group(owner_no_parallel, Config) ->
-    Config1 = backup_and_set_config_option(Config, {access, muc_create, global}, [{deny, all}]),
+    Config1 = backup_and_set_config_option(Config, [{access, host_type()}, muc_create],
+                                           [#{acl => all, value => deny}]),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate]));
 init_per_group(_GroupName, Config) ->
     escalus:create_users(Config, escalus:get_users([alice, bob, kate])).
@@ -448,7 +449,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         _ -> ok
     end,
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
-    dynamic_modules:restore_modules(host_type(), Config);
+    dynamic_modules:restore_modules(Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
@@ -464,7 +465,7 @@ end_per_group(register_over_s2s, Config) ->
     s2s_helper:end_s2s(Config),
     escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
 end_per_group(owner_no_parallel, Config) ->
-    restore_config_option(Config, {access, muc_create, global});
+    restore_config_option(Config, [{access, host_type()}, muc_create]);
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob, kate])).
 

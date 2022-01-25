@@ -145,10 +145,6 @@ init([]) ->
          brutal_kill,
          worker,
          [mod_muc_iq]},
-    MAM =
-        {mod_mam_sup,
-         {mod_mam_sup, start_link, []},
-         permanent, infinity, supervisor, [mod_mam_sup]},
     ShaperSup =
         {ejabberd_shaper_sup,
           {ejabberd_shaper_sup, start_link, []},
@@ -174,7 +170,6 @@ init([]) ->
            IQSupervisor,
            Listener,
            MucIQ,
-           MAM,
            ShaperSup]}}.
 
 start_child(ChildSpec) ->

@@ -115,6 +115,7 @@
          check_user_exist/1,
          metric_incremented_on_archive_request/1,
          metric_incremented_when_store_message/1,
+         metrics_incremented_for_async_pools/1,
          archive_chat_markers/1,
          dont_archive_chat_markers/1,
          save_unicode_messages/1,
@@ -198,7 +199,8 @@
          parse_messages/1,
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
-         host_type/0
+         host_type/0,
+         set_wait_for_parallel_writer/2
         ]).
 
 -import(muc_light_helper,
@@ -309,10 +311,9 @@ tests() ->
         not is_skipped(C, G)].
 
 groups() ->
-    Gs = [{full_group(C, G), Props, Tests}
-          || C <- configurations(), {G, Props, Tests} <- basic_groups(),
-             not is_skipped(C, G)],
-    ct_helper:repeat_all_until_all_ok(Gs).
+    [{full_group(C, G), Props, Tests}
+     || C <- configurations(), {G, Props, Tests} <- basic_groups(),
+        not is_skipped(C, G)].
 
 is_skipped(_, _) ->
     false.
@@ -400,7 +401,9 @@ muc_text_search_cases() ->
 
 archived_cases() ->
     [archived,
-     filter_forwarded].
+     filter_forwarded,
+     metrics_incremented_for_async_pools
+    ].
 
 stanzaid_cases() ->
     [message_with_stanzaid,
@@ -556,16 +559,15 @@ increase_limits(Config) ->
     Config1.
 
 increased_limits() ->
-    #{{shaper, mam_shaper, global} => {maxrate, 10000},
-      {shaper, normal, global} => {maxrate, 10000000},
-      {shaper, fast, global} => {maxrate, 10000000},
-      {access, max_user_sessions, global} => [{10000, all}]}.
+    #{[shaper, mam_shaper] => #{max_rate => 10000},
+      [shaper, normal] => #{max_rate => 10000000},
+      [shaper, fast] => #{max_rate => 10000000},
+      [{access, host_type()}, max_user_sessions] => [#{acl => all, value => 10000}]}.
 
 init_per_group(mam04, Config) ->
     [{props, mam04_props()}|Config];
 init_per_group(mam06, Config) ->
     [{props, mam06_props()}|Config];
-
 
 init_per_group(rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
@@ -629,7 +631,7 @@ do_init_per_group(C, ConfigIn) ->
         elasticsearch ->
             [{archive_wait, 2500} | Config0];
         _ ->
-            [{archive_wait, 200} | Config0]
+            Config0
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
@@ -638,10 +640,10 @@ end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     Config;
 end_per_group(configurable_archiveid, Config) ->
-    dynamic_modules:restore_modules(host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
@@ -693,12 +695,12 @@ init_modules(rdbms_simple, C, Config) when C =:= muc_all;
 init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
                                                C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
-    Config;
+    set_wait_for_parallel_writer(muc, Config);
 init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
                                            C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, []),
@@ -719,13 +721,13 @@ init_modules(rdbms_cache, C, Config) when C =:= muc_all;
 init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
                                                 C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
     init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host_type(), mod_mam_cache_user, [muc]),
     init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
                                      addin_mam_options(C, Config)),
-    Config;
+    set_wait_for_parallel_writer(muc, Config);
 init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
                                                      C =:= muc_disabled_retraction ->
     init_module(host_type(), mod_mam_muc_rdbms_arch, []),
@@ -751,7 +753,10 @@ init_modules(BackendType, muc_light, Config) ->
     case BackendType of
         cassandra -> ok;
         elasticsearch -> ok;
-        _ -> init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
+        _ ->
+            init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]},
+                                                                {pm, [{flush_interval, 1}]}]),
+            init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
     end,
     Config1;
 init_modules(rdbms, C, Config) ->
@@ -787,10 +792,10 @@ init_modules(elasticsearch, C, Config) ->
 init_modules(rdbms_async_pool, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
+    set_wait_for_parallel_writer(pm, Config);
 init_modules(rdbms_mnesia, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, []),
@@ -807,11 +812,11 @@ init_modules(rdbms_cache, C, Config) ->
 init_modules(rdbms_async_cache, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
     init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
     init_module(host_type(), mod_mam_rdbms_user, [pm]),
     init_module(host_type(), mod_mam_cache_user, [pm]),
-    Config;
+    set_wait_for_parallel_writer(pm, Config);
 init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
     init_module(host_type(), mod_mam_rdbms_arch, []),
@@ -833,7 +838,7 @@ end_modules(C, muc_light, Config) ->
     dynamic_modules:stop(host_type(), mod_muc_light),
     Config;
 end_modules(_, _, Config) ->
-    [stop_module(host_type(), M) || M <- mam_modules()],
+    dynamic_modules:ensure_stopped(host_type(), mam_modules()),
     Config.
 
 muc_domain(Config) ->
@@ -862,8 +867,7 @@ mam_modules() ->
      mod_mam_muc_elasticsearch_arch,
      mod_mam_rdbms_arch,
      mod_mam_muc_rdbms_arch,
-     mod_mam_rdbms_async_pool_writer,
-     mod_mam_muc_rdbms_async_pool_writer,
+     mod_mam_rdbms_arch_async,
      mod_mam_rdbms_prefs,
      mod_mam_mnesia_prefs,
      mod_mam_rdbms_user,
@@ -886,6 +890,13 @@ end_state(C, muc_light, Config) ->
 end_state(_, _, Config) ->
     Config.
 
+init_per_testcase(C=metrics_incremented_for_async_pools, Config) ->
+    case ?config(configuration, Config) of
+        rdbms_async_pool ->
+            escalus:init_per_testcase(C, clean_archives(Config));
+        _ ->
+            {skip, "Not an async-pool test"}
+    end;
 init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
                  rdbms_async_pool ->
@@ -1163,27 +1174,8 @@ required_modules(_, _) ->
     [].
 
 init_module(Host, Mod, Args) ->
-    lists:member(Mod, mam_modules())
-    orelse
-    ct:fail("Unknown module ~p", [Mod]),
-    stop_module(Host, Mod),
-    {ok, _} = start_module(Host, Mod, Args).
-
-is_loaded_module(Host, Mod) ->
-    rpc_apply(gen_mod, is_loaded, [Host, Mod]).
-
-start_module(Host, Mod, Args) ->
-    rpc_apply(gen_mod, start_module, [Host, Mod, Args]).
-
-stop_module(Host, Mod) ->
-    case is_loaded_module(Host, Mod) of
-        non_existing -> ok;
-        false        -> ok;
-        true         -> just_stop_module(Host, Mod)
-    end.
-
-just_stop_module(Host, Mod) ->
-    {ok, _Opts} = rpc_apply(gen_mod, stop_module, [Host, Mod]).
+    lists:member(Mod, mam_modules()) orelse ct:fail("Unknown module ~p", [Mod]),
+    dynamic_modules:ensure_modules(Host, [{Mod, Args}]).
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -3090,6 +3082,24 @@ metric_incremented_on_archive_request(ConfigIn) ->
     MongooseMetrics = [{[HostTypePrefix, backends, mod_mam, lookup], changed}],
     Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
     escalus_fresh:story(Config, [{alice, 1}], F).
+
+metrics_incremented_for_async_pools(Config) ->
+    Val0 = get_mongoose_async_metrics(),
+    archived(Config),
+    Val1 = get_mongoose_async_metrics(),
+    ?assert_equal(false, Val0 =:= Val1).
+
+get_mongoose_async_metrics() ->
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
+    #{batch_flushes => get_mongoose_async_metrics(HostTypePrefix, batch_flushes),
+      timed_flushes => get_mongoose_async_metrics(HostTypePrefix, timed_flushes)}.
+
+get_mongoose_async_metrics(HostTypePrefix, MetricName) ->
+    Metric = [HostTypePrefix, mongoose_async_pools, pm_mam, MetricName],
+    {ok, Value} = rpc(mim(), mongoose_metrics, get_metric_value, [Metric]),
+    {value, Count} = lists:keyfind(value, 1, Value),
+    Count.
 
 metric_incremented_when_store_message(Config) ->
     archived(Config).

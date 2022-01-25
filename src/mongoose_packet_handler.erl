@@ -8,8 +8,6 @@
 -module(mongoose_packet_handler).
 -author('piotr.nosek@erlang-solutions.com').
 
--include("jlib.hrl").
-
 %%----------------------------------------------------------------------
 %% Types
 %%----------------------------------------------------------------------

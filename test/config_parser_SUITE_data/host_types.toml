@@ -9,36 +9,35 @@
   hosts = ["localhost"]
   default_server_domain = "localhost"
 
-[auth]
-  methods = ["test1", "test2"]
+[auth.external]
+  program = "/usr/bin/bash"
 
-[modules.test_mim_module1]
+[auth.http]
+
+[modules.mod_amp]
 
 [[host_config]]
   host_type = "this is host type"
   ## this resets the modules for this host
   modules = {}
-  [host_config.auth]
-    methods = ["test1"]
+  [host_config.auth.external]
+    program = "/usr/bin/bash"
 
 [[host_config]]
   ## host is just synonym for host_type now
   host = "some host type"
   ## another syntax for reseting the modules for this host type
   [host_config.modules]
-  [host_config.auth]
-    methods = ["test2"]
+  [host_config.auth.http]
 
 [[host_config]]
   host_type = "another host type"
   ## reseting the modules for this host type
-  [host_config.modules.test_mim_module2]
+  [host_config.modules.mod_offline]
   [host_config.auth]
-    methods = []
 
 [[host_config]]
   host_type = "localhost"
   ## reseting the modules for this host type
-  [host_config.modules.test_mim_module3]
-  [host_config.auth]
-    methods = ["test3"]
+  [host_config.modules.mod_vcard]
+  [host_config.auth.rdbms]

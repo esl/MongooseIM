@@ -80,6 +80,7 @@ config_spec() ->
                                           validate = non_empty}
                 },
        required = [<<"program">>],
+       defaults = #{<<"instances">> => 1},
        format_items = map
       }.
 
@@ -400,4 +401,4 @@ get_mod_last_configured(HostType) ->
     end.
 
 is_configured(HostType, Module) ->
-    lists:keymember(Module, 1, mongoose_config:get_opt({modules, HostType})).
+    maps:is_key(Module, mongoose_config:get_opt({modules, HostType})).

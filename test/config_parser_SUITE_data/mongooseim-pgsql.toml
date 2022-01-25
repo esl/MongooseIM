@@ -34,8 +34,8 @@
   port = 5285
   transport.num_acceptors = 10
   transport.max_connections = 1024
-  tls.certfile = "tools/ssl/mongooseim/cert.pem"
-  tls.keyfile = "tools/ssl/mongooseim/key.pem"
+  tls.certfile = "priv/cert.pem"
+  tls.keyfile = "priv/dc1.pem"
   tls.password = ""
 
   [[listen.http.handlers.mongoose_api_admin]]
@@ -74,8 +74,8 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
   protocol.compress = true
-  tls.certfile = "tools/ssl/mongooseim/cert.pem"
-  tls.keyfile = "tools/ssl/mongooseim/key.pem"
+  tls.certfile = "priv/cert.pem"
+  tls.keyfile = "priv/dc1.pem"
   tls.password = ""
 
   [[listen.http.handlers.lasse_handler]]
@@ -140,8 +140,8 @@
   shaper = "c2s_shaper"
   max_stanza_size = 65536
   tls.mode = "starttls"
-  tls.certfile = "tools/ssl/mongooseim/server.pem"
-  tls.dhfile = "tools/ssl/mongooseim/dh_server.pem"
+  tls.certfile = "priv/dc1.pem"
+  tls.dhfile = "priv/dh.pem"
 
 [[listen.c2s]]
   port = 5223
@@ -154,7 +154,7 @@
   port = 5269
   shaper = "s2s_shaper"
   max_stanza_size = 131072
-  tls.dhfile = "tools/ssl/mongooseim/dh_server.pem"
+  tls.dhfile = "priv/dh.pem"
 
 [[listen.service]]
   port = 8888
@@ -180,11 +180,12 @@
   password = "secret"
 
 [auth]
-  methods = ["rdbms"]
   password.format = "scram"
   password.hash = ["sha256"]
-  scram_iterations = 64
+  password.scram_iterations = 64
   sasl_external = ["standard"]
+
+  [auth.rdbms]
 
 [outgoing_pools.redis.global_distrib]
   scope = "single_host"
@@ -203,7 +204,7 @@
     password = "mongooseim_secret"
     tls.required = true
     tls.verify_peer = true
-    tls.cacertfile = "priv/ssl/cacert.pem"
+    tls.cacertfile = "priv/ca.pem"
     tls.server_name_indication = false
 
 [services.service_admin_extra]
@@ -374,7 +375,6 @@
 [[host_config]]
   host = "anonymous.localhost"
 
-  [host_config.auth]
-    methods = ["anonymous"]
-    anonymous.allow_multiple_connections = true
-    anonymous.protocol = "both"
+  [host_config.auth.anonymous]
+    allow_multiple_connections = true
+    protocol = "both"

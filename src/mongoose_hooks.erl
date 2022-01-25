@@ -85,7 +85,9 @@
 -export([is_muc_room_owner/4,
          can_access_identity/3,
          can_access_room/4,
-         acc_room_affiliations/2]).
+         acc_room_affiliations/2,
+         room_new_affiliations/4,
+         room_exists/2]).
 
 -export([mam_archive_id/2,
          mam_archive_size/3,
@@ -95,7 +97,9 @@
          mam_remove_archive/3,
          mam_lookup_messages/2,
          mam_archive_message/2,
-         mam_flush_messages/2]).
+         mam_flush_messages/2,
+         mam_archive_sync/1,
+         mam_retraction/3]).
 
 -export([mam_muc_archive_id/2,
          mam_muc_archive_size/3,
@@ -105,7 +109,9 @@
          mam_muc_remove_archive/3,
          mam_muc_lookup_messages/2,
          mam_muc_archive_message/2,
-         mam_muc_flush_messages/2]).
+         mam_muc_flush_messages/2,
+         mam_muc_archive_sync/1,
+         mam_muc_retraction/3]).
 
 -export([get_mam_pm_gdpr_data/2,
          get_mam_muc_gdpr_data/2,
@@ -154,6 +160,7 @@
          node_cleanup/1]).
 
 -ignore_xref([node_cleanup/1, remove_domain/2]).
+-ignore_xref([mam_archive_sync/1, mam_muc_archive_sync/1]).
 
 %% Just a map, used by some hooks as a first argument.
 %% Not mongoose_acc:t().
@@ -907,8 +914,25 @@ can_access_room(HostType, Acc, Room, User) ->
       Room :: jid:jid(),
       NewAcc :: mongoose_acc:t().
 acc_room_affiliations(Acc, Room) ->
-    HostType = mongoose_acc:host_type(Acc),
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     run_hook_for_host_type(acc_room_affiliations, HostType, Acc, [Room]).
+
+-spec room_exists(HostType, Room) -> Result when
+      HostType :: mongooseim:host_type(),
+      Room :: jid:jid(),
+      Result :: boolean().
+room_exists(HostType, Room) ->
+    run_hook_for_host_type(room_exists, HostType, false, [HostType, Room]).
+
+-spec room_new_affiliations(Acc, Room, NewAffs, Version) -> NewAcc when
+      Acc :: mongoose_acc:t(),
+      Room :: jid:jid(),
+      NewAffs :: mod_muc_light:aff_users(),
+      Version :: binary(),
+      NewAcc :: mongoose_acc:t().
+room_new_affiliations(Acc, Room, NewAffs, Version) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    run_hook_for_host_type(room_new_affiliations, HostType, Acc, [Room, NewAffs, Version]).
 
 %% MAM related hooks
 
@@ -1017,6 +1041,18 @@ mam_flush_messages(HookServer, MessageCount) ->
     run_hook_for_host_type(mam_flush_messages, HookServer, ok,
                            [HookServer, MessageCount]).
 
+%% @doc Waits until all pending messages are written
+-spec mam_archive_sync(HostType :: mongooseim:host_type()) -> ok.
+mam_archive_sync(HostType) ->
+    run_hook_for_host_type(mam_archive_sync, HostType, ok, [HostType]).
+
+%% @doc Notifies of a message retraction
+-spec mam_retraction(mongooseim:host_type(),
+                     mod_mam_utils:retraction_info(),
+                     mod_mam:archive_message_params()) ->
+    mod_mam_utils:retraction_info().
+mam_retraction(HostType, RetractionInfo, Env) ->
+    run_fold(mam_retraction, HostType, RetractionInfo, Env).
 
 %% MAM MUC related hooks
 
@@ -1132,6 +1168,19 @@ mam_muc_archive_message(HostType, Params) ->
 mam_muc_flush_messages(HookServer, MessageCount) ->
     run_hook_for_host_type(mam_muc_flush_messages, HookServer, ok,
                            [HookServer, MessageCount]).
+
+%% @doc Waits until all pending messages are written
+-spec mam_muc_archive_sync(HostType :: mongooseim:host_type()) -> ok.
+mam_muc_archive_sync(HostType) ->
+    run_hook_for_host_type(mam_muc_archive_sync, HostType, ok, [HostType]).
+
+%% @doc Notifies of a muc message retraction
+-spec mam_muc_retraction(mongooseim:host_type(),
+                         mod_mam_utils:retraction_info(),
+                         mod_mam:archive_message_params()) ->
+    mod_mam_utils:retraction_info().
+mam_muc_retraction(HostType, RetractionInfo, Env) ->
+    run_fold(mam_muc_retraction, HostType, RetractionInfo, Env).
 
 %% GDPR related hooks
 
@@ -1321,7 +1370,7 @@ filter_room_packet(HostType, Packet, EventData) ->
     Room :: jid:luser(),
     Result :: any().
 forget_room(HostType, MucHost, Room) ->
-    run_hook_for_host_type(forget_room, HostType, ok, [HostType, MucHost, Room]).
+    run_hook_for_host_type(forget_room, HostType, #{}, [HostType, MucHost, Room]).
 
 -spec invitation_sent(HookServer, Host, RoomJID, From, To, Reason) -> Result when
     HookServer :: jid:server(),

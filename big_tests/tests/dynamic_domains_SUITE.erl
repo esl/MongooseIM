@@ -39,7 +39,7 @@ end_per_suite(Config0) ->
     uncluster_nodes(?CLUSTER_NODES, Config).
 
 init_per_group(with_mod_dynamic_domains_test, Config) ->
-    MockedModules = [mod_dynamic_domains_test, ejabberd_router],
+    MockedModules = [mod_dynamic_domains_test, mongoose_router],
     [ok = rpc(mim(), meck, new, [Module, [passthrough, no_link]])
      || Module <- MockedModules],
     dynamic_modules:start(?HOST_TYPE, mod_dynamic_domains_test,
@@ -127,7 +127,7 @@ packet_handling_for_subdomain(Config) ->
 
             %% check that subdomain is not served after the parent domain removal
             remove_domains(?TEST_NODES, [NewDomain]),
-            rpc(mim(), meck, wait, [ejabberd_router, unregister_route, [NewSubdomain], 500]),
+            rpc(mim(), meck, wait, [mongoose_router, unregister_route, [NewSubdomain], 500]),
             IQ = escalus_stanza:iq(NewSubdomain, <<"get">>, [QueryEl]),
             escalus:send(Alice, IQ),
             Stanza = escalus:wait_for_stanza(Alice, 10000),
@@ -157,7 +157,7 @@ iq_handling_for_domain(Config) ->
 
             %% check that domain is not served removal
             remove_domains(?TEST_NODES, [NewDomain]),
-            rpc(mim(), meck, wait, [ejabberd_router, unregister_route, [NewDomain], 500]),
+            rpc(mim(), meck, wait, [mongoose_router, unregister_route, [NewDomain], 500]),
             IQ = escalus_stanza:iq(NewDomain, <<"get">>, [QueryEl]),
             escalus:send(Alice, IQ),
             Stanza = escalus:wait_for_stanza(Alice, 10000),
@@ -189,7 +189,7 @@ iq_handling_for_subdomain(Config) ->
 
             %% check that subdomain is not served after the parent domain removal
             remove_domains(?TEST_NODES, [NewDomain]),
-            rpc(mim(), meck, wait, [ejabberd_router, unregister_route, [NewSubdomain], 500]),
+            rpc(mim(), meck, wait, [mongoose_router, unregister_route, [NewSubdomain], 500]),
             IQ = escalus_stanza:iq(NewSubdomain, <<"get">>, [QueryEl]),
             escalus:send(Alice, IQ),
             Stanza = escalus:wait_for_stanza(Alice, 10000),

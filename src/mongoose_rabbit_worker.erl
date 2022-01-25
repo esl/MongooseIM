@@ -23,7 +23,7 @@
 -module(mongoose_rabbit_worker).
 -author('kacper.mentel@erlang-solutions.com').
 
--include_lib("mongooseim/include/mongoose.hrl").
+-include("mongoose.hrl").
 
 -behaviour(gen_server).
 

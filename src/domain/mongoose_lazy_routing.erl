@@ -363,7 +363,7 @@ add_subdomain(#{subdomain := Subdomain, host_type := HostType,
             IQs = get_iqs(#iq_table_key{host_type = HostType,
                                         subdomain_pattern = SubdomainPattern}),
             register_iqs(IQs, [SubdomainElement]),
-            ejabberd_router:register_route(Subdomain, PacketHandler);
+            mongoose_router:register_route(Subdomain, PacketHandler);
         false ->
             %% we should never get here, but it's ok to just ignore this.
             ok
@@ -385,7 +385,7 @@ handle_maybe_remove_subdomain(#{subdomain := Subdomain, host_type := HostType,
                                 subdomain_pattern := SubdomainPattern}) ->
     case ets:lookup(?ROUTING_TABLE, Subdomain) of
         [{Domain, {HostType, SubdomainPattern}} = SubdomainElement] ->
-            ejabberd_router:unregister_route(Domain),
+            mongoose_router:unregister_route(Domain),
             IQs = get_iqs(#iq_table_key{host_type = HostType,
                                         subdomain_pattern = SubdomainPattern}),
             unregister_iqs(IQs, [SubdomainElement]),

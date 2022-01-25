@@ -167,7 +167,7 @@ save_offline_status(_GN, Config) -> Config.
 end_per_group(GroupName, Config) ->
     teardown_meck(GroupName),
     case lists:member(GroupName, main_group_names()) of
-        true -> dynamic_modules:restore_modules(host_type(), Config);
+        true -> dynamic_modules:restore_modules(Config);
         false -> ok
     end.
 

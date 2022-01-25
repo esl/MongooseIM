@@ -438,7 +438,7 @@ get_md5(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(md5, AccountPass))]).
 
 
--spec check_access(Access :: acl:rule(), Auth :: auth()) -> boolean().
+-spec check_access(Access :: acl:rule_name(), Auth :: auth()) -> boolean().
 check_access(all, _) ->
     true;
 check_access(_, noauth) ->
@@ -447,7 +447,8 @@ check_access(Access, Auth) ->
     {ok, JID} = check_auth(Auth),
     %% Check this user has access permission
     {_, LServer} = jid:to_lus(JID),
-    case acl:match_rule(LServer, Access, JID) of
+    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
+    case acl:match_rule(HostType, LServer, Access, JID) of
         allow -> true;
         deny -> false
     end.

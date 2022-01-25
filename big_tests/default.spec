@@ -34,6 +34,7 @@
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
 {suites, "tests", mam_SUITE}.
+{suites, "tests", mam_proper_SUITE}.
 {suites, "tests", metrics_api_SUITE}.
 {suites, "tests", metrics_c2s_SUITE}.
 {suites, "tests", metrics_register_SUITE}.

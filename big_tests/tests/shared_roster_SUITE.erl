@@ -17,11 +17,6 @@
 -module(shared_roster_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("common_test/include/ct.hrl").
--include_lib("exml/include/exml.hrl").
-
 -define(USERS, [alice, bob]).
 
 -import(distributed_helper, [mim/0,
@@ -51,17 +46,19 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-init_per_suite(Config) ->
+init_per_suite(Config0) ->
+    Config = dynamic_modules:save_modules(domain(), Config0),
     case get_auth_method() of
         ldap ->
             start_roster_module(ldap),
-            escalus:init_per_suite([{escalus_user_db, {module, ldap_helper}}, {ldap_auth, true} | Config]);
+            escalus:init_per_suite([{escalus_user_db, {module, ldap_helper}},
+                                    {ldap_auth, true} | Config]);
         _ ->
             escalus:init_per_suite([{ldap_auth, false} | Config])
     end.
 
 end_per_suite(Config) ->
-    stop_roster_module(get_auth_method()),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
@@ -144,23 +141,8 @@ add_user(Config) ->
 %%--------------------------------------------------------------------
 
 start_roster_module(ldap) ->
-    case rpc(mim(), gen_mod, start_module,
-             [domain(), mod_shared_roster_ldap, get_ldap_args()]) of
-        {badrpc, Reason} ->
-            ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
-        _ -> ok
-    end;
+    dynamic_modules:ensure_modules(domain(), [{mod_shared_roster_ldap, get_ldap_args()}]);
 start_roster_module(_) ->
-    ok.
-
-stop_roster_module(ldap) ->
-    case rpc(mim(), gen_mod, stop_module,
-             [domain(), mod_shared_roster_ldap]) of
-        {badrpc, Reason} ->
-            ct:fail("Cannot stop module ~p reason ~p", [mod_shared_roster_ldap, Reason]);
-        _ -> ok
-    end;
-stop_roster_module(_) ->
     ok.
 
 get_auth_method() ->

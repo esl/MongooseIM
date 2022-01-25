@@ -41,7 +41,6 @@
          search_fields/2,
          search_reported_fields/3]).
 
--include("mongoose.hrl").
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").

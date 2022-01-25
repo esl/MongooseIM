@@ -296,8 +296,9 @@ filter_packet(drop) ->
 filter_packet({From, To, Acc1, Packet}) ->
     ?LOG_DEBUG(#{what => mam_user_receive_packet, acc => Acc1}),
     HostType = mongoose_acc:host_type(Acc1),
+    Type = mongoose_lib:get_message_type(Acc1),
     {AmpEvent, PacketAfterArchive, Acc3} =
-        case ejabberd_auth:does_user_exist(HostType, To, stored) of
+        case mongoose_lib:does_local_user_exist(HostType, To, Type) of
             false ->
                 {mam_failed, Packet, Acc1};
             true ->
@@ -361,7 +362,7 @@ acc_to_host_type(Acc) ->
                         Action :: mam_iq:action(), From :: jid:jid(),
                         To :: jid:jid()) -> boolean().
 is_action_allowed(HostType, Action, From, To) ->
-    case acl:match_rule_for_host_type(HostType, To#jid.lserver, Action, From, default) of
+    case acl:match_rule(HostType, To#jid.lserver, Action, From, default) of
         allow   -> true;
         deny    -> false;
         default -> is_action_allowed_by_default(Action, From, To)

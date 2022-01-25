@@ -10,8 +10,6 @@
 %%%-------------------------------------------------------------------
 -module(xmpp_router).
 
--ignore_xref([behaviour_info/1]).
-
 -callback route(From :: jid:jid(), To :: jid:jid(),
                 Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
     {done, mongoose_acc:t()} | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.

@@ -31,8 +31,8 @@
 
 -spec new(atom()) -> shaper().
 new(Name) ->
-    case mongoose_config:lookup_opt({shaper, Name, global}) of
-        {ok, {maxrate, MaxRatePerSecond}} ->
+    case mongoose_config:lookup_opt([shaper, Name]) of
+        {ok, #{max_rate := MaxRatePerSecond}} ->
             #shaper{max_rate = MaxRatePerSecond,
                     tokens = MaxRatePerSecond,
                     last_update = erlang:monotonic_time(millisecond)};

@@ -1,4 +1,3 @@
-
 -module(mongoose_iq_handler).
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -77,7 +76,7 @@ process_iq(#iq_handler{execution_method = ExecutionMethod} = Handler,
             mongoose_iq_worker:process_iq(Pid, Handler, Acc, From, To, IQ),
             Acc;
         {queues, Pids} ->
-            Pid = lists:nth(erlang:phash(erlang:unique_integer(), length(Pids)), Pids),
+            Pid = lists:nth(rand:uniform(length(Pids)), Pids),
             mongoose_iq_worker:process_iq(Pid, Handler, Acc, From, To, IQ),
             Acc;
         parallel ->

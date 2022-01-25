@@ -59,7 +59,6 @@ init_per_testcase(codec_calls, Config) ->
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    gen_mod:start(),
     mod_muc_light:start(?DOMAIN, []),
     ets:new(testcalls, [named_table]),
     ets:insert(testcalls, {hooks, 0}),

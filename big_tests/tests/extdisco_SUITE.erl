@@ -93,13 +93,13 @@ init_per_testcase(Name, Config) ->
 end_per_testcase(Name, Config) when
     Name == external_services_discovery_not_supported;
     Name == no_external_services_configured_no_services_returned ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(Name, Config);
 end_per_testcase(Name, Config) ->
     escalus:end_per_testcase(Name, Config).
 
 end_per_group(_GroupName, Config) ->
-    dynamic_modules:restore_modules(domain(), Config),
+    dynamic_modules:restore_modules(Config),
     Config.
 
 end_per_suite(Config) ->
@@ -320,9 +320,7 @@ set_external_services(Opts, Config) ->
     Config.
 
 remove_external_services(Config) ->
-    OldModules = rpc(mim(), gen_mod, loaded_modules_with_opts, [domain()]),
-    NewModules = lists:keydelete(mod_extdisco, 1, OldModules),
-    ok = rpc(mim(), gen_mod_deps, replace_modules, [domain(), OldModules, NewModules]),
+    dynamic_modules:ensure_stopped(domain(), [mod_extdisco]),
     Config.
 
 request_external_services(To) ->

@@ -18,6 +18,7 @@
 -define(NS_FEATURE_MSGOFFLINE,  <<"msgoffline">>).
 
 -import(domain_helper, [host_type/0]).
+-import(mongoose_helper, [wait_for_n_offline_messages/2]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -102,7 +103,7 @@ chatmarkers_modules() ->
 
 end_per_group(Group, C) when Group =:= chatmarkers;
                              Group =:= with_groupchat ->
-    dynamic_modules:restore_modules(host_type(), C),
+    dynamic_modules:restore_modules(C),
     C;
 end_per_group(_, C) -> C.
 
@@ -250,9 +251,11 @@ max_offline_messages_reached(Config) ->
                 logout(FreshConfig, Alice),
                 each_client_sends_messages_to(BobsResources, Alice,
                                               {count, MessagesPerResource}),
+                wait_for_n_offline_messages(Alice, MessagesPerResource * 4),
 
                 send_message(B1, Alice, ?MAX_OFFLINE_MSGS+1),
-                Packet = escalus:wait_for_stanza(B1, 5000),
+
+                Packet = escalus:wait_for_stanza(B1),
                 escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Packet),
 
                 NewAlice = login_send_presence(FreshConfig, alice),
@@ -368,12 +371,6 @@ has_element_with_ns(Stanza, Element, NS) ->
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
-wait_for_n_offline_messages(Client, N) ->
-    LUser = escalus_utils:jid_to_lower(escalus_client:username(Client)),
-    LServer = escalus_utils:jid_to_lower(escalus_client:server(Client)),
-    WaitFn = fun() -> mongoose_helper:total_offline_messages({LUser, LServer}) end,
-    mongoose_helper:wait_until(WaitFn, N).
-
 logout(Config, User) ->
     mongoose_helper:logout_user(Config, User).
 

@@ -36,7 +36,6 @@
          replace_tag_attr/3,
          replace_subelement/2]).
 
--include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type xmlel_or_cdata() :: jlib:xmlch().

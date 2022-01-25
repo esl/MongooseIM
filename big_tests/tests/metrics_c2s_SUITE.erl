@@ -60,11 +60,13 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config1 = dynamic_modules:stop_running(mod_offline, Config),
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    dynamic_modules:ensure_stopped(HostType, [mod_offline]),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    dynamic_modules:start_running(Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->

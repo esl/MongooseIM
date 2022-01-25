@@ -17,9 +17,7 @@
 -module(rdbms_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("common_test/include/ct.hrl").
--include_lib("exml/include/exml.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% We need assert from it
 -include("mam_helper.hrl").
@@ -66,6 +64,8 @@ rdbms_queries_cases() ->
      select_like_case,
      select_like_prep_case,
 
+     insert_batch_with_null_case,
+     test_cast_insert,
      arguments_from_two_tables].
 
 suite() ->
@@ -327,6 +327,32 @@ arguments_from_two_tables(Config) ->
     erase_users(Config),
     ok.
 
+%% Ensures that ODBC uses a correct type when encoding NULL
+%% and it does not interfere with non-null values
+insert_batch_with_null_case(Config) ->
+    erase_table(Config),
+    sql_prepare(Config, insert_batch, test_types, [unicode, unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?), (?)">>),
+    sql_execute(Config, insert_batch, [null, <<"check1">>]),
+    sql_execute(Config, insert_batch, [<<"check2">>, null]),
+    SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+    %% Sorting with null values is DB specific, so sort it with Erlang
+    ?assert_equal({selected, [{null}, {null}, {<<"check1">>}, {<<"check2">>}]},
+                  selected_to_sorted(SelectResult)).
+
+test_cast_insert(Config) ->
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    sql_execute_cast(Config, insert_one, [<<"check1">>]),
+    sql_query_cast(Config, <<"INSERT INTO test_types(unicode) VALUES ('check2')">>),
+    mongoose_helper:wait_until(
+      fun() ->
+              SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+              ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},
+                           selected_to_sorted(SelectResult))
+      end, ok, #{name => cast_queries}).
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -350,6 +376,12 @@ sql_prepare(_Config, Name, Table, Fields, Query) ->
 
 sql_execute(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute, [host_type(), Name, Parameters]).
+
+sql_execute_cast(_Config, Name, Parameters) ->
+    slow_rpc(mongoose_rdbms, execute_cast, [host_type(), Name, Parameters]).
+
+sql_query_cast(_Config, Query) ->
+    slow_rpc(mongoose_rdbms, sql_query_cast, [host_type(), Query]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
@@ -434,6 +466,11 @@ integer_to_binary_or_null(X) -> integer_to_binary(X).
 selected_to_binary({selected, [{Value}]}) when is_integer(Value) ->
     {selected, [{integer_to_binary(Value)}]};
 selected_to_binary(Other) ->
+    Other.
+
+selected_to_sorted({selected, Rows}) ->
+    {selected, lists:sort(Rows)};
+selected_to_sorted(Other) ->
     Other.
 
 value_to_binary(Value) when is_integer(Value) ->

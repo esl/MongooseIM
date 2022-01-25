@@ -92,6 +92,8 @@ config_spec() ->
                  <<"protocol">> => #option{type = atom,
                                            validate = {enum, [sasl_anon, login_anon, both]}}
                 },
+       defaults = #{<<"allow_multiple_connections">> => false,
+                    <<"protocol">> => sasl_anon},
        format_items = map
       }.
 
@@ -99,7 +101,7 @@ config_spec() ->
 %% defaults to false
 -spec allow_multiple_connections(mongooseim:host_type()) -> boolean().
 allow_multiple_connections(HostType) ->
-    mongoose_config:get_opt([{auth, HostType}, anonymous, allow_multiple_connections], false).
+    mongoose_config:get_opt([{auth, HostType}, anonymous, allow_multiple_connections]).
 
 does_user_exist(_, LUser, LServer) ->
     does_anonymous_user_exist(LUser, LServer).
@@ -287,7 +289,7 @@ is_protocol_enabled(HostType, Protocol) ->
 %% @doc Returns the anonymous protocol to use, defaults to sasl_anon
 -spec anonymous_protocol(mongooseim:host_type()) -> sasl_anon | login_anon | both.
 anonymous_protocol(HostType) ->
-    mongoose_config:get_opt([{auth, HostType}, anonymous, protocol], sasl_anon).
+    mongoose_config:get_opt([{auth, HostType}, anonymous, protocol]).
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

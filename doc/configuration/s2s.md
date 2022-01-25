@@ -54,28 +54,6 @@ Allows to configure StartTLS for incoming and outgoing S2S connections:
 
 Path to the X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `use_starttls` is not `false`.
 
-### `s2s.domain_certfile`
-* **Scope:** local
-* **Syntax:** array of TOML tables with the following mandatory content:
-    * `domain` - string, XMPP domain name
-    * `certfile` - string, path in the file system
-* **Default:** not set
-* **Example:**
-
-```toml
-  domain_certfile = [
-    {domain = "localhost1.com", certfile = "cert1.pem"},
-    {domain = "localhost2.com", certfile = "cert2.pem"}
-  ]
-```
-
-This option overrides the configured certificate file for specific local XMPP domains.
-
-!!! Notes
-    
-    * This option applies to **S2S and C2S** connections.
-    * Each domain needs to be included in the list of [`hosts`](general.md#generalhosts) configured in the `general` section.
-
 ### `s2s.shared`
 * **Scope:** local
 * **Syntax:** string

@@ -15,9 +15,8 @@
          patch_custom/4]).
 
 %% Handler
--export([start_listener/0,
-         start_listener/1,
-         stop_listener/0]).
+-export([start_listener/1,
+         stop_listener/1]).
 
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
 
@@ -98,21 +97,21 @@ patch_custom(Config, Role, Path, Body) ->
                                 body => Body }).
 
 %% REST handler setup
-start_listener() ->
-    start_listener(#{}).
-
-stop_listener() ->
-    PortIpNet = {?TEST_PORT, {127,0,0,1}, tcp},
-    ListenerModule = ejabberd_cowboy,
-    rpc(mim(), ejabberd_listener, stop_listener, [PortIpNet, ListenerModule]).
-
 start_listener(Params) ->
-    PortIpNet = {?TEST_PORT, {127,0,0,1}, tcp},
-    ListenerModule = ejabberd_cowboy,
-    ListenerOpts = [{modules, [domain_handler(Params)]},
-                    {transport_options, transport_options()}],
-    rpc(mim(), ejabberd_listener, start_listener,
-        [PortIpNet, ListenerModule, ListenerOpts]).
+    rpc(mim(), ejabberd_listener, start_listener, [listener_opts(Params)]).
+
+stop_listener(Params) ->
+    rpc(mim(), ejabberd_listener, stop_listener, [listener_opts(Params)]).
+
+listener_opts(Params) ->
+    #{port => ?TEST_PORT,
+      ip_tuple => {127, 0, 0, 1},
+      ip_address => "127.0.0.1",
+      ip_version => 4,
+      proto => tcp,
+      module => ejabberd_cowboy,
+      modules => [domain_handler(Params)],
+      transport_options => transport_options()}.
 
 transport_options() ->
     [{max_connections, 1024}, {num_acceptors, 10}].

@@ -105,13 +105,7 @@ authorize(Creds) ->
 
 get_verification_list(Creds) ->
     HostType = mongoose_credentials:host_type(Creds),
-    case mongoose_config:get_opt([{auth, HostType}, sasl_external], [standard]) of
-        [] -> [standard];
-        List when is_list(List) -> List;
-        standard -> [standard];
-        use_common_name -> [standard, common_name];
-        allow_just_user_identity -> [standard, auth_id]
-    end.
+    mongoose_config:get_opt([{auth, HostType}, sasl_external]).
 
 verification_loop([VerificationFn | T], Creds) ->
     case verify_creds(VerificationFn, Creds) of

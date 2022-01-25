@@ -32,14 +32,7 @@
          route/4,
          route_error/4,
          route_error_reply/4,
-         register_route/2,
-         register_routes/2,
-         unregister_route/1,
-         unregister_routes/1,
-         dirty_get_all_routes/0,
-         dirty_get_all_domains/0,
-         dirty_get_all_routes/1,
-         dirty_get_all_domains/1,
+         is_component_dirty/1,
          dirty_get_all_components/1,
          register_components/2,
          register_components/3,
@@ -52,30 +45,26 @@
          unregister_component/1,
          unregister_component/2,
          unregister_components/1,
-         unregister_components/2,
-         default_routing_modules/0
+         unregister_components/2
         ]).
 
 -export([start_link/0]).
 -export([routes_cleanup_on_nodedown/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% debug exports for tests
 -export([update_tables/0]).
 
--ignore_xref([dirty_get_all_domains/1, dirty_get_all_routes/0, dirty_get_all_routes/1,
-              register_component/2, register_component/3, register_component/4,
-              register_components/2, register_components/3, register_routes/2,
+-ignore_xref([register_component/2, register_component/3, register_component/4,
+              register_components/2, register_components/3,
               route_error/4, routes_cleanup_on_nodedown/2, start_link/0,
               unregister_component/1, unregister_component/2, unregister_components/2,
               unregister_routes/1, update_tables/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
--include("route.hrl").
 -include("external_component.hrl").
 
 -record(state, {}).
@@ -93,10 +82,6 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Description: Starts the server
-%%--------------------------------------------------------------------
-
 
 -spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
@@ -258,41 +243,23 @@ check_component(LDomain, Node) ->
     end.
 
 check_dynamic_domains(LDomain)->
-    case mongoose_domain_api:get_host_type(LDomain) of
-        {error, not_found} -> false;
-        {ok, _} -> true
-    end.
+    {error, not_found} =/= mongoose_domain_api:get_host_type(LDomain).
 
+%% check that route for this domain is not already registered
 check_component_route(LDomain) ->
-    %% check that route for this domain is not already registered
-    case mnesia:read(route, LDomain) of
-        [] ->
-            false;
-        _ ->
-            true
-    end.
+    no_route =/= mongoose_router:lookup_route(LDomain).
 
+%% check that there is no local component for domain:node pair
 check_component_local(LDomain, Node) ->
-    %% check that there is no local component for domain:node pair
     NDomain = {LDomain, Node},
-    case mnesia:read(external_component, NDomain) of
-        [] ->
-            false;
-        _ ->
-            true
-    end.
+    [] =/= mnesia:read(external_component, NDomain).
 
+%% check that there is no component registered globally for this node
 check_component_global(LDomain, Node) ->
-    %% check that there is no component registered globally for this node
-    case get_global_component(LDomain, Node) of
-        undefined ->
-            false;
-        _ ->
-            true
-    end.
+    undefined =/= get_global_component(LDomain, Node).
 
+%% Find a component registered globally for this node (internal use)
 get_global_component([], _) ->
-    %% Find a component registered globally for this node (internal use)
     undefined;
 get_global_component([Comp|Tail], Node) ->
     case Comp of
@@ -340,76 +307,15 @@ unregister_component(Domain, Node) ->
 
 %% @doc Returns a list of components registered for this domain by any node,
 %% the choice is yours.
--spec lookup_component(Domain :: domain()) -> [external_component()].
+-spec lookup_component(Domain :: jid:lserver()) -> [external_component()].
 lookup_component(Domain) ->
     mnesia:dirty_read(external_component_global, Domain).
 
 %% @doc Returns a list of components registered for this domain at the given node.
 %% (must be only one, or nothing)
--spec lookup_component(Domain :: domain(), Node :: node()) -> [external_component()].
+-spec lookup_component(Domain :: jid:lserver(), Node :: node()) -> [external_component()].
 lookup_component(Domain, Node) ->
     mnesia:dirty_read(external_component, {Domain, Node}).
-
--spec register_route(Domain :: domain(),
-                     Handler :: mongoose_packet_handler:t()) -> any().
-register_route(Domain, Handler) ->
-    register_route_to_ldomain(jid:nameprep(Domain), Domain, Handler).
-
--spec register_routes([domain()], mongoose_packet_handler:t()) -> 'ok'.
-register_routes(Domains, Handler) ->
-    lists:foreach(fun(Domain) ->
-                      register_route(Domain, Handler)
-                  end,
-                  Domains).
-
--spec register_route_to_ldomain(binary(), domain(), mongoose_packet_handler:t()) -> any().
-register_route_to_ldomain(error, Domain, _) ->
-    erlang:error({invalid_domain, Domain});
-register_route_to_ldomain(LDomain, _, Handler) ->
-    mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
-    % No support for hidden routes yet
-    mongoose_hooks:register_subhost(LDomain, false).
-
-unregister_route(Domain) ->
-    case jid:nameprep(Domain) of
-        error ->
-            erlang:error({invalid_domain, Domain});
-        LDomain ->
-            mnesia:dirty_delete(route, LDomain),
-            mongoose_hooks:unregister_subhost(LDomain)
-    end.
-
-unregister_routes(Domains) ->
-    lists:foreach(fun(Domain) ->
-                      unregister_route(Domain)
-                  end,
-                  Domains).
-
-
--spec dirty_get_all_routes() -> [jid:lserver()].
-dirty_get_all_routes() ->
-    dirty_get_all_routes(all).
-
--spec dirty_get_all_domains() -> [jid:lserver()].
-dirty_get_all_domains() ->
-    dirty_get_all_domains(all).
-
--spec dirty_get_all_routes(return_hidden()) -> [jid:lserver()].
-dirty_get_all_routes(ReturnHidden) ->
-    lists:usort(all_routes(ReturnHidden)) -- ?MYHOSTS.
-
--spec dirty_get_all_domains(return_hidden()) -> [jid:lserver()].
-dirty_get_all_domains(ReturnHidden) ->
-    lists:usort(all_routes(ReturnHidden)).
-
--spec all_routes(return_hidden()) -> [jid:lserver()].
-all_routes(all) ->
-    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component_global);
-all_routes(only_public) ->
-    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
-    mnesia:dirty_all_keys(route)
-    ++
-    mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
 -spec dirty_get_all_components(return_hidden()) -> [jid:lserver()].
 dirty_get_all_components(all) ->
@@ -418,24 +324,16 @@ dirty_get_all_components(only_public) ->
     MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
     mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
+-spec is_component_dirty(jid:lserver()) -> boolean().
+is_component_dirty(Domain) ->
+    [] =/= lookup_component(Domain).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([]) ->
     update_tables(),
-    mnesia:create_table(route,
-                        [{attributes, record_info(fields, route)},
-                         {local_content, true}]),
-    mnesia:add_table_copy(route, node(), ram_copies),
 
     %% add distributed service_component routes
     mnesia:create_table(external_component,
@@ -452,73 +350,28 @@ init([]) ->
 
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_call(Request, From, State)
-%%              -> {reply, Reply, State} |
-%%                 {reply, Reply, State, Timeout} |
-%%                 {noreply, State} |
-%%                 {noreply, State, Timeout} |
-%%                 {stop, Reason, Reply, State} |
-%%                 {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-handle_info({route, From, To, Packet}, State) ->
-    route(From, To, Packet),
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ejabberd_hooks:delete(node_cleanup, global, ?MODULE, routes_cleanup_on_nodedown, 90),
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
 routing_modules_list() ->
     mongoose_config:get_opt(routing_modules).
-
-default_routing_modules() ->
-    [mongoose_router_global,
-     mongoose_router_localdomain,
-     mongoose_router_external_localnode,
-     mongoose_router_external,
-     mongoose_router_dynamic_domains,
-     ejabberd_s2s].
 
 -spec route(From   :: jid:jid(),
             To     :: jid:jid(),
@@ -554,24 +407,6 @@ route(OrigFrom, OrigTo, Acc0, OrigPacket, [M|Tail]) ->
     end.
 
 update_tables() ->
-    case catch mnesia:table_info(route, attributes) of
-        [domain, node, pid] ->
-            mnesia:delete_table(route);
-        [domain, pid] ->
-            mnesia:delete_table(route);
-        [domain, pid, local_hint] ->
-            mnesia:delete_table(route);
-        [domain, handler] ->
-            ok;
-        {'EXIT', _} ->
-            ok
-    end,
-    case lists:member(local_route, mnesia:system_info(tables)) of
-        true ->
-            mnesia:delete_table(local_route);
-        false ->
-            ok
-    end,
     case catch mnesia:table_info(external_component, attributes) of
         [domain, handler, node] ->
             mnesia:delete_table(external_component);

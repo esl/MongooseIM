@@ -75,7 +75,7 @@ can_add_and_remove_domain_or_subdomain(_Config) ->
                       get_all_registered_subdomains()),
     ?assertEqual([], get_all_unregistered_domains()),
     ?assertEqual([], get_all_unregistered_subdomains()),
-    [meck:reset(M) || M <- [ejabberd_local, ejabberd_router]],
+    [meck:reset(M) || M <- [ejabberd_local, mongoose_router]],
     %% remove 2 domains, one of them remove twice
     maybe_remove_domain(domain_host_type(?DOMAIN_1), ?DOMAIN_1),
     maybe_remove_domain(domain_host_type(?DOMAIN_2), ?DOMAIN_2),
@@ -112,7 +112,7 @@ registers_top_level_domain_in_case_domain_subdomain_conflicts(_Config) ->
     ?assertEqualLists([], get_all_registered_subdomains()),
     ?assertEqual([], get_all_unregistered_domains()),
     ?assertEqual([], get_all_unregistered_subdomains()),
-    [meck:reset(M) || M <- [ejabberd_local, ejabberd_router]],
+    [meck:reset(M) || M <- [ejabberd_local, mongoose_router]],
     %% try to remove that domain and subdomain
     maybe_remove_domain(domain_host_type(?DOMAIN_X), ?DOMAIN_X),
     maybe_remove_subdomain(subdomain_info(?DOMAIN_X)),
@@ -353,14 +353,14 @@ handles_double_iq_handler_registration_deregistration_for_subdomain(_Config) ->
 %% internal functions
 %%-------------------------------------------------------------------
 setup_meck() ->
-    Modules = [ejabberd_local, ejabberd_router, gen_iq_component,
+    Modules = [ejabberd_local, mongoose_router, gen_iq_component,
                mongoose_domain_core, mongoose_subdomain_core],
     [meck:new(M, [no_link]) || M <- Modules],
     meck:new(mongoose_lazy_routing, [no_link, passthrough]),
     meck:expect(ejabberd_local, register_host, fun(_) -> ok end),
     meck:expect(ejabberd_local, unregister_host, fun(_) -> ok end),
-    meck:expect(ejabberd_router, unregister_route, fun(_) -> ok end),
-    meck:expect(ejabberd_router, register_route, fun(_, _) -> ok end),
+    meck:expect(mongoose_router, unregister_route, fun(_) -> ok end),
+    meck:expect(mongoose_router, register_route, fun(_, _) -> ok end),
     meck:expect(gen_iq_component, register_iq_handler, fun(_, _, _, _) -> ok end),
     meck:expect(gen_iq_component, sync, fun(_) -> ok end),
     meck:expect(gen_iq_component, unregister_iq_handler, fun(_, _, _) -> ok end),
@@ -450,13 +450,13 @@ get_all_unregistered_domains() ->
                Func =:= unregister_host].
 
 get_all_registered_subdomains() ->
-    History = meck:history(ejabberd_router),
+    History = meck:history(mongoose_router),
     [{Subdomain, PacketHandler}
      || {_Pid, {_Mod, Func, [Subdomain, PacketHandler] = _Args}, _Result} <- History,
         Func =:= register_route].
 
 get_all_unregistered_subdomains() ->
-    History = meck:history(ejabberd_router),
+    History = meck:history(mongoose_router),
     [Subdomain || {_Pid, {_Mod, Func, [Subdomain] = _Args}, _Result} <- History,
                   Func =:= unregister_route].
 

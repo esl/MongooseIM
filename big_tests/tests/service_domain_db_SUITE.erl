@@ -22,9 +22,8 @@
          patch_custom/4]).
 
 -import(domain_rest_helper,
-        [start_listener/0,
-         start_listener/1,
-         stop_listener/0]).
+        [start_listener/1,
+         stop_listener/1]).
 
 -import(domain_helper, [domain/0]).
 
@@ -205,7 +204,7 @@ end_per_suite(Config) ->
     restore_conf(mim2(), Conf2),
     restore_conf(mim3(), Conf3),
     domain_helper:insert_configured_domains(),
-    dynamic_modules:restore_modules(dummy_auth_host_type(), Config),
+    dynamic_modules:restore_modules(Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -218,7 +217,7 @@ init_per_group(db, Config) ->
         false -> {skip, require_rdbms}
     end;
 init_per_group(rest_with_auth, Config) ->
-    start_listener(),
+    start_listener(#{}),
     [{auth_creds, valid}|Config];
 init_per_group(rest_without_auth, Config) ->
     start_listener(#{skip_auth => true}),
@@ -232,9 +231,9 @@ init_per_group(GroupName, Config) ->
     Config1.
 
 end_per_group(rest_with_auth, _Config) ->
-    stop_listener();
+    stop_listener(#{});
 end_per_group(rest_without_auth, _Config) ->
-    stop_listener();
+    stop_listener(#{skip_auth => true});
 end_per_group(_GroupName, Config) ->
     case ?config(service_setup, Config) of
         per_group -> teardown_service();
@@ -275,7 +274,7 @@ init_per_testcase2(TestcaseName, Config)
     when TestcaseName =:= rest_delete_domain_cleans_data_from_mam ->
     HostType = dummy_auth_host_type(),
     Mods = [{mod_mam_meta, [{backend, rdbms}, {pm, []}]}],
-    rpc(mim(), gen_mod_deps, start_modules, [HostType, Mods]),
+    dynamic_modules:ensure_modules(HostType, Mods),
     escalus:init_per_testcase(TestcaseName, Config);
 init_per_testcase2(_, Config) ->
     Config.

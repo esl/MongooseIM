@@ -24,50 +24,21 @@
 -type gen_mod_list() :: [{module(), gen_mod_params()}].
 -type gen_mod_map() :: #{module() => gen_mod_params()}.
 
--export([start_modules/2, replace_modules/3]).
--export([add_deps/2]).
+-export([add_deps/2, resolve_deps/2, sort_deps/2]).
 
--ignore_xref([replace_modules/3]).
+-ignore_xref([add_deps/2]).
 
--export_type([hardness/0]).
+-export_type([hardness/0, gen_mod_params/0, gen_mod_list/0, gen_mod_map/0]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec start_modules(Host :: jid:server(), Modules :: gen_mod_list()) -> ok.
-start_modules(Host, Modules) ->
-    replace_modules(Host, [], Modules).
-
 %% @doc Adds deps into module list.
 %% Side-effect free.
--spec add_deps(Host :: jid:server(), Modules :: gen_mod_list()) -> gen_mod_list().
+-spec add_deps(Host :: jid:server(), Modules :: gen_mod_map() | gen_mod_list()) -> gen_mod_list().
 add_deps(Host, Modules) ->
     sort_deps(Host, resolve_deps(Host, Modules)).
-
-%% @doc
-%% Replaces OldModules (along with dependencies) with NewModules (along with
-%% dependencies). The dependencies are resolved only for given lists of modules,
-%% so for certain arguments a still-needed dependency might be removed.
-%% Thus, the function is meant to replace all modules on the host.
-%% @end
--spec replace_modules(Host :: jid:server(), OldModules :: gen_mod_list(),
-                      NewModules :: gen_mod_list()) -> ok.
-replace_modules(Host, OldModules0, NewModules0) ->
-    OldModulesMap = resolve_deps(Host, OldModules0),
-    NewModules = sort_deps(Host, resolve_deps(Host, NewModules0)),
-
-    ToStop = maps:keys(maps:without(proplists:get_keys(NewModules), OldModulesMap)),
-    lists:foreach(fun(Mod) -> gen_mod:stop_module(Host, Mod) end, ToStop),
-
-    lists:foreach(
-      fun({Mod, Args}) ->
-              case maps:find(Mod, OldModulesMap) of
-                  error -> gen_mod:start_module(Host, Mod, Args);
-                  {ok, Args} -> ok;
-                  {ok, _} -> gen_mod:reload_module(Host, Mod, Args)
-              end
-      end, NewModules).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -91,9 +62,11 @@ replace_modules(Host, OldModules0, NewModules0) ->
 %%
 %% In this case, mod_b will still be started.
 %% @end
--spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_list()) ->
-                          gen_mod_map().
-resolve_deps(Host, ModuleQueue) -> resolve_deps(Host, ModuleQueue, #{}, #{}).
+-spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_map() | gen_mod_list()) -> gen_mod_map().
+resolve_deps(Host, Modules) when is_map(Modules) ->
+    resolve_deps(Host, maps:to_list(Modules));
+resolve_deps(Host, ModuleQueue) ->
+    resolve_deps(Host, ModuleQueue, #{}, #{}).
 
 -spec resolve_deps(Host :: jid:server(),
                    Modules :: [{module(), gen_mod_params()} | {module(), gen_mod_params(), hardness()}],

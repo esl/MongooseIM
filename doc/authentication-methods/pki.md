@@ -4,10 +4,10 @@ This is a simple authentication method, meant to be used with the `SASL EXTERNAL
 It simply accepts all usernames as long as they are validated by the SASL logic.
 
 !!! Warning
-    
+
     Some of its callbacks return hardcoded values, as it's impossible for this backend to properly acquire certain pieces of information.
     These include:
-    
+
     | Function | Hardcoded value | Explanation |
     | ---------- | ----------------- | ----------- |
     | `does_user_exist` | `true` | PKI reponds with `true` to modules checking if user's interlocutor actually exists so e.g. messages to nonexistent users will always be stored by `mod_mam`. This is not necessarily a security threat but something to be aware of. |
@@ -16,3 +16,9 @@ It simply accepts all usernames as long as they are validated by the SASL logic.
 ## Configuration options
 
 None.
+
+## Example
+
+```toml
+[auth.pki]
+```

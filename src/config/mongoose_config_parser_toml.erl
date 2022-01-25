@@ -6,7 +6,7 @@
 -export([parse_file/1]).
 
 -ifdef(TEST).
--export([parse/1,
+-export([process/1,
          extract_errors/1]).
 -endif.
 
@@ -67,25 +67,12 @@ process(Content) ->
     Config = parse(Content),
     Hosts = proplists:get_value(hosts, Config, []),
     HostTypes = proplists:get_value(host_types, Config, []),
-    Opts = unfold_globals(Config, Hosts ++ HostTypes),
-    case extract_errors(Opts) of
+    case extract_errors(Config) of
         [] ->
-            build_state(Hosts, HostTypes, Opts);
+            build_state(Hosts, HostTypes, Config);
         Errors ->
             error(config_error(Errors))
     end.
-
-%% @doc Repeat global options for each host type for simpler lookup
-%% Put them at the end so host_config can override them
-%% Options with tags (shaper, acl, access) are left as globals as they can be set on both levels
--spec unfold_globals([config()], [mongooseim:host_type()]) -> [config()].
-unfold_globals(Config, AllHostTypes) ->
-    {GlobalOpts, Opts} = lists:partition(fun is_global_to_unfold/1, Config),
-    Opts ++ [{{Key, HostType}, Value} || {{Key, global}, Value} <- GlobalOpts,
-                                         HostType <- AllHostTypes].
-
-is_global_to_unfold({{_Key, global}, _Value}) -> true;
-is_global_to_unfold(_) -> false.
 
 config_error(Errors) ->
     {config_error, "Could not read the TOML configuration file", Errors}.
@@ -108,7 +95,8 @@ ensure_keys(Keys, Section) ->
           [config_part()].
 parse_section(Path, M, #section{items = Items, defaults = Defaults}) ->
     FilteredDefaults = maps:filter(fun(K, _V) -> not maps:is_key(K, M) end, Defaults),
-    ProcessedConfig = maps:map(fun(K, V) -> handle([K|Path], V, get_spec_for_key(K, Items)) end, M),
+    M1 = maps:merge(get_always_included(Items), M),
+    ProcessedConfig = maps:map(fun(K, V) -> handle([K|Path], V, get_spec_for_key(K, Items)) end, M1),
     ProcessedDefaults = maps:map(fun(K, V) -> handle_default([K|Path], V, maps:get(K, Items)) end,
                                  FilteredDefaults),
     lists:flatmap(fun({_K, ConfigParts}) -> ConfigParts end,
@@ -125,6 +113,9 @@ get_spec_for_key(Key, Items) ->
                 error -> error(#{what => unexpected_key, key => Key})
             end
     end.
+
+get_always_included(Items) ->
+    maps:from_list([{K, #{}} || {K, #section{include = always}} <- maps:to_list(Items)]).
 
 -spec parse_list(path(), [toml_value()], mongoose_config_spec:config_list()) -> [config_part()].
 parse_list(Path, L, #list{items = ItemSpec}) ->
@@ -143,8 +134,8 @@ handle_default(Path, Value, Spec) ->
 
 -spec handle(path(), toml_value(), mongoose_config_spec:config_node(), [step()]) -> [config_part()].
 handle(Path, Value, Spec, Steps) ->
-    lists:foldl(fun(_, [#{what := _, class := error}] = Error) ->
-                        Error;
+    lists:foldl(fun(_, [#{what := _, class := error}|_] = Errors) ->
+                        Errors;
                    (Step, Acc) ->
                         try_step(Step, Path, Value, Acc, Spec)
                 end, Value, Steps).
@@ -248,8 +239,6 @@ wrap(Path, V, {host_config, Key}) ->
 wrap(Path, V, {global_config, Key}) ->
     global = get_host(Path),
     [{Key, V}];
-wrap([Key|_] = Path, V, {host_or_global_config, Tag}) ->
-    [{{Tag, b2a(Key), get_host(Path)}, V}];
 wrap([item|_] = Path, V, default) ->
     wrap(Path, V, item);
 wrap([Key|_] = Path, V, default) ->
@@ -324,8 +313,8 @@ build_state(Hosts, HostTypes, Opts) ->
                 [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
                  fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
                  fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
-                 fun mongoose_config_parser:dedup_state_opts/1,
-                 fun mongoose_config_parser:add_dep_modules/1]).
+                 fun mongoose_config_parser:unfold_globals/1,
+                 fun mongoose_config_parser:post_process_modules/1]).
 
 %% Any nested config_part() may be a config_error() - this function extracts them all recursively
 -spec extract_errors([config()]) -> [config_error()].

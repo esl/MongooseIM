@@ -234,8 +234,7 @@ init([Host, Opts]) ->
         From :: any(), logstate()) -> {'reply', 'allow' | 'deny', logstate()}
                                     | {'stop', 'normal', 'ok', _}.
 handle_call({check_access_log, HostType, ServerHost, FromJID}, _From, State) ->
-    Reply = acl:match_rule_for_host_type(HostType, ServerHost,
-                                         State#logstate.access, FromJID),
+    Reply = acl:match_rule(HostType, ServerHost, State#logstate.access, FromJID),
     {reply, Reply, State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.

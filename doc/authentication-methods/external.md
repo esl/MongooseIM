@@ -41,10 +41,7 @@ Specifies the number of workers serving external authentication requests.
 ### Example
 
 ```toml
-[auth]
-  methods = ["external"]
-
-  [auth.external]
-    program = "/home/user/authenticator"
-    instances = 5
+[auth.external]
+  program = "/home/user/authenticator"
+  instances = 5
 ```

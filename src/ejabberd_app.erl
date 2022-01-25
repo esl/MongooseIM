@@ -28,9 +28,9 @@
 
 -behaviour(application).
 
--export([start_modules/0, start/2, prep_stop/1, stop/1]).
+-export([start/2, prep_stop/1, stop/1]).
 
--ignore_xref([start_modules/0, prep_stop/1]).
+-ignore_xref([prep_stop/1]).
 
 -include("mongoose.hrl").
 
@@ -53,8 +53,8 @@ start(normal, _Args) ->
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_service:start(),
-    gen_mod:start(),
     mongoose_config:start(),
+    mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
@@ -67,7 +67,7 @@ start(normal, _Args) ->
     ejabberd_auth:start(),
     mongoose_cluster_id:start(),
     start_services(),
-    start_modules(),
+    mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
@@ -84,7 +84,7 @@ start(_, _) ->
 prep_stop(State) ->
     mongoose_deprecations:stop(),
     ejabberd_listener:stop_listeners(),
-    stop_modules(),
+    mongoose_modules:stop(),
     stop_services(),
     broadcast_c2s_shutdown(),
     mongoose_wpool:stop(),
@@ -114,36 +114,6 @@ db_init() ->
             ok
     end,
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
-
-%% @doc Start all the modules in all the hosts
--spec start_modules() -> 'ok'.
-start_modules() ->
-    lists:foreach(
-      fun(Host) ->
-              case mongoose_config:lookup_opt({modules, Host}) of
-                  {error, not_found} ->
-                      ok;
-                  {ok, Modules} ->
-                      gen_mod_deps:start_modules(Host, Modules)
-              end
-      end, ?ALL_HOST_TYPES).
-
-%% Stop all the modules in all the hosts
--spec stop_modules() -> 'ok'.
-stop_modules() ->
-    lists:foreach(
-      fun(Host) ->
-          StopModuleFun =
-              fun({Module, _Args}) ->
-                  gen_mod:stop_module(Host, Module)
-              end,
-          case mongoose_config:lookup_opt({modules, Host}) of
-              {error, not_found} ->
-                  ok;
-              {ok, Modules} ->
-                  lists:foreach(StopModuleFun, Modules)
-          end
-      end, ?ALL_HOST_TYPES).
 
 -spec start_services() -> ok.
 start_services() ->

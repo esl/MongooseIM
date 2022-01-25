@@ -37,22 +37,22 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(PortIPProto :: ejabberd_listener:port_ip_proto(),
+-spec start_link(Id :: mongoose_listener_config:listener_id(),
                  Module :: atom(),
                  Opts :: [any(), ...],
                  SockOpts :: [udp_listen_option()],
                  Port :: inet:port_number(),
                  IPS :: [any()]) -> any().
-start_link(PortIP, Module, Opts, SockOpts, Port, IPS) ->
-    proc_lib:start_link(?MODULE, init, [PortIP, Module, Opts, SockOpts, Port, IPS]).
+start_link(Id, Module, Opts, SockOpts, Port, IPS) ->
+    proc_lib:start_link(?MODULE, init, [Id, Module, Opts, SockOpts, Port, IPS]).
 
--spec init(PortIPProto :: ejabberd_listener:port_ip_proto(),
+-spec init(Id :: mongoose_listener_config:listener_id(),
            Module :: atom(),
            Opts :: [any(), ...],
            SockOpts :: [udp_listen_option()],
            Port :: inet:port_number(),
            IPS :: [any()]) -> no_return().
-init(PortIP, Module, Opts, SockOpts, Port, IPS) ->
+init(Id, Module, Opts, SockOpts, Port, IPS) ->
     case gen_udp:open(Port, [binary, {active, false}, {reuseaddr, true}
                              | SockOpts]) of
         {ok, Socket} ->
@@ -60,8 +60,7 @@ init(PortIP, Module, Opts, SockOpts, Port, IPS) ->
             proc_lib:init_ack({ok, self()}),
             recv_loop(Socket, Module, Opts);
         {error, Reason} ->
-            ejabberd_listener:socket_error(Reason, PortIP, Module,
-                                           SockOpts, Port, IPS)
+            ejabberd_listener:socket_error(Reason, Id, Module, SockOpts, Port, IPS)
     end.
 
 %%--------------------------------------------------------------------

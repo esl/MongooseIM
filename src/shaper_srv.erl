@@ -6,8 +6,6 @@
 %%%-------------------------------------------------------------------
 -module(shaper_srv).
 -behaviour(gen_server).
--include_lib("mongoose.hrl").
--define(SERVER, ?MODULE).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -18,7 +16,6 @@
          wait/5,
          reset_shapers/1,
          reset_all_shapers/1]).
-
 
 -ignore_xref([reset_all_shapers/1, reset_shapers/1, start_link/1]).
 
@@ -207,7 +204,7 @@ default_shaper() ->
                       Action :: atom(), jid:jid(),
                       Default :: 'none') -> 'allow' | 'none'.
 get_shaper_name(HostType, Domain, Action, FromJID, Default) ->
-    case acl:match_rule_for_host_type(HostType, Domain, Action, FromJID) of
+    case acl:match_rule(HostType, Domain, Action, FromJID) of
         deny -> Default;
         Value -> Value
     end.

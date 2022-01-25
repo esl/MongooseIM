@@ -50,13 +50,13 @@ handles_only_muc(_Config) ->
 
 
 disables_sync_writer_on_async_writer(_Config) ->
-    Deps = deps([{pm, [async_writer]}]),
+    Deps = deps([{pm, [{async_writer, []}]}]),
     {_, Args, _} = lists:keyfind(mod_mam_rdbms_arch, 1, Deps),
     ?assert(lists:member(no_writer, Args)).
 
 
 disables_sync_muc_writer_on_async_writer(_Config) ->
-    Deps = deps([{muc, [async_writer]}]),
+    Deps = deps([{muc, [{async_writer, []}]}]),
     {_, Args, _} = lists:keyfind(mod_mam_muc_rdbms_arch, 1, Deps),
     ?assert(lists:member(no_writer, Args)).
 
@@ -66,7 +66,7 @@ produces_valid_configurations(_Config) ->
                  {backend, rdbms},
                  cache_users,
 
-                 {pm, [{user_prefs_store, rdbms}, archive_groupchats, {async_writer, false}]},
+                 {pm, [{user_prefs_store, rdbms}, archive_groupchats, {async_writer, [{enabled, false}]}]},
                  {muc, [
                         {host, <<"host">>},
                         {rdbms_message_format, simple},
@@ -84,12 +84,11 @@ produces_valid_configurations(_Config) ->
     check_has_args(mod_mam_cache_user, [pm, muc], Deps),
     check_has_args(mod_mam_mnesia_prefs, [muc], Deps),
     check_has_args(mod_mam_rdbms_prefs, [pm], Deps),
-    check_has_args(mod_mam_muc_rdbms_async_pool_writer, [], Deps),
+    check_has_args(mod_mam_rdbms_arch_async, [{muc, []}], Deps),
 
     check_has_no_args(mod_mam_rdbms_arch, [muc, no_writer | ExpandedSimpleOpts], Deps),
     check_has_no_args(mod_mam_mnesia_prefs, [pm], Deps),
-    check_has_no_args(mod_mam_rdbms_prefs, [muc], Deps),
-    ?assertNot(lists:keymember(mod_mam_rdbms_async_pool_writer, 1, Deps)).
+    check_has_no_args(mod_mam_rdbms_prefs, [muc], Deps).
 
 
 handles_riak_config(_Config) ->
@@ -127,7 +126,7 @@ handles_cassandra_config(_Config) ->
 example_muc_only_no_pref_good_performance(_Config) ->
     Deps = deps([
                  cache_users,
-                 async_writer,
+                 {async_writer, []},
                  {muc, [{host, "muc.@HOST@"}]}
                 ]),
 
@@ -137,8 +136,8 @@ example_muc_only_no_pref_good_performance(_Config) ->
                       %% 'muc' argument is ignored by the module
                       {mod_mam_muc_rdbms_arch, [muc, no_writer]},
                       %% 'muc' argument is ignored by the module
-                      {mod_mam_muc_rdbms_async_pool_writer, [muc]},
-                      {mod_mam_muc, [{host, "muc.@HOST@"}]}
+                      {mod_mam_rdbms_arch_async, [{muc, []}]},
+                      {mod_mam_muc, [{async_writer, []}, {host, "muc.@HOST@"}]}
                      ], Deps).
 
 
@@ -146,7 +145,7 @@ example_pm_only_good_performance(_Config) ->
     Deps = deps([
                  {pm, []},
                  cache_users,
-                 async_writer,
+                 {async_writer, []},
                  {user_prefs_store, mnesia}
                 ]),
 
@@ -155,8 +154,8 @@ example_pm_only_good_performance(_Config) ->
                       {mod_mam_cache_user, [pm]},
                       {mod_mam_mnesia_prefs, [pm]},
                       {mod_mam_rdbms_arch, [pm, no_writer]},
-                      {mod_mam_rdbms_async_pool_writer, [pm]},
-                      {mod_mam, []}
+                      {mod_mam_rdbms_arch_async, [{pm, []}]},
+                      {mod_mam, [{async_writer, []}]}
                      ], Deps).
 
 %% Helpers

@@ -85,20 +85,14 @@ wait_for_process_to_stop(Pid) ->
               ct:fail(wait_for_process_to_stop_timeout)
     end.
 
-start_nskip_in_parallel(RPCSpec, ExtraOpts) ->
+start_nskip_in_parallel(NodeSpec, ExtraOpts) ->
     Domain = domain(),
-    proc_lib:spawn_link(
-      fun() ->
-              {ok, _} = rpc(RPCSpec#{timeout => timer:seconds(60)}, gen_mod, start_module,
-                            [
-                             Domain, mod_jingle_sip,
-                             [{proxy_host, "localhost"},
-                              {proxy_port, 12345},
-                              {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}
-                              | ExtraOpts]
-                            ])
-      end).
-
+    Opts = [{proxy_host, "localhost"},
+            {proxy_port, 12345},
+            {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}
+           | ExtraOpts],
+    RPCSpec = NodeSpec#{timeout => timer:seconds(60)},
+    proc_lib:spawn_link(dynamic_modules, start, [RPCSpec, Domain, mod_jingle_sip, Opts]).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),

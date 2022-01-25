@@ -47,6 +47,8 @@
 -export([
          % read
          read_unread_entry_set_to_read/1,
+         read_unread_entry_set_to_read_iq_id_as_fallback/1,
+         read_unread_entry_set_to_read_queryid/1,
          read_read_entry_set_to_unread/1,
          read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two/1,
          % archive
@@ -56,6 +58,7 @@
          archive_archived_entry_gets_active_for_the_receiver_on_new_message/1,
          archive_active_unread_entry_gets_archived_and_still_unread/1,
          archive_full_archive_can_be_fetched/1,
+         archive_full_archive_can_be_fetched_queryid/1,
          % mute
          mute_unmuted_entry_gets_muted/1,
          mute_muted_entry_gets_unmuted/1,
@@ -65,6 +68,7 @@
          returns_valid_properties_form/1,
          properties_can_be_get/1,
          properties_many_can_be_set/1,
+         properties_many_can_be_set_queryid/1,
          max_queries_can_be_limited/1,
          max_queries_can_fetch_ahead/1,
          timestamp_is_not_reset_with_setting_properties/1
@@ -119,6 +123,8 @@ groups() ->
      {one_to_one, [], [
         % read
         read_unread_entry_set_to_read,
+        read_unread_entry_set_to_read_iq_id_as_fallback,
+        read_unread_entry_set_to_read_queryid,
         read_read_entry_set_to_unread,
         read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two,
         % archive
@@ -128,6 +134,7 @@ groups() ->
         archive_archived_entry_gets_active_for_the_receiver_on_new_message,
         archive_active_unread_entry_gets_archived_and_still_unread,
         archive_full_archive_can_be_fetched,
+        archive_full_archive_can_be_fetched_queryid,
         % mute
         mute_unmuted_entry_gets_muted,
         mute_muted_entry_gets_unmuted,
@@ -137,6 +144,7 @@ groups() ->
         returns_valid_properties_form,
         properties_can_be_get,
         properties_many_can_be_set,
+        properties_many_can_be_set_queryid,
         max_queries_can_be_limited,
         max_queries_can_fetch_ahead,
         timestamp_is_not_reset_with_setting_properties
@@ -248,7 +256,7 @@ returns_error_when_archive_field_is_invalid(Config) ->
     end).
 
 returns_error_when_max_is_not_a_number(Config) ->
-    Stanza = make_box_request(both, #{limit => <<"NaN">>}),
+    Stanza = inbox_helper:make_inbox_stanza(#{box => both, limit => <<"NaN">>}),
     returns_error(Config, Stanza, <<"bad-request">>).
 
 returns_error(Config, Stanza, Value) ->
@@ -258,6 +266,15 @@ returns_error(Config, Stanza, Value) ->
 
 % read
 read_unread_entry_set_to_read(Config) ->
+    read_unread_entry_set_to_read(Config, undefined).
+
+read_unread_entry_set_to_read_iq_id_as_fallback(Config) ->
+    read_unread_entry_set_to_read(Config, iq_id).
+
+read_unread_entry_set_to_read_queryid(Config) ->
+    read_unread_entry_set_to_read(Config, queryid).
+
+read_unread_entry_set_to_read(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob
         Body = <<"Hi Bob">>,
@@ -265,7 +282,7 @@ read_unread_entry_set_to_read(Config) ->
         % Bob has one unread message
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mark it as read
-        set_inbox_properties(Bob, Alice, [{read, true}]),
+        set_inbox_properties(Bob, Alice, [{read, true}], inbox_helper:maybe_make_queryid(QueryId)),
         % Bob's inbox has no unread messages
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
     end).
@@ -307,8 +324,8 @@ archive_active_entry_gets_archived(Config) ->
         % Then Bob decides to archive it
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then the conversation is in the archive and not in the active box
-        check_box(active, Bob, []),
-        check_box(archive, Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
+        inbox_helper:check_inbox(Bob, [], #{box => active}),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}], #{box => archive})
     end).
 
 archive_archived_entry_gets_active_on_request(Config) ->
@@ -316,12 +333,13 @@ archive_archived_entry_gets_active_on_request(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then bob decides to recover the conversation
         set_inbox_properties(Bob, Alice, [{archive, false}]),
         % Then the conversation is in the active and not in the archive box
-        check_box(active, Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
-        check_box(archive, Bob, [])
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}], #{box => active}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive})
     end).
 
 archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
@@ -329,12 +347,13 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         % Alice sends a message to Bob and Bob archives it immediately
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
-        check_box(active, Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}]),
-        check_box(archive, Bob, [])
+        inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}], #{box => active}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive})
     end).
 
 archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
@@ -342,12 +361,13 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % Alice sends a message to Bob and then she archives the conversation
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Alice, Bob, [{archive, true}]),
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
-        check_box(archive, Alice, []),
-        check_box(active, Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}])
+        inbox_helper:check_inbox(Alice, [], #{box => archive}),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}], #{box => active})
     end).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
@@ -355,23 +375,30 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
         % Alice sends a message to Bob, but Bob archives it without reading it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
-        check_box(active, Bob, []),
+        inbox_helper:check_inbox(Bob, [], #{box => active}),
         % Then Bob queries his archive and the conversation is there still unread
-        check_box(archive, Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}])
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}], #{box => archive})
     end).
 
 archive_full_archive_can_be_fetched(Config) ->
+    archive_full_archive_can_be_fetched(Config, undefined).
+archive_full_archive_can_be_fetched_queryid(Config) ->
+    archive_full_archive_can_be_fetched(Config, queryid).
+
+archive_full_archive_can_be_fetched(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice, and Alice reads and archives all of them
-        check_box(archive, Alice, []),
+        inbox_helper:check_inbox(Alice, [], #{box => archive}),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
-        set_inbox_properties(Alice, Bob, [{archive, true}]),
-        set_inbox_properties(Alice, Kate, [{archive, true}]),
-        set_inbox_properties(Alice, Mike, [{archive, true}]),
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        set_inbox_properties(Alice, Bob, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
+        set_inbox_properties(Alice, Kate, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
+        set_inbox_properties(Alice, Mike, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
         % Then Alice queries her archive and the conversations are there and not in the active box
-        check_box(active, Alice, []),
-        check_box(archive, Alice, AliceConvs)
+        inbox_helper:check_inbox(Alice, [], #{box => active}),
+        inbox_helper:check_inbox(Alice, AliceConvs, #{box => archive})
     end).
 
 % mute
@@ -380,6 +407,7 @@ mute_unmuted_entry_gets_muted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
@@ -394,6 +422,7 @@ mute_muted_entry_gets_unmuted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, 24*?HOUR}]),
         % Alice keeps writing
@@ -411,6 +440,7 @@ mute_after_timestamp_gets_unmuted(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation (for a very short 1 second for testing purposes)
         set_inbox_properties(Bob, Alice, [{mute, 1}]),
         % Alice keeps writing
@@ -419,7 +449,8 @@ mute_after_timestamp_gets_unmuted(Config) ->
         Fun = fun() ->
                       try inbox_helper:check_inbox(
                             Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body,
-                                        verify = fun(_, _, Outer) -> muted_status(unmuted, Outer) end}])
+                                        verify = fun(_, _, Outer) -> muted_status(unmuted, Outer) end}]),
+                          ok
                       catch _:_ -> not_unmuted_yet
                       end
               end,
@@ -431,6 +462,7 @@ mute_muted_conv_restarts_timestamp(Config) ->
         % Alice sends a message to Bob and Bob reads it
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob decides to mute the conversation
         set_inbox_properties(Bob, Alice, [{mute, ?HOUR}]),
         % Alice keeps writing
@@ -461,20 +493,28 @@ properties_can_be_get(Config) ->
         % Alice sends a message to Bob
         Body = <<"Hi Bob">>,
         inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
-
 properties_many_can_be_set(Config) ->
+    properties_many_can_be_set(Config, undefined).
+properties_many_can_be_set_queryid(Config) ->
+    properties_many_can_be_set(Config, queryid).
+
+properties_many_can_be_set(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         % Alice sends a message to Bob, and Bob sets a bunch of properties about it
         Body = <<"Hi Bob">>,
         inbox_helper:send_msg(Alice, Bob, Body),
-        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}]),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}],
+                             inbox_helper:maybe_make_queryid(QueryId)),
         % Then Bob queries his boxes and everything is as expected
-        check_box(active, Bob, []),
-        check_box(archive, Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
-                                       verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer) end}])
+        inbox_helper:check_inbox(Bob, [], #{box => active}),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
+                                       verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer)
+                                                end}], #{box => archive})
     end).
 
 max_queries_can_be_limited(Config) ->
@@ -488,10 +528,10 @@ max_queries_can_be_limited(Config) ->
         % Then Alice queries her inbox setting a limit to only one conversation,
         % and she gets the newest one
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        check_box(active, Alice, [ConvWithMike], #{limit => 1}),
+        inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => active}),
         % And a limit to two also works fine
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
-        check_box(active, Alice, [ConvWithMike, ConvWithKate], #{limit => 2})
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => active})
     end).
 
 max_queries_can_fetch_ahead(Config) ->
@@ -499,15 +539,12 @@ max_queries_can_fetch_ahead(Config) ->
                         fun(Alice, Bob, Kate, Mike) ->
         #{Alice := AliceConvs} =
             inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
-
         ConvWithBob = lists:keyfind(Bob, #conv.to, AliceConvs),
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
         % ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
         TimeAfterKate = ConvWithKate#conv.time_after,
-
-        check_box(active, Alice,
-                  [ConvWithKate, ConvWithBob],
-                  #{limit => 2, 'end' => TimeAfterKate})
+        inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob],
+                  #{limit => 2, 'end' => TimeAfterKate, box => active})
     end).
 
 timestamp_is_not_reset_with_setting_properties(Config) ->
@@ -536,10 +573,11 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
         RoomJid = muc_light_helper:room_bin_jid(?ROOM_MARKERS_RESET),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
         %%% WHEN A MESSAGE IS SENT (two times the same message)
-        MsgStanza = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"some_ID">>),
-        escalus:send(Alice, MsgStanza),
+        MsgStanza1 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"id-1">>),
+        MsgStanza2 = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomJid, MsgBody), <<"id-2">>),
+        escalus:send(Alice, MsgStanza1),
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
-        escalus:send(Alice, MsgStanza),
+        escalus:send(Alice, MsgStanza2),
         inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
         % verify that Bob has the message on inbox, reset it, and verify is still there but read
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = AliceRoomJid, to = BobJid, content = MsgBody}]),
@@ -561,57 +599,9 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
 -type maybe_client() :: undefined | escalus:client().
 -type box() :: both | active | archive.
-
--spec get_box(box(), maybe_client(), map(), map()) -> [exml:element()].
-get_box(Box, Client, #{count := ExpectedCount} = ExpectedResult, Opts) ->
-    GetInbox = make_box_request(Box, Opts),
-    escalus:send(Client, GetInbox),
-    Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
-    ResIQ = escalus:wait_for_stanza(Client),
-    inbox_helper:check_result(ResIQ, ExpectedResult),
-    Stanzas.
-
--spec make_box_request(box(), map()) -> exml:element().
-make_box_request(Box, Opts) ->
-    Limit = maps:get(limit, Opts, undefined),
-    GetIQ = escalus_stanza:iq_set(inbox_helper:inbox_ns(), []),
-    GetParams = [{<<"FORM_TYPE">>, <<"hidden">>, inbox_helper:inbox_ns()}] ++
-                which_box(Box) ++ extra(Opts),
-    QueryTag = #xmlel{name = <<"inbox">>,
-                      attrs = [{<<"xmlns">>, inbox_helper:inbox_ns()}],
-                      children = [make_inbox_form(GetParams) | rsm_max(Limit)]},
-    GetIQ#xmlel{children = [QueryTag]}.
-
--spec which_box(box()) -> list().
-which_box(both) -> [];
-which_box(active) -> [{<<"archive">>, <<"boolean">>, <<"false">>}];
-which_box(archive) -> [{<<"archive">>, <<"boolean">>, <<"true">>}].
-
-extra(MapOpts) ->
-    maps:fold(fun(start, V, Acc) ->
-                      [ {<<"start">>, <<"text-single">>, V} | Acc];
-                 ('end', V, Acc) ->
-                      [ {<<"end">>, <<"text-single">>, V} | Acc];
-                 (_, _, Acc) -> Acc
-              end, [], MapOpts).
-
-rsm_max(undefined) -> [];
-rsm_max(Value) ->
-    [#xmlel{name = <<"set">>,
-            attrs = [{<<"xmlns">>, ?NS_RSM}],
-            children = max_tag(Value)}].
-
-max_tag(N) when is_integer(N) ->
-    [#xmlel{name = <<"max">>, children = [#xmlcdata{content = integer_to_binary(N)}]}];
-max_tag(Bin) when is_binary(Bin) ->
-    [#xmlel{name = <<"max">>, children = [#xmlcdata{content = Bin}]}].
-
--spec make_inbox_form([tuple()]) -> exml:element().
-make_inbox_form(Fields) ->
-    Form = lists:map(fun({K, T, V}) -> escalus_stanza:field_el(K, T, V) end, Fields),
-    escalus_stanza:x_data_form(<<"submit">>, Form).
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
@@ -630,18 +620,24 @@ make_inbox_get_properties(To) ->
 
 -spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist()) -> ok.
 set_inbox_properties(From, To, Properties) ->
-    Stanza = make_inbox_iq_request(To, Properties),
+    set_inbox_properties(From, To, Properties, #{}).
+
+-spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist(), map()) -> ok.
+set_inbox_properties(From, To, Properties, QueryOpts) ->
+    Stanza = make_inbox_iq_request_with_query_id(To, Properties, QueryOpts),
     escalus:send(From, Stanza),
-    check_message_with_properties(From, Stanza, Properties),
+    check_message_with_properties(From, Stanza, Properties, QueryOpts),
     check_iq_result_for_property(From, Stanza).
 
--spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist()) -> ok.
-check_message_with_properties(From, Stanza, Properties) ->
+-spec check_message_with_properties(escalus:client(), exml:element(), proplists:proplist(), map()) -> ok.
+check_message_with_properties(From, Stanza, Properties, QueryOpts) ->
     Message = escalus:wait_for_stanza(From),
     ?assert(escalus_pred:is_message(Message)),
     ?assert(has_same_id(Stanza, Message)),
     [X] = exml_query:subelements(Message, <<"x">>),
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(X, <<"xmlns">>)),
+    inbox_helper:maybe_check_queryid(X, QueryOpts),
+    % ?assertEqual(QueryId, exml_query:attr(X, <<"queryid">>)),
     lists:foreach(fun({Key, Val}) -> assert_property(X, Key, Val) end, Properties).
 
 -spec check_iq_result_for_property(escalus:client(), exml:element()) -> ok.
@@ -655,9 +651,20 @@ make_inbox_iq_request(ToClient, Key, Value) ->
 
 -spec make_inbox_iq_request(maybe_client(), proplists:proplist()) -> exml:element().
 make_inbox_iq_request(ToClient, Properties) when is_list(Properties) ->
+    make_inbox_iq_request_with_query_id(ToClient, Properties, #{}).
+
+-spec make_inbox_iq_request_with_query_id(maybe_client(), proplists:proplist(), map()) -> exml:element().
+make_inbox_iq_request_with_query_id(ToClient, Properties, QueryId) ->
     JidAttr = jid_attr(ToClient),
+    IqAttr = id_attr(QueryId),
     Children = props_to_children(Properties),
-    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr, Children),
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), JidAttr ++ IqAttr, Children),
+    inbox_iq(QueryId, Query).
+
+inbox_iq(#{iq_id := IqId}, Query) ->
+    IQ = escalus_stanza:iq(<<"set">>, [Query]),
+    escalus_stanza:set_id(IQ, IqId);
+inbox_iq(_, Query) ->
     escalus_stanza:iq(<<"set">>, [Query]).
 
 assert_invalid_request(From, Stanza, Value) ->
@@ -666,6 +673,9 @@ assert_invalid_request(From, Stanza, Value) ->
 -spec jid_attr(maybe_client()) -> proplists:proplist().
 jid_attr(undefined) -> [];
 jid_attr(Client) -> [{<<"jid">>, escalus_utils:get_short_jid(Client)}].
+
+id_attr(#{queryid := QueryId}) -> [{<<"queryid">>, QueryId}];
+id_attr(_) -> [].
 
 props_to_children(L) -> props_to_children(L, []).
 props_to_children([], Acc) -> Acc;
@@ -691,24 +701,6 @@ assert_property(X, mute, _) ->
 to_bin(Value) when is_binary(Value) -> Value;
 to_bin(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);
 to_bin(Value) when is_integer(Value) -> integer_to_binary(Value).
-
--spec check_box(box(), maybe_client(), [tuple()]) -> [exml:element()].
-check_box(Box, Client, Convs) ->
-    check_box(Box, Client, Convs, #{}).
-
--spec check_box(box(), maybe_client(), [tuple()], map()) -> [exml:element()].
-check_box(Box, Client, Convs, Opts) ->
-    ResultStanzas = get_box(Box, Client, #{count => length(Convs)}, Opts),
-    try
-        inbox_helper:check_inbox_result(Client, #{}, ResultStanzas, Convs)
-    catch
-        _:Reason:StackTrace ->
-            ct:fail(#{ reason => archive_mismatch,
-                       inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
-                       expected_items => Convs,
-                       error => Reason,
-                       stacktrace => StackTrace })
-    end.
 
 -spec has_same_id(exml:element(), exml:element()) -> boolean().
 has_same_id(OrigStanza, Stanza) ->

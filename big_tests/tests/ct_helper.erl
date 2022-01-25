@@ -3,7 +3,8 @@
          repeat_all_until_all_ok/1,
          repeat_all_until_all_ok/2,
          repeat_all_until_any_fail/1,
-         repeat_all_until_any_fail/2]).
+         repeat_all_until_any_fail/2,
+         groups_to_all/1]).
 
 -type group_name() :: atom().
 
@@ -110,3 +111,6 @@ sensible_maximum_repeats() ->
 
 is_ct_started() ->
     lists:keymember(common_test, 1, application:which_applications()).
+
+groups_to_all(Groups) ->
+    [{group, Name} || {Name, _Opts, _Cases} <- Groups].

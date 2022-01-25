@@ -116,18 +116,13 @@ get_version() ->
     end.
 
 get_components() ->
-    Domains = ejabberd_router:dirty_get_all_domains(),
+    Domains = mongoose_router:get_all_domains() ++ ejabberd_router:dirty_get_all_components(all),
     Components = [ejabberd_router:lookup_component(D, node()) || D <- Domains],
     LenComponents = length(lists:flatten(Components)),
     #{report_name => cluster, key => number_of_components, value => LenComponents}.
 
 get_api() ->
-    ServiceOptions = get_service_option(ejabberd_cowboy),
-    ModulesOptions = lists:flatten([ Mod || {modules, Mod} <- ServiceOptions]),
-    % Modules Option can have variable number of elements. To be more
-    % error-proof, extracting 3rd element instead of pattern matching.
-    AllApi = lists:map(fun(Module)-> element(3, Module) end, ModulesOptions),
-    ApiList = filter_unknown_api(lists:usort(AllApi)),
+    ApiList = filter_unknown_api(get_http_handler_modules()),
     [#{report_name => http_api, key => Api, value => enabled} || Api <- ApiList].
 
 filter_unknown_api(ApiList) ->
@@ -138,59 +133,40 @@ filter_unknown_api(ApiList) ->
                         mod_bosh, mod_websockets, mod_revproxy],
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
-get_service_option(Service) ->
-    Listen = mongoose_config:get_opt(listen, []),
-    Result = [ Option || {_, S, Option} <- Listen, S == Service],
-    lists:flatten(Result).
-
 get_transport_mechanisms() ->
-    ServiceOptions = get_service_option(ejabberd_cowboy),
-    MaybeBosh  = maybe_api_configured(mod_bosh, ServiceOptions),
-    MaybeWebsockets = maybe_api_configured(mod_websockets, ServiceOptions),
-    MaybeTCP = is_tcp_configured(),
-    ReturnList = lists:flatten([MaybeBosh, MaybeWebsockets, MaybeTCP]),
+    HTTP = [Mod || Mod <- get_http_handler_modules(),
+                   Mod =:= mod_bosh orelse Mod =:= mod_websockets],
+    TCP = lists:usort([tcp || #{proto := tcp} <- get_listeners(ejabberd_c2s)]),
     [#{report_name => transport_mechanism,
        key => Transport,
-       value => enabled} || Transport <- lists:usort(ReturnList)].
+       value => enabled} || Transport <- HTTP ++ TCP].
 
-maybe_api_configured(Api, ServiceOptions) ->
-    Modules = proplists:get_value(modules, ServiceOptions, []),
-    case lists:keyfind(Api, 3, Modules) of
-        false -> [];
-        _Return -> Api
-    end.
+get_http_handler_modules() ->
+    Listeners = get_listeners(ejabberd_cowboy),
+    Modules = lists:flatten([Modules || #{modules := Modules} <- Listeners]),
+    % Modules Option can have variable number of elements. To be more
+    % error-proof, extracting 3rd element instead of pattern matching.
+    lists:usort(lists:map(fun(Module) -> element(3, Module) end, Modules)).
+
+get_listeners(Module) ->
+    Listeners = mongoose_config:get_opt(listen),
+    lists:filter(fun(#{module := Mod}) -> Mod =:= Module end, Listeners).
 
 get_tls_options() ->
-    TcpConfigured = is_tcp_configured(),
-    TlsOption = check_tls_option([starttls, starttls_required, tls]),
-    case {TcpConfigured, TlsOption} of
-        {tcp, {Option, SpecificOption}} ->
-            #{report_name => tls_option, key => Option, value => SpecificOption};
-        { _, _} ->
+    TLSOptions = lists:flatmap(fun extract_tls_options/1, get_listeners(ejabberd_c2s)),
+    [#{report_name => tls_option, key => TLSMode, value => TLSModule} ||
+        {TLSMode, TLSModule} <- lists:usort(TLSOptions)].
+
+extract_tls_options(#{tls := Opts}) ->
+    Modes = [starttls, starttls_required, tls],
+    case [Opt || Opt <- Opts, lists:member(Opt, Modes)] of
+        [TLSMode] ->
+            TLSModule = proplists:get_value(tls_module, Opts, fast_tls),
+            [{TLSMode, TLSModule}];
+        _ ->
             []
-    end.
-
-is_tcp_configured() ->
-    case [] =/= lists:usort(get_service_option(ejabberd_c2s)) of
-        true -> tcp;
-        false -> []
-    end.
-
-check_tls_option([]) ->
-    {none, none};
-check_tls_option([TlsOption | Tail]) ->
-    ServiceOptions = get_service_option(ejabberd_c2s),
-    case lists:member(TlsOption, ServiceOptions) of
-        true -> {TlsOption, check_tls_specific_option()};
-        _ ->  check_tls_option(Tail)
-    end.
-
-check_tls_specific_option() ->
-    ServiceOptions = get_service_option(ejabberd_c2s),
-    case lists:member({tls_module, just_tls}, ServiceOptions) of
-        true -> just_tls;
-        _ -> fast_tls
-    end.
+    end;
+extract_tls_options(_) -> [].
 
 get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools, []),

@@ -46,14 +46,15 @@ config_spec() ->
                                             validate = non_negative},
                  <<"variance">> => #option{type = integer,
                                            validate = positive}},
+       defaults = #{<<"base_time">> => 50,
+                    <<"variance">> => 450},
        format_items = map
       }.
 
 authorize(Creds) ->
     HostType = mongoose_credentials:host_type(Creds),
-    Opts = mongoose_config:get_opt([{auth, HostType}, dummy], #{}),
-    Base = maps:get(base_time, Opts, 50),
-    Variance = maps:get(variance, Opts, 450),
+    #{base_time := Base,
+      variance := Variance} = mongoose_config:get_opt([{auth, HostType}, dummy]),
     timer:sleep(Base + rand:uniform(Variance)),
     {ok, mongoose_credentials:set(Creds, auth_module, ?MODULE)}.
 

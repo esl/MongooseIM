@@ -1397,8 +1397,7 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
 -spec get_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
-    case acl:match_rule_for_host_type(StateData#state.host_type,
-                                      StateData#state.server_host, AccessAdmin, JID) of
+    case acl:match_rule(StateData#state.host_type, StateData#state.server_host, AccessAdmin, JID) of
         allow ->
             owner;
         _ ->
@@ -1424,8 +1423,7 @@ lookup_affiliation([], _Affiliations) ->
 -spec get_service_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_service_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
-    case acl:match_rule_for_host_type(StateData#state.host_type,
-                                      StateData#state.server_host, AccessAdmin, JID) of
+    case acl:match_rule(StateData#state.host_type, StateData#state.server_host, AccessAdmin, JID) of
     allow ->
         owner;
     _ ->
@@ -3321,9 +3319,8 @@ is_allowed_persistent_change(XEl, StateData, From) ->
         true;
     true ->
         AccessPersistent = access_persistent(StateData),
-        (allow == acl:match_rule_for_host_type(StateData#state.host_type,
-                                               StateData#state.server_host,
-                                               AccessPersistent, From))
+        (allow == acl:match_rule(StateData#state.host_type, StateData#state.server_host,
+                                 AccessPersistent, From))
     end.
 
 
@@ -3418,9 +3415,8 @@ get_config(Lang, StateData, From) ->
                <<"muc#roomconfig_roomdesc">>,
                 Config#config.description, Lang)
     ] ++
-     case acl:match_rule_for_host_type(StateData#state.host_type,
-                                       StateData#state.server_host,
-                                       AccessPersistent, From) of
+     case acl:match_rule(StateData#state.host_type, StateData#state.server_host,
+                         AccessPersistent, From) of
         allow ->
             [boolxfield(<<"Make room persistent">>,
              <<"muc#roomconfig_persistentroom">>,

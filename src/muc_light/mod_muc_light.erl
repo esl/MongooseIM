@@ -34,7 +34,7 @@
          delete_room/1]).
 
 %% gen_mod callbacks
--export([start/2, stop/1, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0, deps/2]).
 
 %% config processing callback
 -export([process_config_schema/1]).
@@ -53,6 +53,7 @@
          is_muc_room_owner/4,
          can_access_room/4,
          acc_room_affiliations/2,
+         room_exists/3,
          can_access_identity/4]).
 -export([get_room_affiliations_from_acc/1]).
 
@@ -69,7 +70,7 @@
 
 -ignore_xref([
     add_rooms_to_roster/2, apply_rsm/3, can_access_identity/4, can_access_room/4,
-    default_schema/0, disco_local_items/1, acc_room_affiliations/2,
+    default_schema/0, disco_local_items/1, acc_room_affiliations/2, room_exists/3,
     force_clear_from_ct/1, is_muc_room_owner/4, prevent_service_unavailable/4,
     process_iq_get/5, process_iq_set/4, remove_domain/3, remove_user/3,
     server_host_to_muc_host/2
@@ -108,6 +109,7 @@ config_schema_for_host_type(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, config_schema, default_schema()).
 
 force_clear_from_ct(HostType) ->
+    catch mod_muc_light_cache:force_clear(HostType),
     mod_muc_light_db_backend:force_clear(HostType).
 
 %%====================================================================
@@ -186,6 +188,15 @@ stop(HostType) ->
     mod_muc_light_db_backend:stop(HostType),
     ok.
 
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod:deps_list().
+deps(_HostType, Opts) ->
+    case gen_mod:get_opt(cache_affs, Opts, undefined) of
+        undefined ->
+            [];
+        CacheOpts ->
+            [{mod_muc_light_cache, CacheOpts, hard}]
+    end.
+
 %% Init helpers
 subdomain_pattern(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
@@ -207,6 +218,7 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
+                 <<"cache_affs">> => mongoose_user_cache:config_spec(),
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -260,6 +272,7 @@ hooks(HostType) ->
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
      {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
+     {room_exists, HostType, ?MODULE, room_exists, 50},
      {can_access_identity, HostType, ?MODULE, can_access_identity, 50},
       %% Prevent sending service-unavailable on groupchat messages
      {offline_groupchat_message_hook, HostType, ?MODULE, prevent_service_unavailable, 90},
@@ -329,7 +342,7 @@ process_decoded_packet(_HostType, From, To, Acc, El,
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, RequestToRoom})
   when To#jid.luser =/= <<>> ->
-    case mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(To)) of
+    case mongoose_hooks:room_exists(HostType, To) of
         true -> mod_muc_light_room:handle_request(From, To, El, RequestToRoom, Acc);
         false -> make_err(From, To, El, Acc, {error, item_not_found})
     end;
@@ -388,7 +401,7 @@ remove_user(Acc, User, Server) ->
             Acc;
         AffectedRooms ->
             bcast_removed_user(Acc, UserJid, AffectedRooms, Version),
-            maybe_forget_rooms(Acc, AffectedRooms),
+            maybe_forget_rooms(Acc, AffectedRooms, Version),
             Acc
     end.
 
@@ -505,6 +518,10 @@ acc_room_affiliations(Acc1, Room) ->
             Acc1
     end.
 
+-spec room_exists(boolean(), mongooseim:host_type(), jid:jid()) -> boolean().
+room_exists(_, HostType, RoomJid) ->
+    mod_muc_light_db_backend:room_exists(HostType, jid:to_lus(RoomJid)).
+
 -spec get_room_affiliations_from_acc(mongoose_acc:t()) ->
     {ok, aff_users(), binary()} | {error, not_exists}.
 get_room_affiliations_from_acc(Acc) ->
@@ -513,7 +530,7 @@ get_room_affiliations_from_acc(Acc) ->
 -spec get_room_affiliations_from_acc(mongoose_acc:t(), jid:jid()) ->
     {mongoose_acc:t(), {ok, aff_users(), binary()} | {error, not_exists}}.
 get_room_affiliations_from_acc(Acc1, RoomJid) ->
-    Acc2 = acc_room_affiliations(Acc1, RoomJid),
+    Acc2 = mongoose_hooks:acc_room_affiliations(Acc1, RoomJid),
     {Acc2, mongoose_acc:get(?MODULE, affiliations, {error, not_exists}, Acc2)}.
 
 -spec can_access_identity(Acc :: boolean(), HostType :: mongooseim:host_type(),
@@ -789,12 +806,13 @@ bcast_removed_user(Acc, UserJID, [{{RoomU, RoomS} = _RoomUS, Error} | RAffected]
     bcast_removed_user(Acc, UserJID, RAffected, Version, ID).
 
 -spec maybe_forget_rooms(Acc :: mongoose_acc:t(),
-                         AffectedRooms :: mod_muc_light_db_backend:remove_user_return()) -> ok.
-maybe_forget_rooms(_Acc, []) ->
+                         AffectedRooms :: mod_muc_light_db_backend:remove_user_return(),
+                         Version :: binary()) -> ok.
+maybe_forget_rooms(_Acc, [], _) ->
     ok;
-maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
-    mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers),
-    maybe_forget_rooms(Acc, RAffectedRooms).
+maybe_forget_rooms(Acc, [{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms], Version) ->
+    mod_muc_light_room:maybe_forget(Acc, RoomUS, NewAffUsers, Version),
+    maybe_forget_rooms(Acc, RAffectedRooms, Version).
 
 make_handler_fun(Acc) ->
     fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.

@@ -24,7 +24,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_request/5, maybe_forget/3, process_request/5]).
+-export([handle_request/5, maybe_forget/4, process_request/5]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
@@ -48,12 +48,16 @@ handle_request(From, Room, OrigPacket, Request, Acc1) ->
     send_response(From, Room, OrigPacket, Response, Acc2).
 
 -spec maybe_forget(Acc :: mongoose_acc:t(),
-                   RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
-maybe_forget(Acc, {RoomU, RoomS} = RoomUS, []) ->
+                   RoomUS :: jid:simple_bare_jid(),
+                   NewAffUsers :: aff_users(),
+                   Version :: binary() ) -> any().
+maybe_forget(Acc, {RoomU, RoomS} = RoomUS, [], _Version) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     mongoose_hooks:forget_room(HostType, RoomS, RoomU),
     mod_muc_light_db_backend:destroy_room(HostType, RoomUS);
-maybe_forget(_Acc, _, _) ->
+maybe_forget(Acc, {RoomU, RoomS}, NewAffs, Version) ->
+    RoomJid = jid:make_noprep(RoomU, RoomS, <<>>),
+    mongoose_hooks:room_new_affiliations(Acc, RoomJid, NewAffs, Version),
     my_room_will_go_on.
 
 %%====================================================================
@@ -150,7 +154,7 @@ process_request({set, #destroy{} = DestroyReq},
                 _From, RoomUS, {_, owner}, AffUsers, Acc) ->
     HostType = mongoose_acc:host_type(Acc),
     ok = mod_muc_light_db_backend:destroy_room(HostType, RoomUS),
-    maybe_forget(Acc, RoomUS, []),
+    maybe_forget(Acc, RoomUS, [], <<>>),
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}},
                 _From, _RoomUS, _Auth, _AffUsers, _Acc) ->
@@ -229,7 +233,7 @@ process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}, Acc) ->
     case mod_muc_light_db_backend:modify_aff_users(HostType, RoomUS, FilteredAffUsers,
                                    fun ?MODULE:participant_limit_check/2, NewVersion) of
         {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
-            maybe_forget(Acc, RoomUS, NewAffUsers),
+            maybe_forget(Acc, RoomUS, NewAffUsers, NewVersion),
             {set, AffReq#affiliations{
                     prev_version = OldVersion,
                     version = NewVersion,

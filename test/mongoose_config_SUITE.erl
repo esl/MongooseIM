@@ -1,7 +1,6 @@
 -module(mongoose_config_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -import(ejabberd_helper, [start_ejabberd/1,
@@ -12,13 +11,19 @@
                           data/2]).
 
 all() ->
-    [get_opt,
-     lookup_opt,
-     load_from_file,
+    [{group, opts},
      {group, cluster}].
 
 groups() ->
     [
+     {opts, [parallel], [get_opt,
+                         lookup_opt,
+                         get_path,
+                         lookup_path,
+                         set_short_path,
+                         set_long_path,
+                         unset_path,
+                         load_from_file]},
      {cluster, [], [cluster_load_from_file]}
     ].
 
@@ -73,6 +78,57 @@ lookup_opt(_Config) ->
     mongoose_config:unset_opt(look_me_up),
     ?assertEqual({error, not_found}, mongoose_config:lookup_opt(look_me_up)).
 
+get_path(_Config) ->
+    ?assertError(badarg, mongoose_config:get_opt([root])),
+    ?assertError(badarg, mongoose_config:get_opt([root, branch])),
+    mongoose_config:set_opt(root, #{branch => leaf}),
+    ?assertEqual(#{branch => leaf}, mongoose_config:get_opt([root])),
+    ?assertEqual(leaf, mongoose_config:get_opt([root, branch])),
+    ?assertError({badmap, leaf}, mongoose_config:get_opt([root, branch, leaf])),
+    mongoose_config:unset_opt(root),
+    ?assertError(badarg, mongoose_config:get_opt([root])).
+
+lookup_path(_Config) ->
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt([basement])),
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt([basement, floor])),
+    mongoose_config:set_opt(basement, #{floor => roof}),
+    ?assertEqual({ok, #{floor => roof}}, mongoose_config:lookup_opt([basement])),
+    ?assertEqual({ok, roof}, mongoose_config:lookup_opt([basement, floor])),
+    ?assertError({badmap, roof}, mongoose_config:lookup_opt([basement, floor, roof])),
+    mongoose_config:unset_opt(basement),
+    ?assertEqual({error, not_found}, mongoose_config:lookup_opt([basement])).
+
+set_short_path(_Config) ->
+    mongoose_config:set_opt([a], 1),
+    ?assertEqual(1, mongoose_config:get_opt(a)),
+    mongoose_config:set_opt([a], 2),
+    ?assertEqual(2, mongoose_config:get_opt(a)),
+    ?assertError({badmap, 2}, mongoose_config:set_opt([a, b], c)),
+    ?assertEqual(2, mongoose_config:get_opt(a)).
+
+set_long_path(_Config) ->
+    ?assertError(badarg, mongoose_config:set_opt([one, two, three], 4)),
+    mongoose_config:set_opt([one], #{}),
+    ?assertError({badkey, _}, mongoose_config:set_opt([one, two, three], 4)),
+    mongoose_config:set_opt([one, two], #{}),
+    mongoose_config:set_opt([one, two, three], 4),
+    ?assertEqual(#{two => #{three => 4}}, mongoose_config:get_opt(one)),
+    mongoose_config:set_opt([one, two], 3),
+    ?assertEqual(#{two => 3}, mongoose_config:get_opt(one)).
+
+unset_path(_Config) ->
+    mongoose_config:set_opt(foo, #{bar => #{baz => boom}}),
+    ?assertEqual(#{bar => #{baz => boom}}, mongoose_config:get_opt(foo)),
+    ?assertError({badmap, boom}, mongoose_config:unset_opt([foo, bar, baz, boom])),
+    mongoose_config:unset_opt([foo, bar, baz]),
+    ?assertEqual(#{bar => #{}}, mongoose_config:get_opt(foo)), % empty map is not removed
+    mongoose_config:unset_opt([foo, bar, baz]), % no error for a non-existing key
+    ?assertEqual(#{bar => #{}}, mongoose_config:get_opt(foo)),
+    mongoose_config:unset_opt([foo]),
+    ?assertError(badarg, mongoose_config:get_opt(foo)),
+    ?assertError(badarg, mongoose_config:unset_opt([foo, bar])),
+    mongoose_config:unset_opt([foo]). % no error for a non-existing key
+
 load_from_file(Config) ->
     use_config_file(Config, "mongooseim.minimal.toml"),
     ok = mongoose_config:start(),
@@ -105,7 +161,7 @@ cluster_load_from_file(Config) ->
 %%
 
 check_loaded_config(State) ->
-    Opts = lists:sort(mongoose_config_parser:state_to_opts(State)),
+    Opts = lists:sort(mongoose_config_parser:get_opts(State)),
     ExpectedOpts = lists:sort(minimal_config_opts()),
     ?assertEqual(ExpectedOpts, Opts),
     [?assertEqual(Val, mongoose_config:get_opt(Key)) || {Key, Val} <- ExpectedOpts].
@@ -122,17 +178,15 @@ minimal_config_opts() ->
      {host_types, []},
      {hosts, [<<"localhost">>]},
      {language, <<"en">>},
+     {listen, []},
      {loglevel, warning},
      {mongooseimctl_access_commands, []},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
-     {routing_modules, [mongoose_router_global,
-                        mongoose_router_localdomain,
-                        mongoose_router_external_localnode,
-                        mongoose_router_external,
-                        mongoose_router_dynamic_domains,
-                        ejabberd_s2s]},
+     {routing_modules, mongoose_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
+     {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
+     {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000}].
 
 start_slave_node(Config) ->

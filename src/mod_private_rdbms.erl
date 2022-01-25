@@ -37,9 +37,6 @@
          remove_user/3,
          remove_domain/2]).
 
--include("mongoose.hrl").
--include("jlib.hrl").
-
 init(HostType, _Opts) ->
     mongoose_rdbms:prepare(private_select_data, private_storage,
                            [server, username, namespace],

@@ -127,14 +127,15 @@ end_per_group(_GroupName, Config) ->
 init_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
     {Mod, Code} = rpc(dynamic_compile, from_string, [custom_module_code()]),
     rpc(code, load_binary, [Mod, "mod_commands_test.erl", Code]),
-    rpc(gen_mod, start_module, [host_type(), mod_commands_test, []]),
-    escalus:init_per_testcase(CaseName, Config);
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), [{mod_commands_test, []}]),
+    escalus:init_per_testcase(CaseName, Config1);
 init_per_testcase(CaseName, Config) ->
     MAMTestCases = [messages_are_archived, messages_can_be_paginated],
     rest_helper:maybe_skip_mam_test_cases(CaseName, MAMTestCases, Config).
 
 end_per_testcase(types_are_checked_separately_for_args_and_return = CaseName, Config) ->
-    rpc(gen_mod, stop_module, [host_type(), mod_commands_test]),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -671,9 +672,9 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(admin, <<"/commands">>),
-    {ok, _Opts} = dynamic_modules:stop(host_type(), mod_commands),
+    {stopped, _} = dynamic_modules:stop(host_type(), mod_commands),
     {?NOT_FOUND, _} = gett(admin, <<"/commands">>),
-    {ok, _} = dynamic_modules:start(host_type(), mod_commands, []),
+    {started, _} = dynamic_modules:start(host_type(), mod_commands, []),
     timer:sleep(200), %% give the server some time to build the paths again
     {?OK, _} = gett(admin, <<"/commands">>).
 

@@ -20,9 +20,8 @@
 
 -include("mongoose.hrl").
 
--type key() :: atom() | host_type_key() | tagged_host_type_key().
+-type key() :: atom() | host_type_key().
 -type host_type_key() :: {atom(), mongooseim:host_type_or_global()}.
--type tagged_host_type_key() :: {shaper | access | acl, atom(), mongooseim:host_type_or_global()}.
 
 %% Top-level key() followed by inner_key() for each of the nested maps
 -type key_path() :: [key() | inner_key()].
@@ -30,7 +29,7 @@
 
 -type value() :: atom() | binary() | integer() | string() | [value()] | tuple() | map().
 
--export_type([key/0, key_path/0, value/0]).
+-export_type([host_type_key/0, key/0, key_path/0, value/0]).
 
 -spec start() -> ok.
 start() ->
@@ -65,21 +64,30 @@ get_config_path() ->
 
 -spec set_opts(mongoose_config_parser:state()) -> ok.
 set_opts(State) ->
-    Opts = mongoose_config_parser:state_to_opts(State),
+    Opts = mongoose_config_parser:get_opts(State),
     lists:foreach(fun({Key, Value}) -> set_opt(Key, Value) end, Opts).
 
 -spec unset_opts(mongoose_config_parser:state()) -> ok.
 unset_opts(State) ->
-    Opts = mongoose_config_parser:state_to_opts(State),
+    Opts = mongoose_config_parser:get_opts(State),
     lists:foreach(fun unset_opt/1, proplists:get_keys(Opts)).
 
--spec set_opt(key(), value()) -> ok.
+-spec set_opt(key() | key_path(), value()) -> ok.
+set_opt([Key], Value) ->
+    set_opt(Key, Value);
+set_opt([Key | Rest], Value) ->
+    set_opt(Key, set_nested_opt(get_opt(Key), Rest, Value));
 set_opt(Key, Value) ->
     persistent_term:put({?MODULE, Key}, Value).
 
--spec unset_opt(key()) -> boolean().
+-spec unset_opt(key() | key_path()) -> ok.
+unset_opt([Key]) ->
+    unset_opt(Key);
+unset_opt([Key | Rest]) ->
+    set_opt(Key, unset_nested_opt(get_opt(Key), Rest));
 unset_opt(Key) ->
-    persistent_term:erase({?MODULE, Key}).
+    persistent_term:erase({?MODULE, Key}),
+    ok.
 
 %% @doc Use instead of get_opt(Key, undefined)
 -spec lookup_opt(key() | key_path()) -> {ok, value()} | {error, not_found}.
@@ -130,3 +138,15 @@ config_states(Nodes) ->
                            cluster_nodes => Nodes,
                            failed_nodes => FailedNodes})
     end.
+
+%% Internal functions
+
+set_nested_opt(M, [Key], Value) ->
+    M#{Key => Value};
+set_nested_opt(M, [Key | Path], Value) ->
+    M#{Key => set_nested_opt(maps:get(Key, M), Path, Value)}.
+
+unset_nested_opt(M, [Key]) ->
+    maps:remove(Key, M);
+unset_nested_opt(M, [Key | Path]) ->
+    M#{Key := unset_nested_opt(maps:get(Key, M), Path)}.
