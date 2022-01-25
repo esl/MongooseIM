@@ -46,7 +46,10 @@ init({HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra}) ->
                 flush_extra = FlushExtra}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, term(), state()}.
-handle_call(sync, _From, State = #state{flush_queue = [_|_]}) ->
+handle_call(sync, _From, State = #state{host_type = HostType,
+                                        pool_id = PoolId,
+                                        flush_queue = [_|_]}) ->
+    mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, timed_flushes], 1),
     {reply, ok, run_flush(State)};
 handle_call(sync, _From, State = #state{flush_queue = []}) ->
     {reply, skipped, State};
