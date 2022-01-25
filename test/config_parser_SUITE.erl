@@ -75,7 +75,8 @@ groups() ->
                             mongooseimctl_access_commands,
                             routing_modules,
                             replaced_wait_timeout,
-                            hide_service_name]},
+                            hide_service_name,
+                            domain_certfile]},
      {listen, [parallel], [listen_portip,
                            listen_proto,
                            listen_duplicate,
@@ -186,7 +187,6 @@ groups() ->
                         s2s_host_policy,
                         s2s_address,
                         s2s_ciphers,
-                        s2s_domain_certfile,
                         s2s_shared,
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
@@ -461,6 +461,20 @@ hide_service_name(_Config) ->
     ?cfg(hide_service_name, false, #{}), % default
     ?cfg(hide_service_name, true, #{<<"general">> => #{<<"hide_service_name">> => true}}),
     ?err(#{<<"general">> => #{<<"hide_service_name">> => []}}).
+
+domain_certfile(_Config) ->
+    DomCert = #{<<"domain">> => <<"myxmpp.com">>,
+                <<"certfile">> => <<"priv/cert.pem">>},
+    ?cfg(domain_certfile, #{<<"myxmpp.com">> => "priv/cert.pem"},
+         #{<<"general">> => #{<<"domain_certfile">> => [DomCert]}}),
+    ?err([#{reason := invalid_filename}],
+         #{<<"general">> => #{<<"domain_certfile">> =>
+                                  [DomCert#{<<"certfile">> => <<"missing.pem">>}]}}),
+    [?err(#{<<"general">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
+     || K <- maps:keys(DomCert)],
+    [?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}})
+     || K <- maps:keys(DomCert)],
+    ?err(#{<<"general">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
 
 %% tests: listen
 
@@ -1488,17 +1502,6 @@ s2s_ciphers(_Config) ->
     ?cfg(s2s_ciphers, "TLSv1.2:TLSv1.3",
          #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}}),
     ?err(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
-
-s2s_domain_certfile(_Config) ->
-    DomCert = #{<<"domain">> => <<"myxmpp.com">>,
-                <<"certfile">> => <<"mycert.pem">>},
-    ?cfg(domain_certfile, #{<<"myxmpp.com">> => "mycert.pem"},
-         #{<<"s2s">> => #{<<"domain_certfile">> => [DomCert]}}),
-    [?err(#{<<"s2s">> => #{<<"domain_certfile">> => [maps:without([K], DomCert)]}})
-     || K <- maps:keys(DomCert)],
-    [?err(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert#{K := <<>>}]}})
-     || K <- maps:keys(DomCert)],
-    ?err(#{<<"s2s">> => #{<<"domain_certfile">> => [DomCert, DomCert]}}).
 
 s2s_shared(_Config) ->
     ?cfgh(s2s_shared, <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
