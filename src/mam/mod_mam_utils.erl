@@ -384,18 +384,16 @@ get_retract_id(false, _Packet) ->
 
 -spec get_retract_id(exml:element()) -> none | retraction_id().
 get_retract_id(Packet) ->
-    case exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
-                                  {element, <<"retract">>},
-                                  {attr, <<"xmlns">>}], none) of
+    case exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN}], none) of
         none -> none;
-        ?NS_RETRACT ->
-            OriginId = exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
-                                                {attr, <<"id">>}], none),
-            {origin_id, OriginId};
-        ?NS_ESL_RETRACT ->
-            StanzaId = exml_query:path(Packet, [{element_with_ns, <<"apply-to">>, ?NS_FASTEN},
-                                                {attr, <<"id">>}], none),
-            {stanza_id, StanzaId}
+        Fasten ->
+            case {exml_query:path(Fasten, [{element, <<"retract">>}, {attr, <<"xmlns">>}], none),
+                  exml_query:path(Fasten, [{attr, <<"id">>}], none)} of
+                {none, _} -> none;
+                {_, none} -> none;
+                {?NS_RETRACT, OriginId} -> {origin_id, OriginId};
+                {?NS_ESL_RETRACT, StanzaId} -> {stanza_id, StanzaId}
+            end
     end.
 
 get_origin_id(Packet) ->
