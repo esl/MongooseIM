@@ -33,7 +33,7 @@
          process_s2s_address_family/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
-         process_s2s_domain_cert/1]).
+         process_domain_cert/1]).
 
 -include("mongoose_config_spec.hrl").
 
@@ -206,7 +206,10 @@ general() ->
                                                         validate = positive,
                                                         wrap = host_config},
                  <<"hide_service_name">> => #option{type = boolean,
-                                                    wrap = global_config}
+                                                    wrap = global_config},
+                 <<"domain_certfile">> => #list{items = domain_cert(),
+                                                format_items = map,
+                                                wrap = global_config}
                 },
        wrap = none
       }.
@@ -234,6 +237,18 @@ ctl_access_rule() ->
                 },
        process = fun ?MODULE:process_ctl_access_rule/1,
        wrap = prepend_key
+      }.
+
+%% path: general.domain_certfile
+domain_cert() ->
+    #section{
+       items = #{<<"domain">> => #option{type = binary,
+                                         validate = non_empty},
+                 <<"certfile">> => #option{type = string,
+                                           validate = filename}},
+       required = all,
+       format_items = map,
+       process = fun ?MODULE:process_domain_cert/1
       }.
 
 %% path: listen
@@ -876,9 +891,6 @@ s2s() ->
                                         wrap = {global_config, s2s_address}},
                  <<"ciphers">> => #option{type = string,
                                           wrap = {global_config, s2s_ciphers}},
-                 <<"domain_certfile">> => #list{items = s2s_domain_cert(),
-                                                format_items = map,
-                                                wrap = {global_config, domain_certfile}},
                  <<"shared">> => #option{type = binary,
                                          validate = non_empty,
                                          wrap = {host_config, s2s_shared}},
@@ -944,18 +956,6 @@ s2s_address() ->
        required = [<<"host">>, <<"ip_address">>],
        format_items = map,
        process = fun ?MODULE:process_s2s_address/1
-      }.
-
-%% path: (host_config[].)s2s.domain_certfile[]
-s2s_domain_cert() ->
-    #section{
-       items = #{<<"domain">> => #option{type = binary,
-                                         validate = non_empty},
-                 <<"certfile">> => #option{type = string,
-                                           validate = non_empty}},
-       required = all,
-       format_items = map,
-       process = fun ?MODULE:process_s2s_domain_cert/1
       }.
 
 %% Callbacks for 'process'
@@ -1241,5 +1241,5 @@ process_s2s_address(#{host := S2SHost, ip_address := IPAddr, port := Port}) ->
 process_s2s_address(#{host := S2SHost, ip_address := IPAddr}) ->
     {S2SHost, IPAddr}.
 
-process_s2s_domain_cert(#{domain := Domain, certfile := Certfile}) ->
+process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
