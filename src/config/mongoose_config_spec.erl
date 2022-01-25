@@ -15,7 +15,6 @@
          process_ctl_access_rule/1,
          process_listener/2,
          process_verify_peer/1,
-         process_sni/1,
          process_tls_sni/1,
          process_xmpp_tls/1,
          process_fast_tls/1,
@@ -356,8 +355,7 @@ c2s_tls() ->
                                                           validate = non_empty},
                                           wrap = {kv, crlfiles}},
                  <<"password">> => #option{type = string},
-                 <<"server_name_indication">> => #option{type = boolean,
-                                                         process = fun ?MODULE:process_sni/1},
+                 <<"server_name_indication">> => #option{type = boolean},
                  <<"versions">> => #list{items = #option{type = atom}}
                 },
        process = fun ?MODULE:process_xmpp_tls/1
@@ -384,7 +382,8 @@ http_listener_tls() ->
        items = Items#{<<"verify_mode">> => #option{type = atom,
                                                    validate = {enum, [peer, selfsigned_peer, none]}}
                      },
-       wrap = {kv, ssl}
+       wrap = {kv, ssl},
+       process = fun ?MODULE:process_tls_sni/1
       }.
 
 %% path: listen.http[].transport
@@ -715,8 +714,7 @@ tls_items() ->
       <<"keyfile">> => #option{type = string,
                                validate = non_empty},
       <<"password">> => #option{type = string},
-      <<"server_name_indication">> => #option{type = boolean,
-                                              process = fun ?MODULE:process_sni/1},
+      <<"server_name_indication">> => #option{type = boolean},
       <<"server_name_indication_host">> => #option{type = string,
                                                    validate = non_empty},
       <<"ciphers">> => #option{type = string},
@@ -1051,11 +1049,6 @@ get_all_hosts_and_host_types(General) ->
                           []
                   end, General).
 
-process_sni(false) ->
-    disable;
-process_sni(true) ->
-    enable.
-
 process_verify_peer(false) -> verify_none;
 process_verify_peer(true) -> verify_peer.
 
@@ -1067,7 +1060,7 @@ process_xmpp_tls(KVs) ->
     end.
 
 tls_keys(just_tls) ->
-    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication, versions];
+    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication, server_name_indication_host, versions];
 tls_keys(fast_tls) ->
     [protocol_options].
 
@@ -1075,7 +1068,8 @@ common_tls_keys() ->
     [module, mode, verify_peer, certfile, cacertfile, dhfile, ciphers].
 
 process_xmpp_tls(just_tls, KVs) ->
-    {[VM, DoF], Opts} = proplists:split(KVs, [verify_mode, disconnect_on_failure]),
+    KVsWithSNI = process_tls_sni(KVs),
+    {[VM, DoF], Opts} = proplists:split(KVsWithSNI, [verify_mode, disconnect_on_failure]),
     {External, Internal} = lists:partition(fun is_external_tls_opt/1, Opts),
     SSLOpts = ssl_opts(verify_fun(VM, DoF) ++ Internal),
     [{tls_module, just_tls}] ++ SSLOpts ++ External;
@@ -1235,15 +1229,16 @@ riak_ssl([]) -> [];
 riak_ssl(Opts) -> [{ssl_opts, Opts}].
 
 process_tls_sni(KVs) ->
-    % the SSL library expects either the atom `disabled` or a string with the SNI host
+    % the SSL library expects either the atom `disable` or a string with the SNI host
     % as value for `server_name_indication`
-    case proplists:get_value(server_name_indication, KVs, disable) of
-        enable ->
-            SNIHost = proplists:get_value(server_name_indication_host, KVs),
-            KVs1 = proplists:delete(server_name_indication, KVs),
-            lists:keyreplace(server_name_indication_host, 1, KVs1, {server_name_indication, SNIHost});
-        disable ->
-            proplists:delete(server_name_indication_host, KVs)
+    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, [server_name_indication, server_name_indication_host]),
+    case {SNIOpt, SNIHostOpt} of
+        {[], []} ->
+            SSLOpts;
+        {[{server_name_indication, false}], _} ->
+            [{server_name_indication, disable}] ++ SSLOpts;
+        {[{server_name_indication, true}], [{server_name_indication_host, SNIHost}]} ->
+            [{server_name_indication, SNIHost}] ++ SSLOpts
     end.
 
 process_riak_credentials(KVs) ->
