@@ -3084,10 +3084,12 @@ metric_incremented_on_archive_request(ConfigIn) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 metrics_incremented_for_async_pools(Config) ->
-    Val0 = get_mongoose_async_metrics(),
+    OldValue = get_mongoose_async_metrics(),
     archived(Config),
-    Val1 = get_mongoose_async_metrics(),
-    ?assert_equal(false, Val0 =:= Val1).
+    Validator = fun(NewValue) -> OldValue =/= NewValue end,
+    mongoose_helper:wait_until(
+      fun get_mongoose_async_metrics/0,
+      true, #{validator => Validator, name => ?FUNCTION_NAME}).
 
 get_mongoose_async_metrics() ->
     HostType = domain_helper:host_type(mim),
