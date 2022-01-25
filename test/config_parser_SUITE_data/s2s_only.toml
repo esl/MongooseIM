@@ -34,11 +34,3 @@
     host = "fed2"
     ip_address = "127.0.0.1"
     port = 8765
-
-  [[s2s.domain_certfile]]
-    domain = "example.com"
-    certfile = "/path/to/example_com.pem"
-
-  [[s2s.domain_certfile]]
-    domain = "example.org"
-    certfile = "/path/to/example_org.pem"

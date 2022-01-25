@@ -18,6 +18,14 @@
     commands = ["join_cluster"]
     argument_restrictions.node = "mongooseim@prime"
 
+  [[general.domain_certfile]]
+    domain = "example.com"
+    certfile = "priv/cert.pem"
+
+  [[general.domain_certfile]]
+    domain = "example.org"
+    certfile = "priv/cert.pem"
+
 [auth]
   http.basic_auth = "admin:admin"
   riak.bucket_type = "user_bucket"
