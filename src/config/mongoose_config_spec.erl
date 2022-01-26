@@ -15,7 +15,7 @@
          process_ctl_access_rule/1,
          process_listener/2,
          process_verify_peer/1,
-         process_sni/1,
+         process_tls_sni/1,
          process_xmpp_tls/1,
          process_fast_tls/1,
          process_http_handler/2,
@@ -361,8 +361,7 @@ c2s_tls() ->
                                                           validate = non_empty},
                                           wrap = {kv, crlfiles}},
                  <<"password">> => #option{type = string},
-                 <<"server_name_indication">> => #option{type = boolean,
-                                                         process = fun ?MODULE:process_sni/1},
+                 <<"server_name_indication">> => #option{type = boolean},
                  <<"versions">> => #list{items = #option{type = atom}}
                 },
        process = fun ?MODULE:process_xmpp_tls/1
@@ -389,7 +388,8 @@ http_listener_tls() ->
        items = Items#{<<"verify_mode">> => #option{type = atom,
                                                    validate = {enum, [peer, selfsigned_peer, none]}}
                      },
-       wrap = {kv, ssl}
+       wrap = {kv, ssl},
+       process = fun ?MODULE:process_tls_sni/1
       }.
 
 %% path: listen.http[].transport
@@ -562,7 +562,8 @@ outgoing_pool_connection(<<"cassandra">>) ->
                                         required = all,
                                         process = fun ?MODULE:process_cassandra_auth/1},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, ssl}}
+                                       wrap = {kv, ssl},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"elastic">>) ->
@@ -583,7 +584,8 @@ outgoing_pool_connection(<<"http">>) ->
                  <<"request_timeout">> => #option{type = integer,
                                                   validate = non_negative},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, http_opts}}
+                                       wrap = {kv, http_opts},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"ldap">>) ->
@@ -600,7 +602,8 @@ outgoing_pool_connection(<<"ldap">>) ->
                  <<"connect_interval">> => #option{type = integer,
                                                    validate = positive},
                  <<"tls">> => #section{items = tls_items(),
-                                       wrap = {kv, tls_options}}
+                                       wrap = {kv, tls_options},
+                                       process = fun ?MODULE:process_tls_sni/1}
                 }
       };
 outgoing_pool_connection(<<"rabbit">>) ->
@@ -700,8 +703,9 @@ riak_credentials() ->
 sql_tls() ->
     Items = tls_items(),
     #section{
-       items = Items#{<<"required">> => #option{type = boolean}}
-      }.
+       items = Items#{<<"required">> => #option{type = boolean}},
+       process = fun ?MODULE:process_tls_sni/1
+    }.
 
 tls_items() ->
     #{<<"verify_peer">> => #option{type = boolean,
@@ -716,8 +720,9 @@ tls_items() ->
       <<"keyfile">> => #option{type = string,
                                validate = non_empty},
       <<"password">> => #option{type = string},
-      <<"server_name_indication">> => #option{type = boolean,
-                                              process = fun ?MODULE:process_sni/1},
+      <<"server_name_indication">> => #option{type = boolean},
+      <<"server_name_indication_host">> => #option{type = string,
+                                                   validate = non_empty},
       <<"ciphers">> => #option{type = string},
       <<"versions">> => #list{items = #option{type = atom}}
      }.
@@ -1032,9 +1037,6 @@ get_all_hosts_and_host_types(General) ->
                           []
                   end, General).
 
-process_sni(false) ->
-    disable.
-
 process_verify_peer(false) -> verify_none;
 process_verify_peer(true) -> verify_peer.
 
@@ -1046,7 +1048,8 @@ process_xmpp_tls(KVs) ->
     end.
 
 tls_keys(just_tls) ->
-    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication, versions];
+    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication,
+     server_name_indication_host, versions];
 tls_keys(fast_tls) ->
     [protocol_options].
 
@@ -1054,7 +1057,8 @@ common_tls_keys() ->
     [module, mode, verify_peer, certfile, cacertfile, dhfile, ciphers].
 
 process_xmpp_tls(just_tls, KVs) ->
-    {[VM, DoF], Opts} = proplists:split(KVs, [verify_mode, disconnect_on_failure]),
+    KVsWithSNI = process_tls_sni(KVs),
+    {[VM, DoF], Opts} = proplists:split(KVsWithSNI, [verify_mode, disconnect_on_failure]),
     {External, Internal} = lists:partition(fun is_external_tls_opt/1, Opts),
     SSLOpts = ssl_opts(verify_fun(VM, DoF) ++ Internal),
     [{tls_module, just_tls}] ++ SSLOpts ++ External;
@@ -1206,11 +1210,26 @@ ssl_opts(pgsql, Opts) -> [{ssl_opts, Opts}];
 ssl_opts(mysql, Opts) -> Opts.
 
 process_riak_tls(KVs) ->
-    {[CACertFileOpts], SSLOpts} = proplists:split(KVs, [cacertfile]),
+    KVsWithSNI = process_tls_sni(KVs),
+    {[CACertFileOpts], SSLOpts} = proplists:split(KVsWithSNI, [cacertfile]),
     riak_ssl(SSLOpts) ++ CACertFileOpts.
 
 riak_ssl([]) -> [];
 riak_ssl(Opts) -> [{ssl_opts, Opts}].
+
+process_tls_sni(KVs) ->
+    % the SSL library expects either the atom `disable` or a string with the SNI host
+    % as value for `server_name_indication`
+    SNIKeys = [server_name_indication, server_name_indication_host],
+    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, SNIKeys),
+    case {SNIOpt, SNIHostOpt} of
+        {[], []} ->
+            SSLOpts;
+        {[{server_name_indication, false}], _} ->
+            [{server_name_indication, disable}] ++ SSLOpts;
+        {[{server_name_indication, true}], [{server_name_indication_host, SNIHost}]} ->
+            [{server_name_indication, SNIHost}] ++ SSLOpts
+    end.
 
 process_riak_credentials(KVs) ->
     {[[{user, User}], [{password, Pass}]], []} = proplists:split(KVs, [user, password]),
