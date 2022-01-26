@@ -308,7 +308,7 @@ open_socket1(Host, Port) ->
                 end, ?SOCKET_DEFAULT_RESULT, outgoing_s2s_families()).
 
 
--spec open_socket2(Type :: 'inet' | 'inet6',
+-spec open_socket2(Type :: inet:address_family(),
                    Addr :: inet:ip_address(),
                    Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
 open_socket2(Type, Addr, Port) ->
@@ -998,10 +998,8 @@ get_addr_port(Server) ->
 
 -spec srv_lookup(jid:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
-    Options = mongoose_config:get_opt(s2s_dns_options, []),
-    TimeoutMs = timer:seconds(proplists:get_value(timeout, Options, 10)),
-    Retries = proplists:get_value(retries, Options, 2),
-    srv_lookup(Server, TimeoutMs, Retries).
+    #{timeout := TimeoutSec, retries := Retries} = mongoose_config:get_opt(s2s_dns),
+    srv_lookup(Server, timer:seconds(TimeoutSec), Retries).
 
 
 %% @doc XXX - this behaviour is suboptimal in the case that the domain
@@ -1044,18 +1042,10 @@ test_get_addr_port(Server) ->
       end, [], lists:seq(1, 100000)).
 
 
--spec get_addrs(Host :: atom() | binary() | string(),
-                Family :: 'inet4' | 'inet6' | 'ipv4' | 'ipv6'
-                ) -> [inet:ip_address()].
-get_addrs(Host, Family) when is_binary(Host) ->
-    get_addrs(binary_to_list(Host), Family);
-get_addrs(Host, Family) ->
-    Type = case Family of
-               inet4 -> inet;
-               ipv4 -> inet;
-               inet6 -> inet6;
-               ipv6 -> inet6
-           end,
+-spec get_addrs(Host :: atom() | binary() | string(), inet:address_family()) -> [inet:ip_address()].
+get_addrs(Host, Type) when is_binary(Host) ->
+    get_addrs(binary_to_list(Host), Type);
+get_addrs(Host, Type) ->
     case inet:gethostbyname(Host, Type) of
         {ok, #hostent{h_addr_list = Addrs}} ->
             ?LOG_DEBUG(#{what => s2s_srv_resolve_success,
@@ -1068,12 +1058,12 @@ get_addrs(Host, Family) ->
     end.
 
 
--spec outgoing_s2s_port() -> integer().
+-spec outgoing_s2s_port() -> inet:port_number().
 outgoing_s2s_port() ->
-    mongoose_config:get_opt(outgoing_s2s_port, 5269).
+    mongoose_config:get_opt([s2s_outgoing, port]).
 
 
--spec outgoing_s2s_families() -> ['ipv4' | 'ipv6', ...].
+-spec outgoing_s2s_families() -> [inet:address_family(), ...].
 outgoing_s2s_families() ->
     %% DISCUSSION: Why prefer IPv4 first?
     %%
@@ -1086,11 +1076,14 @@ outgoing_s2s_families() ->
     %% AAAA records for their sites due to the mentioned
     %% quality of current IPv6 connectivity. Making IPv6 the a
     %% `fallback' may avoid these problems elegantly.
-    mongoose_config:get_opt(outgoing_s2s_families, [ipv4, ipv6]).
+    [ip_version_to_family(V) || V <- mongoose_config:get_opt([s2s_outgoing, ip_versions])].
+
+ip_version_to_family(4) -> inet;
+ip_version_to_family(6) -> inet6.
 
 -spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
 outgoing_s2s_timeout() ->
-    mongoose_config:get_opt(outgoing_s2s_timeout, 10000).
+    mongoose_config:get_opt([s2s_outgoing, connection_timeout], 10000).
 
 %% @doc Human readable S2S logging: Log only new outgoing connections as INFO
 %% Do not log dialback
@@ -1189,26 +1182,16 @@ get_addr_list(Server) ->
 -spec get_predefined_addresses(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
     case mongoose_config:lookup_opt([s2s_address, Server]) of
-        {error, not_found} -> [];
-        {ok, S2SAddr} -> do_get_predefined_addresses(S2SAddr)
+        {ok, #{ip_address := IPAddress} = M} ->
+            {ok, IPTuple} = inet:parse_address(IPAddress),
+            Port = get_predefined_port(M),
+            [{IPTuple, Port}];
+        {error, not_found} ->
+            []
     end.
 
--spec do_get_predefined_addresses(string() | inet:ip_address() |
-                                  {string() | inet:ip_address(), non_neg_integer()}) ->
-                                         [{inet:ip_address(), non_neg_integer()}].
-do_get_predefined_addresses({{_, _, _, _}, Port} = IP4Port) when is_integer(Port) ->
-    [IP4Port];
-do_get_predefined_addresses({{_, _, _, _, _, _, _, _}, Port} = IP6Port) when is_integer(Port) ->
-    [IP6Port];
-do_get_predefined_addresses({_, _, _, _} = IP4) ->
-    [{IP4, outgoing_s2s_port()}];
-do_get_predefined_addresses({_, _, _, _, _, _, _, _} = IP6) ->
-    [{IP6, outgoing_s2s_port()}];
-do_get_predefined_addresses({List, Port}) when is_list(List), is_integer(Port) ->
-    {ok, Addr} = inet:parse_strict_address(List),
-    do_get_predefined_addresses({Addr, Port});
-do_get_predefined_addresses(List) when is_list(List) ->
-    do_get_predefined_addresses({List, outgoing_s2s_port()}).
+get_predefined_port(#{port := Port}) -> Port;
+get_predefined_port(_) -> outgoing_s2s_port().
 
 send_event(<<"valid">>, Pid, StateData) ->
     p1_fsm:send_event(
