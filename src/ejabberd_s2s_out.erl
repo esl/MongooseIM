@@ -51,13 +51,11 @@
          handle_info/3,
          terminate/3,
          print_state/1,
-         code_change/4,
-         test_get_addr_port/1,
-         get_addr_port/1]).
+         code_change/4]).
 
--ignore_xref([get_addr_port/1, open_socket/2, print_state/1, relay_to_bridge/2,
+-ignore_xref([open_socket/2, print_state/1, relay_to_bridge/2,
               reopen_socket/2, start_link/3, stream_established/2,
-              test_get_addr_port/1, wait_before_retry/2, wait_for_auth_result/2,
+              wait_before_retry/2, wait_for_auth_result/2,
               wait_for_features/2, wait_for_starttls_proceed/2, wait_for_stream/2,
               wait_for_stream/2, wait_for_validation/2]).
 
@@ -97,6 +95,11 @@
 -type fsm_return() :: {'stop', Reason :: 'normal', state()}
                     | {'next_state', statename(), state()}
                     | {'next_state', statename(), state(), Timeout :: integer()}.
+
+-type addr() :: #{ip_tuple := inet:ip_adress(),
+                  port := inet:port_number(),
+                  type := inet | inet6}.
+
 %%-define(DBGFSM, true).
 
 -ifdef(DBGFSM).
@@ -245,10 +248,10 @@ open_socket(init, StateData) ->
                  new => StateData#state.new,
                  verify => StateData#state.verify}),
     AddrList = get_addr_list(StateData#state.server),
-    case lists:foldl(fun({_Addr, _Port}, {ok, Socket}) ->
+    case lists:foldl(fun(_, {ok, Socket}) ->
                              {ok, Socket};
-                        ({Addr, Port}, _Acc) ->
-                             open_socket1(Addr, Port)
+                        (#{ip_tuple := Addr, port := Port, type := Type}, _) ->
+                             open_socket2(Type, Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
             Version = case StateData#state.use_v10 of
@@ -285,30 +288,7 @@ open_socket(timeout, StateData) ->
 open_socket(_, StateData) ->
     {next_state, open_socket, StateData}.
 
-%%----------------------------------------------------------------------
-%% IPv4
--spec open_socket1(Host :: binary() | inet:ip_address(),
-                   Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
-open_socket1({_, _, _, _} = Addr, Port) ->
-    open_socket2(inet, Addr, Port);
-%% IPv6
-open_socket1({_, _, _, _, _, _, _, _} = Addr, Port) ->
-    open_socket2(inet6, Addr, Port);
-%% Hostname
-open_socket1(Host, Port) ->
-    lists:foldl(fun(_Family, {ok, _Socket} = R) ->
-                        R;
-                   (Family, _) ->
-                        Addrs = get_addrs(Host, Family),
-                        lists:foldl(fun(_Addr, {ok, _Socket} = R) ->
-                                            R;
-                                       (Addr, _) ->
-                                            open_socket1(Addr, Port)
-                                    end, ?SOCKET_DEFAULT_RESULT, Addrs)
-                end, ?SOCKET_DEFAULT_RESULT, outgoing_s2s_families()).
-
-
--spec open_socket2(Type :: inet:address_family(),
+-spec open_socket2(Type :: inet | inet6,
                    Addr :: inet:ip_address(),
                    Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
 open_socket2(Type, Addr, Port) ->
@@ -972,26 +952,33 @@ is_verify_res(_) ->
 
 -include_lib("kernel/include/inet.hrl").
 
--spec get_addr_port(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
-get_addr_port(Server) ->
+-spec lookup_services(jid:server()) -> [addr()].
+lookup_services(Server) ->
+    case ejabberd_s2s:domain_utf8_to_ascii(Server) of
+        false -> [];
+        ASCIIAddr -> do_lookup_services(ASCIIAddr)
+    end.
+
+-spec do_lookup_services(jid:server()) -> [addr()].
+do_lookup_services(Server) ->
     Res = srv_lookup(Server),
     case Res of
         {error, Reason} ->
             ?LOG_DEBUG(#{what => s2s_srv_lookup_failed,
                          reason => Reason, server => Server}),
-            [{Server, outgoing_s2s_port()}];
-        {ok, #hostent{h_addr_list = AddrList}} ->
+            [];
+        {ok, #hostent{h_addr_list = AddrList, h_addrtype = Type}} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weights are overvalued)
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
-                    [{Server, outgoing_s2s_port()}];
-                SortedList ->
-                    List = lists:keysort(1, SortedList),
-                    List2 = remove_addr_index(List),
+                    [];
+                IndexedAddrs ->
+                    Addrs = [#{ip_tuple => Addr, port => Port, type => Type}
+                            || {_Index, Addr, Port} <- lists:keysort(1, IndexedAddrs)],
                     ?LOG_DEBUG(#{what => s2s_srv_lookup_success,
-                                 addresses => List2, server => Server}),
-                    List2
+                                 addresses => Addrs, server => Server}),
+                    Addrs
             end
     end.
 
@@ -1028,32 +1015,26 @@ srv_lookup(Server, Timeout, Retries) ->
         {ok, _HEnt} = R -> R
     end.
 
+-spec lookup_addrs(jid:server()) -> [addr()].
+lookup_addrs(Server) ->
+    Port = outgoing_s2s_port(),
+    lists:foldl(fun(Type, []) ->
+                        [#{ip_tuple => Addr, port => Port, type => Type}
+                         || Addr <- lookup_addrs(Server, Type)];
+                   (_Type, Addrs) ->
+                        Addrs
+                end, [], outgoing_s2s_types()).
 
-test_get_addr_port(Server) ->
-    lists:foldl(
-      fun(_, Acc) ->
-              [HostPort | _] = get_addr_port(Server),
-              case lists:keysearch(HostPort, 1, Acc) of
-                  false ->
-                      [{HostPort, 1} | Acc];
-                  {value, {_, Num}} ->
-                      lists:keyreplace(HostPort, 1, Acc, {HostPort, Num + 1})
-              end
-      end, [], lists:seq(1, 100000)).
-
-
--spec get_addrs(Host :: atom() | binary() | string(), inet:address_family()) -> [inet:ip_address()].
-get_addrs(Host, Type) when is_binary(Host) ->
-    get_addrs(binary_to_list(Host), Type);
-get_addrs(Host, Type) ->
-    case inet:gethostbyname(Host, Type) of
+-spec lookup_addrs(jid:lserver(), inet | inet6) -> [inet:ip_address()].
+lookup_addrs(Server, Type) ->
+    case inet:gethostbyname(binary_to_list(Server), Type) of
         {ok, #hostent{h_addr_list = Addrs}} ->
             ?LOG_DEBUG(#{what => s2s_srv_resolve_success,
-                         type => Type, server => Host, addresses => Addrs}),
+                         type => Type, server => Server, addresses => Addrs}),
             Addrs;
         {error, Reason} ->
             ?LOG_DEBUG(#{what => s2s_srv_resolve_failed,
-                         type => Type, server => Host, reason => Reason}),
+                         type => Type, server => Server, reason => Reason}),
             []
     end.
 
@@ -1063,8 +1044,8 @@ outgoing_s2s_port() ->
     mongoose_config:get_opt([s2s_outgoing, port]).
 
 
--spec outgoing_s2s_families() -> [inet:address_family(), ...].
-outgoing_s2s_families() ->
+-spec outgoing_s2s_types() -> [inet | inet6, ...].
+outgoing_s2s_types() ->
     %% DISCUSSION: Why prefer IPv4 first?
     %%
     %% IPv4 connectivity will be available for everyone for
@@ -1076,10 +1057,10 @@ outgoing_s2s_families() ->
     %% AAAA records for their sites due to the mentioned
     %% quality of current IPv6 connectivity. Making IPv6 the a
     %% `fallback' may avoid these problems elegantly.
-    [ip_version_to_family(V) || V <- mongoose_config:get_opt([s2s_outgoing, ip_versions])].
+    [ip_version_to_type(V) || V <- mongoose_config:get_opt([s2s_outgoing, ip_versions])].
 
-ip_version_to_family(4) -> inet;
-ip_version_to_family(6) -> inet6.
+ip_version_to_type(4) -> inet;
+ip_version_to_type(6) -> inet6.
 
 -spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
 outgoing_s2s_timeout() ->
@@ -1163,35 +1144,31 @@ fsm_limit_opts() ->
             []
     end.
 
-
--spec get_addr_list(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_addr_list(jid:server()) -> [addr()].
 get_addr_list(Server) ->
-    case get_predefined_addresses(Server) of
-        [] ->
-            case ejabberd_s2s:domain_utf8_to_ascii(Server) of
-                false -> [];
-                ASCIIAddr -> get_addr_port(ASCIIAddr)
-            end;
-
-        Addrs ->
-            Addrs
-    end.
-
+    lists:foldl(fun(F, []) -> F(Server);
+                   (_, Result) -> Result
+                end, [], [fun get_predefined_addresses/1,
+                          fun lookup_services/1,
+                          fun lookup_addrs/1]).
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_predefined_addresses(jid:server()) -> [addr()].
 get_predefined_addresses(Server) ->
     case mongoose_config:lookup_opt([s2s_address, Server]) of
         {ok, #{ip_address := IPAddress} = M} ->
             {ok, IPTuple} = inet:parse_address(IPAddress),
             Port = get_predefined_port(M),
-            [{IPTuple, Port}];
+            [#{ip_tuple => IPTuple, port => Port, type => addr_type(IPTuple)}];
         {error, not_found} ->
             []
     end.
 
 get_predefined_port(#{port := Port}) -> Port;
 get_predefined_port(_) -> outgoing_s2s_port().
+
+addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
+addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
 
 send_event(<<"valid">>, Pid, StateData) ->
     p1_fsm:send_event(
@@ -1250,12 +1227,6 @@ calc_addr_index({Priority, Weight, Port, Host}) ->
             _ -> (Weight + 1) * rand:uniform()
         end,
     {Priority * 65536 - N, Host, Port}.
-
-remove_addr_index(List) ->
-    lists:map(
-      fun({_, Host, Port}) ->
-              {Host, Port}
-      end, List).
 
 handle_parsed_features({false, false, _, StateData = #state{authenticated = true}}) ->
     send_queue(StateData, StateData#state.queue),
