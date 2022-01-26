@@ -1060,7 +1060,8 @@ process_xmpp_tls(KVs) ->
     end.
 
 tls_keys(just_tls) ->
-    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication, server_name_indication_host, versions];
+    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication,
+     server_name_indication_host, versions];
 tls_keys(fast_tls) ->
     [protocol_options].
 
@@ -1231,7 +1232,8 @@ riak_ssl(Opts) -> [{ssl_opts, Opts}].
 process_tls_sni(KVs) ->
     % the SSL library expects either the atom `disable` or a string with the SNI host
     % as value for `server_name_indication`
-    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, [server_name_indication, server_name_indication_host]),
+    SNIKeys = [server_name_indication, server_name_indication_host],
+    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, SNIKeys),
     case {SNIOpt, SNIHostOpt} of
         {[], []} ->
             SSLOpts;
