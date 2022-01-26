@@ -344,7 +344,7 @@ commands:
             - MINIO_BUCKET: "mybucket"
           command: |
             if [[ "$DB" == *minio* ]]; then
-                curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/mc -o ./mc
+                curl -sSL https://dl.minio.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2022-01-07T06-01-38Z -o ./mc
                 chmod +x ./mc
                 ./mc config host add ${MINIO_HOSTNAME} http://127.0.0.1:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
                 ./mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET}
