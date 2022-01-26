@@ -123,7 +123,7 @@ Specifies the order of IP address families to try when establishing an outgoing 
 * **Default:** `10_000`
 * **Example:** `outgoing.connection_timeout = 5000`
 
-Timeout (in seconds) for establishing an outgoing S2S connection.
+Timeout (in milliseconds) for establishing an outgoing S2S connection.
 
 ### `s2s.dns.timeout`
 * **Scope:** local
