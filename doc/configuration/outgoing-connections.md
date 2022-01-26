@@ -445,4 +445,4 @@ Enables SNI extension to TLS protocol. If set to `true`, the `server_name_indica
 * **Default:** not set
 * **Example:** `tls.server_name_indication_host = "domain.com"`
 
-Domain against which the certificates will be checked, using SNI.
+Domain against which the certificates will be checked, using SNI. It can be specified only when `server_name_indication` is set to `true`.
