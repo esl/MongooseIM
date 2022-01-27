@@ -123,6 +123,8 @@ admin_mapping_rules() ->
         'DomainAdminMutation' => mongoose_graphql_domain_admin_mutation,
         'StanzaAdminMutation' => mongoose_graphql_stanza_admin_mutation,
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
+        'AccountAdminQuery' => mongoose_graphql_account_admin_query,
+        'AccountAdminMutation' => mongoose_graphql_account_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
@@ -133,6 +135,8 @@ user_mapping_rules() ->
     #{objects => #{
         'UserQuery' => mongoose_graphql_user_query,
         'UserMutation' => mongoose_graphql_user_mutation,
+        'AccountUserQuery' => mongoose_graphql_account_user_query,
+        'AccountUserMutation' => mongoose_graphql_account_user_mutation,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},

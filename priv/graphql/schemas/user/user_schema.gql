@@ -10,6 +10,8 @@ Only an authenticated user can execute these queries.
 type UserQuery{
   "Check authorization status"
   checkAuth: UserAuthInfo
+  "Account management query"
+  account: AccountUserQuery
 }
 
 """
@@ -19,4 +21,6 @@ Only an authenticated user can execute these mutations.
 type UserMutation @protected{
   "Something to not leave type without fields"
   field: String
+  "Account management mutation"
+  account: AccountUserMutation
 }

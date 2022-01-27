@@ -12,5 +12,7 @@ execute(#{authorized := Authorized}, user, <<"authStatus">>, _Args) ->
             {ok, 'UNAUTHORIZED'}
     end;
 execute(Ctx, user, <<"username">>, _Args) ->
-    Username = maps:get(username, Ctx, null),
-    {ok, Username}.
+    case maps:get(user, Ctx, null) of
+        null -> {ok, null};
+        User -> {ok, jid:to_binary(User)}
+    end.

@@ -101,8 +101,9 @@ check_auth(Auth, #{schema_endpoint := <<"user">>} = State) ->
     auth_user(Auth, State).
 
 auth_user({basic, User, Password}, State) ->
-    case mongoose_api_common:check_password(jid:from_binary(User), Password) of
-        {true, _} -> {ok, State#{authorized => true, schema_ctx => #{username => User}}};
+    JID = jid:from_binary(User),
+    case mongoose_api_common:check_password(JID, Password) of
+        {true, _} -> {ok, State#{authorized => true, schema_ctx => #{user => JID}}};
         _ -> error
     end;
 auth_user(_, State) ->

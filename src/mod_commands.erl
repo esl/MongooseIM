@@ -259,39 +259,26 @@ list_sessions(Host) ->
     [jid:to_binary(USR) || #session{usr = USR} <- Lst].
 
 registered_users(Host) ->
-    Users = ejabberd_auth:get_vh_registered_users(Host),
-    SUsers = lists:sort(Users),
-    [jid:to_binary(US) || US <- SUsers].
+    mongoose_account_api:list_users(Host).
 
 register(Host, User, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:try_register(JID, Password) of
-        {error, exists} ->
-            String = io_lib:format("User ~s already registered at node ~p",
-                                   [jid:to_binary(JID), node()]),
-            {error, denied, String};
-        {error, invalid_jid} ->
-            String = io_lib:format("Invalid jid: ~s@~s",
-                                   [User, Host]),
-            {error, bad_request, String};
-        {error, Reason} ->
-            String = io_lib:format("Can't register user ~s@~s at node ~p: ~p",
-                                   [User, Host, node(), Reason]),
-            {error, internal, String};
-        _ ->
-            <<"User ", (jid:to_binary(JID))/binary, "successfully registered">>
-    end.
+    Res = mongoose_account_api:register_user(User, Host, Password),
+    format_account_result(Res).
 
 unregister(Host, User) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:remove_user(JID) of
-        ok ->
-            <<"ok">>;
-        error ->
-            {error, bad_request, io_lib:format("Invalid jid: ~p@~p", [User, Host])};
-        {error, not_allowed} ->
-            {error, forbidden, "User does not exist or you are not authorised properly"}
-    end.
+    Res = mongoose_account_api:unregister_user(User, Host),
+    format_account_result(Res).
+
+change_user_password(Host, User, Password) ->
+    Res = mongoose_account_api:change_password(User, Host, Password),
+    format_account_result(Res).
+
+format_account_result({ok, Msg}) -> iolist_to_binary(Msg);
+format_account_result({empty_password, Msg}) -> {error, bad_request, Msg};
+format_account_result({invalid_jid, Msg}) -> {error, bad_request, Msg};
+format_account_result({not_allowed, Msg}) -> {error, denied, Msg};
+format_account_result({exists, Msg}) -> {error, denied, Msg};
+format_account_result({cannot_register, Msg}) -> {error, internal, Msg}.
 
 send_message(From, To, Body) ->
     case mongoose_stanza_helper:parse_from_to(From, To) of
@@ -439,18 +426,6 @@ maybe_seconds_to_microseconds(X) when is_number(X) ->
     X * 1000000;
 maybe_seconds_to_microseconds(X) ->
     X.
-
-change_user_password(Host, User, Password) ->
-    JID = jid:make(User, Host, <<>>),
-    case ejabberd_auth:set_password(JID, Password) of
-        ok -> ok;
-        {error, empty_password} ->
-            {error, bad_request, "empty password"};
-        {error, not_allowed} ->
-            {error, denied, "password change not allowed"};
-        {error, invalid_jid} ->
-            {error, bad_request, "invalid jid"}
-    end.
 
 -spec row_to_map(mod_mam:message_row()) -> map().
 row_to_map(#{id := Id, jid := From, packet := Msg}) ->

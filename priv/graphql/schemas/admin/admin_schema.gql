@@ -12,6 +12,8 @@ type AdminQuery{
   domains: DomainAdminQuery
   "Check authorization status"
   checkAuth: AuthStatus
+  "Account management"
+  account: AccountAdminQuery
   stanza: StanzaAdminQuery
 }
 
@@ -20,6 +22,8 @@ Contains all admin available mutations
 Only an authenticated admin can execute these mutations.
 """
 type AdminMutation @protected{
+  "Account management"
+  account: AccountAdminMutation
   "Modify domains properties or create/destroy domain"
   domains: DomainAdminMutation
   stanza: StanzaAdminMutation
