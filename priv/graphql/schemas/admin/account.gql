@@ -61,7 +61,7 @@ type CheckPasswordPayload{
   message: String!
 }
 
-"Check user existance payload"
+"Check user existence payload"
 type CheckUserPayload{
   "Status of the user existence"
   exist: Bool!

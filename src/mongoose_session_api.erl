@@ -33,5 +33,3 @@ prepare_reason(Reason) when is_list(Reason) ->
     list_to_binary(Reason);
 prepare_reason(Reason) when is_binary(Reason) ->
     Reason.
-
-
