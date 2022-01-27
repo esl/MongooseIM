@@ -1456,27 +1456,32 @@ access_merge_host_and_global(_Config) ->
 %% tests: s2s
 
 s2s_dns_timeout(_Config) ->
-    ?cfg(s2s_dns_options, [{timeout, 5}], #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
+    ?cfg([s2s_dns, timeout], 10, #{}), % default
+    ?cfg([s2s_dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
     ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
 
 s2s_dns_retries(_Config) ->
-    ?cfg(s2s_dns_options, [{retries, 1}], #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
+    ?cfg([s2s_dns, retries], 2, #{}), % default
+    ?cfg([s2s_dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
     ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
 
 s2s_outgoing_port(_Config) ->
-    ?cfg(outgoing_s2s_port, 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
+    ?cfg([s2s_outgoing, port], 5269, #{}), % default
+    ?cfg([s2s_outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
     ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
 
 s2s_outgoing_ip_versions(_Config) ->
-    ?cfg(outgoing_s2s_families, [ipv6, ipv4],
+    ?cfg([s2s_outgoing, ip_versions], [4, 6], #{}), % default
+    ?cfg([s2s_outgoing, ip_versions], [6, 4],
          #{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [6, 4]}}}),
     ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
     ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
 
 s2s_outgoing_timeout(_Config) ->
-    ?cfg(outgoing_s2s_timeout, 5,
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5}}}),
-    ?cfg(outgoing_s2s_timeout, infinity,
+    ?cfg([s2s_outgoing, connection_timeout], 10000, #{}), % default
+    ?cfg([s2s_outgoing, connection_timeout], 5000,
+         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
+    ?cfg([s2s_outgoing, connection_timeout], infinity,
          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
     ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
 
@@ -1512,9 +1517,10 @@ s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
              <<"ip_address">> => <<"192.168.1.2">>,
              <<"port">> => 5321},
-    ?cfg(s2s_address, #{<<"host1">> => {"192.168.1.2", 5321}},
+    ?cfg(s2s_address, #{}, #{}),% default
+    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2", port => 5321}},
          #{<<"s2s">> => #{<<"address">> => [Addr]}}),
-    ?cfg(s2s_address, #{<<"host1">> => "192.168.1.2"},
+    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2"}},
          #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
     ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
     ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
@@ -3243,8 +3249,6 @@ compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
-compare_nodes([s2s_dns_options], V1, V2) ->
-    compare_unordered_lists(V1, V2);
 compare_nodes([{modules, _}, mod_extdisco], V1, V2) ->
     compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
 compare_nodes([{modules, _}, _Module], V1, V2) ->
