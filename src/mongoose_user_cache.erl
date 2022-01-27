@@ -92,11 +92,14 @@ handle_telemetry_event([segmented_cache, request], #{hit := Hit, time := Latency
 
 -spec stop_cache(mongooseim:host_type(), module()) -> ok.
 stop_cache(HostType, Module) ->
-    ok = ejabberd_sup:stop_child(cache_name(HostType, Module)).
+    case gen_mod:get_module_opt(HostType, Module, module, internal) of
+        internal -> ok = ejabberd_sup:stop_child(cache_name(HostType, Module));
+        _ConfiguredModule -> ok
+    end.
 
 -spec cache_name(mongooseim:host_type(), module()) -> atom().
 cache_name(HostType, Module) ->
-    case gen_mod:get_module_opt(HostType, Module, cache_name, internal) of
+    case gen_mod:get_module_opt(HostType, Module, module, internal) of
         internal -> gen_mod:get_module_proc(HostType, Module);
         ConfiguredModule -> gen_mod:get_module_proc(HostType, ConfiguredModule)
     end.

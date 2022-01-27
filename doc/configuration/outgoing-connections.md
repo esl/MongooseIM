@@ -195,7 +195,7 @@ Logical database index (zero-based).
 
 ## Riak options
 
-Currently only one Riak connection pool can exist for each supported XMPP host (the default pool).
+Currently, only one Riak connection pool can exist for each supported XMPP host (the default pool).
 
 !!! WARNING
     `riak` backend is not compatible with `available_worker` strategy.
@@ -245,7 +245,7 @@ Cassandra also supports all TLS-specific options described in the TLS section.
 
 ## Elasticsearch options
 
-Currently only one pool tagged `default` can be used.
+Currently, only one pool tagged `default` can be used.
 
 ### `outgoing_pools.elastic.default.connection.host`
 * **Syntax:** string
@@ -363,7 +363,7 @@ Reconnect interval after a failed connection.
 * **Default:** `"none"`
 * **Example:** `encrypt = "tls"`
 
-LDAP  also supports all TLS-specific options described in the TLS section (provided `encrypt` is set to `tls`).
+LDAP also supports all TLS-specific options described in the TLS section (provided `encrypt` is set to `tls`).
 
 ## TLS options
 
@@ -435,7 +435,14 @@ Cipher suites to use. For allowed values, see the [Erlang/OTP SSL documentation]
 
 ### `outgoing_pools.*.*.connection.tls.server_name_indication`
 * **Syntax:** boolean
-* **Default:** `true`
+* **Default:** `false`, but enabled if the `verify_peer` option is set to `true`
 * **Example:** `tls.server_name_indication = false`
 
-Enables SNI extension to TLS protocol.
+Enables SNI extension to TLS protocol. If set to `true`, the `server_name_indication_host` option should be provided.
+
+### `outgoing_pools.*.*.connection.tls.server_name_indication_host`
+* **Syntax:** string
+* **Default:** not set
+* **Example:** `tls.server_name_indication_host = "domain.com"`
+
+Domain against which the certificates will be checked, using SNI. It can be specified only when `server_name_indication` is set to `true`.
