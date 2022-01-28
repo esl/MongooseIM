@@ -810,7 +810,7 @@ format_status(Opt, StatusData) ->
                       Name
               end,
     Header = lists:concat(["Status for state machine ", NameTag]),
-    Log = sys:get_debug(log, Debug, []),
+    Log = sys:get_log(Debug),
     Specfic =
         case erlang:function_exported(Mod, format_status, 2) of
             true ->
