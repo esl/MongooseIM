@@ -1,0 +1,81 @@
+"""
+Allow admin to get information about sessions.
+"""
+type SessionAdminQuery @protected{
+  "Get the list of established sessions for a specified domain or global"
+  listSessions(domain: String): [Session!]
+  "Get the number of established sessions for a specified domain or global"
+  countSessions(domain: String): Int 
+  "Get information about all sessions of a user"
+  listUserSessions(user: JID!): [Session!]
+  "Get the number of resources of a user"
+  countUserResources(user: JID!): Int
+  "Get the resource string of a n-th session number"
+  getUserResource(user: JID!, number: Int): String
+  "Get the list of logged users with this status for a specified domain or global"
+  listStatusUsers(domain: String, status: String!): [StatusUser!]
+  "Get the number of logged users with this status for a specified domain or global"
+  countStatusUsers(domain: String, status: String!): Int
+}
+
+"""
+Allow admin to manage sessions.
+"""
+type SessionAdminMutation @protected{
+  "Kick a user session. User JID should contain resource"
+  kickUser(user: JID!, reason: String!): SessionPayload
+  "Set presence of a session. User JID should contain resource"
+  setPresence(user: JID!, type: PresenceType!, show: PresenceShow!, status: String!, priority: Int!): SessionPayload
+}
+
+"Presence type field values"
+enum PresenceType{
+  "The sender is available for communication"
+  AVAILABLE
+  "An error has occurred regarding processing of a previously sent presence stanza"
+  ERROR
+  "A request for an entity's current presence; SHOULD be generated only by a server on behalf of a user"
+  PROBE
+  "The sender wishes to subscribe to the recipient's presence"
+  SUBSCRIBE
+  "The sender has allowed the recipient to receive their presence"
+  SUBSCRIBED
+  "Signals that the entity is no longer available for communication"
+  UNAVAILABLE
+  "The sender is unsubscribing from the receiver's presence"
+  UNSUBSCRIBE
+  "The subscription request has been denied or a previously granted subscription has been canceled"
+  UNSUBSCRIBED
+}
+
+"Presence show field values"
+enum PresenceShow{
+  "The entity or resource is online"
+  ONLINE
+  "The entity or resource is temporarily away"
+  AWAY
+  "The entity or resource is actively interested in chatting"
+  CHAT
+  "The entity or resource is busy (dnd = 'Do Not Disturb')"
+  DND
+  "The entity or resource is away for an extended period (xa = 'eXtended Away')"
+  XA
+}
+
+"Modify session payload"
+type SessionPayload{
+  "Full JID with username, server and resource"
+  jid: JID!
+  "Result message"
+  message: String!
+}
+
+"Short info about user's status"
+type StatusUser{
+  "User JID"
+  user: JID!
+  "Status priority"
+  priority: Int
+  "Status text"
+  text: String
+}

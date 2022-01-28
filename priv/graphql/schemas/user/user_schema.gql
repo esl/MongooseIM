@@ -12,6 +12,8 @@ type UserQuery{
   checkAuth: UserAuthInfo
   "Account management query"
   account: AccountUserQuery
+  "Get info about sessions"
+  session: SessionUserQuery
 }
 
 """

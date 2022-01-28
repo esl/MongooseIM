@@ -14,6 +14,8 @@ type AdminQuery{
   checkAuth: AuthStatus
   "Account management"
   account: AccountAdminQuery
+  "Get session info"
+  session: SessionAdminQuery
   stanza: StanzaAdminQuery
 }
 
@@ -26,5 +28,7 @@ type AdminMutation @protected{
   account: AccountAdminMutation
   "Modify domains properties or create/destroy domain"
   domains: DomainAdminMutation
+  "Session management"
+  session: SessionAdminMutation
   stanza: StanzaAdminMutation
 }
