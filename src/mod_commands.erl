@@ -248,15 +248,13 @@ commands() ->
     ].
 
 kick_session(Host, User, Resource) ->
-    J = jid:make(User, Host, Resource),
-    case ejabberd_c2s:terminate_session(J, <<"kicked">>) of
-        no_session -> {error, not_found, <<"no active session">> };
-        {exit, <<"kicked">>} -> <<"kicked">>
+    case mongoose_session_api:kick_session(User, Host, Resource, <<"kicked">>) of
+        {ok, Msg} -> Msg;
+        {no_session, Msg} -> {error, not_found, Msg}
     end.
 
 list_sessions(Host) ->
-    Lst = ejabberd_sm:get_vh_session_list(Host),
-    [jid:to_binary(USR) || #session{usr = USR} <- Lst].
+    mongoose_session_api:list_resources(Host).
 
 registered_users(Host) ->
     mongoose_account_api:list_users(Host).
