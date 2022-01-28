@@ -114,7 +114,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
 
     {reply, ringing}.
 
-sip_reinvite_unsafe(Req, Call) ->
+sip_reinvite_unsafe(Req, _Call) ->
     ?LOG_INFO(#{what => sip_reinvite, sip_req => Req}),
     {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
@@ -153,12 +153,6 @@ get_action_name_from_sdp(Attrs, Default) ->
 
 
 sip_info(Req, _Call) ->
-    {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
-    {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
-
-    CallID = nksip_sipmsg:header(<<"call-id">>, Req),
-    Body = nksip_sipmsg:meta(body, Req),
-
     ?LOG_INFO(#{what => sip_info, sip_req => Req}),
     noreply.
 
@@ -209,10 +203,6 @@ sip_dialog_update(start, Dialog, Call) ->
         _ ->
             ok
     end,
-    noreply;
-sip_dialog_update(stop, Dialog, _) ->
-    {ok, CallID} = nksip_dialog:call_id(Dialog),
-
     noreply;
 sip_dialog_update(_, _, _) ->
     noreply.
