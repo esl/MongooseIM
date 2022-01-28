@@ -19,36 +19,17 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${TOOLS}/ssl
 
-# DATA_ON_VOLUME variable and data_on_volume function come from common-vars.sh
-echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
-
 function riak_solr_is_up
 {
     $DOCKER exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
 }
-
-# Stores all the data needed by the container
-SQL_ROOT_DIR="$(mktempdir mongoose_sql_root)"
-echo "SQL_ROOT_DIR is $SQL_ROOT_DIR"
-
-# A directory, that contains resources that needed to bootstrap a container
-# i.e. certificates and config files
-SQL_TEMP_DIR="$SQL_ROOT_DIR/temp"
-
-# A directory, that contains database server data files
-# It's good to keep it outside of a container, on a volume
-SQL_DATA_DIR="$SQL_ROOT_DIR/data"
-mkdir -p "$SQL_TEMP_DIR" "$SQL_DATA_DIR"
 
 function setup_db(){
 db=${1:-none}
 echo "Setting up db: $db"
 DB_CONF_DIR=${TOOLS}/db_configs/$db
 
-PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
-PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
-INJECT_FILES=$(cat32 tools/inject-files.sh)
-ENTRYPOINT='eval ${INSTALL_DEPS_CMD:-echo} && echo '${INJECT_FILES}' | eval ${BASE32DEC:-base32 --decode} | bash'
+ENTRYPOINT=$(entrypoint)
 
 if [ "$db" = 'mysql' ]; then
     NAME=$(db_name mysql)

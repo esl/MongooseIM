@@ -11,49 +11,10 @@ LDAP_ROOT="cn=admin,dc=esl,dc=com"
 LDAP_DOMAIN="esl.com"
 LDAP_ORGANISATION="Erlang Solutions"
 
-echo "configuring slapd"
-
-LDAP_ROOT_DIR="$(mktempdir mongoose_ldap_root)"
-LDAP_SCHEMAS_DIR="$LDAP_ROOT_DIR/prepopulate"
-LDAP_DATA_DIR="$LDAP_ROOT_DIR/data"
-LDAP_CONFIG_DIR="$LDAP_ROOT_DIR/config"
-LDAP_CERT_DIR="$LDAP_ROOT_DIR/certs"
-
-echo "LDAP_ROOT_DIR=$LDAP_ROOT_DIR"
-
-mkdir -p "$LDAP_SCHEMAS_DIR" "$LDAP_DATA_DIR" "$LDAP_CONFIG_DIR" "$LDAP_CERT_DIR"
-
-function write_init_entries
-{
-    cat > "$LDAP_SCHEMAS_DIR/init_entries$1.ldif" << EOL
-dn: ou=Users$1,dc=esl,dc=com
-objectClass: organizationalUnit
-EOL
-}
-
-write_init_entries
-
-# Make Users1, Users2, ... Users10 OU-s, which can be used for parallel jobs
-for i in {1..10}; do
-    write_init_entries $i
-done
-
-cp tools/ssl/mongooseim/{cert,key,dh_server}.pem "$LDAP_CERT_DIR"
-cp tools/ssl/ca/cacert.pem "$LDAP_CERT_DIR"
-
 $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
+
 # Host on non-standard higher ports 3389 and 3636 to avoid problems with lower ports
 # Default LDAP ports are 389 (TCP) and 636 (TLS)
-
-for i in "$LDAP_CERT_DIR/"*; do
-    echo "Print $i"
-    cat "$i"
-    echo ""
-done
-
-INJECT_FILES=$(cat32 tools/inject-files.sh)
-ENTRYPOINT='eval ${INSTALL_DEPS_CMD:-echo} && echo '${INJECT_FILES}' | eval ${BASE32DEC:-base32 --decode} | bash'
-
 LDAP_PORT=${LDAP_PORT:-3389}
 LDAP_SECURE_PORT=${LDAP_SECURE_PORT:-3636}
 
@@ -65,6 +26,7 @@ CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 
 IMAGE=osixia/openldap:$LDAP_VERSION
+ENTRYPOINT=$(entrypoint)
 
 $DOCKER run -d \
     --name $NAME \

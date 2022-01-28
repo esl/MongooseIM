@@ -40,9 +40,6 @@ MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 
-PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
-PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
-
 CERTS_CACHE_KEY=$(cat certs_cache_key)
 
 sed -e "s/__MYSQL_CNF__/${MYSQL_CNF}/" \
