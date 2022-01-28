@@ -266,4 +266,5 @@ calc_backoff_time(Host, Retry) ->
     MaxRetry = opt(Host, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
     BaseTime = opt(Host, publish_retry_time_ms, 50),
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
-    crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
+    Random = rand:uniform(BaseTime),
+    BackoffMaxTime - Random.
