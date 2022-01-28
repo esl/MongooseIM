@@ -2,6 +2,28 @@
 
 TOOLS=`dirname $0`
 
+if echo | base32 -w0 > /dev/null 2>&1; then
+      # GNU coreutils base32, '-w' supported
+      ENCODER="base32 -w0"
+    else
+      # Openssl base32, no wrapping by default
+      ENCODER="base32"
+fi
+
+function cat32 {
+    cat "$1" | $ENCODER
+}
+
+DOCKER=docker
+DOCKER_HEALTH=Health
+
+# There is no smart way to choose between podman and docker
+# By default, if both are available, we choose podman
+if hash podman; then
+    DOCKER=podman
+    DOCKER_HEALTH=Healthcheck
+fi
+
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
     # Don't forget to install gsed command using "brew install gnu-sed"

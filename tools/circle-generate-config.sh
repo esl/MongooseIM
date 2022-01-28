@@ -2,21 +2,9 @@
 
 OUT_FILE="$1"
 
-echo | base32 -w0 > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-      # GNU coreutils base32, '-w' supported
-      ENCODER="base32 -w0"
-    else
-      # Openssl base32, no wrapping by default
-      ENCODER="base32"
-fi
-
 set -e
+source tools/common-vars.sh
 source tools/db-versions.sh
-
-function cat32 {
-    cat "$1" | $ENCODER
-}
 
 MYSQL_CNF=$(cat32 tools/db_configs/mysql/mysql.cnf)
 MYSQL_SQL=$(cat32 priv/mysql.sql)

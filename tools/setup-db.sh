@@ -19,19 +19,12 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${TOOLS}/ssl
 
-# Don't need it for CI for speed up
-RM_FLAG=" --rm "
-if [ "$CI" = 'true' ]; then
-    echo "Disable --rm flag on CI"
-    RM_FLAG=""
-fi
-
 # DATA_ON_VOLUME variable and data_on_volume function come from common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 
 function riak_solr_is_up
 {
-    docker exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
+    $DOCKER exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
 }
 
 # Stores all the data needed by the container
@@ -52,6 +45,10 @@ db=${1:-none}
 echo "Setting up db: $db"
 DB_CONF_DIR=${TOOLS}/db_configs/$db
 
+PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
+PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
+INJECT_FILES=$(cat32 tools/inject-files.sh)
+ENTRYPOINT='eval ${INSTALL_DEPS_CMD:-echo} && echo '${INJECT_FILES}' | eval ${BASE32DEC:-base32 --decode} | bash'
 
 if [ "$db" = 'mysql' ]; then
     NAME=$(db_name mysql)
@@ -59,24 +56,33 @@ if [ "$db" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
-    docker rm -v -f $NAME || echo "Skip removing previous container"
-    cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
-    openssl rsa -in ${SSLDIR}/mongooseim/key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
-    chmod a+r ${SQL_TEMP_DIR}/fake_key.pem
-    docker run -d \
+    $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
+    MYSQL_CNF=$(cat32 tools/db_configs/mysql/mysql.cnf)
+    MYSQL_SQL=$(cat32 priv/mysql.sql)
+    MYSQL_SETUP=$(cat32 tools/docker-setup-mysql.sh)
+    MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+    MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+    IMAGE=mysql:$MYSQL_VERSION
+    $DOCKER run -d \
         -e SQL_TEMP_DIR=/tmp/sql \
         -e MYSQL_ROOT_PASSWORD=secret \
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=mongooseim_secret \
-    $(mount_ro_volume ${DB_CONF_DIR}/mysql.cnf ${MYSQL_DIR}/mysql.cnf) \
-        $(mount_ro_volume ${MIM_PRIV_DIR}/mysql.sql /docker-entrypoint-initdb.d/mysql.sql) \
-    $(mount_ro_volume ${TOOLS}/docker-setup-mysql.sh /docker-entrypoint-initdb.d/docker-setup-mysql.sh) \
-    $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
-        $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
+        -e OLD_ENTRYPOINT="./entrypoint.sh mysqld" \
+        -e ENV_FILE_CFG_PATH="/etc/mysql/conf.d/mysql.cnf" \
+        -e ENV_FILE_CFG_DATA="$MYSQL_CNF" \
+        -e ENV_FILE_SQL_PATH="/docker-entrypoint-initdb.d/mysql.sql" \
+        -e ENV_FILE_SQL_DATA="$MYSQL_SQL" \
+        -e ENV_FILE_SH_PATH="/docker-entrypoint-initdb.d/docker-setup-mysql.sh" \
+        -e ENV_FILE_SH_DATA="$MYSQL_SETUP" \
+        -e ENV_FILE_CERT_PATH="/tmp/sql/fake_cert.pem" \
+        -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+        -e ENV_FILE_KEY_PATH="/tmp/sql/fake_key.pem" \
+        -e ENV_FILE_KEY_DATA="$MIM_KEY" \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
-        mysql:$MYSQL_VERSION
+        --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
@@ -88,19 +94,32 @@ elif [ "$db" = 'pgsql' ]; then
     # Than rerun the script to create a new docker container.
     echo "Configuring postgres with SSL"
     sudo -n service postgresql stop || echo "Failed to stop pgsql"
-    docker rm -v -f $NAME || echo "Skip removing previous container"
-    cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
-    cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
-    cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
-    cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
-    cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
-    docker run -d \
+    $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
+    PGSQL_CNF=$(cat32 tools/db_configs/pgsql/postgresql.conf)
+    PGSQL_SQL=$(cat32 priv/pg.sql)
+    PGSQL_HBA=$(cat32 tools/db_configs/pgsql/pg_hba.conf)
+    PGSQL_SETUP=$(cat32 tools/docker-setup-postgres.sh)
+    MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+    MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+    IMAGE=postgres:$PGSQL_VERSION
+    $DOCKER run -d \
            -e SQL_TEMP_DIR=/tmp/sql \
            -e POSTGRES_PASSWORD=password \
-           $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
-           $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/postgresql/data) \
-           $(mount_ro_volume ${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
-           -p $PGSQL_PORT:5432 --name=$NAME postgres:$PGSQL_VERSION
+           -e OLD_ENTRYPOINT="docker-entrypoint.sh postgres" \
+           -e ENV_FILE_CFG_PATH="/tmp/sql/postgresql.conf" \
+           -e ENV_FILE_CFG_DATA="$PGSQL_CNF" \
+           -e ENV_FILE_SQL_PATH="/tmp/sql/pg.sql" \
+           -e ENV_FILE_SQL_DATA="$PGSQL_SQL" \
+           -e ENV_FILE_HBA_PATH="/tmp/sql/pg_hba.conf" \
+           -e ENV_FILE_HBA_DATA="$PGSQL_HBA" \
+           -e ENV_FILE_SH_PATH="/docker-entrypoint-initdb.d/docker-setup-postgres.sh" \
+           -e ENV_FILE_SH_DATA="$PGSQL_SETUP" \
+           -e ENV_FILE_CERT_PATH="/tmp/sql/fake_cert.pem" \
+           -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+           -e ENV_FILE_KEY_PATH="/tmp/sql/fake_key.pem" \
+           -e ENV_FILE_KEY_DATA="$MIM_KEY" \
+           -p $PGSQL_PORT:5432 --name=$NAME \
+           --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
@@ -110,104 +129,111 @@ elif [ "$db" = 'riak' ]; then
     export RIAK_PORT=${RIAK_PORT:-8098}
     RIAK_PB_PORT=${RIAK_PB_PORT:-8087}
     echo "Configuring Riak with SSL"
-    docker rm -v -f $NAME || echo "Skip removing previous container"
-    # Instead of docker run, use "docker create" + "docker start".
-    # So we can prepare our container.
-    # We use HEALTHCHECK here, check "docker ps" to get healthcheck status.
-    # We can't use volumes for riak.conf, because:
-    # - we want to change it
-    # - container starting code runs sed on it and gets IO error,
-    #   if it's a volume
-    time docker create -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 \
+    $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
+    RIAK_SSL_CFG=$(cat32 tools/db_configs/riak/riak.conf.ssl)
+    RIAK_ADV_CFG=$(cat32 tools/db_configs/riak/advanced.config)
+    RIAK_SETUP=$(cat32 tools/setup_riak.escript)
+    RIAK_MAM_SEARCH_SCHEMA=$(cat32 tools/mam_search_schema.xml)
+    RIAK_VCARD_SEARCH_SCHEMA=$(cat32 tools/vcard_search_schema.xml)
+    RIAK_SETUP_SH=$(cat32 tools/db_configs/riak/setup-riak.sh)
+    MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+    MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+    CACERT=$(cat32 tools/ssl/ca/cacert.pem)
+    IMAGE="michalwski/docker-riak:1.0.6"
+    time $DOCKER run -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 -p 8999:8999 -p 8093:8093 -d \
         -e DOCKER_RIAK_BACKEND=memory \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
-        --name=$NAME \
-        $(mount_ro_volume "${DB_CONF_DIR}/advanced.config" "/etc/riak/advanced.config") \
-        $(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/etc/riak/cert.pem") \
-        $(mount_ro_volume "${SSLDIR}/mongooseim/key.pem" "/etc/riak/key.pem") \
-        $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/etc/riak/ca/cacertfile.pem") \
-        $(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
-        $(mount_ro_volume "$TOOLS/mam_search_schema.xml" "/mam_search_schema.xml") \
-        $(mount_ro_volume "$TOOLS/vcard_search_schema.xml" "/vcard_search_schema.xml") \
-        $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/riak) \
+        -e SCHEMA_READY_PORT=8999 \
+        -e OLD_ENTRYPOINT="/setup-riak.sh && /sbin/my_init --skip-startup-files" \
+        -e ENV_FILE_ADV_CFG_PATH="/etc/riak/advanced.config" \
+        -e ENV_FILE_ADV_CFG_DATA="$RIAK_ADV_CFG" \
+        -e ENV_FILE_SSL_CFG_PATH="/riak.conf.ssl" \
+        -e ENV_FILE_SSL_CFG_DATA="$RIAK_SSL_CFG" \
+        -e ENV_FILE_CERT_PATH="/etc/riak/cert.pem" \
+        -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+        -e ENV_FILE_KEY_PATH="/etc/riak/key.pem" \
+        -e ENV_FILE_KEY_DATA="$MIM_KEY" \
+        -e ENV_FILE_CACERT_PATH="/etc/riak/ca/cacertfile.pem" \
+        -e ENV_FILE_CACERT_DATA="$CACERT" \
+        -e ENV_FILE_SETUP_PATH="/setup_riak.escript" \
+        -e ENV_FILE_SETUP_DATA="$RIAK_SETUP" \
+        -e ENV_FILE_MAM_SCHEMA_PATH="/mam_search_schema.xml" \
+        -e ENV_FILE_MAM_SCHEMA_DATA="$RIAK_MAM_SEARCH_SCHEMA" \
+        -e ENV_FILE_VCARD_SCHEMA_PATH="/vcard_search_schema.xml" \
+        -e ENV_FILE_VCARD_SCHEMA_DATA="$RIAK_VCARD_SEARCH_SCHEMA" \
+        -e ENV_FILE_SETUP_SH_PATH="/setup-riak.sh" \
+        -e ENV_FILE_SETUP_SH_DATA="$RIAK_SETUP_SH" \
+        -e ENV_FILE_SETUP_SH_MODE=755 \
+        -e BASE32DEC="$PYTHON3_BASE32_DEC" \
         --health-cmd='riak-admin status' \
-        "michalwski/docker-riak:1.0.6" \
-        /sbin/my_init --skip-startup-files
-    # Use a temporary file to store config
-    TEMP_RIAK_CONF=$(mktemp)
-    # Export config from a container
-    docker cp "$NAME:/etc/riak/riak.conf" "$TEMP_RIAK_CONF"
-    # Enable search
-    $SED -i "s/^search = \(.*\)/search = on/" "$TEMP_RIAK_CONF"
-    # Solr is sloow on CI
-    $SED -i "s/^search.solr.start_timeout = \(.*\)/search.solr.start_timeout = 2m/" "$TEMP_RIAK_CONF"
-    # Enable ssl by appending settings from riak.conf.ssl
-    cat "${DB_CONF_DIR}/riak.conf.ssl" >> "$TEMP_RIAK_CONF"
-    # Import config back into container
-    docker cp "$TEMP_RIAK_CONF" "$NAME:/etc/riak/riak.conf"
-    # Erase temporary config file
-    rm "$TEMP_RIAK_CONF"
-    docker start $NAME
-    echo "Waiting for docker healthcheck"
-    echo ""
-    tools/wait_for_healthcheck.sh $NAME
-    echo "Waiting for a listener to appear"
-    tools/wait_for_service.sh $NAME 8098
-    time docker exec -e RIAK_PORT="$RIAK_PORT" $NAME riak escript /setup_riak.escript
-    tools/wait_for_service.sh $NAME 8087
-    # Use this command to read Riak's logs if something goes wrong
-    # docker exec -t $NAME bash -c 'tail -f /var/log/riak/*'
-
-    # Wait for solr
-    for i in {1..30}; do
-        if riak_solr_is_up $NAME; then
-             break
-        fi
-        echo -n "."
-        sleep 1
-    done
+        --name=$NAME \
+        --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
+    echo "Wait for solr"
+    tools/circle-wait-for-solr.sh
 
 elif [ "$db" = 'cassandra' ]; then
     NAME=$(db_name cassandra)
     PROXY_NAME=$(db_name cassandra-proxy)
     CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
     CASSANDRA_PORT=${CASSANDRA_PORT:-9142}
-    docker rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
+    $DOCKER rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
 
-    MIM_SCHEMA=$(pwd)/priv/cassandra.cql
-    TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
     SCHEMA_READY_PORT=9242
 
-    docker run -d                                \
-               -e MAX_HEAP_SIZE=128M             \
-               -e HEAP_NEWSIZE=64M               \
+    CASSA_PROXY_CNF=$(cat32 tools/db_configs/cassandra/proxy/zazkia-routes.json)
+    CASSA_ENTRY=$(cat32 tools/db_configs/cassandra/docker_entry.sh)
+    CASSA_MIM_CQL_ENTRY=$(cat32 priv/cassandra.cql)
+    CASSA_TEST_CQL_ENTRY=$(cat32 big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql)
+    CASSA_PROXY_REPLACE_IP=$(cat32 tools/db_configs/cassandra/proxy/replace-ip.sh)
+    MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
+    MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
+    CACERT=$(cat32 tools/ssl/ca/cacert.pem)
+
+    IMAGE=cassandra:${CASSANDRA_VERSION}
+    $DOCKER run -d \
                -e SCHEMA_READY_PORT=$SCHEMA_READY_PORT \
-               $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/ssl/ca/cacert.pem") \
-               $(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/ssl/mongooseim/cert.pem") \
-               $(mount_ro_volume "${SSLDIR}/mongooseim/privkey.pem" "/ssl/mongooseim/privkey.pem") \
-               $(mount_ro_volume "${DB_CONF_DIR}/docker_entry.sh" "/entry.sh") \
-               $(mount_ro_volume "$MIM_SCHEMA" "/schemas/mim.cql") \
-               $(mount_ro_volume "$TEST_SCHEMA" "/schemas/test.cql") \
-               $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/cassandra) \
+               -e HEAP_NEWSIZE=64M \
+               -e MAX_HEAP_SIZE=128M \
+               -e OLD_ENTRYPOINT="/entry.sh" \
+               -e ENV_FILE_CERT_PATH="/ssl/mongooseim/cert.pem" \
+               -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+               -e ENV_FILE_KEY_PATH="/ssl/mongooseim/privkey.pem" \
+               -e ENV_FILE_KEY_DATA="$MIM_KEY" \
+               -e ENV_FILE_CACERT_PATH="/ssl/ca/cacert.pem" \
+               -e ENV_FILE_CACERT_DATA="$CACERT" \
+               -e ENV_FILE_CASSA_ENTRY_PATH="/entry.sh" \
+               -e ENV_FILE_CASSA_ENTRY_DATA="$CASSA_ENTRY" \
+               -e ENV_FILE_CASSA_ENTRY_MODE=755 \
+               -e ENV_FILE_CASSA_MIM_CQL_PATH="/schemas/mim.cql" \
+               -e ENV_FILE_CASSA_MIM_CQL_DATA="$CASSA_MIM_CQL_ENTRY" \
+               -e ENV_FILE_CASSA_TEST_CQL_PATH="/schemas/test.cql" \
+               -e ENV_FILE_CASSA_TEST_CQL_DATA="$CASSA_TEST_CQL_ENTRY" \
+               -e BASE32DEC="$PYTHON2_BASE32_DEC" \
                --name=$NAME \
-               --entrypoint "/entry.sh" \
-               cassandra:${CASSANDRA_VERSION}
-    tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
+               --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
+    tools/wait_for_service.sh $NAME 9200 || $DOCKER logs $NAME
 
     # Start TCP proxy on 9142 port, instead of the default 9042
-    CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
+    CASSANDRA_IP=$($DOCKER inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
-    cp ${DB_CONF_DIR}/proxy/zazkia-routes.json "$SQL_TEMP_DIR/"
-    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" "$SQL_TEMP_DIR/zazkia-routes.json"
-    docker run -d                               \
-               -p $CASSANDRA_PORT:9142                   \
-               -p $CASSANDRA_PROXY_API_PORT:9191         \
-               $(mount_ro_volume "$SQL_TEMP_DIR" /data)  \
+
+    IMAGE2=emicklei/zazkia
+    $DOCKER run -d \
+               -p $CASSANDRA_PORT:9142 \
+               -p $CASSANDRA_PROXY_API_PORT:9191 \
+               -e CASSANDRA_IP="$CASSANDRA_IP" \
+               -e OLD_ENTRYPOINT="/replace-ip.sh && ./zazkia -v -f /data/zazkia-routes.json" \
+               -e ENV_FILE_REPLACE_IP_PATH="/replace-ip.sh" \
+               -e ENV_FILE_REPLACE_IP_DATA="$CASSA_PROXY_REPLACE_IP" \
+               -e ENV_FILE_REPLACE_IP_MODE=755 \
+               -e ENV_FILE_CFG_PATH="/data/zazkia-routes.json" \
+               -e ENV_FILE_CFG_DATA="$CASSA_PROXY_CNF" \
+               -e INSTALL_DEPS_CMD="apk update && apk add bash coreutils" \
                --name=$PROXY_NAME \
-               emicklei/zazkia
-    tools/wait_for_service.sh $PROXY_NAME 9142 || docker logs $PROXY_NAME
+               --entrypoint=/bin/sh $IMAGE2 -c "$ENTRYPOINT"
+    tools/wait_for_service.sh $PROXY_NAME 9142 || $DOCKER logs $PROXY_NAME
     # Wait for ready schema
-    tools/wait_for_service.sh $NAME $SCHEMA_READY_PORT || docker logs $NAME
+    tools/wait_for_service.sh $NAME $SCHEMA_READY_PORT || $DOCKER logs $NAME
     echo "Cassandra setup done"
 
 elif [ "$db" = 'elasticsearch' ]; then
@@ -216,11 +242,11 @@ elif [ "$db" = 'elasticsearch' ]; then
     NAME=$(db_name elasticsearch)
 
     echo $ELASTICSEARCH_IMAGE
-    docker image pull $ELASTICSEARCH_IMAGE
-    docker rm -v -f $NAME || echo "Skip removing previous container"
+    $DOCKER image pull $ELASTICSEARCH_IMAGE
+    $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
 
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
-    docker run -d $RM_FLAG \
+    $DOCKER run -d \
            -p $ELASTICSEARCH_PORT:9200 \
            -e ES_JAVA_OPTS="-Xms750m -Xmx750m" \
            -e "http.host=0.0.0.0" \
@@ -229,7 +255,7 @@ elif [ "$db" = 'elasticsearch' ]; then
            --name $NAME \
            $ELASTICSEARCH_IMAGE
     echo "Waiting for ElasticSearch to start listening on port"
-    tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
+    tools/wait_for_service.sh $NAME 9200 || $DOCKER logs $NAME
 
     ELASTICSEARCH_PORT=$ELASTICSEARCH_PORT ./tools/setup-elasticsearch.sh
 
@@ -257,8 +283,7 @@ elif [ "$db" = 'mssql' ]; then
     # > a third party the results of any benchmark test of the software.
 
     # SCRIPTING STUFF
-    docker rm -v -f $NAME || echo "Skip removing previous container"
-    docker volume rm -f $NAME-data || echo "Skip removing previous volume"
+    $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
     #
     # MSSQL wants secure passwords
     # i.e. just "mongooseim_secret" would not work.
@@ -277,22 +302,28 @@ elif [ "$db" = 'mssql' ]; then
     #
     # Otherwise we get an error in logs
     # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
-    docker run -d -p $MSSQL_PORT:1433                           \
-               --user root                                      \
-               --name=$NAME                                     \
-               -e "ACCEPT_EULA=Y"                               \
-               -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
-               -e "DB_NAME=ejabberd"                            \
-               -e "SQL_FILE=/tmp/mongoose.sql"                  \
-               $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/tmp/mongoose.sql")  \
-               $(mount_ro_volume "$(pwd)/tools/docker-setup-mssql.sh" "/tmp/docker-setup-mssql.sh")  \
-               $(data_on_volume -v ${SQL_DATA_DIR}:/var/opt/mssql) \
-               $(data_on_volume -v $NAME-data:/var/opt/mssql/data) \
+    MSSQL_SQL=$(cat32 priv/mssql2012.sql)
+    MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
+    IMAGE=mcr.microsoft.com/mssql/server
+    $DOCKER run -d -p $MSSQL_PORT:1433 \
+               --user root \
+               --name=$NAME \
+               -e "ACCEPT_EULA=Y" \
+               -e "SA_PASSWORD=mongooseim_secret+ESL123" \
+               -e "DB_NAME=ejabberd" \
+               -e "SQL_FILE=/tmp/mongoose.sql" \
+               -e SCHEMA_READY_PORT=1434 \
+               -e SQL_FILE="/tmp/mongoose.sql" \
+               -e OLD_ENTRYPOINT='{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr' \
+               -e ENV_FILE_SQL_PATH="/tmp/mongoose.sql" \
+               -e ENV_FILE_SQL_DATA="$MSSQL_SQL" \
+               -e ENV_FILE_SH_PATH="/tmp/docker-setup-mssql.sh" \
+               -e ENV_FILE_SH_DATA="$MSSQL_SETUP" \
+               -e ENV_FILE_SH_MODE=755 \
                --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
-               mcr.microsoft.com/mssql/server
+               --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
-    docker exec $NAME /tmp/docker-setup-mssql.sh
 
     MSSQL_PORT=$MSSQL_PORT tools/install_odbc_ini.sh
 

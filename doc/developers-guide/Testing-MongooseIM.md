@@ -6,7 +6,15 @@ The test runner script is used to compile MongooseIM and run tests.
 
 ### Docker
 
-Docker must be installed on the local system, and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
+Docker could be installed on the local system, and the user executing the tests must have privileges to start new containers (usually achieved by adding the user to the `docker` group).
+
+Alternatively, you can use Podman. Here is how to install it on Mac:
+
+```bash
+brew install podman
+podman machine init
+podman machine start
+```
 
 ### FreeTDS for MSSQL connectivity
 
