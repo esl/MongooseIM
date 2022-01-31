@@ -4,6 +4,7 @@
 
 -export([execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
 -export([init_admin_handler/1]).
+-export([get_ok_value/2, get_err_msg/1]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -60,7 +61,24 @@ get_listener_opts(EpName) ->
         end, Modules),
     Opts2.
 
+-spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
+get_err_msg(Resp) ->
+    get_ok_value([errors, message], Resp).
+
+-spec get_ok_value([atom()], {tuple(), map()}) -> binary().
+get_ok_value([errors | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}}) ->
+    get_value(Path, Error);
+get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
+    get_value(Path, Data).
+
 %% Internal
+
+% Gets a nested value given a path
+get_value([], Data) -> Data;
+get_value([Field | Fields], Data) ->
+    BinField = atom_to_binary(Field),
+    Data2 = maps:get(BinField, Data),
+    get_value(Fields, Data2).
 
 is_graphql_config(#{module := ejabberd_cowboy, modules := Modules}, EpName) ->
     lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->

@@ -6,7 +6,7 @@
 
 -include("../mongoose_graphql_types.hrl").
 
--import(mongoose_graphql_account_helper, [format_result/2, make_error/3]).
+-import(mongoose_graphql_helper, [format_result/2, make_error/3]).
 
 execute(_Ctx, _Obj, <<"listUsers">>, Args) ->
     list_users(Args);
