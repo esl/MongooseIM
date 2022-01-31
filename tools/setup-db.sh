@@ -44,7 +44,8 @@ if [ "$db" = 'mysql' ]; then
     MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
     MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
     IMAGE=mysql:$MYSQL_VERSION
-    $DOCKER run -d \
+    $DOCKER run -d --name=$NAME \
+        -p $MYSQL_PORT:3306 \
         -e SQL_TEMP_DIR=/tmp/sql \
         -e MYSQL_ROOT_PASSWORD=secret \
         -e MYSQL_DATABASE=ejabberd \
@@ -62,7 +63,6 @@ if [ "$db" = 'mysql' ]; then
         -e ENV_FILE_KEY_PATH="/tmp/sql/fake_key.pem" \
         -e ENV_FILE_KEY_DATA="$MIM_KEY" \
         --health-cmd='mysqladmin ping --silent' \
-        -p $MYSQL_PORT:3306 --name=$NAME \
         --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_healthcheck.sh $NAME
 
@@ -83,7 +83,8 @@ elif [ "$db" = 'pgsql' ]; then
     MIM_CERT=$(cat32 tools/ssl/mongooseim/cert.pem)
     MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
     IMAGE=postgres:$PGSQL_VERSION
-    $DOCKER run -d \
+    $DOCKER run -d --name=$NAME \
+           -p $PGSQL_PORT:5432 \
            -e SQL_TEMP_DIR=/tmp/sql \
            -e POSTGRES_PASSWORD=password \
            -e OLD_ENTRYPOINT="docker-entrypoint.sh postgres" \
@@ -99,7 +100,6 @@ elif [ "$db" = 'pgsql' ]; then
            -e ENV_FILE_CERT_DATA="$MIM_CERT" \
            -e ENV_FILE_KEY_PATH="/tmp/sql/fake_key.pem" \
            -e ENV_FILE_KEY_DATA="$MIM_KEY" \
-           -p $PGSQL_PORT:5432 --name=$NAME \
            --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
@@ -121,7 +121,8 @@ elif [ "$db" = 'riak' ]; then
     MIM_KEY=$(cat32 tools/ssl/mongooseim/key.pem)
     CACERT=$(cat32 tools/ssl/ca/cacert.pem)
     IMAGE="michalwski/docker-riak:1.0.6"
-    time $DOCKER run -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 -p 8999:8999 -p 8093:8093 -d \
+    $DOCKER run -d --name=$NAME \
+        -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 -p 8999:8999 -p 8093:8093 \
         -e DOCKER_RIAK_BACKEND=memory \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
         -e SCHEMA_READY_PORT=8999 \
@@ -147,7 +148,6 @@ elif [ "$db" = 'riak' ]; then
         -e ENV_FILE_SETUP_SH_MODE=755 \
         -e BASE32DEC="$PYTHON3_BASE32_DEC" \
         --health-cmd='riak-admin status' \
-        --name=$NAME \
         --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     echo "Wait for solr"
     tools/circle-wait-for-solr.sh
@@ -171,27 +171,26 @@ elif [ "$db" = 'cassandra' ]; then
     CACERT=$(cat32 tools/ssl/ca/cacert.pem)
 
     IMAGE=cassandra:${CASSANDRA_VERSION}
-    $DOCKER run -d \
-               -e SCHEMA_READY_PORT=$SCHEMA_READY_PORT \
-               -e HEAP_NEWSIZE=64M \
-               -e MAX_HEAP_SIZE=128M \
-               -e OLD_ENTRYPOINT="/entry.sh" \
-               -e ENV_FILE_CERT_PATH="/ssl/mongooseim/cert.pem" \
-               -e ENV_FILE_CERT_DATA="$MIM_CERT" \
-               -e ENV_FILE_KEY_PATH="/ssl/mongooseim/privkey.pem" \
-               -e ENV_FILE_KEY_DATA="$MIM_KEY" \
-               -e ENV_FILE_CACERT_PATH="/ssl/ca/cacert.pem" \
-               -e ENV_FILE_CACERT_DATA="$CACERT" \
-               -e ENV_FILE_CASSA_ENTRY_PATH="/entry.sh" \
-               -e ENV_FILE_CASSA_ENTRY_DATA="$CASSA_ENTRY" \
-               -e ENV_FILE_CASSA_ENTRY_MODE=755 \
-               -e ENV_FILE_CASSA_MIM_CQL_PATH="/schemas/mim.cql" \
-               -e ENV_FILE_CASSA_MIM_CQL_DATA="$CASSA_MIM_CQL_ENTRY" \
-               -e ENV_FILE_CASSA_TEST_CQL_PATH="/schemas/test.cql" \
-               -e ENV_FILE_CASSA_TEST_CQL_DATA="$CASSA_TEST_CQL_ENTRY" \
-               -e BASE32DEC="$PYTHON2_BASE32_DEC" \
-               --name=$NAME \
-               --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
+    $DOCKER run -d --name=$NAME \
+        -e SCHEMA_READY_PORT=$SCHEMA_READY_PORT \
+        -e HEAP_NEWSIZE=64M \
+        -e MAX_HEAP_SIZE=128M \
+        -e OLD_ENTRYPOINT="/entry.sh" \
+        -e ENV_FILE_CERT_PATH="/ssl/mongooseim/cert.pem" \
+        -e ENV_FILE_CERT_DATA="$MIM_CERT" \
+        -e ENV_FILE_KEY_PATH="/ssl/mongooseim/privkey.pem" \
+        -e ENV_FILE_KEY_DATA="$MIM_KEY" \
+        -e ENV_FILE_CACERT_PATH="/ssl/ca/cacert.pem" \
+        -e ENV_FILE_CACERT_DATA="$CACERT" \
+        -e ENV_FILE_CASSA_ENTRY_PATH="/entry.sh" \
+        -e ENV_FILE_CASSA_ENTRY_DATA="$CASSA_ENTRY" \
+        -e ENV_FILE_CASSA_ENTRY_MODE=755 \
+        -e ENV_FILE_CASSA_MIM_CQL_PATH="/schemas/mim.cql" \
+        -e ENV_FILE_CASSA_MIM_CQL_DATA="$CASSA_MIM_CQL_ENTRY" \
+        -e ENV_FILE_CASSA_TEST_CQL_PATH="/schemas/test.cql" \
+        -e ENV_FILE_CASSA_TEST_CQL_DATA="$CASSA_TEST_CQL_ENTRY" \
+        -e BASE32DEC="$PYTHON2_BASE32_DEC" \
+        --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_service.sh $NAME 9200 || $DOCKER logs $NAME
 
     # Start TCP proxy on 9142 port, instead of the default 9042
@@ -199,19 +198,20 @@ elif [ "$db" = 'cassandra' ]; then
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
 
     IMAGE2=emicklei/zazkia
-    $DOCKER run -d \
-               -p $CASSANDRA_PORT:9142 \
-               -p $CASSANDRA_PROXY_API_PORT:9191 \
-               -e CASSANDRA_IP="$CASSANDRA_IP" \
-               -e OLD_ENTRYPOINT="/replace-ip.sh && ./zazkia -v -f /data/zazkia-routes.json" \
-               -e ENV_FILE_REPLACE_IP_PATH="/replace-ip.sh" \
-               -e ENV_FILE_REPLACE_IP_DATA="$CASSA_PROXY_REPLACE_IP" \
-               -e ENV_FILE_REPLACE_IP_MODE=755 \
-               -e ENV_FILE_CFG_PATH="/data/zazkia-routes.json" \
-               -e ENV_FILE_CFG_DATA="$CASSA_PROXY_CNF" \
-               -e INSTALL_DEPS_CMD="apk update && apk add bash coreutils" \
-               --name=$PROXY_NAME \
-               --entrypoint=/bin/sh $IMAGE2 -c "$ENTRYPOINT"
+    # Circle CI version of this container does not need replace-ip.sh
+    # (so, it does not define ENV_FILE_REPLACE_IP_PATH)
+    $DOCKER run -d --name=$PROXY_NAME \
+        -p $CASSANDRA_PORT:9142 \
+        -p $CASSANDRA_PROXY_API_PORT:9191 \
+        -e CASSANDRA_IP="$CASSANDRA_IP" \
+        -e OLD_ENTRYPOINT="/replace-ip.sh && ./zazkia -v -f /data/zazkia-routes.json" \
+        -e ENV_FILE_REPLACE_IP_PATH="/replace-ip.sh" \
+        -e ENV_FILE_REPLACE_IP_DATA="$CASSA_PROXY_REPLACE_IP" \
+        -e ENV_FILE_REPLACE_IP_MODE=755 \
+        -e ENV_FILE_CFG_PATH="/data/zazkia-routes.json" \
+        -e ENV_FILE_CFG_DATA="$CASSA_PROXY_CNF" \
+        -e INSTALL_DEPS_CMD="apk update && apk add bash coreutils" \
+        --entrypoint=/bin/sh $IMAGE2 -c "$ENTRYPOINT"
     tools/wait_for_service.sh $PROXY_NAME 9142 || $DOCKER logs $PROXY_NAME
     # Wait for ready schema
     tools/wait_for_service.sh $NAME $SCHEMA_READY_PORT || $DOCKER logs $NAME
@@ -221,20 +221,16 @@ elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
     ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
     NAME=$(db_name elasticsearch)
-
-    echo $ELASTICSEARCH_IMAGE
-    $DOCKER image pull $ELASTICSEARCH_IMAGE
     $DOCKER rm -v -f $NAME || echo "Skip removing previous container"
 
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
-    $DOCKER run -d \
-           -p $ELASTICSEARCH_PORT:9200 \
-           -e ES_JAVA_OPTS="-Xms750m -Xmx750m" \
-           -e "http.host=0.0.0.0" \
-           -e "transport.host=127.0.0.1" \
-           -e "xpack.security.enabled=false" \
-           --name $NAME \
-           $ELASTICSEARCH_IMAGE
+    $DOCKER run -d --name $NAME \
+        -p $ELASTICSEARCH_PORT:9200 \
+        -e ES_JAVA_OPTS="-Xms750m -Xmx750m" \
+        -e "http.host=0.0.0.0" \
+        -e "transport.host=127.0.0.1" \
+        -e "xpack.security.enabled=false" \
+        $ELASTICSEARCH_IMAGE
     echo "Waiting for ElasticSearch to start listening on port"
     tools/wait_for_service.sh $NAME 9200 || $DOCKER logs $NAME
 
@@ -286,23 +282,23 @@ elif [ "$db" = 'mssql' ]; then
     MSSQL_SQL=$(cat32 priv/mssql2012.sql)
     MSSQL_SETUP=$(cat32 tools/docker-setup-mssql.sh)
     IMAGE=mcr.microsoft.com/mssql/server
-    $DOCKER run -d -p $MSSQL_PORT:1433 \
-               --user root \
-               --name=$NAME \
-               -e "ACCEPT_EULA=Y" \
-               -e "SA_PASSWORD=mongooseim_secret+ESL123" \
-               -e "DB_NAME=ejabberd" \
-               -e "SQL_FILE=/tmp/mongoose.sql" \
-               -e SCHEMA_READY_PORT=1434 \
-               -e SQL_FILE="/tmp/mongoose.sql" \
-               -e OLD_ENTRYPOINT='{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr' \
-               -e ENV_FILE_SQL_PATH="/tmp/mongoose.sql" \
-               -e ENV_FILE_SQL_DATA="$MSSQL_SQL" \
-               -e ENV_FILE_SH_PATH="/tmp/docker-setup-mssql.sh" \
-               -e ENV_FILE_SH_DATA="$MSSQL_SETUP" \
-               -e ENV_FILE_SH_MODE=755 \
-               --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
-               --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
+    $DOCKER run -d --name=$NAME \
+        -p $MSSQL_PORT:1433 \
+        --user root \
+        -e "ACCEPT_EULA=Y" \
+        -e "SA_PASSWORD=mongooseim_secret+ESL123" \
+        -e "DB_NAME=ejabberd" \
+        -e "SQL_FILE=/tmp/mongoose.sql" \
+        -e SCHEMA_READY_PORT=1434 \
+        -e SQL_FILE="/tmp/mongoose.sql" \
+        -e OLD_ENTRYPOINT='{ /tmp/docker-setup-mssql.sh& } && /opt/mssql/bin/sqlservr' \
+        -e ENV_FILE_SQL_PATH="/tmp/mongoose.sql" \
+        -e ENV_FILE_SQL_DATA="$MSSQL_SQL" \
+        -e ENV_FILE_SH_PATH="/tmp/docker-setup-mssql.sh" \
+        -e ENV_FILE_SH_DATA="$MSSQL_SETUP" \
+        -e ENV_FILE_SH_MODE=755 \
+        --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
+        --entrypoint=/bin/sh $IMAGE -c "$ENTRYPOINT"
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
 
