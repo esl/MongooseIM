@@ -419,7 +419,7 @@ connect_and_disconnect(Spec) ->
     escalus_connection:stop(Client).
 
 does_cached_user_exist(Config, User) ->
-    Jid = #jid{server = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
+    Jid = #jid{lserver = Domain} = jid:from_binary(escalus_users:get_jid(Config, User)),
     HostType = domain_to_host_type(mim(), Domain),
     rpc(mim(), mod_cache_users, does_cached_user_exist, [false, HostType, Jid, stored]).
 

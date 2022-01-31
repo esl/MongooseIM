@@ -356,8 +356,7 @@ encode_iq({set, #create{} = Create, UniqueRequested},
     %% IQ reply "from"
     %% Sent from service JID when unique room was requested
     {ResFromJID, ResFromBin} = case UniqueRequested of
-                                   true -> {#jid{ server = RoomJID#jid.lserver,
-                                                  lserver = RoomJID#jid.lserver },
+                                   true -> {#jid{lserver = RoomJID#jid.lserver},
                                             RoomJID#jid.lserver};
                                    false -> {RoomJID, RoomBin}
                                end,

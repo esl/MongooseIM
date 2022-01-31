@@ -402,7 +402,7 @@ build_filename_string(TimeStamp, OutDir, RoomJID, DirType, DirName, FileFormat) 
 -spec get_room_name(jid:literal_jid()) -> mod_muc:room().
 get_room_name(RoomJID) ->
     JID = jid:from_binary(RoomJID),
-    JID#jid.user.
+    JID#jid.luser.
 
 
 %% @doc calculate day before

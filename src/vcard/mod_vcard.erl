@@ -409,8 +409,8 @@ process_sm_iq(Acc, From, To, IQ = #iq{type = get, sub_el = VCARD}, _Extra) ->
     process_sm_iq_get(HostType, From, To, Acc, IQ, VCARD).
 
 process_sm_iq_set(HostType, From, To, Acc, IQ, VCARD) ->
-    #jid{user = FromUser, lserver = FromVHost} = From,
-    #jid{user = ToUser, lserver = ToVHost, resource = ToResource} = To,
+    #jid{luser = FromUser, lserver = FromVHost} = From,
+    #jid{luser = ToUser, lserver = ToVHost, lresource = ToResource} = To,
     Local = ((FromUser == ToUser) andalso (FromVHost == ToVHost) andalso (ToResource == <<>>))
             orelse ((ToUser == <<>>) andalso (ToVHost == <<>>)),
     Res = case Local of
@@ -456,7 +456,7 @@ process_sm_iq_get(HostType, _From, To, Acc, IQ, SubEl) ->
     {Acc, Res}.
 
 unsafe_set_vcard(HostType, From, VCARD) ->
-    #jid{user = FromUser, lserver = FromVHost} = From,
+    #jid{luser = FromUser, lserver = FromVHost} = From,
     case parse_vcard(FromUser, FromVHost, VCARD) of
         {ok, VcardSearch} ->
             mod_vcard_backend:set_vcard(HostType, FromUser, FromVHost, VCARD, VcardSearch);
@@ -506,8 +506,8 @@ remove_user(Acc, User, Server) ->
 %% Internal
 %% ------------------------------------------------------------------
 do_route(_HostType, _LServer, From,
-         #jid{user = User, resource = Resource} = To, Acc, _IQ)
-  when (User /= <<>>) or (Resource /= <<>>) ->
+         #jid{luser = LUser, lresource = LResource} = To, Acc, _IQ)
+  when (LUser /= <<>>) or (LResource /= <<>>) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc1, Err);
 do_route(HostType, LServer, From, To, Acc,
@@ -744,7 +744,7 @@ search_result_get_jid(#xmlel{name = <<"item">>,
             undefined
     end.
 
-parse_vcard(User, VHost, VCARD) ->
+parse_vcard(LUser, VHost, VCARD) ->
     FN       = xml:get_path_s(VCARD, [{elem, <<"FN">>}, cdata]),
     Family   = xml:get_path_s(VCARD, [{elem, <<"N">>},
                                       {elem, <<"FAMILY">>}, cdata]),
@@ -770,7 +770,6 @@ parse_vcard(User, VHost, VCARD) ->
                 _ -> EMail1
             end,
     try
-        LUser     = jid:nodeprep(User),
         LFN       = prepare_index(<<"FN">>, FN),
         LFamily   = prepare_index(<<"FAMILY">>, Family),
         LGiven    = prepare_index(<<"GIVEN">>, Given),
@@ -786,7 +785,7 @@ parse_vcard(User, VHost, VCARD) ->
         US = {LUser, VHost},
 
         {ok, #vcard_search{us        = US,
-                           user      = {User, VHost},
+                           user      = {LUser, VHost},
                            luser     = LUser,
                            fn        = FN,       lfn        = LFN,
                            family    = Family,   lfamily    = LFamily,

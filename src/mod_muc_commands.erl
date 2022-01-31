@@ -120,7 +120,7 @@ create_instant_room(Domain, Name, Owner, Nick) ->
     %% the HTTP API, they will certainly recieve stanzas as a
     %% consequence, even if their client(s) did not initiate this.
     OwnerJID = jid:binary_to_bare(Owner),
-    BareRoomJID = #jid{server = MUCDomain} = room_jid(Domain, Name),
+    BareRoomJID = #jid{lserver = MUCDomain} = room_jid(Domain, Name),
     UserRoomJID = jid:make(Name, MUCDomain, Nick),
     %% Send presence to create a room.
     ejabberd_router:route(OwnerJID, UserRoomJID,

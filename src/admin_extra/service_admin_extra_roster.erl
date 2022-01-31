@@ -367,14 +367,14 @@ push_roster_item(JID, #jid{luser = U, lserver = S} = RemJID, Action) ->
         end, ejabberd_sm:get_user_resources(JID)).
 
 -spec build_roster_item(jid:jid(), push_action()) -> exml:element().
-build_roster_item(#jid{resource = <<>>} = JID, {add, Nick, Subs, Group}) ->
+build_roster_item(#jid{lresource = <<>>} = JID, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
        attrs = [{<<"jid">>, jid:to_binary(JID)},
                 {<<"name">>, Nick},
                 {<<"subscription">>, Subs}],
        children = [#xmlel{name = <<"group">>, children = [#xmlcdata{content = Group}]}]
       };
-build_roster_item(#jid{resource = <<>>} = JID, remove) ->
+build_roster_item(#jid{lresource = <<>>} = JID, remove) ->
     #xmlel{ name = <<"item">>,
        attrs = [{<<"jid">>, jid:to_binary(JID)},
                 {<<"subscription">>, <<"remove">>}]};
