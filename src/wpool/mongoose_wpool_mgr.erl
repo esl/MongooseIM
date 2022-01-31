@@ -130,15 +130,13 @@ handle_info({'DOWN', MRef, process, _Pid, Reason}, #state{monitors = Monitors} =
             NewState = restart_pool(Reason, Details, State#state{monitors = NewMonitors0}),
             {noreply, NewState}
     end;
-handle_info({restart, PoolKey}, #state{pools = Pools, monitors = Monitors} = State) ->
+handle_info({restart, PoolKey}, #state{pools = Pools} = State) ->
     case maps:get(PoolKey, Pools, undefined) of
         undefined -> %% The pool was stopped in the meantime, no need to restart it
             {noreply, State};
         Pool ->
             start_or_schedule_another_restart(PoolKey, Pool, State)
     end.
-
-
 
 terminate(_Reason, _State) ->
     ok.

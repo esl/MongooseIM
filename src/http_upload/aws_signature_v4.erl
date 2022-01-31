@@ -164,7 +164,7 @@ uri_encode_char(C, _) when C >= $a, C =< $z -> <<C>>;
 uri_encode_char(C, _) when C >= $0, C =< $9 -> <<C>>;
 uri_encode_char(C, _) when C == $_; C == $-; C == $~; C == $. -> <<C>>;
 uri_encode_char($/, false) -> <<$/>>;
-uri_encode_char(C, _) -> list_to_binary([$% | httpd_util:integer_to_hexlist(C)]).
+uri_encode_char(C, _) -> list_to_binary([$% | integer_to_list(C, 16)]).
 
 
 -spec hex(Data :: binary()) -> HexEncoded :: binary().

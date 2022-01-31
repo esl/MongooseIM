@@ -155,11 +155,11 @@ serialize(#token{token_body = Body, mac_signature = MAC}) ->
 -spec token_with_mac(mongooseim:host_type(), token()) -> token().
 token_with_mac(HostType, #token{mac_signature = undefined, token_body = undefined} = T) ->
     Body = join_fields(T),
-    MAC = keyed_hash(Body, user_hmac_opts(HostType, T#token.type)),
+    MAC = keyed_hash(Body, hmac_opts(HostType, T#token.type)),
     T#token{token_body = Body, mac_signature = MAC}.
 
--spec user_hmac_opts(mongooseim:host_type(), token_type()) -> [{any(), any()}].
-user_hmac_opts(HostType, TokenType) ->
+-spec hmac_opts(mongooseim:host_type(), token_type()) -> [{any(), any()}].
+hmac_opts(HostType, TokenType) ->
     lists:keystore(key, 1, hmac_opts(),
                    {key, get_key_for_host_type(HostType, TokenType)}).
 
@@ -263,9 +263,8 @@ validate_token(HostType, Token) ->
              end,
     {Criteria, Result}.
 
-is_mac_valid(HostType, #token{type = Type, user_jid = Owner,
-                    token_body = Body, mac_signature = ReceivedMAC}) ->
-    ComputedMAC = keyed_hash(Body, user_hmac_opts(HostType, Type)),
+is_mac_valid(HostType, #token{type = Type, token_body = Body, mac_signature = ReceivedMAC}) ->
+    ComputedMAC = keyed_hash(Body, hmac_opts(HostType, Type)),
     ReceivedMAC =:= ComputedMAC.
 
 is_not_expired(#token{expiry_datetime = Expiry}) ->
@@ -419,7 +418,7 @@ decode_token_type(<<"provision">>) ->
 -spec get_key_for_host_type(mongooseim:host_type(), token_type()) -> binary().
 get_key_for_host_type(HostType, TokenType) ->
     KeyName = key_name(TokenType),
-    [{{KeyName, UsersHost}, RawKey}] = mongoose_hooks:get_key(HostType, KeyName),
+    [{{KeyName, _UsersHost}, RawKey}] = mongoose_hooks:get_key(HostType, KeyName),
     RawKey.
 
 -spec key_name(token_type()) -> token_secret | provision_pre_shared.
