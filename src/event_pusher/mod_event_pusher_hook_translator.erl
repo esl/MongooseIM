@@ -48,18 +48,18 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 %% Hook callbacks
 %%--------------------------------------------------------------------
--type routing_data() :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 -spec filter_local_packet(drop) -> drop;
-                         (routing_data()) -> routing_data().
+                         (mongoose_hooks:filter_packet_acc()) -> mongoose_hooks:filter_packet_acc().
 filter_local_packet(drop) ->
     drop;
-filter_local_packet({From, To = #jid{lserver = Host}, Acc0, Packet}) ->
+filter_local_packet({From, To, Acc0, Packet}) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;
               Type ->
                   Event = #chat_event{type = Type, direction = out,
                                       from = From, to = To, packet = Packet},
-                  NewAcc = mod_event_pusher:push_event(Acc0, Host, Event),
+                  HostType = mongoose_acc:host_type(Acc0),
+                  NewAcc = mod_event_pusher:push_event(Acc0, HostType, Event),
                   merge_acc(Acc0, NewAcc)
           end,
     {From, To, Acc, Packet}.
