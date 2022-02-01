@@ -162,15 +162,14 @@ set_presence(JID, Type, Show, Status, Priority) ->
     Pid = ejabberd_sm:get_session_pid(JID),
     USR = jid:to_binary(JID),
     US = jid:to_binary(jid:to_bare(JID)),
+
+    Children = maybe_pres_status(Status,
+                                 maybe_pres_priority(Priority,
+                                                     maybe_pres_show(Show, []))),
     Message = {xmlstreamelement,
                #xmlel{ name = <<"presence">>,
-                      attrs = [{<<"from">>, USR}, {<<"to">>, US}, {<<"type">>, Type}],
-                      children = [#xmlel{ name = <<"show">>,
-                                          children = [#xmlcdata{content = Show}]},
-                                  #xmlel{ name = <<"status">>,
-                                          children = [#xmlcdata{content = Status}]},
-                                  #xmlel{ name = <<"priority">>,
-                                          children = [#xmlcdata{content = Priority}]}]}},
+                      attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
+                      children = Children}},
     ok = p1_fsm_old:send_event(Pid, Message),
     {ok, <<"Presence set successfully">>}.
 
@@ -228,3 +227,31 @@ format_user_info(#session{sid = {Microseconds, Pid}, usr = Usr,
     Uptime = (erlang:system_time(microsecond) - Microseconds) div 1000000,
     BinJID = jid:to_binary(Usr),
     {BinJID, Conn, IPS, Port, Priority, NodeS, Uptime}.
+
+-spec maybe_type_attr(binary())-> list().
+maybe_type_attr(<<"available">>) ->
+    [];
+maybe_type_attr(Type) ->
+    [{<<"type">>, Type}].
+
+-spec maybe_pres_show(binary(), list()) -> list().
+maybe_pres_show(Show, Children) when Show =:= <<>>;
+                                     Show =:= <<"online">> ->
+    Children;
+maybe_pres_show(Show, Children) ->
+    [#xmlel{name = <<"show">>,
+            children = [#xmlcdata{content = Show}]} | Children].
+
+-spec maybe_pres_priority(binary(), list()) -> list().
+maybe_pres_priority(<<>>, Children) ->
+    Children;
+maybe_pres_priority(Prio, Children) ->
+    [#xmlel{name = <<"priority">>,
+            children = [#xmlcdata{content = Prio}]} | Children].
+
+-spec maybe_pres_status(binary(), list()) -> list().
+maybe_pres_status(<<>>, Children) ->
+    Children;
+maybe_pres_status(Status, Children) ->
+    [#xmlel{name = <<"status">>,
+            children = [#xmlcdata{content = Status}]} | Children].

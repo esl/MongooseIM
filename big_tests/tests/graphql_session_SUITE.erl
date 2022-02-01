@@ -3,6 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -compile([export_all, nowarn_export_all]).
 
@@ -35,7 +36,9 @@ admin_session_handler() ->
      admin_list_status_users,
      admin_count_status_users,
      admin_kick_session,
-     admin_set_presence].
+     admin_set_presence,
+     admin_set_presence_away,
+     admin_set_presence_unavailable].
 
 init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
@@ -253,7 +256,7 @@ admin_set_presence_story(Config, Alice) ->
     Type = <<"AVAILABLE">>,
     Show = <<"ONLINE">>,
     Status = <<"Be right back">>,
-    Priority = 0,
+    Priority = 1,
     % Send short JID
     Res = execute_auth(set_presence_body(ShortJID, Type, Show, Status, Priority), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"resource is empty">>)),
@@ -262,9 +265,38 @@ admin_set_presence_story(Config, Alice) ->
     Res2 = execute_auth(set_presence_body(JID, Type, Show, Status, Priority), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res2), <<"set successfully">>)),
     Presence = escalus:wait_for_stanza(Alice),
-    escalus:assert(is_presence_with_show, [<<"online">>], Presence),
+    ?assertNot(escalus_pred:is_presence_with_show(<<"online">>, Presence)),
+    escalus:assert(is_presence_with_type, [<<"available">>], Presence),
     escalus:assert(is_presence_with_status, [Status], Presence),
-    escalus:assert(is_presence_with_priority, [<<"0">>], Presence).
+    escalus:assert(is_presence_with_priority, [<<"1">>], Presence).
+
+admin_set_presence_away(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_set_presence_away_story/2).
+
+admin_set_presence_away_story(Config, Alice) ->
+    JID = escalus_client:full_jid(Alice),
+    Type = <<"AVAILABLE">>,
+    Show = <<"AWAY">>,
+    Path = [data, session, setPresence, message],
+    Res2 = execute_auth(set_presence_body(JID, Type, Show, null, null), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res2), <<"set successfully">>)),
+    Presence = escalus:wait_for_stanza(Alice),
+    escalus:assert(is_presence_with_type, [<<"available">>], Presence),
+    escalus:assert(is_presence_with_show, [<<"away">>], Presence).
+
+admin_set_presence_unavailable(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_set_presence_unavailable_story/3).
+
+admin_set_presence_unavailable_story(Config, Alice, Alice2) ->
+    JID = escalus_client:full_jid(Alice),
+    Type = <<"UNAVAILABLE">>,
+    Status = <<"I'm sleeping">>,
+    Path = [data, session, setPresence, message],
+    Res2 = execute_auth(set_presence_body(JID, Type, null, Status, null), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(Path, Res2), <<"set successfully">>)),
+    Presence = escalus:wait_for_stanza(Alice2),
+    escalus:assert(is_presence_with_type, [<<"unavailable">>], Presence),
+    escalus:assert(is_presence_with_status, [Status], Presence).
 
 %% Helpers
 
@@ -336,7 +368,7 @@ kick_session_body(JID, Reason) ->
     #{query => Query, operationName => OpName, variables => Vars}.
 
 set_presence_body(JID, Type, Show, Status, Priority) ->
-    Query = <<"mutation M1($user: JID!, $type: PresenceType!, $show: PresenceShow!, $status: String!, $priority: Int!)
+    Query = <<"mutation M1($user: JID!, $type: PresenceType!, $show: PresenceShow, $status: String, $priority: Int)
               { session { setPresence(user: $user, type: $type, show: $show, status: $status, priority: $priority)
               { message jid } } }">>,
     OpName = <<"M1">>,

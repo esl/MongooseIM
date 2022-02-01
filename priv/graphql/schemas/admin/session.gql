@@ -25,7 +25,7 @@ type SessionAdminMutation @protected{
   "Kick a user session. User JID should contain resource"
   kickUser(user: JID!, reason: String!): SessionPayload
   "Set presence of a session. User JID should contain resource"
-  setPresence(user: JID!, type: PresenceType!, show: PresenceShow!, status: String!, priority: Int!): SessionPayload
+  setPresence(user: JID!, type: PresenceType!, show: PresenceShow, status: String, priority: Int): SessionPayload
 }
 
 "Presence type field values"

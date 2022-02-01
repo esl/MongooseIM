@@ -18,15 +18,22 @@ kick_user(#{<<"user">> := JID, <<"reason">> := KickReason}) ->
     Result = mongoose_session_api:kick_session(JID, KickReason),
     format_session_payload(Result, JID).
 
--spec set_presence(map()) -> {ok, map()}.
+-spec set_presence(map()) -> {ok, map()} | {error, resolver_error()}.
 set_presence(#{<<"user">> := JID, <<"type">> := Type,
                <<"show">> := Show, <<"status">> := Status,
                <<"priority">> := Priority}) ->
-    PriorityBin = integer_to_binary(Priority),
-    Result = mongoose_session_api:set_presence(JID, Type, Show, Status, PriorityBin),
+    Show2 = null_to_empty(Show),
+    Status2 = null_to_empty(Status),
+    Priority2 = null_to_empty(Priority),
+    Result = mongoose_session_api:set_presence(JID, Type, Show2, Status2, Priority2),
     format_session_payload(Result, JID).
 
 %% Internal
+
+-spec null_to_empty(null | integer() | binary()) -> binary().
+null_to_empty(null) -> <<>>;
+null_to_empty(Int) when is_integer(Int)-> integer_to_binary(Int);
+null_to_empty(Bin) -> Bin.
 
 -spec format_session_payload({atom(), binary()}, jid:jid()) ->
     {ok, map()} | {error, resolver_error()}.
