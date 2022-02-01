@@ -446,3 +446,10 @@ Enables SNI extension to TLS protocol. If set to `true`, the `server_name_indica
 * **Example:** `tls.server_name_indication_host = "domain.com"`
 
 Domain against which the certificates will be checked, using SNI. It can be specified only when `server_name_indication` is set to `true`.
+
+### `outgoing_pools.*.*.connection.tls.server_name_indication_protocol`
+* **Syntax:** string, one of "default" or "https"
+* **Default:** "default"
+* **Example:** `tls.server_name_indication_protocol = "https"`
+
+See [https://www.erlang.org/doc/man/public_key.html#pkix_verify_hostname_match_fun-1] for an explanation. You'd usually want to set it to https for reasons described in [https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/ssl.html].

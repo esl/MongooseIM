@@ -720,8 +720,9 @@ tls_items() ->
                                validate = non_empty},
       <<"password">> => #option{type = string},
       <<"server_name_indication">> => #option{type = boolean},
-      <<"server_name_indication_host">> => #option{type = string,
-                                                   validate = non_empty},
+      <<"server_name_indication_host">> => #option{type = string, validate = non_empty},
+      <<"server_name_indication_protocol">> => #option{type = atom,
+                                                       validate = {enum, [default, https]}},
       <<"ciphers">> => #option{type = string},
       <<"versions">> => #list{items = #option{type = atom}}
      }.
@@ -1067,8 +1068,8 @@ process_xmpp_tls(KVs) ->
     end.
 
 tls_keys(just_tls) ->
-    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication,
-     server_name_indication_host, versions];
+    [verify_mode, disconnect_on_failure, crlfiles, password, versions,
+     server_name_indication, server_name_indication_host, server_name_indication_protocol];
 tls_keys(fast_tls) ->
     [protocol_options].
 
@@ -1239,15 +1240,23 @@ riak_ssl(Opts) -> [{ssl_opts, Opts}].
 process_tls_sni(KVs) ->
     % the SSL library expects either the atom `disable` or a string with the SNI host
     % as value for `server_name_indication`
-    SNIKeys = [server_name_indication, server_name_indication_host],
-    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, SNIKeys),
-    case {SNIOpt, SNIHostOpt} of
-        {[], []} ->
+    SNIKeys = [server_name_indication, server_name_indication_host, server_name_indication_protocol],
+    {[SNIOpt, SNIHostOpt, SNIProtocol], SSLOpts} = proplists:split(KVs, SNIKeys),
+    case {SNIOpt, SNIHostOpt, SNIProtocol} of
+        {[], [], []} ->
             SSLOpts;
-        {[{server_name_indication, false}], _} ->
-            [{server_name_indication, disable}] ++ SSLOpts;
-        {[{server_name_indication, true}], [{server_name_indication_host, SNIHost}]} ->
-            [{server_name_indication, SNIHost}] ++ SSLOpts
+        {[{server_name_indication, false}], _, _} ->
+            [{server_name_indication, disable} | SSLOpts];
+        {[{server_name_indication, true}],
+         [{server_name_indication_host, SNIHost}],
+         [{server_name_indication_protocol, https}]} ->
+            [{server_name_indication, SNIHost},
+             {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}
+             | SSLOpts];
+        {[{server_name_indication, true}],
+         [{server_name_indication_host, SNIHost}],
+         _} ->
+            [{server_name_indication, SNIHost} | SSLOpts]
     end.
 
 process_riak_credentials(KVs) ->
