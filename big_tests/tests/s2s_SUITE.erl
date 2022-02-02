@@ -10,7 +10,6 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
--include_lib("common_test/include/ct.hrl").
 
 %% Module aliases
 -define(dh, distributed_helper).
@@ -40,26 +39,25 @@ all() ->
     ].
 
 groups() ->
-    G = [{both_plain, [sequence], all_tests()},
-         {both_tls_optional, [], essentials()},
-         {both_tls_required, [], essentials()},
+    [{both_plain, [sequence], all_tests()},
+     {both_tls_optional, [], essentials()},
+     {both_tls_required, [], essentials()},
 
-         {node1_tls_optional_node2_tls_required, [], essentials()},
-         {node1_tls_required_node2_tls_optional, [], essentials()},
+     {node1_tls_optional_node2_tls_required, [], essentials()},
+     {node1_tls_required_node2_tls_optional, [], essentials()},
 
-         %% Node1 closes connection from nodes with invalid certs
-         {node1_tls_required_trusted_node2_tls_optional, [], negative()},
+     %% Node1 closes connection from nodes with invalid certs
+     {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
-         %% Node1 accepts connection provided the cert can be verified
-         {node1_tls_optional_node2_tls_required_trusted_with_cachain, [],
-          essentials() ++ connection_cases()},
+     %% Node1 accepts connection provided the cert can be verified
+     {node1_tls_optional_node2_tls_required_trusted_with_cachain, [parallel],
+      essentials() ++ connection_cases()},
 
-         {node1_tls_false_node2_tls_optional, [], essentials()},
-         {node1_tls_optional_node2_tls_false, [], essentials()},
+     {node1_tls_false_node2_tls_optional, [], essentials()},
+     {node1_tls_optional_node2_tls_false, [], essentials()},
 
-         {node1_tls_false_node2_tls_required, [], negative()},
-         {node1_tls_required_node2_tls_false, [], negative()}],
-    ct_helper:repeat_all_until_all_ok(G).
+     {node1_tls_false_node2_tls_required, [], negative()},
+     {node1_tls_required_node2_tls_false, [], negative()}].
 
 essentials() ->
     [simple_message].
@@ -72,6 +70,12 @@ negative() ->
 
 connection_cases() ->
     [successful_external_auth_with_valid_cert,
+     start_stream_fails_for_wrong_namespace,
+     start_stream_fails_for_wrong_version,
+     start_stream_fails_without_version,
+     start_stream_fails_without_host,
+     start_stream_fails_for_unknown_host,
+     starttls_fails_for_unknown_host,
      only_messages_from_authenticated_domain_users_are_accepted,
      auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert,
      auth_with_valid_cert_fails_for_other_mechanism_than_external].
@@ -220,33 +224,50 @@ nonascii_addr(Config) ->
     end).
 
 successful_external_auth_with_valid_cert(Config) ->
-    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
-    ConnectionArgs = [{host, "localhost"},
-                      {to_server, "fed1"},
-                      {from_server, "localhost_bis"},
-                      {requested_name, <<"localhost">>},
-                      {starttls, required},
-                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
-                      {ssl_opts, [{certfile, CertFile},
-                                  {keyfile, KeyFile}]}
-                     ],
+    ConnectionArgs = connection_args("localhost.bis", <<"localhost">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2,
                                                         fun s2s_external_auth/2]),
     escalus_connection:stop(Client).
 
+start_stream_fails_for_wrong_namespace(Config) ->
+    start_stream_fails(Config, <<"invalid-namespace">>,
+                       [fun s2s_start_stream_with_wrong_namespace/2]).
+
+start_stream_fails_for_wrong_version(Config) ->
+    %% TLS authentication requires version 1.0
+    start_stream_fails(Config, <<"invalid-xml">>,
+                       [fun s2s_start_stream_with_wrong_version/2]).
+
+start_stream_fails_without_version(Config) ->
+    %% TLS authentication requires version 1.0
+    start_stream_fails(Config, <<"invalid-xml">>,
+                       [fun s2s_start_stream_without_version/2]).
+
+start_stream_fails_without_host(Config) ->
+    start_stream_fails(Config, <<"improper-addressing">>,
+                       [fun s2s_start_stream_without_host/2]).
+
+start_stream_fails_for_unknown_host(Config) ->
+    start_stream_fails(Config, <<"host-unknown">>,
+                       [fun s2s_start_stream_to_wrong_host/2]).
+
+starttls_fails_for_unknown_host(Config) ->
+    start_stream_fails(Config, <<"host-unknown">>,
+                       [fun s2s_start_stream/2,
+                        fun s2s_starttls_to_wrong_host/2]).
+
+start_stream_fails(Config, ErrorType, ConnectionSteps) ->
+    ConnectionArgs = connection_args("localhost.bis", <<"localhost">>, Config),
+    {ok, Client, _} = escalus_connection:start(ConnectionArgs, ConnectionSteps),
+    [Start, Error, End] = escalus:wait_for_stanzas(Client, 3),
+    escalus:assert(is_stream_start, Start),
+    escalus:assert(is_stream_error, [ErrorType, <<>>], Error),
+    escalus:assert(is_stream_end, End).
+
 only_messages_from_authenticated_domain_users_are_accepted(Config) ->
-    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
-    ConnectionArgs = [{host, "localhost"},
-                      {to_server, "fed1"},
-                      {from_server, "localhost_bis"},
-                      {requested_name, <<"localhost">>},
-                      {starttls, required},
-                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
-                      {ssl_opts, [{certfile, CertFile},
-                                  {keyfile, KeyFile}]}
-                     ],
+    ConnectionArgs = connection_args("localhost.bis", <<"localhost">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2,
@@ -270,16 +291,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
     escalus_connection:stop(Client).
 
 auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
-    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
-    ConnectionArgs = [{host, "localhost"},
-                      {to_server, "fed1"},
-                      {from_server, "some_not_in_cert_domain"},
-                      {requested_name, <<"some_not_in_cert_domain">>},
-                      {starttls, required},
-                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
-                      {ssl_opts, [{certfile, CertFile},
-                                  {keyfile, KeyFile}]}
-                     ],
+    ConnectionArgs = connection_args("not_in_cert_domain", <<"not_in_cert_domain">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2]),
@@ -292,16 +304,7 @@ auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
     end.
 
 auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
-    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
-    ConnectionArgs = [{host, "localhost"},
-                      {to_server, "fed1"},
-                      {from_server, "localhost"},
-                      {requested_name, <<"localhost">>},
-                      {starttls, required},
-                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
-                      {ssl_opts, [{certfile, CertFile},
-                                  {keyfile, KeyFile}]}
-                     ],
+    ConnectionArgs = connection_args("localhost", <<"localhost">>, Config),
     {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
                                                        [fun s2s_start_stream/2,
                                                         fun s2s_starttls/2
@@ -313,6 +316,41 @@ auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
 
     escalus_connection:wait_for_close(Client, timer:seconds(5)).
 
+connection_args(FromServer, RequestedName, Config) ->
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
+    [{host, "localhost"},
+     {to_server, "fed1"},
+     {from_server, FromServer},
+     {requested_name, RequestedName},
+     {starttls, required},
+     {port, ct:get_config({hosts, fed, incoming_s2s_port})},
+     {ssl_opts, [{certfile, CertFile}, {keyfile, KeyFile}]}].
+
+s2s_start_stream_with_wrong_namespace(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"xmlns">> => <<"42">>} end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_with_wrong_version(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"version">> => <<"42">>} end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_without_version(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> maps:remove(<<"version">>, Attrs) end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_without_host(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> maps:remove(<<"to">>, Attrs) end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
+s2s_start_stream_to_wrong_host(Conn = #client{props = Props}, Features) ->
+    Start = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs#{<<"to">> => <<"42">>} end),
+    ok = escalus_connection:send(Conn, Start),
+    {Conn, Features}.
+
 s2s_start_stream(Conn = #client{props = Props}, []) ->
     StreamStartRep = s2s_start_stream_and_wait_for_response(Conn),
 
@@ -322,23 +360,21 @@ s2s_start_stream(Conn = #client{props = Props}, []) ->
     escalus_session:stream_features(Conn#client{props = [{sid, Id} | Props]}, []).
 
 s2s_start_stream_and_wait_for_response(Conn = #client{props = Props}) ->
-    {to_server, To} = lists:keyfind(to_server, 1, Props),
-    {from_server, From} = lists:keyfind(from_server, 1, Props),
-
-    StreamStart = s2s_stream_start_stanza(To, From),
+    StreamStart = s2s_stream_start_stanza(Props, fun(Attrs) -> Attrs end),
     ok = escalus_connection:send(Conn, StreamStart),
     escalus_connection:get_stanza(Conn, wait_for_stream).
 
-s2s_stream_start_stanza(To, From) ->
-    Attrs = [{<<"to">>, To},
-             {<<"from">>, From},
-             {<<"xmlns">>, <<"jabber:server">>},
-             {<<"xmlns:stream">>,
-              <<"http://etherx.jabber.org/streams">>},
-             {<<"version">>, <<"1.0">>}],
-    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
+s2s_stream_start_stanza(Props, F) ->
+    Attrs = (stream_start_attrs())#{<<"to">> => proplists:get_value(to_server, Props),
+                                    <<"from">> => proplists:get_value(from_server, Props)},
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = maps:to_list(F(Attrs))}.
 
-s2s_starttls(Client, Features) ->
+stream_start_attrs() ->
+    #{<<"xmlns">> => <<"jabber:server">>,
+      <<"xmlns:stream">> => <<"http://etherx.jabber.org/streams">>,
+      <<"version">> => <<"1.0">>}.
+
+s2s_starttls(Client, Features, StartStreamF) ->
     case proplists:get_value(starttls, Features) of
         false ->
             ct:fail("The server does not offer STARTTLS");
@@ -349,7 +385,13 @@ s2s_starttls(Client, Features) ->
     escalus_connection:send(Client, escalus_stanza:starttls()),
     escalus_connection:get_stanza(Client, proceed),
     escalus_connection:upgrade_to_tls(Client),
-    s2s_start_stream(Client, []).
+    StartStreamF(Client, []).
+
+s2s_starttls(Client, Features) ->
+    s2s_starttls(Client, Features, fun s2s_start_stream/2).
+
+s2s_starttls_to_wrong_host(Client, Features) ->
+    s2s_starttls(Client, Features, fun s2s_start_stream_to_wrong_host/2).
 
 s2s_external_auth(Client = #client{props = Props}, Features) ->
     case proplists:get_value(sasl_mechanisms, Features) of
@@ -369,4 +411,3 @@ get_main_key_and_cert_files(Config) ->
 get_main_file_path(Config, File) ->
     filename:join([path_helper:repo_dir(Config),
                    "tools", "ssl", "mongooseim", File]).
-

@@ -44,10 +44,7 @@ groups() ->
                                                                NodeTree <- [<<"dag">>, <<"tree">>]].
 
 base_groups() ->
-    G = [
-         {basic, [parallel], basic_tests()}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{basic, [parallel], basic_tests()}].
 
 basic_tests() ->
     [
