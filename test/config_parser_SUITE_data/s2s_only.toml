@@ -7,7 +7,7 @@
 
 [s2s]
   use_starttls = "optional"
-  certfile = "tools/ssl/mongooseim/server.pem"
+  certfile = "priv/server.pem"
   default_policy = "allow"
   ciphers = "TLSv1.2:TLSv1.3"
   outgoing.port = 5299

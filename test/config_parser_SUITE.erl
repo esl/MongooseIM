@@ -176,7 +176,8 @@ groups() ->
                                       acl_merge_host_and_global,
                                       access,
                                       access_merge_host_and_global]},
-     {s2s, [parallel], [s2s_dns_timeout,
+     {s2s, [parallel], [s2s_host_config,
+                        s2s_dns_timeout,
                         s2s_dns_retries,
                         s2s_outgoing_port,
                         s2s_outgoing_ip_versions,
@@ -1472,55 +1473,67 @@ access_merge_host_and_global(_Config) ->
 
 %% tests: s2s
 
+s2s_host_config(_Config) ->
+    DefaultS2S = config_parser_helper:default_s2s(),
+    EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
+    ?cfg(host_key(s2s), DefaultS2S,
+         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
+    StartTLSHostConfig = host_config(#{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
+    ?cfg(host_key(s2s), DefaultS2S#{use_starttls => required},
+         StartTLSHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
+
 s2s_dns_timeout(_Config) ->
-    ?cfg([s2s_dns, timeout], 10, #{}), % default
-    ?cfg([s2s_dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
-    ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
+    ?cfgh([s2s, dns, timeout], 10, #{}), % default
+    ?cfgh([s2s, dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
+    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
 
 s2s_dns_retries(_Config) ->
-    ?cfg([s2s_dns, retries], 2, #{}), % default
-    ?cfg([s2s_dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
-    ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
+    ?cfgh([s2s, dns, retries], 2, #{}), % default
+    ?cfgh([s2s, dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
+    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
 
 s2s_outgoing_port(_Config) ->
-    ?cfg([s2s_outgoing, port], 5269, #{}), % default
-    ?cfg([s2s_outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
+    ?cfgh([s2s, outgoing, port], 5269, #{}), % default
+    ?cfgh([s2s, outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
 
 s2s_outgoing_ip_versions(_Config) ->
-    ?cfg([s2s_outgoing, ip_versions], [4, 6], #{}), % default
-    ?cfg([s2s_outgoing, ip_versions], [6, 4],
+    ?cfgh([s2s, outgoing, ip_versions], [4, 6], #{}), % default
+    ?cfgh([s2s, outgoing, ip_versions], [6, 4],
          #{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [6, 4]}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
 
 s2s_outgoing_timeout(_Config) ->
-    ?cfg([s2s_outgoing, connection_timeout], 10000, #{}), % default
-    ?cfg([s2s_outgoing, connection_timeout], 5000,
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
-    ?cfg([s2s_outgoing, connection_timeout], infinity,
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
+    ?cfgh([s2s, outgoing, connection_timeout], 10000, #{}), % default
+    ?cfgh([s2s, outgoing, connection_timeout], 5000,
+          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
+    ?cfgh([s2s, outgoing, connection_timeout], infinity,
+          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
 
 s2s_use_starttls(_Config) ->
-    ?cfg(s2s_use_starttls, required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?err(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
+    ?cfgh([s2s, use_starttls], false, #{}), % default
+    ?cfgh([s2s, use_starttls], required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
+    ?errh(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
 
 s2s_certfile(_Config) ->
-    ?cfg(s2s_certfile, "cert.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"cert.pem">>}}),
-    ?err(#{<<"s2s">> => #{<<"certfile">> => []}}).
+    ?cfgh([s2s, certfile], "priv/server.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"priv/server.pem">>}}),
+    ?errh([#{reason := invalid_filename}], #{<<"s2s">> => #{<<"certfile">> => <<"nofile.pem">>}}),
+    ?errh(#{<<"s2s">> => #{<<"certfile">> => []}}).
 
 s2s_default_policy(_Config) ->
-    ?cfgh(s2s_default_policy, deny, #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
+    ?cfgh([s2s, default_policy], allow, #{}), % default
+    ?cfgh([s2s, default_policy], deny, #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
     ?errh(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}}).
 
 s2s_host_policy(_Config) ->
     Policy = #{<<"host">> => <<"host1">>,
                <<"policy">> => <<"allow">>},
-    ?cfgh(s2s_host_policy, #{<<"host1">> => allow},
+    ?cfgh([s2s, host_policy], #{<<"host1">> => allow},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
-    ?cfgh(s2s_host_policy, #{<<"host1">> => allow,
-                             <<"host2">> => deny},
+    ?cfgh([s2s, host_policy], #{<<"host1">> => allow,
+                                <<"host2">> => deny},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy, #{<<"host">> => <<"host2">>,
                                                            <<"policy">> => <<"deny">>}]}}),
     ?errh(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
@@ -1534,29 +1547,29 @@ s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
              <<"ip_address">> => <<"192.168.1.2">>,
              <<"port">> => 5321},
-    ?cfg(s2s_address, #{}, #{}),% default
-    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2", port => 5321}},
-         #{<<"s2s">> => #{<<"address">> => [Addr]}}),
-    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2"}},
-         #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
+    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2", port => 5321}},
+          #{<<"s2s">> => #{<<"address">> => [Addr]}}),
+    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2"}},
+          #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
 
 s2s_ciphers(_Config) ->
-    ?cfg(s2s_ciphers, "TLSv1.2:TLSv1.3",
-         #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}}),
-    ?err(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
+    ?cfgh([s2s, ciphers], ejabberd_tls:default_ciphers(), #{}), % default
+    ?cfgh([s2s, ciphers], "TLSv1.2",
+          #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2">>}}),
+    ?errh(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
 
 s2s_shared(_Config) ->
-    ?cfgh(s2s_shared, <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
+    ?cfgh([s2s, shared], <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
     ?errh(#{<<"s2s">> => #{<<"shared">> => 536837}}).
 
 s2s_max_retry_delay(_Config) ->
-    ?cfgh(s2s_max_retry_delay, 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
+    ?cfgh([s2s, max_retry_delay], 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     ?errh(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
 
 %% modules
@@ -3377,17 +3390,10 @@ create_files(Config) ->
     %% The files must exist for validation to pass
     Root = small_path_helper:repo_dir(Config),
     file:make_dir("priv"),
-    PrivkeyPath = filename:join(Root, "tools/ssl/mongooseim/privkey.pem"),
-    CertPath = filename:join(Root, "tools/ssl/mongooseim/cert.pem"),
-    CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
-    DHPath = filename:join(Root, "tools/ssl/mongooseim/dh_server.pem"),
+    [ensure_copied(filename:join(Root, From), To) || {From, To} <- files_to_copy()],
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
-    ok = filelib:ensure_dir("www/muc/dummy"),
-    ensure_copied(CaPath, "priv/ca.pem"),
-    ensure_copied(CertPath, "priv/cert.pem"),
-    ensure_copied(PrivkeyPath, "priv/dc1.pem"),
-    ensure_copied(DHPath, "priv/dh.pem").
+    ok = filelib:ensure_dir("www/muc/dummy").
 
 ensure_copied(From, To) ->
     case file:copy(From, To) of
@@ -3397,3 +3403,10 @@ ensure_copied(From, To) ->
             error(#{what => ensure_copied_failed, from => From, to => To,
                     reason => Other})
     end.
+
+files_to_copy() ->
+    [{"tools/ssl/mongooseim/privkey.pem", "priv/dc1.pem"},
+     {"tools/ssl/mongooseim/cert.pem", "priv/cert.pem"},
+     {"tools/ssl/mongooseim/dh_server.pem", "priv/dh.pem"},
+     {"tools/ssl/mongooseim/server.pem", "priv/server.pem"},
+     {"tools/ssl/ca/cacert.pem", "priv/ca.pem"}].
