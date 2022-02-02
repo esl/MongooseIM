@@ -13,6 +13,7 @@
 
 %% tls interfaces required by ejabberd_socket & ejabberd_receiver modules.
 -export([tcp_to_tls/2,
+         default_ciphers/0,
          send/2,
          recv_data/2,
          controlling_process/2,
@@ -76,7 +77,7 @@ tcp_to_tls(TCPSocket, Opts) ->
     Module = proplists:get_value(tls_module, Opts, fast_tls),
     NewOpts1 = proplists:delete(tls_module, Opts),
     NewOpts2 = case proplists:get_value(ciphers, NewOpts1) of
-                   undefined -> [{ciphers, "TLSv1.2:TLSv1.3"} | NewOpts1];
+                   undefined -> [{ciphers, default_ciphers()} | NewOpts1];
                    _ -> NewOpts1
                end,
     case Module:tcp_to_tls(TCPSocket, NewOpts2) of
@@ -90,6 +91,8 @@ tcp_to_tls(TCPSocket, Opts) ->
         Error -> Error
     end.
 
+default_ciphers() ->
+    "TLSv1.2:TLSv1.3".
 
 -spec send(socket(), binary()) -> ok | {error, any()}.
 send(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, B) -> M:send(S, B).
