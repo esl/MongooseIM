@@ -245,8 +245,8 @@ commands:
           command: |
             sudo pkill -9 apt-get || true && \
             echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
-            sudo apt-get update && \
-            sudo apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
+            sudo ./tools/retry.sh apt-get update && \
+            sudo ./tools/retry.sh apt-get install libssl-dev unixodbc-dev unixodbc tdsodbc rsync zlib1g-dev -y
   maybe_build_deps_and_cache:
     steps:
       - restore_cache:
@@ -297,8 +297,8 @@ commands:
           command: |
             sudo pkill -9 apt-get || true && \
             echo "Acquire::ForceIPv4 'true';" | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4 && \
-            sudo apt-get update && \
-            sudo apt-get install python3-pip -y && \
+            sudo ./tools/retry.sh apt-get update && \
+            sudo ./tools/retry.sh apt-get install python3-pip -y && \
             pip3 install codecov && codecov
   run_coverage_analysis:
     steps:
@@ -384,8 +384,8 @@ commands:
           name: Install odbc.ini and packages
           command: |
             if [[ "$DB" == *mssql* ]]; then
-                sudo apt-get update
-                sudo apt-get -y install unixodbc tdsodbc
+                sudo ./tools/retry.sh apt-get update
+                sudo ./tools/retry.sh apt-get -y install unixodbc tdsodbc
                 ./tools/install_odbc_ini.sh
             fi
 
