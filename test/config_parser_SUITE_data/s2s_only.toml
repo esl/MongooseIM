@@ -11,8 +11,8 @@
   default_policy = "allow"
   ciphers = "TLSv1.2:TLSv1.3"
   outgoing.port = 5299
-  outgoing.connection_timeout = 10000
-  outgoing.ip_versions = [4, 6]
+  outgoing.connection_timeout = 4_000
+  outgoing.ip_versions = [6, 4]
   dns.timeout = 30
   dns.retries = 1
   shared = "shared secret"

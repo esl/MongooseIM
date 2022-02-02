@@ -164,9 +164,9 @@ get_config(Args, _) ->
 -spec report_transparency(proplists:proplist()) -> skip | continue.
 report_transparency(Args) ->
     case {explicit_no_report(Args), explicit_gathering_agreement(Args)} of
-        {true, ____} -> skip;
-        {____, true} -> continue;
-        {____, ____} ->
+        {true, _} -> skip;
+        {_, true} -> continue;
+        {_, _} ->
             File = mongoose_system_metrics_file:location(),
             Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
             ?LOG_WARNING(#{what => report_transparency,

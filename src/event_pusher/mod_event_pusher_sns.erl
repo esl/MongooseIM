@@ -21,6 +21,7 @@
 %%%===================================================================
 
 -define(TOPIC_BASE, ["arn", "aws", "sns"]).
+-define(PUBLISH_RETRY_COUNT_DEFAULT, 2).
 
 -type user_guid() :: binary().
 -type topic_arn() :: string(). %% Full topic ARN in format arn:aws:sns:{REGION}:{ACCOUNT_ID}:{TOPIC}
@@ -151,7 +152,7 @@ handle_packet(From = #jid{lserver = Host}, To, Packet) ->
 -spec async_publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> ok.
 async_publish(Host, TopicARN, Content, Attributes) ->
-    Retry = opt(Host, publish_retry_count, 2),
+    Retry = opt(Host, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
     mongoose_wpool:cast(generic, Host, pusher_sns,
                         {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]}).
 
@@ -262,7 +263,8 @@ message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
 
 -spec calc_backoff_time(Host :: jid:lserver(), integer()) -> integer().
 calc_backoff_time(Host, Retry) ->
-    MaxRetry = opt(Host, publish_retry_count),
+    MaxRetry = opt(Host, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
     BaseTime = opt(Host, publish_retry_time_ms, 50),
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
-    crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
+    Random = rand:uniform(BaseTime),
+    BackoffMaxTime - Random.

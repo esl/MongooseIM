@@ -30,7 +30,6 @@
          process_riak_credentials/1,
          process_iqdisc/1,
          process_acl_condition/1,
-         process_s2s_address_family/1,
          process_s2s_host_policy/1,
          process_s2s_address/1,
          process_domain_cert/1]).
@@ -149,7 +148,7 @@ host_config() ->
                  <<"modules">> => modules(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
-                 <<"s2s">> => s2s()
+                 <<"s2s">> => host_s2s()
                 },
        wrap = none
       }.
@@ -726,8 +725,9 @@ tls_items() ->
                                validate = non_empty},
       <<"password">> => #option{type = string},
       <<"server_name_indication">> => #option{type = boolean},
-      <<"server_name_indication_host">> => #option{type = string,
-                                                   validate = non_empty},
+      <<"server_name_indication_host">> => #option{type = string, validate = non_empty},
+      <<"server_name_indication_protocol">> => #option{type = atom,
+                                                       validate = {enum, [default, https]}},
       <<"ciphers">> => #option{type = string},
       <<"versions">> => #list{items = #option{type = atom}}
      }.
@@ -878,38 +878,53 @@ access_rule_item() ->
        format_items = map
       }.
 
-%% path: (host_config[].)s2s
+%% path: s2s
 s2s() ->
     #section{
-       items = #{<<"dns">> => s2s_dns(),
-                 <<"outgoing">> => s2s_outgoing(),
-                 <<"use_starttls">> => #option{type = atom,
-                                               validate = {enum, [false, optional, required,
-                                                                  required_trusted]},
-                                               wrap = {global_config, s2s_use_starttls}},
-                 <<"certfile">> => #option{type = string,
-                                           validate = non_empty,
-                                           wrap = {global_config, s2s_certfile}},
-                 <<"default_policy">> => #option{type = atom,
-                                                 validate = {enum, [allow, deny]},
-                                                 wrap = {host_config, s2s_default_policy}},
-                 <<"host_policy">> => #list{items = s2s_host_policy(),
-                                            format_items = map,
-                                            wrap = {host_config, s2s_host_policy}},
-                 <<"address">> => #list{items = s2s_address(),
-                                        format_items = map,
-                                        wrap = {global_config, s2s_address}},
-                 <<"ciphers">> => #option{type = string,
-                                          wrap = {global_config, s2s_ciphers}},
-                 <<"shared">> => #option{type = binary,
-                                         validate = non_empty,
-                                         wrap = {host_config, s2s_shared}},
-                 <<"max_retry_delay">> => #option{type = integer,
-                                                  validate = positive,
-                                                  wrap = {host_config, s2s_max_retry_delay}}
-                },
+       items = maps:merge(s2s_global_items(), s2s_host_items()),
+       defaults = #{<<"address">> => #{}},
+       include = always,
        wrap = none
       }.
+
+%% path: host_config[].s2s
+host_s2s() ->
+    #section{
+       items = s2s_host_items(),
+       wrap = none
+      }.
+
+s2s_host_items() ->
+    #{<<"default_policy">> => #option{type = atom,
+                                      validate = {enum, [allow, deny]},
+                                      wrap = {host_config, s2s_default_policy}},
+      <<"host_policy">> => #list{items = s2s_host_policy(),
+                                 format_items = map,
+                                 wrap = {host_config, s2s_host_policy}},
+      <<"shared">> => #option{type = binary,
+                              validate = non_empty,
+                              wrap = {host_config, s2s_shared}},
+      <<"max_retry_delay">> => #option{type = integer,
+                                       validate = positive,
+                                       wrap = {host_config, s2s_max_retry_delay}}
+     }.
+
+s2s_global_items() ->
+    #{<<"dns">> => s2s_dns(),
+      <<"outgoing">> => s2s_outgoing(),
+      <<"use_starttls">> => #option{type = atom,
+                                    validate = {enum, [false, optional, required,
+                                                       required_trusted]},
+                                    wrap = {global_config, s2s_use_starttls}},
+      <<"certfile">> => #option{type = string,
+                                validate = non_empty,
+                                wrap = {global_config, s2s_certfile}},
+      <<"address">> => #list{items = s2s_address(),
+                             format_items = map,
+                             wrap = {global_config, s2s_address}},
+      <<"ciphers">> => #option{type = string,
+                               wrap = {global_config, s2s_ciphers}}
+     }.
 
 %% path: (host_config[].)s2s.dns
 s2s_dns() ->
@@ -918,26 +933,31 @@ s2s_dns() ->
                                           validate = positive},
                  <<"retries">> => #option{type = integer,
                                           validate = positive}},
-       wrap = {global_config, s2s_dns_options}
+       format_items = map,
+       include = always,
+       defaults = #{<<"timeout">> => 10,
+                    <<"retries">> => 2},
+       wrap = {global_config, s2s_dns}
       }.
 
 %% path: (host_config[].)s2s.outgoing
 s2s_outgoing() ->
     #section{
        items = #{<<"port">> => #option{type = integer,
-                                       validate = port,
-                                       wrap = {global_config, outgoing_s2s_port}},
+                                       validate = port},
                  <<"ip_versions">> =>
                      #list{items = #option{type = integer,
-                                           validate = {enum, [4, 6]},
-                                           process = fun ?MODULE:process_s2s_address_family/1},
-                           validate = unique_non_empty,
-                           wrap = {global_config, outgoing_s2s_families}},
+                                           validate = {enum, [4, 6]}},
+                           validate = unique_non_empty},
                  <<"connection_timeout">> => #option{type = int_or_infinity,
-                                                     validate = positive,
-                                                     wrap = {global_config, outgoing_s2s_timeout}}
+                                                     validate = positive}
                 },
-       wrap = none
+       format_items = map,
+       include = always,
+       defaults = #{<<"port">> => 5269,
+                    <<"ip_versions">> => [4, 6],
+                    <<"connection_timeout">> => 10000},
+       wrap = {global_config, s2s_outgoing}
       }.
 
 %% path: (host_config[].)s2s.host_policy[]
@@ -1053,8 +1073,8 @@ process_xmpp_tls(KVs) ->
     end.
 
 tls_keys(just_tls) ->
-    [verify_mode, disconnect_on_failure, crlfiles, password, server_name_indication,
-     server_name_indication_host, versions];
+    [verify_mode, disconnect_on_failure, crlfiles, password, versions,
+     server_name_indication, server_name_indication_host, server_name_indication_protocol];
 tls_keys(fast_tls) ->
     [protocol_options].
 
@@ -1239,15 +1259,23 @@ riak_ssl(Opts) -> [{ssl_opts, Opts}].
 process_tls_sni(KVs) ->
     % the SSL library expects either the atom `disable` or a string with the SNI host
     % as value for `server_name_indication`
-    SNIKeys = [server_name_indication, server_name_indication_host],
-    {[SNIOpt, SNIHostOpt], SSLOpts} = proplists:split(KVs, SNIKeys),
-    case {SNIOpt, SNIHostOpt} of
-        {[], []} ->
+    SNIKeys = [server_name_indication, server_name_indication_host, server_name_indication_protocol],
+    {[SNIOpt, SNIHostOpt, SNIProtocol], SSLOpts} = proplists:split(KVs, SNIKeys),
+    case {SNIOpt, SNIHostOpt, SNIProtocol} of
+        {[], [], []} ->
             SSLOpts;
-        {[{server_name_indication, false}], _} ->
-            [{server_name_indication, disable}] ++ SSLOpts;
-        {[{server_name_indication, true}], [{server_name_indication_host, SNIHost}]} ->
-            [{server_name_indication, SNIHost}] ++ SSLOpts
+        {[{server_name_indication, false}], _, _} ->
+            [{server_name_indication, disable} | SSLOpts];
+        {[{server_name_indication, true}],
+         [{server_name_indication_host, SNIHost}],
+         [{server_name_indication_protocol, https}]} ->
+            [{server_name_indication, SNIHost},
+             {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}
+             | SSLOpts];
+        {[{server_name_indication, true}],
+         [{server_name_indication_host, SNIHost}],
+         _} ->
+            [{server_name_indication, SNIHost} | SSLOpts]
     end.
 
 process_riak_credentials(KVs) ->
@@ -1268,16 +1296,11 @@ process_acl_condition(Value) ->
         Node -> Node
     end.
 
-process_s2s_address_family(4) -> ipv4;
-process_s2s_address_family(6) -> ipv6.
-
 process_s2s_host_policy(#{host := S2SHost, policy := Policy}) ->
     {S2SHost, Policy}.
 
-process_s2s_address(#{host := S2SHost, ip_address := IPAddr, port := Port}) ->
-    {S2SHost, {IPAddr, Port}};
-process_s2s_address(#{host := S2SHost, ip_address := IPAddr}) ->
-    {S2SHost, IPAddr}.
+process_s2s_address(M) ->
+    maps:take(host, M).
 
 process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
