@@ -3,6 +3,8 @@
 # cd to repo
 cd "$(dirname "$0")/../"
 
+source tools/db-versions.sh
+
 ## see https://github.com/minio/minio/issues/4769 for more examples
   
 minio_docker_name="mongooseim-minio"
@@ -12,14 +14,17 @@ minio_bucket="mybucket"
 
 docker rm -v -f "${minio_docker_name}" || echo "Skip removing previous container"
 
+IMAGE="minio/minio:$MINIO_VERSION"
+MC_IMAGE="minio/mc:$MINIO_MC_VERSION"
+
 docker run -d -p 9000:9000 \
     --name "${minio_docker_name}" \
     -e "MINIO_ACCESS_KEY=${minio_access_key}" \
     -e "MINIO_SECRET_KEY=${minio_secret_key}" \
-    minio/minio server /data
+    $IMAGE server /data
 
 # Pulling while waiting
-docker pull minio/mc &
+docker pull $MC_IMAGE &
 
 tools/wait_for_service.sh "${minio_docker_name}" 9000
 
@@ -35,4 +40,4 @@ EOF
 # because `minio/server` container doesn't have the `mc` command.
 docker run --rm --entrypoint sh \
     --link "${minio_docker_name}:minio" \
-    minio/mc -c "${mc_cmd}"
+    $MC_IMAGE -c "${mc_cmd}"
