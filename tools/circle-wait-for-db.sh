@@ -46,6 +46,10 @@ function wait_for_db {
             ./tools/wait-for-it.sh -p 9242 # SCHEMA_READY_PORT
             ./tools/wait-for-it.sh -p 9142 # proxy
         ;;
+
+        minio)
+            ./tools/wait-for-it.sh -p 9000
+        ;;
     esac
 }
 
