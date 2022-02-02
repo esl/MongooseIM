@@ -193,13 +193,7 @@ The `register` rule is defined only for `domain2.com`.
 
 ### `host_config.s2s`
 
-The options defined here override the ones defined in the top-level [`s2s`](s2s.md) section.
-The following options are allowed:
-
-* [`default_policy`](s2s.md#s2sdefault_policy)
-* [`host_policy`](s2s.md#s2shost_policy)
-* [`shared`](s2s.md#s2sshared)
-* [`max_retry_delay`](s2s.md#s2smax_retry_delay)
+This section completely overrides the top-level [`s2s`](s2s.md) section, all options are allowed.
 
 #### Example
 
@@ -227,4 +221,4 @@ The `host_policy` option is changed for `domain2.com`:
     ]
 ```
 
-The `default_policy` is still `deny`.
+Note that `default_policy` for `domain2.com` has the default value `allow`, because `host_config.s2s` completely overrides the top-level `s2s` section, and all options are reset to the respective default values, unless they are explicitly changed.
