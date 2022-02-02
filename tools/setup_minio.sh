@@ -23,13 +23,12 @@ docker run -d -p 9000:9000 \
     -e "MINIO_SECRET_KEY=${minio_secret_key}" \
     $IMAGE server /data
 
-# Pulling while waiting
-docker pull $MC_IMAGE &
-
 tools/wait_for_service.sh "${minio_docker_name}" 9000
 
+MINIO_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $minio_docker_name)
+
 mc_cmd="$(cat <<-EOF
-  mc config host add myminio http://minio:9000 "${minio_access_key}" "${minio_secret_key}" && 
+  mc config host add myminio http://${MINIO_IP}:9000 "${minio_access_key}" "${minio_secret_key}" &&
   mc mb "myminio/${minio_bucket}" &&
   mc policy set download "myminio/${minio_bucket}"
   exit 0
@@ -38,6 +37,4 @@ EOF
 
 # The config script in ${mc_cmd} needs to be run in `minio/mc` container
 # because `minio/server` container doesn't have the `mc` command.
-docker run --rm --entrypoint sh \
-    --link "${minio_docker_name}:minio" \
-    $MC_IMAGE -c "${mc_cmd}"
+docker run --rm --entrypoint sh $MC_IMAGE -c "${mc_cmd}"
