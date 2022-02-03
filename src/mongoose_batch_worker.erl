@@ -70,9 +70,11 @@ handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = Tim
                                                        pool_id = PoolId}) ->
     mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, timed_flushes], 1),
     {noreply, run_flush(State)};
+handle_info({garbage_collect, asynchronous_gc_triggered, true}, State) ->
+    {noreply, State};
 handle_info({timeout, _, flush}, State) -> % expired timeout, ignore
     {noreply, State};
-handle_info({garbage_collect, asynchronous_gc_triggered, true}, State) ->
+handle_info({cancel_timer, _, _}, State) -> % timer canceled, ignore
     {noreply, State};
 handle_info(Msg, State) ->
     ?UNEXPECTED_INFO(Msg),
