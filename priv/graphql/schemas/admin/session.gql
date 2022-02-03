@@ -2,20 +2,20 @@
 Allow admin to get information about sessions.
 """
 type SessionAdminQuery @protected{
-  "Get the list of established sessions for a specified domain or global"
+  "Get the list of established sessions for a specified domain or globally"
   listSessions(domain: String): [Session!]
-  "Get the number of established sessions for a specified domain or global"
+  "Get the number of established sessions for a specified domain or globally"
   countSessions(domain: String): Int 
   "Get information about all sessions of a user"
   listUserSessions(user: JID!): [Session!]
   "Get the number of resources of a user"
   countUserResources(user: JID!): Int
-  "Get the resource string of a n-th session number"
+  "Get the resource string of the n-th session of a user"
   getUserResource(user: JID!, number: Int): String
-  "Get the list of logged users with this status for a specified domain or global"
-  listStatusUsers(domain: String, status: String!): [StatusUser!]
-  "Get the number of logged users with this status for a specified domain or global"
-  countStatusUsers(domain: String, status: String!): Int
+  "Get the list of logged users with this status for a specified domain or globally"
+  listUsersWithStatus(domain: String, status: String!): [UserStatus!]
+  "Get the number of logged users with this status for a specified domain or globally"
+  countUsersWithStatus(domain: String, status: String!): Int
 }
 
 """
@@ -71,7 +71,7 @@ type SessionPayload{
 }
 
 "Short info about user's status"
-type StatusUser{
+type UserStatus{
   "User JID"
   user: JID!
   "Status priority"

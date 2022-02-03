@@ -35,19 +35,19 @@
 
 -type status() :: binary().
 -type session() :: #session{}.
--type status_user_info() :: { User    :: jid:user(),
-                        Server  :: jid:server(),
-                        Res     :: jid:resource(),
-                        Prio    :: ejabberd_sm:priority(),
-                        Status  :: status()}.
+-type status_user_info() :: {User :: jid:user(),
+                             Server :: jid:server(),
+                             Res :: jid:resource(),
+                             Prio :: ejabberd_sm:priority(),
+                             Status :: status()}.
 
 -type session_info() :: {USR :: binary(),
-                                Conn :: binary(),
-                                IPS :: binary(),
-                                Port :: inet:port_number(),
-                                Prio :: ejabberd_sm:priority(),
-                                NodeS :: binary(),
-                                Uptime :: integer()}.
+                         Conn :: binary(),
+                         IPS :: binary(),
+                         Port :: inet:port_number(),
+                         Prio :: ejabberd_sm:priority(),
+                         NodeS :: binary(),
+                         Uptime :: integer()}.
 
 -type res_number_result() :: {ok | wrong_res_number, binary()}.
 
@@ -167,7 +167,7 @@ set_presence(JID, Type, Show, Status, Priority) ->
                                  maybe_pres_priority(Priority,
                                                      maybe_pres_show(Show, []))),
     Message = {xmlstreamelement,
-               #xmlel{ name = <<"presence">>,
+               #xmlel{name = <<"presence">>,
                       attrs = [{<<"from">>, USR}, {<<"to">>, US} | maybe_type_attr(Type)],
                       children = Children}},
     ok = p1_fsm_old:send_event(Pid, Message),
@@ -210,8 +210,8 @@ prepare_reason(Reason) when is_binary(Reason) ->
 -spec get_status_list([session()], status()) -> [status_user_info()].
 get_status_list(Sessions0, StatusRequired) ->
     Sessions = [ {catch ejabberd_c2s:get_presence(Pid), S, P}
-                 || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P}
-                    <- Sessions0 ],
+                 || #session{sid = {_, Pid}, usr = {_, S, _}, priority = P} <- Sessions0
+               ],
 
     [{User, Server, Resource, Priority, StatusText}
      || {{User, Resource, Status, StatusText}, Server, Priority} <- Sessions,

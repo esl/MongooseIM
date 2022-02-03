@@ -17,10 +17,10 @@ execute(_Ctx, _Obj, <<"countUserResources">>, Args) ->
     count_user_resources(Args);
 execute(_Ctx, _Obj, <<"getUserResource">>, Args) ->
     get_user_resource(Args);
-execute(_Ctx, _Obj, <<"listStatusUsers">>, Args) ->
-    list_status_users(Args);
-execute(_Ctx, _Obj, <<"countStatusUsers">>, Args) ->
-    count_status_users(Args).
+execute(_Ctx, _Obj, <<"listUsersWithStatus">>, Args) ->
+    list_users_with_status(Args);
+execute(_Ctx, _Obj, <<"countUsersWithStatus">>, Args) ->
+    count_users_with_status(Args).
 
 -spec list_sessions(map()) -> {ok, mongoose_graphql_session_helper:session_list()}.
 list_sessions(#{<<"domain">> := null}) ->
@@ -51,18 +51,18 @@ get_user_resource(#{<<"user">> := JID, <<"number">> := ResNumber}) ->
     Result = mongoose_session_api:get_user_resource(JID, ResNumber),
     format_result(Result, #{number => ResNumber}).
 
--spec list_status_users(map()) -> {ok, mongoose_graphql_session_helper:status_user_list()}.
-list_status_users(#{<<"domain">> := null, <<"status">> := Status}) ->
+-spec list_users_with_status(map()) -> {ok, mongoose_graphql_session_helper:status_user_list()}.
+list_users_with_status(#{<<"domain">> := null, <<"status">> := Status}) ->
     StatusUsers = mongoose_session_api:list_status_users(Status),
     {ok, format_status_users(StatusUsers)};
-list_status_users(#{<<"domain">> := Domain, <<"status">> := Status}) ->
+list_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
     StatusUsers = mongoose_session_api:list_status_users(Domain, Status),
     {ok, format_status_users(StatusUsers)}.
 
--spec count_status_users(map()) -> {ok, non_neg_integer()}.
-count_status_users(#{<<"domain">> := null, <<"status">> := Status}) ->
+-spec count_users_with_status(map()) -> {ok, non_neg_integer()}.
+count_users_with_status(#{<<"domain">> := null, <<"status">> := Status}) ->
     Number = mongoose_session_api:num_status_users(Status),
     {ok, Number};
-count_status_users(#{<<"domain">> := Domain, <<"status">> := Status}) ->
+count_users_with_status(#{<<"domain">> := Domain, <<"status">> := Status}) ->
     Number = mongoose_session_api:num_status_users(Domain, Status),
     {ok, Number}.

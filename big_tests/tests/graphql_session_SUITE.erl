@@ -33,8 +33,8 @@ admin_session_handler() ->
      admin_list_user_sessions,
      admin_count_user_resources,
      admin_get_user_resource,
-     admin_list_status_users,
-     admin_count_status_users,
+     admin_list_users_with_status,
+     admin_count_users_with_status,
      admin_kick_session,
      admin_set_presence,
      admin_set_presence_away,
@@ -175,9 +175,9 @@ admin_get_user_resource(Config) ->
                 ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"Wrong resource number">>))
     end).
 
-admin_count_status_users(Config) ->
+admin_count_users_with_status(Config) ->
     escalus:story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceB) ->
-                Path = [data, session, countStatusUsers],
+                Path = [data, session, countUsersWithStatus],
                 AwayStatus = <<"away">>,
                 AwayPresence = escalus_stanza:presence_show(AwayStatus),
                 DndStatus = <<"dnd">>,
@@ -185,22 +185,22 @@ admin_count_status_users(Config) ->
                 % Count users with away status globally
                 escalus_client:send(Alice, AwayPresence),
                 escalus_client:send(AliceB, AwayPresence),
-                Res = execute_auth(count_status_users_body(null, AwayStatus), Config),
+                Res = execute_auth(count_users_with_status_body(null, AwayStatus), Config),
                 ?assertEqual(2, get_ok_value(Path, Res)),
                 % Count users with away status for a domain
-                Res2 = execute_auth(count_status_users_body(domain_helper:domain(), AwayStatus), Config),
+                Res2 = execute_auth(count_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
                 ?assertEqual(1, get_ok_value(Path, Res2)),
                 % Count users with dnd status globally
                 escalus_client:send(AliceB, DndPresence),
-                Res3 = execute_auth(count_status_users_body(null, DndStatus), Config),
+                Res3 = execute_auth(count_users_with_status_body(null, DndStatus), Config),
                 ?assertEqual(1, get_ok_value(Path, Res3))
     end).
 
-admin_list_status_users(Config) ->
+admin_list_users_with_status(Config) ->
     escalus:story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceB) ->
                 AliceJID = escalus_client:full_jid(Alice),
                 AliceBJID = escalus_client:full_jid(AliceB),
-                Path = [data, session, listStatusUsers],
+                Path = [data, session, listUsersWithStatus],
                 AwayStatus = <<"away">>,
                 AwayPresence = escalus_stanza:presence_show(AwayStatus),
                 DndStatus = <<"dnd">>,
@@ -208,18 +208,18 @@ admin_list_status_users(Config) ->
                 % Count users with away status globally
                 escalus_client:send(Alice, AwayPresence),
                 escalus_client:send(AliceB, AwayPresence),
-                Res = execute_auth(list_status_users_body(null, AwayStatus), Config),
+                Res = execute_auth(list_users_with_status_body(null, AwayStatus), Config),
                 StatusUsers = get_ok_value(Path, Res),
                 ?assertEqual(2, length(StatusUsers)),
                 ?assert(users_match([AliceJID, AliceBJID], StatusUsers)),
                 % Count users with away status for a domain
-                Res2 = execute_auth(list_status_users_body(domain_helper:domain(), AwayStatus), Config),
+                Res2 = execute_auth(list_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
                 StatusUsers2 = get_ok_value(Path, Res2),
                 ?assertEqual(1, length(StatusUsers2)),
                 ?assert(users_match([AliceJID], StatusUsers2)),
                 % Count users with dnd status globally
                 escalus_client:send(AliceB, DndPresence),
-                Res3 = execute_auth(list_status_users_body(null, DndStatus), Config),
+                Res3 = execute_auth(list_users_with_status_body(null, DndStatus), Config),
                 StatusUsers3 = get_ok_value(Path, Res3),
                 ?assertEqual(1, length(StatusUsers3)),
                 ?assert(users_match([AliceBJID], StatusUsers3))
@@ -346,16 +346,16 @@ get_user_resource_body(JID, Number) ->
     Vars = #{<<"user">> => JID, <<"number">> => Number},
     #{query => Query, operationName => OpName, variables => Vars}.
 
-list_status_users_body(Domain, Status) ->
+list_users_with_status_body(Domain, Status) ->
     Query = <<"query Q1($domain: String, $status: String!)
-              { session { listStatusUsers(domain: $domain, status: $status) { user } } }">>,
+              { session { listUsersWithStatus(domain: $domain, status: $status) { user } } }">>,
     OpName = <<"Q1">>,
     Vars = #{<<"domain">> => Domain, <<"status">> => Status},
     #{query => Query, operationName => OpName, variables => Vars}.
 
-count_status_users_body(Domain, Status) ->
+count_users_with_status_body(Domain, Status) ->
     Query = <<"query Q1($domain: String, $status: String!)
-              { session { countStatusUsers(domain: $domain, status: $status) } }">>,
+              { session { countUsersWithStatus(domain: $domain, status: $status) } }">>,
     OpName = <<"Q1">>,
     Vars = #{<<"domain">> => Domain, <<"status">> => Status},
     #{query => Query, operationName => OpName, variables => Vars}.

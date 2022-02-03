@@ -32,7 +32,7 @@ set_presence(#{<<"user">> := JID, <<"type">> := Type,
 
 -spec null_to_empty(null | integer() | binary()) -> binary().
 null_to_empty(null) -> <<>>;
-null_to_empty(Int) when is_integer(Int)-> integer_to_binary(Int);
+null_to_empty(Int) when is_integer(Int) -> integer_to_binary(Int);
 null_to_empty(Bin) -> Bin.
 
 -spec format_session_payload({atom(), binary()}, jid:jid()) ->
