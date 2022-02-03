@@ -14,13 +14,11 @@ function cat32 {
     cat "$1" | $ENCODER
 }
 
-DOCKER=docker
-DOCKER_HEALTH=Health
+DOCKER=${DOCKER:-docker}
 
-# There is no smart way to choose between podman and docker
-# By default, if both are available, we choose podman
-if hash podman; then
-    DOCKER=podman
+DOCKER_HEALTH=Health
+if [[ "$DOCKER" == *"podman"* ]]; then
+    # Overrides for podman
     DOCKER_HEALTH=Healthcheck
 fi
 

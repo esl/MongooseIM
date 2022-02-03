@@ -14,6 +14,14 @@ Alternatively, you can use Podman. Here is how to install it on Mac:
 brew install podman
 podman machine init
 podman machine start
+ln -s /usr/local/bin/podman /usr/local/bin/docker
+```
+
+You can also specify which container supervisor you want to use by defining
+an environment variable in your `~/.bashrc`:
+
+```bash
+export DOCKER=podman
 ```
 
 ### FreeTDS for MSSQL connectivity
