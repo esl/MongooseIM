@@ -184,13 +184,11 @@ minimal_config_opts() ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {s2s_address, #{}},
-     {s2s_dns, config_parser_helper:default_s2s_dns()},
-     {s2s_outgoing, config_parser_helper:default_s2s_outgoing()},
      {sm_backend, {mnesia, []}},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
-     {{replaced_wait_timeout, <<"localhost">>}, 2000}].
+     {{replaced_wait_timeout, <<"localhost">>}, 2000},
+     {{s2s, <<"localhost">>}, config_parser_helper:default_s2s()}].
 
 start_slave_node(Config) ->
     SlaveNode = do_start_slave_node(),

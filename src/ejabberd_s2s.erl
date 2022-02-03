@@ -36,7 +36,7 @@
          filter/4,
          route/4,
          have_connection/1,
-         key/2,
+         key/3,
          get_connections_pids/1,
          try_register/1,
          remove_connection/2,
@@ -46,7 +46,8 @@
          incoming_s2s_number/0,
          outgoing_s2s_number/0,
          domain_utf8_to_ascii/1,
-         timeout/0
+         timeout/0,
+         lookup_certfile/1
         ]).
 
 %% Hooks callbacks
@@ -79,7 +80,7 @@
                   pid :: pid()
                  }.
 -record(s2s_shared, {
-                     scope = global :: global, % this might become per host type
+                     host_type :: mongooseim:host_type(),
                      secret :: binary()
                     }).
 -record(state, {}).
@@ -178,10 +179,10 @@ node_cleanup(Acc, Node) ->
     Res = mnesia:async_dirty(F),
     maps:put(?MODULE, Res, Acc).
 
--spec key({jid:lserver(), jid:lserver()}, binary()) ->
+-spec key(mongooseim:host_type(), {jid:lserver(), jid:lserver()}, binary()) ->
     binary().
-key({From, To}, StreamID) ->
-    Secret = get_shared_secret(),
+key(HostType, {From, To}, StreamID) ->
+    Secret = get_shared_secret(HostType),
     SecretHashed = base16:encode(crypto:hash(sha256, Secret)),
     HMac = crypto:mac(hmac, sha256, SecretHashed, [From, " ", To, " ", StreamID]),
     base16:encode(HMac).
@@ -537,29 +538,18 @@ outgoing_s2s_number() ->
 
 %% Check if host is in blacklist or white list
 allow_host(MyServer, S2SHost) ->
-    Hosts = ?MYHOSTS,
-    case lists:dropwhile(
-           fun(ParentDomain) ->
-                   not lists:member(ParentDomain, Hosts)
-           end, parent_domains(MyServer)) of
-        [MyHost|_] ->
-            allow_host1(MyHost, S2SHost);
-        [] ->
-            allow_host1(MyServer, S2SHost)
-    end.
-
-allow_host1(MyHost, S2SHost) ->
-    case mongoose_config:lookup_opt([{s2s_host_policy, MyHost}, S2SHost]) of
-        {ok, deny} ->
-            false;
-        {ok, allow} ->
-            true;
+    case mongoose_domain_api:get_host_type(MyServer) of
         {error, not_found} ->
-            case mongoose_config:lookup_opt({s2s_default_policy, MyHost}) of
+            false;
+        {ok, HostType} ->
+            case mongoose_config:lookup_opt([{s2s, HostType}, host_policy, S2SHost]) of
+                {ok, allow} ->
+                    true;
                 {ok, deny} ->
                     false;
-                _ ->
-                    mongoose_hooks:s2s_allow_host(MyHost, S2SHost) /= deny
+                {error, not_found} ->
+                    mongoose_config:get_opt([{s2s, HostType}, default_policy]) =:= allow
+                        andalso mongoose_hooks:s2s_allow_host(MyServer, S2SHost) =:= allow
             end
     end.
 
@@ -601,18 +591,33 @@ get_s2s_state(S2sPid)->
             end,
     [{s2s_pid, S2sPid} | Infos].
 
--spec get_shared_secret() -> binary().
-get_shared_secret() ->
-    %% Currently there is only one key, in the future there might be one key per host type
-    [#s2s_shared{secret = Secret}] = ets:lookup(s2s_shared, global),
+-spec get_shared_secret(mongooseim:host_type()) -> binary().
+get_shared_secret(HostType) ->
+    [#s2s_shared{secret = Secret}] = ets:lookup(s2s_shared, HostType),
     Secret.
 
 -spec set_shared_secret() -> mnesia:t_result(ok).
 set_shared_secret() ->
-    Secret = case mongoose_config:lookup_opt(s2s_shared) of
+    mnesia:transaction(fun() ->
+                               [set_shared_secret_t(HostType) || HostType <- ?ALL_HOST_TYPES],
+                               ok
+                       end).
+
+-spec set_shared_secret_t(mongooseim:host_type()) -> ok.
+set_shared_secret_t(HostType) ->
+    Secret = case mongoose_config:lookup_opt([{s2s, HostType}, shared]) of
                  {ok, SecretFromConfig} ->
                      SecretFromConfig;
                  {error, not_found} ->
                      base16:encode(crypto:strong_rand_bytes(10))
              end,
-    mnesia:transaction(fun() -> mnesia:write(#s2s_shared{secret = Secret}) end).
+    mnesia:write(#s2s_shared{host_type = HostType, secret = Secret}).
+
+-spec lookup_certfile(mongooseim:host_type()) -> {ok, string()} | {error, not_found}.
+lookup_certfile(HostType) ->
+    case mongoose_config:lookup_opt({domain_certfile, HostType}) of
+        {ok, CertFile} ->
+            CertFile;
+        {error, not_found} ->
+            mongoose_config:lookup_opt([{s2s, HostType}, certfile])
+    end.

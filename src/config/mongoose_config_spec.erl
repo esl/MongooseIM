@@ -98,6 +98,7 @@ root() ->
     Listen = listen(),
     Auth = auth(),
     Modules = modules(),
+    S2S = s2s(),
     #section{
        items = #{<<"general">> => General#section{required = [<<"default_server_domain">>],
                                                   process = fun ?MODULE:process_general/1,
@@ -110,7 +111,7 @@ root() ->
                  <<"shaper">> => shaper(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
-                 <<"s2s">> => s2s(),
+                 <<"s2s">> => S2S#section{include = always},
                  <<"host_config">> => #list{items = host_config(),
                                             wrap = none}
                 },
@@ -148,7 +149,7 @@ host_config() ->
                  <<"modules">> => modules(),
                  <<"acl">> => acl(),
                  <<"access">> => access(),
-                 <<"s2s">> => host_s2s()
+                 <<"s2s">> => s2s()
                 },
        wrap = none
       }.
@@ -873,53 +874,34 @@ access_rule_item() ->
        format_items = map
       }.
 
-%% path: s2s
+%% path: (host_config[].)s2s
 s2s() ->
     #section{
-       items = maps:merge(s2s_global_items(), s2s_host_items()),
-       defaults = #{<<"address">> => #{}},
-       include = always,
-       wrap = none
+       items = #{<<"default_policy">> => #option{type = atom,
+                                                 validate = {enum, [allow, deny]}},
+                 <<"host_policy">> => #list{items = s2s_host_policy(),
+                                            format_items = map},
+                 <<"use_starttls">> => #option{type = atom,
+                                               validate = {enum, [false, optional, required,
+                                                                  required_trusted]}},
+                 <<"certfile">> => #option{type = string,
+                                           validate = filename},
+                 <<"shared">> => #option{type = binary,
+                                         validate = non_empty},
+                 <<"address">> => #list{items = s2s_address(),
+                                        format_items = map},
+                 <<"ciphers">> => #option{type = string},
+                 <<"max_retry_delay">> => #option{type = integer,
+                                                  validate = positive},
+                 <<"outgoing">> => s2s_outgoing(),
+                 <<"dns">> => s2s_dns()},
+       defaults = #{<<"default_policy">> => allow,
+                    <<"use_starttls">> => false,
+                    <<"ciphers">> => ejabberd_tls:default_ciphers(),
+                    <<"max_retry_delay">> => 300},
+       format_items = map,
+       wrap = host_config
       }.
-
-%% path: host_config[].s2s
-host_s2s() ->
-    #section{
-       items = s2s_host_items(),
-       wrap = none
-      }.
-
-s2s_host_items() ->
-    #{<<"default_policy">> => #option{type = atom,
-                                      validate = {enum, [allow, deny]},
-                                      wrap = {host_config, s2s_default_policy}},
-      <<"host_policy">> => #list{items = s2s_host_policy(),
-                                 format_items = map,
-                                 wrap = {host_config, s2s_host_policy}},
-      <<"shared">> => #option{type = binary,
-                              validate = non_empty,
-                              wrap = {host_config, s2s_shared}},
-      <<"max_retry_delay">> => #option{type = integer,
-                                       validate = positive,
-                                       wrap = {host_config, s2s_max_retry_delay}}
-     }.
-
-s2s_global_items() ->
-    #{<<"dns">> => s2s_dns(),
-      <<"outgoing">> => s2s_outgoing(),
-      <<"use_starttls">> => #option{type = atom,
-                                    validate = {enum, [false, optional, required,
-                                                       required_trusted]},
-                                    wrap = {global_config, s2s_use_starttls}},
-      <<"certfile">> => #option{type = string,
-                                validate = non_empty,
-                                wrap = {global_config, s2s_certfile}},
-      <<"address">> => #list{items = s2s_address(),
-                             format_items = map,
-                             wrap = {global_config, s2s_address}},
-      <<"ciphers">> => #option{type = string,
-                               wrap = {global_config, s2s_ciphers}}
-     }.
 
 %% path: (host_config[].)s2s.dns
 s2s_dns() ->
@@ -931,8 +913,7 @@ s2s_dns() ->
        format_items = map,
        include = always,
        defaults = #{<<"timeout">> => 10,
-                    <<"retries">> => 2},
-       wrap = {global_config, s2s_dns}
+                    <<"retries">> => 2}
       }.
 
 %% path: (host_config[].)s2s.outgoing
@@ -951,8 +932,7 @@ s2s_outgoing() ->
        include = always,
        defaults = #{<<"port">> => 5269,
                     <<"ip_versions">> => [4, 6],
-                    <<"connection_timeout">> => 10000},
-       wrap = {global_config, s2s_outgoing}
+                    <<"connection_timeout">> => 10000}
       }.
 
 %% path: (host_config[].)s2s.host_policy[]

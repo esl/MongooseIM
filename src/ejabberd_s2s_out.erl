@@ -74,6 +74,7 @@
                 db_enabled = true       :: boolean(),
                 try_auth = true         :: boolean(),
                 myname, server, queue,
+                host_type               :: mongooseim:host_type(),
                 delay_to_retry = undefined_delay,
                 new = false             :: boolean(),
                 verify = false          :: false | {pid(), Key :: binary(), SID :: binary()},
@@ -121,10 +122,6 @@
 
 %% We do not block on send anymore.
 -define(TCP_SEND_TIMEOUT, 15000).
-
-%% Maximum delay to wait before retrying to connect after a failed attempt.
-%% Specified in seconds. Default value is 5 minutes.
--define(MAX_RETRY_DELAY, 300).
 
 -define(STREAM_HEADER(From, To, Other),
         <<"<?xml version='1.0'?>",
@@ -190,7 +187,8 @@ init([From, Server, Type]) ->
     ?LOG_DEBUG(#{what => s2s_out_started,
                  text => <<"New outgoing s2s connection">>,
                  from => From, server => Server, type => Type}),
-    {TLS, TLSRequired} = case mongoose_config:get_opt(s2s_use_starttls, false) of
+    {ok, HostType} = mongoose_domain_api:get_host_type(From),
+    {TLS, TLSRequired} = case mongoose_config:get_opt([{s2s, HostType}, use_starttls]) of
               UseTls when (UseTls==false) ->
                   {false, false};
               UseTls when (UseTls==true) or (UseTls==optional) ->
@@ -199,18 +197,6 @@ init([From, Server, Type]) ->
                   {true, true}
           end,
     UseV10 = TLS,
-    TLSOpts = case mongoose_config:lookup_opt(s2s_certfile) of
-                  {error, not_found} ->
-                      [connect];
-                  {ok, CertFile} ->
-                      [{certfile, CertFile}, connect]
-              end,
-    TLSOpts2 = case mongoose_config:lookup_opt(s2s_ciphers) of
-                   {error, not_found} ->
-                       TLSOpts;
-                   {ok, Ciphers} ->
-                       [{ciphers, Ciphers} | TLSOpts]
-               end,
     {New, Verify} = case Type of
                         new ->
                             {true, false};
@@ -222,9 +208,10 @@ init([From, Server, Type]) ->
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
-                             tls_options = TLSOpts2,
+                             tls_options = tls_options(HostType),
                              queue = queue:new(),
                              myname = From,
+                             host_type = HostType,
                              server = Server,
                              new = New,
                              verify = Verify,
@@ -237,7 +224,7 @@ init([From, Server, Type]) ->
 %%          {stop, Reason, NewStateData}
 %%----------------------------------------------------------------------
 -spec open_socket(_, state()) -> fsm_return().
-open_socket(init, StateData) ->
+open_socket(init, StateData = #state{host_type = HostType}) ->
     log_s2s_out(StateData#state.new,
                 StateData#state.myname,
                 StateData#state.server,
@@ -247,11 +234,11 @@ open_socket(init, StateData) ->
                  server => StateData#state.server,
                  new => StateData#state.new,
                  verify => StateData#state.verify}),
-    AddrList = get_addr_list(StateData#state.server),
+    AddrList = get_addr_list(HostType, StateData#state.server),
     case lists:foldl(fun(_, {ok, Socket}) ->
                              {ok, Socket};
                         (#{ip_tuple := Addr, port := Port, type := Type}, _) ->
-                             open_socket2(Type, Addr, Port)
+                             open_socket2(HostType, Type, Addr, Port)
                      end, ?SOCKET_DEFAULT_RESULT, AddrList) of
         {ok, Socket} ->
             Version = case StateData#state.use_v10 of
@@ -288,13 +275,12 @@ open_socket(timeout, StateData) ->
 open_socket(_, StateData) ->
     {next_state, open_socket, StateData}.
 
--spec open_socket2(Type :: inet | inet6,
-                   Addr :: inet:ip_address(),
-                   Port :: inet:port_number()) -> {'error', _} | {'ok', _}.
-open_socket2(Type, Addr, Port) ->
+-spec open_socket2(mongooseim:host_type(), inet | inet6, inet:ip_address(), inet:port_number()) ->
+          {'error', _} | {'ok', _}.
+open_socket2(HostType, Type, Addr, Port) ->
     ?LOG_DEBUG(#{what => s2s_out_connecting,
                  address => Addr, port => Port}),
-    Timeout = outgoing_s2s_timeout(),
+    Timeout = outgoing_s2s_timeout(HostType),
     SockOpts = [binary,
                 {packet, 0},
                 {send_timeout, ?TCP_SEND_TIMEOUT},
@@ -528,14 +514,10 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                                  myname => StateData#state.myname,
                                  server => StateData#state.server}),
                     Socket = StateData#state.socket,
-                    TLSOpts = get_tls_opts_with_certfile(StateData),
-                    TLSOpts2 = get_tls_opts_with_ciphers(TLSOpts),
-                    TLSSocket = ejabberd_socket:starttls(Socket, TLSOpts2),
+                    TLSSocket = ejabberd_socket:starttls(Socket, StateData#state.tls_options),
                     NewStateData = StateData#state{socket = TLSSocket,
                                                    streamid = new_id(),
-                                                   tls_enabled = true,
-                                                   tls_options = TLSOpts2
-                                                  },
+                                                   tls_enabled = true},
                     send_text(NewStateData,
                               ?STREAM_HEADER(StateData#state.myname, StateData#state.server,
                                 <<" version='1.0'">>)),
@@ -899,6 +881,7 @@ send_db_request(StateData) ->
                 ok;
             true ->
                 Key1 = ejabberd_s2s:key(
+                         StateData#state.host_type,
                          {StateData#state.myname, Server},
                          StateData#state.remote_streamid),
                 send_element(StateData,
@@ -952,16 +935,16 @@ is_verify_res(_) ->
 
 -include_lib("kernel/include/inet.hrl").
 
--spec lookup_services(jid:server()) -> [addr()].
-lookup_services(Server) ->
+-spec lookup_services(mongooseim:host_type(), jid:lserver()) -> [addr()].
+lookup_services(HostType, Server) ->
     case ejabberd_s2s:domain_utf8_to_ascii(Server) of
         false -> [];
-        ASCIIAddr -> do_lookup_services(ASCIIAddr)
+        ASCIIAddr -> do_lookup_services(HostType, ASCIIAddr)
     end.
 
--spec do_lookup_services(jid:server()) -> [addr()].
-do_lookup_services(Server) ->
-    Res = srv_lookup(Server),
+-spec do_lookup_services(mongooseim:host_type(),jid:lserver()) -> [addr()].
+do_lookup_services(HostType, Server) ->
+    Res = srv_lookup(HostType, Server),
     case Res of
         {error, Reason} ->
             ?LOG_DEBUG(#{what => s2s_srv_lookup_failed,
@@ -983,9 +966,10 @@ do_lookup_services(Server) ->
     end.
 
 
--spec srv_lookup(jid:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
-srv_lookup(Server) ->
-    #{timeout := TimeoutSec, retries := Retries} = mongoose_config:get_opt(s2s_dns),
+-spec srv_lookup(mongooseim:host_type(), jid:lserver()) ->
+          {'error', atom()} | {'ok', inet:hostent()}.
+srv_lookup(HostType, Server) ->
+    #{timeout := TimeoutSec, retries := Retries} = mongoose_config:get_opt([{s2s, HostType}, dns]),
     srv_lookup(Server, timer:seconds(TimeoutSec), Retries).
 
 
@@ -1015,18 +999,18 @@ srv_lookup(Server, Timeout, Retries) ->
         {ok, _HEnt} = R -> R
     end.
 
--spec lookup_addrs(jid:server()) -> [addr()].
-lookup_addrs(Server) ->
-    Port = outgoing_s2s_port(),
+-spec lookup_addrs(mongooseim:host_type(), jid:server()) -> [addr()].
+lookup_addrs(HostType, Server) ->
+    Port = outgoing_s2s_port(HostType),
     lists:foldl(fun(Type, []) ->
                         [#{ip_tuple => Addr, port => Port, type => Type}
-                         || Addr <- lookup_addrs(Server, Type)];
+                         || Addr <- lookup_addrs_for_type(Server, Type)];
                    (_Type, Addrs) ->
                         Addrs
-                end, [], outgoing_s2s_types()).
+                end, [], outgoing_s2s_types(HostType)).
 
--spec lookup_addrs(jid:lserver(), inet | inet6) -> [inet:ip_address()].
-lookup_addrs(Server, Type) ->
+-spec lookup_addrs_for_type(jid:lserver(), inet | inet6) -> [inet:ip_address()].
+lookup_addrs_for_type(Server, Type) ->
     case inet:gethostbyname(binary_to_list(Server), Type) of
         {ok, #hostent{h_addr_list = Addrs}} ->
             ?LOG_DEBUG(#{what => s2s_srv_resolve_success,
@@ -1039,13 +1023,13 @@ lookup_addrs(Server, Type) ->
     end.
 
 
--spec outgoing_s2s_port() -> inet:port_number().
-outgoing_s2s_port() ->
-    mongoose_config:get_opt([s2s_outgoing, port]).
+-spec outgoing_s2s_port(mongooseim:host_type()) -> inet:port_number().
+outgoing_s2s_port(HostType) ->
+    mongoose_config:get_opt([{s2s, HostType}, outgoing, port]).
 
 
--spec outgoing_s2s_types() -> [inet | inet6, ...].
-outgoing_s2s_types() ->
+-spec outgoing_s2s_types(mongooseim:host_type()) -> [inet | inet6, ...].
+outgoing_s2s_types(HostType) ->
     %% DISCUSSION: Why prefer IPv4 first?
     %%
     %% IPv4 connectivity will be available for everyone for
@@ -1057,14 +1041,14 @@ outgoing_s2s_types() ->
     %% AAAA records for their sites due to the mentioned
     %% quality of current IPv6 connectivity. Making IPv6 the a
     %% `fallback' may avoid these problems elegantly.
-    [ip_version_to_type(V) || V <- mongoose_config:get_opt([s2s_outgoing, ip_versions])].
+    [ip_version_to_type(V) || V <- mongoose_config:get_opt([{s2s, HostType}, outgoing, ip_versions])].
 
 ip_version_to_type(4) -> inet;
 ip_version_to_type(6) -> inet6.
 
--spec outgoing_s2s_timeout() -> non_neg_integer() | infinity.
-outgoing_s2s_timeout() ->
-    mongoose_config:get_opt([s2s_outgoing, connection_timeout], 10000).
+-spec outgoing_s2s_timeout(mongooseim:host_type()) -> non_neg_integer() | infinity.
+outgoing_s2s_timeout(HostType) ->
+    mongoose_config:get_opt([{s2s, HostType}, outgoing, connection_timeout], 10000).
 
 %% @doc Human readable S2S logging: Log only new outgoing connections as INFO
 %% Do not log dialback
@@ -1109,7 +1093,7 @@ wait_before_reconnect(StateData) ->
                 D1 ->
                     %% Duplicate the delay with each successive failed
                     %% reconnection attempt, but don't exceed the max
-                    lists:min([D1 * 2, get_max_retry_delay()])
+                    lists:min([D1 * 2, get_max_retry_delay(StateData#state.host_type)])
             end,
     Timer = erlang:start_timer(Delay, self(), []),
     {next_state, wait_before_retry, StateData#state{timer=Timer,
@@ -1120,8 +1104,8 @@ wait_before_reconnect(StateData) ->
 %% @doc Get the maximum allowed delay for retry to reconnect (in milliseconds).
 %% The default value is 5 minutes.
 %% The option {s2s_max_retry_delay, Seconds} can be used (in seconds).
-get_max_retry_delay() ->
-    mongoose_config:get_opt(s2s_max_retry_delay, ?MAX_RETRY_DELAY) * 1000.
+get_max_retry_delay(HostType) ->
+    mongoose_config:get_opt([{s2s, HostType}, max_retry_delay]) * 1000.
 
 
 %% @doc Terminate s2s_out connections that are in state wait_before_retry
@@ -1144,28 +1128,28 @@ fsm_limit_opts() ->
             []
     end.
 
--spec get_addr_list(jid:server()) -> [addr()].
-get_addr_list(Server) ->
-    lists:foldl(fun(F, []) -> F(Server);
+-spec get_addr_list(mongooseim:host_type(), jid:lserver()) -> [addr()].
+get_addr_list(HostType, Server) ->
+    lists:foldl(fun(F, []) -> F(HostType, Server);
                    (_, Result) -> Result
-                end, [], [fun get_predefined_addresses/1,
-                          fun lookup_services/1,
-                          fun lookup_addrs/1]).
+                end, [], [fun get_predefined_addresses/2,
+                          fun lookup_services/2,
+                          fun lookup_addrs/2]).
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(jid:server()) -> [addr()].
-get_predefined_addresses(Server) ->
-    case mongoose_config:lookup_opt([s2s_address, Server]) of
+-spec get_predefined_addresses(mongooseim:host_type(), jid:lserver()) -> [addr()].
+get_predefined_addresses(HostType, Server) ->
+    case mongoose_config:lookup_opt([{s2s, HostType}, address, Server]) of
         {ok, #{ip_address := IPAddress} = M} ->
             {ok, IPTuple} = inet:parse_address(IPAddress),
-            Port = get_predefined_port(M),
+            Port = get_predefined_port(HostType, M),
             [#{ip_tuple => IPTuple, port => Port, type => addr_type(IPTuple)}];
         {error, not_found} ->
             []
     end.
 
-get_predefined_port(#{port := Port}) -> Port;
-get_predefined_port(_) -> outgoing_s2s_port().
+get_predefined_port(_HostType, #{port := Port}) -> Port;
+get_predefined_port(HostType, _Addr) -> outgoing_s2s_port(HostType).
 
 addr_type(Addr) when tuple_size(Addr) =:= 4 -> inet;
 addr_type(Addr) when tuple_size(Addr) =:= 8 -> inet6.
@@ -1205,21 +1189,13 @@ get_acc_with_new_tls(?NS_TLS, El1, {SEXT, _STLS, _STLSReq}) ->
 get_acc_with_new_tls(_, _, Acc) ->
     Acc.
 
-get_tls_opts_with_certfile(StateData) ->
-    case mongoose_config:lookup_opt([domain_certfile, StateData#state.myname]) of
-        {error, not_found} ->
-            StateData#state.tls_options;
-        {ok, CertFile} ->
-            lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
-    end.
-
-get_tls_opts_with_ciphers(TLSOpts) ->
-    case mongoose_config:lookup_opt(s2s_ciphers) of
-        {error, not_found} ->
-            TLSOpts;
-        {ok, Ciphers} ->
-            [{ciphers, Ciphers} | TLSOpts]
-    end.
+tls_options(HostType) ->
+    CipherOpt = {ciphers, mongoose_config:get_opt([{s2s, HostType}, ciphers])},
+    CertFileOpts = case ejabberd_s2s:lookup_certfile(HostType) of
+                       {ok, CertFile} -> [{certfile, CertFile}];
+                       {error, not_found} -> []
+                   end,
+    [connect, CipherOpt | CertFileOpts].
 
 calc_addr_index({Priority, Weight, Port, Host}) ->
     N = case Weight of
