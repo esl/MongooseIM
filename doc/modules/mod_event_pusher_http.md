@@ -89,6 +89,7 @@ Here, some notifications will be POSTed to `http://localhost:8000/webservice/not
 
 ## Default payload format
 The default HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
+
 * `author`: username of the user who authored the message
 * `server`: name of the server from where the message originates
 * `receiver`: username of the user who the message is for
