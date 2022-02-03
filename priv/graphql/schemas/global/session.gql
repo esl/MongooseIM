@@ -1,0 +1,17 @@
+"The information about the session"
+type Session{
+  "The full JID"
+  user: JID!
+  "The connection type (e.g. c2s)"
+  connection: String
+  "The session IP address"
+  ip: String
+  "The session port"
+  port: Int
+  "The priority level of the resource"
+  priority: Int
+  "The node that the session process belongs to"
+  node: String
+  "The uptime of the session"
+  uptime: Int
+}

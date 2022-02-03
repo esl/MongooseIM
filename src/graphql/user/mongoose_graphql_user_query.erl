@@ -6,5 +6,7 @@
 
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
+execute(_Ctx, _Obj, <<"session">>, _Args) ->
+    {ok, session};
 execute(_Ctx, _Obj, <<"checkAuth">>, _Args) ->
     {ok, user}.

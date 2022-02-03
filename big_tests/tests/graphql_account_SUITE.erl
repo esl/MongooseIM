@@ -6,7 +6,8 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
+-import(graphql_helper, [execute/3, execute_auth/2, get_listener_port/1,
+                         get_listener_config/1, get_ok_value/2, get_err_msg/1]).
 
 -define(NOT_EXISTING_JID, <<"unknown987@unknown">>).
 
@@ -378,27 +379,6 @@ set_last(User, Domain, TStamp) ->
 
 check_account(Username, Domain) ->
     rpc(mim(), mongoose_account_api, check_account, [Username, Domain]).
-
-get_err_msg(Resp) ->
-    get_ok_value([errors, message], Resp).
-
-get_account_field(Field, Resp) ->
-    get_ok_value([data, account, Field], Resp).
-
-get_ok_value([errors | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}}) ->
-    get_value(Path, Error);
-get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
-    get_value(Path, Data).
-
-get_err_value([errors | Path], {{<<"400">>, <<"Bad Request">>}, #{<<"errors">> := [Error]}}) ->
-    get_value(Path, Error).
-
-% Gets a nested value given a path
-get_value([], Data) -> Data;
-get_value([Field | Fields], Data) ->
-    BinField = atom_to_binary(Field),
-    Data2 = maps:get(BinField, Data),
-    get_value(Fields, Data2).
 
 %% Request bodies
 

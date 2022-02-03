@@ -41,6 +41,7 @@
 
 {suites, "tests", graphql_SUITE}.
 {suites, "tests", graphql_account_SUITE}.
+{suites, "tests", graphql_session_SUITE}.
 {suites, "tests", graphql_stanza_SUITE}.
 
 {suites, "tests", graphql_domain_SUITE}.
