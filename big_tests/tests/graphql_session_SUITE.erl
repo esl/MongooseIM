@@ -52,17 +52,13 @@ init_per_group(admin_session, Config) ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice, alice_bis, bob])),
     graphql_helper:init_admin_handler(Config1);
 init_per_group(user_session, Config) ->
-    [{schema_endpoint, user} | Config];
-init_per_group(_, Config) ->
-    Config.
+    [{schema_endpoint, user} | Config].
 
 end_per_group(admin_session, Config) ->
     escalus_fresh:clean(),
     escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob]));
 end_per_group(user_session, _Config) ->
-    escalus_fresh:clean();
-end_per_group(_, _Config) ->
-    ok.
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -114,32 +110,36 @@ user_sessions_info_story(Config, Alice) ->
     ?assertMatch([#{<<"user">> := ExpectedUser}], get_ok_value(Path, Result)).
 
 admin_list_sessions(Config) ->
-    escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(_Alice, AliceB, _Bob) ->
-                BisDomain = escalus_client:server(AliceB),
-                Path = [data, session, listSessions],
-                % List all sessions
-                Res = execute_auth(list_sessions_body(null), Config),
-                Sessions = get_ok_value(Path, Res),
-                ?assertEqual(3, length(Sessions)),
-                % List sessions for a domain
-                Res2 = execute_auth(list_sessions_body(BisDomain), Config),
-                Sessions2 = get_ok_value(Path, Res2),
-                ?assertEqual(1, length(Sessions2))
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
+                                    fun admin_list_sessions_story/4).
+
+admin_list_sessions_story(Config, _Alice, AliceB, _Bob) ->
+    BisDomain = escalus_client:server(AliceB),
+    Path = [data, session, listSessions],
+    % List all sessions
+    Res = execute_auth(list_sessions_body(null), Config),
+    Sessions = get_ok_value(Path, Res),
+    ?assertEqual(3, length(Sessions)),
+    % List sessions for a domain
+    Res2 = execute_auth(list_sessions_body(BisDomain), Config),
+    Sessions2 = get_ok_value(Path, Res2),
+    ?assertEqual(1, length(Sessions2)).
 
 admin_count_sessions(Config) ->
-    escalus:story(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}], fun(_Alice, AliceB, _Bob) ->
-                BisDomain = escalus_client:server(AliceB),
-                Path = [data, session, countSessions],
-                % Count all sessions
-                Res = execute_auth(count_sessions_body(null), Config),
-                Number = get_ok_value(Path, Res),
-                ?assertEqual(3, Number),
-                % Count sessions for a domain
-                Res2 = execute_auth(count_sessions_body(BisDomain), Config),
-                Number2 = get_ok_value(Path, Res2),
-                ?assertEqual(1, Number2)
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}, {bob, 1}],
+                                    fun admin_count_sessions_story/4).
+
+admin_count_sessions_story(Config, _Alice, AliceB, _Bob) ->
+    BisDomain = escalus_client:server(AliceB),
+    Path = [data, session, countSessions],
+    % Count all sessions
+    Res = execute_auth(count_sessions_body(null), Config),
+    Number = get_ok_value(Path, Res),
+    ?assertEqual(3, Number),
+    % Count sessions for a domain
+    Res2 = execute_auth(count_sessions_body(BisDomain), Config),
+    Number2 = get_ok_value(Path, Res2),
+    ?assertEqual(1, Number2).
 
 admin_list_user_sessions(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 2}, {bob, 1}],
@@ -156,74 +156,80 @@ admin_list_user_sessions_story(Config, Alice, Alice2, _Bob) ->
     ?assert(users_match(ExpectedRes, Sessions)).
 
 admin_count_user_resources(Config) ->
-    escalus:story(Config, [{alice, 3}], fun(Alice, _Alice2, _Alice3) ->
-                Path = [data, session, countUserResources],
-                JID = escalus_client:full_jid(Alice),
-                Res = execute_auth(count_user_resources_body(JID), Config),
-                ?assertEqual(3, get_ok_value(Path, Res))
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 3}], fun admin_count_user_resources_story/4).
+
+admin_count_user_resources_story(Config, Alice, _Alice2, _Alice3) ->
+    Path = [data, session, countUserResources],
+    JID = escalus_client:full_jid(Alice),
+    Res = execute_auth(count_user_resources_body(JID), Config),
+    ?assertEqual(3, get_ok_value(Path, Res)).
 
 admin_get_user_resource(Config) ->
-    escalus:story(Config, [{alice, 3}], fun(Alice, Alice2, _Alice3) ->
-                Path = [data, session, getUserResource],
-                JID = escalus_client:short_jid(Alice),
-                % Provide a correct resource number
-                Res = execute_auth(get_user_resource_body(JID, 2), Config),
-                ?assertEqual(escalus_client:resource(Alice2), get_ok_value(Path, Res)),
-                % Provide a wrong resource number
-                Res2 = execute_auth(get_user_resource_body(JID, 4), Config),
-                ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"Wrong resource number">>))
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 3}], fun admin_get_user_resource_story/4).
+
+admin_get_user_resource_story(Config, Alice, Alice2, _Alice3) ->
+    Path = [data, session, getUserResource],
+    JID = escalus_client:short_jid(Alice),
+    % Provide a correct resource number
+    Res = execute_auth(get_user_resource_body(JID, 2), Config),
+    ?assertEqual(escalus_client:resource(Alice2), get_ok_value(Path, Res)),
+    % Provide a wrong resource number
+    Res2 = execute_auth(get_user_resource_body(JID, 4), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"Wrong resource number">>)).
 
 admin_count_users_with_status(Config) ->
-    escalus:story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceB) ->
-                Path = [data, session, countUsersWithStatus],
-                AwayStatus = <<"away">>,
-                AwayPresence = escalus_stanza:presence_show(AwayStatus),
-                DndStatus = <<"dnd">>,
-                DndPresence = escalus_stanza:presence_show(DndStatus),
-                % Count users with away status globally
-                escalus_client:send(Alice, AwayPresence),
-                escalus_client:send(AliceB, AwayPresence),
-                Res = execute_auth(count_users_with_status_body(null, AwayStatus), Config),
-                ?assertEqual(2, get_ok_value(Path, Res)),
-                % Count users with away status for a domain
-                Res2 = execute_auth(count_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
-                ?assertEqual(1, get_ok_value(Path, Res2)),
-                % Count users with dnd status globally
-                escalus_client:send(AliceB, DndPresence),
-                Res3 = execute_auth(count_users_with_status_body(null, DndStatus), Config),
-                ?assertEqual(1, get_ok_value(Path, Res3))
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
+                                    fun admin_count_users_with_status_story/3).
+
+admin_count_users_with_status_story(Config, Alice, AliceB) ->
+    Path = [data, session, countUsersWithStatus],
+    AwayStatus = <<"away">>,
+    AwayPresence = escalus_stanza:presence_show(AwayStatus),
+    DndStatus = <<"dnd">>,
+    DndPresence = escalus_stanza:presence_show(DndStatus),
+    % Count users with away status globally
+    escalus_client:send(Alice, AwayPresence),
+    escalus_client:send(AliceB, AwayPresence),
+    Res = execute_auth(count_users_with_status_body(null, AwayStatus), Config),
+    ?assertEqual(2, get_ok_value(Path, Res)),
+    % Count users with away status for a domain
+    Res2 = execute_auth(count_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
+    ?assertEqual(1, get_ok_value(Path, Res2)),
+    % Count users with dnd status globally
+    escalus_client:send(AliceB, DndPresence),
+    Res3 = execute_auth(count_users_with_status_body(null, DndStatus), Config),
+    ?assertEqual(1, get_ok_value(Path, Res3)).
 
 admin_list_users_with_status(Config) ->
-    escalus:story(Config, [{alice, 1}, {alice_bis, 1}], fun(Alice, AliceB) ->
-                AliceJID = escalus_client:full_jid(Alice),
-                AliceBJID = escalus_client:full_jid(AliceB),
-                Path = [data, session, listUsersWithStatus],
-                AwayStatus = <<"away">>,
-                AwayPresence = escalus_stanza:presence_show(AwayStatus),
-                DndStatus = <<"dnd">>,
-                DndPresence = escalus_stanza:presence_show(DndStatus),
-                % Count users with away status globally
-                escalus_client:send(Alice, AwayPresence),
-                escalus_client:send(AliceB, AwayPresence),
-                Res = execute_auth(list_users_with_status_body(null, AwayStatus), Config),
-                StatusUsers = get_ok_value(Path, Res),
-                ?assertEqual(2, length(StatusUsers)),
-                ?assert(users_match([AliceJID, AliceBJID], StatusUsers)),
-                % Count users with away status for a domain
-                Res2 = execute_auth(list_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
-                StatusUsers2 = get_ok_value(Path, Res2),
-                ?assertEqual(1, length(StatusUsers2)),
-                ?assert(users_match([AliceJID], StatusUsers2)),
-                % Count users with dnd status globally
-                escalus_client:send(AliceB, DndPresence),
-                Res3 = execute_auth(list_users_with_status_body(null, DndStatus), Config),
-                StatusUsers3 = get_ok_value(Path, Res3),
-                ?assertEqual(1, length(StatusUsers3)),
-                ?assert(users_match([AliceBJID], StatusUsers3))
-    end).
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {alice_bis, 1}],
+                                    fun admin_list_users_with_status_story/3).
+
+admin_list_users_with_status_story(Config, Alice, AliceB) ->
+    AliceJID = escalus_client:full_jid(Alice),
+    AliceBJID = escalus_client:full_jid(AliceB),
+    Path = [data, session, listUsersWithStatus],
+    AwayStatus = <<"away">>,
+    AwayPresence = escalus_stanza:presence_show(AwayStatus),
+    DndStatus = <<"dnd">>,
+    DndPresence = escalus_stanza:presence_show(DndStatus),
+    % List users with away status globally
+    escalus_client:send(Alice, AwayPresence),
+    escalus_client:send(AliceB, AwayPresence),
+    Res = execute_auth(list_users_with_status_body(null, AwayStatus), Config),
+    StatusUsers = get_ok_value(Path, Res),
+    ?assertEqual(2, length(StatusUsers)),
+    ?assert(users_match([AliceJID, AliceBJID], StatusUsers)),
+    % List users with away status for a domain
+    Res2 = execute_auth(list_users_with_status_body(domain_helper:domain(), AwayStatus), Config),
+    StatusUsers2 = get_ok_value(Path, Res2),
+    ?assertEqual(1, length(StatusUsers2)),
+    ?assert(users_match([AliceJID], StatusUsers2)),
+    % List users with dnd status globally
+    escalus_client:send(AliceB, DndPresence),
+    Res3 = execute_auth(list_users_with_status_body(null, DndStatus), Config),
+    StatusUsers3 = get_ok_value(Path, Res3),
+    ?assertEqual(1, length(StatusUsers3)),
+    ?assert(users_match([AliceBJID], StatusUsers3)).
 
 admin_kick_session(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 2}], fun admin_kick_session_story/3).
