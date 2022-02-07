@@ -1585,22 +1585,21 @@ mod_adhoc(_Config) ->
     ?errh(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
-    check_iqdisc(mod_auth_token),
-    P = fun(X) ->
+    check_iqdisc_map(mod_auth_token),
+    T = fun(X) ->
                 Opts = #{<<"validity_period">> => X},
                 #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
         end,
-    ?cfgh(modopts(mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                                   {{validity_period, refresh}, {31, days}}]),
-          P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>},
-             #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => <<"13">>,
-               <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-    ?errh(P([#{<<"token">> => <<"Access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
+    check_module_defaults(mod_auth_token),
+    K = [modules, mod_auth_token, validity_period],
+    ?cfgh(K ++ [access], #{unit => minutes, value => 13},
+          T(#{<<"access">> => #{<<"value">> => 13, <<"unit">> => <<"minutes">>}})),
+    ?cfgh(K ++ [refresh], #{unit => days, value => 31},
+          T(#{<<"refresh">> => #{<<"value">> => 31, <<"unit">> => <<"days">>}})),
+    ?errh(T(#{<<"access">> => #{<<"value">> => -1, <<"unit">> => <<"minutes">>}})),
+    ?errh(T(#{<<"access">> => #{<<"value">> => 10, <<"unit">> => <<"centuries">>}})),
+    ?errh(T(#{<<"access">> => #{<<"value">> => 10}})),
+    ?errh(T(#{<<"access">> => #{<<"unit">> => <<"days">>}})).
 
 mod_bosh(_Config) ->
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
@@ -1693,33 +1692,28 @@ mod_disco(_Config) ->
     ?errh(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
+    check_iqdisc_map(mod_extdisco),
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_extdisco">> =>
                                  #{<<"service">> => [Opts]}}}
         end,
-    M = fun(Opts) -> modopts(mod_extdisco, [Opts]) end,
-    RequiredOpts = #{
-                     <<"type">> => <<"stun">>,
-                     <<"host">> => <<"stun1">>},
-    ExpectedCfg = [{host, "stun1"},
-                   {type, stun}],
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{port, 3478}]),
-          T(RequiredOpts#{<<"port">> => 3478})),
-    ?cfgh(M(ExpectedCfg ++ [{transport, "udp"}]),
-          T(RequiredOpts#{<<"transport">> => <<"udp">>})),
-    ?cfgh(M(ExpectedCfg ++ [{username, "username"}]),
-          T(RequiredOpts#{<<"username">> => <<"username">>})),
-    ?cfgh(M(ExpectedCfg ++ [{password, "password"}]),
-          T(RequiredOpts#{<<"password">> => <<"password">>})),
+    check_module_defaults(mod_extdisco),
+    K = [modules, mod_extdisco, service],
+    RequiredOpts = #{<<"type">> => <<"stun">>, <<"host">> => <<"stun1">>},
+    Service = #{type => stun, host => <<"stun1">>},
+    ?cfgh(K, [Service], T(RequiredOpts)),
+    ?cfgh(K, [Service#{port => 3478}], T(RequiredOpts#{<<"port">> => 3478})),
+    ?cfgh(K, [Service#{transport => <<"udp">>}], T(RequiredOpts#{<<"transport">> => <<"udp">>})),
+    ?cfgh(K, [Service#{username => <<"user">>}], T(RequiredOpts#{<<"username">> => <<"user">>})),
+    ?cfgh(K, [Service#{password => <<"pass">>}], T(RequiredOpts#{<<"password">> => <<"pass">>})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     [?errh(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
-    ?errh(T(RequiredOpts#{<<"type">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"host">> => <<"">>})),
+    ?errh(T(RequiredOpts#{<<"type">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"port">> => -1})),
-    ?errh(T(RequiredOpts#{<<"transport">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"username">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"password">> => <<"">>})).
+    ?errh(T(RequiredOpts#{<<"transport">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"username">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
 
 mod_inbox(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
@@ -3102,6 +3096,20 @@ check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
           iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
     ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
+check_iqdisc_map(Module) ->
+    check_iqdisc_map(Module, #{}).
+
+check_iqdisc_map(Module, RequiredOpts) ->
+    ?cfgh([modules, Module, iqdisc], {queues, 10},
+          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
+    ?cfgh([modules, Module, iqdisc], parallel,
+          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
+    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
+
+check_module_defaults(Mod) ->
+    ExpectedCfg = config_parser_helper:default_mod_config(Mod),
+    ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
+
 modopts(Mod, Opts) ->
     [{[modules, Mod], Opts}].
 
@@ -3279,15 +3287,13 @@ compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
-compare_nodes([{modules, _}, mod_extdisco], V1, V2) ->
-    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
-compare_nodes([{modules, _}, _Module], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
     compare_maps(V1, V2, fun({K1, MV1}, {K2, MV2}) ->
                                  ?eq(K1, K2),
                                  compare_nodes(Node ++ [K1], MV1, MV2)
                          end);
+compare_nodes([{modules, _}, _Module], V1, V2) ->
+    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) ->
     ?eq({Node, V1}, {Node, V2}).
 
