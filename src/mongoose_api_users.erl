@@ -73,8 +73,8 @@ get_users(Bindings) ->
     {ok, Response}.
 
 put_user(Data, Bindings) ->
-    Host = gen_mod:get_opt(host, Bindings),
-    Username = gen_mod:get_opt(username, Bindings),
+    Host = proplists:get_value(host, Bindings),
+    Username = proplists:get_value(username, Bindings),
     case proplist_to_user(Data) of
         {ok, Password} ->
             maybe_register_user(Username, Host, Password);
@@ -83,8 +83,8 @@ put_user(Data, Bindings) ->
     end.
 
 delete_user(Bindings) ->
-    Host = gen_mod:get_opt(host, Bindings),
-    Username = gen_mod:get_opt(username, Bindings),
+    Host = proplists:get_value(host, Bindings),
+    Username = proplists:get_value(username, Bindings),
     JID = jid:make(Username, Host, <<>>),
     case ejabberd_auth:does_user_exist(JID) of
         true ->
@@ -130,7 +130,7 @@ user_to_proplist({Username, Host}) ->
     {user, [{username, Username}, {host, Host}]}.
 
 proplist_to_user([{<<"user">>, User}]) ->
-    case gen_mod:get_opt(<<"password">>, User, undefined) of
+    case proplists:get_value(<<"password">>, User, undefined) of
         undefined ->
             ?ERROR;
         Password ->
