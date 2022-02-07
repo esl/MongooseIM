@@ -5,13 +5,14 @@
 -export([init/2]).
 -export([update_chat_marker/2]).
 -export([get_chat_markers/4]).
+-export([remove_domain/2]).
 
 %%--------------------------------------------------------------------
 %% DB backend behaviour definition
 %%--------------------------------------------------------------------
 -callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
-%%% 'from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
+%%% 'domain', from', 'to', 'thread' and 'type' keys of the ChatMarker map serve
 %%% as a composite database key. If key is not available in the database,
 %%% then chat marker must be added. Otherwise this function must update
 %%% chat marker record for that composite key.
@@ -25,6 +26,7 @@
                            Timestamp :: integer()) ->
     [mod_smart_markers:chat_marker()].
 
+-callback remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
@@ -47,6 +49,12 @@ update_chat_marker(HostType, ChatMarker) ->
 get_chat_markers(HostType, To, Thread, TS) ->
     Args = [HostType, To, Thread, TS],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+%% @doc remove all entries for a given domain
+-spec remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
+remove_domain(HostType, Domain) ->
+    Args = [HostType, Domain],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 add_default_backend(Opts) ->
     case lists:keyfind(backend, 2, Opts) of

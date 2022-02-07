@@ -69,11 +69,8 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4]).
-
--ignore_xref([
-    behaviour_info/1, user_send_packet/4
-]).
+-export([user_send_packet/4, remove_domain/3]).
+-ignore_xref([user_send_packet/4, remove_domain/3]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -111,7 +108,8 @@ supported_features() ->
 %%--------------------------------------------------------------------
 -spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90}].
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
+     {remove_domain, HostType, ?MODULE, remove_domain, 60}].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
@@ -122,6 +120,13 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
         false -> Acc
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_smart_markers_backend:remove_domain(HostType, Domain),
     Acc.
 
 %%--------------------------------------------------------------------
@@ -167,11 +172,16 @@ is_valid_host(Acc, From, To) ->
 -spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	[chat_marker()].
 extract_chat_markers(Acc, From, To, Packet) ->
-    TS = mongoose_acc:timestamp(Acc),
     case mongoose_chat_markers:list_chat_markers(Packet) of
         [] -> [];
         ChatMarkers ->
-            CM = #{from => From, to => To, thread => get_thread(Packet), timestamp => TS},
+            TS = mongoose_acc:timestamp(Acc),
+            CM = #{from => From,
+                   to => To,
+                   thread => get_thread(Packet),
+                   timestamp => TS,
+                   type => undefined,
+                   id => undefined},
             [CM#{type => Type, id => Id} || {Type, Id} <- ChatMarkers]
     end.
 

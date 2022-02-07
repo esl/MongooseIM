@@ -493,16 +493,17 @@ CREATE TABLE mongoose_cluster_id (
 );
 
 CREATE TABLE smart_markers (
-    from_jid VARCHAR(250) NOT NULL,
-    to_jid VARCHAR(250) NOT NULL,
-    thread VARCHAR(250) NOT NULL,
+    lserver VARBINARY(255) NOT NULL,
+    from_luser VARBINARY(1023) NOT NULL,
+    to_jid VARBINARY(1542) NOT NULL,
+    thread VARBINARY(250) NOT NULL,
     -- 'R' - received
     -- 'D' - displayed
     -- 'A' - acknowledged
     type ENUM('R', 'D', 'A') NOT NULL,
-    msg_id VARCHAR(250) NOT NULL,
+    msg_id VARBINARY(250) NOT NULL,
     timestamp BIGINT NOT NULL,
-    PRIMARY KEY(from_jid, to_jid, thread, type)
+    PRIMARY KEY(lserver, from_luser, to_jid, thread, type)
 ) CHARACTER SET utf8mb4;
 
 CREATE INDEX i_smart_markers USING BTREE ON smart_markers(to_jid, thread);
