@@ -33,6 +33,8 @@
 
 {suites, "tests", dynamic_domains_SUITE}.
 
+{suites, "tests", extdisco_SUITE}.
+
 {suites, "tests", gdpr_SUITE}.
 {skip_groups, "tests", gdpr_SUITE,
  [retrieve_personal_data_pubsub,
