@@ -1158,7 +1158,11 @@ process_pool([Tag, Type|_], KVs) ->
     {[ScopeOpts, HostOpts, ConnOpts], Opts} = proplists:split(KVs, [scope, host, connection]),
     Scope = pool_scope(ScopeOpts, HostOpts),
     Connection = pool_connection(ConnOpts),
-    {b2a(Type), Scope, b2a(Tag), Opts, Connection}.
+    #{type => b2a(Type),
+      scope => Scope,
+      tag => b2a(Tag),
+      opts => Opts,
+      conn_opts => Connection}.
 
 pool_scope([{scope, single_host}], [{host, Host}]) -> Host;
 pool_scope([{scope, host}], []) -> host;

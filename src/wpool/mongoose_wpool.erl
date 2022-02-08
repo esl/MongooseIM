@@ -37,7 +37,7 @@
 %% Mostly for tests
 -export([expand_pools/2]).
 
--ignore_xref([behaviour_info/1, call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
+-ignore_xref([call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
@@ -61,18 +61,17 @@
 -type pool_opts() :: [wpool:option()].
 -type conn_opts() :: [{atom(), any()}].
 
--type pool_tuple_in() :: {PoolType :: pool_type(),
-                          HostType :: scope(),
-                          Tag :: tag(),
-                          WpoolOpts :: pool_opts(),
-                          ConnOpts :: conn_opts()}.
-%% Pool tuple with expanded HostType argument
--type pool_tuple() :: {PoolType :: pool_type(),
-                       %% does not contain `host' atom
-                       HostType :: host_type_or_global(),
-                       Tag :: tag(),
-                       WpoolOpts :: pool_opts(),
-                       ConnOpts :: conn_opts()}.
+-type pool_map_in() :: #{type := pool_type(),
+                         scope := scope(),
+                         tag := tag(),
+                         opts := pool_opts(),
+                         conn_opts := conn_opts()}.
+%% Pool map with expanded HostType argument instead of scope
+-type pool_map() :: #{type := pool_type(),
+                      host_type := host_type_or_global(),
+                      tag := tag(),
+                      opts := pool_opts(),
+                      conn_opts := conn_opts()}.
 -type pool_error() :: {pool_not_started, term()}.
 -type worker_result() :: {ok, pid()} | {error, pool_error()}.
 -type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_error()}.
@@ -130,8 +129,9 @@ start_configured_pools(PoolsIn, HostTypes) ->
     Pools = expand_pools(PoolsIn, HostTypes),
     [start(Pool) || Pool <- Pools].
 
--spec start(pool_tuple()) -> start_result().
-start({PoolType, HostType, Tag, PoolOpts, ConnOpts}) ->
+-spec start(pool_map()) -> start_result().
+start(#{type := PoolType, host_type := HostType, tag := Tag,
+        opts := PoolOpts, conn_opts := ConnOpts}) ->
     start(PoolType, HostType, Tag, PoolOpts, ConnOpts).
 
 -spec start(pool_type(), pool_opts()) -> start_result().
@@ -353,25 +353,24 @@ default_opts(PoolType) ->
         false -> []
     end.
 
--spec expand_pools([pool_tuple_in()], [mongooseim:host_type()]) -> [pool_tuple()].
+-spec expand_pools([pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
 expand_pools(Pools, HostTypes) ->
     %% First we select only pools for a specific vhost
-    HostSpecific = [{PoolType, HostType, Tag} ||
-                     {PoolType, HostType, Tag, _, _} <- Pools,
-                     is_binary(HostType)],
+    HostSpecific = [{Type, HT, Tag} || #{type := Type, scope := HT, tag := Tag} <- Pools, is_binary(HT)],
     %% Then we expand all pools with `host` as HostType parameter but using host specific configs
     %% if they were provided
-    F = fun({PoolType, host, Tag, WpoolOpts, ConnOpts}) ->
-                [{PoolType, HostType, Tag, WpoolOpts, ConnOpts} ||
-                 HostType <- HostTypes,
-                 not lists:member({PoolType, HostType, Tag}, HostSpecific)];
+    F = fun(M = #{type := PoolType, scope := host, tag := Tag}) ->
+                [M#{scope => HostType} || HostType <- HostTypes,
+                                          not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]
         end,
-    lists:flatmap(F, Pools).
+    Pools1 = lists:flatmap(F, Pools),
+    %% Rename "scope" field to "host_type"
+    lists:map(fun(M = #{scope := HT}) -> M1 = maps:remove(scope, M), M1#{host_type => HT} end, Pools1).
 
--spec get_unique_types([pool_tuple_in()]) -> [pool_type()].
+-spec get_unique_types([pool_map_in()]) -> [pool_type()].
 get_unique_types(Pools) ->
-    lists:usort([PoolType || {PoolType, _, _, _, _} <- Pools]).
+    lists:usort([maps:get(type, Pool) || Pool <- Pools]).
 
 -spec get_pool(pool_type(), host_type_or_global(), tag()) -> pool_record_result().
 get_pool(PoolType, HostType, Tag) ->
