@@ -16,7 +16,6 @@
           strategy :: wpool:strategy() | undefined,
           call_timeout :: call_timeout()
          }).
--dialyzer({no_match, start/4}).
 
 %% API
 -export([ensure_started/0,
