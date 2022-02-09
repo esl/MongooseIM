@@ -12,7 +12,7 @@ references:
 # list of references to be used inside executors block
 containers:
   - &mysql_container
-    image: mysql:__MYSQL_VERSION__
+    image: cimg/mysql:__MYSQL_VERSION__
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - MYSQL_ROOT_PASSWORD: secret
@@ -32,7 +32,7 @@ containers:
       - ENV_FILE_KEY_DATA: "__MIM_KEY__"
     entrypoint: *ENTRYPOINT
   - &pgsql_container
-    image: postgres:__PGSQL_VERSION__
+    image: cimg/postgres:__PGSQL_VERSION__
     environment:
       - SQL_TEMP_DIR: /tmp/sql
       - POSTGRES_PASSWORD: password
