@@ -33,6 +33,7 @@
 # TIMEOUT=1 ./tools/wait_for_healthcheck.sh "$CONTAINER"
 
 set -e
+source tools/common-vars.sh
 
 if [ "$#" -ne 1 ]; then
     exit "Illegal number of parameters"
@@ -47,7 +48,7 @@ TIMEOUT="${TIMEOUT:-60}"
 # health_status "$CONTAINER"
 function health_status
 {
-    docker inspect --format '{{json .State.Health.Status }}' "$1"
+    $DOCKER inspect --format '{{json .State.'${DOCKER_HEALTH}'.Status }}' "$1"
 }
 
 for i in $(seq 0 ${TIMEOUT}); do

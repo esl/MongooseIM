@@ -2,6 +2,26 @@
 
 TOOLS=`dirname $0`
 
+if echo | base32 -w0 > /dev/null 2>&1; then
+      # GNU coreutils base32, '-w' supported
+      ENCODER="base32 -w0"
+    else
+      # Openssl base32, no wrapping by default
+      ENCODER="base32"
+fi
+
+function cat32 {
+    cat "$1" | $ENCODER
+}
+
+DOCKER=${DOCKER:-docker}
+
+DOCKER_HEALTH=Health
+if [[ "$DOCKER" == *"podman"* ]]; then
+    # Overrides for podman
+    DOCKER_HEALTH=Healthcheck
+fi
+
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
     # Don't forget to install gsed command using "brew install gnu-sed"
@@ -22,40 +42,16 @@ DEV_NODES="${DEV_NODES-$DEFAULT_DEV_NODES}"
 # Create a bash array DEFAULT_DEV_NODES with node names
 IFS=' ' read -r -a DEV_NODES_ARRAY <<< "$DEV_NODES"
 
-# Linux volumes are faster than layer fs.
-# Mac volumes are actually slower than layer fs.
-case "$(uname -s)" in
-    Darwin*)    DEFAULT_DATA_ON_VOLUME=false;;
-    *)          DEFAULT_DATA_ON_VOLUME=true
-esac
-DATA_ON_VOLUME=${DATA_ON_VOLUME:-$DEFAULT_DATA_ON_VOLUME}
-
-# Returns its arguments if data on volume is enabled
-function data_on_volume
-{
-    if [ "$DATA_ON_VOLUME" = 'true' ]; then
-        echo "$@"
-    fi
-}
-
-# Example: mktempdir "PREFIX"
-#
-# MAC OS X and docker specific:
-#   Docker for Mac limits where mounts can be.
-#   Mounts can be in /tmp, /Users, /Volumes but not in /var/folders/cd/
-#   Default behaviour of mktemp on Mac is to create a directory like
-#   /var/folders/cd/qgvc26bj6hg1kgr41q96zydh0000gp/T/tmp.Sa9w8Xp3
-function mktempdir
-{
-    mktemp -d "/tmp/$1.XXXXXXXXX"
-}
-
-function mount_ro_volume
-{
-    echo "-v $1:$2:ro"
-}
-
 function db_name
 {
     echo mongooseim-$1
 }
+
+function entrypoint
+{
+    INJECT_FILES=$(cat32 tools/inject-files.sh)
+    echo 'eval ${INSTALL_DEPS_CMD:-echo} && echo '${INJECT_FILES}' | eval ${BASE32DEC:-base32 --decode} | bash'
+}
+
+PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
+PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"

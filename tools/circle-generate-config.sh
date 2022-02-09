@@ -2,21 +2,9 @@
 
 OUT_FILE="$1"
 
-echo | base32 -w0 > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-      # GNU coreutils base32, '-w' supported
-      ENCODER="base32 -w0"
-    else
-      # Openssl base32, no wrapping by default
-      ENCODER="base32"
-fi
-
 set -e
+source tools/common-vars.sh
 source tools/db-versions.sh
-
-function cat32 {
-    cat "$1" | $ENCODER
-}
 
 MYSQL_CNF=$(cat32 tools/db_configs/mysql/mysql.cnf)
 MYSQL_SQL=$(cat32 priv/mysql.sql)
@@ -51,9 +39,6 @@ MIM_PRIV_KEY=$(cat32 tools/ssl/mongooseim/privkey.pem)
 MIM_DHSERVER=$(cat32 tools/ssl/mongooseim/dh_server.pem)
 INJECT_FILES=$(cat32 tools/inject-files.sh)
 CACERT=$(cat32 tools/ssl/ca/cacert.pem)
-
-PYTHON2_BASE32_DEC="python2 -c 'import base64; import sys; sys.stdout.write(base64.b32decode(sys.stdin.readline().strip()))'"
-PYTHON3_BASE32_DEC="python3 -c 'import base64; import sys; sys.stdout.buffer.write(base64.b32decode(sys.stdin.readline().strip()))'"
 
 CERTS_CACHE_KEY=$(cat certs_cache_key)
 
