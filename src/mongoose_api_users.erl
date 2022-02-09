@@ -130,7 +130,7 @@ user_to_proplist({Username, Host}) ->
     {user, [{username, Username}, {host, Host}]}.
 
 proplist_to_user([{<<"user">>, User}]) ->
-    case proplists:get_value(<<"password">>, User, undefined) of
+    case proplists:get_value(<<"password">>, User) of
         undefined ->
             ?ERROR;
         Password ->

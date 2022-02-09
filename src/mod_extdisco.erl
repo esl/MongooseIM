@@ -43,32 +43,28 @@ supported_features() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
-                 <<"service">> => #list{items = service_config_spec()}},
-       defaults = #{<<"iqdisc">> => no_queue,
-                    <<"service">> => []},
-       format_items = map
-      }.
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                       <<"service">> => #list{items = service_config_spec()}},
+             defaults = #{<<"iqdisc">> => no_queue,
+                          <<"service">> => []},
+             format_items = map}.
 
 service_config_spec() ->
-    #section{
-       items = #{<<"type">> => #option{type = atom,
-                                       validate = non_empty},
-                 <<"host">> => #option{type = binary,
-                                       validate = non_empty},
-                 <<"port">> => #option{type = integer,
-                                       validate = port},
-                 <<"transport">> => #option{type = binary,
-                                            validate = {enum, [<<"udp">>, <<"tcp">>]}},
-                 <<"username">> => #option{type = binary,
+    #section{items = #{<<"type">> => #option{type = atom,
+                                             validate = non_empty},
+                       <<"host">> => #option{type = binary,
+                                             validate = non_empty},
+                       <<"port">> => #option{type = integer,
+                                             validate = port},
+                       <<"transport">> => #option{type = binary,
+                                                  validate = {enum, [<<"udp">>, <<"tcp">>]}},
+                       <<"username">> => #option{type = binary,
                                            validate = non_empty},
-                 <<"password">> => #option{type = binary,
-                                           validate = non_empty}
-                },
-       required = [<<"type">>, <<"host">>],
-       format_items = map
-    }.
+                       <<"password">> => #option{type = binary,
+                                                 validate = non_empty}
+                      },
+             required = [<<"type">>, <<"host">>],
+             format_items = map}.
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
