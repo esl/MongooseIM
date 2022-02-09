@@ -57,17 +57,18 @@
 -include("adhoc.hrl").
 -include("mongoose_config_spec.hrl").
 
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
     ejabberd_hooks:add(hooks(HostType)).
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     [gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_COMMANDS, Component) ||
-        {Component, _Fn} <- iq_handlers()].
+        {Component, _Fn} <- iq_handlers()],
+    ok.
 
 iq_handlers() ->
     [{ejabberd_local, fun ?MODULE:process_local_iq/5},
@@ -90,7 +91,10 @@ hooks(HostType) ->
 config_spec() ->
     #section{
        items = #{<<"report_commands_node">> => #option{type = boolean},
-                 <<"iqdisc">> => mongoose_config_spec:iqdisc()}
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"report_commands_node">> => false,
+                    <<"iqdisc">> => one_queue},
+       format_items = map
       }.
 
 -spec supported_features() -> [atom()].
@@ -172,7 +176,7 @@ disco_sm_items(Acc) ->
     Acc.
 
 are_commands_visible(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, report_commands_node, false).
+    gen_mod:get_module_opt(HostType, ?MODULE, report_commands_node).
 
 item(LServer, Node, Name, Lang) ->
     #{jid => LServer, node => Node, name => translate:translate(Lang, Name)}.
