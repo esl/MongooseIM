@@ -1575,23 +1575,24 @@ s2s_max_retry_delay(_Config) ->
 %% modules
 
 mod_adhoc(_Config) ->
-    check_iqdisc(mod_adhoc),
-    M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
+    check_module_defaults(mod_adhoc),
+    check_iqdisc_map(mod_adhoc),
+    P = [modules, mod_adhoc],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    ?cfgh(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
-    ?cfgh(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+    ?cfgh(P ++ [report_commands_node], true, T(<<"report_commands_node">>, true)),
+    ?cfgh(P ++ [report_commands_node], false, T(<<"report_commands_node">>, false)),
     %% not boolean
     ?errh(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
+    check_module_defaults(mod_auth_token),
     check_iqdisc_map(mod_auth_token),
+    P = [modules, mod_auth_token, validity_period],
     T = fun(X) ->
                 Opts = #{<<"validity_period">> => X},
                 #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
         end,
-    check_module_defaults(mod_auth_token),
-    P = [modules, mod_auth_token, validity_period],
     ?cfgh(P ++ [access], #{unit => minutes, value => 13},
           T(#{<<"access">> => #{<<"value">> => 13, <<"unit">> => <<"minutes">>}})),
     ?cfgh(P ++ [refresh], #{unit => days, value => 31},
@@ -1692,13 +1693,13 @@ mod_disco(_Config) ->
     ?errh(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
+    check_module_defaults(mod_extdisco),
     check_iqdisc_map(mod_extdisco),
+    P = [modules, mod_extdisco, service],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_extdisco">> =>
                                  #{<<"service">> => [Opts]}}}
         end,
-    check_module_defaults(mod_extdisco),
-    P = [modules, mod_extdisco, service],
     RequiredOpts = #{<<"type">> => <<"stun">>, <<"host">> => <<"stun1">>},
     Service = #{type => stun, host => <<"stun1">>},
     ?cfgh(P, [Service], T(RequiredOpts)),

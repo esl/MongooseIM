@@ -448,7 +448,7 @@ all_modules() ->
            {plugin_module, mod_event_pusher_push_plugin_defaults},
            {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
            {wpool, [{workers, 200}]}],
-      mod_adhoc => [{iqdisc, one_queue}, {report_commands_node, true}],
+      mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
       mod_mam_rdbms_arch_async => [{pm, []}],
       mod_keystore =>
           [{keys,
@@ -642,7 +642,8 @@ all_modules() ->
              {stale_h_repeat_after, 1800}]}]}.
 
 pgsql_modules() ->
-    #{mod_adhoc => [], mod_amp => [], mod_blocking => [], mod_bosh => [],
+    #{mod_adhoc => default_mod_config(mod_adhoc),
+      mod_amp => [], mod_blocking => [], mod_bosh => [],
       mod_carboncopy => [], mod_commands => [],
       mod_disco => [{users_can_see_hidden_services, false}],
       mod_last => [{backend, rdbms}],
@@ -750,6 +751,9 @@ pgsql_access() ->
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
 
+default_mod_config(mod_adhoc) ->
+    #{iqdisc => one_queue,
+      report_commands_node => false};
 default_mod_config(mod_auth_token) ->
     #{iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
