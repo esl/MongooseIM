@@ -78,7 +78,8 @@
                 csi_buffer = [] :: [mongoose_acc:t()],
                 hibernate_after = 0 :: non_neg_integer(),
                 replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}],
-                handlers = #{} :: #{ term() => {module(), atom(), term()} }
+                handlers = #{} :: #{ term() => {module(), atom(), term()} },
+                cred_opts :: mongoose_credentials:opts()
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().

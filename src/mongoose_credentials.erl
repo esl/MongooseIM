@@ -1,6 +1,7 @@
 -module(mongoose_credentials).
 
--export([new/2,
+-export([make_opts/1,
+         new/2,
          lserver/1,
          host_type/1,
          auth_modules/1,
@@ -9,7 +10,7 @@
          extend/2,
          register/3]).
 
--export_type([t/0]).
+-export_type([t/0, opts/0]).
 
 -record(mongoose_credentials, {lserver, host_type, registry = [], extra = [], modules}).
 
@@ -25,6 +26,12 @@
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()],
                            modules :: [ejabberd_auth:authmodule()] }.
+
+-type opts() :: #{}.
+
+-spec make_opts(ejabberd_listener:opts()) -> opts().
+make_opts(Opts) ->
+    #{}.
 
 -spec new(jid:lserver(), binary()) -> mongoose_credentials:t().
 new(LServer, HostType) when is_binary(LServer), is_binary(HostType) ->

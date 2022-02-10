@@ -38,6 +38,10 @@
 -export([format_error/1, socket_error/6]).
 
 -ignore_xref([start_link/0, init/1, start_listener/1, stop_listener/1]).
+-export_type([opts/0, mod/0]).
+
+-type opts() :: list().
+-type mod() :: module().
 
 -include("mongoose.hrl").
 

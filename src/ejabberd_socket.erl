@@ -66,8 +66,8 @@
 %% Function:
 %% Description:
 %%--------------------------------------------------------------------
--spec start(atom() | tuple(), ejabberd:sockmod(),
-            Socket :: port(), Opts :: [{atom(), _}]) -> ok.
+-spec start(ejabberd_listener:mod(), ejabberd:sockmod(),
+            Socket :: port(), Opts :: ejabberd_listener:opts()) -> ok.
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
@@ -78,8 +78,8 @@ start(Module, SockMod, Socket, Opts) ->
             start_raw_stream(Module, SockMod, Socket, Opts)
     end.
 
--spec start_raw_stream(atom() | tuple(), ejabberd:sockmod(),
-                       Socket :: port(), Opts :: [{atom(), _}]) -> ok.
+-spec start_raw_stream(ejabberd_listener:mod(), ejabberd:sockmod(),
+                       Socket :: port(), Opts :: ejabberd_listener:opts()) -> ok.
 start_raw_stream(Module, SockMod, Socket, Opts) ->
     case Module:start({SockMod, Socket}, Opts) of
         {ok, Pid} ->
