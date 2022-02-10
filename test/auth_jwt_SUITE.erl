@@ -49,10 +49,14 @@ init_per_suite(Config) ->
     ETSProcess = spawn(fun() -> ets_owner(Self) end),
     wait_for_ets(),
     meck_config(Config),
+    meck:new(ejabberd_auth, [no_link, passthrough]),
+    meck:expect(ejabberd_auth, auth_modules_for_host_type,
+                fun(_) -> [] end),
     [{ets_process, ETSProcess} | Config].
 
 end_per_suite(Config) ->
     meck_cleanup(),
+    meck:unload(ejabberd_auth),
     stop_ets(proplists:get_value(ets_process, Config)),
     Config.
 
