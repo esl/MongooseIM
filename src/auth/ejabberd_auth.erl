@@ -53,7 +53,8 @@
 -export([check_digest/4]).
 
 -export([auth_modules/1,
-         auth_methods/1]).
+         auth_methods/1,
+         auth_modules_for_host_type/1]).
 
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
@@ -132,7 +133,6 @@ supports_sasl_module(HostType, SASLModule) ->
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, not_authorized}.
 authorize(Creds) ->
-    HostType = mongoose_credentials:host_type(Creds),
     F = fun(Mod, {_CurResult, CurCreds}) ->
                 case mongoose_gen_auth:authorize(Mod, CurCreds) of
                     {ok, NewCreds} ->
@@ -143,7 +143,7 @@ authorize(Creds) ->
                 end
         end,
     Opts = #{default => {not_authorized, Creds}, metric => authorize},
-    case call_auth_modules_for_host_type(HostType, F, Opts) of
+    case call_auth_modules_with_creds(Creds, F, Opts) of
         Res = {ok, _Creds} -> Res;
         {not_authorized, _Creds} -> {error, not_authorized}
     end.
@@ -506,6 +506,13 @@ bind_host_type(HostType, F) when is_function(F, 2) ->
           mod_res() | [mod_res()].
 call_auth_modules_for_host_type(HostType, F, Opts) ->
     Modules = auth_modules_for_host_type(HostType),
+    call_auth_modules(Modules, F, Opts).
+
+-spec call_auth_modules_with_creds(mongoose_credentials:t(),
+                                   mod_fun() | mod_fold_fun(), call_opts()) ->
+          mod_res() | [mod_res()].
+call_auth_modules_with_creds(Creds, F, Opts) ->
+    Modules = mongoose_credentials:auth_modules(Creds),
     call_auth_modules(Modules, F, Opts).
 
 %% @doc Perform a map or a fold operation with function F over the provided Modules

@@ -45,10 +45,14 @@ suite() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(jid),
+    meck:new(ejabberd_auth, [no_link, passthrough]),
+    meck:expect(ejabberd_auth, auth_modules_for_host_type,
+                fun(_) -> [] end),
     Config.
 
 end_per_suite(Config) ->
     unset_auth_opts(),
+    meck:unload(ejabberd_auth),
     Config.
 
 init_per_group(public_key, Config) ->
