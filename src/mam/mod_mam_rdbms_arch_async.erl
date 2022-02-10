@@ -64,18 +64,20 @@ supported_features() ->
 -spec start_pool(mongooseim:host_type(), {writer_type(), gen_mod:module_opts()}) ->
     supervisor:startchild_ret().
 start_pool(HostType, {Type, Opts}) ->
-    {Opts1, Extra} = extend_opts(Type, Opts),
+    {PoolOpts, Extra} = make_pool_opts(Type, Opts),
     prepare_insert_queries(Type, Extra),
     ensure_metrics(Type, HostType),
     register_hooks(Type, HostType),
-    start_pool(Type, HostType, Opts1).
+    start_pool(Type, HostType, PoolOpts).
 
-extend_opts(Type, Opts) ->
+-spec make_pool_opts(writer_type(), gen_mod:module_opts()) ->
+          {mongoose_async_pools:pool_opts(), mongoose_async_pools:pool_extra()}.
+make_pool_opts(Type, Opts) ->
     Merge = maps:merge(defaults(), maps:from_list(Opts)),
     Extra = add_batch_name(Type, Merge),
-    Opts1 = maps:to_list(Extra),
-    Opts2 = gen_mod:set_opt(flush_extra, Opts1, Extra),
-    {add_callback(Type, Opts2), Extra}.
+    PoolOpts = Extra#{flush_callback => flush_callback(Type),
+                      flush_extra => Extra},
+    {PoolOpts, Extra}.
 
 %% Put batch_size into a statement name, so we could survive the module restarts
 %% with different batch sizes
@@ -84,10 +86,8 @@ add_batch_name(pm, #{batch_size := MaxSize} = Opts) ->
 add_batch_name(muc, #{batch_size := MaxSize} = Opts) ->
     Opts#{batch_name => multi_name(insert_mam_muc_messages, MaxSize)}.
 
-add_callback(pm, Opts) ->
-    gen_mod:set_opt(flush_callback, Opts, fun ?MODULE:flush_pm/2);
-add_callback(muc, Opts) ->
-    gen_mod:set_opt(flush_callback, Opts, fun ?MODULE:flush_muc/2).
+flush_callback(pm) -> fun ?MODULE:flush_pm/2;
+flush_callback(muc) -> fun ?MODULE:flush_muc/2.
 
 defaults() ->
     #{flush_interval => 2000,

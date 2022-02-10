@@ -13,12 +13,12 @@
 
 -type pool_id() :: atom().
 -type pool_name() :: atom().
--type pool_opts() :: gen_mod:module_opts().
+-type pool_opts() :: map().
 -type pool_extra() :: #{host_type := mongooseim:host_type(),
                         queue_length := non_neg_integer(),
                         _ => _}.
 
--export_type([pool_id/0, pool_extra/0]).
+-export_type([pool_id/0, pool_opts/0, pool_extra/0]).
 
 %%% API functions
 -spec start_pool(mongooseim:host_type(), pool_id(), pool_opts()) ->
@@ -112,10 +112,10 @@ gen_pool_name(HostType, PoolId) ->
 
 -spec make_wpool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
 make_wpool_opts(HostType, PoolId, Opts) ->
-    Interval = gen_mod:get_opt(flush_interval, Opts, 1000),
-    MaxSize = gen_mod:get_opt(batch_size, Opts, 100),
-    NumWorkers = gen_mod:get_opt(pool_size, Opts, 4 * erlang:system_info(schedulers_online)),
-    FlushCallback = gen_mod:get_opt(flush_callback, Opts),
+    Interval = maps:get(flush_interval, Opts, 1000),
+    MaxSize = maps:get(batch_size, Opts, 100),
+    NumWorkers = maps:get(pool_size, Opts, 4 * erlang:system_info(schedulers_online)),
+    FlushCallback = maps:get(flush_callback, Opts),
     FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],
     WorkerOpts = {HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra},
@@ -128,12 +128,10 @@ make_wpool_opts(HostType, PoolId, Opts) ->
 -spec make_extra(mongooseim:host_type(), pool_id(), pool_opts()) -> pool_extra().
 make_extra(HostType, PoolId, Opts) ->
     DefExtra = #{host_type => HostType, queue_length => 0},
-    case {gen_mod:get_opt(init_callback, Opts, undefined),
-          gen_mod:get_opt(flush_extra, Opts,
-                          fun(Val) -> maps:merge(Val, DefExtra) end,
-                          DefExtra)} of
-        {undefined, Extra} ->
-            Extra;
-        {InitFun, Extra} when is_function(InitFun, 3) ->
-            Extra#{init_data => InitFun(HostType, PoolId, Opts)}
+    Extra = maps:merge(maps:get(flush_extra, Opts, #{}), DefExtra),
+    case maps:find(init_callback, Opts) of
+        {ok, InitFun} ->
+            Extra#{init_data => InitFun(HostType, PoolId, Opts)};
+        error ->
+            Extra
     end.

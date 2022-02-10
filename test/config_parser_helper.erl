@@ -477,8 +477,9 @@ all_modules() ->
            {plugins, [<<"flat">>, <<"pep">>]}],
       mod_version => [{os_info, true}],
       mod_auth_token =>
-          [{{validity_period, access}, {13, minutes}},
-           {{validity_period, refresh}, {13, days}}],
+          #{validity_period => #{access => #{unit => minutes, value => 13},
+                                 refresh => #{unit => days, value => 13}},
+           iqdisc => one_queue},
       mod_carboncopy => [{iqdisc, no_queue}],
       mod_mam =>
           [{archive_chat_markers, true},
@@ -513,19 +514,14 @@ all_modules() ->
            {sdp_origin, "127.0.0.1"}],
       mod_mam_rdbms_prefs => [{pm, true}],
       mod_extdisco =>
-          [[{host, "stun1"},
-            {password, "password"},
-            {port, 3478},
-            {transport, "udp"},
-            {type, stun},
-            {username, "username"}],
-           [{host, "stun2"},
-            {password, "password"},
-            {port, 2222},
-            {transport, "tcp"},
-            {type, stun},
-            {username, "username"}],
-           [{host, "192.168.0.1"}, {type, turn}]],
+          #{iqdisc => one_queue,
+            service => [#{host => <<"stun1">>, password => <<"password">>,
+                          port => 3478, transport => <<"udp">>, type => stun,
+                          username => <<"username">>},
+                        #{host => <<"stun2">>, password => <<"password">>,
+                          port => 2222, transport => <<"tcp">>, type => stun,
+                          username => <<"username">>},
+                        #{host => <<"192.168.0.1">>, type => turn}]},
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
           [{access_log, muc},
@@ -753,3 +749,11 @@ pgsql_access() ->
       muc_create => [#{acl => local, value => allow}],
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
+
+default_mod_config(mod_auth_token) ->
+    #{iqdisc => no_queue,
+      validity_period => #{access => #{unit => hours, value => 1},
+                           refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_extdisco) ->
+    #{iqdisc => no_queue,
+      service => []}.

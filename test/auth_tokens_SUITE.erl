@@ -41,9 +41,12 @@ groups() ->
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
+    mongoose_config:set_opt({modules, host_type()},
+                            #{?TESTED => config_parser_helper:default_mod_config(?TESTED)}),
     C.
 
 end_per_suite(C) ->
+    mongoose_config:unset_opt({modules, host_type()}),
     C.
 
 init_per_testcase(Test, Config)
@@ -58,8 +61,6 @@ init_per_testcase(Test, Config)
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
-    mongoose_config:set_opt({modules, host_type()},
-                            #{?TESTED => validity_period_cfg(access, {13, hours})}),
     mock_rdbms_backend(),
     mock_mongoose_metrics(),
     mock_gen_iq_handler(),
@@ -86,7 +87,6 @@ end_per_testcase(Test, C)
     C;
 
 end_per_testcase(validity_period_test, C) ->
-    mongoose_config:unset_opt({modules, host_type()}),
     meck:unload(mod_auth_token_backend),
     meck:unload(mongoose_metrics),
     meck:unload(gen_iq_handler),
@@ -141,14 +141,11 @@ validity_period_test(_) ->
     %% given
     ok = ?TESTED:start(host_type(), mongoose_config:get_opt([{modules, host_type()}, ?TESTED])),
     UTCSeconds = utc_now_as_seconds(),
-    ExpectedSeconds = UTCSeconds + (    13 %% hours
-                                    * 3600 %% seconds per hour
-                                   ),
+    ExpectedSeconds = UTCSeconds + 3600, %% seconds per hour
     %% when
     ActualDT = ?TESTED:expiry_datetime(host_type(), access, UTCSeconds),
     %% then
-    ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds),
-        ActualDT).
+    ?ae(calendar:gregorian_seconds_to_datetime(ExpectedSeconds), ActualDT).
 
 choose_key_by_token_type(_) ->
     %% given mocked keystore (see init_per_testcase)
@@ -216,14 +213,6 @@ seconds_to_datetime(Seconds) ->
 utc_now_as_seconds() ->
     calendar:datetime_to_gregorian_seconds(calendar:universal_time()).
 
-%% Like in:
-%% {modules, [
-%%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-%%                              {{validity_period, refresh}, {13, days}}]}
-%%           ]}.
-validity_period_cfg(Type, Period) ->
-    [{{validity_period, Type}, Period}].
-
 %% This is a negative test case helper - that's why we invert the logic below.
 %% I.e. we expect the property to fail.
 negative_prop(Name, Prop) ->
@@ -238,7 +227,7 @@ mock_mongoose_metrics() ->
 
 mock_rdbms_backend() ->
     meck:new(mod_auth_token_backend, []),
-    meck:expect(mod_auth_token_backend, start, fun(_, _) -> ok end),
+    meck:expect(mod_auth_token_backend, start, fun(_) -> ok end),
     meck:expect(mod_auth_token_backend, get_valid_sequence_number,
                 fun (_, _) -> valid_seq_no_threshold() end),
     ok.

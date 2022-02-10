@@ -137,7 +137,7 @@ post_process_modules_opt(Other) ->
     Other.
 
 unfold_opts(Modules) ->
-    maps:map(fun(_Mod, Opts) -> proplists:unfold(Opts) end, Modules).
+    maps:map(fun(_Mod, Opts) -> mongoose_modules:unfold_opts(Opts) end, Modules).
 
 %% local functions
 

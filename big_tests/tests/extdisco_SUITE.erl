@@ -15,14 +15,13 @@
 %%==============================================================================
 -module(extdisco_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [domain/0, host_type/0]).
 
 -define(NS_EXTDISCO, <<"urn:xmpp:extdisco:2">>).
 
@@ -35,11 +34,10 @@ all() ->
      {group, extdisco_required_elements_configured}].
 
 groups() ->
-    G = [{extdisco_not_configured, [sequence], extdisco_not_configured_tests()},
-         {extdisco_configured, [sequence], extdisco_configured_tests()},
-         {multiple_extdisco_configured, [sequence], multiple_extdisco_configured_tests()},
-         {extdisco_required_elements_configured, [sequence], extdisco_required_elements_configured_tests()}],
-    ct_helper:repeat_all_until_all_ok(G).
+    [{extdisco_not_configured, [sequence], extdisco_not_configured_tests()},
+     {extdisco_configured, [sequence], extdisco_configured_tests()},
+     {multiple_extdisco_configured, [sequence], multiple_extdisco_configured_tests()},
+     {extdisco_required_elements_configured, [sequence], extdisco_required_elements_configured_tests()}].
 
 extdisco_not_configured_tests() ->
     [external_services_discovery_not_supported,
@@ -65,7 +63,7 @@ extdisco_required_elements_configured_tests() ->
     [external_service_required_elements_configured].
 
 init_per_suite(Config) ->
-    NewConfig = dynamic_modules:save_modules(domain(), Config),
+    NewConfig = dynamic_modules:save_modules(host_type(), Config),
     escalus:init_per_suite(NewConfig).
 
 init_per_group(extdisco_configured, Config) ->
@@ -75,7 +73,7 @@ init_per_group(multiple_extdisco_configured, Config) ->
     ExternalServices = [stun_service(), stun_service(), turn_service()],
     set_external_services(ExternalServices, Config);
 init_per_group(extdisco_required_elements_configured, Config) ->
-    ExternalServices = [[{type, ftp},{host, "3.3.3.3"}]],
+    ExternalServices = [#{type => ftp, host => <<"3.3.3.3">>}],
     set_external_services(ExternalServices, Config);
 init_per_group(_GroupName, Config) ->
    Config.
@@ -299,28 +297,28 @@ external_service_required_elements_configured(Config) ->
 %%-----------------------------------------------------------------
 
 stun_service() ->
-      [{type, stun},
-       {host, "1.1.1.1"},
-       {port, 3478},
-       {transport, "udp"},
-       {username, "username"},
-       {password, "secret"}].
+    #{type => stun,
+      host => <<"1.1.1.1">>,
+      port => 3478,
+      transport => <<"udp">>,
+      username => <<"username">>,
+      password => <<"secret">>}.
 
 turn_service() ->
-       [{type, turn},
-        {host, "2.2.2.2"},
-        {port, 3478},
-        {transport, "tcp"},
-        {username, "username"},
-        {password, "secret"}].
+    #{type => turn,
+      host => <<"2.2.2.2">>,
+      port => 3478,
+      transport => <<"tcp">>,
+      username => <<"username">>,
+      password => <<"secret">>}.
 
-set_external_services(Opts, Config) ->
-    Module = [{mod_extdisco, Opts}],
-    ok = dynamic_modules:ensure_modules(domain(), Module),
+set_external_services(Services, Config) ->
+    Module = [{mod_extdisco, #{iqdisc => no_queue, service => Services}}],
+    ok = dynamic_modules:ensure_modules(host_type(), Module),
     Config.
 
 remove_external_services(Config) ->
-    dynamic_modules:ensure_stopped(domain(), [mod_extdisco]),
+    dynamic_modules:ensure_stopped(host_type(), [mod_extdisco]),
     Config.
 
 request_external_services(To) ->

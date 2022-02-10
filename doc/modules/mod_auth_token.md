@@ -15,12 +15,19 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 ## Options
 
-### `modules.mod_auth_token.validity_period`
-* **Syntax:** Array of TOML tables with the following keys: `token`, `value`, `unit` and following values: {token = `values: "access", "refresh", "provision"`, value = `non-negative integer`, unit = `values: "days", "hours", "minutes", "seconds"`}.
-* **Default:** `[{token = "access", value = 1, unit = "hours"}, {token = "refresh", value = 25, unit = "days"}]`
-* **Example:** `[{token = "access", value = 13, unit = "minutes"}, {token = "refresh", value = 13, unit = "days"}]`
+### `modules.mod_auth_token.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
+* **Default:** `"no_queue"`
 
-Validity periods of access and refresh tokens can be defined independently.
+Strategy to handle incoming IQ stanzas. For details, please refer to
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
+
+### `modules.mod_auth_token.validity_period`
+* **Syntax:** TOML table. Each key is either `access` or `refresh`. Each value is a nested TOML table with the following mandatory keys: `value` (non-negative integer) and `unit` (`"days"`, `"hours"`, `"minutes"` or `"seconds"`).
+* **Default:** `{access = {value = 1, unit = "hours"}, refresh = {value = 25, unit = "days"}}`
+* **Example:** `validity_period.access = {value = 30, unit = "minutes"}`
+
+Validity periods of access and refresh tokens can be defined independently - specifying one of them does not change the default value for the other one.
 Validity period configuration for provision tokens happens outside the module since the server does not generate provision tokens - it only validates them.
 
 ### Required keys
@@ -156,8 +163,6 @@ Access token validity can't be sidestepped right now.
 
 ```toml
 [modules.mod_auth_token]
-  validity_period = [
-    {token = "access", value = 13, unit = "minutes"},
-    {token = "refresh", value = 13, unit = "days"}
-  ]
+  validity_period.access = {value = 13, unit = "minutes"}
+  validity_period.refresh = {value = 13, unit = "days"}
 ```

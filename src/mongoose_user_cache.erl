@@ -61,7 +61,7 @@ start_new_cache(HostType, Module, Opts) ->
 
 do_start_new_cache(HostType, Module, Opts) ->
     CacheName = gen_mod:get_module_proc(HostType, Module),
-    CacheOpts = #{merger_fun => gen_mod:get_opt(merger_fun, Opts, fun maps:merge/2),
+    CacheOpts = #{merger_fun => fun maps:merge/2,
                   segment_num => gen_mod:get_opt(number_of_segments, Opts, 3),
                   strategy => gen_mod:get_opt(strategy, Opts, fifo),
                   ttl => gen_mod:get_opt(time_to_live, Opts, {hours, 8})},

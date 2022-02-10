@@ -55,7 +55,7 @@
          get_opt/2,
          get_opt/3,
          get_opt/4,
-         set_opt/3,
+         get_module_opt/3,
          get_module_opt/4,
          get_module_opts/2,
          get_loaded_module_opts/2,
@@ -82,7 +82,11 @@
 -type module_feature() :: atom().
 -type domain_name() :: mongooseim:domain_name().
 -type host_type() :: mongooseim:host_type().
--type module_opts() :: list().
+-type key_path() :: mongoose_config:key_path().
+-type opt_key() :: atom().
+-type opt_value() :: mongoose_config:value().
+-type module_opts() :: [{opt_key(), opt_value()}] % deprecated, will be removed
+                     | #{opt_key() => opt_value()}. % recommended
 
 %% -export([behaviour_info/1]).
 %% behaviour_info(callbacks) ->
@@ -265,6 +269,11 @@ wait_for_stop(MonitorReference) ->
             timeout
     end.
 
+-spec get_opt(opt_key() | key_path(), module_opts()) -> opt_value().
+get_opt(Path, Opts) when is_list(Path), is_map(Opts) ->
+    lists:foldl(fun maps:get/2, Opts, Path);
+get_opt(Opt, Opts) when is_map(Opts) ->
+    maps:get(Opt, Opts);
 get_opt(Opt, Opts) ->
     case lists:keysearch(Opt, 1, Opts) of
         false ->
@@ -273,14 +282,16 @@ get_opt(Opt, Opts) ->
             Val
     end.
 
-get_opt(Opt, Opts, Default) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            Default;
-        {value, {_, Val}} ->
-            Val
+-spec get_opt(opt_key() | key_path(), module_opts(), opt_value()) -> opt_value().
+get_opt(Path, Opts, Default) ->
+    try
+        get_opt(Path, Opts)
+    catch
+        error:{badkey, _} -> Default;
+        throw:{undefined_option, _} -> Default
     end.
 
+%% @deprecated Processing should be done in the config spec
 get_opt(Opt, Opts, F, Default) ->
     case lists:keysearch(Opt, 1, Opts) of
         false ->
@@ -289,16 +300,8 @@ get_opt(Opt, Opts, F, Default) ->
             F(Val)
     end.
 
--spec set_opt(_, [tuple()], _) -> [tuple(), ...].
-set_opt(Opt, Opts, Value) ->
-    lists:keystore(Opt, 1, Opts, {Opt, Value}).
-
-
-%%% TODO Make Opt an atom. Fix in mod_auth_token:
-%%% 374: The call gen_mod:get_module_opt(Domain::any(), 'mod_auth_token',
-%%% {'validity_period','access' | 'refresh'}, {1 | 25,'days' | 'hours'})
-%%% breaks the contract (mongooseim:host_type(), module(), atom(), term()) -> term()
--spec get_module_opt(mongooseim:host_type(), module(), term(), term()) -> term().
+-spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path(), opt_value()) ->
+          opt_value().
 get_module_opt(HostType, Module, Opt, Default) ->
     %% Fail in dev builds.
     %% It protects against passing something weird as a Module argument
@@ -307,10 +310,17 @@ get_module_opt(HostType, Module, Opt, Default) ->
     ModuleOpts = get_module_opts(HostType, Module),
     get_opt(Opt, ModuleOpts, Default).
 
+-spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) -> opt_value().
+get_module_opt(HostType, Module, Opt) ->
+    ?ASSERT_MODULE(Module),
+    ModuleOpts = get_loaded_module_opts(HostType, Module),
+    get_opt(Opt, ModuleOpts).
 
+-spec get_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module], []).
 
+-spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module]).
 
