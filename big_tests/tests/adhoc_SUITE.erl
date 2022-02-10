@@ -34,7 +34,7 @@ all() ->
 
 groups() ->
     [{adhoc, [parallel], common_disco_cases() ++ hidden_disco_cases() ++ [ping]},
-         {disco_visible, [parallel], common_disco_cases() ++ visible_disco_cases()}].
+     {disco_visible, [parallel], common_disco_cases() ++ visible_disco_cases()}].
 
 common_disco_cases() ->
     [disco_info,
@@ -76,17 +76,18 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
-init_modules(disco_visible, Config) ->
+init_modules(GroupName, Config) ->
     Config1 = escalus:init_per_suite(dynamic_modules:save_modules(host_type(), Config)),
-    dynamic_modules:ensure_modules(host_type(), [{mod_adhoc, [{report_commands_node, true}]}]),
-    Config1;
-init_modules(_, Config) ->
-    Config.
+    dynamic_modules:ensure_modules(host_type(), [{mod_adhoc, adhoc_opts(GroupName)}]),
+    Config1.
 
-restore_modules(disco_visible, Config) ->
-    dynamic_modules:restore_modules(Config);
-restore_modules(_, _Config) ->
-    ok.
+restore_modules(_GroupName, Config) ->
+    dynamic_modules:restore_modules(Config).
+
+adhoc_opts(disco_visible) ->
+    #{iqdisc => one_queue, report_commands_node => true};
+adhoc_opts(_GroupName) ->
+    #{iqdisc => one_queue, report_commands_node => false}.
 
 %%--------------------------------------------------------------------
 %% Adhoc tests
