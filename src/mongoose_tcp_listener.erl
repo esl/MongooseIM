@@ -76,16 +76,16 @@ init({PortIP, Module, Opts, SockOpts, Port, IPS}) ->
 %%--------------------------------------------------------------------
 
 -spec start_accept_loop(Socket :: port(),
-                        Module :: atom(),
-                        Opts :: [any(), ...]) -> {ok, pid()}.
+                        Module :: ejabberd_listener:mod(),
+                        Opts :: ejabberd_listener:opts()) -> {ok, pid()}.
 start_accept_loop(ListenSock, Module, Opts) ->
     ProxyProtocol = proplists:get_value(proxy_protocol, Opts, false),
     Pid = proc_lib:spawn_link(?MODULE, accept_loop, [ListenSock, Module, Opts, ProxyProtocol]),
     {ok, Pid}.
 
 -spec accept_loop(Socket :: port(),
-                  Module :: atom(),
-                  Opts :: [any(), ...],
+                  Module :: ejabberd_listener:mod(),
+                  Opts :: ejabberd_listener:opts(),
                   ProxyProtocol :: boolean()) -> no_return().
 accept_loop(ListenSocket, Module, Opts, ProxyProtocol) ->
     case do_accept(ListenSocket, ProxyProtocol) of

@@ -44,6 +44,10 @@
               opts_to_listener_args/2, start_link/0, start_listener/3, stop_listener/2]).
 
 -export_type([port_ip_proto/0]).
+-export_type([opts/0, mod/0]).
+
+-type opts() :: list().
+-type mod() :: module().
 
 -include("mongoose.hrl").
 
