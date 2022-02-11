@@ -53,7 +53,7 @@ end_per_suite(C) ->
 %%--------------------------------------------------------------------
 
 authorize(_Config) ->
-    Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
+    Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     {ok, Creds2} = ejabberd_auth_dummy:authorize(Creds),
     ejabberd_auth_dummy = mongoose_credentials:get(Creds2, auth_module).
 
@@ -66,7 +66,7 @@ ejabberd_auth_interfaces(_Config) ->
                 fun(?DOMAIN) -> {ok, ?HOST_TYPE} end),
     meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),
 
-    Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
+    Creds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     {ok, Creds2} = ejabberd_auth:authorize(Creds),
     ejabberd_auth_dummy = mongoose_credentials:get(Creds2, auth_module),
 

@@ -129,6 +129,7 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 
 {suites, "tests", domain_removal_SUITE}.
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 

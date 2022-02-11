@@ -28,8 +28,8 @@ setup() ->
     meck:expect(cyrsasl, server_start, fun(_, _, _, _) -> {ok, dummy_creds} end),
     meck:expect(cyrsasl, listmech, fun(_) -> [] end),
 
-    meck:new(mongoose_credentials),
-    meck:expect(mongoose_credentials, new, fun(_, _) -> ok end),
+    meck:new(mongoose_credentials, [passthrough]),
+    meck:expect(mongoose_credentials, new, fun(_, _, _) -> ok end),
     meck:expect(mongoose_credentials, get,
                 fun(dummy_creds, sasl_success_response, undefined) ->
                     undefined end),

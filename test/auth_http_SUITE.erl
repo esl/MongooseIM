@@ -241,7 +241,7 @@ cert_auth_nonexistent(Config) ->
 %%--------------------------------------------------------------------
 creds_with_cert(Config, Username) ->
     Cert = proplists:get_value(der_cert, Config),
-    NewCreds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
+    NewCreds = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     mongoose_credentials:extend(NewCreds, [{der_cert, Cert},
                                            {username, Username}]).
 
