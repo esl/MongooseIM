@@ -96,7 +96,7 @@ check_password_fails_for_correct_token_but_wrong_username(_C) ->
                                              generate_token(hs256, 0, ?JWT_KEY)).
 
 authorize(_C) ->
-    Creds0 = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
+    Creds0 = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     Creds = mongoose_credentials:extend(Creds0, [{username, ?USERNAME},
                                                  {password, generate_token(hs256, 0, ?JWT_KEY)},
                                                  {digest, fake},

@@ -1,7 +1,7 @@
 -module(mongoose_credentials).
 
 -export([make_opts/1,
-         new/2,
+         new/3,
          lserver/1,
          host_type/1,
          auth_modules/1,
@@ -31,13 +31,27 @@
 
 -spec make_opts(ejabberd_listener:opts()) -> opts().
 make_opts(Opts) ->
-    #{}.
+    case lists:keyfind(allowed_auth_methods, 1, Opts) of
+        {allowed_auth_methods, Methods} ->
+            #{allowed_modules => ejabberd_auth:methods_to_modules(Methods)};
+        _ ->
+            #{}
+    end.
 
--spec new(jid:lserver(), binary()) -> mongoose_credentials:t().
-new(LServer, HostType) when is_binary(LServer), is_binary(HostType) ->
-    Modules = ejabberd_auth:auth_modules_for_host_type(HostType),
+-spec new(jid:lserver(), binary(), opts()) -> mongoose_credentials:t().
+new(LServer, HostType, Opts) when is_binary(LServer), is_binary(HostType) ->
+    HostTypeModules = ejabberd_auth:auth_modules_for_host_type(HostType),
+    Modules = filter_modules(HostTypeModules, Opts),
     #mongoose_credentials{lserver = LServer, host_type = HostType,
                           modules = Modules}.
+
+%% Allows to enable only some modules for some listeners
+-spec filter_modules([ejabberd_auth:authmodule()], opts()) ->
+    [ejabberd_auth:authmodule()].
+filter_modules(Modules, #{allowed_modules := AllowedModules}) ->
+    [M || M <- Modules, lists:member(M, AllowedModules)];
+filter_modules(Modules, _) ->
+    Modules.
 
 -spec host_type(t()) -> mongooseim:host_type().
 host_type(#mongoose_credentials{host_type = HostType}) -> HostType.

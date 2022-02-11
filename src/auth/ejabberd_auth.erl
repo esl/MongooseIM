@@ -54,7 +54,8 @@
 
 -export([auth_modules/1,
          auth_methods/1,
-         auth_modules_for_host_type/1]).
+         auth_modules_for_host_type/1,
+         methods_to_modules/1]).
 
 %% Library functions for reuse in ejabberd_auth_* modules
 -export([authorize_with_check_password/2]).
@@ -413,6 +414,10 @@ auth_modules(LServer) ->
 -spec auth_modules_for_host_type(HostType :: mongooseim:host_type()) -> [authmodule()].
 auth_modules_for_host_type(HostType) ->
     Methods = auth_methods(HostType),
+    methods_to_modules(Methods).
+
+-spec methods_to_modules([atom()]) -> [authmodule()].
+methods_to_modules(Methods) ->
     [auth_method_to_module(M) || M <- Methods].
 
 -spec auth_methods(mongooseim:host_type()) -> [atom()].

@@ -310,6 +310,8 @@ xmpp_listener_items(<<"c2s">>) ->
                             validate = positive},
       <<"max_fsm_queue">> => #option{type = integer,
                                      validate = positive},
+      <<"allowed_auth_methods">> => #list{items = #option{type = atom,
+                                                          validate = {module, ejabberd_auth}}},
       <<"tls">> => c2s_tls()};
 xmpp_listener_items(<<"s2s">>) ->
     #{<<"shaper">> => #option{type = atom,
