@@ -32,7 +32,7 @@ all() ->
      a_global_riak_pool_is_started,
      two_distinct_redis_pools_are_started,
      generic_pools_are_started_for_all_vhosts,
-     host_specific_pools_are_preseved,
+     host_specific_pools_are_preserved,
      pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
      global_pool_is_used_by_default,
      dead_pool_is_restarted,
@@ -101,10 +101,10 @@ stats_passes_through_to_wpool_stats(_Config) ->
 a_global_riak_pool_is_started(_Config) ->
     PoolName = mongoose_wpool:make_pool_name(riak, global, default),
     meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
-    [{ok, PoolName}] = mongoose_wpool:start_configured_pools([{riak, global, default,
-                                                               [{workers, 12}],
-                                                               [{address, "localhost"},
-                                                                {port, 1805}]}]),
+    Pool = #{type => riak, scope => global, tag => default,
+             opts => #{workers => 12},
+             conn_opts => #{address => "localhost", port => 1805}},
+    [{ok, PoolName}] = mongoose_wpool:start_configured_pools([Pool]),
 
     MgrPid = whereis(mongoose_wpool_mgr:name(riak)),
     [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(MgrPid),
@@ -124,12 +124,12 @@ two_distinct_redis_pools_are_started(_C) ->
     PoolName1 = mongoose_wpool:make_pool_name(redis, global, default),
     PoolName2 = mongoose_wpool:make_pool_name(redis, global, global_dist),
     meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
-    Pools = [{redis, global, default, [{workers, 2}],
-              [{host, "localhost"},
-               {port, 1805}]},
-             {redis, global, global_dist, [{workers, 4}],
-              [{host, "localhost2"},
-               {port, 1806}]}],
+    Pools = [#{type => redis, scope => global, tag => default, opts => #{workers => 2},
+               conn_opts => #{host => "localhost",
+                              port => 1805}},
+             #{type => redis, scope => global, tag => global_dist, opts => #{workers => 4},
+               conn_opts => #{host => "localhost2",
+                              port => 1806}}],
 
     [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
 
@@ -143,7 +143,7 @@ two_distinct_redis_pools_are_started(_C) ->
     ok.
 
 generic_pools_are_started_for_all_vhosts(_C) ->
-    Pools = [{generic, host, default, [], []}],
+    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}}],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
     ?assertMatch([_, _, _], StartRes),
     ?assertMatch([{generic, <<"a.com">>, default},
@@ -151,29 +151,43 @@ generic_pools_are_started_for_all_vhosts(_C) ->
                   {generic, <<"c.eu">>, default}],
                  ordsets:from_list(mongoose_wpool:get_pools())).
 
-host_specific_pools_are_preseved(_C) ->
-    Pools = [{generic, host, default, [], []},
-             {generic, <<"b.com">>, default, [{workers, 12}], []}],
+host_specific_pools_are_preserved(_C) ->
+    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}},
+             #{type => generic, scope => <<"b.com">>, tag => default,
+               opts => #{workers => 12}, conn_opts => #{}}],
     Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
-    ?assertMatch([{generic,<<"a.com">>,default,[],[]},
-                  {generic,<<"c.eu">>,default,[],[]},
-                  {generic,<<"b.com">>,default,[{workers,12}],[]}], Expanded).
+    ?assertMatch([#{type := generic, host_type := <<"a.com">>, tag := default,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"c.eu">>, tag := default,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"b.com">>, tag := default,
+                    opts := [{workers, 12}], conn_opts := #{}}],
+                 Expanded).
 
 pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
-    Pools = [{generic, host, default, [], []},
-             {generic, <<"b.com">>, default, [{workers, 12}], []},
-             {generic, host, other_tag, [], []}],
+    Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}},
+             #{type => generic, scope => <<"b.com">>, tag => default,
+               opts => #{workers => 12}, conn_opts => #{}},
+             #{type => generic, scope => host, tag => other_tag, opts => #{}, conn_opts => #{}}],
     Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
-    ?assertMatch([{generic,<<"a.com">>,default,[],[]},
-                  {generic,<<"c.eu">>,default,[],[]},
-                  {generic,<<"b.com">>,default,[{workers,12}],[]},
-                  {generic,<<"a.com">>,other_tag,[],[]},
-                  {generic,<<"b.com">>,other_tag,[],[]},
-                  {generic,<<"c.eu">>,other_tag,[],[]}], Expanded).
+    ?assertMatch([#{type := generic, host_type := <<"a.com">>, tag := default,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"c.eu">>, tag := default,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"b.com">>, tag := default,
+                    opts := [{workers, 12}], conn_opts := #{}},
+                  #{type := generic, host_type := <<"a.com">>, tag := other_tag,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"b.com">>, tag := other_tag,
+                    opts := [], conn_opts := #{}},
+                  #{type := generic, host_type := <<"c.eu">>, tag := other_tag,
+                    opts := [], conn_opts := #{}}],
+                 Expanded).
 
 global_pool_is_used_by_default(_C) ->
-    Pools = [{generic, global, default, [], []},
-             {generic, <<"a.com">>, default, [], []}],
+    Pools = [#{type => generic, scope => global, tag => default, opts => #{}, conn_opts => #{}},
+             #{type => generic, scope => <<"a.com">>, tag => default,
+               opts => #{}, conn_opts => #{}}],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
     ?assertMatch([_, _], StartRes),
     meck:expect(wpool, call, fun(Name, _Req, _Strat, _Timeout) -> Name end),
@@ -245,8 +259,8 @@ pool_cant_be_started_with_available_worker_strategy(Type) ->
     Tag = default,
     PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),
     meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
-    PoolDef = [{Type, Host, Tag, [{strategy, available_worker}],
-                [{address, "localhost"}, {port, 1805}]}],
+    PoolDef = [#{type => Type, scope => Host, tag => Tag, opts => #{strategy => available_worker},
+                 conn_opts => #{address => "localhost", port => 1805}}],
     ?assertError({strategy_not_supported, Type, Host, Tag, available_worker},
                  mongoose_wpool:start_configured_pools(PoolDef)).
 
@@ -275,11 +289,11 @@ start_killable_pool(Size, Tag) ->
     ets:insert(KillingSwitch, {kill_worker, false}),
     meck:new(killing_workers, [non_strict]),
     meck:expect(killing_workers, handle_worker_creation, kill_worker_fun(KillingSwitch)),
-    Pools = [{generic, global, Tag,
-              [{workers, Size},
-               {enable_callbacks, true},
-               {callbacks, [killing_workers]}],
-              []}],
+    Pools = [#{type => generic, scope => global, tag => Tag,
+               opts => #{workers => Size,
+                         enable_callbacks => true,
+                         callbacks => [killing_workers]},
+               conn_opts => #{}}],
     [{ok, _Pid}] = mongoose_wpool:start_configured_pools(Pools),
     PoolName = mongoose_wpool:make_pool_name(generic, global, Tag),
     {PoolName, KillingSwitch}.

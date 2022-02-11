@@ -12,8 +12,8 @@ init() ->
     ok.
 
 start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
-    ElasticHost = proplists:get_value(host, ConnOpts, "localhost"),
-    Port = proplists:get_value(port, ConnOpts, 9200),
+    ElasticHost = maps:get(host, ConnOpts, "localhost"),
+    Port = maps:get(port, ConnOpts, 9200),
     ProcName = mongoose_wpool:make_pool_name(elastic, HostType, Tag),
     Opts = [{host, list_to_binary(ElasticHost)}, {port, Port}],
     WPoolOptions  = [{overrun_warning, infinity},

@@ -1039,25 +1039,25 @@ pool_type(_Config) ->
     ?cfg(pool_config(#{type => http,
                        scope => global,
                        tag => default,
-                       opts => [],
-                       conn_opts => []}),
+                       opts => #{},
+                       conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{})),
     ?err(pool_raw(<<"swimming_pool">>, <<"default">>, #{})).
 
 pool_tag(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => my_pool, opts => [], conn_opts => []}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => my_pool, opts => #{}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"my_pool">>, #{})),
     ?err(pool_raw(<<"http">>, 1000, #{})).
 
 pool_scope(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [], conn_opts => []}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{})),
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [], conn_opts => []}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"global">>})),
-    ?cfg(pool_config(#{type => http, scope => host, tag => default, opts => [], conn_opts => []}),
+    ?cfg(pool_config(#{type => http, scope => host, tag => default, opts => #{}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"host">>})),
     ?cfg(pool_config(#{type => http, scope => <<"localhost">>, tag => default,
-                       opts => [], conn_opts => []}),
+                       opts => #{}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
                                                <<"host">> => <<"localhost">>})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
@@ -1065,25 +1065,25 @@ pool_scope(_Config) ->
 
 pool_workers(_Config) ->
     ?cfg(pool_config(#{type => http, scope => global, tag => default,
-                       opts => [{workers, 10}], conn_opts => []}),
+                       opts => #{workers => 10}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 10})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 0})).
 
 pool_strategy(_Config) ->
     ?cfg(pool_config(#{type => http, scope => global, tag => default,
-                       opts => [{strategy, best_worker}], conn_opts => []}),
+                       opts => #{strategy => best_worker}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"best_worker">>})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"worst_worker">>})).
 
 pool_call_timeout(_Config) ->
     ?cfg(pool_config(#{type => http, scope => global, tag => default,
-                       opts => [{call_timeout, 5000}], conn_opts => []}),
+                       opts => #{call_timeout => 5000}, conn_opts => #{}}),
          pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 5000})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 0})).
 
 pool_rdbms_settings(_Config) ->
     ?cfg(pool_config(#{type => rdbms, scope => global, tag => default,
-                       opts => [], conn_opts => [{server, "DSN=mydb"}]}),
+                       opts => #{}, conn_opts => #{server => "DSN=mydb"}}),
          pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
                                       <<"settings">> => <<"DSN=mydb">>})),
     ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"mysql">>,
@@ -1094,7 +1094,7 @@ pool_rdbms_settings(_Config) ->
 
 pool_rdbms_keepalive_interval(_Config) ->
     ?cfg(pool_config(#{type => rdbms, scope => global, tag => default,
-                       opts => [], conn_opts => [{server, "DSN=mydb"}, {keepalive_interval, 1000}]}),
+                       opts => #{}, conn_opts => #{server => "DSN=mydb", keepalive_interval => 1000}}),
          pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
                                       <<"settings">> => <<"DSN=mydb">>,
                                       <<"keepalive_interval">> => 1000})),
@@ -1104,8 +1104,8 @@ pool_rdbms_keepalive_interval(_Config) ->
 
 pool_rdbms_server(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", "db", "dbuser", "secret"}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret"}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts)),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> := <<"odbc">>})),
     [?err(pool_conn_raw(<<"rdbms">>, maps:without([K], ServerOpts))) ||
@@ -1115,35 +1115,35 @@ pool_rdbms_server(_Config) ->
 
 pool_rdbms_port(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => 1234})),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => <<"airport">>})).
 
 pool_rdbms_tls(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                               [{ssl, required}]}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                               [{ssl, required}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{<<"required">> => true}})),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                               [{ssl, true}]}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                               [{ssl, true}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{}})),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {mysql, "localhost", "db", "dbuser", "secret", []}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {mysql, "localhost", "db", "dbuser", "secret", []}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> => <<"mysql">>,
                                                 <<"tls">> => #{}})),
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret",
-                                               [{ssl, true}]}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", 1234, "db", "dbuser", "secret",
+                                               [{ssl, true}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{},
                                                 <<"port">> => 1234})),
 
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                               [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}]}),
+    ?cfg(pool_config(#{type => rdbms, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                                 [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
                                                     #{<<"certfile">> => <<"cert.pem">>}})),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
@@ -1151,65 +1151,65 @@ pool_rdbms_tls(_Config) ->
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
 
 pool_http_host(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{server, "https://localhost:8443"}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{server => "https://localhost:8443"}}),
          pool_conn_raw(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
     ?err(pool_conn_raw(<<"http">>, #{<<"host">> => 8443})),
     ?err(pool_conn_raw(<<"http">>, #{<<"host">> => ""})).
 
 pool_http_path_prefix(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{path_prefix, "/"}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{path_prefix => "/"}}),
          pool_conn_raw(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
     ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => 8443})),
     ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => ""})).
 
 pool_http_request_timeout(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{request_timeout, 2000}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{request_timeout => 2000}}),
          pool_conn_raw(<<"http">>, #{<<"request_timeout">> => 2000})),
     ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => -1000})),
     ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
 pool_http_tls(_Config) ->
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{http_opts, [{certfile, "cert.pem"} ]}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{http_opts, [{certfile, "cert.pem"},
-                                                  {verify, verify_peer},
-                                                  {cacertfile, "priv/ca.pem"},
-                                                  {server_name_indication, disable}]}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, disable}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => false}})),
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{http_opts, [{certfile, "cert.pem"},
-                                                  {verify, verify_peer},
-                                                  {cacertfile, "priv/ca.pem"},
-                                                  {server_name_indication, "domain.com"}]}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, "domain.com"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => true,
                                                     <<"server_name_indication_host">> => <<"domain.com">>}})),
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{http_opts, [{certfile, "cert.pem"},
-                                                  {verify, verify_peer},
-                                                  {cacertfile, "priv/ca.pem"},
-                                                  {server_name_indication, "domain.com"},
-                                                  {customize_hostname_check,
-                                                   [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}]}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, "domain.com"},
+                                                    {customize_hostname_check,
+                                                     [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => true,
                                                     <<"server_name_indication_host">> => <<"domain.com">>,
                                                     <<"server_name_indication_protocol">> => <<"https">>}})),
-    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => [],
-                       conn_opts => [{http_opts, [{verify, verify_peer},
-                                                  {cacertfile, "priv/ca.pem"}]}]}),
+    ?cfg(pool_config(#{type => http, scope => global, tag => default, opts => #{},
+                       conn_opts => #{http_opts => [{verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>}})),
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
@@ -1225,52 +1225,52 @@ pool_http_tls(_Config) ->
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => <<"secure">>})).
 
 pool_redis_host(_Config) ->
-    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => [],
-                       conn_opts => [{host, "localhost"}]}),
+    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => #{},
+                       conn_opts => #{host => "localhost"}}),
          pool_conn_raw(<<"redis">>, #{<<"host">> => <<"localhost">>})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => 8443})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => ""})).
 
 pool_redis_port(_Config) ->
-    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => [],
-                       conn_opts => [{port, 6379}]}),
+    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => #{},
+                       conn_opts => #{port => 6379}}),
          pool_conn_raw(<<"redis">>, #{<<"port">> => 6379})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => 666666})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => <<"airport">>})).
 
 pool_redis_database(_Config) ->
-    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => [],
-                       conn_opts => [{database, 0}]}),
+    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => #{},
+                       conn_opts => #{database => 0}}),
          pool_conn_raw(<<"redis">>, #{<<"database">> => 0})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => -1})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => <<"my_database">>})).
 
 pool_redis_password(_Config) ->
-    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => [],
-                       conn_opts => [{password, ""}]}),
+    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => #{},
+                       conn_opts => #{password => ""}}),
          pool_conn_raw(<<"redis">>, #{<<"password">> => <<"">>})),
-    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => [],
-                       conn_opts => [{password, "password1"}]}),
+    ?cfg(pool_config(#{type => redis, scope => global, tag => default, opts => #{},
+                       conn_opts => #{password => "password1"}}),
          pool_conn_raw(<<"redis">>, #{<<"password">> => <<"password1">>})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"password">> => 0})).
 
 pool_riak_address(_Config) ->
-    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => [],
-                       conn_opts => [{address, "127.0.0.1"}]}),
+    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => #{},
+                       conn_opts => #{address => "127.0.0.1"}}),
          pool_conn_raw(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => 66})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => <<"">>})).
 
 pool_riak_port(_Config) ->
-    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => [],
-                       conn_opts => [{port, 8087}]}),
+    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => #{},
+                       conn_opts => #{port => 8087}}),
          pool_conn_raw(<<"riak">>, #{<<"port">> => 8087})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => 666666})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => <<"airport">>})).
 
 pool_riak_credentials(_Config) ->
-    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => [],
-                       conn_opts => [{credentials, "user", "pass"}]}),
+    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => #{},
+                       conn_opts => #{credentials => {"user", "pass"}}}),
          pool_conn_raw(<<"riak">>, #{<<"credentials">> =>
                                          #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
@@ -1278,18 +1278,18 @@ pool_riak_credentials(_Config) ->
                                          #{<<"user">> => <<"">>, <<"password">> => 011001}})).
 
 pool_riak_cacertfile(_Config) ->
-    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => [],
-                       conn_opts => [{cacertfile, "cacert.pem"}]}),
+    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => #{},
+                       conn_opts => #{cacertfile => "cacert.pem"}}),
          pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
 pool_riak_tls(_Config) ->
     %% make sure these options are not extracted out of 'ssl_opts'
     %% all the TLS options are checked by 'listen_tls_*' tests
-    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => [],
-                       conn_opts => [{ssl_opts, [{certfile, "path/to/cert.pem"},
-                                                 {dhfile, "cert.pem"},
-                                                 {keyfile, "path/to/key.pem"}]}]}),
+    ?cfg(pool_config(#{type => riak, scope => global, tag => default, opts => #{},
+                       conn_opts => #{ssl_opts => [{certfile, "path/to/cert.pem"},
+                                                   {dhfile, "cert.pem"},
+                                                   {keyfile, "path/to/key.pem"}]}}),
          pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
                                                     <<"dhfile">> => <<"cert.pem">>,
                                                     <<"keyfile">> => <<"path/to/key.pem">>}})),
@@ -1297,9 +1297,9 @@ pool_riak_tls(_Config) ->
     ?err(pool_conn_raw(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
-    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => [],
-                       conn_opts => [{servers, [{"cassandra_server1.example.com", 9042},
-                                  {"cassandra_server2.example.com", 9042}]}]}),
+    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => #{},
+                       conn_opts => #{servers => [{"cassandra_server1.example.com", 9042},
+                                                  {"cassandra_server2.example.com", 9042}]}}),
          pool_conn_raw(<<"cassandra">>,
                        #{<<"servers">> => [#{<<"ip_address">> => <<"cassandra_server1.example.com">>,
                                              <<"port">> => 9042},
@@ -1310,15 +1310,15 @@ pool_cassandra_servers(_Config) ->
                                             <<"port">> => 9042}})).
 
 pool_cassandra_keyspace(_Config) ->
-    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => [],
-                       conn_opts => [{keyspace, "big_mongooseim"}]}),
+    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => #{},
+                       conn_opts => #{keyspace => "big_mongooseim"}}),
          pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
-    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => [],
-                       conn_opts => [{auth, {cqerl_auth_plain_handler,
-                                             [{<<"auser">>, <<"secretpass">>}]}}]}),
+    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => #{},
+                       conn_opts => #{auth => {cqerl_auth_plain_handler,
+                                               [{<<"auser">>, <<"secretpass">>}]}}}),
          pool_conn_raw(<<"cassandra">>,
                        #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
                                                           <<"password">> => <<"secretpass">>}}})),
@@ -1326,108 +1326,108 @@ pool_cassandra_auth(_Config) ->
 
 pool_cassandra_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => [],
-                       conn_opts => [{ssl, [{verify, verify_none}]}]}),
+    ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => #{},
+                       conn_opts => #{ssl => [{verify, verify_none}]}}),
          pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
     ?err(pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_elastic_host(_Config) ->
-    ?cfg(pool_config(#{type => elastic, scope => global, tag => default, opts => [],
-                       conn_opts => [{host, "localhost"}]}),
+    ?cfg(pool_config(#{type => elastic, scope => global, tag => default, opts => #{},
+                       conn_opts => #{host => "localhost"}}),
          pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"">>})).
 
 pool_elastic_port(_Config) ->
-    ?cfg(pool_config(#{type => elastic, scope => global, tag => default, opts => [],
-                       conn_opts => [{port, 9200}]}),
+    ?cfg(pool_config(#{type => elastic, scope => global, tag => default, opts => #{},
+                       conn_opts => #{port => 9200}}),
          pool_conn_raw(<<"elastic">>, #{<<"port">> => 9200})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => 122333})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => <<"airport">>})).
 
 pool_rabbit_amqp_host(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{amqp_host, "localhost"}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{amqp_host => "localhost"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
 
 pool_rabbit_amqp_port(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{amqp_port, 5672}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{amqp_port => 5672}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
 
 pool_rabbit_amqp_username(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{amqp_username, "guest"}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{amqp_username => "guest"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
 
 pool_rabbit_amqp_password(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{amqp_password, "guest"}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{amqp_password => "guest"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
 
 pool_rabbit_amqp_confirms_enabled(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{confirms_enabled, true}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{confirms_enabled => true}}),
          pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
 
 pool_rabbit_amqp_max_worker_queue_len(_Config) ->
-    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => [],
-                       conn_opts => [{max_worker_queue_len, 100}]}),
+    ?cfg(pool_config(#{type => rabbit, scope => global, tag => default, opts => #{},
+                       conn_opts => #{max_worker_queue_len => 100}}),
          pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
 
 pool_ldap_host(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{host, "localhost"}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{host => "localhost"}}),
          pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"">>})).
 
 pool_ldap_port(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{port, 389}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{port => 389}}),
          pool_conn_raw(<<"ldap">>, #{<<"port">> => 389})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"port">> => <<"airport">>})).
 
 pool_ldap_servers(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{servers, ["primary-ldap-server.example.com",
-                                                "secondary-ldap-server.example.com"]}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{servers => ["primary-ldap-server.example.com",
+                                                  "secondary-ldap-server.example.com"]}}),
          pool_conn_raw(<<"ldap">>, #{<<"servers">> => [<<"primary-ldap-server.example.com">>,
                                                        <<"secondary-ldap-server.example.com">>]})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
 
 pool_ldap_encrypt(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{encrypt, none}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{encrypt => none}}),
          pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => true})).
 
 pool_ldap_rootdn(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{rootdn, ""}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{rootdn => ""}}),
          pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => false})).
 
 pool_ldap_password(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{password, "pass"}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{password => "pass"}}),
          pool_conn_raw(<<"ldap">>, #{<<"password">> => <<"pass">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"password">> => true})).
 
 pool_ldap_connect_interval(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{connect_interval, 10000}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{connect_interval => 10000}}),
          pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => 10000})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
 
 pool_ldap_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => [],
-                       conn_opts => [{tls_options, [{verify, verify_peer}]}]}),
+    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
+                       conn_opts => #{tls_options => [{verify, verify_peer}]}}),
          pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
@@ -3391,8 +3391,8 @@ handle_conn_pool(#{type := Type1, scope := Scope1, tag := Tag1, opts := POpts1, 
     ?eq(Type1, Type2),
     ?eq(Scope1, Scope2),
     ?eq(Tag1, Tag2),
-    compare_unordered_lists(POpts1, POpts2),
-    compare_unordered_lists(COpts1, COpts2, fun handle_conn_opt/2).
+    compare_maps(POpts1, POpts2),
+    compare_maps(COpts1, COpts2, fun handle_conn_opt/2).
 
 handle_conn_opt({server, {D1, H1, DB1, U1, P1, O1}},
                 {server, {D2, H2, DB2, U2, P2, O2}}) ->

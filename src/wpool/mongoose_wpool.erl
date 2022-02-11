@@ -58,13 +58,14 @@
                       HostType :: host_type_or_global(),
                       Tag :: tag()}.
 
+-type pool_opts_in() :: map().
 -type pool_opts() :: [wpool:option()].
--type conn_opts() :: [{atom(), any()}].
+-type conn_opts() :: map().
 
 -type pool_map_in() :: #{type := pool_type(),
                          scope := scope(),
                          tag := tag(),
-                         opts := pool_opts(),
+                         opts := pool_opts_in(),
                          conn_opts := conn_opts()}.
 %% Pool map with expanded HostType argument instead of scope
 -type pool_map() :: #{type := pool_type(),
@@ -145,13 +146,13 @@ start(PoolType, HostType, PoolOpts) ->
 -spec start(pool_type(), host_type_or_global(), tag(),
             pool_opts()) -> start_result().
 start(PoolType, HostType, Tag, PoolOpts) ->
-    start(PoolType, HostType, Tag, PoolOpts, []).
+    start(PoolType, HostType, Tag, PoolOpts, #{}).
 
 -spec start(pool_type(), host_type_or_global(), tag(),
             pool_opts(), conn_opts()) -> start_result().
 start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts = lists:append(Opts0) ++ default_opts(PoolType),
+    Opts = lists:append(Opts0) ++ maps:to_list(default_opts(PoolType)),
     Strategy = proplists:get_value(strategy, Opts, best_worker),
     CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
     %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
@@ -233,7 +234,7 @@ stop(PoolType, HostType, Tag) ->
 -spec is_configured(pool_type()) -> boolean().
 is_configured(PoolType) ->
     Pools = mongoose_config:get_opt(outgoing_pools, []),
-    lists:keymember(PoolType, 1, Pools).
+    lists:any(fun(M) -> maps:is_key(PoolType, M) end, Pools).
 
 -spec get_worker(pool_type()) -> worker_result().
 get_worker(PoolType) ->
@@ -350,7 +351,7 @@ default_opts(PoolType) ->
     Mod = make_callback_module_name(PoolType),
     case erlang:function_exported(Mod, default_opts, 0) of
         true -> Mod:default_opts();
-        false -> []
+        false -> #{}
     end.
 
 -spec expand_pools([pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
@@ -365,8 +366,13 @@ expand_pools(Pools, HostTypes) ->
            (Other) -> [Other]
         end,
     Pools1 = lists:flatmap(F, Pools),
-    %% Rename "scope" field to "host_type"
-    lists:map(fun(M = #{scope := HT}) -> M1 = maps:remove(scope, M), M1#{host_type => HT} end, Pools1).
+    lists:map(fun prepare_pool_map/1, Pools1).
+
+-spec prepare_pool_map(pool_map_in()) -> pool_map().
+prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
+    %% Rename "scope" field to "host_type" and change wpool opts to a KV list
+    Pool1 = maps:remove(scope, Pool),
+    Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
 
 -spec get_unique_types([pool_map_in()]) -> [pool_type()].
 get_unique_types(Pools) ->

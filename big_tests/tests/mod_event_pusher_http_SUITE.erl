@@ -168,10 +168,11 @@ get_prefix(Config) ->
     get_prefix(GroupName).
 
 start_pool() ->
-    HTTPOpts = [{server, http_notifications_host()}],
-    PoolOpts = [{strategy, available_worker}, {workers, 5}],
+    HTTPOpts = #{server => http_notifications_host(), path_prefix => "/", request_timeout => 2000},
+    PoolOpts = #{strategy => available_worker, workers => 5},
     ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                 [[{http, global, http_pool, PoolOpts, HTTPOpts}]]).
+                                 [[#{type => http, scope => global, tag => http_pool,
+                                     opts => PoolOpts, conn_opts => HTTPOpts}]]).
 
 stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]).

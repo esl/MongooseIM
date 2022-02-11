@@ -55,23 +55,30 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_testcase(request_timeout_test, Config) ->
-    mongoose_wpool:start_configured_pools([{http, global, pool(), [],
-                                            [{server, "http://localhost:8080"},
-                                             {request_timeout, 10}]}],
+    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
+                                             opts => #{},
+                                             conn_opts => #{server => "http://localhost:8080",
+                                                            request_timeout => 10,
+                                                            path_prefix => "/"}}],
                                           [<<"a.com">>]),
     Config;
 init_per_testcase(pool_timeout_test, Config) ->
-    mongoose_wpool:start_configured_pools([{http, global, pool(),
-                                            [{workers, 1},
-                                             {max_overflow, 0},
-                                             {strategy, available_worker},
-                                             {call_timeout, 10}],
-                                            [{server, "http://localhost:8080"}]}],
+    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
+                                             opts => #{workers => 1,
+                                                       max_overflow => 0,
+                                                       strategy => available_worker,
+                                                       call_timeout => 10},
+                                             conn_opts => #{server => "http://localhost:8080",
+                                                            request_timeout => 5000,
+                                                            path_prefix => "/"}}],
                                           [<<"a.com">>]),
     Config;
 init_per_testcase(_TC, Config) ->
-    mongoose_wpool:start_configured_pools([{http, global, pool(), [],
-                                            [{server, "http://localhost:8080"}]}],
+    mongoose_wpool:start_configured_pools([#{type => http, scope => global, tag => pool(),
+                                             opts => #{},
+                                             conn_opts => #{server => "http://localhost:8080",
+                                                            request_timeout => 1000,
+                                                            path_prefix => "/"}}],
                                           [<<"a.com">>]),
     Config.
 

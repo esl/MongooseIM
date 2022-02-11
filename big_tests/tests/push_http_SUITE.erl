@@ -192,9 +192,9 @@ check_default_format(From, To, Body, Msg) ->
     ok.
 
 start_pool() ->
-    PoolOpts = [{strategy, random_worker}, {call_timeout, 5000}, {workers, 10}],
-    HTTPOpts = [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}],
-    Pool = {http, host, http_pool, PoolOpts, HTTPOpts},
+    PoolOpts = #{strategy => random_worker, call_timeout => 5000, workers => 10},
+    HTTPOpts = #{path_prefix => "/", http_opts => [], server => http_notifications_host()},
+    Pool = #{type => http, scope => host, tag => http_pool, opts => PoolOpts, conn_opts => HTTPOpts},
     ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
                                  [[Pool], [<<"localhost">>]]).
 

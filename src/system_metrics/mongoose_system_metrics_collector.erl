@@ -172,7 +172,7 @@ get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools, []),
     [#{report_name => outgoing_pools,
        key => type,
-       value => Type} || {Type, _, _, _, _} <- OutgoingPools].
+       value => Type} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,

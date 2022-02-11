@@ -40,7 +40,7 @@ extend_config(PoolConfig) ->
         tcp_opts    => [{keepalive, true}],
         keyspace    => mongooseim
     },
-    ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
+    ConfigMap = maps:merge(Defaults, PoolConfig),
     maps:to_list(ConfigMap).
 
 %% make the config survive the restart of 'cqerl_cluster' in case of a network failure

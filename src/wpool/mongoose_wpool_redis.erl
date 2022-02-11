@@ -29,8 +29,8 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     [{worker, Worker} | WpoolOptsIn].
 
 makeargs(RedisOpts) ->
-    Host = proplists:get_value(host, RedisOpts, "127.0.0.1"),
-    Port = proplists:get_value(port, RedisOpts, 6379),
-    Database = proplists:get_value(database, RedisOpts, 0),
-    Password = proplists:get_value(password, RedisOpts, ""),
+    Host = maps:get(host, RedisOpts, "127.0.0.1"),
+    Port = maps:get(port, RedisOpts, 6379),
+    Database = maps:get(database, RedisOpts, 0),
+    Password = maps:get(password, RedisOpts, ""),
     [Host, Port, Database, Password, 100, 5000].

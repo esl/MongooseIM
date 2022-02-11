@@ -35,8 +35,8 @@ init() ->
 start(HostType, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(http, HostType, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
-    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
-    RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
+    PathPrefix = list_to_binary(maps:get(path_prefix, ConnOpts, "/")),
+    RequestTimeout = maps:get(request_timeout, ConnOpts, 2000),
     case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
         {ok, Pid} ->
             ets:insert(?MODULE, {{HostType, Tag}, PathPrefix, RequestTimeout}),
@@ -66,8 +66,8 @@ get_params(HostType, Tag) ->
 %% Internal functions
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
-    TargetServer = gen_mod:get_opt(server, ConnOpts),
-    HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
+    TargetServer = maps:get(server, ConnOpts),
+    HttpOpts = maps:get(http_opts, ConnOpts, []),
     Worker = {fusco, {TargetServer, [{connect_options, HttpOpts}]}},
     [{worker, Worker} | WpoolOptsIn].
 
