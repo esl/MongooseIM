@@ -130,6 +130,17 @@ The value of the access rule needs to be either the shaper name or the string `"
 
 Enables ZLIB support, the integer value is a limit for a decompressed output size in bytes (to prevent a successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)).
 
+### `listen.c2s.allowed_auth_methods`
+
+* **Syntax:** array of strings. Allowed values: `"internal"`, `"rdbms"`, `"external"`, `"anonymous"`, `"ldap"`, `"jwt"`, `"riak"`, `"http"`, `"pki"`, `"dummy"`
+* **Default:** not set
+* **Example:** `allowed_auth_methods = ["internal"]`
+
+A subset of enabled methods to login with for this listener.
+This option allows to enable only some backends.
+It is useful, if you want to have several listeners for different type of users (for example, some users use PKI while other users use LDAP auth).
+Same syntax as for `auth.methods` option.
+
 ## TLS options for C2S
 
 The following options allow enabling and configuring TLS which makes the client-to-server conenctions secure.
