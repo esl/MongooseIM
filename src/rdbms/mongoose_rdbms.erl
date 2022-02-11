@@ -780,7 +780,7 @@ db_type() ->
         _ -> generic
     end.
 
--spec connect(Settings :: term(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
+-spec connect(Settings :: tuple(), Retry :: non_neg_integer(), RetryAfter :: non_neg_integer(),
               MaxRetryDelay :: non_neg_integer()) -> {ok, term()} | {error, any()}.
 connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
     case mongoose_rdbms_backend:connect(Settings, ?QUERY_TIMEOUT) of
