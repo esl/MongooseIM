@@ -130,7 +130,8 @@ init_per_suite(Config) ->
     Port = mongoose_push_mock:port(),
 
     PoolOpts = #{strategy => available_worker, workers => 20},
-    HTTPOpts = #{server => "https://localhost:" ++ integer_to_list(Port)},
+    HTTPOpts = #{server => "https://localhost:" ++ integer_to_list(Port), path_prefix => "/",
+                 request_timeout => 2000},
     rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
         [[#{type => http, scope => global, tag => mongoose_push_http, opts => PoolOpts,
            conn_opts => HTTPOpts}]]),

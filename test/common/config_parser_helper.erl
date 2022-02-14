@@ -756,19 +756,34 @@ pgsql_access() ->
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
 
-merge_with_default_pool_config(PoolIn) ->
-    DefaultConfig = #{opts := DefaultOpts} = default_pool_config(),
+merge_with_default_pool_config(PoolIn = #{type := Type}) ->
+    DefaultConfig = #{opts := DefaultOpts, conn_opts := DefaultConnOpts} = default_pool_config(Type),
     WpoolOptsWithDefaults = maps:merge(DefaultOpts, maps:get(opts, PoolIn, #{})),
-    maps:merge(DefaultConfig, PoolIn#{opts => WpoolOptsWithDefaults}).
+    ConnOptsWithDefaults = maps:merge(DefaultConnOpts, maps:get(conn_opts, PoolIn, #{})),
+    maps:merge(DefaultConfig, PoolIn#{opts => WpoolOptsWithDefaults,
+                                      conn_opts => ConnOptsWithDefaults}).
 
-default_pool_config() ->
+default_pool_config(Type) ->
     #{scope => global,
-      opts => default_pool_wpool_opts()}.
+      opts => default_pool_wpool_opts(),
+      conn_opts => default_pool_conn_opts(Type)}.
 
 default_pool_wpool_opts() ->
     #{workers => 10,
       strategy => best_worker,
       call_timeout => 5000}.
+
+default_pool_conn_opts(ldap) ->
+    #{rootdn => "",
+      password => "",
+      encrypt => none,
+      servers => ["localhost"],
+      connect_interval => 10000};
+default_pool_conn_opts(http) ->
+    #{path_prefix => "/",
+      request_timeout => 2000};
+default_pool_conn_opts(_Type) ->
+    #{}.
 
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,

@@ -598,7 +598,10 @@ outgoing_pool_connection(<<"http">>) ->
                                        wrap = {kv, http_opts},
                                        process = fun ?MODULE:process_tls_sni/1}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"path_prefix">> => "/",
+                    <<"request_timeout">> => 2000}
       };
 outgoing_pool_connection(<<"ldap">>) ->
     #section{
@@ -615,7 +618,13 @@ outgoing_pool_connection(<<"ldap">>) ->
                                        wrap = {kv, tls_options},
                                        process = fun ?MODULE:process_tls_sni/1}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"rootdn">> => "",
+                    <<"password">> => "",
+                    <<"encrypt">> => none,
+                    <<"servers">> => ["localhost"],
+                    <<"connect_interval">> => 10000}
       };
 outgoing_pool_connection(<<"rabbit">>) ->
     #section{
