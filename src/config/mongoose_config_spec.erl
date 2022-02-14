@@ -583,7 +583,10 @@ outgoing_pool_connection(<<"elastic">>) ->
                  <<"port">> => #option{type = integer,
                                        validate = port}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"host">> => "localhost",
+                    <<"port">> => 9200}
       };
 outgoing_pool_connection(<<"http">>) ->
     #section{

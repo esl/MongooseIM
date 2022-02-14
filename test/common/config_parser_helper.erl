@@ -787,6 +787,9 @@ default_pool_conn_opts(redis) ->
       port => 6379,
       database => 0,
       password => ""};
+default_pool_conn_opts(elastic) ->
+    #{host => "localhost",
+      port => 9200};
 default_pool_conn_opts(_Type) ->
     #{}.
 
