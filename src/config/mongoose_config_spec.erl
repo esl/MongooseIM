@@ -596,9 +596,7 @@ outgoing_pool_connection(<<"http">>) ->
       };
 outgoing_pool_connection(<<"ldap">>) ->
     #section{
-       items = #{<<"host">> => #option{type = string,
-                                       validate = non_empty},
-                 <<"port">> => #option{type = integer,
+       items = #{<<"port">> => #option{type = integer,
                                        validate = port},
                  <<"rootdn">> => #option{type = string},
                  <<"password">> => #option{type = string},

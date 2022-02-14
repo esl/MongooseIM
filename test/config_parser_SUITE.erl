@@ -163,7 +163,6 @@ groups() ->
                          pool_cassandra_keyspace,
                          pool_cassandra_auth,
                          pool_cassandra_tls,
-                         pool_ldap_host,
                          pool_ldap_port,
                          pool_ldap_servers,
                          pool_ldap_encrypt,
@@ -1379,12 +1378,6 @@ pool_rabbit_amqp_max_worker_queue_len(_Config) ->
                        conn_opts => #{max_worker_queue_len => 100}}),
          pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
-
-pool_ldap_host(_Config) ->
-    ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
-                       conn_opts => #{host => "localhost"}}),
-         pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
-    ?err(pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"">>})).
 
 pool_ldap_port(_Config) ->
     ?cfg(pool_config(#{type => ldap, scope => global, tag => default, opts => #{},
