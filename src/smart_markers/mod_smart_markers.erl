@@ -69,8 +69,8 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4, remove_domain/3]).
--ignore_xref([user_send_packet/4, remove_domain/3]).
+-export([user_send_packet/4, remove_user/3, remove_domain/3]).
+-ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -109,6 +109,7 @@ supported_features() ->
 -spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
     [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
+     {remove_user, HostType, ?MODULE, remove_user, 60},
      {remove_domain, HostType, ?MODULE, remove_domain, 60}].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
@@ -120,6 +121,11 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
         false -> Acc
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
+    Acc.
+
+remove_user(Acc, User, Server) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mod_smart_markers_backend:remove_user(HostType, jid:make_bare(User, Server)),
     Acc.
 
 -spec remove_domain(mongoose_hooks:simple_acc(),

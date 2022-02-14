@@ -6,6 +6,7 @@
 -export([update_chat_marker/2]).
 -export([get_chat_markers/4]).
 -export([remove_domain/2]).
+-export([remove_user/2]).
 
 %%--------------------------------------------------------------------
 %% DB backend behaviour definition
@@ -27,6 +28,8 @@
     [mod_smart_markers:chat_marker()].
 
 -callback remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
+
+-callback remove_user(mongooseim:host_type(), jid:jid()) -> term().
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
@@ -54,6 +57,12 @@ get_chat_markers(HostType, To, Thread, TS) ->
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
 remove_domain(HostType, Domain) ->
     Args = [HostType, Domain],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+%% @doc remove all stored interactions with a given user
+-spec remove_user(mongooseim:host_type(), jid:jid()) -> term().
+remove_user(HostType, User) ->
+    Args = [HostType, User],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 add_default_backend(Opts) ->

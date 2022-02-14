@@ -11,7 +11,7 @@
 -include("jlib.hrl").
 
 -export([init/2, update_chat_marker/2, get_chat_markers/4]).
--export([remove_domain/2]).
+-export([remove_domain/2, remove_user/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -29,6 +29,8 @@ init(HostType, _) ->
           "WHERE to_jid = ? AND thread = ? AND timestamp >= ?">>),
     mongoose_rdbms:prepare(markers_remove_domain, smart_markers,
         [lserver], <<"DELETE FROM smart_markers WHERE lserver=?">>),
+    mongoose_rdbms:prepare(markers_remove_user, smart_markers,
+        [lserver, from_luser], <<"DELETE FROM smart_markers WHERE lserver=? AND from_luser=?">>),
     ok.
 
 %%% @doc
@@ -76,6 +78,10 @@ get_chat_markers(HostType, To, Thread, TS) ->
 -spec remove_domain(mongooseim:host_type(), jid:lserver()) -> mongoose_rdbms:query_result().
 remove_domain(HostType, Domain) ->
     mongoose_rdbms:execute_successfully(HostType, markers_remove_domain, [Domain]).
+
+-spec remove_user(mongooseim:host_type(), jid:jid()) -> mongoose_rdbms:query_result().
+remove_user(HostType, #jid{luser = LU, lserver = LS}) ->
+    mongoose_rdbms:execute_successfully(HostType, markers_remove_user, [LS, LU]).
 
 %%--------------------------------------------------------------------
 %% local functions
