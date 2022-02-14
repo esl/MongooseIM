@@ -228,6 +228,7 @@ options("mongooseim-pgsql") ->
      {max_fsm_queue, 1000},
      {mongooseimctl_access_commands, []},
      {outgoing_pools,
+      lists:map(fun merge_with_default_pool_config/1,
       [#{type => rdbms, scope => global, tag => default,
          opts => #{workers => 5},
          conn_opts => #{server =>
@@ -238,7 +239,7 @@ options("mongooseim-pgsql") ->
                             {server_name_indication, disable},
                             {verify, verify_peer}]}]}}},
        #{type => redis, scope => <<"localhost">>, tag => global_distrib,
-         opts => #{workers => 10}, conn_opts => #{}}]},
+         opts => #{workers => 10}, conn_opts => #{}}])},
      {rdbms_server_type, generic},
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -303,6 +304,7 @@ options("outgoing_pools") ->
      {loglevel, warning},
      {mongooseimctl_access_commands, []},
      {outgoing_pools,
+      lists:map(fun merge_with_default_pool_config/1,
       [#{type => cassandra, scope => global, tag => default, opts => #{},
          conn_opts => #{keyspace => "big_mongooseim",
                         servers => [{"cassandra_server1.example.com", 9042},
@@ -346,7 +348,7 @@ options("outgoing_pools") ->
                         ssl_opts => [{certfile, "path/to/cert.pem"},
                                      {keyfile, "path/to/key.pem"},
                                      {verify, verify_peer}],
-                        cacertfile => "path/to/cacert.pem"}}]},
+                        cacertfile => "path/to/cacert.pem"}}])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
@@ -753,6 +755,20 @@ pgsql_access() ->
       muc_create => [#{acl => local, value => allow}],
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
+
+merge_with_default_pool_config(PoolIn) ->
+    DefaultConfig = #{opts := DefaultOpts} = default_pool_config(),
+    WpoolOptsWithDefaults = maps:merge(DefaultOpts, maps:get(opts, PoolIn, #{})),
+    maps:merge(DefaultConfig, PoolIn#{opts => WpoolOptsWithDefaults}).
+
+default_pool_config() ->
+    #{scope => global,
+      opts => default_pool_wpool_opts()}.
+
+default_pool_wpool_opts() ->
+    #{workers => 10,
+      strategy => best_worker,
+      call_timeout => 5000}.
 
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,

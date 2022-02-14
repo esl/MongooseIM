@@ -3194,7 +3194,8 @@ auth_raw(Method, Opts) ->
 
 %% helpers for 'pool' tests
 
-pool_config(Pool) ->
+pool_config(PoolIn) ->
+    Pool = config_parser_helper:merge_with_default_pool_config(PoolIn),
     [{outgoing_pools, [Pool]}].
 
 pool_raw(Type, Tag, Opts) ->

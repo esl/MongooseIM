@@ -543,7 +543,8 @@ outgoing_pool(Type) ->
                 },
        process = fun ?MODULE:process_pool/2,
        format_items = map,
-       wrap = item
+       wrap = item,
+       defaults = wpool_defaults()
       }.
 
 wpool_items() ->
@@ -554,6 +555,11 @@ wpool_items() ->
       <<"call_timeout">> => #option{type = integer,
                                     validate = positive}
      }.
+
+wpool_defaults() ->
+    #{<<"workers">> => 10,
+      <<"strategy">> => best_worker,
+      <<"call_timeout">> => 5000}.
 
 %% path: outgoing_pools.*.*.connection
 outgoing_pool_connection(<<"cassandra">>) ->
