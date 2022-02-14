@@ -28,9 +28,5 @@ wpool_spec(WpoolOptsIn, ConnOpts) ->
     Worker = {eredis_client, makeargs(ConnOpts)},
     [{worker, Worker} | WpoolOptsIn].
 
-makeargs(RedisOpts) ->
-    Host = maps:get(host, RedisOpts, "127.0.0.1"),
-    Port = maps:get(port, RedisOpts, 6379),
-    Database = maps:get(database, RedisOpts, 0),
-    Password = maps:get(password, RedisOpts, ""),
+makeargs(#{host := Host, port := Port, database := Database, password := Password}) ->
     [Host, Port, Database, Password, 100, 5000].

@@ -126,10 +126,14 @@ two_distinct_redis_pools_are_started(_C) ->
     meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
     Pools = [#{type => redis, scope => global, tag => default, opts => #{workers => 2},
                conn_opts => #{host => "localhost",
-                              port => 1805}},
+                              port => 1805,
+                              database => 0,
+                              password => ""}},
              #{type => redis, scope => global, tag => global_dist, opts => #{workers => 4},
                conn_opts => #{host => "localhost2",
-                              port => 1806}}],
+                              port => 1806,
+                              database => 0,
+                              password => ""}}],
 
     [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
 

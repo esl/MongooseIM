@@ -782,6 +782,11 @@ default_pool_conn_opts(ldap) ->
 default_pool_conn_opts(http) ->
     #{path_prefix => "/",
       request_timeout => 2000};
+default_pool_conn_opts(redis) ->
+    #{host => "127.0.0.1",
+      port => 6379,
+      database => 0,
+      password => ""};
 default_pool_conn_opts(_Type) ->
     #{}.
 

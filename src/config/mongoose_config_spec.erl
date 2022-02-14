@@ -678,7 +678,12 @@ outgoing_pool_connection(<<"redis">>) ->
                                            validate = non_negative},
                  <<"password">> => #option{type = string}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"host">> => "127.0.0.1",
+                    <<"port">> => 6379,
+                    <<"database">> => 0,
+                    <<"password">> => ""}
       };
 outgoing_pool_connection(<<"riak">>) ->
     #section{
