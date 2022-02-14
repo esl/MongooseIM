@@ -46,7 +46,7 @@ end_per_testcase(TC, Config) ->
     escalus:end_per_testcase(TC, Config).
 
 modify_config_and_restart(Config) ->
-    NewConfigValues = [{auth_method, "internal]\n  [auth.dummy"},
+    NewConfigValues = [{auth_method, "\"internal\", \"dummy\""},
                        {auth_method_opts, false},
                        {allowed_auth_methods, "\"internal\""}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
