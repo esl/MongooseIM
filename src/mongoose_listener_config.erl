@@ -53,7 +53,7 @@ verify_unique_listeners(Listeners) ->
     end.
 
 %% @doc Convert listener configuration to options that can be passed to listener modules
--spec prepare_opts(listener()) -> proplists:proplist().
+-spec prepare_opts(listener()) -> ejabberd_listener:opts().
 prepare_opts(Listener) ->
     lists:flatmap(fun prepare_opt/1, maps:to_list(Listener)).
 

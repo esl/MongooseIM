@@ -89,6 +89,7 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
