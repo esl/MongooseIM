@@ -643,7 +643,10 @@ outgoing_pool_connection(<<"rabbit">>) ->
                  <<"max_worker_queue_len">> => #option{type = int_or_infinity,
                                                        validate = non_negative}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"confirms_enabled">> => false,
+                    <<"max_worker_queue_len">> => 1000}
       };
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{

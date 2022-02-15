@@ -782,6 +782,10 @@ default_pool_conn_opts(ldap) ->
 default_pool_conn_opts(http) ->
     #{path_prefix => "/",
       request_timeout => 2000};
+default_pool_conn_opts(rabbit) ->
+    #{amqp_port => 5672,
+      confirms_enabled => false,
+      max_worker_queue_len => 1000};
 default_pool_conn_opts(redis) ->
     #{host => "127.0.0.1",
       port => 6379,
