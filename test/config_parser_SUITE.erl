@@ -1310,7 +1310,7 @@ pool_cassandra_servers(_Config) ->
 
 pool_cassandra_keyspace(_Config) ->
     ?cfg(pool_config(#{type => cassandra, scope => global, tag => default, opts => #{},
-                       conn_opts => #{keyspace => "big_mongooseim"}}),
+                       conn_opts => #{keyspace => big_mongooseim}}),
          pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 

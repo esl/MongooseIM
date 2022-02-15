@@ -306,7 +306,7 @@ options("outgoing_pools") ->
      {outgoing_pools,
       lists:map(fun merge_with_default_pool_config/1,
       [#{type => cassandra, scope => global, tag => default, opts => #{},
-         conn_opts => #{keyspace => "big_mongooseim",
+         conn_opts => #{keyspace => big_mongooseim,
                         servers => [{"cassandra_server1.example.com", 9042},
                                     {"cassandra_server2.example.com", 9042}]}},
        #{type => elastic, scope => global, tag => default, opts => #{},
@@ -765,23 +765,33 @@ merge_with_default_pool_config(PoolIn = #{type := Type}) ->
 
 default_pool_config(Type) ->
     #{scope => global,
-      opts => default_pool_wpool_opts(),
+      opts => default_pool_wpool_opts(Type),
       conn_opts => default_pool_conn_opts(Type)}.
 
-default_pool_wpool_opts() ->
+default_pool_wpool_opts(cassandra) ->
+    #{workers => 20,
+      strategy => best_worker,
+      call_timeout => 5000};
+default_pool_wpool_opts(_) ->
     #{workers => 10,
       strategy => best_worker,
       call_timeout => 5000}.
 
+default_pool_conn_opts(cassandra) ->
+    #{servers => [{"localhost", 9042}],
+      keyspace => mongooseim};
+default_pool_conn_opts(elastic) ->
+    #{host => "localhost",
+      port => 9200};
+default_pool_conn_opts(http) ->
+    #{path_prefix => "/",
+      request_timeout => 2000};
 default_pool_conn_opts(ldap) ->
     #{rootdn => "",
       password => "",
       encrypt => none,
       servers => ["localhost"],
       connect_interval => 10000};
-default_pool_conn_opts(http) ->
-    #{path_prefix => "/",
-      request_timeout => 2000};
 default_pool_conn_opts(rabbit) ->
     #{amqp_port => 5672,
       confirms_enabled => false,
@@ -791,9 +801,6 @@ default_pool_conn_opts(redis) ->
       port => 6379,
       database => 0,
       password => ""};
-default_pool_conn_opts(elastic) ->
-    #{host => "localhost",
-      port => 9200};
 default_pool_conn_opts(_Type) ->
     #{}.
 

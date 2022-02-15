@@ -544,7 +544,7 @@ outgoing_pool(Type) ->
        process = fun ?MODULE:process_pool/2,
        format_items = map,
        wrap = item,
-       defaults = wpool_defaults()
+       defaults = wpool_defaults(Type)
       }.
 
 wpool_items() ->
@@ -556,6 +556,11 @@ wpool_items() ->
                                     validate = positive}
      }.
 
+wpool_defaults(<<"cassandra">>) ->
+    maps:merge(wpool_defaults(), #{<<"workers">> => 20});
+wpool_defaults(_) ->
+    wpool_defaults().
+
 wpool_defaults() ->
     #{<<"workers">> => 10,
       <<"strategy">> => best_worker,
@@ -565,7 +570,7 @@ wpool_defaults() ->
 outgoing_pool_connection(<<"cassandra">>) ->
     #section{
        items = #{<<"servers">> => #list{items = cassandra_server()},
-                 <<"keyspace">> => #option{type = string,
+                 <<"keyspace">> => #option{type = atom,
                                            validate = non_empty},
                  <<"auth">> => #section{items = #{<<"plain">> => cassandra_auth_plain()},
                                         required = all,
@@ -574,7 +579,10 @@ outgoing_pool_connection(<<"cassandra">>) ->
                                        wrap = {kv, ssl},
                                        process = fun ?MODULE:process_tls_sni/1}
                 },
-       format_items = map
+       format_items = map,
+       include = always,
+       defaults = #{<<"servers">>  => [{"localhost", 9042}],
+                    <<"keyspace">> => mongooseim}
       };
 outgoing_pool_connection(<<"elastic">>) ->
     #section{
