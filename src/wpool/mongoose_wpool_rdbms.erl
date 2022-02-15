@@ -3,7 +3,6 @@
 
 -export([init/0]).
 -export([start/4]).
--export([default_opts/0]).
 -export([stop/2]).
 
 %% --------------------------------------------------------------
@@ -27,9 +26,6 @@ start(HostType, Tag, WpoolOpts, RdbmsOpts) ->
     catch
         Err -> {error, Err}
     end.
-
-default_opts() ->
-    #{call_timeout => 60000}.
 
 stop(_, _) ->
     ok.

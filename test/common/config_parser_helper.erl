@@ -772,6 +772,10 @@ default_pool_wpool_opts(cassandra) ->
     #{workers => 20,
       strategy => best_worker,
       call_timeout => 5000};
+default_pool_wpool_opts(rdbms) ->
+    #{workers => 10,
+      strategy => best_worker,
+      call_timeout => 60000};
 default_pool_wpool_opts(_) ->
     #{workers => 10,
       strategy => best_worker,

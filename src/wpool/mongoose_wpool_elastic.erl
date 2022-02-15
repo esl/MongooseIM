@@ -18,12 +18,7 @@ start(HostType, Tag, WpoolOptsIn, #{host := ElasticHost, port := Port}) ->
                      {overrun_handler, {error_logger, warning_report}},
                      {worker, {tirerl_worker, Opts}}
                     | WpoolOptsIn],
-    case mongoose_wpool:start_sup_pool(elastic, ProcName, WPoolOptions) of
-        {ok, Pid} ->
-            {external, Pid};
-        Other ->
-            Other
-    end.
+    mongoose_wpool:start_sup_pool(elastic, ProcName, WPoolOptions).
 
 stop(_, _) ->
     ok.

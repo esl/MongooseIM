@@ -9,12 +9,11 @@
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 
--type call_timeout() :: pos_integer() | undefined.
 -record(mongoose_wpool, {
           name :: pool_name(),
           atom_name :: wpool:name(),
-          strategy :: wpool:strategy() | undefined,
-          call_timeout :: call_timeout()
+          strategy :: wpool:strategy(),
+          call_timeout :: pos_integer()
          }).
 
 %% API
@@ -86,17 +85,15 @@
 -export_type([pool_opts/0]).
 -export_type([conn_opts/0]).
 
--type callback_fun() :: init | start | default_opts | is_supported_strategy | stop.
+-type callback_fun() :: init | start | is_supported_strategy | stop.
 
 -callback init() -> ok | {error, term()}.
 -callback start(scope(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
-    {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
-    {external, pid()} | {error, Reason :: term()}.
--callback default_opts() -> conn_opts().
+    {ok, {pid(), proplists:proplist()}} | {ok, pid()} | {error, Reason :: term()}.
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
 -callback stop(scope(), tag()) -> ok.
 
--optional_callbacks([default_opts/0, is_supported_strategy/1]).
+-optional_callbacks([is_supported_strategy/1]).
 
 ensure_started() ->
     wpool:start(),
@@ -152,7 +149,7 @@ start(PoolType, HostType, Tag, PoolOpts) ->
             pool_opts(), conn_opts()) -> start_result().
 start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts = lists:append(Opts0) ++ maps:to_list(default_opts(PoolType)),
+    Opts = lists:append(Opts0),
     Strategy = proplists:get_value(strategy, Opts, best_worker),
     CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
     %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
@@ -165,7 +162,7 @@ start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     end.
 
 -spec start(pool_type(), host_type_or_global(), tag(),
-            pool_opts(), conn_opts(), wpool:strategy(), call_timeout()) ->
+            pool_opts(), conn_opts(), wpool:strategy(), pos_integer()) ->
     start_result().
 start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
     case mongoose_wpool_mgr:start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts) of
@@ -174,11 +171,6 @@ start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
                                                 atom_name = make_pool_name(PoolType, HostType, Tag),
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),
-            {ok, Pid};
-        {external, Pid} ->
-            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag},
-                                                atom_name = make_pool_name(PoolType, HostType, Tag)
-                                               }),
             {ok, Pid};
         Error ->
             Error
@@ -345,14 +337,6 @@ call_callback(CallbackFun, PoolType, Args) ->
 make_callback_module_name(PoolType) ->
     Name = "mongoose_wpool_" ++ atom_to_list(PoolType),
     list_to_atom(Name).
-
--spec default_opts(pool_type()) -> conn_opts().
-default_opts(PoolType) ->
-    Mod = make_callback_module_name(PoolType),
-    case erlang:function_exported(Mod, default_opts, 0) of
-        true -> Mod:default_opts();
-        false -> #{}
-    end.
 
 -spec expand_pools([pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
 expand_pools(Pools, HostTypes) ->

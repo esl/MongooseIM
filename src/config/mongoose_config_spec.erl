@@ -558,6 +558,8 @@ wpool_items() ->
 
 wpool_defaults(<<"cassandra">>) ->
     maps:merge(wpool_defaults(), #{<<"workers">> => 20});
+wpool_defaults(<<"rdbms">>) ->
+    maps:merge(wpool_defaults(), #{<<"call_timeout">> => 60000});
 wpool_defaults(_) ->
     wpool_defaults().
 
