@@ -56,6 +56,7 @@
 -module(mod_smart_markers).
 
 -include("jlib.hrl").
+-include("mod_muc_light.hrl").
 
 -xep([{xep, 333}, {version, "0.3"}]).
 -behaviour(gen_mod).
@@ -69,8 +70,10 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4, remove_user/3, remove_domain/3, forget_room/4]).
--ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3, forget_room/4]).
+-export([user_send_packet/4, remove_user/3, remove_domain/3,
+         forget_room/4, room_new_affiliations/4]).
+-ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3,
+              forget_room/4, room_new_affiliations/4]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -111,7 +114,8 @@ hooks(HostType) ->
     [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
      {remove_user, HostType, ?MODULE, remove_user, 60},
      {remove_domain, HostType, ?MODULE, remove_domain, 60},
-     {forget_room, HostType, ?MODULE, forget_room, 85}
+     {forget_room, HostType, ?MODULE, forget_room, 85},
+     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}
     ].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
@@ -142,6 +146,27 @@ remove_domain(Acc, HostType, Domain) ->
 forget_room(Acc, HostType, RoomS, RoomU) ->
     mod_smart_markers_backend:remove_to(HostType, jid:make_noprep(RoomU, RoomS, <<>>)),
     Acc.
+
+%% The new affs can be found in the Acc:element, where we can scan for 'none' ones
+-spec room_new_affiliations(mongoose_acc:t(), jid:jid(), mod_muc_light:aff_users(), binary()) ->
+    mongoose_acc:t().
+room_new_affiliations(Acc, RoomJid, _NewAffs, _NewVersion) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    case mongoose_acc:element(Acc) of
+        undefined -> Acc;
+        Packet ->
+            case exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
+                                           {element_with_attr, <<"affiliation">>, <<"none">>},
+                                           cdata]) of
+                [] -> Acc;
+                Users ->
+                    [begin
+                         FromJid = jid:to_bare(jid:from_binary(User)),
+                         mod_smart_markers_backend:remove_to_for_user(HostType, FromJid, RoomJid)
+                     end || User <- Users ],
+                    Acc
+            end
+    end.
 
 %%--------------------------------------------------------------------
 %% Other API

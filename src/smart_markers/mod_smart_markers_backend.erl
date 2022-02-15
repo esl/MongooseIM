@@ -8,6 +8,7 @@
 -export([remove_domain/2]).
 -export([remove_user/2]).
 -export([remove_to/2]).
+-export([remove_to_for_user/3]).
 
 %%--------------------------------------------------------------------
 %% DB backend behaviour definition
@@ -33,6 +34,8 @@
 -callback remove_user(mongooseim:host_type(), jid:jid()) -> term().
 
 -callback remove_to(mongooseim:host_type(), jid:jid()) -> term().
+
+-callback remove_to_for_user(mongooseim:host_type(), From :: jid:jid(), To :: jid:jid()) -> term().
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
@@ -74,6 +77,13 @@ remove_user(HostType, User) ->
 -spec remove_to(mongooseim:host_type(), jid:jid()) -> term().
 remove_to(HostType, To) ->
     Args = [HostType, To],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+%% @doc remove markers a user sent to a given other
+%% Useful for when a user leaves a room, but the room still exists
+-spec remove_to_for_user(mongooseim:host_type(), From :: jid:jid(), To :: jid:jid()) -> term().
+remove_to_for_user(HostType, From, To) ->
+    Args = [HostType, From, To],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 add_default_backend(Opts) ->

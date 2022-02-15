@@ -30,6 +30,7 @@ groups() ->
      {muclight, [],
       [
        marker_is_stored_for_room,
+       marker_is_removed_when_user_leaves_room,
        markers_are_removed_when_room_is_removed
       ]}
     ].
@@ -105,6 +106,23 @@ marker_is_stored_for_room(Config) ->
         BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
         mongoose_helper:wait_until(
           fun() -> length(fetch_markers_for_users(BobJid, jid:from_binary(RoomBinJid))) > 0 end, true)
+    end).
+
+marker_is_removed_when_user_leaves_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}],
+                        fun(Alice, Bob) ->
+        Users = [Alice, Bob],
+        RoomId = create_room(Alice, [Bob], Config),
+        RoomBinJid = muc_light_helper:room_bin_jid(RoomId),
+        RoomJid = jid:from_binary(RoomBinJid),
+        one_marker_in_room(Users, RoomBinJid, Alice, Bob),
+        BobJid = jid:from_binary(escalus_client:full_jid(Bob)),
+        mongoose_helper:wait_until(
+          fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) > 0 end, true),
+        % Remove Bob from the room
+        muc_light_helper:user_leave(RoomId, Bob, [Alice]),
+        mongoose_helper:wait_until(
+          fun() -> length(fetch_markers_for_users(BobJid, RoomJid)) end, 0)
     end).
 
 markers_are_removed_when_room_is_removed(Config) ->
