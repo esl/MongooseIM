@@ -69,8 +69,8 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4, remove_user/3, remove_domain/3]).
--ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3]).
+-export([user_send_packet/4, remove_user/3, remove_domain/3, forget_room/4]).
+-ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3, forget_room/4]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -110,7 +110,9 @@ supported_features() ->
 hooks(HostType) ->
     [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
      {remove_user, HostType, ?MODULE, remove_user, 60},
-     {remove_domain, HostType, ?MODULE, remove_domain, 60}].
+     {remove_domain, HostType, ?MODULE, remove_domain, 60},
+     {forget_room, HostType, ?MODULE, forget_room, 85}
+    ].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
@@ -133,6 +135,12 @@ remove_user(Acc, User, Server) ->
     mongoose_hooks:simple_acc().
 remove_domain(Acc, HostType, Domain) ->
     mod_smart_markers_backend:remove_domain(HostType, Domain),
+    Acc.
+
+-spec forget_room(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver(), jid:luser()) ->
+    mongoose_hooks:simple_acc().
+forget_room(Acc, HostType, RoomS, RoomU) ->
+    mod_smart_markers_backend:remove_to(HostType, jid:make_noprep(RoomU, RoomS, <<>>)),
     Acc.
 
 %%--------------------------------------------------------------------

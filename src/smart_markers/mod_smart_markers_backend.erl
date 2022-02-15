@@ -7,6 +7,7 @@
 -export([get_chat_markers/4]).
 -export([remove_domain/2]).
 -export([remove_user/2]).
+-export([remove_to/2]).
 
 %%--------------------------------------------------------------------
 %% DB backend behaviour definition
@@ -30,6 +31,8 @@
 -callback remove_domain(mongooseim:host_type(), jid:lserver()) -> term().
 
 -callback remove_user(mongooseim:host_type(), jid:jid()) -> term().
+
+-callback remove_to(mongooseim:host_type(), jid:jid()) -> term().
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
@@ -63,6 +66,14 @@ remove_domain(HostType, Domain) ->
 -spec remove_user(mongooseim:host_type(), jid:jid()) -> term().
 remove_user(HostType, User) ->
     Args = [HostType, User],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+%% @doc remove all markers a user has ever been sent
+%% Useful for example for `forget_room', when we need to drop all knowledge
+%% other users had of this room
+-spec remove_to(mongooseim:host_type(), jid:jid()) -> term().
+remove_to(HostType, To) ->
+    Args = [HostType, To],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 add_default_backend(Opts) ->
