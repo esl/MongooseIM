@@ -5,7 +5,7 @@
 %%% @end
 %%%----------------------------------------------------------------------
 -module(mod_auth_token_backend).
--export([start/1,
+-export([start/2,
          revoke/2,
          get_valid_sequence_number/2,
          clean_tokens/2]).
@@ -26,9 +26,9 @@
 %% ----------------------------------------------------------------------
 %% API Functions
 
--spec start(HostType :: mongooseim:host_type()) -> ok.
-start(HostType) ->
-    mongoose_backend:init(HostType, ?MAIN_MODULE, [], #{backend => rdbms}),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
+    mongoose_backend:init(HostType, ?MAIN_MODULE, [], Opts),
     Args = [HostType],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 

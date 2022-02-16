@@ -76,8 +76,8 @@
 %%
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, #{iqdisc := IQDisc}) ->
-    mod_auth_token_backend:start(HostType),
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
+    mod_auth_token_backend:start(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
       HostType, ?NS_ESL_TOKEN_AUTH, ejabberd_sm,
@@ -102,9 +102,12 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"validity_period">> => validity_periods_spec(),
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, mod_auth_token}},
+                 <<"validity_period">> => validity_periods_spec(),
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()},
-       defaults = #{<<"iqdisc">> => no_queue},
+       defaults = #{<<"backend">> => rdbms,
+                    <<"iqdisc">> => no_queue},
        format_items = map
       }.
 
@@ -450,9 +453,9 @@ clean_tokens(Acc, User, Server) ->
     end,
     Acc.
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->
