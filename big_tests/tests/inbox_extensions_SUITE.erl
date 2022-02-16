@@ -79,21 +79,13 @@
         ]).
 
 
--import(inbox_helper, [
-                       inbox_modules/0,
-                       muclight_modules/0,
-                       inbox_opts/0
-                      ]).
-
-
 all() ->
     inbox_helper:skip_or_run_inbox_tests(tests()).
 
 tests() ->
     [
-     {group, generic},
-     {group, one_to_one},
-     {group, muclight}
+     {group, regular},
+     {group, async_pools}
     ].
 
 suite() ->
@@ -151,37 +143,43 @@ groups() ->
       ]},
      {muclight, [], [
         groupchat_setunread_stanza_sets_inbox
+      ]},
+     {regular, [], [
+        {group, generic},
+        {group, one_to_one},
+        {group, muclight}
+      ]},
+     {async_pools, [], [
+        {group, generic},
+        {group, one_to_one},
+        {group, muclight}
       ]}
     ],
     inbox_helper:maybe_run_in_parallel(Gs).
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), inbox_modules()),
-    InboxOptions = inbox_opts(),
-    Config1 = escalus:init_per_suite(Config),
-    Config2 = [{inbox_opts, InboxOptions} | Config1],
-    escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
-    HostType = domain_helper:host_type(mim),
-    dynamic_modules:stop(HostType, mod_inbox),
-    muc_light_helper:clear_db(HostType),
-    escalus_fresh:clean(),
-    escalus:end_per_suite(Config1).
+    escalus:end_per_suite(Config).
 
-init_per_group(muclight, Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
-    inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    Config;
+init_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= async_pools ->
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    ok = dynamic_modules:ensure_modules(
+           HostType,
+           inbox_helper:inbox_modules(GroupName) ++ inbox_helper:muclight_modules()),
+    InboxOptions = inbox_helper:inbox_opts(GroupName),
+    Config2 = [{inbox_opts, InboxOptions} | Config1],
+    escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike]));
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(muclight, Config) ->
-    HostType = domain_helper:host_type(mim),
-    muc_light_helper:clear_db(HostType),
-    dynamic_modules:stop(HostType, mod_muc_light),
-    Config;
+end_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= async_pools ->
+    muc_light_helper:clear_db(domain_helper:host_type()),
+    escalus_fresh:clean(),
+    Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
+    dynamic_modules:restore_modules(Config1);
 end_per_group(_GroupName, Config) ->
     Config.
 

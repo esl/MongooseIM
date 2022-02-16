@@ -37,12 +37,8 @@ all() ->
 
 tests() ->
     [
-     {group, generic},
-     {group, one_to_one},
-     {group, muclight},
-     {group, muclight_config},
-     {group, muc},
-     {group, timestamps}
+     {group, regular},
+     {group, async_pools}
     ].
 
 groups() ->
@@ -122,6 +118,24 @@ groups() ->
        get_by_timestamp_range,
        get_with_start_timestamp,
        get_with_end_timestamp
+      ]},
+     {regular, [],
+      [
+       {group, generic},
+       {group, one_to_one},
+       {group, muclight},
+       {group, muclight_config},
+       {group, muc},
+       {group, timestamps}
+      ]},
+     {async_pools, [],
+      [
+       {group, generic},
+       {group, one_to_one},
+       {group, muclight},
+       {group, muclight_config},
+       {group, muc},
+       {group, timestamps}
       ]}
     ],
     inbox_helper:maybe_run_in_parallel(Gs).
@@ -133,32 +147,32 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-init_per_suite(Config0) ->
-    Config1 = dynamic_modules:save_modules(domain_helper:host_type(), Config0),
-    ok = dynamic_modules:ensure_modules(
-           domain_helper:host_type(), inbox_modules()),
-    ok = dynamic_modules:ensure_modules(
-           ct:get_config({hosts, mim, secondary_host_type}),
-           [{mod_inbox, (inbox_opts())#{aff_changes := false}}]),
-    InboxOptions = inbox_opts(),
+init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
-    escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    escalus_fresh:clean(),
-    dynamic_modules:stop(ct:get_config({hosts, mim, secondary_host_type}), mod_inbox),
-    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(one_to_one, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
-    inbox_helper:reload_inbox_option(Config, groupchat, []);
+init_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= async_pools ->
+    HostType = domain_helper:host_type(),
+    SecHostType = domain_helper:secondary_host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    Config2 = dynamic_modules:save_modules(SecHostType, Config1),
+    InboxOptions = inbox_helper:inbox_opts(GroupName),
+    ok = dynamic_modules:ensure_modules(HostType,
+           inbox_helper:inbox_modules(GroupName)
+           ++ inbox_helper:muclight_modules()
+           ++ [{mod_offline, []}]),
+    ok = dynamic_modules:ensure_modules(SecHostType,
+           [{mod_inbox, InboxOptions#{aff_changes := false}}]),
+    [{inbox_opts, InboxOptions} | Config2];
+
 init_per_group(muclight, Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
-    inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
-    [{group, muclight} | Config];
+    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), muclight_modules()),
+    inbox_helper:reload_inbox_option(Config, groupchat, [muclight]);
 init_per_group(muclight_config, Config) ->
-    ok = dynamic_modules:ensure_modules(domain_helper:host_type(mim), muclight_modules()),
+    ok = dynamic_modules:ensure_modules(domain_helper:host_type(), muclight_modules()),
     Config1 = inbox_helper:reload_inbox_option(Config, groupchat, [muclight]),
     escalus:create_users(Config1, escalus:get_users([alice, alice_bis, bob, kate, mike]));
 init_per_group(muc, Config) ->
@@ -167,22 +181,17 @@ init_per_group(muc, Config) ->
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(muc, _Config) ->
-    HostType = domain_helper:host_type(mim),
-    dynamic_modules:stop(HostType, mod_muc);
-end_per_group(muclight, Config) ->
-    HostType = domain_helper:host_type(mim),
-    muc_light_helper:clear_db(HostType),
-    dynamic_modules:stop(HostType, mod_muc_light),
-    Config;
+end_per_group(GroupName, Config) when GroupName =:= regular; GroupName =:= async_pools ->
+    muc_light_helper:clear_db(domain_helper:host_type()),
+    escalus_fresh:clean(),
+    dynamic_modules:restore_modules(Config);
 end_per_group(muclight_config, Config) ->
-    HostType = domain_helper:host_type(mim),
-    muc_light_helper:clear_db(HostType),
-    dynamic_modules:stop(HostType, mod_muc_light),
     escalus:delete_users(Config, escalus:get_users([alice, alice_bis, bob, kate, mike]));
+end_per_group(muc, Config) ->
+    inbox_helper:restore_inbox_option(Config),
+    muc_helper:unload_muc();
 end_per_group(_GroupName, Config) ->
     Config.
-
 
 init_per_testcase(TS, Config)
   when TS =:= create_groupchat_no_affiliation_stored;
@@ -228,7 +237,7 @@ end_per_testcase(no_stored_and_remain_after_kicked, Config) ->
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(no_stored_and_remain_after_kicked, Config);
 end_per_testcase(msg_sent_to_not_existing_user, Config) ->
-    HostType = domain_helper:host_type(mim),
+    HostType = domain_helper:host_type(),
     escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [HostType, <<"not_existing_user">>,<<"localhost">>]),
     escalus:end_per_testcase(msg_sent_to_not_existing_user, Config);
 end_per_testcase(CaseName, Config) ->
@@ -628,7 +637,8 @@ advanced_groupchat_stored_in_all_inbox(Config) ->
         Id1 = <<"id-1">>,
         Id2 = <<"id-2">>,
         Users = [Alice, Bob, Kate],
-        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
+        Room = pubsub_tools:pubsub_node_name(),
+        inbox_helper:create_room_and_check_inbox(Alice, [Bob, Kate], Room),
         BobJid = inbox_helper:to_bare_lower(Bob),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         KateJid = inbox_helper:to_bare_lower(Kate),
@@ -754,8 +764,8 @@ groupchat_reset_stanza_resets_inbox(Config) ->
 %%{remove_on_kicked, true},
 create_groupchat(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        RoomNode = <<"bobroom">>,
-        inbox_helper:create_room_and_check_inbox(Bob, [Alice, Kate], RoomNode)
+        RoomName = pubsub_tools:pubsub_node_name(),
+        inbox_helper:create_room_and_check_inbox(Bob, [Alice, Kate], RoomName)
       end).
 
 
