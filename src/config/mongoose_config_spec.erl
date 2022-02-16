@@ -583,7 +583,7 @@ outgoing_pool_connection(<<"cassandra">>) ->
                 },
        format_items = map,
        include = always,
-       defaults = #{<<"servers">>  => [{"localhost", 9042}],
+       defaults = #{<<"servers">> => [{"localhost", 9042}],
                     <<"keyspace">> => mongooseim}
       };
 outgoing_pool_connection(<<"elastic">>) ->
@@ -1206,8 +1206,9 @@ process_pool([Tag, Type|_], AllOpts) ->
       opts => Opts,
       conn_opts => Connection}.
 
-pool_scope(single_host, none) -> error(#{what => pool_single_host_not_specified,
-                                         text => <<"\"host\" option is required if \"single_host\" is used.">>});
+pool_scope(single_host, none) ->
+    error(#{what => pool_single_host_not_specified,
+            text => <<"\"host\" option is required if \"single_host\" is used.">>});
 pool_scope(single_host, Host) -> Host;
 pool_scope(host, none) -> host;
 pool_scope(global, none) -> global;

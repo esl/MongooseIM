@@ -9,7 +9,7 @@ init() ->
     application:ensure_all_started(amqp_client).
 
 start(Host, Tag, WpoolOptsIn,
-      AMQPOpts = #{confirms_enabled := Confirms, max_worker_queue_len := MaxQueueLen}) ->
+    AMQPOpts = #{confirms_enabled := Confirms, max_worker_queue_len := MaxQueueLen}) ->
     PoolName = mongoose_wpool:make_pool_name(rabbit, Host, Tag),
     Worker = {mongoose_rabbit_worker,
               [{amqp_client_opts, amqp_client_opts(AMQPOpts)},

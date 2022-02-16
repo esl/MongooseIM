@@ -89,14 +89,11 @@ get_pools_returns_pool_names(_Config) ->
     ?assertEqual([{generic, <<"b">>, c}, {generic, <<"e">>, f}, {generic, <<"h">>, i}],
                  ordsets:from_list(mongoose_wpool:get_pools())).
 
-
 stats_passes_through_to_wpool_stats(_Config) ->
     mongoose_wpool:start(generic, global, z, [{workers, 1}]),
-
     Ref = make_ref(),
-
-        meck:expect(wpool, stats, fun(_Name) -> Ref end),
-        ?assertEqual(Ref, mongoose_wpool:stats(generic, global, z)).
+    meck:expect(wpool, stats, fun(_Name) -> Ref end),
+    ?assertEqual(Ref, mongoose_wpool:stats(generic, global, z)).
 
 a_global_riak_pool_is_started(_Config) ->
     PoolName = mongoose_wpool:make_pool_name(riak, global, default),
@@ -109,9 +106,7 @@ a_global_riak_pool_is_started(_Config) ->
     MgrPid = whereis(mongoose_wpool_mgr:name(riak)),
     [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(12, proplists:get_value(workers, CallArgs)),
-    ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)),
-
-    ok.
+    ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)).
 
 filter_calls_to_start_sup_pool(Pid) ->
     H = meck_history:get_history(Pid, mongoose_wpool),
@@ -142,9 +137,7 @@ two_distinct_redis_pools_are_started(_C) ->
     ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
     ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
     ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
-    ?assertMatch({eredis_client, ["localhost2", 1806 | _]}, proplists:get_value(worker, CallArgs2)),
-
-    ok.
+    ?assertMatch({eredis_client, ["localhost2", 1806 | _]}, proplists:get_value(worker, CallArgs2)).
 
 generic_pools_are_started_for_all_vhosts(_C) ->
     Pools = [#{type => generic, scope => host, tag => default, opts => #{}, conn_opts => #{}}],
@@ -193,7 +186,7 @@ global_pool_is_used_by_default(_C) ->
              #{type => generic, scope => <<"a.com">>, tag => default,
                opts => #{}, conn_opts => #{}}],
     StartRes = mongoose_wpool:start_configured_pools(Pools),
-    ?assertMatch([_, _], StartRes),
+    ?assertMatch([{ok, _}, {ok, _}], StartRes),
     meck:expect(wpool, call, fun(Name, _Req, _Strat, _Timeout) -> Name end),
     ?assertEqual(mongoose_wpool:make_pool_name(generic, <<"a.com">>, default),
                  mongoose_wpool:call(generic, <<"a.com">>, default, request)),
@@ -276,7 +269,7 @@ start_sup_pool_mock(PoolNames) when is_list(PoolNames) ->
     fun(Type, PN, Opts) ->
             case lists:member(PN, PoolNames) of
                 true ->
-                    {ok, PN}; %% we don't realy need a pid here for mocking
+                    {ok, PN}; %% we don't really need a pid here for mocking
                 _ ->
                     meck:passthrough([Type, PN, Opts])
             end
