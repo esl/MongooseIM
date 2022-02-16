@@ -475,6 +475,6 @@ required_modules() ->
      {mod_auth_token, auth_token_opts()}].
 
 auth_token_opts() ->
-    #{iqdisc => no_queue,
-      validity_period => #{access => #{value => 60, unit => minutes},
-                           refresh => #{value => 1, unit => days}}}.
+    Defaults = config_parser_helper:default_mod_config(mod_auth_token),
+    Defaults#{validity_period => #{access => #{value => 60, unit => minutes},
+                                   refresh => #{value => 1, unit => days}}}.

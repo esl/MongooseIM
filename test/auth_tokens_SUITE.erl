@@ -227,7 +227,7 @@ mock_mongoose_metrics() ->
 
 mock_rdbms_backend() ->
     meck:new(mod_auth_token_backend, []),
-    meck:expect(mod_auth_token_backend, start, fun(_) -> ok end),
+    meck:expect(mod_auth_token_backend, start, fun(_, _) -> ok end),
     meck:expect(mod_auth_token_backend, get_valid_sequence_number,
                 fun (_, _) -> valid_seq_no_threshold() end),
     ok.
