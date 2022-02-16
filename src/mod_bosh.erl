@@ -11,10 +11,6 @@
 -behaviour(cowboy_loop).
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11"}]).
-%% API
--export([get_inactivity/1,
-         get_max_wait/1,
-         get_server_acks/1]).
 
 %% gen_mod callbacks
 -export([start/2,
@@ -35,14 +31,7 @@
 
 -export([config_metrics/1]).
 
--define(MOD_BOSH_BACKEND, mod_bosh_backend).
--ignore_xref([
-    {?MOD_BOSH_BACKEND, get_session, 1},
-    {?MOD_BOSH_BACKEND, node_cleanup, 1},
-    {?MOD_BOSH_BACKEND, start, 1},
-    {?MOD_BOSH_BACKEND, create_session, 1},
-    behaviour_info/1, get_session_socket/1, node_cleanup/2, store_session/2
-]).
+-ignore_xref([get_session_socket/1, node_cleanup/2, store_session/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -51,9 +40,6 @@
 -include("mongoose_config_spec.hrl").
 
 -define(DEFAULT_MAX_AGE, 1728000).  %% 20 days in seconds
--define(DEFAULT_INACTIVITY, 30).  %% seconds
--define(DEFAULT_MAX_WAIT, infinity).  %% seconds
--define(DEFAULT_SERVER_ACKS, false).
 -define(DEFAULT_ALLOW_ORIGIN, <<"*">>).
 
 -export_type([session/0,
@@ -90,62 +76,43 @@
               | {close, _}
               | {wrong_method, _}.
 
-%% Behaviour callbacks
-
--callback start(list()) -> any().
--callback create_session(mod_bosh:session()) -> any().
--callback delete_session(mod_bosh:sid()) -> any().
--callback get_session(mod_bosh:sid()) -> [mod_bosh:session()].
--callback get_sessions() -> [mod_bosh:session()].
--callback node_cleanup(Node :: atom()) -> any().
-
-%%--------------------------------------------------------------------
-%% API
-%%--------------------------------------------------------------------
-
--spec get_inactivity(mongooseim:host_type()) -> pos_integer() | infinity.
-get_inactivity(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, inactivity, ?DEFAULT_INACTIVITY).
-
--spec get_max_wait(mongooseim:host_type()) -> pos_integer() | infinity.
-get_max_wait(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, max_wait, ?DEFAULT_MAX_WAIT).
-
--spec get_server_acks(mongooseim:host_type()) -> boolean().
-get_server_acks(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, server_acks, ?DEFAULT_SERVER_ACKS).
-
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(mongooseim:host_type(), [option()]) -> any().
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(_HostType, Opts) ->
-    try
-        start_backend(Opts),
-        {ok, _Pid} = mod_bosh_socket:start_supervisor(),
-        ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
-    catch
-        error:{badmatch, ErrorReason} ->
-            ErrorReason
+    case mod_bosh_socket:is_supervisor_started() of
+        true ->
+            ok; % There is only one backend implementation (mnesia), so it is started globally
+        false ->
+            mod_bosh_backend:start(Opts),
+            {ok, _Pid} = mod_bosh_socket:start_supervisor(),
+            ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50)
     end.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(_HostType) ->
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"inactivity">> => #option{type = int_or_infinity,
-                                             validate = non_negative},
-                 <<"max_wait">> => #option{type = int_or_infinity,
-                                           validate = non_negative},
-                 <<"server_acks">> => #option{type = boolean},
-                 <<"max_pause">> => #option{type = integer,
-                                            validate = positive,
-                                            wrap = {kv, maxpause}}
-                }
-      }.
+    #section{items = #{<<"backend">> => #option{type = atom,
+                                                validate = {module, mod_bosh}},
+                       <<"inactivity">> => #option{type = int_or_infinity,
+                                                   validate = positive},
+                       <<"max_wait">> => #option{type = int_or_infinity,
+                                                 validate = positive},
+                       <<"server_acks">> => #option{type = boolean},
+                       <<"max_pause">> => #option{type = integer,
+                                                  validate = positive}
+                      },
+             defaults = #{<<"backend">> => mnesia,
+                          <<"inactivity">> => 30, % seconds
+                          <<"max_wait">> => infinity, % seconds
+                          <<"server_acks">> => false,
+                          <<"max_pause">> => 120}, % seconds
+             format_items = map}.
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -255,11 +222,6 @@ init_msg(Req) ->
             {wrong_method, Method}
     end.
 
--spec start_backend([option()]) -> any().
-start_backend(Opts) ->
-    gen_mod:start_backend_module(mod_bosh, Opts, []),
-    mod_bosh_backend:start(Opts).
-
 -spec to_event_type(exml:element()) -> event_type().
 to_event_type(Body) ->
     %% Order of checks is important:
@@ -349,10 +311,14 @@ maybe_start_session(Req, Body) ->
     Domain = exml_query:attr(Body, <<"to">>),
     case mongoose_domain_api:get_domain_host_type(Domain) of
         {ok, HostType} ->
-            maybe_start_session_on_known_host(HostType, Req, Body);
+            case gen_mod:is_loaded(HostType, ?MODULE) of
+                true ->
+                    maybe_start_session_on_known_host(HostType, Req, Body);
+                false ->
+                    {false, terminal_condition(<<"host-unknown">>, Req)}
+            end;
         {error, not_found} ->
-            Req1 = terminal_condition(<<"host-unknown">>, Req),
-            {false, Req1}
+            {false, terminal_condition(<<"host-unknown">>, Req)}
     end.
 
 -spec maybe_start_session_on_known_host(mongooseim:host_type(), req(), exml:element()) ->
@@ -490,7 +456,6 @@ maybe_set_max_hold(_, _) ->
 cowboy_reply(Code, Headers, Body, Req) when is_list(Headers) ->
     cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).
 
--spec config_metrics(mongooseim:host_type()) -> [option()].
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
