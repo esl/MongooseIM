@@ -157,7 +157,7 @@ s2s(_Config) ->
     [] = ejabberd_s2s:get_connections_pids(FromTo).
 
 bosh(_Config) ->
-    mod_bosh:start(?HOST, []),
+    mod_bosh:start(?HOST, config_parser_helper:default_mod_config(mod_bosh)),
     SID = <<"sid">>,
     Self = self(),
     {error, _} = mod_bosh:get_session_socket(SID),
@@ -196,7 +196,7 @@ setup_meck([mongoose_bin | R]) ->
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end),
     setup_meck(R);
 setup_meck([mod_bosh_socket | R]) ->
-    meck:new(mod_bosh_socket),
+    meck:new(mod_bosh_socket, [passthrough]),
     meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end),
     setup_meck(R);
 setup_meck([]) ->
