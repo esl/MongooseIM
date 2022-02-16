@@ -765,6 +765,7 @@ merge_with_default_pool_config(PoolIn = #{type := Type}) ->
 
 default_pool_config(Type) ->
     #{scope => global,
+      tag => default,
       opts => default_pool_wpool_opts(Type),
       conn_opts => default_pool_conn_opts(Type)}.
 
