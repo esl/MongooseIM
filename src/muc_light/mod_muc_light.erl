@@ -142,12 +142,12 @@ try_to_create_room(CreatorJid, RoomJID, #create{raw_config = RawConfig} = Creati
             Error
     end.
 
--spec change_room_config(UserJid :: jid:jid(), RoomID :: jid:resource(),
+-spec change_room_config(UserJid :: jid:jid(), RoomID :: jid:user(),
                          MUCLightDomain :: jid:server(),
                          ConfigReq :: config_req_props(),
                          Acc :: mongoose_acc:t()) ->
     {ok, jid:jid(), config_req_props()}
-    | {error, validation_error() | bad_request | not_allowed}.
+    | {error, validation_error() | bad_request | not_allowed | not_exists | item_not_found}.
 change_room_config(UserJid, RoomID, MUCLightDomain, ConfigReq, Acc1) ->
     RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
     {Acc2, AffUsersRes} = get_room_affiliations_from_acc(Acc1, RoomJID),

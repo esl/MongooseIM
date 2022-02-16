@@ -32,12 +32,7 @@
 -export([delete_room/3]).
 -export([change_room_config/5]).
 
--ignore_xref([delete_room/3, invite_to_room/4, send_message/4]).
-
--include("mod_muc_light.hrl").
--include("mongoose.hrl").
--include("jlib.hrl").
-
+-ignore_xref([delete_room/3, invite_to_room/4, send_message/4, change_room_config/5]).
 
 %%--------------------------------------------------------------------
 %% `gen_mod' callbacks
@@ -165,194 +160,56 @@ commands() ->
 %%--------------------------------------------------------------------
 
 create_unique_room(Domain, RoomName, Creator, Subject) ->
-    create_room(Domain, <<>>, RoomName, Creator, Subject).
+    CreatorJID = jid:from_binary(Creator),
+    case mod_muc_light_api:create_room(Domain, <<>>, RoomName, CreatorJID, Subject) of
+        {ok, #{jid := JID}} -> jid:to_binary(JID);
+        Error -> format_err_result(Error)
+    end.
 
 create_identifiable_room(Domain, Identifier, RoomName, Creator, Subject) ->
-    create_room(Domain, Identifier, RoomName, Creator, Subject).
-
-invite_to_room(Domain, RoomName, Sender, Recipient0) ->
-    Recipient1 = jid:binary_to_bare(Recipient0),
-    case muc_light_room_name_to_jid_and_aff(jid:from_binary(Sender), RoomName, Domain) of
-        {ok, R, _Aff} ->
-            S = jid:binary_to_bare(Sender),
-            Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
-                            [affiliate(jid:to_binary(Recipient1), <<"member">>)]),
-            ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
-                                           <<"set">>, [Changes]));
-        {error, given_user_does_not_occupy_any_room} ->
-            {error, forbidden, "given user does not occupy any room"};
-        {error, not_found} ->
-            {error, not_found, "room does not exist"}
+    CreatorJID = jid:from_binary(Creator),
+    case mod_muc_light_api:create_room(Domain, Identifier, RoomName, CreatorJID, Subject) of
+        {ok, #{jid := JID}} -> jid:to_binary(JID);
+        Error -> format_err_result(Error)
     end.
 
-change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
-    Recipient1 = jid:binary_to_bare(Recipient0),
-    LServer = jid:nameprep(Domain),
-    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
-    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
-    R = jid:make(RoomID, MUCLightDomain, <<>>),
-    S = jid:binary_to_bare(Sender),
-    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
-                    [affiliate(jid:to_binary(Recipient1), Affiliation)]),
-    ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
-                                   <<"set">>, [Changes])).
+invite_to_room(Domain, RoomName, Sender, Recipient) ->
+    SenderJID = jid:from_binary(Sender),
+    RecipientJID = jid:from_binary(Recipient),
+    Result = mod_muc_light_api:invite_to_room(Domain, RoomName, SenderJID, RecipientJID),
+    format_result_no_msg(Result).
+
+change_affiliation(Domain, RoomID, Sender, Recipient, Affiliation) ->
+    % FIXME use mod_muc_light_api instead of this in the client api
+    SenderJID = jid:from_binary(Sender),
+    RecipientJID = jid:from_binary(Recipient),
+    mod_muc_light_api:change_affiliation(Domain, RoomID, SenderJID, RecipientJID, Affiliation).
 
 change_room_config(Domain, RoomID, RoomName, User, Subject) ->
-    LServer = jid:nameprep(Domain),
-    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
-    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
-    UserUS = jid:binary_to_bare(User),
-    ConfigReq = #config{ raw_config =
-                         [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
-    Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => LServer, host_type => HostType}),
-    case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq, Acc) of
-        {ok, _RoomJID, _}  ->
-            ok;
-        {error, Reason} ->
-            {error, internal, Reason}
-    end.
+    UserJID = jid:from_binary(User),
+    Result = mod_muc_light_api:change_room_config(Domain, RoomID, RoomName, UserJID, Subject),
+    format_result_no_msg(Result).
 
 send_message(Domain, RoomName, Sender, Message) ->
-    Body = #xmlel{name = <<"body">>,
-                  children = [ #xmlcdata{ content = Message } ]
-                 },
-    Stanza = #xmlel{name = <<"message">>,
-                    attrs = [{<<"type">>, <<"groupchat">>}],
-                    children = [ Body ]
-                   },
-    S = jid:binary_to_bare(Sender),
-    case get_user_rooms(jid:to_lus(S), Domain) of
-        [] ->
-            {error, denied, "given user does not occupy any room"};
-        RoomJIDs when is_list(RoomJIDs) ->
-            FindFun = find_room_and_user_aff_by_room_name(RoomName, jid:to_lus(S)),
-            {ok, {RU, RS}, _Aff} = lists:foldl(FindFun, none, RoomJIDs),
-            true = is_subdomain(RS, Domain),
-            R = jid:make(RU, RS, <<>>),
-            ejabberd_router:route(S, R, Stanza)
-    end.
+    SenderJID = jid:from_binary(Sender),
+    Result = mod_muc_light_api:send_message(Domain, RoomName, SenderJID, Message),
+    format_result_no_msg(Result).
 
--spec delete_room(DomainName :: binary(), RoomName :: binary(),
-                  Owner :: binary()) ->
-                         ok | {error, atom(), term()}.
+-spec delete_room(jid:lserver(), binary(), jid:literal_jid()) -> ok | {error, atom(), term()}.
 delete_room(DomainName, RoomName, Owner) ->
-    OwnerJID = jid:binary_to_bare(Owner),
-    case muc_light_room_name_to_jid_and_aff(OwnerJID, RoomName, DomainName) of
-        {ok, RoomJID, owner} -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
-        {ok, _, _} -> {error, denied, "you can not delete this room"};
-        {error, given_user_does_not_occupy_any_room} -> {error, denied, "given user does not occupy this room"};
-        {error, not_found} -> {error, not_found, "room does not exist"}
-    end.
+    OwnerJID = jid:from_binary(Owner),
+    Result = mod_muc_light_api:delete_room(DomainName, RoomName, OwnerJID),
+    format_result_no_msg(Result).
 
-%%--------------------------------------------------------------------
-%% Ancillary
-%%--------------------------------------------------------------------
+format_result_no_msg({ok, _}) -> ok;
+format_result_no_msg(Res) -> format_err_result(Res).
 
-create_room(Domain, RoomId, RoomTitle, Creator, Subject) ->
-    LServer = jid:nameprep(Domain),
-    HostType = mod_muc_light_utils:server_host_to_host_type(LServer),
-    MUCLightDomain = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
-    CreatorJid = jid:from_binary(Creator),
-    MUCServiceJID = jid:make(RoomId, MUCLightDomain, <<>>),
-    Config = make_room_config(RoomTitle, Subject),
-    case mod_muc_light:try_to_create_room(CreatorJid, MUCServiceJID, Config) of
-        {ok, RoomJid, _} ->
-            jid:to_binary(RoomJid);
-        {error, exists} ->
-            {error, denied, "Room already exists"};
-        {error, Reason} ->
-            {error, internal, Reason}
-    end.
-
-make_room_config(Name, Subject) ->
-    #create{raw_config = [{<<"roomname">>, Name},
-                          {<<"subject">>, Subject}]
-           }.
-
--spec muc_light_room_name_to_jid_and_aff(UserJID :: jid:jid(),
-                                         RoomName :: binary(),
-                                         Domain :: jid:lserver()) ->
-    {ok, jid:jid(), aff()} | {error, given_user_does_not_occupy_any_room} | {error, not_found}.
-muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
-    UserUS = jid:to_lus(UserJID),
-    case get_user_rooms(UserUS, Domain) of
-        [] ->
-            {error, given_user_does_not_occupy_any_room};
-        RoomUSs when is_list(RoomUSs) ->
-            FindFun = find_room_and_user_aff_by_room_name(RoomName, UserUS),
-            case lists:foldl(FindFun, none, RoomUSs) of
-                {ok, {RU, RS}, UserAff} ->
-                    true = is_subdomain(RS, Domain),
-                    {ok, jid:make(RU, RS, <<>>), UserAff};
-                none ->
-                    {error, not_found}
-            end
-    end.
-
--spec get_user_rooms(UserUS :: jid:simple_bare_jid(), Domain :: jid:lserver()) ->
-    [jid:simple_bare_jid()].
-get_user_rooms({_, UserS} = UserUS, Domain) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(UserS),
-    mod_muc_light_db_backend:get_user_rooms(HostType, UserUS, Domain).
-
--spec get_room_name_and_user_aff(RoomUS :: jid:simple_bare_jid(),
-                                 UserUS :: jid:simple_bare_jid()) ->
-    {ok, RoomName :: binary(), UserAff :: aff()} | {error, not_exists}.
-get_room_name_and_user_aff(RoomUS, {_, UserS} = UserUS) ->
-    HostType = mod_muc_light_utils:server_host_to_host_type(UserS),
-    case mod_muc_light_db_backend:get_info(HostType, RoomUS) of
-        {ok, Cfg, Affs, _} ->
-            {roomname, RoomName} = lists:keyfind(roomname, 1, Cfg),
-            {_, UserAff} = lists:keyfind(UserUS, 1, Affs),
-            {ok, RoomName, UserAff};
-        Error ->
-            Error
-    end.
-
--type find_room_acc() :: {ok, RoomUS :: jid:simple_bare_jid(), UserAff :: aff()} | none.
-
--spec find_room_and_user_aff_by_room_name(RoomName :: binary(),
-                                          UserUS :: jid:simple_bare_jid()) ->
-    fun((RoomUS :: jid:simple_bare_jid(), find_room_acc()) -> find_room_acc()).
-find_room_and_user_aff_by_room_name(RoomName, UserUS) ->
-    fun (RoomUS, none) ->
-            case get_room_name_and_user_aff(RoomUS, UserUS) of
-                {ok, RoomName, UserAff} ->
-                    {ok, RoomUS, UserAff};
-                _ ->
-                    none
-            end;
-        (_, Acc) when Acc =/= none ->
-            Acc
-    end.
-
-is_subdomain(Child, Parent) ->
-    %% Example input Child = <<"muclight.localhost">> and Parent =
-    %% <<"localhost">>
-    case binary:match(Child, Parent) of
-        nomatch -> false;
-        {_, _} -> true
-    end.
-
-iq(To, From, Type, Children) ->
-    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, From},
-                    {<<"to">>, To},
-                    {<<"type">>, Type},
-                    {<<"id">>, UUID}],
-           children = Children
-          }.
-
-query(NS, Children) when is_binary(NS), is_list(Children) ->
-    #xmlel{name = <<"query">>,
-           attrs = [{<<"xmlns">>, NS}],
-           children = Children
-          }.
-
-affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
-    #xmlel{name = <<"user">>,
-           attrs = [{<<"affiliation">>, Kind}],
-           children = [ #xmlcdata{ content = JID } ]
-          }.
-
+format_err_result({ResStatus, Msg}) when not_exists =:= ResStatus;
+                                         room_not_found =:= ResStatus;
+                                         domain_not_found =:= ResStatus ->
+    {error, not_found, Msg};
+format_err_result({ResStatus, Msg}) when exist =:= ResStatus;
+                                         not_allowed =:= ResStatus;
+                                         user_without_room =:= ResStatus ->
+    {error, denied, Msg};
+format_err_result({_, Reason}) -> {error, internal, Reason}.

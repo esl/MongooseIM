@@ -54,11 +54,11 @@ from_json(Req, State) ->
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
-        ok ->
+        {ok, _} ->
             {true, Req, State};
-        {error, internal, not_allowed} ->
+        {not_allowed, _} ->
             mongoose_client_api:forbidden_request(Req, State);
-        {error, internal, _} ->
+        {_, _} ->
             {false, Req, State}
     end.
 
@@ -67,4 +67,5 @@ handle_request_by_method(<<"PUT">>,
                          Req, State) ->
     mongoose_client_api_rooms:assert_room_id_set(Req, State),
     #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
-    mod_muc_light_commands:change_room_config(Server, RoomID, Name, User, Subject).
+    UserJID = jid:from_binary(User),
+    mod_muc_light_api:change_room_config(Server, RoomID, Name, UserJID, Subject).
