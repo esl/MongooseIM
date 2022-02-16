@@ -74,7 +74,7 @@ get_modules_metrics(Host, Modules) ->
         fun(M) ->
             case erlang:function_exported(M, config_metrics, 1) of
                 true -> {M, M:config_metrics(Host)};
-                false -> {M ,[{none, none}]}
+                false -> {M, [{none, none}]}
             end
         end, Modules).
 
