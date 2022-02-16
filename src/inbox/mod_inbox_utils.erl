@@ -109,7 +109,7 @@ clear_inbox(HostType, User, Server) when is_binary(User) ->
 
 -spec get_reset_markers(HostType :: mongooseim:host_type()) -> list(marker()).
 get_reset_markers(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_inbox, reset_markers, [<<"displayed">>]).
+    gen_mod:get_module_opt(HostType, mod_inbox, reset_markers).
 
 -spec if_chat_marker_get_id(Packet :: exml:element(),
                             Markers :: list(marker())) -> undefined | id().
@@ -173,11 +173,11 @@ wrapper_id() ->
 
 -spec get_option_write_aff_changes(HostType :: mongooseim:host_type()) -> boolean().
 get_option_write_aff_changes(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_inbox, aff_changes, true).
+    gen_mod:get_module_opt(HostType, mod_inbox, aff_changes).
 
 -spec get_option_remove_on_kicked(HostType :: mongooseim:host_type()) -> boolean().
 get_option_remove_on_kicked(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_inbox, remove_on_kicked, true).
+    gen_mod:get_module_opt(HostType, mod_inbox, remove_on_kicked).
 
 extract_attr_jid(ResetStanza) ->
     case exml_query:attr(ResetStanza, <<"jid">>) of

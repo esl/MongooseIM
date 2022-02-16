@@ -1,6 +1,5 @@
 -module(mod_inbox_entries).
 
--include("mongoose_logger.hrl").
 -include("mongoose_ns.hrl").
 -include("jlib.hrl").
 -include("mod_inbox.hrl").

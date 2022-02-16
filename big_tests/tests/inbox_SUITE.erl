@@ -140,10 +140,12 @@ init_per_suite(Config0) ->
     ok = dynamic_modules:ensure_modules(
            ct:get_config({hosts, mim, secondary_host_type}),
            [{mod_inbox,
-             [{aff_changes, false},
-              {remove_on_kicked, true},
-              {groupchat, [muclight]},
-              {markers, [displayed]}]}]),
+             #{backend => rdbms,
+               groupchat => [muclight],
+               aff_changes => false,
+               remove_on_kicked => true,
+               reset_markers => [<<"displayed">>],
+               iqdisc => no_queue}}]),
     InboxOptions = inbox_opts(),
     mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
