@@ -99,7 +99,7 @@ Let's get to it! (this command assumes that we are on the server for [MongooseIC
 docker run -it --net=host -e "MONGOOSEICE_UDP_RELAY_IP=1.1.1.1" -e "MONGOOSEICE_STUN_SECRET=secret" -e "MONGOOSEICE_UDP_REALM=myrelay" mongooseim/mongooseice:0.4.0
 ```
 
-This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
+This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker daemon is running on.
 There are three important configuration options we have to set via environment variables:
 
 * **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. This should be set to public IPv4 address.

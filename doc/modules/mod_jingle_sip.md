@@ -121,7 +121,7 @@ The port of the SIP Proxy.
 * **Default:** `5600`
 * **Example:** `listen_port = 5600`
 
-The port on which MongooseIM will listen for incomming SIP messages.
+The port on which MongooseIM will listen for incoming SIP messages.
 
 ### `modules.mod_jingle_sip.local_host`
 * **Syntax:** string
