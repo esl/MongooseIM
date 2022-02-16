@@ -18,6 +18,8 @@ type AdminQuery{
   session: SessionAdminQuery
   "Stanza management"
   stanza: StanzaAdminQuery
+  "MUC Light room management"
+  muc_light: MUCLightAdminQuery 
 }
 
 """
@@ -33,4 +35,6 @@ type AdminMutation @protected{
   session: SessionAdminMutation
   "Stanza management"
   stanza: StanzaAdminMutation
+  "MUC Light room management"
+  muc_light: MUCLightAdminMutation
 }
