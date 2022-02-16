@@ -15,6 +15,13 @@ Generation of keys necessary to sign binary tokens is delegated to module `mod_k
 
 ## Options
 
+### `modules.mod_auth_token.backend`
+* **Syntax:** non-empty string
+* **Default:** `"rdbms"`
+* **Example:** `backend = "rdbms"`
+
+Token storage backend. Currently only `"rdbms"` is supported.
+
 ### `modules.mod_auth_token.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
 * **Default:** `"no_queue"`
