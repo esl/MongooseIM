@@ -1022,8 +1022,4 @@ muc_light_opts() ->
      {rooms_in_rosters, true}
     ].
 inbox_opts() ->
-    [{aff_changes, false},
-     {remove_on_kicked, true},
-     {groupchat, [muclight]},
-     {markers, [displayed]}].
-
+    (inbox_helper:inbox_opts())#{aff_changes := false}.

@@ -1723,23 +1723,24 @@ mod_extdisco(_Config) ->
     ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
 
 mod_inbox(_Config) ->
+    check_module_defaults(mod_inbox),
+    check_iqdisc_map(mod_inbox),
+    P = [modules, mod_inbox],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
-    M = fun(Opts) -> modopts(mod_inbox, Opts) end,
     ChatMarkers = [<<"displayed">>, <<"received">>, <<"acknowledged">>],
-    ?cfgh(M([{reset_markers, ChatMarkers}]),
+    ?cfgh(P ++ [reset_markers], ChatMarkers,
           T(#{<<"reset_markers">> => ChatMarkers})),
-    ?cfgh(M([{groupchat, [muc, muclight]}]),
+    ?cfgh(P ++ [groupchat], [muc, muclight],
           T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
-    ?cfgh(M([{aff_changes, true}]),
+    ?cfgh(P ++ [aff_changes], true,
           T(#{<<"aff_changes">> => true})),
-    ?cfgh(M([{remove_on_kicked, false}]),
+    ?cfgh(P ++ [remove_on_kicked], false,
           T(#{<<"remove_on_kicked">> => false})),
     ?errh(T(#{<<"reset_markers">> => 1})),
     ?errh(T(#{<<"reset_markers">> => [<<"destroyed">>]})),
     ?errh(T(#{<<"groupchat">> => [<<"test">>]})),
     ?errh(T(#{<<"aff_changes">> => 1})),
-    ?errh(T(#{<<"remove_on_kicked">> => 1})),
-    check_iqdisc(mod_inbox).
+    ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
 mod_global_distrib(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,

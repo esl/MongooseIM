@@ -118,10 +118,7 @@ inbox_ns_conversation() ->
     ?NS_ESL_INBOX_CONVERSATION.
 
 inbox_opts() ->
-    [{aff_changes, true},
-     {remove_on_kicked, true},
-     {groupchat, [muclight]},
-     {reset_markers, [<<"displayed">>]}].
+    config_parser_helper:default_mod_config(mod_inbox).
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
@@ -294,16 +291,14 @@ clear_inboxes(UserList) ->
 reload_inbox_option(Config, KeyValueList) ->
     HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
-    Args2 = lists:foldl(fun({K, V}, AccIn) ->
-        lists:keyreplace(K, 1, AccIn, {K, V})
-                end, Args, KeyValueList),
-    dynamic_modules:restart(HostType, mod_inbox, Args2),
-    lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args2}).
+    Args1 = maps:merge(Args, maps:from_list(KeyValueList)),
+    dynamic_modules:restart(HostType, mod_inbox, Args1),
+    lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 
 reload_inbox_option(Config, Key, Value) ->
     HostType = domain_helper:host_type(mim),
     Args = proplists:get_value(inbox_opts, Config),
-    Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
+    Args1 = Args#{Key => Value},
     dynamic_modules:restart(HostType, mod_inbox, Args1),
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 

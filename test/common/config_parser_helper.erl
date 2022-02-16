@@ -575,10 +575,12 @@ all_modules() ->
               {path, "/notifications"},
               {pool_name, http_pool}]]}],
       mod_inbox =>
-          [{aff_changes, true},
-           {groupchat, [muclight]},
-           {remove_on_kicked, true},
-           {reset_markers, [<<"displayed">>]}],
+          #{backend => rdbms,
+            iqdisc => no_queue,
+            aff_changes => true,
+            groupchat => [muclight],
+            remove_on_kicked => true,
+            reset_markers => [<<"displayed">>]},
       mod_mam_meta =>
           [{archive_chat_markers, true},
            {backend, rdbms},
@@ -752,6 +754,13 @@ pgsql_access() ->
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
 
+default_mod_config(mod_inbox) ->
+    #{backend => rdbms,
+      groupchat => [muclight],
+      aff_changes => true,
+      remove_on_kicked => true,
+      reset_markers => [<<"displayed">>],
+      iqdisc => no_queue};
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
