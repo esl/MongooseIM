@@ -344,10 +344,8 @@ init_inbox(CN, Config, GroupChatType) ->
     end.
 inbox_required_modules(Type) ->
     GroupChatModules = groupchat_module(Type),
-    Inbox = {mod_inbox, [{aff_changes, true},
-                         {remove_on_kicked, true},
-                         {groupchat, [Type]},
-                         {markers, [displayed]}]},
+    InboxOpts = (inbox_helper:inbox_opts())#{groupchat => [Type]},
+    Inbox = {mod_inbox, InboxOpts},
      GroupChatModules ++ [Inbox] .
 
 groupchat_module(muc) ->

@@ -139,11 +139,7 @@ init_per_suite(Config0) ->
            domain_helper:host_type(), inbox_modules()),
     ok = dynamic_modules:ensure_modules(
            ct:get_config({hosts, mim, secondary_host_type}),
-           [{mod_inbox,
-             [{aff_changes, false},
-              {remove_on_kicked, true},
-              {groupchat, [muclight]},
-              {markers, [displayed]}]}]),
+           [{mod_inbox, (inbox_opts())#{aff_changes := false}}]),
     InboxOptions = inbox_opts(),
     mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite([{inbox_opts, InboxOptions} | Config1]).
