@@ -429,7 +429,12 @@ offline_started() ->
     dynamic_modules:ensure_modules(host_type(), offline_required_modules()).
 
 private_required_modules() ->
-    [{mod_private, [{backend, pick_enabled_backend()}]}].
+    [{mod_private, create_private_config(pick_enabled_backend())}].
+
+create_private_config(riak) ->
+    #{backend => riak, iqdisc => one_queue, riak => #{bucket_type => <<"private">>}};
+create_private_config(Backend) ->
+    #{backend => Backend, iqdisc => one_queue}.
 
 private_started() ->
     dynamic_modules:ensure_modules(host_type(), private_required_modules()).

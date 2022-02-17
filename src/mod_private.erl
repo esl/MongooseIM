@@ -70,7 +70,8 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% gen_mod callbacks
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
-start(HostType, #{iqdisc := IQDisc} = Opts) ->
+start(HostType, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     mod_private_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
