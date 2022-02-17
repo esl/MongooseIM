@@ -655,7 +655,7 @@ pgsql_modules() ->
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
       mod_privacy => [{backend, rdbms}],
-      mod_private => [{backend, rdbms}],
+      mod_private => default_mod_config(mod_private),
       mod_register =>
           [{access, register},
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
@@ -814,6 +814,8 @@ mod_config(Module, ExtraOpts) ->
 
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
+default_mod_config(mod_private) ->
+    #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},

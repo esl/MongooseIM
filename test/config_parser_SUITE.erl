@@ -2587,15 +2587,16 @@ mod_privacy(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
+    check_iqdisc_map(mod_private),
+    check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_private, Cfg) end,
-    ?cfgh(M([{backend, riak}]),
+    P = [modules, mod_private],
+    ?cfgh(P ++ [backend], riak,
           T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(M([{bucket_type, <<"private_stuff">>}]),
+    ?cfgh(P ++ [riak, bucket_type], <<"private_stuff">>,
           T(#{<<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
     ?errh(T(#{<<"backend">> => <<"mssql">>})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_private).
+    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),

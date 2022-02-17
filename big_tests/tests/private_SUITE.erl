@@ -48,9 +48,12 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    ModConfig = mongoose_helper:backend_for_module(mod_private, Backend),
+    ModConfig = create_config(Backend),
     dynamic_modules:ensure_modules(HostType, ModConfig),
     escalus:init_per_suite([{backend, Backend} | Config1]).
+
+create_config(Backend) ->
+    [{mod_private, #{backend => Backend, iqdisc => one_queue, riak => <<"riak">>}}].
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),

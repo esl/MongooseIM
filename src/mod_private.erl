@@ -69,16 +69,18 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
 
-start(HostType, Opts) ->
+-spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_private_backend:init(HostType, Opts),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
+-spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm).
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm),
+    ok.
 
 supported_features() -> [dynamic_domains].
 
@@ -93,7 +95,10 @@ config_spec() ->
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_private}},
-                 <<"riak">> => riak_config_spec()}
+                 <<"riak">> => riak_config_spec()},
+       defaults = #{<<"iqdisc">> => one_queue,
+                    <<"backend">> => rdbms},
+       format_items = map
       }.
 
 riak_config_spec() ->
@@ -101,7 +106,8 @@ riak_config_spec() ->
        items = #{<<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}
                 },
-       wrap = none
+       defaults = #{<<"bucket_type">> => <<"private">>},
+       format_items = map
       }.
 
 %% ------------------------------------------------------------------
