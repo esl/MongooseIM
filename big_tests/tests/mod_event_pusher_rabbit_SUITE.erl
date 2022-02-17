@@ -59,16 +59,15 @@
         ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
--define(WPOOL_CFG, {rabbit, host, event_pusher,
-                    [{workers, 20}],
-                    [%% enables publisher one-to-one confirms
-                     %% disabled by default
-                     %% {confirms_enabled, true},
-                     {amqp_host, "localhost"},
-                     {amqp_port, 5672},
-                     {amqp_username, "guest"},
-                     {amqp_password, "guest"}
-                    ]}).
+-define(WPOOL_CFG, #{type => rabbit, scope => host, tag => event_pusher,
+                     opts => #{workers => 20, strategy => best_worker, call_timeout => 5000},
+                     conn_opts => #{confirms_enabled => false,
+                                    amqp_host => "localhost",
+                                    amqp_port => 5672,
+                                    amqp_username => "guest",
+                                    amqp_password => "guest",
+                                    max_worker_queue_len => 1000}
+}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
@@ -187,7 +186,9 @@ end_per_testcase(CaseName, Config) ->
 rabbit_pool_starts_with_default_config(_Config) ->
     %% GIVEN
     Domain = domain(),
-    DefaultWpoolConfig = {rabbit, host, rabbit_event_pusher_default, [], []},
+    DefaultWpoolConfig = #{type => rabbit, scope => host, tag => rabbit_event_pusher_default,
+                           opts => #{workers => 10, strategy => best_worker, call_timeout => 5000},
+                           conn_opts => #{amqp_port => 5672, confirms_enabled => false, max_worker_queue_len => 1000}},
     RabbitWpool = {rabbit, Domain, rabbit_event_pusher_default},
     %% WHEN
     start_rabbit_wpool(Domain, DefaultWpoolConfig),

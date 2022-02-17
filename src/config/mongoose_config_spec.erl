@@ -542,7 +542,9 @@ outgoing_pool(Type) ->
                       <<"connection">> => outgoing_pool_connection(Type)
                 },
        process = fun ?MODULE:process_pool/2,
-       wrap = item
+       format_items = map,
+       wrap = item,
+       defaults = maps:merge(#{<<"scope">> => global}, wpool_defaults(Type))
       }.
 
 wpool_items() ->
@@ -554,11 +556,23 @@ wpool_items() ->
                                     validate = positive}
      }.
 
+wpool_defaults(<<"cassandra">>) ->
+    maps:merge(wpool_defaults(), #{<<"workers">> => 20});
+wpool_defaults(<<"rdbms">>) ->
+    maps:merge(wpool_defaults(), #{<<"call_timeout">> => 60000});
+wpool_defaults(_) ->
+    wpool_defaults().
+
+wpool_defaults() ->
+    #{<<"workers">> => 10,
+      <<"strategy">> => best_worker,
+      <<"call_timeout">> => 5000}.
+
 %% path: outgoing_pools.*.*.connection
 outgoing_pool_connection(<<"cassandra">>) ->
     #section{
        items = #{<<"servers">> => #list{items = cassandra_server()},
-                 <<"keyspace">> => #option{type = string,
+                 <<"keyspace">> => #option{type = atom,
                                            validate = non_empty},
                  <<"auth">> => #section{items = #{<<"plain">> => cassandra_auth_plain()},
                                         required = all,
@@ -566,7 +580,11 @@ outgoing_pool_connection(<<"cassandra">>) ->
                  <<"tls">> => #section{items = tls_items(),
                                        wrap = {kv, ssl},
                                        process = fun ?MODULE:process_tls_sni/1}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"servers">> => [{"localhost", 9042}],
+                    <<"keyspace">> => mongooseim}
       };
 outgoing_pool_connection(<<"elastic">>) ->
     #section{
@@ -574,7 +592,11 @@ outgoing_pool_connection(<<"elastic">>) ->
                                        validate = non_empty},
                  <<"port">> => #option{type = integer,
                                        validate = port}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"host">> => "localhost",
+                    <<"port">> => 9200}
       };
 outgoing_pool_connection(<<"http">>) ->
     #section{
@@ -588,13 +610,15 @@ outgoing_pool_connection(<<"http">>) ->
                  <<"tls">> => #section{items = tls_items(),
                                        wrap = {kv, http_opts},
                                        process = fun ?MODULE:process_tls_sni/1}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"path_prefix">> => "/",
+                    <<"request_timeout">> => 2000}
       };
 outgoing_pool_connection(<<"ldap">>) ->
     #section{
-       items = #{<<"host">> => #option{type = string,
-                                       validate = non_empty},
-                 <<"port">> => #option{type = integer,
+       items = #{<<"port">> => #option{type = integer,
                                        validate = port},
                  <<"rootdn">> => #option{type = string},
                  <<"password">> => #option{type = string},
@@ -606,7 +630,14 @@ outgoing_pool_connection(<<"ldap">>) ->
                  <<"tls">> => #section{items = tls_items(),
                                        wrap = {kv, tls_options},
                                        process = fun ?MODULE:process_tls_sni/1}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"rootdn">> => "",
+                    <<"password">> => "",
+                    <<"encrypt">> => none,
+                    <<"servers">> => ["localhost"],
+                    <<"connect_interval">> => 10000}
       };
 outgoing_pool_connection(<<"rabbit">>) ->
     #section{
@@ -614,14 +645,18 @@ outgoing_pool_connection(<<"rabbit">>) ->
                                             validate = non_empty},
                  <<"amqp_port">> => #option{type = integer,
                                             validate = port},
-                 <<"amqp_username">> => #option{type = string,
+                 <<"amqp_username">> => #option{type = binary,
                                                 validate = non_empty},
-                 <<"amqp_password">> => #option{type = string,
+                 <<"amqp_password">> => #option{type = binary,
                                                 validate = non_empty},
                  <<"confirms_enabled">> => #option{type = boolean},
                  <<"max_worker_queue_len">> => #option{type = int_or_infinity,
                                                        validate = non_negative}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"confirms_enabled">> => false,
+                    <<"max_worker_queue_len">> => 1000}
       };
 outgoing_pool_connection(<<"rdbms">>) ->
     #section{
@@ -646,7 +681,8 @@ outgoing_pool_connection(<<"rdbms">>) ->
                                        validate = port},
                  <<"tls">> => sql_tls()
                 },
-       process = fun ?MODULE:process_rdbms_connection/1
+       process = fun ?MODULE:process_rdbms_connection/1,
+       format_items = map
       };
 outgoing_pool_connection(<<"redis">>) ->
     #section{
@@ -657,7 +693,13 @@ outgoing_pool_connection(<<"redis">>) ->
                  <<"database">> => #option{type = integer,
                                            validate = non_negative},
                  <<"password">> => #option{type = string}
-                }
+                },
+       format_items = map,
+       include = always,
+       defaults = #{<<"host">> => "127.0.0.1",
+                    <<"port">> => 6379,
+                    <<"database">> => 0,
+                    <<"password">> => ""}
       };
 outgoing_pool_connection(<<"riak">>) ->
     #section{
@@ -668,7 +710,8 @@ outgoing_pool_connection(<<"riak">>) ->
                  <<"credentials">> => riak_credentials(),
                  <<"tls">> => #section{items = tls_items(),
                                        process = fun ?MODULE:process_riak_tls/1,
-                                       wrap = none}}
+                                       wrap = none}},
+       format_items = map
       }.
 
 cassandra_server() ->
@@ -697,9 +740,8 @@ riak_credentials() ->
                  <<"password">> => #option{type = string,
                                            validate = non_empty}},
        required = all,
-       process = fun ?MODULE:process_riak_credentials/1,
-       wrap = prepend_key
-      }.
+       process = fun ?MODULE:process_riak_credentials/1
+    }.
 
 %% path: outgoing_pools.rdbms.*.connection.tls
 sql_tls() ->
@@ -1154,19 +1196,22 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], KVs) ->
-    {[ScopeOpts, HostOpts, ConnOpts], Opts} = proplists:split(KVs, [scope, host, connection]),
-    Scope = pool_scope(ScopeOpts, HostOpts),
-    Connection = pool_connection(ConnOpts),
-    {b2a(Type), Scope, b2a(Tag), Opts, Connection}.
+process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn}) ->
+    Scope = pool_scope(ScopeIn, maps:get(host, AllOpts, none)),
+    Connection = maps:get(connection, AllOpts, #{}),
+    Opts = maps:without([scope, host, connection], AllOpts),
+    #{type => b2a(Type),
+      scope => Scope,
+      tag => b2a(Tag),
+      opts => Opts,
+      conn_opts => Connection}.
 
-pool_scope([{scope, single_host}], [{host, Host}]) -> Host;
-pool_scope([{scope, host}], []) -> host;
-pool_scope([{scope, global}], []) -> global;
-pool_scope([], []) -> global.
-
-pool_connection([{connection, Opts}]) -> Opts;
-pool_connection([]) -> [].
+pool_scope(single_host, none) ->
+    error(#{what => pool_single_host_not_specified,
+            text => <<"\"host\" option is required if \"single_host\" is used.">>});
+pool_scope(single_host, Host) -> Host;
+pool_scope(host, none) -> host;
+pool_scope(global, none) -> global.
 
 process_cassandra_server(KVs) ->
     {[[{ip_address, IPAddr}]], Opts} = proplists:split(KVs, [ip_address]),
@@ -1179,28 +1224,25 @@ process_cassandra_auth([{plain, KVs}]) ->
     {[[{username, User}], [{password, Pass}]], []} = proplists:split(KVs, [username, password]),
     {cqerl_auth_plain_handler, [{User, Pass}]}.
 
-process_rdbms_connection(KVs) ->
-    {[[{driver, Driver}], KeepaliveIntervalOpts], Opts} =
-        proplists:split(KVs, [driver, keepalive_interval]),
-    [{server, rdbms_server(Driver, Opts)} | KeepaliveIntervalOpts].
+process_rdbms_connection(Map) ->
+    KIMap = maps:with([keepalive_interval], Map),
+    maps:merge(KIMap, #{server => rdbms_server(Map)}).
 
-rdbms_server(odbc, Opts) ->
-    [{settings, Settings}] = Opts,
-    Settings;
-rdbms_server(Driver, Opts) ->
-    {[[{host, Host}], [{database, DB}], [{username, User}], [{password, Pass}],
-      PortOpts, TLSOpts], []} =
-        proplists:split(Opts, [host, database, username, password, port, tls]),
+rdbms_server(Opts = #{driver := odbc}) ->
+    maps:get(settings, Opts);
+rdbms_server(Opts = #{host := Host, database := DB, username := User, password := Pass, driver := Driver}) ->
+    PortOpts = maps:get(port, Opts, none),
+    TLSOpts = maps:get(tls, Opts, none),
     list_to_tuple([Driver, Host] ++ db_port(PortOpts) ++
                       [DB, User, Pass] ++ db_tls(Driver, TLSOpts)).
 
-db_port([{port, Port}]) -> [Port];
-db_port([]) -> [].
+db_port(none) -> [];
+db_port(Port) -> [Port].
 
-db_tls(Driver, [{tls, KVs}]) ->
+db_tls(_, none) -> [];
+db_tls(Driver, KVs) ->
     {[ModeOpts], Opts} = proplists:split(KVs, [required]),
-    [ssl_mode(Driver, ModeOpts) ++ ssl_opts(Driver, Opts)];
-db_tls(_, []) -> [].
+    [ssl_mode(Driver, ModeOpts) ++ ssl_opts(Driver, Opts)].
 
 ssl_mode(pgsql, [{required, true}]) -> [{ssl, required}];
 ssl_mode(pgsql, [{required, false}]) -> [{ssl, true}];

@@ -51,7 +51,7 @@ unescape_binary(Binary) ->
     Args = [Binary],
     mongoose_backend:call(global, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec connect(Settings :: any(), QueryTimeout :: non_neg_integer()) ->
+-spec connect(Settings :: tuple(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 connect(Settings, QueryTimeout) ->
     Args = [Settings, QueryTimeout],

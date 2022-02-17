@@ -367,11 +367,11 @@ init_per_group(disco_rsm_with_offline, Config) ->
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
-    PoolOpts = [{strategy, available_worker}, {workers, 5}],
-    HTTPOpts = [{server, "http://localhost:8080"},
-                {path_prefix, "/muc/auth/"}],
+    PoolOpts = #{strategy => available_worker, workers => 5},
+    HTTPOpts = #{server => "http://localhost:8080", path_prefix => "/muc/auth/", request_timeout => 2000},
     [{ok, _}] = ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                             [[{http, global, muc_http_auth_test, PoolOpts, HTTPOpts}]]),
+                                             [[#{type => http, scope => global, tag => muc_http_auth_test,
+                                                 opts => PoolOpts, conn_opts => HTTPOpts}]]),
     case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok

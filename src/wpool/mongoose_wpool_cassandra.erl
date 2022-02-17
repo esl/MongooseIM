@@ -12,7 +12,7 @@ init() ->
     application:set_env(cqerl, maps, true).
 
 start(HostType, Tag, WpoolOptsIn, CqerlOpts) ->
-    PoolSize = proplists:get_value(workers, WpoolOptsIn, 20),
+    PoolSize = proplists:get_value(workers, WpoolOptsIn),
     application:set_env(cqerl, num_clients, PoolSize),
     ExtConfig = extend_config(CqerlOpts),
     Servers = proplists:get_value(servers, ExtConfig),
@@ -35,12 +35,7 @@ stop(_, _) ->
 %% --------------------------------------------------------------
 %% Internal functions
 extend_config(PoolConfig) ->
-    Defaults = #{
-        servers     => [{"localhost", 9042}],
-        tcp_opts    => [{keepalive, true}],
-        keyspace    => mongooseim
-    },
-    ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
+    ConfigMap = maps:merge(#{tcp_opts => [{keepalive, true}]}, PoolConfig),
     maps:to_list(ConfigMap).
 
 %% make the config survive the restart of 'cqerl_cluster' in case of a network failure
