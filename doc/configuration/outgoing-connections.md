@@ -1,5 +1,5 @@
-MongooseIM can be configured to talk to external services like databases or HTTP servers in order to get or set the required data.
-The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
+MongooseIM can be configured to talk to external services like databases or HTTP servers.
+The interface for outgoing connections management is available via the `outgoing_pools` config option for the following types of connections:
 
 * `cassandra` - pool of connections to Cassandra cluster
 * `riak` - pool of connections to Riak cluster
@@ -45,15 +45,15 @@ Defines worker selection strategy. Consult worker_pool documentation for details
 
 ### `outgoing_pools.*.*.workers`
 * **Syntax:** positive integer
-* **Default:** 100
-* **Example:** `workers = 10`
+* **Default:** 10 (20 for Cassandra pool)
+* **Example:** `workers = 100`
 
 Number of workers to be started by the pool.
 
 ### `outgoing_pools.*.*.call_timeout`
 * **Syntax:** positive integer
-* **Default:** 5000
-* **Example:** `call_timeout = 5000`
+* **Default:** 5000 (60000 for RDBMS pool)
+* **Example:** `call_timeout = 3000`
 
 Number of milliseconds after which a call to the pool will time out.
 
@@ -78,13 +78,6 @@ For example:
 * **Example:** `driver = "psgql"`
 
 Selects the driver for RDBMS connection. The choice of a driver impacts the set of available options.
-
-#### `outgoing_pools.rdbms.*.connection.call_timeout`
-* **Syntax:** positive integer
-* **Default:** 60000 (msec)
-* **Example:** `call_timeout = 60000`
-
-RDBMS pool sets its own default value of this option.
 
 ### ODBC options
 
