@@ -472,7 +472,7 @@ paths:
           schema:
             title: roomJID
             type: string
-  /muc-lights/{XMPPMUCHost}/{roomName}/participants:
+  /muc-lights/{XMPPHost}/{roomName}/participants:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
@@ -504,7 +504,7 @@ paths:
       responses:
         204:
           description: An invite was sent out
-  /muc-lights/{XMPPMUCHost}/{roomName}/messages:
+  /muc-lights/{XMPPHost}/{roomName}/messages:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
@@ -536,7 +536,7 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
-  /muc-lights/{XMPPMUCHost}/{roomName}/{user}/management:
+  /muc-lights/{XMPPHost}/{roomName}/{user}/management:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'

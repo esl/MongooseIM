@@ -128,7 +128,7 @@ create_identifiable_room(Config) ->
 
 invite_to_room(Config) ->
     Name = <<"wonderland">>,
-    Path = path([muc_light_domain(), Name, "participants"]),
+    Path = path([domain_helper:domain(), Name, "participants"]),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
@@ -155,7 +155,7 @@ invite_to_room(Config) ->
 
 send_message_to_room(Config) ->
     Name = <<"wonderland">>,
-    Path = path([muc_light_domain(), Name, "messages"]),
+    Path = path([domain_helper:domain(), Name, "messages"]),
     Text = <<"Hello everyone!">>,
     escalus:fresh_story(Config,
       [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -290,7 +290,7 @@ check_delete_room(_Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     escalus:assert(is_iq_result, CreationResult),
     muc_light_helper:verify_aff_bcast(Members, Affiliations),
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
-    Path = path([muc_light_domain(), RoomNameToDelete, ShortJID, "management"]),
+    Path = path([domain_helper:domain(), RoomNameToDelete, ShortJID, "management"]),
     rest_helper:delete(admin, Path).
 
 
