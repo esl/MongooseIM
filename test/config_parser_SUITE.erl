@@ -3210,7 +3210,7 @@ maybe_insert_dummy_domain(M) ->
 -spec host_opts([{key_prefix(), mongoose_config:value()}]) ->
           [{mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value()}].
 host_opts(ExpectedOptions) ->
-    [{host_key(Key), Value} || {Key, Value} <- ExpectedOptions].
+    lists:map(fun({Key, Value}) -> {host_key(Key), Value} end, ExpectedOptions).
 
 %% @doc Build full per-host config key for host-or-global options
 -spec host_key(top_level_key_prefix()) -> mongoose_config:key();
