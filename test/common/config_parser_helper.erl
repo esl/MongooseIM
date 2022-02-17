@@ -476,10 +476,10 @@ all_modules() ->
            {pep_mapping, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}]},
            {plugins, [<<"flat">>, <<"pep">>]}],
       mod_version => [{os_info, true}],
-      mod_auth_token =>
-          #{validity_period => #{access => #{unit => minutes, value => 13},
-                                 refresh => #{unit => days, value => 13}},
-           iqdisc => one_queue},
+      mod_auth_token => #{backend => rdbms,
+                          validity_period => #{access => #{unit => minutes, value => 13},
+                                               refresh => #{unit => days, value => 13}},
+                          iqdisc => one_queue},
       mod_carboncopy => [{iqdisc, no_queue}],
       mod_mam =>
           [{archive_chat_markers, true},
@@ -608,7 +608,8 @@ all_modules() ->
              {sent_topic, <<"groupchat_msg_sent">>}]},
            {presence_exchange, [{name, <<"presence">>}, {type, <<"topic">>}]}],
       mod_bosh =>
-          [{inactivity, 20}, {maxpause, 120}, {max_wait, infinity}, {server_acks, true}],
+          #{backend => mnesia, inactivity => 20, max_wait => infinity,
+            server_acks => true, max_pause => 120},
       mod_muc =>
           [{access, muc},
            {access_create, muc_create},
@@ -643,7 +644,7 @@ all_modules() ->
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
-      mod_amp => [], mod_blocking => [], mod_bosh => [],
+      mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => [], mod_commands => [],
       mod_disco => [{users_can_see_hidden_services, false}],
       mod_last => [{backend, rdbms}],
@@ -752,12 +753,13 @@ pgsql_access() ->
       s2s_shaper => [#{acl => all, value => fast}]}.
 
 default_mod_config(mod_adhoc) ->
-    #{iqdisc => one_queue,
-      report_commands_node => false};
+    #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
-    #{iqdisc => no_queue,
+    #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_bosh) ->
+    #{backend => mnesia, inactivity => 30, max_wait => infinity,
+      server_acks => false, max_pause => 120};
 default_mod_config(mod_extdisco) ->
-    #{iqdisc => no_queue,
-      service => []}.
+    #{iqdisc => no_queue, service => []}.

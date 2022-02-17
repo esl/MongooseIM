@@ -7,6 +7,7 @@
 -export([start/4,
          start_link/4,
          start_supervisor/0,
+         is_supervisor_started/0,
          handle_request/2,
          pause/2]).
 
@@ -55,7 +56,6 @@
 -define(DEFAULT_HOLD, 1).
 -define(CONCURRENT_REQUESTS, 2).
 -define(DEFAULT_WAIT, 60).
--define(DEFAULT_MAXPAUSE, 120).
 -define(DEFAULT_CLIENT_ACKS, false).
 
 -type cached_response() :: {rid(), TStamp :: integer(), exml:element()}.
@@ -77,11 +77,11 @@
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
-                inactivity      :: pos_integer() | 'infinity',
+                inactivity      :: pos_integer() | infinity,
                 inactivity_tref :: reference() | 'undefined',
                 %% Max pause period in seconds.
-                maxpause        :: pos_integer() | 'undefined',
-                max_wait        :: pos_integer() | 'infinity',
+                max_pause        :: pos_integer(),
+                max_wait        :: pos_integer() | infinity,
                 %% Are acknowledgements used?
                 server_acks     :: boolean(),
                 last_processed  :: rid() | 'undefined',
@@ -134,6 +134,9 @@ start_supervisor() ->
             {error, Reason}
     end.
 
+-spec is_supervisor_started() -> boolean().
+is_supervisor_started() ->
+    is_pid(whereis(?BOSH_SOCKET_SUP)).
 
 -spec handle_request(Pid :: pid(),
                     {EventTag :: mod_bosh:event_type(),
@@ -191,22 +194,19 @@ init([HostType, Sid, Peer, PeerCert]) ->
     BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
-    State = #state{sid = Sid,
-                   c2s_pid = C2SPid,
-                   inactivity = mod_bosh:get_inactivity(HostType),
-                   maxpause = get_maxpause(HostType),
-                   max_wait = mod_bosh:get_max_wait(HostType),
-                   server_acks = mod_bosh:get_server_acks(HostType)},
+    Opts = gen_mod:get_loaded_module_opts(HostType, mod_bosh),
+    State = new_state(Sid, C2SPid, Opts),
     ?LOG_DEBUG(ls(#{what => bosh_socket_init}, State)),
     {ok, accumulate, State}.
 
-
-%% TODO: maybe make maxpause runtime configurable like inactivity?
-get_maxpause(HostType) ->
-    case gen_mod:get_module_opt(HostType, mod_bosh, maxpause, undefined) of
-        undefined -> ?DEFAULT_MAXPAUSE;
-        MP -> MP
-    end.
+new_state(Sid, C2SPid, #{inactivity := Inactivity, max_wait := MaxWait,
+                         server_acks := ServerAcks, max_pause := MaxPause}) ->
+    #state{sid = Sid,
+           c2s_pid = C2SPid,
+           inactivity = Inactivity,
+           max_pause = MaxPause,
+           max_wait = MaxWait,
+           server_acks = ServerAcks}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -606,7 +606,7 @@ process_stream_event(EventTag, Body, SName, #state{c2s_pid = C2SPid} = State) ->
 
 -spec process_pause_event('infinity' | 'undefined' | pos_integer(),
                           state()) -> state().
-process_pause_event(Seconds, #state{maxpause = MaxPause} = S)
+process_pause_event(Seconds, #state{max_pause = MaxPause} = S)
         when MaxPause == undefined;
              Seconds > MaxPause ->
     [Pid ! policy_violation || {_, _, Pid} <- S#state.handlers],
@@ -953,7 +953,7 @@ bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
                     {<<"xmlns:xmpp">>, <<"urn:xmpp:xbosh">>},
                     {<<"xmlns:stream">>, ?NS_STREAM}] ++
            inactivity(S#state.inactivity) ++
-           maxpause(S#state.maxpause) ++
+           maxpause(S#state.max_pause) ++
            %% TODO: shouldn't an ack be sent on restart?
            server_ack(S#state.server_acks, S#state.rid),
            children = []}.
