@@ -544,7 +544,7 @@ outgoing_pool(Type) ->
        process = fun ?MODULE:process_pool/2,
        format_items = map,
        wrap = item,
-       defaults = wpool_defaults(Type)
+       defaults = maps:merge(#{<<"scope">> => global}, wpool_defaults(Type))
       }.
 
 wpool_items() ->
@@ -1196,8 +1196,8 @@ check_auth_method(Method, Opts) ->
         false -> error(#{what => missing_section_for_auth_method, auth_method => Method})
     end.
 
-process_pool([Tag, Type|_], AllOpts) ->
-    Scope = pool_scope(maps:get(scope, AllOpts, none), maps:get(host, AllOpts, none)),
+process_pool([Tag, Type|_], AllOpts = #{scope := ScopeIn}) ->
+    Scope = pool_scope(ScopeIn, maps:get(host, AllOpts, none)),
     Connection = maps:get(connection, AllOpts, #{}),
     Opts = maps:without([scope, host, connection], AllOpts),
     #{type => b2a(Type),
@@ -1211,8 +1211,7 @@ pool_scope(single_host, none) ->
             text => <<"\"host\" option is required if \"single_host\" is used.">>});
 pool_scope(single_host, Host) -> Host;
 pool_scope(host, none) -> host;
-pool_scope(global, none) -> global;
-pool_scope(none, none) -> global.
+pool_scope(global, none) -> global.
 
 process_cassandra_server(KVs) ->
     {[[{ip_address, IPAddr}]], Opts} = proplists:split(KVs, [ip_address]),
