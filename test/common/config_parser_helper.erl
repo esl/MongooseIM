@@ -489,14 +489,14 @@ all_modules() ->
            {is_archivable_message, mod_mam_utils},
            {no_stanzaid_element, true}],
       mod_disco =>
-          [{extra_domains, [<<"some_domain">>, <<"another_domain">>]},
-           {iqdisc, one_queue},
-           {server_info,
-            [[{name, <<"abuse-address">>}, {urls, [<<"admin@example.com">>]}],
-             [{modules, [mod_muc, mod_disco]},
-              {name, <<"friendly-spirits">>},
-              {urls, [<<"spirit1@localhost">>, <<"spirit2@localhost">>]}]]},
-           {users_can_see_hidden_services, true}],
+          mod_config(mod_disco,
+                     #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
+                       server_info =>
+                           [#{name => <<"abuse-address">>,
+                              urls => [<<"admin@example.com">>]},
+                            #{name => <<"friendly-spirits">>,
+                              urls => [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
+                              modules => [mod_muc, mod_disco]}]}),
       mod_last => [{backend, mnesia}, {iqdisc, {queues, 10}}],
       mod_shared_roster_ldap =>
           [{ldap_base, "ou=Users,dc=ejd,dc=com"},
@@ -650,7 +650,7 @@ pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
       mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => [], mod_commands => [],
-      mod_disco => [{users_can_see_hidden_services, false}],
+      mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => [{backend, rdbms}],
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
@@ -809,13 +809,9 @@ default_pool_conn_opts(redis) ->
 default_pool_conn_opts(_Type) ->
     #{}.
 
-default_mod_config(mod_inbox) ->
-    #{backend => rdbms,
-      groupchat => [muclight],
-      aff_changes => true,
-      remove_on_kicked => true,
-      reset_markers => [<<"displayed">>],
-      iqdisc => no_queue};
+mod_config(Module, ExtraOpts) ->
+    maps:merge(default_mod_config(Module), ExtraOpts).
+
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
@@ -825,5 +821,15 @@ default_mod_config(mod_auth_token) ->
 default_mod_config(mod_bosh) ->
     #{backend => mnesia, inactivity => 30, max_wait => infinity,
       server_acks => false, max_pause => 120};
+default_mod_config(mod_disco) ->
+    #{extra_domains => [], server_info => [],
+      users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
-    #{iqdisc => no_queue, service => []}.
+    #{iqdisc => no_queue, service => []};
+default_mod_config(mod_inbox) ->
+    #{backend => rdbms,
+      groupchat => [muclight],
+      aff_changes => true,
+      remove_on_kicked => true,
+      reset_markers => [<<"displayed">>],
+      iqdisc => no_queue}.
