@@ -39,7 +39,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    dynamic_modules:start(domain_helper:host_type(), mod_time, []),
+    dynamic_modules:start(domain_helper:host_type(), mod_time, #{iqdisc => one_queue}),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->

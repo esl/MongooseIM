@@ -836,6 +836,8 @@ default_mod_config(mod_inbox) ->
       iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_time) ->
+    #{iqdisc => one_queue};
 default_mod_config(mod_vcard) ->
     #{iqdisc => parallel,
       host => {prefix, <<"vjud.">>},

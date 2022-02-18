@@ -24,12 +24,12 @@
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).
 
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+-spec start(HostType :: mongooseim:host_type(), gen_mod:module_opts()) -> ok | {erorr, atom()}.
+start(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_TIME, ejabberd_local,
                                              fun ?MODULE:process_local_iq/5, #{}, IQDisc).
 
-
+-spec stop(HostType :: mongooseim:host_type()) -> ok | {error, not_registered}.
 stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_TIME, ejabberd_local).
 
@@ -40,7 +40,10 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
+       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"iqdisc">> => one_queue},
+       format_items = map
+    }.
 
 process_local_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
