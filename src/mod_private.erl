@@ -35,7 +35,8 @@
          config_spec/0,
          process_iq/5,
          remove_user/3,
-         remove_domain/3]).
+         remove_domain/3,
+         remove_unused_backend_opts/1]).
 
 -export([get_personal_data/3]).
 
@@ -69,19 +70,17 @@ get_personal_data(Acc, HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
 
--spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+-spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok | {error, atom()}.
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_private_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
--spec stop(HostType :: mongooseim:host_type()) -> ok.
+-spec stop(HostType :: mongooseim:host_type()) -> ok | {error, not_registered}.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm),
-    ok.
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_PRIVATE, ejabberd_sm).
 
 supported_features() -> [dynamic_domains].
 
@@ -99,8 +98,12 @@ config_spec() ->
                  <<"riak">> => riak_config_spec()},
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"backend">> => rdbms},
-       format_items = map
-      }.
+       format_items = map,
+       process = fun ?MODULE:remove_unused_backend_opts/1
+    }.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 riak_config_spec() ->
     #section{
@@ -108,6 +111,7 @@ riak_config_spec() ->
                                               validate = non_empty}
                 },
        defaults = #{<<"bucket_type">> => <<"private">>},
+       include = always,
        format_items = map
       }.
 

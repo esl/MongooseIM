@@ -93,7 +93,7 @@ group_to_modules(muc_removal) ->
 group_to_modules(inbox_removal) ->
     [{mod_inbox, inbox_helper:inbox_opts()}];
 group_to_modules(private_removal) ->
-    [{mod_private, [{backend, rdbms}]}];
+    [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
 group_to_modules(roster_removal) ->
     [{mod_roster, [{backend, rdbms}]}];
 group_to_modules(offline_removal) ->

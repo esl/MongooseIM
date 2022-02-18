@@ -2591,10 +2591,10 @@ mod_private(_Config) ->
     check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
-    ?cfgh(P ++ [backend], riak,
-          T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(P ++ [riak, bucket_type], <<"private_stuff">>,
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
+    ?cfgh(P ++ [backend], riak, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"private">>, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"private_stuff">>, T(#{<<"backend">> => <<"riak">>,
+        <<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
     ?errh(T(#{<<"backend">> => <<"mssql">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 

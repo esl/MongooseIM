@@ -814,8 +814,6 @@ mod_config(Module, ExtraOpts) ->
 
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
-default_mod_config(mod_private) ->
-    #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
@@ -834,4 +832,6 @@ default_mod_config(mod_inbox) ->
       aff_changes => true,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
-      iqdisc => no_queue}.
+      iqdisc => no_queue};
+default_mod_config(mod_private) ->
+    #{iqdisc => one_queue, backend => rdbms}.

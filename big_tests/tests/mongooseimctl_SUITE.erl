@@ -219,7 +219,9 @@ init_per_group(basic, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
     Config;
 init_per_group(private, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_private, []}]),
+    dynamic_modules:ensure_modules(domain_helper:host_type(),
+                                   [{mod_private, #{iqdisc => one_queue}}]
+                                  ),
     Config;
 init_per_group(vcard, Config) ->
     case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_vcard, backend, mnesia]) of
