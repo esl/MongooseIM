@@ -3034,10 +3034,12 @@ mod_vcard_ldap_search_reported(_Config) ->
     ?errh(T(RequiredOpts#{<<"vcard_field">> := -1})).
 
 mod_version(_Config) ->
+    check_module_defaults(mod_version),
+    check_iqdisc_map(mod_version),
+    P = [modules, mod_version],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
-    ?cfgh(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
-    ?errh(T(#{<<"os_info">> => 1})),
-    check_iqdisc(mod_version).
+    ?cfgh(P ++ [os_info], true, T(#{<<"os_info">> => true})),
+    ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
     ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
