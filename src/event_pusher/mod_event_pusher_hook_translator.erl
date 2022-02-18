@@ -22,6 +22,7 @@
 
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
+-include("mongoose.hrl").
 
 -export([start/2, stop/1]).
 -export([user_send_packet/4,
@@ -57,10 +58,17 @@ filter_local_packet({From, To = #jid{lserver = Host}, Acc0, Packet}) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;
               Type ->
-                  Event = #chat_event{type = Type, direction = out,
-                                      from = From, to = To, packet = Packet},
-                  NewAcc = mod_event_pusher:push_event(Acc0, Host, Event),
-                  merge_acc(Acc0, NewAcc)
+                  case mongoose_lib:is_to_room(To) of
+                      true ->
+                          ?LOG_WARNING(#{what => to_room, jid => To, acc => Acc0}),
+                          Acc0;
+                      false ->
+                          Event = #chat_event{type = Type, direction = out,
+                                                   from = From, to = To, packet = Packet},
+                          NewAcc = mod_event_pusher:push_event(Acc0, Host, Event),
+                          merge_acc(Acc0, NewAcc)
+                  end
+
           end,
     {From, To, Acc, Packet}.
 
