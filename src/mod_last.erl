@@ -71,15 +71,15 @@
 -type timestamp() :: non_neg_integer().
 -type status() :: binary().
 
--spec start(mongooseim:host_type(), list()) -> 'ok'.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+-spec start(mongooseim:host_type(), list()) -> ok.
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
 
     mod_last_backend:init(HostType, Opts),
 
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(hooks(HostType)),
+    ok.
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -110,14 +110,19 @@ config_spec() ->
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_last}},
                  <<"riak">> => riak_config_spec()
-                }
+                },
+       defaults = #{<<"iqdisc">> => one_queue,
+                    <<"backend">> => mnesia
+                   },
+       format_items = map
       }.
 
 riak_config_spec() ->
     #section{items = #{<<"bucket_type">> => #option{type = binary,
                                                     validate = non_empty}
                       },
-             wrap = none
+             defaults = #{<<"bucket_type">> => <<"last">>},
+             format_items = map
             }.
 
 supported_features() -> [dynamic_domains].
