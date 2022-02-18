@@ -54,8 +54,8 @@
          ]).
 
 -import(domain_helper, [host_type/0, domain/0]).
-
 -import(mongoose_helper, [backup_and_set_config_option/3, restore_config_option/2]).
+-import(config_parser_helper, [default_mod_config/1]).
 
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
@@ -322,7 +322,7 @@ init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
-    dynamic_modules:restart(host_type(), mod_disco, []),
+    dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
     load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.

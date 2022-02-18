@@ -40,7 +40,7 @@
 -type identity() :: #{category := binary(), type := binary(), name => binary()}.
 
 -type info_acc() :: #{host_type := mongooseim:host_type(),
-                      module := module() | undefined,
+                      module := module(),
                       node := binary(),
                       lang := ejabberd:lang(),
                       result := empty | [info()]}.
@@ -121,8 +121,7 @@ get_muc_features(HostType, From, To, Node, Lang, ExtraFeatures) ->
     Features = ExtraFeatures ++ extract_result(FinalAcc),
     features_to_xml(Features).
 
--spec get_info(mongooseim:host_type(), module() | undefined, binary(), ejabberd:lang()) ->
-          [exml:element()].
+-spec get_info(mongooseim:host_type(), module() , binary(), ejabberd:lang()) -> [exml:element()].
 get_info(HostType, Module, Node, Lang) ->
     InitialAcc = new_info_acc(HostType, Module, Node, Lang),
     FinalAcc = mongoose_hooks:disco_info(InitialAcc),
