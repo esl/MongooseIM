@@ -17,8 +17,7 @@
 -xep([{xep, 92}, {version, "1.1"}]).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+start(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VERSION, ejabberd_local,
                                              fun ?MODULE:process_iq/5, #{}, IQDisc).
 
@@ -35,7 +34,10 @@ config_spec() ->
     #section{
        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
                  <<"os_info">> => #option{type = boolean}
-                }
+                },
+       defaults = #{<<"iqdisc">> => no_queue,
+                    <<"os_info">> => false},
+       format_items = map
       }.
 
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), any()) ->
@@ -58,7 +60,7 @@ process_iq(Acc, _From, _To, #iq{type = get} = IQ, _Extra) ->
 
 -spec add_os_info(mongooseim:host_type()) -> [exml:element()] | [].
 add_os_info(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, os_info, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, os_info) of
         true ->
             [#xmlel{name = <<"os">>, attrs = [],
                     children = [#xmlcdata{content = os_info()}]}];

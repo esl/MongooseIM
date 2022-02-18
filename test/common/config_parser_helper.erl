@@ -477,7 +477,7 @@ all_modules() ->
            {max_items_node, 1000},
            {pep_mapping, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}]},
            {plugins, [<<"flat">>, <<"pep">>]}],
-      mod_version => [{os_info, true}],
+      mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
                                                refresh => #{unit => days, value => 13}},
@@ -832,4 +832,6 @@ default_mod_config(mod_inbox) ->
       aff_changes => true,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
-      iqdisc => no_queue}.
+      iqdisc => no_queue};
+default_mod_config(mod_version) ->
+    #{iqdisc => no_queue, os_info => false}.
