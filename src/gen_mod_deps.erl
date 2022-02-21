@@ -19,16 +19,19 @@
 -include("mongoose.hrl").
 
 -type hardness() :: soft | hard | optional.
--type module_deps_list() :: [{module(), gen_mod_params(), hardness()}].
--type gen_mod_params() :: proplists:proplist().
--type gen_mod_list() :: [{module(), gen_mod_params()}].
--type gen_mod_map() :: #{module() => gen_mod_params()}.
+-type module_opts() :: gen_mod:module_opts().
+-type module_dep() :: {module(), module_opts(), hardness()}.
+-type simple_module_dep() :: {module(), hardness()}.
+-type module_deps() :: [module_dep() | simple_module_dep()].
+-type deps() :: [module_dep() | simple_module_dep() | {service, mongoose_service:service()}].
+-type module_list() :: [{module(), module_opts()}].
+-type module_map() :: #{module() => module_opts()}.
 
 -export([add_deps/2, resolve_deps/2, sort_deps/2]).
 
 -ignore_xref([add_deps/2]).
 
--export_type([hardness/0, gen_mod_params/0, gen_mod_list/0, gen_mod_map/0]).
+-export_type([hardness/0, module_list/0, module_map/0, module_deps/0, deps/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -36,9 +39,9 @@
 
 %% @doc Adds deps into module list.
 %% Side-effect free.
--spec add_deps(Host :: jid:server(), Modules :: gen_mod_map() | gen_mod_list()) -> gen_mod_list().
-add_deps(Host, Modules) ->
-    sort_deps(Host, resolve_deps(Host, Modules)).
+-spec add_deps(mongooseim:host_type(), module_map() | module_list()) -> module_list().
+add_deps(HostType, Modules) ->
+    sort_deps(HostType, resolve_deps(HostType, Modules)).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -62,87 +65,91 @@ add_deps(Host, Modules) ->
 %%
 %% In this case, mod_b will still be started.
 %% @end
--spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_map() | gen_mod_list()) -> gen_mod_map().
+-spec resolve_deps(mongooseim:host_type(), module_map() | module_list()) -> module_map().
 resolve_deps(Host, Modules) when is_map(Modules) ->
     resolve_deps(Host, maps:to_list(Modules));
 resolve_deps(Host, ModuleQueue) ->
     resolve_deps(Host, ModuleQueue, #{}, #{}).
 
--spec resolve_deps(Host :: jid:server(),
-                   Modules :: [{module(), gen_mod_params()} | {module(), gen_mod_params(), hardness()}],
-                   OptionalQueue :: #{module() => gen_mod_params()},
-                   Acc :: gen_mod_map()) -> gen_mod_map().
-resolve_deps(Host, [], OptionalMods, KnownModules) ->
+-spec resolve_deps(mongooseim:host_type(),
+                   ModuleQueue :: [{module(), module_opts()} | module_dep()],
+                   OptionalMods :: module_map(),
+                   Acc :: module_map()) -> module_map().
+resolve_deps(HostType, [], OptionalMods, KnownModules) ->
     KnownModNames = maps:keys(KnownModules),
     case maps:with(KnownModNames, OptionalMods) of
         NewQueueMap when map_size(NewQueueMap) > 0 ->
-            resolve_deps(Host, maps:to_list(NewQueueMap),
+            resolve_deps(HostType, maps:to_list(NewQueueMap),
                          maps:without(KnownModNames, OptionalMods), KnownModules);
         _Nothing ->
             KnownModules
     end;
-resolve_deps(Host, [{Module, Args, optional} | ModuleQueue], OptionalMods, KnownModules) ->
-    resolve_deps(Host, ModuleQueue, maps:put(Module, Args, OptionalMods), KnownModules);
-resolve_deps(Host, [{Module, Args, _Hardness} | ModuleQueue], OptionalMods, KnownModules) ->
-    resolve_deps(Host, [{Module, Args} | ModuleQueue], OptionalMods, KnownModules);
-resolve_deps(Host, [{Module, Args} | ModuleQueue], OptionalMods, KnownModules) ->
-    NewArgs =
+resolve_deps(HostType, [{Module, Opts, optional} | ModuleQueue], OptionalMods, KnownModules) ->
+    resolve_deps(HostType, ModuleQueue, maps:put(Module, Opts, OptionalMods), KnownModules);
+resolve_deps(HostType, [{Module, Opts, _Hardness} | ModuleQueue], OptionalMods, KnownModules) ->
+    resolve_deps(HostType, [{Module, Opts} | ModuleQueue], OptionalMods, KnownModules);
+resolve_deps(HostType, [{Module, Opts} | ModuleQueue], OptionalMods, KnownModules) ->
+    NewOpts =
         case maps:find(Module, KnownModules) of
-            {ok, PreviousArgs} ->
-                case merge_args(Module, PreviousArgs, Args) of
-                    PreviousArgs -> undefined;
-                    ChangedArgs -> ChangedArgs
+            {ok, PreviousOpts} ->
+                case merge_opts(Module, PreviousOpts, Opts) of
+                    PreviousOpts -> undefined;
+                    ChangedOpts -> ChangedOpts
                 end;
 
             error ->
-                Args
+                Opts
         end,
 
-    case NewArgs of
-        undefined -> resolve_deps(Host, ModuleQueue, OptionalMods, KnownModules);
+    case NewOpts of
+        undefined -> resolve_deps(HostType, ModuleQueue, OptionalMods, KnownModules);
         _ ->
-            Deps = get_deps(Host, Module, NewArgs),
+            Deps = get_deps(HostType, Module, NewOpts),
             UpdatedQueue = Deps ++ ModuleQueue,
-            UpdatedKnownModules = maps:put(Module, NewArgs, KnownModules),
-            resolve_deps(Host, UpdatedQueue, OptionalMods, UpdatedKnownModules)
+            UpdatedKnownModules = maps:put(Module, NewOpts, KnownModules),
+            resolve_deps(HostType, UpdatedQueue, OptionalMods, UpdatedKnownModules)
     end.
 
 %% @doc
-%% Merges proplists prioritizing the new list, and warns on overrides.
+%% Merges module opts prioritizing the new ones, and warn on overrides.
 %% @end
--spec merge_args(Module :: module(), PreviousArgs :: gen_mod_params(),
-                 Args :: gen_mod_params()) -> gen_mod_params().
-merge_args(Module, PreviousArgs, Args) ->
-    lists:foldl(
-      fun(Property, OldProplist) ->
-              [{Key, Value}] = proplists:unfold([Property]),
-              case proplists:lookup(Key, OldProplist) of
-                  none ->
-                      [Property | OldProplist];
+-spec merge_opts(module(), module_opts(), module_opts()) -> module_opts().
+merge_opts(_Module, PreviousOpts, #{}) ->
+    PreviousOpts;
+merge_opts(Module, OldOpts, NewOpts) when is_map(OldOpts), is_map(NewOpts) ->
+    case changed_opts(OldOpts, NewOpts) of
+        [] ->
+            ok;
+        Changed ->
+            ?LOG_WARNING(#{what => overriding_options, module => Module, options => Changed})
+    end,
+    maps:merge(OldOpts, NewOpts);
+merge_opts(Module, PreviousOpts, Opts) when is_list(PreviousOpts), is_list(Opts) ->
+    %% Temporary clause, will be removed when all modules support maps
+    maps:to_list(merge_opts(Module, maps:from_list(PreviousOpts),
+                            maps:from_list(proplists:unfold(Opts)))).
 
-                  {_, Value} ->
-                      OldProplist;
-
-                  {_, OldValue} ->
-                      ?LOG_WARNING(#{what => overriding_argument, module => Module,
-                                     old_value => {Key, OldValue},
-                                     new_value => {Key, Value}}),
-
-                      [Property | proplists:delete(Key, OldProplist)]
+-spec changed_opts(module_opts(), module_opts()) -> [map()].
+changed_opts(OldOpts, NewOpts) ->
+    lists:flatmap(
+      fun({Key, OldValue}) ->
+              case maps:find(Key, NewOpts) of
+                  error -> [];
+                  {ok, OldValue} -> [];
+                  {ok, NewValue} -> [#{key => Key, old_value => OldValue, new_value => NewValue}]
               end
-      end, PreviousArgs, Args).
+      end, maps:to_list(OldOpts)).
 
 %% Sorting resolved dependencies
 
--spec sort_deps(Host :: jid:server(), ModuleMap :: gen_mod_map()) ->
-                       gen_mod_list().
+-spec sort_deps(mongooseim:host_type(), module_map()) -> module_list().
 sort_deps(Host, ModuleMap) ->
     DepsGraph = digraph:new([acyclic, private]),
 
     try
         maps:fold(
-          fun(Module, Args, _) ->
-                  process_module_dep(Host, Module, Args, DepsGraph)
+          fun(Module, Opts, _) ->
+                  process_module_dep(Host, Module, Opts, DepsGraph)
           end,
           undefined, ModuleMap),
 
@@ -158,16 +165,12 @@ sort_deps(Host, ModuleMap) ->
         digraph:delete(DepsGraph)
     end.
 
-
--spec process_module_dep(Host :: jid:server(), Module :: module(),
-                         Args :: gen_mod_params(),
-                         DepsGraph :: digraph:graph()) -> ok.
-process_module_dep(Host, Module, Args, DepsGraph) ->
+-spec process_module_dep(mongooseim:host_type(), module(), module_opts(), digraph:graph()) -> ok.
+process_module_dep(Host, Module, Opts, DepsGraph) ->
     digraph:add_vertex(DepsGraph, Module),
     lists:foreach(
       fun({DepModule, _, DepHardness}) -> process_dep(Module, DepModule, DepHardness, DepsGraph) end,
-      get_deps(Host, Module, Args)).
-
+      get_deps(Host, Module, Opts)).
 
 -spec process_dep(Module :: module(), DepModule :: module(),
                   DepHardness :: hardness(), Graph :: digraph:graph()) -> ok.
@@ -204,7 +207,6 @@ process_dep(Module, DepModule, DepHardness, Graph) ->
             ok
     end.
 
-
 -spec find_soft_edge(digraph:graph(), [digraph:vertex()]) ->
                             {digraph:edge(), digraph:vertex(),
                              digraph:vertex(), digraph:label()} | false.
@@ -224,9 +226,7 @@ find_soft_edge(Graph, CyclePath) ->
         Edge -> Edge
     end.
 
-
--spec find_edge(digraph:graph(), digraph:vertex(), digraph:vertex()) ->
-                       digraph:edge() | false.
+-spec find_edge(digraph:graph(), digraph:vertex(), digraph:vertex()) -> digraph:edge() | false.
 find_edge(Graph, A, B) ->
     OutEdges = ordsets:from_list(digraph:out_edges(Graph, A)),
     InEdges = ordsets:from_list(digraph:in_edges(Graph, B)),
@@ -236,12 +236,9 @@ find_edge(Graph, A, B) ->
         [] -> false
     end.
 
-
--spec get_deps(Host :: jid:server(), module(), gen_mod_params()) -> module_deps_list().
-get_deps(Host, Module, Args) ->
-    lists:map(
-      fun
-          ({Mod, Hardness}) -> {Mod, [], Hardness};
-          ({Mod, ModArgs, Hardness}) -> {Mod, ModArgs, Hardness}
-             end,
-      gen_mod:get_deps(Host, Module, Args)).
+-spec get_deps(mongooseim:host_type(), module(), module_opts()) -> [module_dep()].
+get_deps(HostType, Module, Opts) ->
+    lists:map(fun({Mod, Hardness}) -> {Mod, #{}, Hardness};
+                 ({Mod, ModOpts, Hardness}) -> {Mod, ModOpts, Hardness}
+              end,
+              gen_mod:get_deps(HostType, Module, Opts)).

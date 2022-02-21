@@ -77,9 +77,11 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     start_pm(HostType, Opts).
 
+-spec stop(host_type()) -> ok.
 stop(HostType) ->
     stop_pm(HostType).
 

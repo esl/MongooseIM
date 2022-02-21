@@ -43,14 +43,14 @@ mam_muc_archive_sync(Result, HostType) ->
     Result.
 
 %%% gen_mod callbacks
--spec start(mongooseim:host_type(), [{writer_type(), gen_mod:module_opts()}]) -> any().
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
-    [ start_pool(HostType, Mod) || Mod <- Opts ].
+    [ start_pool(HostType, Mod) || Mod <- maps:to_list(Opts) ].
 
 -spec stop(mongooseim:host_type()) -> any().
 stop(HostType) ->
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
-    [ stop_pool(HostType, Mod) || Mod <- Opts ].
+    [ stop_pool(HostType, Mod) || Mod <- maps:to_list(Opts) ].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -73,8 +73,7 @@ start_pool(HostType, {Type, Opts}) ->
 -spec make_pool_opts(writer_type(), gen_mod:module_opts()) ->
           {mongoose_async_pools:pool_opts(), mongoose_async_pools:pool_extra()}.
 make_pool_opts(Type, Opts) ->
-    Merge = maps:merge(defaults(), maps:from_list(Opts)),
-    Extra = add_batch_name(Type, Merge),
+    Extra = add_batch_name(Type, Opts),
     PoolOpts = Extra#{flush_callback => flush_callback(Type),
                       flush_extra => Extra},
     {PoolOpts, Extra}.
@@ -88,11 +87,6 @@ add_batch_name(muc, #{batch_size := MaxSize} = Opts) ->
 
 flush_callback(pm) -> fun ?MODULE:flush_pm/2;
 flush_callback(muc) -> fun ?MODULE:flush_muc/2.
-
-defaults() ->
-    #{flush_interval => 2000,
-      batch_size => 30,
-      pool_size => 4 * erlang:system_info(schedulers_online)}.
 
 prepare_insert_queries(pm, #{batch_size := MaxSize, batch_name := BatchName}) ->
     mod_mam_rdbms_arch:prepare_insert(insert_mam_message, 1),

@@ -18,7 +18,7 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--type deps() :: #{module() => proplists:proplist()}.
+-type module_map() :: gen_mod_deps:module_map().
 
 -export([start/2, stop/1, config_spec/0, supported_features/0, deps/2]).
 
@@ -47,9 +47,15 @@ stop(_Host) ->
 config_spec() ->
     Items = config_items(),
     #section{
-       items = Items#{<<"pm">> => #section{items = maps:merge(Items, pm_config_items())},
-                      <<"muc">> => #section{items = maps:merge(Items, muc_config_items())},
-                      <<"riak">> => riak_config_spec()}
+       items = Items#{<<"pm">> => #section{items = maps:merge(Items, pm_config_items()),
+                                           format_items = map},
+                      <<"muc">> => #section{items = maps:merge(Items, muc_config_items()),
+                                            format_items = map},
+                      <<"riak">> => riak_config_spec()},
+       defaults = #{<<"backend">> => rdbms,
+                    <<"cache_users">> => true,
+                    <<"async_wrtier">> => []},
+       format_items = map
       }.
 
 config_items() ->
@@ -107,59 +113,48 @@ riak_config_spec() ->
                                                validate = non_empty},
                  <<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}},
-       wrap = none
+       format_items = map
       }.
 
--spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) ->
-                  gen_mod:deps_list().
-deps(_Host, Opts0) ->
-    Opts = normalize(Opts0),
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, Opts) ->
+    DepsWithPm = handle_nested_opts(pm, Opts, #{}),
+    DepsWithPmAndMuc = handle_nested_opts(muc, Opts, DepsWithPm),
 
-    DepsWithPm = handle_nested_opts(pm, Opts, false, #{}),
-    DepsWithPmAndMuc = handle_nested_opts(muc, Opts, false, DepsWithPm),
-
-    [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].
+    [{DepMod, DepOpts, hard} || {DepMod, DepOpts} <- maps:to_list(DepsWithPmAndMuc)].
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec handle_nested_opts(Key :: atom(), RootOpts :: proplists:proplist(),
-                         Default :: term(), deps()) -> deps().
-handle_nested_opts(Key, RootOpts, Default, Deps) ->
-    case proplists:get_value(Key, RootOpts, Default) of
-        false -> Deps;
-        Opts0 ->
-            Opts = normalize(Opts0),
-            FullOpts = lists:ukeymerge(1, Opts, RootOpts),
+-type mam_type() :: pm | muc.
+-type mam_backend() :: rdbms | riak | cassandra | elasticsearch.
+
+-spec handle_nested_opts(mam_type(), gen_mod:module_opts(), module_map()) -> module_map().
+handle_nested_opts(Key, RootOpts, Deps) ->
+    case maps:find(Key, RootOpts) of
+        error -> Deps;
+        {ok, Opts} ->
+            FullOpts = maps:merge(maps:without([pm, muc], RootOpts), Opts),
             parse_opts(Key, FullOpts, Deps)
     end.
 
--spec parse_opts(Type :: pm | muc, Opts :: proplists:proplist(), deps()) -> deps().
+-spec parse_opts(mam_type(), gen_mod:module_opts(), module_map()) -> module_map().
 parse_opts(Type, Opts, Deps) ->
     %% Opts are merged root options with options inside pm or muc section
     CoreMod = mam_type_to_core_mod(Type),
-    CoreModOpts = filter_opts(Opts, valid_core_mod_opts(CoreMod)),
+    CoreModOpts = maps:with(valid_core_mod_opts(CoreMod), Opts),
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
-    Backend = proplists:get_value(backend, Opts, rdbms),
-    parse_backend_opts(Backend, Type, Opts, WithCoreDeps).
+    {Backend, BackendOpts} = maps:take(backend, Opts),
+    WithPrefs = add_prefs_store_module(Backend, Type, Opts, WithCoreDeps),
+    parse_backend_opts(Backend, Type, BackendOpts, WithPrefs).
 
--spec mam_type_to_core_mod(atom()) -> module().
+-spec mam_type_to_core_mod(mam_type()) -> module().
 mam_type_to_core_mod(pm) -> mod_mam;
 mam_type_to_core_mod(muc) -> mod_mam_muc.
 
-filter_opts(Opts, ValidOpts) ->
-    lists:filtermap(
-        fun(Key) ->
-            case proplists:lookup(Key, Opts) of
-                none -> false;
-                Opt -> {true, Opt}
-            end
-        end, ValidOpts).
-
 %% Get a list of options to pass into the two modules.
-%% They don't required to be defined in pm or muc sections,
-%% the root section is enough.
+%% They don't have to be defined in pm or muc sections, the root section is enough.
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
     [no_stanzaid_element, archive_groupchats, same_mam_id_for_peers] ++ common_opts();
@@ -178,136 +173,77 @@ common_opts() ->
      default_result_limit,
      max_result_limit].
 
--spec parse_backend_opts(rdbms | cassandra | riak | elasticsearch, Type :: pm | muc,
-                         Opts :: proplists:proplist(), deps()) -> deps().
-parse_backend_opts(cassandra, Type, Opts, Deps0) ->
-    ModArch =
-        case Type of
-            pm -> mod_mam_cassandra_arch;
-            muc -> mod_mam_muc_cassandra_arch
-        end,
+add_prefs_store_module(Backend, Type, #{user_prefs_store := Store}, Deps) ->
+    PrefsModule = prefs_module(Backend, Store),
+    add_dep(PrefsModule, #{Type => true}, Deps);
+add_prefs_store_module(_Backend, _Type, _Opts, Deps) ->
+    Deps.
 
-    Opts1 = filter_opts(Opts, [db_message_format, pool_name, simple]),
-    Deps = add_dep(ModArch, Opts1, Deps0),
-
-    case proplists:get_value(user_prefs_store, Opts, false) of
-        cassandra -> add_dep(mod_mam_cassandra_prefs, [Type], Deps);
-        mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        _ -> Deps
-    end;
-
-parse_backend_opts(riak, Type, Opts, Deps0) ->
-    Opts1 = filter_opts(Opts, [db_message_format, search_index, bucket_type]),
-    Deps = add_dep(mod_mam_riak_timed_arch_yz, [Type | Opts1], Deps0),
-
-    case proplists:get_value(user_prefs_store, Opts, false) of
-        mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        _ -> Deps
-    end;
-
-parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
-    Opts1 = add_rdbms_async_opts(Opts0),
-    Opts = add_rdbms_cache_opts(Opts1),
-
-    {ModRDBMSArch, ModAsyncWriter} =
-        case Type of
-            pm -> {mod_mam_rdbms_arch, mod_mam_rdbms_arch_async};
-            muc -> {mod_mam_muc_rdbms_arch, mod_mam_rdbms_arch_async}
-        end,
-
-    Deps1 = add_dep(ModRDBMSArch, [Type], Deps0),
-    Deps = add_dep(mod_mam_rdbms_user, user_db_types(Type), Deps1),
-
-    lists:foldl(
-      pa:bind(fun parse_rdbms_opt/5, Type, ModRDBMSArch, ModAsyncWriter),
-      Deps, Opts);
-
-parse_backend_opts(elasticsearch, Type, Opts, Deps0) ->
-    ModArch =
-        case Type of
-            pm -> mod_mam_elasticsearch_arch;
-            muc -> mod_mam_muc_elasticsearch_arch
-        end,
-
-    Deps = add_dep(ModArch, Deps0),
-
-    case proplists:get_value(user_prefs_store, Opts, false) of
-        mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        _ -> Deps
-    end.
+-spec parse_backend_opts(mam_backend(), mam_type(), gen_mod:module_opts(), module_map()) ->
+          module_map().
+parse_backend_opts(cassandra, Type, Opts, Deps) ->
+    Opts1 = maps:with([db_message_format, pool_name, simple], Opts),
+    add_dep(cassandra_arch_module(Type), Opts1, Deps);
+parse_backend_opts(riak, Type, Opts, Deps) ->
+    Opts1 = maps:with([db_message_format, search_index, bucket_type], Opts),
+    add_dep(mod_mam_riak_timed_arch_yz, Opts1#{Type => true}, Deps);
+parse_backend_opts(rdbms, Type, Opts, Deps) ->
+    lists:foldl(fun(OptionGroup, DepsIn) -> add_rdbms_deps(OptionGroup, Type, Opts, DepsIn) end,
+                Deps, [basic, cache, simple, async]);
+parse_backend_opts(elasticsearch, Type, _Opts, Deps0) ->
+    add_dep(elasticsearch_arch_module(Type), Deps0).
 
 % muc backend requires both pm and muc user DB to populate sender_id column
--spec user_db_types(pm | muc) -> [pm | muc].
+-spec user_db_types(mam_type()) -> [pm | muc].
 user_db_types(pm) -> [pm];
 user_db_types(muc) -> [pm, muc].
 
--spec normalize(proplists:proplist()) -> [{atom(), term()}].
-normalize(Opts) ->
-    lists:ukeysort(1, proplists:unfold(Opts)).
+add_rdbms_deps(basic, Type, #{}, Deps) ->
+    Deps1 = add_dep(rdbms_arch_module(Type), Deps),
+    add_dep(mod_mam_rdbms_user, #{types => user_db_types(Type)}, Deps1);
+add_rdbms_deps(cache, Type, #{cache_users := true, cache := CacheOpts}, Deps) ->
+    Deps1 = case gen_mod:get_opt(module, CacheOpts, internal) of
+                internal -> Deps;
+                mod_cache_users -> add_dep(mod_cache_users, Deps)
+            end,
+    add_dep(mod_mam_cache_user, CacheOpts#{type => Type}, Deps1);
+add_rdbms_deps(simple, Type, #{rdbms_message_format := simple}, Deps) ->
+    add_dep(rdbms_arch_module(Type), rdbms_simple_opts(), Deps);
+add_rdbms_deps(async, Type, #{async_writer := AsyncOpts = #{enabled := true}}, Deps) ->
+    Deps1 = add_dep(rdbms_arch_module(Type), #{no_writer => true}, Deps),
+    add_dep(mod_mam_rdbms_arch_async, #{Type => AsyncOpts}, Deps1);
+add_rdbms_deps(_, _Type, _Opts, Deps) ->
+    Deps.
 
+cassandra_arch_module(pm) -> mod_mam_cassandra_arch;
+cassandra_arch_module(muc) -> mod_mam_muc_cassandra_arch.
 
--spec add_dep(Dep :: module(), deps()) -> deps().
-add_dep(Dep, Deps) ->
-    add_dep(Dep, [], Deps).
+rdbms_arch_module(pm) -> mod_mam_rdbms_arch;
+rdbms_arch_module(muc) -> mod_mam_muc_rdbms_arch.
 
+elasticsearch_arch_module(pm) -> mod_mam_elasticsearch_arch;
+elasticsearch_arch_module(muc) -> mod_mam_muc_elasticsearch_arch.
 
--spec add_dep(Dep :: module(), Args :: proplists:proplist(), deps()) -> deps().
-add_dep(Dep, Args, Deps) ->
-    PrevArgs = maps:get(Dep, Deps, []),
-    NewArgs = lists:usort(Args ++ PrevArgs),
-    maps:put(Dep, NewArgs, Deps).
-
-
--spec add_rdbms_async_opts(proplists:proplist()) -> proplists:proplist().
-add_rdbms_async_opts(Opts) ->
-    case lists:keyfind(async_writer, 1, Opts) of
-        {async_writer, AsyncOpts} ->
-            case lists:keyfind(enabled, 1, AsyncOpts) of
-                {enabled, false} -> lists:keydelete(async_writer, 1, Opts);
-                _ -> Opts
-            end;
-        false ->
-            [{async_writer, []} | Opts]
-    end.
-
-
-add_rdbms_cache_opts(Opts) ->
-    case {lists:keyfind(cache_users, 1, Opts), lists:keyfind(cache, 1, Opts)} of
-        {{cache_users, false}, _} ->
-            lists:keydelete(cache, 1, Opts);
-        {{cache_users, true}, false} ->
-            [{cache, []} | Opts];
-        {false, false} ->
-            [{cache, []} | Opts];
-        {false, {cache, _}} ->
-            Opts
-    end.
-
--spec parse_rdbms_opt(Type :: pm | muc, module(), module(),
-                      Option :: {module(), term()}, deps()) -> deps().
-parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
-    case Option of
-        {cache, CacheOpts} ->
-            Deps1 = case gen_mod:get_opt(module, CacheOpts, internal) of
-                        internal -> Deps;
-                        mod_cache_users -> add_dep(mod_cache_users, Deps)
-                    end,
-            add_dep(mod_mam_cache_user, [Type | CacheOpts], Deps1);
-        {user_prefs_store, rdbms} ->
-            add_dep(mod_mam_rdbms_prefs, [Type], Deps);
-        {user_prefs_store, mnesia} ->
-            add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        {rdbms_message_format, simple} ->
-            add_dep(ModRDBMSArch, rdbms_simple_opts(), Deps);
-        {async_writer, Opts} ->
-            DepsWithNoWriter = add_dep(ModRDBMSArch, [no_writer], Deps),
-            add_dep(ModAsyncWriter, [{Type, Opts}], DepsWithNoWriter);
-        _ -> Deps
-    end.
+prefs_module(rdbms, rdbms) -> mod_mam_rdbms_prefs;
+prefs_module(cassandra, cassandra) -> mod_mam_cassandra_prefs;
+prefs_module(_, mnesia) -> mod_mam_mnesia_prefs;
+prefs_module(Backend, PrefsStore) ->
+    error(#{what => invalid_mam_user_prefs_store,
+            backend => Backend,
+            user_prefs_store => PrefsStore}).
 
 -spec rdbms_simple_opts() -> list().
 rdbms_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
 
+-spec add_dep(module(), module_map()) -> module_map().
+add_dep(Dep, Deps) ->
+    add_dep(Dep, #{}, Deps).
+
+-spec add_dep(module(), gen_mod:module_opts(), module_map()) -> module_map().
+add_dep(Dep, Opts, Deps) ->
+    PrevOpts = maps:get(Dep, Deps, #{}),
+    NewOpts = maps:merge(PrevOpts, Opts),
+    maps:put(Dep, NewOpts, Deps).
+
 config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).

@@ -34,38 +34,33 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(host_type(), _) -> ok.
-start(HostType, _Opts) ->
-    ejabberd_hooks:add(hooks(HostType)).
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
+    ejabberd_hooks:add(hooks(HostType, Opts)).
 
 -spec stop(host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    ejabberd_hooks:delete(hooks(HostType, Opts)).
 
 %% ----------------------------------------------------------------------
 %% Hooks
 
-hooks(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, pm, false) of
-        true -> pm_hooks(HostType);
-        false -> []
-    end ++
-    case gen_mod:get_module_opt(HostType, ?MODULE, muc, false) of
-        true -> muc_hooks(HostType);
-        false -> []
-    end.
+hooks(HostType, Opts) ->
+    lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
-pm_hooks(HostType) ->
+hooks(HostType, pm, #{pm := true}) ->
     [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
      {mam_get_prefs, HostType, ?MODULE, get_prefs, 50},
      {mam_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}].
-
-muc_hooks(HostType) ->
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+hooks(HostType, muc, #{muc := true}) ->
     [{mam_muc_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
      {mam_muc_get_prefs, HostType, ?MODULE, get_prefs, 50},
      {mam_muc_set_prefs, HostType, ?MODULE, set_prefs, 50},
-     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}].
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+hooks(_HostType, _Opt, _Opts) ->
+    [].
 
 %% ----------------------------------------------------------------------
 
