@@ -57,23 +57,23 @@ set_vcard(HostType, User, LServer, VCard, VCardSearch) ->
     mongoose_hooks:vcard_set(HostType, LServer, LUser, VCard),
     ok.
 
-search(_HostType, LServer, Data) ->
+search(HostType, LServer, Data) ->
     MatchHead = make_matchhead(LServer, Data),
-    R = do_search(LServer, MatchHead),
+    R = do_search(HostType, LServer, MatchHead),
     lists:map(fun record_to_item/1, R).
 
-do_search(_, #vcard_search{_ = '_'}) ->
+do_search(_, _, #vcard_search{_ = '_'}) ->
     [];
-do_search(LServer, MatchHeadIn) ->
+do_search(HostType, LServer, MatchHeadIn) ->
     MatchHead = MatchHeadIn#vcard_search{us = {'_', LServer}},
     case catch mnesia:dirty_select(vcard_search,
         [{MatchHead, [], ['$_']}]) of
         {'EXIT', Reason} ->
-            ?LOG_ERROR(#{what => vcard_search_failed, server => LServer,
+            ?LOG_ERROR(#{what => vcard_search_failed, server => LServer, host_type => HostType,
                          reason => Reason}),
             [];
         Rs ->
-            case mod_vcard:get_results_limit(LServer) of
+            case mod_vcard:get_results_limit(HostType) of
                 infinity ->
                     Rs;
                 Val ->
