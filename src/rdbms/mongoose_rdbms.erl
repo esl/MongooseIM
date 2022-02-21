@@ -73,7 +73,6 @@
          to_bool/1,
          db_engine/1,
          db_type/0,
-         print_state/1,
          use_escaped/1]).
 
 %% Unicode escaping
@@ -118,8 +117,7 @@
          terminate/2,
          code_change/3]).
 
--ignore_xref([behaviour_info/1, print_state/1,
-              sql_query_cast/2, sql_query_request/2, execute_cast/3, execute_request/3,
+-ignore_xref([sql_query_cast/2, sql_query_request/2, execute_cast/3, execute_request/3,
               sql_query_t/1, use_escaped/1,
               escape_like/1, escape_like_prefix/1, use_escaped_like/1,
               escape_binary/2, use_escaped_binary/1,
@@ -615,13 +613,6 @@ handle_info(Info, State) ->
 terminate(_Reason, #state{db_ref = DbRef}) ->
     catch mongoose_rdbms_backend:disconnect(DbRef).
 
-%%----------------------------------------------------------------------
-%% Func: print_state/1
-%% Purpose: Prepare the state to be printed on error log
-%% Returns: State to print
-%%----------------------------------------------------------------------
-print_state(State) ->
-    State.
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
