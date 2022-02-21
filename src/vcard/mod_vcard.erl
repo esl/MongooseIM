@@ -241,7 +241,15 @@ config_spec() ->
                     <<"host">> => mongoose_subdomain_utils:make_subdomain_pattern("vjud.@HOST@"),
                     <<"search">> => true,
                     <<"backend">> => mnesia,
-                    <<"matches">> => 30},
+                    <<"matches">> => 30,
+                    <<"ldap_pool_tag">> => default,
+                    <<"ldap_uids">> => [{<<"uid">>, <<"%u">>}],
+                    <<"ldap_vcard_map">> => mod_vcard_ldap:default_vcard_map(),
+                    <<"ldap_search_fields">> => mod_vcard_ldap:default_search_fields(),
+                    <<"ldap_search_reported">> => mod_vcard_ldap:default_search_reported(),
+                    <<"ldap_search_operator">> => 'and',
+                    <<"ldap_binary_search_fields">> => []
+       },
        format_items = map
       }.
 

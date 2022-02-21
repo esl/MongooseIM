@@ -170,7 +170,6 @@ init_per_group(ldap_only, Config) ->
         ldap ->
             Config1 = restart_and_prepare_vcard(ldap_only, Config),
             insert_alice_photo(Config1);
-            %Config1;
         _ ->
             {skip, "this group is only for ldap vCard backend"}
     end;

@@ -41,6 +41,10 @@
          search_fields/2,
          search_reported_fields/3]).
 
+-export([default_vcard_map/0,
+         default_search_fields/0,
+         default_search_reported/0]).
+
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").
@@ -171,6 +175,18 @@ search_reported_fields(HostType, LServer, Lang) ->
                                       Value)
                      end,
                      SearchReported)}.
+
+%%--------------------------------------------------------------------
+%% API
+%%--------------------------------------------------------------------
+default_vcard_map() ->
+    ?VCARD_MAP.
+
+default_search_fields() ->
+    ?SEARCH_FIELDS.
+
+default_search_reported() ->
+    ?SEARCH_REPORTED.
 
 %%--------------------------------------------------------------------
 %% Internal
@@ -404,12 +420,8 @@ get_state(HostType, LServer) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_vcard),
     Val = gen_mod:get_opt(host, Opts),
     MyHost = mongoose_subdomain_utils:get_fqdn(Val, LServer),
-    Matches = eldap_utils:get_mod_opt(matches, Opts,
-                             fun(infinity) -> infinity;
-                                (I) when is_integer(I), I>=0 -> I
-                             end, 30),
-    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
-                                      fun(A) when is_atom(A) -> A end, default),
+    Matches = gen_mod:get_opt(matches, Opts),
+    EldapID = gen_mod:get_opt(ldap_pool_tag, Opts),
     Base = eldap_utils:get_base(Opts),
     DerefAliases = eldap_utils:get_deref_aliases(Opts),
     UIDs = eldap_utils:get_uids(LServer, Opts),
@@ -452,14 +464,8 @@ get_state(HostType, LServer) ->
                                           end
                                         end,
                                         SearchReported) ++ UIDAttrs),
-    SearchOperatorFun = fun
-        ('or') -> 'or';
-        (_)    -> 'and'
-    end,
-    SearchOperator = eldap_utils:get_mod_opt(ldap_search_operator, Opts,
-                                             SearchOperatorFun, 'and'),
-    BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
-                                           fun(X) -> X end, []),
+    SearchOperator = gen_mod:get_opt(ldap_search_operator, Opts),
+    BinaryFields = gen_mod:get_opt(ldap_binary_search_fields, Opts),
     #state{serverhost = LServer,
            myhost = MyHost,
            eldap_id = {HostType, EldapID},
