@@ -454,12 +454,14 @@ configure_mod_vcard(Config) ->
     end.
 
 ldap_opts() ->
-    [{backend,ldap}, {host, subhost_pattern("vjud.@HOST@")},
-     {ldap_uids, [{<<"uid">>}]}, %% equivalent to {<<"uid">>, <<"%u">>}
-     {ldap_filter,<<"(objectClass=inetOrgPerson)">>},
-     {ldap_base,"ou=Users,dc=esl,dc=com"},
-     {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
-     {ldap_vcard_map,[{"FN","%s",["cn"]}]}].
+    VCardOpts = #{backend => ldap,
+                  host => subhost_pattern("vjud.@HOST@"),
+                  ldap_uids => [{<<"uid">>}], %% equivalent to {<<"uid">>, <<"%u">>}
+                  ldap_filter => <<"(objectClass=inetOrgPerson)">>,
+                  ldap_base => "ou=Users,dc=esl,dc=com",
+                  ldap_search_fields => [{"Full Name", "cn"}, {"User", "uid"}],
+                  ldap_vcard_map => [{"FN", "%s", ["cn"]}]},
+    config_parser_helper:mod_config(mod_vcard, VCardOpts).
 
 ensure_started(HostType, Opts) ->
     dynamic_modules:stop(HostType, mod_vcard),
@@ -469,7 +471,7 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    VCardOpts = dynamic_modules:get_saved_config(host_type(), mod_vcard, Config1),
+    VCardOpts = config_parser_helper:default_mod_config(mod_vcard),
     [{mod_vcard_opts, VCardOpts} | Config1].
 
 restore_vcard_module(Config) ->

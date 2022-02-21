@@ -13,8 +13,6 @@
                       orgunit, lorgunit}).
 -record(vcard, {us, vcard}).
 
--define(JUD_MATCHES, 30).
-
 -define(TLFIELD(Type, Label, Var),
 	#xmlel{name = <<"field">>,
 	       attrs =

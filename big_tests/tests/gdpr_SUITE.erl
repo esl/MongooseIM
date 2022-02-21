@@ -398,7 +398,7 @@ pick_enabled_backend() ->
 
 
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_enabled_backend()}]}].
+    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => pick_enabled_backend()})}].
 
 offline_required_modules() ->
     [{mod_offline, [{backend, pick_enabled_backend()}]}].

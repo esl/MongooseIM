@@ -402,7 +402,8 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
 
 get_state(HostType, LServer) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_vcard),
-    MyHost = gen_mod:get_opt_subhost(LServer, Opts, mod_vcard:default_host()),
+    Val = gen_mod:get_opt(host, Opts),
+    MyHost = mongoose_subdomain_utils:get_fqdn(Val, LServer),
     Matches = eldap_utils:get_mod_opt(matches, Opts,
                              fun(infinity) -> infinity;
                                 (I) when is_integer(I), I>=0 -> I

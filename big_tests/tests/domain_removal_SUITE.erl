@@ -99,7 +99,7 @@ group_to_modules(roster_removal) ->
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}];
 group_to_modules(vcard_removal) ->
-    [{mod_vcard, [{backend, rdbms}]}];
+    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
     [{mod_last, [{backend, rdbms}]}].
 
