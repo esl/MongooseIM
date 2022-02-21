@@ -655,7 +655,7 @@ pgsql_modules() ->
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
       mod_privacy => [{backend, rdbms}],
-      mod_private => [{backend, rdbms}],
+      mod_private => default_mod_config(mod_private),
       mod_register =>
           [{access, register},
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
@@ -833,5 +833,7 @@ default_mod_config(mod_inbox) ->
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
+default_mod_config(mod_private) ->
+    #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_version) ->
     #{iqdisc => no_queue, os_info => false}.

@@ -429,7 +429,12 @@ offline_started() ->
     dynamic_modules:ensure_modules(host_type(), offline_required_modules()).
 
 private_required_modules() ->
-    [{mod_private, [{backend, pick_enabled_backend()}]}].
+    [{mod_private, create_private_config(pick_enabled_backend())}].
+
+create_private_config(riak) ->
+    config_parser_helper:mod_config(mod_private, #{backend => riak, riak => #{bucket_type => <<"private">>}});
+create_private_config(Backend) ->
+    config_parser_helper:mod_config(mod_private, #{backend => Backend}).
 
 private_started() ->
     dynamic_modules:ensure_modules(host_type(), private_required_modules()).
