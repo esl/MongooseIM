@@ -2920,9 +2920,8 @@ mod_stream_management_stale_h(_Config) ->
     ?errh(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc(mod_time),
-    check_module_defaults(mod_time),
-    ?cfgh(modopts(mod_time, []), #{<<"modules">> => #{<<"mod_time">> => #{}}}).
+    check_iqdisc_map(mod_time),
+    check_module_defaults(mod_time).
 
 mod_vcard(_Config) ->
     check_module_defaults(mod_vcard),
