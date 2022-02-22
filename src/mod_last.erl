@@ -44,7 +44,8 @@
          remove_user/3,
          on_presence_update/5,
          session_cleanup/5,
-         remove_domain/3]).
+         remove_domain/3,
+         remove_unused_backend_opts/1]).
 
 %% API
 -export([store_last_info/5,
@@ -71,15 +72,13 @@
 -type timestamp() :: non_neg_integer().
 -type status() :: binary().
 
--spec start(mongooseim:host_type(), list()) -> ok.
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc} = Opts) ->
 
     mod_last_backend:init(HostType, Opts),
-
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_LAST, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
-    ejabberd_hooks:add(hooks(HostType)),
-    ok.
+    ejabberd_hooks:add(hooks(HostType)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
@@ -114,14 +113,19 @@ config_spec() ->
        defaults = #{<<"iqdisc">> => one_queue,
                     <<"backend">> => mnesia
                    },
-       format_items = map
+       format_items = map,
+       process = fun ?MODULE:remove_unused_backend_opts/1
       }.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 riak_config_spec() ->
     #section{items = #{<<"bucket_type">> => #option{type = binary,
                                                     validate = non_empty}
                       },
              defaults = #{<<"bucket_type">> => <<"last">>},
+             include = always,
              format_items = map
             }.
 
@@ -281,6 +285,6 @@ get_last(HostType, LUser, LServer) ->
 count_active_users(HostType, LServer, Timestamp) ->
     mod_last_backend:count_active_users(HostType, LServer, Timestamp).
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

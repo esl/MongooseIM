@@ -497,7 +497,7 @@ all_modules() ->
                             #{name => <<"friendly-spirits">>,
                               urls => [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
                               modules => [mod_muc, mod_disco]}]}),
-      mod_last => [{backend, mnesia}, {iqdisc, {queues, 10}}],
+      mod_last => #{backend => mnesia, iqdisc => {queues, 10}},
       mod_shared_roster_ldap =>
           [{ldap_base, "ou=Users,dc=ejd,dc=com"},
            {ldap_filter, "(objectClass=inetOrgPerson)"},
@@ -651,7 +651,7 @@ pgsql_modules() ->
       mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => [], mod_commands => [],
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
-      mod_last => [{backend, rdbms}],
+      mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
       mod_privacy => [{backend, rdbms}],
@@ -826,6 +826,8 @@ default_mod_config(mod_disco) ->
       users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
+default_mod_config(mod_last) ->
+    #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
       groupchat => [muclight],

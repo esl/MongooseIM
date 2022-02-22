@@ -2116,14 +2116,15 @@ mod_keystore_keys(_Config) ->
                            <<"path">> => <<"does/not/exists">>}])).
 
 mod_last(_Config) ->
-    check_iqdisc(mod_last),
+    check_iqdisc_map(mod_last),
+    check_module_defaults(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_last, Cfg) end,
-    ?cfgh(M([{backend, mnesia}]),
-          T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{bucket_type, <<"test">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
-
+    P = [modules, mod_last],
+    ?cfgh(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"last">>, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
