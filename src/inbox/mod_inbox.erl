@@ -102,8 +102,7 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     mod_inbox_muc:stop(HostType),
-    Opts = mongoose_config:get_opt([{modules, HostType}, mod_inbox]),
-    case gen_mod:get_opt(backend, Opts, rdbms) of
+    case mongoose_config:get_opt([{modules, HostType}, mod_inbox, backend]) of
         rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
         _ -> ok
     end,
