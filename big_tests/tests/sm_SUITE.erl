@@ -34,7 +34,7 @@
 -define(MOD_SM, mod_stream_management).
 -define(CONSTRAINT_CHECK_TIMEOUT, 5000).
 -define(LONG_TIMEOUT, 3600).
--define(SHORT_TIMEOUT, 3).
+-define(SHORT_TIMEOUT, 1).
 -define(SMALL_SM_BUFFER, 3).
 
 %%--------------------------------------------------------------------

@@ -50,7 +50,6 @@ start(HostType, Opts) ->
     mod_stream_management_backend:init(HostType, Opts),
     ?LOG_INFO(#{what => stream_management_starting}),
     ejabberd_hooks:add(hooks(HostType)),
-    stream_management_stale_h:maybe_start(Opts),
     ok.
 
 stop(HostType) ->
@@ -171,10 +170,9 @@ get_session_from_smid(HostType, SMID) ->
 -spec get_stale_h(mongooseim:host_type(), SMID :: smid()) ->
     {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_stale_h(HostType, SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> {error, smid_not_found};
-        true -> stream_management_stale_h:read_stale_h(SMID)
+        true -> read_stale_h(HostType, SMID)
     end.
 
 -spec get_buffer_max(mongooseim:host_type(), buffer_max()) -> buffer_max().
@@ -191,18 +189,20 @@ get_resume_timeout(HostType, Default) ->
 
 
 register_stale_smid_h(HostType, SMID, H) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> ok;
-        true -> stream_management_stale_h:write_stale_h(SMID, H)
+        true -> write_stale_h(HostType, SMID, H)
     end.
 
 remove_stale_smid_h(HostType, SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> ok;
-        true -> stream_management_stale_h:delete_stale_h(SMID)
+        true -> delete_stale_h(HostType, SMID)
     end.
+
+is_stale_h_enabled(HostType) ->
+    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
+    proplists:get_value(enabled, MaybeModOpts, false).
 
 %% Backend operations
 
@@ -223,3 +223,25 @@ unregister_smid(HostType, SID) ->
     {sid, ejabberd_sm:sid()} | {error, smid_not_found}.
 get_sid(HostType, SMID) ->
     mod_stream_management_backend:get_sid(HostType, SMID).
+
+%% stale_h
+
+-spec write_stale_h(HostType, SMID, H) -> ok | {error, any()} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid(),
+    H :: non_neg_integer().
+write_stale_h(HostType, SMID, H) ->
+    mod_stream_management_backend:write_stale_h(HostType, SMID, H).
+
+-spec delete_stale_h(HostType, SMID) -> ok | {error, any()} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid().
+delete_stale_h(HostType, SMID) ->
+    mod_stream_management_backend:delete_stale_h(HostType, SMID).
+
+-spec read_stale_h(HostType, SMID) ->
+    {stale_h, non_neg_integer()} | {error, smid_not_found} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid().
+read_stale_h(HostType, SMID) ->
+    mod_stream_management_backend:read_stale_h(HostType, SMID).
