@@ -10,7 +10,7 @@ main([NodeAtom, BuildDirAtom]) ->
     log("BuildDirAtom=~p~n", [BuildDirAtom]),
     BuildDir = atom_to_list(BuildDirAtom),
     RelDir = BuildDir ++ "/rel/mongooseim",
-    Templates = templates(RelDir),
+    Templates = templates(RelDir, NodeAtom),
     log("Templates:~n~p~n", [Templates]),
     Vars0 = overlay_vars(NodeAtom),
     Vars = Vars0#{output_dir => list_to_binary(RelDir)},
@@ -39,8 +39,9 @@ ensure_binary_strings(Vars) ->
              end, Vars).
 
 %% Based on rebar.config overlay section
-templates(RelDir) ->
-    simple_templates(RelDir) ++ erts_templates(RelDir).
+templates(RelDir, NodeAtom) ->
+    simple_templates(RelDir) ++ erts_templates(RelDir)
+        ++ disco_template(RelDir, NodeAtom).
 
 simple_templates(RelDir) ->
     [{In, RelDir ++ "/" ++ Out} || {In, Out} <- simple_templates()].
@@ -59,6 +60,14 @@ erts_templates(RelDir) ->
     %% Usually one directory
     ErtsDirs = filelib:wildcard(RelDir ++ "/erts-*"),
     [{"rel/files/nodetool", ErtsDir ++ "/bin/nodetool"} || ErtsDir <- ErtsDirs].
+
+disco_template(RelDir, NodeAtom) ->
+    case lists:member(NodeAtom, [mim1, mim2, mim3]) of
+        true ->
+            [{"rel/files/cets_disco.txt", RelDir ++ "/etc/cets_disco.txt"}];
+        false ->
+            []
+    end.
 
 render_template(In, Out, Vars) ->
     BinIn = bbmustache:parse_file(In),

@@ -31,6 +31,7 @@ function try_copy_release
             --exclude rel/mongooseim/Mnesia.* \
             --exclude rel/mongooseim/var \
             --exclude rel/mongooseim/log \
+            --exclude rel/mongooseim/etc/cets_disco.txt \
             -al _build/$FIRST_NODE/ _build/$NODE/
         ./tools/test_runner/apply_templates.sh "$NODE" "$(pwd)/_build/$NODE/"
     fi
