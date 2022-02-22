@@ -74,7 +74,8 @@ start_pool(HostType, {Type, Opts}) ->
           {mongoose_async_pools:pool_opts(), mongoose_async_pools:pool_extra()}.
 make_pool_opts(Type, Opts) ->
     Extra = add_batch_name(Type, Opts),
-    PoolOpts = Extra#{flush_callback => flush_callback(Type),
+    PoolOpts = Extra#{pool_type => batch,
+                      flush_callback => flush_callback(Type),
                       flush_extra => Extra},
     {PoolOpts, Extra}.
 
@@ -112,6 +113,7 @@ register_hooks(muc, HostType) ->
     ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MUC_MODULE, mam_muc_archive_sync, 50),
     ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MUC_MODULE, archive_muc_message, 50).
 
+-spec start_pool(writer_type(), mongooseim:host_type(), mongoose_async_pools:pool_opts()) -> term().
 start_pool(pm, HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, pm_mam, Opts);
 start_pool(muc, HostType, Opts) ->

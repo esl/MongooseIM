@@ -125,9 +125,7 @@ inbox_opts(regular) ->
     inbox_opts();
 inbox_opts(async_pools) ->
     (inbox_opts())#{backend => rdbms_async,
-                    async_writer => #{flush_interval => 100,
-                                      batch_size => 5,
-                                      pool_size => 4}}.
+                    async_writer => #{pool_size => 4}}.
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())

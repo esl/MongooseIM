@@ -582,9 +582,6 @@ all_modules() ->
               {pool_name, http_pool}]]}],
       mod_inbox =>
           #{backend => rdbms,
-            async_writer => #{<<"flush_interval">> => 500,
-                              <<"batch_size">> => 1000,
-                              <<"pool_size">> => 2},
             iqdisc => no_queue,
             aff_changes => true,
             groupchat => [muclight],
@@ -842,9 +839,6 @@ default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
-      async_writer => #{<<"flush_interval">> => 500,
-                        <<"batch_size">> => 1000,
-                        <<"pool_size">> => 2},
       groupchat => [muclight],
       aff_changes => true,
       remove_on_kicked => true,

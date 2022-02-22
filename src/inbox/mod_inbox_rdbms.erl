@@ -23,6 +23,7 @@
          get_inbox_unread/2,
          get_entry_properties/2,
          set_entry_properties/3]).
+-export([check_result/1]).
 
 -type archived() :: binary().
 -type muted_until() :: binary().
