@@ -87,8 +87,8 @@ stop(Module, Host, StopFun) ->
     end.
 
 -spec deps(module(), Host :: jid:lserver(), Opts :: proplists:proplist(),
-           DepsFun :: fun((proplists:proplist()) -> gen_mod:deps_list())) ->
-                           gen_mod:deps_list().
+           DepsFun :: fun((proplists:proplist()) -> gen_mod_deps:deps())) ->
+                           gen_mod_deps:deps().
 deps(_Module, Host, Opts, DepsFun) ->
     {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
     case unicode:characters_to_binary(GlobalHostList) of

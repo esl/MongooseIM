@@ -55,11 +55,11 @@ push_event(Acc, Host, Event) ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(_Host, Opts) ->
     Backends = get_backends(Opts),
     BackendDeps = [{B, DepOpts, hard} || {B, DepOpts} <- Backends],
-    [{mod_event_pusher_hook_translator, hard} | BackendDeps].
+    [{mod_event_pusher_hook_translator, [], hard} | BackendDeps].
 
 -spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->

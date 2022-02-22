@@ -26,21 +26,7 @@
 -module(gen_mod).
 -author('alexey@process-one.net').
 
--type dep_arguments() :: proplists:proplist().
--type deps_list() :: [
-                      {module(), dep_arguments(), gen_mod_deps:hardness()} |
-                      {module(), gen_mod_deps:hardness()} |
-                      {service, mongoose_service:service()}
-                     ].
-
--type module_deps_list() :: [
-                              {module(), dep_arguments(), gen_mod_deps:hardness()} |
-                              {module(), gen_mod_deps:hardness()}
-                             ].
-
--type service_deps_list() :: [atom()].
-
--export_type([deps_list/0, opt_key/0, opt_value/0, module_opts/0]).
+-export_type([opt_key/0, opt_value/0, module_opts/0]).
 
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
@@ -109,7 +95,7 @@
 %% TODO: think about getting rid of HostType param for deps/2 interface, currently
 %% it's used only by global_distrib modules (see mod_global_distrib_utils:deps/4
 %% function).
--callback deps(HostType :: host_type(), Opts :: proplists:list()) -> deps_list().
+-callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
 -optional_callbacks([config_spec/0, supported_features/0, deps/2]).
 
@@ -399,8 +385,7 @@ assert_loaded(HostType, Module) ->
 is_loaded(HostType, Module) ->
     maps:is_key(Module, loaded_modules_with_opts(HostType)).
 
--spec get_deps(HostType :: host_type(), Module :: module(),
-               Opts :: proplists:proplist()) -> module_deps_list().
+-spec get_deps(host_type(), module(), module_opts()) -> gen_mod_deps:module_deps().
 get_deps(HostType, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
@@ -413,8 +398,7 @@ get_deps(HostType, Module, Opts) ->
             []
     end.
 
--spec get_required_services(host_type(), module(), proplists:proplist()) ->
-    service_deps_list().
+-spec get_required_services(host_type(), module(), module_opts()) -> [mongoose_service:service()].
 get_required_services(HostType, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
