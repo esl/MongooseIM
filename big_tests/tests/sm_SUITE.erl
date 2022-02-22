@@ -840,7 +840,8 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
 
         [] = sm_helper:get_user_present_resources(Alice),
-        {error, smid_not_found} = sm_helper:get_sid_by_stream_id(SMID),
+        HostType = host_type(),
+        {error, smid_not_found} = sm_helper:get_sid_by_stream_id(HostType, SMID),
         escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
 
@@ -860,7 +861,8 @@ resume_session_with_wrong_namespace_is_a_noop(Config) ->
 resume_dead_session_results_in_item_not_found(Config) ->
     SMID = base64:encode(crypto:strong_rand_bytes(21)),
     SID = {os:timestamp(), undefined},
-    rpc(mim(), ?MOD_SM, register_smid, [SMID, SID]),
+    HostType = host_type(),
+    rpc(mim(), ?MOD_SM, register_smid, [HostType, SMID, SID]),
     session_resumption_expects_item_not_found(Config, SMID).
 
 session_resumption_expects_item_not_found(Config, SMID) ->

@@ -4,7 +4,7 @@
 -export([client_to_spec0/1,
          client_to_spec/1,
          client_to_smid/1,
-         get_sid_by_stream_id/1]).
+         get_sid_by_stream_id/2]).
 
 %% Connection helpers
 -export([connect_fresh/3,
@@ -55,8 +55,8 @@ client_to_spec(#client{props = Props}) ->
 client_to_spec0(#client{props = Props}) ->
     lists:foldl(fun proplists:delete/2, Props, [stream_id, resource]).
 
-get_sid_by_stream_id(SMID) ->
-    rpc(mim(), ?MOD_SM, get_sid, [SMID]).
+get_sid_by_stream_id(HostType, SMID) ->
+    rpc(mim(), ?MOD_SM, get_sid, [HostType, SMID]).
 
 
 %% Connection helpers
