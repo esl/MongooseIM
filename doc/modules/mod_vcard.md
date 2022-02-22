@@ -110,8 +110,6 @@ Riak index name.
 
 ```toml
 [modules.mod_vcard]
-  allow_return_all = true
-  search_all_hosts = true
   matches = 1
   search = true
   host = "directory.example.com"

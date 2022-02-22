@@ -904,7 +904,6 @@ search_open_limited(Config) ->
                            escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
-              %% {allow_return_all, false}
               [] = search_result_item_tuples(Res)
       end).
 
