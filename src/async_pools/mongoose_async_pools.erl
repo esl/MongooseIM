@@ -9,6 +9,8 @@
 
 % API
 -export([start_pool/3, stop_pool/2, pool_name/2, config_spec/0]).
+-export([put_task/3, put_task/4]).
+-ignore_xref([put_task/3]).
 -export([sync/2]).
 
 -type pool_id() :: atom().
@@ -19,6 +21,16 @@
                         _ => _}.
 
 -export_type([pool_id/0, pool_opts/0, pool_extra/0]).
+
+-spec put_task(mongooseim:host_type(), pool_id(), term()) -> ok.
+put_task(HostType, PoolId, Task) ->
+    PoolName = pool_name(HostType, PoolId),
+    wpool:cast(PoolName, {task, Task}, best_worker).
+
+-spec put_task(mongooseim:host_type(), pool_id(), term(), term()) -> ok.
+put_task(HostType, PoolId, Key, Task) ->
+    PoolName = pool_name(HostType, PoolId),
+    wpool:cast(PoolName, {task, Key, Task}, {hash_worker, Key}).
 
 %%% API functions
 -spec start_pool(mongooseim:host_type(), pool_id(), pool_opts()) ->

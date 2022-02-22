@@ -19,18 +19,14 @@
 -ignore_xref([archive_pm_message/3, archive_muc_message/3]).
 -ignore_xref([mam_archive_sync/2, mam_muc_archive_sync/2]).
 
--spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
-          ok | {error, timeout}.
+-spec archive_pm_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) -> ok.
 archive_pm_message(_Result, HostType, Params = #{archive_id := ArcID}) ->
-    PoolName = mongoose_async_pools:pool_name(HostType, pm_mam),
-    wpool:cast(PoolName, {task, Params}, {hash_worker, ArcID}).
+    mongoose_async_pools:put_task(HostType, pm_mam, ArcID, Params).
 
--spec archive_muc_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) ->
-    ok.
+-spec archive_muc_message(_Result, mongooseim:host_type(), mod_mam:archive_message_params()) -> ok.
 archive_muc_message(_Result, HostType, Params0 = #{archive_id := RoomID}) ->
     Params = mod_mam_muc_rdbms_arch:extend_params_with_sender_id(HostType, Params0),
-    PoolName = mongoose_async_pools:pool_name(HostType, muc_mam),
-    wpool:cast(PoolName, {task, Params}, {hash_worker, RoomID}).
+    mongoose_async_pools:put_task(HostType, muc_mam, RoomID, Params).
 
 -spec mam_archive_sync(term(), mongooseim:host_type()) -> term().
 mam_archive_sync(Result, HostType) ->

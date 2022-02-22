@@ -105,34 +105,26 @@ verify_results(Results) ->
                 content(), Count :: integer(), id(), Timestamp :: integer()) ->
     mod_inbox:write_res().
 set_inbox(HostType, Entry, Content, Count, MsgId, Timestamp) ->
-    PoolName = mongoose_async_pools:pool_name(HostType, inbox),
     Params = {set_inbox, Entry, Content, Count, MsgId, Timestamp},
-    wpool:cast(PoolName, {task, Params}, {hash_worker, Entry}).
+    mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
--spec set_inbox_incr_unread(HostType :: mongooseim:host_type(),
-                            InboxEntryKey :: mod_inbox:entry_key(),
-                            Content :: binary(),
-                            MsgId :: binary(),
-                            Timestamp :: integer()) -> mod_inbox:count_res().
+-spec set_inbox_incr_unread(mongooseim:host_type(), mod_inbox:entry_key(),
+                            Content :: binary(), MsgId :: binary(), Timestamp :: integer()) ->
+    mod_inbox:count_res().
 set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
-    PoolName = mongoose_async_pools:pool_name(HostType, inbox),
     Params = {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, 1},
-    wpool:cast(PoolName, {task, Params}, {hash_worker, Entry}).
+    mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
--spec reset_unread(HosType :: mongooseim:host_type(),
-                   InboxEntryKey :: mod_inbox:entry_key(),
-                   MsgId :: binary() | undefined) -> mod_inbox:write_res().
+-spec reset_unread(mongooseim:host_type(), mod_inbox:entry_key(), binary() | undefined) ->
+    mod_inbox:write_res().
 reset_unread(HostType, Entry, MsgId) ->
-    PoolName = mongoose_async_pools:pool_name(HostType, inbox),
     Params = {reset_unread, Entry, MsgId},
-    wpool:cast(PoolName, {task, Params}, {hash_worker, Entry}).
+    mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
--spec remove_inbox_row(HostType :: mongooseim:host_type(),
-                       InboxEntryKey :: mod_inbox:entry_key()) -> mod_inbox:write_res().
+-spec remove_inbox_row(mongooseim:host_type(), mod_inbox:entry_key()) -> mod_inbox:write_res().
 remove_inbox_row(HostType, Entry) ->
-    PoolName = mongoose_async_pools:pool_name(HostType, inbox),
     Params = {remove_inbox_row, Entry},
-    wpool:cast(PoolName, {task, Params}, {hash_worker, Entry}).
+    mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
 %% synchronous callbacks
 -spec get_inbox(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->

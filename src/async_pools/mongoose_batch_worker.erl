@@ -57,14 +57,16 @@ handle_call(Msg, From, State) ->
     ?UNEXPECTED_CALL(Msg, From),
     {reply, unexpected_call, State}.
 
--spec handle_cast({task, term()} | term(), state()) -> {noreply, state()}.
+-spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast({task, Task}, State) ->
+    {noreply, handle_task(Task, State)};
+handle_cast({task, _Key, Task}, State) ->
     {noreply, handle_task(Task, State)};
 handle_cast(Msg, State) ->
     ?UNEXPECTED_CAST(Msg),
     {noreply, State}.
 
--spec handle_info({timeout, reference(), flush} | term(), state()) -> {noreply, state()}.
+-spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info({timeout, TimerRef, flush}, State = #state{flush_interval_tref = TimerRef,
                                                        host_type = HostType,
                                                        pool_id = PoolId}) ->
