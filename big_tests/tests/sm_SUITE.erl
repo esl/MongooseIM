@@ -144,7 +144,7 @@ init_per_group(Group, Config) when Group =:= parallel_unacknowledged_message_hoo
                                    Group =:= manual_ack_freq_long_session_timeout;
                                    Group =:= parallel_manual_ack_freq_1;
                                    Group =:= manual_ack_freq_2 ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
     Config;
 init_per_group(stale_h, Config) ->
     Config;
@@ -153,18 +153,18 @@ init_per_group(stream_mgmt_disabled, Config) ->
     rpc(mim(), mnesia, delete_table, [sm_session]),
     Config;
 init_per_group(Group, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(group, Group)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, group, Group)),
     Config.
 
 end_per_group(_Group, _Config) ->
     ok.
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, testcase, CN)),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) when CN =:= gc_repeat_after_never_means_no_cleaning;
                                    CN =:= gc_repeat_after_timeout_does_clean ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(testcase, CN)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(Config, testcase, CN)),
     Config2 = register_some_smid_h(Config),
     escalus:init_per_testcase(CN, Config2);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
@@ -189,10 +189,10 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group (in case of stale_h group it is per testcase)
 
-required_modules(Scope, Name) ->
+required_modules(Config, Scope, Name) ->
     SMConfig = case required_sm_opts(Scope, Name) of
                    stopped -> stopped;
-                   ExtraOpts -> maps:merge(common_sm_opts(), ExtraOpts)
+                   ExtraOpts -> maps:merge(common_sm_opts(Config), ExtraOpts)
                end,
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
      {mod_offline, config_parser_helper:mod_config(mod_offline, #{})}].
@@ -219,8 +219,9 @@ required_sm_opts(testcase, gc_repeat_after_never_means_no_cleaning) ->
 required_sm_opts(testcase, gc_repeat_after_timeout_does_clean) ->
     #{stale_h => stale_h(?SHORT_TIMEOUT, ?SHORT_TIMEOUT)}.
 
-common_sm_opts() ->
-    #{buffer_max => ?SMALL_SM_BUFFER}.
+common_sm_opts(Config) ->
+    Backend = ct_helper:get_preset_var(Config, stream_management_backend, mnesia),
+    #{buffer_max => ?SMALL_SM_BUFFER, backend => Backend}.
 
 stale_h(RepeatAfter, Geriatric) ->
     #{enabled => true,

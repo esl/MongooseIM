@@ -136,7 +136,8 @@ basic() ->
      dump_table,
      get_loglevel,
      remove_old_messages_test,
-     remove_expired_messages_test].
+     remove_expired_messages_test,
+     cets_tables_are_in_mnesia_info].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -311,6 +312,13 @@ end_per_group(_GroupName, Config) ->
 get_registered_users() ->
     rpc(mim(), ejabberd_auth, get_vh_registered_users, [domain()]).
 
+init_per_testcase(CaseName = cets_tables_are_in_mnesia_info, Config) ->
+    case rpc(mim(), ejabberd_sm, sm_backend, []) of
+        ejabberd_sm_cets ->
+            escalus:init_per_testcase(CaseName, Config);
+        _ ->
+            {skip, "Only for cets preset"}
+    end;
 init_per_testcase(CaseName, Config)
   when CaseName == delete_old_users_vhost
        orelse CaseName == stats_global
@@ -1429,6 +1437,12 @@ remove_expired_messages_test(Config) ->
         %% then
         2 = length(SecondList)
     end).
+
+cets_tables_are_in_mnesia_info(Config) ->
+    {Out, 0} = mongooseimctl("mnesia", ["info"], Config),
+    Lines = binary:split(iolist_to_binary(Out), <<"\n">>, [global]),
+    [_Line] = [L || <<"table=cets_session", _/binary>> = L <- Lines],
+    ok.
 
 %%-----------------------------------------------------------------
 %% Helpers

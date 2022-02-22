@@ -4,7 +4,8 @@
          repeat_all_until_all_ok/2,
          repeat_all_until_any_fail/1,
          repeat_all_until_any_fail/2,
-         groups_to_all/1]).
+         groups_to_all/1,
+         get_preset_var/3]).
 
 -type group_name() :: atom().
 
@@ -114,3 +115,12 @@ is_ct_started() ->
 
 groups_to_all(Groups) ->
     [{group, Name} || {Name, _Opts, _Cases} <- Groups].
+
+get_preset_var(Config, Opt, Def) ->
+    case proplists:get_value(preset, Config, undefined) of
+        Preset ->
+            PresetAtom = list_to_existing_atom(Preset),
+            ct:get_config({presets, toml, PresetAtom, Opt}, Def);
+        _ ->
+            Def
+    end.
