@@ -250,7 +250,8 @@ config_spec() ->
                     <<"ldap_search_operator">> => 'and',
                     <<"ldap_binary_search_fields">> => []
        },
-       format_items = map
+       format_items = map,
+       process = fun remove_unused_backend_opts/1
       }.
 
 ldap_vcard_map_spec() ->
@@ -295,7 +296,10 @@ riak_config_spec() ->
                   <<"search_index">> => #option{type = binary,
                                                 validate = non_empty}
                 },
-        wrap = none
+        include = always,
+        format_items = map,
+        defaults = #{<<"bucket_type">> => <<"vcard">>,
+                     <<"search_index">> => <<"vcard">>}
     }.
 
 process_map_spec(KVs) ->
@@ -312,6 +316,9 @@ process_search_reported_spec(KVs) ->
     {[[{search_field, SF}], [{vcard_field, VF}]], []} =
         proplists:split(KVs, [search_field, vcard_field]),
     {SF, VF}.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks for search

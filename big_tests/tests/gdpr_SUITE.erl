@@ -398,7 +398,14 @@ pick_enabled_backend() ->
 
 
 vcard_required_modules() ->
-    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => pick_enabled_backend()})}].
+    Backend = pick_enabled_backend(),
+    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, vcard_backend_opts(Backend))}].
+
+vcard_backend_opts(riak) ->
+    #{backend => riak, riak => #{bucket_type => <<"vcard">>,
+                                 search_index => <<"vcard">>}};
+vcard_backend_opts(Backend) ->
+    #{backend => Backend}.
 
 offline_required_modules() ->
     [{mod_offline, [{backend, pick_enabled_backend()}]}].

@@ -2954,10 +2954,10 @@ mod_vcard(_Config) ->
     ?cfgh(P ++ [ldap_binary_search_fields], [<<"PHOTO">>],
           T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
     %% riak
-    ?cfgh(P ++ [bucket_type], <<"vcard">>,
-          T(#{<<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
-    ?cfgh(P ++ [search_index], <<"vcard">>,
-          T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"vcard">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
+    ?cfgh(P ++ [riak, search_index], <<"vcard">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
     ?errh(T(#{<<"host">> => 1})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
