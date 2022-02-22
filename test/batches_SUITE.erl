@@ -24,7 +24,8 @@ groups() ->
       [
        filled_batch_raises_batch_metric,
        unfilled_batch_raises_flush_metric,
-       timeouts_and_canceled_timers_do_not_need_to_log_messages
+       timeouts_and_canceled_timers_do_not_need_to_log_messages,
+       prepare_task_works
       ]}
     ].
 
@@ -93,20 +94,26 @@ shared_cache_inserts_in_shared_table(_) ->
     ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
 
 filled_batch_raises_batch_metric(_) ->
-    {ok, Pid} = gen_server:start_link(
-                  mongoose_batch_worker,
-                  {host_type(), ?FUNCTION_NAME, 1000, 1, fun(_, _) -> ok end,
-                   #{host_type => host_type(), queue_length => 0}}, []),
+    Opts = #{host_type => host_type(),
+             pool_id => ?FUNCTION_NAME,
+             batch_size => 1,
+             flush_interval => 1000,
+             flush_callback => fun(_, _) -> ok end,
+             flush_extra => #{host_type => host_type(), queue_length => 0}},
+    {ok, Pid} = gen_server:start_link(mongoose_batch_worker, Opts, []),
     gen_server:cast(Pid, {task, ok}),
     MetricName = [mongoose_async_pools, '_', batch_flushes],
     async_helper:wait_until(
       fun() -> 0 < meck:num_calls(mongoose_metrics, update, ['_', MetricName, '_']) end, true).
 
 unfilled_batch_raises_flush_metric(_) ->
-    {ok, Pid} = gen_server:start_link(
-                  mongoose_batch_worker,
-                  {host_type(), ?FUNCTION_NAME, 5, 1000, fun(_, _) -> ok end,
-                   #{host_type => host_type(), queue_length => 0}}, []),
+    Opts = #{host_type => host_type(),
+             pool_id => ?FUNCTION_NAME,
+             batch_size => 1000,
+             flush_interval => 5,
+             flush_callback => fun(_, _) -> ok end,
+             flush_extra => #{host_type => host_type(), queue_length => 0}},
+    {ok, Pid} = gen_server:start_link(mongoose_batch_worker, Opts, []),
     gen_server:cast(Pid, {task, ok}),
     MetricName = [mongoose_async_pools, '_', timed_flushes],
     async_helper:wait_until(
@@ -116,13 +123,37 @@ timeouts_and_canceled_timers_do_not_need_to_log_messages(_) ->
     Timeout = 10,
     QueueSize = 2,
     meck:new(logger, [passthrough, unstick]),
-    {ok, Pid} = gen_server:start_link(
-                  mongoose_batch_worker,
-                  {host_type(), ?FUNCTION_NAME, Timeout, QueueSize, fun(_, _) -> ok end,
-                   #{host_type => host_type(), queue_length => 0}}, []),
+    Opts = #{host_type => host_type(),
+             pool_id => ?FUNCTION_NAME,
+             batch_size => QueueSize,
+             flush_interval => Timeout,
+             flush_callback => fun(_, _) -> ok end,
+             flush_extra => #{host_type => host_type(), queue_length => 0}},
+    {ok, Pid} = gen_server:start_link(mongoose_batch_worker, Opts, []),
     [ gen_server:cast(Pid, {task, ok}) || _ <- lists:seq(1, QueueSize) ],
     ct:sleep(Timeout*2),
     ?assertEqual(0, meck:num_calls(logger, macro_log, '_')).
+
+prepare_task_works(_) ->
+    Timeout = 1000,
+    QueueSize = 2,
+    T = self(),
+    meck:new(logger, [passthrough, unstick]),
+    Opts = #{host_type => host_type(),
+             pool_id => ?FUNCTION_NAME,
+             batch_size => QueueSize,
+             flush_interval => Timeout,
+             prep_callback => fun(A, _) -> {ok, A + 1} end,
+             flush_callback => fun(Tasks, _) -> T ! {tasks, Tasks}, ok end,
+             flush_extra => #{host_type => host_type(), queue_length => 0}},
+    {ok, Pid} = gen_server:start_link(mongoose_batch_worker, Opts, []),
+    [ gen_server:cast(Pid, {task, N}) || N <- lists:seq(1, QueueSize) ],
+    receive
+        {tasks, Tasks} ->
+            ?assertEqual([ N + 1 || N <- lists:seq(1, QueueSize) ], Tasks)
+    after
+        Timeout*2 -> error
+    end.
 
 %% helpers
 host_type() ->

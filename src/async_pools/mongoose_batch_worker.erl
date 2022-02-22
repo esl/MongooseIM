@@ -9,6 +9,12 @@
 
 -behaviour(gen_server).
 
+-callback prepare(mongoose_async_pools:task(), mongoose_async_pools:pool_extra()) ->
+    {ok, mongoose_async_pools:task()} | {error, term()}.
+-callback flush([mongoose_async_pools:task()], mongoose_async_pools:pool_extra()) ->
+    ok | {error, term()}.
+-optional_callbacks([prepare/2]).
+
 -include("mongoose_logger.hrl").
 
 %% gen_server callbacks
@@ -22,34 +28,34 @@
 
 -record(state, {
           host_type :: mongooseim:host_type(),
-          pool_id :: atom(),
+          pool_id :: mongoose_async_pools:pool_id(),
           batch_size :: non_neg_integer(),
           flush_interval :: non_neg_integer(), %% milliseconds
           flush_interval_tref :: undefined | reference(),
-          flush_callback = fun(_, _) -> ok end :: flush_callback(),
+          flush_callback = fun(_, _) -> ok end :: mongoose_async_pools:flush_callback(),
+          prep_callback :: undefined | mongoose_async_pools:prep_callback(),
           flush_queue = [] :: list() | censored, % see format_status/2 for censored
           flush_queue_length = 0 :: non_neg_integer(),
           flush_extra = #{} :: map()
          }).
 -type state() :: #state{}.
--type flush_callback() :: fun((list(), mongoose_async_pools:pool_extra()) -> ok | {error, term()}).
-
--export_type([flush_callback/0]).
 
 %% gen_server callbacks
--spec init({mongooseim:host_type(),
-            mongoose_async_pools:pool_id(),
-            pos_integer(),
-            pos_integer(),
-            flush_callback(),
-            mongoose_async_pools:pool_extra()}) -> {ok, state()}.
-init({HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra}) ->
+-spec init(map()) -> {ok, state()}.
+init(#{host_type := HostType,
+       pool_id := PoolId,
+       batch_size := MaxSize,
+       flush_interval := Interval,
+       flush_callback := FlushCallback,
+       flush_extra := FlushExtra} = Opts)
+  when is_function(FlushCallback, 2), is_map(FlushExtra) ->
     ?LOG_DEBUG(#{what => batch_worker_start, host_type => HostType, pool_id => PoolId}),
     {ok, #state{host_type = HostType,
                 pool_id = PoolId,
                 batch_size = MaxSize,
                 flush_interval = Interval,
                 flush_callback = FlushCallback,
+                prep_callback = maps:get(prep_callback, Opts, undefined),
                 flush_extra = FlushExtra}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, term(), state()}.
@@ -108,29 +114,46 @@ format_status(_Opt, [_PDict, State | _]) ->
     [{data, [{"State", State#state{flush_queue = censored}}]}].
 
 %% Batched tasks callbacks
-handle_task(Task, State = #state{host_type = HostType,
-                                 pool_id = PoolId,
-                                 batch_size = MaxSize,
-                                 flush_interval = Interval,
-                                 flush_interval_tref = TRef0,
-                                 flush_queue = Acc0,
-                                 flush_queue_length = Length}) ->
-    TRef1 = maybe_schedule_flush(TRef0, Length, Interval),
-    State1 = State#state{flush_interval_tref = TRef1,
-                         flush_queue = [Task | Acc0],
-                         flush_queue_length = Length + 1
-                        },
-    case Length + 1 >= MaxSize of
-        false -> State1;
-        true ->
-            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, batch_flushes], 1),
-            run_flush(State1)
+handle_task(Task, State) ->
+    State1 = maybe_schedule_flush(State),
+    State2 = maybe_prep_task(State1, Task),
+    maybe_run_flush(State2).
+
+maybe_schedule_flush(#state{flush_interval_tref = undefined,
+                            flush_queue_length = 0,
+                            flush_interval = Interval} = State) ->
+    State#state{flush_interval_tref = erlang:start_timer(Interval, self(), flush)};
+maybe_schedule_flush(State) ->
+    State.
+
+maybe_prep_task(#state{prep_callback = undefined,
+                       flush_queue = Acc,
+                       flush_queue_length = Length} = State, Task) ->
+    State#state{flush_queue = [Task | Acc],
+                flush_queue_length = Length + 1};
+maybe_prep_task(#state{prep_callback = PrepCallback,
+                       flush_queue = Acc,
+                       flush_queue_length = Length,
+                       flush_extra = Extra} = State, Task) ->
+    case PrepCallback(Task, Extra) of
+        {ok, ProcessedTask} ->
+            State#state{flush_queue = [ProcessedTask | Acc],
+                        flush_queue_length = Length + 1};
+        {error, Reason} ->
+            ?LOG_ERROR(log_fields(State, #{what => preprocess_callback_failed, reason => Reason})),
+            State
     end.
 
-maybe_schedule_flush(undefined, 0, Interval) ->
-    erlang:start_timer(Interval, self(), flush);
-maybe_schedule_flush(TRef, _, _) ->
-    TRef.
+maybe_run_flush(#state{host_type = HostType,
+                       pool_id = PoolId,
+                       batch_size = MaxSize,
+                       flush_queue_length = Length} = State) ->
+    case Length >= MaxSize of
+        false -> State;
+        true ->
+            mongoose_metrics:update(HostType, [mongoose_async_pools, PoolId, batch_flushes], 1),
+            run_flush(State)
+    end.
 
 run_flush(State = #state{flush_interval_tref = TRef}) ->
     cancel_and_flush_timer(TRef),

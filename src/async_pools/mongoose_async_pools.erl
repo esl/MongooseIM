@@ -13,8 +13,8 @@
 -ignore_xref([put_task/3]).
 -export([sync/2]).
 
--type pool_id() :: atom().
--type pool_name() :: atom().
+-type pool_id() :: atom(). % The subsystem, like 'pm_mam', or 'inbox'
+-type pool_name() :: atom(). % The pool name, like 'inbox_sup_async_pool_localhost'
 -type pool_opts() :: map().
 -type pool_extra() :: #{host_type := mongooseim:host_type(),
                         queue_length := non_neg_integer(),
@@ -90,19 +90,20 @@ get_workers(HostType, PoolId) ->
     wpool:get_workers(Pool).
 
 %%% Supervisor callbacks
--spec start_link(mongooseim:host_type(), pool_id(), pool_opts()) ->
+-spec start_link(mongooseim:host_type(), pool_id(), gen_mod:module_opts()) ->
     {ok, pid()} | ignore | {error, term()}.
 start_link(HostType, PoolId, Opts) ->
     Supervisor = sup_name(HostType, PoolId),
-    supervisor:start_link({local, Supervisor}, ?MODULE, [HostType, PoolId, Opts]).
+    supervisor:start_link({local, Supervisor}, ?MODULE, {HostType, PoolId, Opts}).
 
--spec init(term()) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-init([HostType, PoolId, Opts]) ->
+-spec init({mongooseim:host_type(), pool_id(), gen_mod:module_opts()}) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init({HostType, PoolId, Opts}) ->
+    WPoolOpts = process_pool_opts(HostType, PoolId, Opts),
     PoolName = gen_pool_name(HostType, PoolId),
     mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, timed_flushes], counter),
     mongoose_metrics:ensure_metric(HostType, [?MODULE, PoolId, batch_flushes], counter),
     store_pool_name(HostType, PoolId, PoolName),
-    WPoolOpts = make_wpool_opts(HostType, PoolId, Opts),
     WorkerSpec = #{id => PoolName,
                    start => {wpool, start_pool, [PoolName, WPoolOpts]},
                    restart => permanent,
@@ -127,28 +128,28 @@ gen_pool_name(HostType, PoolId) ->
     list_to_atom(
       atom_to_list(PoolId) ++ "_async_pool_" ++ binary_to_list(HostType)).
 
--spec make_wpool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
-make_wpool_opts(HostType, PoolId, Opts) ->
-    Interval = maps:get(flush_interval, Opts),
-    MaxSize = maps:get(batch_size, Opts),
-    NumWorkers = maps:get(pool_size, Opts),
-    FlushCallback = maps:get(flush_callback, Opts),
-    FlushExtra = make_extra(HostType, PoolId, Opts),
-    ProcessOpts = [{message_queue_data, off_heap}],
-    WorkerOpts = {HostType, PoolId, Interval, MaxSize, FlushCallback, FlushExtra},
+-spec process_pool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> [wpool:option()].
+process_pool_opts(HostType, PoolId, #{pool_size := NumWorkers} = Opts) ->
+    WorkerOpts = make_worker_opts(HostType, PoolId, Opts),
     Worker = {mongoose_batch_worker, WorkerOpts},
     [{worker, Worker},
      {workers, NumWorkers},
-     {worker_opt, ProcessOpts},
+     {worker_opt, [{message_queue_data, off_heap}]},
      {worker_shutdown, 10000}].
+
+-spec make_worker_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> map().
+make_worker_opts(HostType, PoolId, Opts) ->
+    Opts#{host_type => HostType, pool_id => PoolId,
+          flush_extra => make_extra(HostType, PoolId, Opts)}.
 
 -spec make_extra(mongooseim:host_type(), pool_id(), pool_opts()) -> pool_extra().
 make_extra(HostType, PoolId, Opts) ->
     DefExtra = #{host_type => HostType, queue_length => 0},
     Extra = maps:merge(maps:get(flush_extra, Opts, #{}), DefExtra),
-    case maps:find(init_callback, Opts) of
-        {ok, InitFun} ->
-            Extra#{init_data => InitFun(HostType, PoolId, Opts)};
-        error ->
-            Extra
-    end.
+    maybe_init_handler(HostType, PoolId, Opts, Extra).
+
+maybe_init_handler(HostType, PoolId, Opts = #{init_callback := InitFun}, Extra)
+  when is_function(InitFun, 3) ->
+    Extra#{init_data => InitFun(HostType, PoolId, Opts)};
+maybe_init_handler(_, _, _, Extra) ->
+    Extra.
