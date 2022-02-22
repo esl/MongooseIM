@@ -65,7 +65,8 @@ hooks(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-        items = #{<<"buffer">> => #option{type = boolean},
+        items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
+                  <<"buffer">> => #option{type = boolean},
                   <<"buffer_max">> => #option{type = int_or_infinity,
                                               validate = positive},
                   <<"ack">> => #option{type = boolean},
