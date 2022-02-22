@@ -13,7 +13,7 @@
 
 -import(config_parser_helper, [default_config/1]).
 
-all() -> [{group, mnesia}, {group, redis}].
+all() -> [{group, mnesia}, {group, redis}, {group, cets}].
 
 init_per_suite(C) ->
     {ok, _} = application:ensure_all_started(jid),
@@ -33,7 +33,8 @@ end_per_suite(C) ->
 
 groups() ->
     [{mnesia, [], tests()},
-     {redis, [], tests()}].
+     {redis, [], tests()},
+     {cets, [], tests()}].
 
 tests() ->
     [open_session,
@@ -64,7 +65,11 @@ init_per_group(mnesia, Config) ->
     ok = mnesia:start(),
     [{backend, ejabberd_sm_mnesia} | Config];
 init_per_group(redis, Config) ->
-    init_redis_group(is_redis_running(), Config).
+    init_redis_group(is_redis_running(), Config);
+init_per_group(cets, Config) ->
+    DiscoOpts = #{name => mongoose_cets_discovery, disco_file => "does_not_exist.txt"},
+    {ok, Pid} = cets_discovery:start(DiscoOpts),
+    [{backend, ejabberd_sm_cets}, {cets_disco_pid, Pid} | Config].
 
 init_redis_group(true, Config) ->
     Self = self(),
@@ -86,7 +91,10 @@ end_per_group(mnesia, Config) ->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     Config;
-end_per_group(_, Config) ->
+end_per_group(cets, Config) ->
+    exit(proplists:get_value(cets_disco_pid, Config), kill),
+    Config;
+end_per_group(redis, Config) ->
     whereis(test_helper) ! stop,
     Config.
 
@@ -394,6 +402,8 @@ get_fun_for_unique_count(ejabberd_sm_mnesia) ->
     fun() ->
         mnesia:abort({badarg,[session,{{1442,941593,580189},list_to_pid("<0.23291.6>")}]})
     end;
+get_fun_for_unique_count(ejabberd_sm_cets) ->
+    fun() -> error(oops) end;
 get_fun_for_unique_count(ejabberd_sm_redis) ->
     fun() ->
         %% The code below is on purpose, it's to crash with badarg reason
@@ -429,6 +439,8 @@ verify_session_opened(C, Sid, USR) ->
 
 do_verify_session_opened(ejabberd_sm_mnesia, Sid, {U, S, R} = USR) ->
     general_session_check(ejabberd_sm_mnesia, Sid, USR, U, S, R);
+do_verify_session_opened(ejabberd_sm_cets, Sid, {U, S, R} = USR) ->
+    general_session_check(ejabberd_sm_cets, Sid, USR, U, S, R);
 do_verify_session_opened(ejabberd_sm_redis, Sid, {U, S, R} = USR) ->
     UHash = iolist_to_binary(hash(U, S, R, Sid)),
     Hashes = mongoose_redis:cmd(["SMEMBERS", n(node())]),
@@ -457,7 +469,9 @@ clean_sessions(C) ->
         ejabberd_sm_mnesia ->
             mnesia:clear_table(session);
         ejabberd_sm_redis ->
-            mongoose_redis:cmd(["FLUSHALL"])
+            mongoose_redis:cmd(["FLUSHALL"]);
+        ejabberd_sm_cets ->
+            ets:delete_all_objects(cets_session)
     end.
 
 generate_random_user(S) ->
@@ -596,6 +610,8 @@ setup_sm(Config) ->
         ejabberd_sm_redis ->
             mongoose_redis:cmd(["FLUSHALL"]);
         ejabberd_sm_mnesia ->
+            ok;
+        ejabberd_sm_cets ->
             ok
     end.
 
@@ -615,7 +631,8 @@ opts(Config) ->
      {sm_backend, sm_backend(?config(backend, Config))}].
 
 sm_backend(ejabberd_sm_redis) -> redis;
-sm_backend(ejabberd_sm_mnesia) -> mnesia.
+sm_backend(ejabberd_sm_mnesia) -> mnesia;
+sm_backend(ejabberd_sm_cets) -> cets.
 
 set_meck() ->
     meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),
