@@ -6,6 +6,20 @@ To use it, enable mod\_inbox in the config file.
 
 ## Options
 
+### `modules.mod_inbox.backend`
+* **Syntax:** string, one of `"rdbms"`, `"rdbms_async"`
+* **Default:** `"rdbms"`
+* **Example:** `backend = "rdbms_async"`
+
+Only RDBMS storage is supported, but `rdbms` means flushes to inbox are synchronous with each message, while `rdbms_async` is instead asynchronous. For performance reasons, `rdbms_async` is almost always preferred, but, it doesn't ensure the same consistency characteristics, as different MongooseIM nodes might race on updates.
+
+#### `modules.mod_inbox.async_writer.pool_size`
+* **Syntax:** non-negative integer
+* **Default:** `4 * erlang:system_info(schedulers_online)`
+* **Example:** `modules.mod_inbox.async_writer.pool_size = 32`
+
+Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
+
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
