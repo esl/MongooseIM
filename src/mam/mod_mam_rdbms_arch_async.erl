@@ -1,9 +1,13 @@
 -module(mod_mam_rdbms_arch_async).
 
+-behaviour(mongoose_batch_worker).
+
 -include("mongoose_logger.hrl").
 
 -define(PM_PER_MESSAGE_FLUSH_TIME, [mod_mam_rdbms_async_pool_writer, per_message_flush_time]).
 -define(PM_FLUSH_TIME, [mod_mam_rdbms_async_pool_writer, flush_time]).
+
+-define(MUC_MODULE, mod_mam_muc_rdbms_arch_async).
 -define(MUC_PER_MESSAGE_FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]).
 -define(MUC_FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, flush_time]).
 
@@ -12,7 +16,7 @@
 
 -export([archive_pm_message/3, archive_muc_message/3]).
 -export([mam_archive_sync/2, mam_muc_archive_sync/2]).
--export([flush_pm/2, flush_muc/2]).
+-export([flush/2]).
 
 -type writer_type() :: pm | muc.
 
@@ -81,8 +85,8 @@ add_batch_name(pm, #{batch_size := MaxSize} = Opts) ->
 add_batch_name(muc, #{batch_size := MaxSize} = Opts) ->
     Opts#{batch_name => multi_name(insert_mam_muc_messages, MaxSize)}.
 
-flush_callback(pm) -> fun ?MODULE:flush_pm/2;
-flush_callback(muc) -> fun ?MODULE:flush_muc/2.
+flush_callback(pm) -> fun ?MODULE:flush/2;
+flush_callback(muc) -> fun ?MUC_MODULE:flush/2.
 
 prepare_insert_queries(pm, #{batch_size := MaxSize, batch_name := BatchName}) ->
     mod_mam_rdbms_arch:prepare_insert(insert_mam_message, 1),
@@ -105,8 +109,8 @@ register_hooks(pm, HostType) ->
     ejabberd_hooks:add(mam_archive_sync, HostType, ?MODULE, mam_archive_sync, 50),
     ejabberd_hooks:add(mam_archive_message, HostType, ?MODULE, archive_pm_message, 50);
 register_hooks(muc, HostType) ->
-    ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
-    ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50).
+    ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MUC_MODULE, mam_muc_archive_sync, 50),
+    ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MUC_MODULE, archive_muc_message, 50).
 
 start_pool(pm, HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, pm_mam, Opts);
@@ -119,21 +123,15 @@ stop_pool(HostType, {pm, _}) ->
     ejabberd_hooks:delete(mam_archive_sync, HostType, ?MODULE, mam_archive_sync, 50),
     mongoose_async_pools:stop_pool(HostType, pm_mam);
 stop_pool(HostType, {muc, _}) ->
-    ejabberd_hooks:delete(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
-    ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
+    ejabberd_hooks:delete(mam_muc_archive_sync, HostType, ?MUC_MODULE, mam_muc_archive_sync, 50),
+    ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MUC_MODULE, archive_muc_message, 50),
     mongoose_async_pools:stop_pool(HostType, muc_mam).
 
 %%% flush callbacks
-flush_pm(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
+flush(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
     {FlushTime, Result} = timer:tc(fun do_flush_pm/2, [Acc, Extra]),
     mongoose_metrics:update(HostType, ?PM_PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
     mongoose_metrics:update(HostType, ?PM_FLUSH_TIME, FlushTime),
-    Result.
-
-flush_muc(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
-    {FlushTime, Result} = timer:tc(fun do_flush_muc/2, [Acc, Extra]),
-    mongoose_metrics:update(HostType, ?MUC_PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
-    mongoose_metrics:update(HostType, ?MUC_FLUSH_TIME, FlushTime),
     Result.
 
 %% mam workers callbacks
@@ -162,31 +160,4 @@ do_flush_pm(Acc, #{host_type := HostType, queue_length := MessageCount,
     end,
     [mod_mam_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
     mongoose_hooks:mam_flush_messages(HostType, MessageCount),
-    ok.
-
-do_flush_muc(Acc, #{host_type := HostType, queue_length := MessageCount,
-                    batch_size := MaxSize, batch_name := BatchName}) ->
-    Rows = [mod_mam_muc_rdbms_arch:prepare_message(HostType, Params) || Params <- Acc],
-    InsertResult =
-        case MessageCount of
-            MaxSize ->
-                mongoose_rdbms:execute(HostType, BatchName, lists:append(Rows));
-            OtherSize ->
-                Results = [mongoose_rdbms:execute(HostType, insert_mam_muc_message, Row) || Row <- Rows],
-                case lists:keyfind(error, 1, Results) of
-                    false -> {updated, OtherSize};
-                    Error -> Error
-                end
-        end,
-    case InsertResult of
-        {updated, _Count} -> ok;
-        {error, Reason} ->
-            mongoose_metrics:update(HostType, modMucMamDropped, MessageCount),
-            ?LOG_ERROR(#{what => archive_message_query_failed,
-                         text => <<"archive_message query failed, modMucMamDropped metric updated">>,
-                         message_count => MessageCount, reason => Reason}),
-            ok
-    end,
-    [mod_mam_muc_rdbms_arch:retract_message(HostType, Params) || Params <- Acc],
-    mongoose_hooks:mam_muc_flush_messages(HostType, MessageCount),
     ok.
