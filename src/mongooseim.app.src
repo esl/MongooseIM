@@ -50,7 +50,8 @@
                   cowboy_swagger,
                   tomerl,
                   flatlog,
-                  segmented_cache
+                  segmented_cache,
+                  kiss
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.
