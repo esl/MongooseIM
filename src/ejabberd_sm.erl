@@ -106,7 +106,7 @@
                      }.
 -type info() :: #{info_key() => any()}.
 
--type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis.
+-type backend() :: ejabberd_sm_mnesia | ejabberd_sm_redis | ejabberd_sm_cets.
 -type close_reason() :: resumed | normal | replaced.
 -type info_key() :: atom().
 

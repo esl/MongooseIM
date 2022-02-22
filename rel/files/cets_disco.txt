@@ -1,0 +1,3 @@
+mongooseim@localhost
+ejabberd2@localhost
+mongooseim3@localhost
