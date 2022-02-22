@@ -1,3 +1,10 @@
+%% @doc
+%% This module encapsulates an asynchronous buffer, that accumulates tasks until
+%% either the buffer is full, or a timeout since the first task expires, and then
+%% flushes the buffer. It takes the buffer size, the timeout interval, and a
+%% callback for flushing, as its main parameters. It can also take callbacks for
+%% initialising data structures, or for preparing them before accumulation.
+%% @end
 -module(mongoose_batch_worker).
 
 -behaviour(gen_server).
