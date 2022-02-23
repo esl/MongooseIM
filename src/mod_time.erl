@@ -24,7 +24,7 @@
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).
 
--spec start(HostType :: mongooseim:host_type(), gen_mod:module_opts()) -> ok | {erorr, atom()}.
+-spec start(HostType :: mongooseim:host_type(), gen_mod:module_opts()) -> ok | {error, atom()}.
 start(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_TIME, ejabberd_local,
                                              fun ?MODULE:process_local_iq/5, #{}, IQDisc).
