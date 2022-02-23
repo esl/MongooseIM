@@ -28,11 +28,11 @@
 -export([create_identifiable_room/5]).
 -export([send_message/4]).
 -export([invite_to_room/4]).
--export([change_affiliation/5]).
 -export([delete_room/3]).
 -export([change_room_config/5]).
 
--ignore_xref([delete_room/3, invite_to_room/4, send_message/4, change_room_config/5]).
+-ignore_xref([create_identifiable_room/5, create_unique_room/4, delete_room/3,
+              invite_to_room/4, send_message/4, change_room_config/5]).
 
 %%--------------------------------------------------------------------
 %% `gen_mod' callbacks
@@ -159,57 +159,66 @@ commands() ->
 %% Internal procedures
 %%--------------------------------------------------------------------
 
-create_unique_room(Domain, RoomName, Creator, Subject) ->
+-spec create_unique_room(jid:server(), jid:user(), jid:literal_jid(), binary()) ->
+    jid:literal_jid() | {error, not_found | denied, iolist()}.
+create_unique_room(MUCServer, RoomName, Creator, Subject) ->
     CreatorJID = jid:from_binary(Creator),
-    case mod_muc_light_api:create_room(Domain, <<>>, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCServer, <<>>, RoomName, CreatorJID, Subject) of
         {ok, #{jid := JID}} -> jid:to_binary(JID);
         Error -> format_err_result(Error)
     end.
 
-create_identifiable_room(Domain, Identifier, RoomName, Creator, Subject) ->
+-spec create_identifiable_room(jid:server(), jid:user(), binary(),
+                               jid:literal_jid(), binary()) ->
+    jid:literal_jid() | {error, not_found | denied, iolist()}.
+create_identifiable_room(MUCServer, Identifier, RoomName, Creator, Subject) ->
     CreatorJID = jid:from_binary(Creator),
-    case mod_muc_light_api:create_room(Domain, Identifier, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCServer, Identifier, RoomName, CreatorJID, Subject) of
         {ok, #{jid := JID}} -> jid:to_binary(JID);
         Error -> format_err_result(Error)
     end.
 
-invite_to_room(Domain, RoomName, Sender, Recipient) ->
+-spec invite_to_room(jid:server(), jid:user(), jid:literal_jid(), jid:literal_jid()) ->
+    ok | {error, not_found | denied, iolist()}.
+invite_to_room(MUCServer, RoomID, Sender, Recipient) ->
     SenderJID = jid:from_binary(Sender),
     RecipientJID = jid:from_binary(Recipient),
-    Result = mod_muc_light_api:invite_to_room(Domain, RoomName, SenderJID, RecipientJID),
+    RoomJID = jid:make_bare(RoomID, MUCServer),
+    Result = mod_muc_light_api:invite_to_room(RoomJID, SenderJID, RecipientJID),
     format_result_no_msg(Result).
 
-change_affiliation(Domain, RoomID, Sender, Recipient, Affiliation) ->
-    % FIXME use mod_muc_light_api instead of this in the client api
-    SenderJID = jid:from_binary(Sender),
-    RecipientJID = jid:from_binary(Recipient),
-    mod_muc_light_api:change_affiliation(Domain, RoomID, SenderJID, RecipientJID, Affiliation).
-
-change_room_config(Domain, RoomID, RoomName, User, Subject) ->
+-spec change_room_config(jid:server(), jid:user(), binary(), jid:literal_jid(), binary()) ->
+    ok | {error, not_found | denied, iolist()}.
+change_room_config(MUCServer, RoomID, RoomName, User, Subject) ->
     UserJID = jid:from_binary(User),
-    Result = mod_muc_light_api:change_room_config(Domain, RoomID, RoomName, UserJID, Subject),
+    RoomJID = jid:make_bare(RoomID, MUCServer),
+    Result = mod_muc_light_api:change_room_config(RoomJID, UserJID, RoomName, Subject),
     format_result_no_msg(Result).
 
-send_message(Domain, RoomName, Sender, Message) ->
+-spec send_message(jid:server(), jid:user(), jid:literal_jid(), jid:literal_jid()) ->
+    ok | {error, not_found | denied, iolist()}.
+send_message(MUCServer, RoomID, Sender, Message) ->
     SenderJID = jid:from_binary(Sender),
-    Result = mod_muc_light_api:send_message(Domain, RoomName, SenderJID, Message),
+    RoomJID = jid:make_bare(RoomID, MUCServer),
+    Result = mod_muc_light_api:send_message(RoomJID, SenderJID, Message),
     format_result_no_msg(Result).
 
--spec delete_room(jid:lserver(), binary(), jid:literal_jid()) -> ok | {error, atom(), term()}.
-delete_room(DomainName, RoomName, Owner) ->
+-spec delete_room(jid:server(), jid:user(), jid:literal_jid()) ->
+    ok | {error, not_found | denied, iolist()}.
+delete_room(MUCServer, RoomID, Owner) ->
     OwnerJID = jid:from_binary(Owner),
-    Result = mod_muc_light_api:delete_room(DomainName, RoomName, OwnerJID),
+    RoomJID = jid:make_bare(RoomID, MUCServer),
+    Result = mod_muc_light_api:delete_room(RoomJID, OwnerJID),
     format_result_no_msg(Result).
 
 format_result_no_msg({ok, _}) -> ok;
 format_result_no_msg(Res) -> format_err_result(Res).
 
-format_err_result({ResStatus, Msg}) when not_exists =:= ResStatus;
-                                         room_not_found =:= ResStatus;
-                                         domain_not_found =:= ResStatus ->
+format_err_result({ResStatus, Msg}) when room_not_found =:= ResStatus;
+                                         muc_server_not_found =:= ResStatus ->
     {error, not_found, Msg};
-format_err_result({ResStatus, Msg}) when exist =:= ResStatus;
+format_err_result({ResStatus, Msg}) when already_exist =:= ResStatus;
                                          not_allowed =:= ResStatus;
-                                         user_without_room =:= ResStatus ->
+                                         not_room_member =:= ResStatus ->
     {error, denied, Msg};
 format_err_result({_, Reason}) -> {error, internal, Reason}.

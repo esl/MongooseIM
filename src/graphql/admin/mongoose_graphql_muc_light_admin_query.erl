@@ -28,33 +28,33 @@ list_user_rooms(#{<<"user">> := UserJID}) ->
     end.
 
 -spec list_room_users(map()) -> {ok, [map()]} | {error, resolver_error()}.
-list_room_users(#{<<"domain">> := Domain, <<"id">> := RoomID}) ->
-    case mod_muc_light_api:get_room_aff(Domain, RoomID) of
+list_room_users(#{<<"room">> := RoomJID}) ->
+    case mod_muc_light_api:get_room_aff(RoomJID) of
         {ok, Affs} ->
             {ok, [make_ok_user(A) || A <- Affs]};
         Err ->
-            make_error(Err, #{domain => Domain, id => RoomID})
+            make_error(Err, #{room => RoomJID})
     end.
 
 -spec get_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
-get_room_config(#{<<"domain">> := Domain, <<"id">> := RoomID}) ->
-    case mod_muc_light_api:get_room_info(Domain, RoomID) of
+get_room_config(#{<<"room">> := RoomJID}) ->
+    case mod_muc_light_api:get_room_info(RoomJID) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{domain => Domain, id => RoomID})
+            make_error(Err, #{room => RoomJID})
     end.
 
 -spec get_room_messages(map()) -> {ok, map()} | {error, resolver_error()}.
-get_room_messages(#{<<"domain">> := Domain, <<"id">> := RoomID,
-                    <<"pageSize">> := PageSize, <<"before">> := Before}) ->
+get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize,
+                    <<"before">> := Before}) ->
     Before2 = null_to_undefined(Before),
-    case mod_muc_light_api:get_room_messages(Domain, RoomID, PageSize, Before2) of
+    case mod_muc_light_api:get_room_messages(RoomJID, PageSize, Before2) of
         {ok, Rows} ->
             Maps = lists:map(fun mongoose_graphql_stanza_helper:row_to_map/1, Rows),
             {ok, #{<<"stanzas">> => Maps, <<"limit">> => null}};
         Err ->
-            make_error(Err, #{domain => Domain, id => RoomID})
+            make_error(Err, #{room => RoomJID})
     end.
 
 %% Helpers

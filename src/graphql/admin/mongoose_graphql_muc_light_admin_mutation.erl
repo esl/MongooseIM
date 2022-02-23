@@ -35,34 +35,32 @@ create_room(#{<<"id">> := RoomID, <<"domain">> := Domain, <<"name">> := RoomName
     end.
 
 -spec change_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
-change_room_config(#{<<"id">> := RoomID, <<"domain">> := Domain, <<"name">> := RoomName,
+change_room_config(#{<<"room">> := RoomJID, <<"name">> := RoomName,
                      <<"owner">> := OwnerJID, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:change_room_config(Domain, RoomID, RoomName, OwnerJID, Subject) of
+    case mod_muc_light_api:change_room_config(RoomJID, OwnerJID, RoomName, Subject) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{domain => Domain, id => RoomID, owner => OwnerJID})
+            make_error(Err, #{room => RoomJID, owner => OwnerJID})
     end.
 
 -spec delete_room(map()) -> {ok, binary()} | {error, resolver_error()}.
-delete_room(#{<<"domain">> := Domain, <<"id">> := RoomID}) ->
-    Result = mod_muc_light_api:delete_room(Domain, RoomID),
-    format_result(Result, #{domain => Domain, id => RoomID}).
+delete_room(#{<<"room">> := RoomJID}) ->
+    Result = mod_muc_light_api:delete_room(RoomJID),
+    format_result(Result, #{room => RoomJID}).
 
 -spec invite_user(map()) -> {ok, binary()} | {error, resolver_error()}.
-invite_user(#{<<"domain">> := Domain, <<"name">> := Name, <<"sender">> := SenderJID,
+invite_user(#{<<"room">> := RoomJID, <<"sender">> := SenderJID,
               <<"recipient">> := RecipientJID}) ->
-    Result = mod_muc_light_api:invite_to_room(Domain, Name, SenderJID, RecipientJID),
-    format_result(Result, #{domain => Domain, name => Name,
-                            sender => sender, recipient => RecipientJID}).
+    Result = mod_muc_light_api:invite_to_room(RoomJID, SenderJID, RecipientJID),
+    format_result(Result, #{room => RoomJID, sender => SenderJID, recipient => RecipientJID}).
 
 -spec kick_user(map()) -> {ok, binary()} | {error, resolver_error()}.
-kick_user(#{<<"domain">> := Domain, <<"id">> := RoomID, <<"user">> := UserJID}) ->
-    Result = mod_muc_light_api:remove_user_from_room(Domain, RoomID, UserJID, UserJID),
+kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
+    Result = mod_muc_light_api:remove_user_from_room(RoomJID, UserJID, UserJID),
     format_result(Result, #{user => UserJID}).
 
 -spec send_msg_to_room(map()) -> {ok, binary()} | {error, resolver_error()}.
-send_msg_to_room(#{<<"domain">> := Domain, <<"name">> := RoomName, <<"from">> := FromJID,
-              <<"body">> := Message}) ->
-    Result = mod_muc_light_api:send_message(Domain, RoomName, FromJID, Message),
-    format_result(Result, #{domain => Domain, name => RoomName, from => FromJID}).
+send_msg_to_room(#{<<"room">> := RoomJID, <<"from">> := FromJID, <<"body">> := Message}) ->
+    Result = mod_muc_light_api:send_message(RoomJID, FromJID, Message),
+    format_result(Result, #{room => RoomJID, from => FromJID}).

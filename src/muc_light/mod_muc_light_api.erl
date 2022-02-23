@@ -2,17 +2,17 @@
 -module(mod_muc_light_api).
 
 -export([create_room/5,
-         invite_to_room/4,
-         change_room_config/5,
-         change_affiliation/5,
-         remove_user_from_room/4,
-         send_message/4,
-         delete_room/3,
+         invite_to_room/3,
+         change_room_config/4,
+         change_affiliation/4,
+         remove_user_from_room/3,
+         send_message/3,
          delete_room/2,
-         get_room_messages/4,
+         delete_room/1,
+         get_room_messages/3,
          get_user_rooms/1,
-         get_room_info/2,
-         get_room_aff/2
+         get_room_info/1,
+         get_room_aff/1
         ]).
 
 -include("mod_muc_light.hrl").
@@ -20,138 +20,114 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
--type create_room_result() :: {ok, room()} | {exist |
-                                              max_occupants_reached |
-                                              validation_error, iolist()}.
-
--type change_room_config_result() :: {ok, room()} | {wrong_user |
-                                                     not_allowed |
-                                                     not_exists |
-                                                     validation_error, iolist()}.
-
--type get_room_messages_result() :: {ok, []} | {domain_not_found | internal, iolist()}.
-
--type invite_to_room_result() :: {ok | user_without_room | not_found, iolist()}.
-
--type get_room_info_result() :: {ok, map()} | {domain_not_found | not_exists, iolist()}.
-
--type get_room_aff_result() :: {ok, [aff_user()]} | {domain_not_found | not_exists, iolist()}.
-
 -type room() :: #{jid := jid:jid(),
                  name := binary(),
                  subject := binary(),
-                 aff_users := aff_users()
-                }.
+                 aff_users := aff_users()}.
 
--export_type([room/0, create_room_result/0]).
+-export_type([room/0]).
 
--define(ROOM_NOT_EXIST_RESULT, {not_exists, "Room does not exist"}).
+-define(ROOM_DELETED_SUCC_RESULT, {ok, "Room deleted successfully"}).
+-define(USER_NOT_ROOM_MEMBER_RESULT, {not_room_member, "Given user does not occupy this room"}).
+-define(ROOM_NOT_FOUND_RESULT, {room_not_found, "Room not found"}).
+-define(MUC_SERVER_NOT_FOUND_RESULT, {muc_server_not_found, "MUC Light server not found"}).
 -define(VALIDATION_ERROR_RESULT(Key, Reason),
         {validation_error, io_lib:format("Validation failed for key: ~p with reason ~p",
                                          [Key, Reason])}).
--define(USER_WITHOUT_ROOM_RESULT, {user_without_room, "Given user does not occupy any room"}).
 
--spec create_room(jid:lserver(), binary(), binary(), jid:jid(), binary()) -> create_room_result().
-create_room(Domain, RoomId, RoomTitle, CreatorJID, Subject) ->
-    case get_muc_hosts(Domain) of
-        {ok, _HostType, MUCLightDomain} ->
-            MUCServiceJID = jid:make_bare(RoomId, MUCLightDomain),
-            Config = make_room_config(RoomTitle, Subject),
-            case mod_muc_light:try_to_create_room(CreatorJID, MUCServiceJID, Config) of
-                {ok, RoomJID, #create{aff_users = AffUsers}} ->
-                    {ok, make_room(RoomJID, RoomTitle, Subject, AffUsers)};
-                {error, exists} ->
-                    {exist, "Room already exists"};
-                {error, max_occupants_reached} ->
-                    {max_occupants_reached, "Max occupants number reached"};
-                {error, {Key, Reason}} ->
-                    ?VALIDATION_ERROR_RESULT(Key, Reason)
-            end;
-        Error ->
-            Error
+-spec create_room(jid:lserver(), binary(), binary(), jid:jid(), binary()) ->
+    {ok, room()} | {already_exists | max_occupants_reached | validation_error |
+                    muc_server_not_found, iolist()}.
+create_room(MUCLightDomain, RoomID, RoomTitle, CreatorJID, Subject) ->
+    MUCServiceJID = jid:make_bare(RoomID, MUCLightDomain),
+    Config = make_room_config(RoomTitle, Subject),
+    try mod_muc_light:try_to_create_room(CreatorJID, MUCServiceJID, Config) of
+        {ok, RoomJID, #create{aff_users = AffUsers}} ->
+            {ok, make_room(RoomJID, RoomTitle, Subject, AffUsers)};
+        {error, exists} ->
+            {already_exist, "Room already exists"};
+        {error, max_occupants_reached} ->
+            {max_occupants_reached, "Max occupants number reached"};
+        {error, {Key, Reason}} ->
+            ?VALIDATION_ERROR_RESULT(Key, Reason)
+    catch
+        error:{muc_host_to_host_type_failed, _, _} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec invite_to_room(jid:lserver(), binary(), jid:jid(), jid:jid()) -> invite_to_room_result().
-invite_to_room(Domain, RoomName, SenderJID, RecipientJID) ->
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCServer} ->
+
+-spec invite_to_room(jid:jid(), jid:jid(), jid:jid()) ->
+    {ok | not_room_member | muc_server_not_found, iolist()}.
+invite_to_room(#jid{lserver = MUCServer} = RoomJID, SenderJID, RecipientJID) ->
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, HostType} ->
             RecipientBin = jid:to_binary(jid:to_bare(RecipientJID)),
-            case muc_light_room_name_to_jid_and_aff(HostType, SenderJID, RoomName, MUCServer) of
-                {ok, R, _Aff} ->
+            case is_user_room_member(HostType, jid:to_lus(SenderJID), jid:to_lus(RoomJID)) of
+                true ->
                     S = jid:to_bare(SenderJID),
+                    R = jid:to_bare(RoomJID),
                     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                                     [affiliate(RecipientBin, <<"member">>)]),
                     ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                                    <<"set">>, [Changes])),
                     {ok, "User invited successfully"};
-                {error, given_user_does_not_occupy_any_room} ->
-                    ?USER_WITHOUT_ROOM_RESULT;
-                {error, not_exists} ->
-                    ?ROOM_NOT_EXIST_RESULT
+                false ->
+                   ?USER_NOT_ROOM_MEMBER_RESULT
             end;
-        Error ->
-            Error
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec change_room_config(jid:lserver(), binary(), binary(), jid:jid(), binary()) ->
-    change_room_config_result().
-change_room_config(Domain, RoomID, RoomName, UserJID, Subject) ->
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCLightDomain} ->
-            LServer = jid:nameprep(Domain),
+
+-spec change_room_config(jid:jid(), jid:jid(), binary(), binary()) ->
+    {ok, room()} | {not_room_member | not_allowed | room_not_found |
+                    validation_error | muc_server_not_found, iolist()}.
+change_room_config(#jid{luser = RoomID, lserver = MUCServer} = RoomJID,
+                   UserJID, RoomName, Subject) ->
+    case mongoose_domain_api:get_subdomain_info(MUCServer) of
+        {ok, #{host_type := HostType, parent_domain := LServer}} ->
             UserUS = jid:to_bare(UserJID),
             ConfigReq = #config{ raw_config =
                                  [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
             Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => LServer,
                                      host_type => HostType}),
-            case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq, Acc) of
+            case mod_muc_light:change_room_config(UserUS, RoomID, MUCServer, ConfigReq, Acc) of
                 {ok, RoomJID, _}  ->
                     {ok, make_room(RoomJID, RoomName, Subject, [])};
                 {error, item_not_found} ->
-                    {wrong_user, "The given user is not room participant"};
+                    ?USER_NOT_ROOM_MEMBER_RESULT;
                 {error, not_allowed} ->
-                    {not_allowed, "The given user has not permission to change config"};
+                    {not_allowed, "Given user does not have permission to change config"};
                 {error, not_exists} ->
-                    ?ROOM_NOT_EXIST_RESULT;
+                    ?ROOM_NOT_FOUND_RESULT;
                 {error, {error, {Key, Reason}}} ->
                     ?VALIDATION_ERROR_RESULT(Key, Reason)
             end;
-        Error ->
-            Error
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec change_affiliation(jid:lserver(), binary(), jid:jid(), jid:jid(), binary()) ->
-    ok | {domain_not_found, iolist()}.
-change_affiliation(Domain, RoomID, SenderJID, RecipientJID, Affiliation) ->
-    case get_muc_hosts(Domain) of
-        {ok, _HostType, MUCLightDomain} ->
+-spec change_affiliation(jid:jid(), jid:jid(), jid:jid(), binary()) -> ok.
+change_affiliation(RoomJID, SenderJID, RecipientJID, Affiliation) ->
             RecipientBare = jid:to_bare(RecipientJID),
-            R = jid:make_bare(RoomID, MUCLightDomain),
             S = jid:to_bare(SenderJID),
             Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                             [affiliate(jid:to_binary(RecipientBare), Affiliation)]),
-            ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
+            ejabberd_router:route(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
                                            <<"set">>, [Changes])),
-            ok;
-        Error ->
-            Error
-    end.
+            ok.
 
--spec remove_user_from_room(jid:lserver(), binary(), jid:jid(), jid:jid()) ->
-    {ok | domain_not_found, iolist()}.
-remove_user_from_room(Domain, RoomID, SenderJID, RecipientJID) ->
-    case change_affiliation(Domain, RoomID, SenderJID, RecipientJID, <<"none">>) of
-        ok ->
-            {ok, io_lib:format("User ~s kicked successfully", [jid:to_binary(RecipientJID)])};
-        Error ->
-            Error
-    end.
+-spec remove_user_from_room(jid:jid(), jid:jid(), jid:jid()) ->
+    {ok, iolist()}.
+remove_user_from_room(RoomJID, SenderJID, RecipientJID) ->
+    ok = change_affiliation(RoomJID, SenderJID, RecipientJID, <<"none">>),
+    {ok, io_lib:format("User ~s kicked successfully", [jid:to_binary(RecipientJID)])}.
 
--spec send_message(jid:lserver(), binary(), jid:jid(), binary()) ->
-    {ok | domain_not_found | room_not_found | user_without_room, iolist()}.
-send_message(Domain, RoomName, SenderJID, Message) ->
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCServer} ->
+-spec send_message(jid:jid(), jid:jid(), binary()) ->
+    {ok | not_room_member | muc_server_not_found, iolist()}.
+send_message(#jid{lserver = MUCServer} = RoomJID, SenderJID, Message) ->
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, HostType} ->
             Body = #xmlel{name = <<"body">>,
                           children = [ #xmlcdata{ content = Message } ]
                          },
@@ -160,61 +136,56 @@ send_message(Domain, RoomName, SenderJID, Message) ->
                             children = [ Body ]
                            },
             SenderBare = jid:to_bare(SenderJID),
-            SenderUS = jid:to_lus(SenderBare),
-            case mod_muc_light_db_backend:get_user_rooms(HostType, SenderUS, MUCServer) of
-                [] ->
-                    ?USER_WITHOUT_ROOM_RESULT;
-                RoomJIDs when is_list(RoomJIDs) ->
-                    FindFun = find_room_and_user_aff_by_room_name(HostType, RoomName, SenderUS),
-                    case lists:foldl(FindFun, none, RoomJIDs) of
-                        {ok, {RU, MUCServer}, _Aff} ->
-                            R = jid:make_bare(RU, MUCServer),
-                            ejabberd_router:route(SenderBare, R, Stanza),
-                            {ok, "Message send successfully"};
-                        none ->
-                            {room_not_found, "Room does not found"}
-                    end
+            case is_user_room_member(HostType, jid:to_lus(SenderBare), jid:to_lus(RoomJID)) of
+                true ->
+                    RoomBare = jid:to_bare(RoomJID),
+                    ejabberd_router:route(SenderBare, RoomBare, Stanza),
+                    {ok, "Message sent successfully"};
+                false ->
+                    ?USER_NOT_ROOM_MEMBER_RESULT
             end;
-        Error ->
-            Error
+        {error, not_found}->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec delete_room(jid:lserver(), binary(), jid:jid()) ->
-    { ok | domain_not_found | not_exists | user_without_room, iolist()}.
-delete_room(Domain, RoomName, OwnerJID) ->
-    OwnerBare = jid:to_bare(OwnerJID),
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCServer} ->
-            Res = case muc_light_room_name_to_jid_and_aff(HostType, OwnerBare,
-                                                          RoomName, MUCServer) of
-                      {ok, RoomJID, owner} ->
-                          mod_muc_light:delete_room(jid:to_lus(RoomJID));
-                      {ok, _, _} ->
-                          {error, not_allowed};
-                      {error, _} = Err ->
-                          Err
-                  end,
-            format_delete_error_message(Res);
-        Error ->
-            Error
+-spec delete_room(jid:jid(), jid:jid()) ->
+    {ok | not_allowed | room_not_found | muc_server_not_found , iolist()}.
+delete_room(#jid{lserver = MUCServer} = RoomJID, UserJID) ->
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, HostType} ->
+            case get_room_user_aff(HostType, RoomJID, UserJID) of
+                {ok, owner} ->
+                    ok = mod_muc_light_db_backend:destroy_room(HostType, jid:to_lus(RoomJID)),
+                    ?ROOM_DELETED_SUCC_RESULT;
+                {ok, none} ->
+                    ?USER_NOT_ROOM_MEMBER_RESULT;
+                {ok, member} ->
+                    {not_allowed, "Given user cannot delete this room"};
+                {error, room_not_found} ->
+                    {room_not_found, "Cannot remove not existing room"}
+            end;
+        {error, not_found}->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec delete_room(jid:lserver(), binary()) -> { ok | domain_not_found | not_exists, iolist()}.
-delete_room(Domain, RoomID) ->
-    case get_muc_hosts(Domain) of
-        {ok, _HostType, MUCLightDomain} ->
-            Res = mod_muc_light:delete_room({RoomID, MUCLightDomain}),
-            format_delete_error_message(Res);
-        Error ->
-            Error
+-spec delete_room(jid:jid()) -> {ok | room_not_found | muc_server_not_found, iolist()}.
+delete_room(RoomJID) ->
+    try mod_muc_light:delete_room(jid:to_lus(RoomJID)) of
+        ok ->
+            ?ROOM_DELETED_SUCC_RESULT;
+        {error, not_exists} ->
+            ?ROOM_NOT_FOUND_RESULT
+    catch
+        error:{muc_host_to_host_type_failed, _, _} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec get_room_messages(jid:lserver(), binary(), integer() | undefined,
-                        mod_mam:unix_timestamp() | undefined) -> get_room_messages_result().
-get_room_messages(Domain, RoomID, PageSize, Before) ->
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCLightDomain} ->
-            RoomJID = jid:make_bare(RoomID, MUCLightDomain),
+-spec get_room_messages(jid:jid(), integer() | undefined,
+                        mod_mam:unix_timestamp() | undefined) ->
+    {ok, list()} | {muc_server_not_found | internal, iolist()}.
+get_room_messages(RoomJID, PageSize, Before) ->
+    case mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver) of
+        {ok, HostType} ->
             Now = os:system_time(microsecond),
             ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
             End = maybe_before(Before, Now),
@@ -239,67 +210,56 @@ get_room_messages(Domain, RoomID, PageSize, Before) ->
                 {error, Term} ->
                     {internal, io_lib:format("Internal error occured ~p", [Term])}
             end;
-        Error ->
-            Error
+        {error, not_found}->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec get_room_info(jid:lserver(), binary()) -> get_room_info_result().
-get_room_info(Domain, RoomID) ->
-    case get_muc_hosts(Domain) of
-        {ok, HostType, MUCServer} ->
-            case mod_muc_light_db_backend:get_info(HostType, {RoomID, MUCServer}) of
+
+-spec get_room_info(jid:jid()) -> {ok, room()} | {muc_server_not_found | room_not_found, iolist()}.
+get_room_info(#jid{lserver = MUCServer} = RoomJID) ->
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, HostType} ->
+            case mod_muc_light_db_backend:get_info(HostType, jid:to_lus(RoomJID)) of
                 {ok, [{roomname, Name}, {subject, Subject}], AffUsers, _Version} ->
-                    {ok, make_room(jid:make_bare(RoomID, MUCServer), Name, Subject, AffUsers)};
+                    {ok, make_room(jid:to_binary(RoomJID), Name, Subject, AffUsers)};
                 {error, not_exists} ->
-                    ?ROOM_NOT_EXIST_RESULT
+                    ?ROOM_NOT_FOUND_RESULT
             end;
-        Error ->
-            Error
+        {error, not_found}->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec get_room_aff(jid:lserver(), binary()) -> get_room_aff_result().
-get_room_aff(Domain, RoomID) ->
-    case get_room_info(Domain, RoomID) of
-        {ok, #{aff_users := AffUsers}} ->
-            {ok, AffUsers};
-        Error ->
-            Error
+-spec get_room_aff(jid:jid()) ->
+    {ok, aff_users()} | {muc_server_not_found | room_not_found, iolist()}.
+get_room_aff(#jid{lserver = MUCServer} = RoomJID) ->
+    case mongoose_domain_api:get_subdomain_host_type(MUCServer) of
+        {ok, HostType} ->
+            case mod_muc_light_db_backend:get_aff_users(HostType, jid:to_lus(RoomJID)) of
+                {ok, AffUsers, _Version} ->
+                    {ok, AffUsers};
+                {error, not_exists} ->
+                    ?ROOM_NOT_FOUND_RESULT
+            end;
+        {error, not_found}->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
 -spec get_user_rooms(jid:jid()) -> {ok, [RoomUS :: jid:simple_bare_jid()]} |
-                                   {domain_not_found, iolist()}.
+                                   {muc_server_not_found, iolist()}.
 get_user_rooms(#jid{lserver = LServer} = UserJID) ->
-    case get_muc_hosts(LServer) of
-        {ok, HostType, MUCServer} ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
             UserUS = jid:to_lus(UserJID),
+            MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
             {ok, mod_muc_light_db_backend:get_user_rooms(HostType, UserUS, MUCServer)};
-        Error ->
-            Error
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
  %% Internal
 
--spec get_muc_hosts(jid:lserver()) -> {ok, mongooseim:host_type(), jid:lserver()} |
-                                      {domain_not_found, iolist()}.
-get_muc_hosts(LServer) ->
-    case mongoose_domain_api:get_domain_host_type(LServer) of
-        {ok, HostType} ->
-            {ok, HostType, mod_muc_light_utils:server_host_to_muc_host(HostType, LServer)};
-        {error, not_found} ->
-            {domain_not_found, io_lib:format("Domain ~s does not exist", [LServer])}
-    end.
-
 make_room(JID, Name, Subject, AffUsers) ->
     #{jid => JID, name => Name, subject => Subject, aff_users => AffUsers}.
-
-format_delete_error_message(ok) ->
-    {ok, "Room deleted successfully!"};
-format_delete_error_message({error, not_allowed}) ->
-    {not_allowed, "You cannot delete this room"};
-format_delete_error_message({error, not_exists}) ->
-    {not_exists, "Cannot remove not existing room"};
-format_delete_error_message({error, given_user_does_not_occupy_any_room}) ->
-    ?USER_WITHOUT_ROOM_RESULT.
 
 iq(To, From, Type, Children) ->
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
@@ -329,54 +289,29 @@ make_room_config(Name, Subject) ->
                           {<<"subject">>, Subject}]
            }.
 
--spec muc_light_room_name_to_jid_and_aff(HostType :: mongooseim:host_type(),
-                                         UserJID :: jid:jid(),
-                                         RoomName :: binary(),
-                                         Domain :: jid:lserver()) ->
-    {ok, jid:jid(), aff()} | {error, given_user_does_not_occupy_any_room} | {error, not_exists}.
-muc_light_room_name_to_jid_and_aff(HostType, UserJID, RoomName, MUCServer) ->
+-spec get_room_user_aff(mongooseim:host_type(), jid:jid(), jid:jid()) ->
+    {ok, aff()} | {error, room_not_found}.
+get_room_user_aff(HostType, RoomJID, UserJID) ->
+    RoomUS = jid:to_lus(RoomJID),
     UserUS = jid:to_lus(UserJID),
+    case mod_muc_light_db_backend:get_aff_users(HostType, RoomUS) of
+        {ok, Affs, _Version} ->
+            case lists:keyfind(UserUS, 1, Affs) of
+                {_, Aff} -> {ok, Aff};
+                false -> {ok, none}
+            end;
+        {error, not_exists} ->
+            {error, room_not_found}
+    end.
+
+-spec is_user_room_member(mongooseim:host_type(), jid:simple_bare_jid(),
+                          jid:simple_bare_jid()) -> boolean().
+is_user_room_member(HostType, UserUS, {_, MUCServer} = RoomLUS) ->
     case mod_muc_light_db_backend:get_user_rooms(HostType, UserUS, MUCServer) of
         [] ->
-            {error, given_user_does_not_occupy_any_room};
-        RoomUSs when is_list(RoomUSs) ->
-            FindFun = find_room_and_user_aff_by_room_name(HostType, RoomName, UserUS),
-            case lists:foldl(FindFun, none, RoomUSs) of
-                {ok, {RU, MUCServer}, UserAff} ->
-                    {ok, jid:make_bare(RU, MUCServer), UserAff};
-                none ->
-                    {error, not_exists}
-            end
-    end.
-
--spec get_room_name_and_user_aff(mongooseim:host_type(), RoomUS :: jid:simple_bare_jid(),
-                                 UserUS :: jid:simple_bare_jid()) ->
-    {ok, RoomName :: binary(), UserAff :: aff()} | {error, not_exists}.
-get_room_name_and_user_aff(HostType, RoomUS, UserUS) ->
-    case mod_muc_light_db_backend:get_info(HostType, RoomUS) of
-        {ok, Cfg, Affs, _} ->
-            {roomname, RoomName} = lists:keyfind(roomname, 1, Cfg),
-            {_, UserAff} = lists:keyfind(UserUS, 1, Affs),
-            {ok, RoomName, UserAff};
-        Error ->
-            Error
-    end.
-
--type find_room_acc() :: {ok, RoomUS :: jid:simple_bare_jid(), UserAff :: aff()} | none.
-
--spec find_room_and_user_aff_by_room_name(mongooseim:host_type(), RoomName :: binary(),
-                                          UserUS :: jid:simple_bare_jid()) ->
-    fun((RoomUS :: jid:simple_bare_jid(), find_room_acc()) -> find_room_acc()).
-find_room_and_user_aff_by_room_name(HostType, RoomName, UserUS) ->
-    fun (RoomUS, none) ->
-            case get_room_name_and_user_aff(HostType, RoomUS, UserUS) of
-                {ok, RoomName, UserAff} ->
-                    {ok, RoomUS, UserAff};
-                _ ->
-                    none
-            end;
-        (_, Acc) when Acc =/= none ->
-            Acc
+            false;
+        RoomJIDs when is_list(RoomJIDs) ->
+            lists:any(fun(LUS) -> LUS =:= RoomLUS end, RoomJIDs)
     end.
 
 maybe_before(undefined, Now) ->
