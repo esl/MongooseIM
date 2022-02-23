@@ -166,11 +166,10 @@ init_per_group(Group, Config) when Group == rw; Group == params_limited_infinity
     end;
 init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard_opts, Config),
-    case proplists:get_value(backend, VCardConfig) of
+    case maps:get(backend, VCardConfig) of
         ldap ->
             Config1 = restart_and_prepare_vcard(ldap_only, Config),
             insert_alice_photo(Config1);
-            %Config1;
         _ ->
             {skip, "this group is only for ldap vCard backend"}
     end;
@@ -905,7 +904,6 @@ search_open_limited(Config) ->
                            escalus_stanza:search_iq(DirJID,
                                escalus_stanza:search_fields(Fields))),
               escalus:assert(is_iq_result, Res),
-              %% {allow_return_all, false}
               [] = search_result_item_tuples(Res)
       end).
 
@@ -1015,12 +1013,7 @@ prepare_vcards(Config) ->
     Config.
 
 get_backend(Config) ->
-    case lists:keyfind(backend, 1, ?config(mod_vcard_opts, Config)) of
-        {backend, Backend} ->
-            Backend;
-        _ ->
-            mnesia
-    end.
+    maps:get(backend, ?config(mod_vcard_opts, Config), mnesia).
 
 prepare_vcard(ldap, JID, Fields) ->
     [User, Server] = binary:split(JID, <<"@">>),
@@ -1155,7 +1148,6 @@ prepare_vcard_module(Config) ->
     %% Keep the old config, so we can undo our changes, once finished testing
     Config1 = dynamic_modules:save_modules(host_types(), Config),
     %% Get a list of options, we can use as a prototype to start new modules
-    _HostType = domain_helper:host_type(),
     VCardOpts = dynamic_modules:get_saved_config(host_type(), mod_vcard, Config1),
     [{mod_vcard_opts, VCardOpts} | Config1].
 
@@ -1167,46 +1159,43 @@ stop_vcard_mod(_Config) ->
     ok.
 
 params_all(Config) ->
-    add_backend_param([], ?config(mod_vcard_opts, Config)).
+    add_backend_param(#{}, ?config(mod_vcard_opts, Config)).
 
 params_limited(Config) ->
-    add_backend_param([{matches, 1},
-                       {host, subhost_pattern("directory.@HOST@")}],
+    add_backend_param(#{matches => 1,
+                        host => subhost_pattern("directory.@HOST@")},
                       ?config(mod_vcard_opts, Config)).
 
 params_limited_infinity(Config) ->
-    add_backend_param([{matches, infinity},
-                       {host, subhost_pattern("directory.@HOST@")}],
+    add_backend_param(#{matches => infinity,
+                        host => subhost_pattern("directory.@HOST@")},
                       ?config(mod_vcard_opts, Config)).
 
 params_no(Config) ->
-    add_backend_param([{search, false},
-                       {host, subhost_pattern("vjud.@HOST@")}],
+    add_backend_param(#{search => false,
+                        host => subhost_pattern("vjud.@HOST@")},
                       ?config(mod_vcard_opts, Config)).
 
 params_ldap_only(Config) ->
     Reported = [{<<"Full Name">>, <<"FN">>},
-   {<<"Given Name">>, <<"FIRST">>},
-   {<<"Middle Name">>, <<"MIDDLE">>},
-   {<<"Family Name">>, <<"LAST">>},
-   {<<"Nickname">>, <<"NICK">>},
-   {<<"Birthday">>, <<"BDAY">>},
-   {<<"Country">>, <<"CTRY">>},
-   {<<"City">>, <<"LOCALITY">>},
-   {<<"Email">>, <<"EMAIL">>},
-   {<<"Organization Name">>, <<"ORGNAME">>},
-   {<<"Organization Unit">>, <<"ORGUNIT">>},
-     {<<"Photo">>, <<"PHOTO">>}],
-    add_backend_param([{ldap_search_operator, 'or'},
-                       {ldap_binary_search_fields, [<<"PHOTO">>]},
-                       {ldap_search_reported, Reported}],
+                {<<"Given Name">>, <<"FIRST">>},
+                {<<"Middle Name">>, <<"MIDDLE">>},
+                {<<"Family Name">>, <<"LAST">>},
+                {<<"Nickname">>, <<"NICK">>},
+                {<<"Birthday">>, <<"BDAY">>},
+                {<<"Country">>, <<"CTRY">>},
+                {<<"City">>, <<"LOCALITY">>},
+                {<<"Email">>, <<"EMAIL">>},
+                {<<"Organization Name">>, <<"ORGNAME">>},
+                {<<"Organization Unit">>, <<"ORGUNIT">>},
+                {<<"Photo">>, <<"PHOTO">>}],
+    add_backend_param(#{ldap_search_operator => 'or',
+                        ldap_binary_search_fields => [<<"PHOTO">>],
+                        ldap_search_reported => Reported},
                       ?config(mod_vcard_opts, Config)).
 
 add_backend_param(Opts, CurrentVCardConfig) ->
-    F = fun({Key, _} = Item, Cfg) ->
-        lists:keystore(Key, 1, Cfg, Item)
-    end,
-    lists:foldl(F, CurrentVCardConfig, Opts).
+    maps:merge(CurrentVCardConfig, Opts).
 
 %%----------------------
 %% xmlel shortcuts
@@ -1549,8 +1538,7 @@ secondary_domain() ->
     ct:get_config({hosts, mim, secondary_domain}).
 
 wait_for_riak() ->
-    HostType = ct:get_config({hosts, mim, host_type}),
-    case mam_helper:is_riak_enabled(HostType) of
+    case mam_helper:is_riak_enabled(host_type()) of
         true ->
             timer:sleep(timer:seconds(3)); %give some time to Yokozuna to index vcards
         false ->

@@ -6,7 +6,7 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 ### `modules.mod_vcard.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"one_queue"`
+* **Default:** `"parallel"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
@@ -47,18 +47,18 @@ Maximum search results to be returned to the user.
 
 The following options are the same as for the [LDAP authentication module](../authentication-methods/ldap.md#configuration-options):
 
-* [`modules.mod_vcard.ldap_pool_tag`](../authentication-methods/ldap.md#authldappool_tag)
-* [`modules.mod_vcard.ldap_base`](../authentication-methods/ldap.md#authldapbase)
-* [`modules.mod_vcard.ldap_uids`](../authentication-methods/ldap.md#authldapuids)
-* [`modules.mod_vcard.ldap_filter`](../authentication-methods/ldap.md#authldapfilter)
-* [`modules.mod_vcard.ldap_deref`](../authentication-methods/ldap.md#authldapderef)
+* #### [`modules.mod_vcard.ldap_pool_tag`](../authentication-methods/ldap.md#authldappool_tag)
+* #### [`modules.mod_vcard.ldap_base`](../authentication-methods/ldap.md#authldapbase)
+* #### [`modules.mod_vcard.ldap_uids`](../authentication-methods/ldap.md#authldapuids)
+* #### [`modules.mod_vcard.ldap_filter`](../authentication-methods/ldap.md#authldapfilter)
+* #### [`modules.mod_vcard.ldap_deref`](../authentication-methods/ldap.md#authldapderef)
 
 #### `modules.mod_vcard.ldap_vcard_map`
 * **Syntax:** Array of TOML tables with the following keys: `"vcard_field"`, `"ldap_pattern"`, `"ldap_field"` and string values.
 * **Default:** see description
 * **Example:** `ldap_vcard_map = [{vcard_field = "FN", ldap_pattern = "%s", ldap_field = "displayName"}]`
 
-Mappings between VCard and LDAP fields. For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 79.
+Mappings between VCard and LDAP fields. For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`.
 
 #### `modules.mod_vcard.ldap_search_fields`
 * **Syntax:** Array of TOML tables with the following keys: `"search_field"`, `"ldap_field"` and string values.
@@ -66,7 +66,7 @@ Mappings between VCard and LDAP fields. For the default settings, please see `[M
 * **Example:** `ldap_search_fields = [{search_field = "User", ldap_field = "%u"}]`
 
 Mappings between the human-readable search fields and LDAP fields.
-For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 101.
+For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`.
 
 #### `modules.mod_vcard.ldap_search_reported`
 * **Syntax:** Array of TOML tables with the following keys: `"search_field"`, `"vcard_field"` and string values.
@@ -74,7 +74,7 @@ For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`,
 * **Example:** `ldap_search_reported = [{search_field = "Full Name", vcard_field = "FN"}]`
 
 Mappings between the human-readable search fields and VCard fields.
-For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 114.
+For the default settings, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`.
 
 #### `modules.mod_vcard.ldap_search_operator`
 * **Syntax:** string, one of `"or"`, `"and"`
@@ -110,8 +110,6 @@ Riak index name.
 
 ```toml
 [modules.mod_vcard]
-  allow_return_all = true
-  search_all_hosts = true
   matches = 1
   search = true
   host = "directory.example.com"

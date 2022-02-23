@@ -136,7 +136,7 @@ extract_field(Props, {_, Field}) ->
 
 
 bucket_type(HostType, LServer) ->
-    {gen_mod:get_module_opt(HostType, mod_vcard, bucket_type, <<"vcard">>), <<"vcard_", LServer/binary>>}.
+    {gen_mod:get_module_opt(HostType, mod_vcard, [riak, bucket_type]), <<"vcard_", LServer/binary>>}.
 
 yz_vcard_index(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_vcard, search_index, <<"vcard">>).
+    gen_mod:get_module_opt(HostType, mod_vcard, [riak, search_index]).

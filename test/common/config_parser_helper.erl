@@ -40,7 +40,7 @@ options("host_types") ->
                                         program => "/usr/bin/bash"},
                           http => #{}})},
      {{modules, <<"another host type">>}, #{mod_offline => []}},
-     {{modules, <<"localhost">>}, #{mod_vcard => []}},
+     {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
      {{modules, <<"yet another host type">>}, #{mod_amp => []}},
@@ -625,16 +625,17 @@ all_modules() ->
            {host, {fqdn, <<"muc.example.com">>}},
            {http_auth_pool, my_auth_pool}],
       mod_vcard =>
-          [{host, {fqdn, <<"directory.example.com">>}},
-           {ldap_search_fields,
-            [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}]},
-           {ldap_search_reported,
-            [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}]},
-           {ldap_vcard_map,
-            [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-             {<<"FN">>, <<"%s">>, [<<"displayName">>]}]},
-           {matches, 1},
-           {search, true}],
+          mod_config(mod_vcard,
+                     #{host => {fqdn, <<"directory.example.com">>},
+                       ldap_search_fields =>
+                        [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}],
+                       ldap_search_reported =>
+                        [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}],
+                       ldap_vcard_map =>
+                        [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                         {<<"FN">>, <<"%s">>, [<<"displayName">>]}],
+                       matches => 1,
+                       search => true}),
       mod_mam_muc_rdbms_arch =>
           [{muc, true}, {db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
       mod_stream_management =>
@@ -662,7 +663,7 @@ pgsql_modules() ->
            {welcome_message, {"Hello", "I am MongooseIM"}}],
       mod_roster => [{backend, rdbms}],
       mod_sic => [], mod_stream_management => [],
-      mod_vcard => [{backend, rdbms}, {host, {prefix, <<"vjud.">>}}]}.
+      mod_vcard => mod_config(mod_vcard, #{backend => rdbms, host => {prefix, <<"vjud.">>}})}.
 
 auth_with_methods(Methods) ->
     maps:merge(default_auth(), Methods#{methods => lists:sort(maps:keys(Methods))}).
@@ -835,5 +836,57 @@ default_mod_config(mod_inbox) ->
       iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_vcard) ->
+    #{iqdisc => parallel,
+      host => {prefix, <<"vjud.">>},
+      search => true,
+      backend => mnesia,
+      matches => 30,
+      ldap_pool_tag => default,
+      ldap_uids => [{<<"uid">>, <<"%u">>}],
+      ldap_vcard_map => [{<<"NICKNAME">>, <<"%u">>, []},
+                         {<<"FN">>, <<"%s">>, [<<"displayName">>]},
+                         {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                         {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
+                         {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
+                         {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
+                         {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
+                         {<<"CTRY">>, <<"%s">>, [<<"c">>]},
+                         {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
+                         {<<"STREET">>, <<"%s">>, [<<"street">>]},
+                         {<<"REGION">>, <<"%s">>, [<<"st">>]},
+                         {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
+                         {<<"TITLE">>, <<"%s">>, [<<"title">>]},
+                         {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
+                         {<<"DESC">>, <<"%s">>, [<<"description">>]},
+                         {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
+                         {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
+                         {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
+                         {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
+                         {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}],
+      ldap_search_fields => [{<<"User">>, <<"%u">>},
+                             {<<"Full Name">>, <<"displayName">>},
+                             {<<"Given Name">>, <<"givenName">>},
+                             {<<"Middle Name">>, <<"initials">>},
+                             {<<"Family Name">>, <<"sn">>},
+                             {<<"Nickname">>, <<"%u">>},
+                             {<<"Birthday">>, <<"birthDay">>},
+                             {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
+                             {<<"Email">>, <<"mail">>},
+                             {<<"Organization Name">>, <<"o">>},
+                             {<<"Organization Unit">>, <<"ou">>}],
+      ldap_search_reported => [{<<"Full Name">>, <<"FN">>},
+                               {<<"Given Name">>, <<"FIRST">>},
+                               {<<"Middle Name">>, <<"MIDDLE">>},
+                               {<<"Family Name">>, <<"LAST">>},
+                               {<<"Nickname">>, <<"NICK">>},
+                               {<<"Birthday">>, <<"BDAY">>},
+                               {<<"Country">>, <<"CTRY">>},
+                               {<<"City">>, <<"LOCALITY">>},
+                               {<<"Email">>, <<"EMAIL">>},
+                               {<<"Organization Name">>, <<"ORGNAME">>},
+                               {<<"Organization Unit">>, <<"ORGUNIT">>}],
+      ldap_search_operator => 'and',
+      ldap_binary_search_fields => []};
 default_mod_config(mod_version) ->
     #{iqdisc => no_queue, os_info => false}.

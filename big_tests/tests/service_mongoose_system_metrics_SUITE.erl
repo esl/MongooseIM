@@ -162,7 +162,8 @@ init_per_testcase(xmpp_components_are_reported, Config) ->
     Config1;
 init_per_testcase(module_backend_is_reported, Config) ->
     create_events_collection(),
-    dynamic_modules:ensure_modules(host_type(), [{mod_vcard, []}]),
+    DefModVCardConfig = config_parser_helper:default_mod_config(mod_vcard),
+    dynamic_modules:ensure_modules(host_type(), [{mod_vcard, DefModVCardConfig}]),
     enable_system_metrics(mim()),
     Config;
 init_per_testcase(xmpp_stanzas_counts_are_reported = CN, Config) ->

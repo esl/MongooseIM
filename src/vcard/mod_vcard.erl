@@ -76,7 +76,6 @@
 -export([default_search_fields/0]).
 -export([get_results_limit/1]).
 -export([get_default_reported_fields/1]).
--export([default_host/0]).
 
 %% GDPR related
 -export([get_personal_data/3]).
@@ -84,7 +83,7 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    behaviour_info/1, process_packet/5,
+    process_packet/5,
     get_personal_data/3, remove_user/3, remove_domain/3, set_vcard/4, start_link/2
 ]).
 
@@ -128,20 +127,12 @@ default_search_fields() ->
 
 -spec get_results_limit(mongooseim:host_type()) -> non_neg_integer() | infinity.
 get_results_limit(HostType) ->
-    case gen_mod:get_module_opt(HostType, mod_vcard, matches, ?JUD_MATCHES) of
+    case gen_mod:get_module_opt(HostType, mod_vcard, matches) of
         infinity ->
             infinity;
         Val when is_integer(Val) and (Val > 0) ->
-            Val;
-        Val ->
-            ?LOG_ERROR(#{what => illegal_option_error, value => {matches, Val},
-                         default_value => ?JUD_MATCHES}),
-            ?JUD_MATCHES
+            Val
     end.
-
--spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
-default_host() ->
-    mongoose_subdomain_utils:make_subdomain_pattern(<<"vjud.@HOST@">>).
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
@@ -185,8 +176,7 @@ hooks2() ->
      {set_vcard, set_vcard, 50},
      {get_personal_data, get_personal_data, 50}].
 
-start_iq_handlers(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
+start_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_sm,
                                              fun ?MODULE:process_sm_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_VCARD, ejabberd_local,
@@ -203,7 +193,7 @@ stop_backend(HostType) ->
 maybe_register_search(false, _HostType, _Opts) ->
     ok;
 maybe_register_search(true, HostType, Opts) ->
-    SubdomainPattern = gen_mod:get_opt(host, Opts, default_host()),
+    SubdomainPattern = gen_mod:get_opt(host, Opts),
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{pid => self()}),
     %% Always register, even if search functionality is disabled.
     %% So, we can send 503 error, instead of 404 error.
@@ -212,7 +202,7 @@ maybe_register_search(true, HostType, Opts) ->
 maybe_unregister_search(false, _HostType) ->
     ok;
 maybe_unregister_search(true, HostType) ->
-    SubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()),
+    SubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern).
 
 %%--------------------------------------------------------------------
@@ -246,7 +236,22 @@ config_spec() ->
                  <<"ldap_binary_search_fields">> => #list{items = #option{type = binary,
                                                                           validate = non_empty}},
                  <<"riak">> => riak_config_spec()
-                }
+                },
+       defaults = #{<<"iqdisc">> => parallel,
+                    <<"host">> => mongoose_subdomain_utils:make_subdomain_pattern("vjud.@HOST@"),
+                    <<"search">> => true,
+                    <<"backend">> => mnesia,
+                    <<"matches">> => 30,
+                    <<"ldap_pool_tag">> => default,
+                    <<"ldap_uids">> => [{<<"uid">>, <<"%u">>}],
+                    <<"ldap_vcard_map">> => mod_vcard_ldap:default_vcard_map(),
+                    <<"ldap_search_fields">> => mod_vcard_ldap:default_search_fields(),
+                    <<"ldap_search_reported">> => mod_vcard_ldap:default_search_reported(),
+                    <<"ldap_search_operator">> => 'and',
+                    <<"ldap_binary_search_fields">> => []
+       },
+       format_items = map,
+       process = fun remove_unused_backend_opts/1
       }.
 
 ldap_vcard_map_spec() ->
@@ -291,7 +296,10 @@ riak_config_spec() ->
                   <<"search_index">> => #option{type = binary,
                                                 validate = non_empty}
                 },
-        wrap = none
+        include = always,
+        format_items = map,
+        defaults = #{<<"bucket_type">> => <<"vcard">>,
+                     <<"search_index">> => <<"vcard">>}
     }.
 
 process_map_spec(KVs) ->
@@ -308,6 +316,9 @@ process_search_reported_spec(KVs) ->
     {[[{search_field, SF}], [{vcard_field, VF}]], []} =
         proplists:split(KVs, [search_field, vcard_field]),
     {SF, VF}.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks for search
@@ -339,7 +350,7 @@ start_link(HostType, Opts) ->
 
 init([HostType, Opts]) ->
     process_flag(trap_exit, true),
-    Search = gen_mod:get_opt(search, Opts, true),
+    Search = gen_mod:get_opt(search, Opts),
     maybe_register_search(Search, HostType, Opts),
     {ok, #state{host_type = HostType, search = Search}}.
 
@@ -823,8 +834,7 @@ get_default_reported_fields(Lang) ->
                       ]}.
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).
 
 vcard_error(IQ = #iq{sub_el = VCARD}, ReasonEl) ->
     IQ#iq{type = error, sub_el = [VCARD, ReasonEl]}.
