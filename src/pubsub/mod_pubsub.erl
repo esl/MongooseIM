@@ -252,7 +252,7 @@ start_link(Host, Opts) ->
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 deps(_Host, _Opts) ->
-    [{mod_caps, optional}].
+    [{mod_caps, [], optional}].
 
 start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),

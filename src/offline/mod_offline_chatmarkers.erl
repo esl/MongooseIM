@@ -60,9 +60,9 @@
 supported_features() ->
     [dynamic_domains].
 
--spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod:deps_list().
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_,_)->
-    [{mod_smart_markers, hard}].
+    [{mod_smart_markers, [], hard}].
 
 start(HostType, Opts) ->
     mod_offline_chatmarkers_backend:init(HostType, add_default_backend(Opts)),

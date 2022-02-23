@@ -110,8 +110,7 @@ riak_config_spec() ->
        wrap = none
       }.
 
--spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) ->
-                  gen_mod:deps_list().
+-spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(_Host, Opts0) ->
     Opts = normalize(Opts0),
 

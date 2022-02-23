@@ -10,8 +10,8 @@
 -ignore_xref([replace_modules/3, ensure_stopped/2, ensure_started/3]).
 
 -type module_opts() :: gen_mod:module_opts().
--type module_map() :: #{module() => gen_mod:module_opts()}.
--type module_list() :: [{module(), gen_mod:module_opts()}].
+-type module_map() :: gen_mod_deps:module_map().
+-type module_list() :: gen_mod_deps:module_list().
 
 %% @doc Start all configured modules in the dependency order.
 -spec start() -> 'ok'.
