@@ -497,13 +497,8 @@ restart_listener(Spec, Listener) ->
     rpc(Spec, ejabberd_listener, start_listener, [Listener]).
 
 should_minio_be_running(Config) ->
-    case proplists:get_value(preset, Config, undefined) of
-        undefined -> false;
-        Preset ->
-            PresetAtom = list_to_existing_atom(Preset),
-            DBs = ct:get_config({presets, toml, PresetAtom, dbs}, []),
-            lists:member(minio, DBs)
-    end.
+    DBs = ct_helper:get_preset_var(Config, dbs, []),
+    lists:member(minio, DBs).
 
 %% It is useful to debug dynamic IQ handler registration
 print_debug_info_for_module(Module) ->
