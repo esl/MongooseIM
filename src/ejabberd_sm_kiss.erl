@@ -1,11 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @author Michal Ptaszek <michal.ptaszek@erlang-solutions.com>
-%%% @copyright (C) 2011, Erlang Solutions Ltd.
-%%% @doc Implementation of Mnesia-based session manager
-%%%
-%%% @end
-%%% Created : 17 Nov 2011 by Michal Ptaszek <michal.ptaszek@erlang-solutions.com>
-%%%-------------------------------------------------------------------
 -module(ejabberd_sm_kiss).
 
 -behavior(ejabberd_sm_backend).
