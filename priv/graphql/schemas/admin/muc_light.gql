@@ -3,7 +3,7 @@ Allow admin to manage Multi-User Chat Light rooms.
 """
 type MUCLightAdminMutation @protected{
   "Create a MUC light room under the given XMPP hostname"
-  createRoom(domain: String!, name: String!, owner: JID!, subject: String!, id: String): Room
+  createRoom(mucDomain: String!, name: String!, owner: JID!, subject: String!, id: String): Room
   "Change configuration of a MUC Light room"
   changeRoomConfiguration(room: JID!, owner: JID!, name: String!, subject: String!): Room
   "Invite a user to a MUC Light room"
@@ -30,11 +30,6 @@ type MUCLightAdminQuery @protected{
   listUserRooms(user: JID!): [JID!]
 }
 
-type RoomPayload{
-  message: String!
-  room: Room
-}
-
 type Room{
   jid: JID 
   name: String
@@ -44,5 +39,5 @@ type Room{
 
 type RoomUser{
   jid: JID
-  affiliance: String 
+  affiliation: Affiliation
 }

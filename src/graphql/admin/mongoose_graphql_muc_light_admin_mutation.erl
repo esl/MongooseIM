@@ -25,13 +25,13 @@ execute(_Ctx, _Obj, <<"sendMessageToRoom">>, Args) ->
 -spec create_room(map()) -> {ok, map()} | {error, resolver_error()}.
 create_room(#{<<"id">> := null} = Args) ->
     create_room(Args#{<<"id">> => <<>>});
-create_room(#{<<"id">> := RoomID, <<"domain">> := Domain, <<"name">> := RoomName,
+create_room(#{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
               <<"owner">> := CreatorJID, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(Domain, RoomID, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCDomain, RoomID, RoomName, CreatorJID, Subject) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{domain => Domain, roomID => RoomID, creator => CreatorJID})
+            make_error(Err, #{mucDomain => MUCDomain, id => RoomID, creator => CreatorJID})
     end.
 
 -spec change_room_config(map()) -> {ok, map()} | {error, resolver_error()}.
@@ -41,19 +41,20 @@ change_room_config(#{<<"room">> := RoomJID, <<"name">> := RoomName,
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
-            make_error(Err, #{room => RoomJID, owner => OwnerJID})
+            make_error(Err, #{room => jid:to_binary(RoomJID), owner => jid:to_binary(OwnerJID)})
     end.
 
 -spec delete_room(map()) -> {ok, binary()} | {error, resolver_error()}.
 delete_room(#{<<"room">> := RoomJID}) ->
     Result = mod_muc_light_api:delete_room(RoomJID),
-    format_result(Result, #{room => RoomJID}).
+    format_result(Result, #{room => jid:to_binary(RoomJID)}).
 
 -spec invite_user(map()) -> {ok, binary()} | {error, resolver_error()}.
 invite_user(#{<<"room">> := RoomJID, <<"sender">> := SenderJID,
               <<"recipient">> := RecipientJID}) ->
     Result = mod_muc_light_api:invite_to_room(RoomJID, SenderJID, RecipientJID),
-    format_result(Result, #{room => RoomJID, sender => SenderJID, recipient => RecipientJID}).
+    format_result(Result, #{room => jid:to_binary(RoomJID), sender => jid:to_binary(SenderJID),
+                            recipient => jid:to_binary(RecipientJID)}).
 
 -spec kick_user(map()) -> {ok, binary()} | {error, resolver_error()}.
 kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
@@ -63,4 +64,4 @@ kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
 -spec send_msg_to_room(map()) -> {ok, binary()} | {error, resolver_error()}.
 send_msg_to_room(#{<<"room">> := RoomJID, <<"from">> := FromJID, <<"body">> := Message}) ->
     Result = mod_muc_light_api:send_message(RoomJID, FromJID, Message),
-    format_result(Result, #{room => RoomJID, from => FromJID}).
+    format_result(Result, #{room => jid:to_binary(RoomJID), from => jid:to_binary(FromJID)}).

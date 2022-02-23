@@ -1,0 +1,5 @@
+enum Affiliation{
+  OWNER
+  MEMBER
+  NONE
+}

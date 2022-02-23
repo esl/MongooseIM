@@ -9,4 +9,4 @@ make_room(#{jid := JID, name := Name, subject := Subject, aff_users := Users}) -
       <<"participants">> => Participants}.
 
 make_ok_user({JID, Aff}) ->
-    {ok, #{<<"jid">> => JID, <<"affiliance">> => atom_to_binary(Aff)}}.
+    {ok, #{<<"jid">> => JID, <<"affiliation">> => Aff}}.
