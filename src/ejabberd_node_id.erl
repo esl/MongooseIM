@@ -1,19 +1,10 @@
-%%%-------------------------------------------------------------------
-%%% @author Uvarov Michael <arcusfelis@gmail.com>
-%%% @copyright (C) 2013, Uvarov Michael
 %%% @doc Allocates unique ids for each node.
-%%% @end
-%%%-------------------------------------------------------------------
 -module(ejabberd_node_id).
--export([start/0, node_id/0]).
+-export([start/0, node_id/0, node_id_to_name/1]).
 
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
-
-%%====================================================================
-%% API
-%%====================================================================
 
 -type nodeid() :: non_neg_integer().
 -record(node, {name :: atom(),
@@ -26,6 +17,7 @@ start() ->
              {type, set},
              {attributes, record_info(fields, node)}]),
     mnesia:add_table_copy(node, node(), ram_copies),
+    mnesia:add_table_index(node, id),
     register_node(node()),
     ok.
 
@@ -51,6 +43,14 @@ node_id() ->
             {ok, NodeId};
         NodeId ->
             {ok, NodeId}
+    end.
+
+node_id_to_name(ID) ->
+    case mnesia:dirty_index_read(node, ID, #node.id) of
+        [] ->
+            {error, unknown_id};
+        [#node{name = Name}] ->
+            {ok, Name}
     end.
 
 -spec next_node_id() -> nodeid().

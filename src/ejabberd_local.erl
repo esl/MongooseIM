@@ -44,18 +44,17 @@
          process_iq_reply/4,
          register_iq_handler/3,
          register_host/1,
-         register_iq_response_handler/4,
-         register_iq_response_handler/5,
          unregister_iq_handler/2,
          unregister_host/1,
-         unregister_iq_response_handler/2,
          sync/0
         ]).
 
+%% RPC callbacks
+-export([get_iq_callback/1]).
+
 %% Hooks callbacks
 
--export([node_cleanup/2,
-         disco_local_features/1]).
+-export([disco_local_features/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -63,12 +62,8 @@
 
 -export([do_route/4]).
 
-%% For testing only
--export([get_iq_callback/1]).
-
 -ignore_xref([disco_local_features/1, do_route/4, get_iq_callback/1,
-              node_cleanup/2, process_iq_reply/4, register_iq_response_handler/4,
-              register_iq_response_handler/5, start_link/0, unregister_iq_response_handler/2]).
+              process_iq_reply/4, start_link/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -77,13 +72,10 @@
 -record(state, {}).
 
 -type id() :: any().
--record(iq_response, {id :: id(),
-                      module,
-                      function,
-                      timer}).
 
 -define(IQTABLE, local_iqtable).
 -define(NSTABLE, local_nstable).
+-define(IQRESPONSE, local_iqresponse).
 
 %% This value is used in SIP and Megaco for a transaction lifetime.
 -define(IQ_TIMEOUT, 32000).
@@ -130,7 +122,7 @@ process_iq(_, Acc, From, To, El) ->
                        mongoose_acc:t(),
                        IQ :: jlib:iq() ) -> mongoose_acc:t().
 process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
-    case get_iq_callback(ID) of
+    case get_iq_callback_in_cluster(ID, Acc) of
         {ok, undefined, Function} ->
             Function(From, To, Acc, IQ);
         {ok, Module, Function} ->
@@ -139,6 +131,29 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
             Acc
     end.
 
+get_iq_callback_in_cluster(ID, Acc) ->
+    {ok, NodeId} = ejabberd_node_id:node_id(),
+    BinNodeId = integer_to_binary(NodeId),
+    case binary:split(ID, <<"_">>, []) of
+        [BinNodeId, _Rest] ->
+            get_iq_callback(ID);
+        [OtherBinNodeId, _Rest] ->
+            OtherNodeId = binary_to_integer(OtherBinNodeId),
+            case ejabberd_node_id:node_id_to_name(OtherNodeId) of
+                {ok, Name} ->
+                    rpc:call(Name, ?MODULE, get_iq_callback, [ID]);
+                {error, Reason} ->
+                    ?LOG_ERROR(#{what => process_iq_reply_failed,
+                                 text => <<"Unknown node_id">>,
+                                 reason => Reason, acc => Acc}),
+                    {error, unknown_node_id}
+            end;
+        _ ->
+            ?LOG_ERROR(#{what => process_iq_reply_failed,
+                         text => <<"Bad IQ ID format">>,
+                         acc => Acc}),
+            {error, bad_iq_format}
+    end.
 
 -spec process_packet(Acc :: mongoose_acc:t(),
                      From :: jid:jid(),
@@ -163,6 +178,7 @@ route_iq(From, To, Acc, IQ, F) ->
     route_iq(From, To, Acc, IQ, F, undefined).
 
 
+%% Send an iq and wait for response
 -spec route_iq(From :: jid:jid(),
                To :: jid:jid(),
                Acc :: mongoose_acc:t(),
@@ -172,7 +188,10 @@ route_iq(From, To, Acc, IQ, F) ->
 route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = case Type == set orelse Type == get of
                 true ->
-                     ID = mongoose_bin:gen_from_crypto(),
+                     %% Attach NodeId, so we know to which node to forward the response
+                     {ok, NodeId} = ejabberd_node_id:node_id(),
+                     ID = <<(integer_to_binary(NodeId))/binary, "_",
+                             (mongoose_bin:gen_from_crypto())/binary>>,
                      Host = From#jid.lserver,
                      register_iq_response_handler(Host, ID, undefined, F, Timeout),
                      jlib:iq_to_xml(IQ#iq{id = ID});
@@ -180,9 +199,6 @@ route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) -
                      jlib:iq_to_xml(IQ)
              end,
     ejabberd_router:route(From, To, Acc, Packet).
-
-register_iq_response_handler(Host, ID, Module, Function) ->
-    register_iq_response_handler(Host, ID, Module, Function, undefined).
 
 -spec register_iq_response_handler(_Host :: jid:server(),
                                ID :: id(),
@@ -197,10 +213,7 @@ register_iq_response_handler(_Host, ID, Module, Function, Timeout0) ->
                       N
               end,
     TRef = erlang:start_timer(Timeout, ejabberd_local, ID),
-    mnesia:dirty_write(#iq_response{id = ID,
-                                    module = Module,
-                                    function = Function,
-                                    timer = TRef}).
+    ets:insert(?IQRESPONSE, {ID, Module, Function, TRef}).
 
 -spec register_iq_handler(Domain :: jid:server(), Namespace :: binary(),
                           IQHandler :: mongoose_iq_handler:t()) -> ok.
@@ -211,12 +224,6 @@ register_iq_handler(Domain, XMLNS, IQHandler) ->
 -spec sync() -> ok.
 sync() ->
     gen_server:call(ejabberd_local, sync).
-
--spec unregister_iq_response_handler(_Host :: jid:server(),
-                                     ID :: id()) -> 'ok'.
-unregister_iq_response_handler(_Host, ID) ->
-    catch get_iq_callback(ID),
-    ok.
 
 -spec unregister_iq_handler(Domain :: jid:server(), Namespace :: binary()) -> ok.
 unregister_iq_handler(Domain, XMLNS) ->
@@ -248,24 +255,6 @@ disco_local_features(Acc) ->
     Acc.
 
 %%====================================================================
-%% API
-%%====================================================================
-
-node_cleanup(Acc, Node) ->
-    F = fun() ->
-                Keys = mnesia:select(
-                         iq_response,
-                         [{#iq_response{timer = '$1', id = '$2', _ = '_'},
-                           [{'==', {node, '$1'}, Node}],
-                           ['$2']}]),
-                lists:foreach(fun(Key) ->
-                                      mnesia:delete({iq_response, Key})
-                              end, Keys)
-        end,
-    Res = mnesia:async_dirty(F),
-    maps:put(?MODULE, Res, Acc).
-
-%%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
@@ -279,11 +268,7 @@ node_cleanup(Acc, Node) ->
 init([]) ->
     catch ets:new(?IQTABLE, [named_table, protected, {read_concurrency, true}]),
     catch ets:new(?NSTABLE, [named_table, bag, protected, {read_concurrency, true}]),
-    update_table(),
-    mnesia:create_table(iq_response,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, iq_response)}]),
-    mnesia:add_table_copy(iq_response, node(), ram_copies),
+    catch ets:new(?IQRESPONSE, [named_table, public]),
     ejabberd_hooks:add(hooks()),
     {ok, #state{}}.
 
@@ -328,7 +313,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({route, Acc, From, To, El}, State) ->
-    process_packet(Acc, From, To, El, #{}),
+    spawn(fun() -> process_packet(Acc, From, To, El, #{}) end),
     {noreply, State};
 handle_info({register_iq_handler, Host, XMLNS, IQHandler}, State) ->
     ets:insert(?NSTABLE, {Host, XMLNS}),
@@ -372,9 +357,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 hooks() ->
-    [{node_cleanup, global, ?MODULE, node_cleanup, 50} |
-     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99} ||
-         HostType <- ?ALL_HOST_TYPES]].
+    [{disco_local_features, HostType, ?MODULE, disco_local_features, 99}
+     || HostType <- ?ALL_HOST_TYPES].
 
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
@@ -411,24 +395,12 @@ directed_to(<<>>, _) ->
 directed_to(_, _) ->
     user.
 
--spec update_table() -> ok | {atomic|aborted, _}.
-update_table() ->
-    case catch mnesia:table_info(iq_response, attributes) of
-        [id, module, function] ->
-            mnesia:delete_table(iq_response);
-        [id, module, function, timer] ->
-            ok;
-        {'EXIT', _} ->
-            ok
-    end.
-
 -spec get_iq_callback(ID :: id()) -> 'error' | {'ok', Mod :: atom(), fun() | atom()}.
 get_iq_callback(ID) ->
-    case mnesia:dirty_read(iq_response, ID) of
-        [#iq_response{module = Module, timer = TRef,
-                      function = Function}] ->
+    case ets:lookup(?IQRESPONSE, ID) of
+        [{ID, Module, Function, TRef}] ->
             cancel_timer(TRef),
-            mnesia:dirty_delete(iq_response, ID),
+            ets:delete(?IQRESPONSE, ID),
             {ok, Module, Function};
         _ ->
             error
