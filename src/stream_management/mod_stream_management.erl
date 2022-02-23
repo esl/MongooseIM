@@ -21,27 +21,24 @@
          get_buffer_max/2,
          get_ack_freq/2,
          get_resume_timeout/2,
-         register_smid/2]).
+         register_smid/3]).
 
 %% API for inspection and tests
--export([get_sid/1,
+-export([get_sid/2,
          get_stale_h/2,
          register_stale_smid_h/3,
          remove_stale_smid_h/2]).
 
--ignore_xref([c2s_stream_features/3, get_sid/1, get_stale_h/2, remove_smid/5,
+-ignore_xref([c2s_stream_features/3, get_sid/2, get_stale_h/2, remove_smid/5,
               register_stale_smid_h/3, remove_stale_smid_h/2, session_cleanup/5]).
 
 -type smid() :: base64:ascii_binary().
 
+-export_type([smid/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_config_spec.hrl").
-
--record(sm_session,
-        {smid :: smid(),
-         sid :: ejabberd_sm:sid()
-        }).
 
 -type buffer_max() :: pos_integer() | infinity | no_buffer.
 -type ack_freq() :: pos_integer() | never.
@@ -50,13 +47,9 @@
 %%
 
 start(HostType, Opts) ->
+    mod_stream_management_backend:init(HostType, Opts),
     ?LOG_INFO(#{what => stream_management_starting}),
     ejabberd_hooks:add(hooks(HostType)),
-    mnesia:create_table(sm_session, [{ram_copies, [node()]},
-                                     {attributes, record_info(fields, sm_session)}]),
-    mnesia:add_table_index(sm_session, sid),
-    mnesia:add_table_copy(sm_session, node(), ram_copies),
-    stream_management_stale_h:maybe_start(Opts),
     ok.
 
 stop(HostType) ->
@@ -72,7 +65,8 @@ hooks(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-        items = #{<<"buffer">> => #option{type = boolean},
+        items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
+                  <<"buffer">> => #option{type = boolean},
                   <<"buffer_max">> => #option{type = int_or_infinity,
                                               validate = positive},
                   <<"ack">> => #option{type = boolean},
@@ -148,15 +142,12 @@ session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     mongoose_acc:t().
 do_remove_smid(Acc, HostType, SID) ->
     H = mongoose_acc:get(stream_mgmt, h, undefined, Acc),
-    MaybeSMID = case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
-        [] -> {error, smid_not_found};
-        [#sm_session{smid = SMID}] ->
-            mnesia:dirty_delete(sm_session, SMID),
-            case H of
-                undefined -> ok;
-                _ -> register_stale_smid_h(HostType, SMID, H)
-            end,
-            {ok, SMID}
+    MaybeSMID = unregister_smid(HostType, SID),
+    case MaybeSMID of
+        {ok, SMID} when H =/= undefined ->
+            register_stale_smid_h(HostType, SMID, H);
+        _ ->
+            ok
     end,
     mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
@@ -172,26 +163,17 @@ make_smid() ->
 -spec get_session_from_smid(mongooseim:host_type(), smid()) ->
     {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_session_from_smid(HostType, SMID) ->
-    case get_sid(SMID) of
+    case get_sid(HostType, SMID) of
         {sid, SID} -> {sid, SID};
         {error, smid_not_found} -> get_stale_h(HostType, SMID)
-    end.
-
--spec get_sid(smid()) ->
-    {sid, ejabberd_sm:sid()} | {error, smid_not_found}.
-get_sid(SMID) ->
-    case mnesia:dirty_read(sm_session, SMID) of
-        [#sm_session{sid = SID}] -> {sid, SID};
-        [] -> {error, smid_not_found}
     end.
 
 -spec get_stale_h(mongooseim:host_type(), SMID :: smid()) ->
     {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_stale_h(HostType, SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> {error, smid_not_found};
-        true -> stream_management_stale_h:read_stale_h(SMID)
+        true -> read_stale_h(HostType, SMID)
     end.
 
 -spec get_buffer_max(mongooseim:host_type(), buffer_max()) -> buffer_max().
@@ -206,26 +188,61 @@ get_ack_freq(HostType, Default) ->
 get_resume_timeout(HostType, Default) ->
     gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout, Default).
 
-%% Setters
-register_smid(SMID, SID) ->
-    try
-        mnesia:sync_dirty(fun mnesia:write/1,
-                          [#sm_session{smid = SMID, sid = SID}]),
-        ok
-    catch exit:Reason ->
-              {error, Reason}
-    end.
 
 register_stale_smid_h(HostType, SMID, H) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> ok;
-        true -> stream_management_stale_h:write_stale_h(SMID, H)
+        true -> write_stale_h(HostType, SMID, H)
     end.
 
 remove_stale_smid_h(HostType, SMID) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    case proplists:get_value(enabled, MaybeModOpts, false) of
+    case is_stale_h_enabled(HostType) of
         false -> ok;
-        true -> stream_management_stale_h:delete_stale_h(SMID)
+        true -> delete_stale_h(HostType, SMID)
     end.
+
+is_stale_h_enabled(HostType) ->
+    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
+    proplists:get_value(enabled, MaybeModOpts, false).
+
+%% Backend operations
+
+-spec register_smid(HostType, SMID, SID) ->
+    ok | {error, term()} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid(),
+    SID :: ejabberd_sm:sid().
+register_smid(HostType, SMID, SID) ->
+    mod_stream_management_backend:register_smid(HostType, SMID, SID).
+
+-spec unregister_smid(mongooseim:host_type(), ejabberd_sm:sid()) ->
+    {ok, SMID :: mod_stream_management:smid()} | {error, smid_not_found}.
+unregister_smid(HostType, SID) ->
+    mod_stream_management_backend:unregister_smid(HostType, SID).
+
+-spec get_sid(mongooseim:host_type(), mod_stream_management:smid()) ->
+    {sid, ejabberd_sm:sid()} | {error, smid_not_found}.
+get_sid(HostType, SMID) ->
+    mod_stream_management_backend:get_sid(HostType, SMID).
+
+%% stale_h
+
+-spec write_stale_h(HostType, SMID, H) -> ok | {error, any()} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid(),
+    H :: non_neg_integer().
+write_stale_h(HostType, SMID, H) ->
+    mod_stream_management_backend:write_stale_h(HostType, SMID, H).
+
+-spec delete_stale_h(HostType, SMID) -> ok | {error, any()} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid().
+delete_stale_h(HostType, SMID) ->
+    mod_stream_management_backend:delete_stale_h(HostType, SMID).
+
+-spec read_stale_h(HostType, SMID) ->
+    {stale_h, non_neg_integer()} | {error, smid_not_found} when
+    HostType :: mongooseim:host_type(),
+    SMID :: mod_stream_management:smid().
+read_stale_h(HostType, SMID) ->
+    mod_stream_management_backend:read_stale_h(HostType, SMID).

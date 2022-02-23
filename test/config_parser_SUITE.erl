@@ -2900,12 +2900,15 @@ mod_stream_management(_Config) ->
     ?cfgh(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
     ?cfgh(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
     ?cfgh(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
+    ?cfgh(M([{backend, mnesia}]),
+          T(#{<<"backend">> => <<"mnesia">>})),
 
     ?errh(T(#{<<"buffer">> => 0})),
     ?errh(T(#{<<"buffer_max">> => -1})),
     ?errh(T(#{<<"ack">> => <<"false">>})),
     ?errh(T(#{<<"ack_freq">> => 0})),
-    ?errh(T(#{<<"resume_timeout">> => true})).
+    ?errh(T(#{<<"resume_timeout">> => true})),
+    ?errh(T(#{<<"backend">> => <<"iloveyou">>})).
 
 mod_stream_management_stale_h(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>

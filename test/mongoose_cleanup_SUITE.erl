@@ -124,10 +124,10 @@ stream_management(_Config) ->
     {U, S, R, _JID, SID} = get_fake_session(),
     mod_stream_management:start(HostType, []),
     SMID = <<"123">>,
-    mod_stream_management:register_smid(SMID, SID),
-    {sid, SID} = mod_stream_management:get_sid(SMID),
+    mod_stream_management:register_smid(HostType, SMID, SID),
+    {sid, SID} = mod_stream_management:get_sid(HostType, SMID),
     mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
-    {error, smid_not_found} = mod_stream_management:get_sid(SMID).
+    {error, smid_not_found} = mod_stream_management:get_sid(HostType, SMID).
 
 local(_Config) ->
     ejabberd_local:start_link(),

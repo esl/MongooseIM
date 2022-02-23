@@ -2798,13 +2798,13 @@ maybe_enable_stream_mgmt(NextState, El, StateData = #state{host_type = HostType}
             c2s_stream_error(mongoose_xmpp_errors:invalid_namespace(), StateData)
     end.
 
-enable_stream_resumption(SD) ->
+enable_stream_resumption(SD = #state{host_type = HostType}) ->
     SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
               undefined -> ejabberd_sm:make_new_sid();
               RSID -> RSID
           end,
-    ok = mod_stream_management:register_smid(SMID, SID),
+    ok = mod_stream_management:register_smid(HostType, SMID, SID),
     {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
 
@@ -3105,7 +3105,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
                          auth_module => NSD#state.auth_module },
                 ejabberd_sm:open_session(NSD#state.host_type, SID, NSD#state.jid, Priority, Info),
-                ok = mod_stream_management:register_smid(SMID, SID),
+                ok = mod_stream_management:register_smid(NSD#state.host_type, SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
                                                   NSD#state.stream_mgmt_in),
