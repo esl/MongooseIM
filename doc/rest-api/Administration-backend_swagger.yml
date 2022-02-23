@@ -391,7 +391,7 @@ paths:
       responses:
         204:
           description: "The operation was successful."
-  /muc-lights/{XMPPHost}:
+  /muc-lights/{XMPPMUCHost}:
     parameters:
       - $ref: '#/parameters/hostName'
     post:
@@ -472,7 +472,7 @@ paths:
           schema:
             title: roomJID
             type: string
-  /muc-lights/{XMPPHost}/{roomName}/participants:
+  /muc-lights/{XMPPMUCHost}/{roomName}/participants:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
@@ -504,7 +504,7 @@ paths:
       responses:
         204:
           description: An invite was sent out
-  /muc-lights/{XMPPHost}/{roomName}/messages:
+  /muc-lights/{XMPPMUCHost}/{roomName}/messages:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
@@ -536,7 +536,7 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
-  /muc-lights/{XMPPHost}/{roomName}/{user}/management:
+  /muc-lights/{XMPPMUCHost}/{roomName}/{user}/management:
     parameters:
       - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
