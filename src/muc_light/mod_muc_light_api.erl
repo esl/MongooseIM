@@ -214,8 +214,8 @@ get_room_messages(RoomJID, PageSize, Before) ->
                         integer() | undefined, mod_mam:unix_timestamp() | undefined) ->
     {ok, list()} | {muc_server_not_found | internal, iolist()}.
 get_room_messages(HostType, RoomJID, CallerJID, PageSize, Before) ->
-    Now = os:system_time(microsecond),
     ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
+    Now = os:system_time(microsecond),
     End = maybe_before(Before, Now),
     RSM = #rsm_in{direction = before, id = undefined},
     Params = #{archive_id => ArchiveID,
