@@ -78,6 +78,7 @@
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.
+{suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_SUITE}.
