@@ -2,7 +2,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -compile([export_all, nowarn_export_all]).
@@ -73,7 +72,7 @@ user_list_resources(Config) ->
 
 user_list_resources_story(Config, Alice, Alice2) ->
     Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(Alice),
+    Creds = graphql_helper:make_creds(Alice),
 
     Query = <<"query{ session { listResources } }">>,
     Result = execute(Ep, #{query => Query}, Creds),
@@ -87,7 +86,7 @@ user_count_resources(Config) ->
 
 user_count_resources_story(Config, Alice, _Alice2, _Alice3) ->
     Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(Alice),
+    Creds = graphql_helper:make_creds(Alice),
 
     Query = <<"query{ session { countResources } }">>,
     Result = execute(Ep, #{query => Query}, Creds),
@@ -100,7 +99,7 @@ user_sessions_info(Config) ->
 
 user_sessions_info_story(Config, Alice) ->
     Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(Alice),
+    Creds = graphql_helper:make_creds(Alice),
 
     Query = <<"query{ session { listSessions { user } } }">>,
     Result = execute(Ep, #{query => Query}, Creds),
@@ -309,11 +308,6 @@ admin_set_presence_unavailable_story(Config, Alice, Alice2) ->
 -spec users_match([jid:literal_jid()], [#{user := jid:literal_jid()}]) -> boolean().
 users_match(Expected, Actual) ->
     lists:all(fun(#{<<"user">> := JID}) -> lists:member(JID, Expected) end, Actual).
-
-make_creds(#client{props = Props} = Client) ->
-    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
-    Password = proplists:get_value(password, Props),
-    {JID, Password}.
 
 %% Request bodies
 

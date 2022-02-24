@@ -11,4 +11,6 @@ execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
 execute(_Ctx, _Obj, <<"session">>, _Args) ->
     {ok, session};
 execute(_Ctx, _Obj, <<"checkAuth">>, _Args) ->
-    {ok, user}.
+    {ok, user};
+execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
+    {ok, stanza}.

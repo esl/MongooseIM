@@ -144,6 +144,8 @@ user_mapping_rules() ->
         'MUCLightUserMutation' => mongoose_graphql_muc_light_user_mutation,
         'MUCLightUserQuery' => mongoose_graphql_muc_light_user_query,
         'SessionUserQuery' => mongoose_graphql_session_user_query,
+        'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
+        'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},

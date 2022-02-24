@@ -1,6 +1,7 @@
 -module(graphql_helper).
 
 -import(distributed_helper, [mim/0, rpc/4]).
+-include_lib("escalus/include/escalus.hrl").
 
 -export([execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
 -export([init_admin_handler/1]).
