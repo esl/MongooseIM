@@ -420,7 +420,7 @@ search_group_info(State, Group) ->
                 end,
     AuthChecker = case State#state.auth_check of
                       true -> fun ejabberd_auth:does_user_exist/1;
-                      _ -> fun (_U, _S) -> true end
+                      false -> fun (_JID) -> true end
                   end,
     Host = State#state.host,
     case eldap_search(State,
