@@ -687,7 +687,7 @@ CREATE TABLE muc_registered(
 -- but here we are limited by index size (900 bytes)
 CREATE TABLE smart_markers (
     lserver NVARCHAR(100) NOT NULL,
-    from_luser NVARCHAR(150) NOT NULL,
+    luser NVARCHAR(150) NOT NULL,
     to_jid NVARCHAR(250) NOT NULL,
     thread NVARCHAR(80) NOT NULL,
     -- chat marker types:
@@ -699,7 +699,7 @@ CREATE TABLE smart_markers (
     timestamp BIGINT NOT NULL,
     CONSTRAINT pk_smart_markers PRIMARY KEY CLUSTERED(
             lserver ASC,
-            from_luser ASC,
+            luser ASC,
             to_jid ASC,
             thread ASC,
             type ASC

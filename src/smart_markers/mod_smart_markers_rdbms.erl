@@ -18,24 +18,24 @@
 %%--------------------------------------------------------------------
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, _) ->
-    KeyFields = [<<"lserver">>, <<"from_luser">>, <<"to_jid">>, <<"thread">>, <<"type">>],
+    KeyFields = [<<"lserver">>, <<"luser">>, <<"to_jid">>, <<"thread">>, <<"type">>],
     UpdateFields = [<<"msg_id">>, <<"timestamp">>],
     InsertFields = KeyFields ++ UpdateFields,
     rdbms_queries:prepare_upsert(HostType, smart_markers_upsert, smart_markers,
                                  InsertFields, UpdateFields, KeyFields),
     mongoose_rdbms:prepare(smart_markers_select, smart_markers,
         [to_jid, thread, timestamp],
-        <<"SELECT lserver, from_luser, type, msg_id, timestamp FROM smart_markers "
+        <<"SELECT lserver, luser, type, msg_id, timestamp FROM smart_markers "
           "WHERE to_jid = ? AND thread = ? AND timestamp >= ?">>),
     mongoose_rdbms:prepare(markers_remove_domain, smart_markers,
         [lserver], <<"DELETE FROM smart_markers WHERE lserver=?">>),
     mongoose_rdbms:prepare(markers_remove_user, smart_markers,
-        [lserver, from_luser], <<"DELETE FROM smart_markers WHERE lserver=? AND from_luser=?">>),
+        [lserver, luser], <<"DELETE FROM smart_markers WHERE lserver=? AND luser=?">>),
     mongoose_rdbms:prepare(markers_remove_to, smart_markers,
         [to_jid], <<"DELETE FROM smart_markers WHERE to_jid=?">>),
     mongoose_rdbms:prepare(markers_remove_to_for_user, smart_markers,
-        [lserver, from_luser, to_jid],
-        <<"DELETE FROM smart_markers WHERE lserver=? AND from_luser=? AND to_jid=?">>),
+        [lserver, luser, to_jid],
+        <<"DELETE FROM smart_markers WHERE lserver=? AND luser=? AND to_jid=?">>),
     ok.
 
 %%% @doc
