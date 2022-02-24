@@ -9,6 +9,7 @@
 -ignore_xref([format_error/1, err/2, crash/2]).
 
 -include("mongoose_graphql_types.hrl").
+-include("mongoose_logger.hrl").
 
 -type err_msg() :: #{message := binary(), extensions => map(), path => list()}.
 
@@ -40,7 +41,8 @@ err(_Ctx, ErrorTerm) ->
 
 %% callback invoked when resolver crashes
 -spec crash(map(), term()) -> err_msg().
-crash(_Ctx, #{type := Type}) ->
+crash(_Ctx, Err = #{type := Type}) ->
+    ?LOG_ERROR(Err#{what => graphql_crash}),
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
 
