@@ -179,7 +179,7 @@ run_test(Test, PresetsToRun, CoverOpts) ->
                                             end, Presets)
                        end,
             Length = length(Presets1),
-            Names = preset_names(Presets),
+            Names = preset_names(Presets1),
             error_logger:info_msg("Starting test of ~p configurations: ~n~p~n",
                                   [Length, Names]),
             Zip = lists:zip(lists:seq(1, Length), Presets1),
