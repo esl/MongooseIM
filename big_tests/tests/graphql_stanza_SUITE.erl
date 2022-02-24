@@ -36,7 +36,8 @@ admin_stanza_category() ->
      admin_get_last_messages_before].
 
 user_stanza_caregory() ->
-    [user_send_message].
+    [user_send_message,
+     user_send_message_without_from].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -104,7 +105,22 @@ user_send_message_story(Config, Alice, Bob) ->
     Res = ok_result(<<"stanza">>, <<"sendMessage">>,
                     execute_user_send_message(Alice, Vars, Config)),
     #{<<"id">> := MamID} = Res,
-    assert_not_empty(MamID).
+    assert_not_empty(MamID),
+    escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+
+user_send_message_without_from(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_message_without_from_story/3).
+
+user_send_message_without_from_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Vars = #{to => escalus_client:short_jid(Bob),
+             body => Body},
+    Res = ok_result(<<"stanza">>, <<"sendMessage">>,
+                    execute_user_send_message(Alice, Vars, Config)),
+    #{<<"id">> := MamID} = Res,
+    assert_not_empty(MamID),
+    escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
 
 admin_send_message_to_unparsable_jid(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],

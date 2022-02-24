@@ -83,9 +83,9 @@ cdata_elem(Name, Text) when is_binary(Name), is_binary(Text) ->
 compare_bare_jids(#jid{luser = U, lserver = S}, #jid{luser = U, lserver = S}) -> true;
 compare_bare_jids(_, _) -> false.
 
-with_from(Ctx = #{user := User}, Opts, Next) ->
-    case maps:get(<<"from">>, Opts, false) of
-        false ->
+with_from(_Ctx = #{user := User}, Opts, Next) ->
+    case maps:get(<<"from">>, Opts, null) of
+        null ->
             Next(Opts#{<<"from">> => User});
         From ->
             case compare_bare_jids(User, From) of
@@ -93,6 +93,8 @@ with_from(Ctx = #{user := User}, Opts, Next) ->
                     %% We still can allow a custom resource
                     Next(Opts#{<<"from">> => From});
                 false ->
+                    ?LOG_ERROR(#{what => bad_from_jid,
+                                 user_jid => User, from_jid => From}),
                     {error, bad_from_jid}
             end
     end.
