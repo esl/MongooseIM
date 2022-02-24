@@ -503,14 +503,15 @@ all_modules() ->
                               modules => [mod_muc, mod_disco]}]}),
       mod_last => #{backend => mnesia, iqdisc => {queues, 10}},
       mod_shared_roster_ldap =>
-          [{ldap_base, "ou=Users,dc=ejd,dc=com"},
-           {ldap_filter, "(objectClass=inetOrgPerson)"},
-           {ldap_group_cache_validity, 1},
-           {ldap_groupattr, "ou"},
-           {ldap_memberattr, "cn"},
-           {ldap_rfilter, "(objectClass=inetOrgPerson)"},
-           {ldap_user_cache_validity, 1},
-           {ldap_userdesc, "cn"}],
+          mod_config(mod_shared_roster_ldap,
+                     #{base => <<"ou=Users,dc=ejd,dc=com">>,
+                       filter => <<"(objectClass=inetOrgPerson)">>,
+                       group_cache_validity => 1,
+                       groupattr => "ou",
+                       memberattr => "cn",
+                       rfilter => "(objectClass=inetOrgPerson)",
+                       user_cache_validity => 1,
+                       userdesc => "cn"}),
       mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
           [{listen_port, 5600},
@@ -850,6 +851,8 @@ default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_shared_roster_ldap) ->
+    #{pool_tag => default, deref => never, filter => <<"">>};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_time) ->

@@ -23,7 +23,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--import(domain_helper, [domain/0]).
+-import(domain_helper, [host_type/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -47,7 +47,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config0) ->
-    Config = dynamic_modules:save_modules(domain(), Config0),
+    Config = dynamic_modules:save_modules(host_type(), Config0),
     case get_auth_method() of
         ldap ->
             start_roster_module(ldap),
@@ -141,29 +141,29 @@ add_user(Config) ->
 %%--------------------------------------------------------------------
 
 start_roster_module(ldap) ->
-    dynamic_modules:ensure_modules(domain(), [{mod_shared_roster_ldap, get_ldap_args()}]);
+    dynamic_modules:ensure_modules(host_type(), [{mod_shared_roster_ldap, get_ldap_opts()}]);
 start_roster_module(_) ->
     ok.
 
 get_auth_method() ->
-    XMPPDomain = domain(),
-    case rpc(mim(), mongoose_config, get_opt, [[{auth, XMPPDomain}, methods], []]) of
+    HT = host_type(),
+    case rpc(mim(), mongoose_config, get_opt, [[{auth, HT}, methods], []]) of
         [Method|_] ->
             Method;
         _ ->
             none
     end.
 
-get_ldap_args() ->
-    [
-     {ldap_base, "ou=Users,dc=esl,dc=com"},
-     {ldap_groupattr, "ou"},
-     {ldap_memberattr, "cn"},{ldap_userdesc, "cn"},
-     {ldap_filter, "(objectClass=inetOrgPerson)"},
-     {ldap_rfilter, "(objectClass=inetOrgPerson)"},
-     {ldap_group_cache_validity, 1},
-     {ldap_user_cache_validity, 1}
-    ].
+get_ldap_opts() ->
+    Opts = #{base => <<"ou=Users,dc=esl,dc=com">>,
+             groupattr => "ou",
+             memberattr => "cn",
+             userdesc => "cn",
+             filter => <<"(objectClass=inetOrgPerson)">>,
+             rfilter => "(objectClass=inetOrgPerson)",
+             group_cache_validity => 1,
+             user_cache_validity => 1},
+    maps:merge(config_parser_helper:default_mod_config(mod_shared_roster_ldap), Opts).
 
 no_stanzas(Users) ->
     lists:foreach(fun escalus_assert:has_no_stanzas/1, Users).

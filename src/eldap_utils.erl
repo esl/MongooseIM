@@ -222,7 +222,7 @@ uids_domain_subst(Host, UIDs) ->
               UIDs).
 
 
--spec get_mod_opt(atom(), list(), fun(), any()) -> any().
+-spec get_mod_opt(atom(), gen_mod:module_opts(), fun(), any()) -> any().
 get_mod_opt(Key, Opts, F, Default) ->
     case gen_mod:get_opt(Key, Opts, Default) of
         Default ->

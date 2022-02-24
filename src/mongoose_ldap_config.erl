@@ -1,7 +1,8 @@
 -module(mongoose_ldap_config).
 
 %% Config spec
--export([uids/0,
+-export([spec/0,
+         uids/0,
          dn_filter/0,
          local_filter/0]).
 
@@ -11,6 +12,20 @@
          process_local_filter/1]).
 
 -include("mongoose_config_spec.hrl").
+
+spec() ->
+    #section{
+        items = #{<<"pool_tag">> => #option{type = atom,
+                                            validate = pool_name},
+                  <<"base">> => #option{type = binary},
+                  <<"deref">> => #option{type = atom,
+                                         validate = {enum, [never, always, finding, searching]}},
+                  <<"filter">> => #option{type = binary}},
+        defaults = #{<<"pool_tag">> => default,
+                     <<"deref">> => never,
+                     <<"filter">> => <<"">>},
+        format_items = map
+    }.
 
 uids() ->
     #section{

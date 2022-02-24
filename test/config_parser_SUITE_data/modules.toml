@@ -248,14 +248,14 @@
   store_current_id = true
 
 [modules.mod_shared_roster_ldap]
-  ldap_base = "ou=Users,dc=ejd,dc=com"
-  ldap_groupattr = "ou"
-  ldap_memberattr = "cn"
-  ldap_userdesc = "cn"
-  ldap_filter = "(objectClass=inetOrgPerson)"
-  ldap_rfilter = "(objectClass=inetOrgPerson)"
-  ldap_group_cache_validity = 1
-  ldap_user_cache_validity = 1
+  base = "ou=Users,dc=ejd,dc=com"
+  groupattr = "ou"
+  memberattr = "cn"
+  userdesc = "cn"
+  filter = "(objectClass=inetOrgPerson)"
+  rfilter = "(objectClass=inetOrgPerson)"
+  group_cache_validity = 1
+  user_cache_validity = 1
 
 [modules.mod_stream_management]
   buffer_max = 30
