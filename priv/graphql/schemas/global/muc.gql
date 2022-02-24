@@ -3,3 +3,15 @@ enum Affiliation{
   MEMBER
   NONE
 }
+
+type Room{
+  jid: JID!
+  name: String!
+  subject: String!
+  participants: [RoomUser!]!
+}
+
+type RoomUser{
+  jid: JID!
+  affiliation: Affiliation!
+}

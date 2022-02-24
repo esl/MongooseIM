@@ -29,15 +29,3 @@ type MUCLightAdminQuery @protected{
   "Get the list of MUC Light rooms that the user participates in"
   listUserRooms(user: JID!): [JID!]
 }
-
-type Room{
-  jid: JID!
-  name: String!
-  subject: String!
-  participants: [RoomUser!]!
-}
-
-type RoomUser{
-  jid: JID!
-  affiliation: Affiliation!
-}
