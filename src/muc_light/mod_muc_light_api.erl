@@ -10,9 +10,13 @@
          delete_room/2,
          delete_room/1,
          get_room_messages/3,
+         get_room_messages/4,
+         get_room_messages/5,
          get_user_rooms/1,
          get_room_info/1,
-         get_room_aff/1
+         get_room_info/2,
+         get_room_aff/1,
+         get_room_aff/2
         ]).
 
 -include("mod_muc_light.hrl").
@@ -179,6 +183,21 @@ delete_room(RoomJID) ->
         error:{muc_host_to_host_type_failed, _, _} ->
             ?MUC_SERVER_NOT_FOUND_RESULT
     end.
+-spec get_room_messages(jid:jid(), jid:jid(), integer() | undefined,
+                        mod_mam:unix_timestamp() | undefined) ->
+    {ok, list()} | {muc_server_not_found | internal | not_room_member, iolist()}.
+get_room_messages(RoomJID, UserJID, PageSize, Before) ->
+    case mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver) of
+        {ok, HostType} ->
+            case is_user_room_member(HostType, jid:to_lus(UserJID), jid:to_lus(RoomJID)) of
+                true ->
+                    get_room_messages(HostType, RoomJID, UserJID, PageSize, Before);
+                false ->
+                    ?USER_NOT_ROOM_MEMBER_RESULT
+            end;
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
 
 -spec get_room_messages(jid:jid(), integer() | undefined,
                         mod_mam:unix_timestamp() | undefined) ->
@@ -186,34 +205,53 @@ delete_room(RoomJID) ->
 get_room_messages(RoomJID, PageSize, Before) ->
     case mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver) of
         {ok, HostType} ->
-            Now = os:system_time(microsecond),
-            ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
-            End = maybe_before(Before, Now),
-            RSM = #rsm_in{direction = before, id = undefined},
-            R = mod_mam_muc:lookup_messages(HostType,
-                                            #{archive_id => ArchiveID,
-                                              owner_jid => RoomJID,
-                                              rsm => RSM,
-                                              borders => undefined,
-                                              start_ts => undefined,
-                                              end_ts => End,
-                                              now => Now,
-                                              with_jid => undefined,
-                                              search_text => undefined,
-                                              page_size => PageSize,
-                                              limit_passed => true,
-                                              max_result_limit => 50,
-                                              is_simple => true}),
-            case R of
-                {ok, {_, _, Messages}} ->
-                    {ok, Messages};
-                {error, Term} ->
-                    {internal, io_lib:format("Internal error occured ~p", [Term])}
-            end;
-        {error, not_found}->
+            get_room_messages(HostType, RoomJID, undefined, PageSize, Before);
+        {error, not_found} ->
             ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
+-spec get_room_messages(mongooseim:host_type(), jid:jid(), jid:jid() | undefined,
+                        integer() | undefined, mod_mam:unix_timestamp() | undefined) ->
+    {ok, list()} | {muc_server_not_found | internal, iolist()}.
+get_room_messages(HostType, RoomJID, CallerJID, PageSize, Before) ->
+    Now = os:system_time(microsecond),
+    ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
+    End = maybe_before(Before, Now),
+    RSM = #rsm_in{direction = before, id = undefined},
+    Params = #{archive_id => ArchiveID,
+               owner_jid => RoomJID,
+               rsm => RSM,
+               borders => undefined,
+               start_ts => undefined,
+               end_ts => End,
+               now => Now,
+               with_jid => undefined,
+               search_text => undefined,
+               page_size => PageSize,
+               limit_passed => true,
+               max_result_limit => 50,
+               is_simple => true},
+    case mod_mam_muc:lookup_messages(HostType, maybe_caller_jid(CallerJID, Params)) of
+        {ok, {_, _, Messages}} ->
+            {ok, Messages};
+        {error, Term} ->
+            {internal, io_lib:format("Internal error occured ~p", [Term])}
+    end.
+
+-spec get_room_info(jid:jid(), jid:jid()) ->
+    {ok, room()} | {muc_server_not_found | room_not_found | not_room_member, iolist()}.
+get_room_info(RoomJID, UserJID) ->
+    case get_room_info(RoomJID) of
+        {ok, #{aff_users := Affs} = Room} ->
+            case get_aff(jid:to_lus(UserJID), Affs) of
+                none ->
+                    ?USER_NOT_ROOM_MEMBER_RESULT;
+                _ ->
+                    {ok, Room}
+            end;
+        Error ->
+            Error
+    end.
 
 -spec get_room_info(jid:jid()) -> {ok, room()} | {muc_server_not_found | room_not_found, iolist()}.
 get_room_info(#jid{lserver = MUCServer} = RoomJID) ->
@@ -227,6 +265,21 @@ get_room_info(#jid{lserver = MUCServer} = RoomJID) ->
             end;
         {error, not_found}->
             ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
+
+-spec get_room_aff(jid:jid(), jid:jid()) ->
+    {ok, aff_users()} | {muc_server_not_found | room_not_found, iolist()}.
+get_room_aff(RoomJID, UserJID) ->
+    case get_room_aff(RoomJID) of
+        {ok, Affs} ->
+            case get_aff(jid:to_lus(UserJID), Affs) of
+                none ->
+                    ?USER_NOT_ROOM_MEMBER_RESULT;
+                _ ->
+                    {ok, Affs}
+            end;
+        Error ->
+            Error
     end.
 
 -spec get_room_aff(jid:jid()) ->
@@ -296,12 +349,16 @@ get_room_user_aff(HostType, RoomJID, UserJID) ->
     UserUS = jid:to_lus(UserJID),
     case mod_muc_light_db_backend:get_aff_users(HostType, RoomUS) of
         {ok, Affs, _Version} ->
-            case lists:keyfind(UserUS, 1, Affs) of
-                {_, Aff} -> {ok, Aff};
-                false -> {ok, none}
-            end;
+            {ok, get_aff(UserUS, Affs)};
         {error, not_exists} ->
             {error, room_not_found}
+    end.
+
+-spec get_aff(jid:simple_bare_jid(), aff_users()) -> aff().
+get_aff(UserUS, Affs) ->
+    case lists:keyfind(UserUS, 1, Affs) of
+        {_, Aff} -> Aff;
+        false -> none
     end.
 
 -spec is_user_room_member(mongooseim:host_type(), jid:simple_bare_jid(),
@@ -318,3 +375,8 @@ maybe_before(undefined, Now) ->
     Now;
 maybe_before(Timestamp, _) ->
    Timestamp.
+
+maybe_caller_jid(undefined, Params) ->
+    Params;
+maybe_caller_jid(CallerJID, Params) ->
+    Params#{caller_jid => CallerJID}.
