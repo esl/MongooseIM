@@ -19,6 +19,8 @@ err(_Ctx, #{jid := Jid, what := unknown_user}) when is_binary(Jid) ->
     #{message => <<"Given user does not exist">>, extensions => #{code => unknown_user, jid => Jid}};
 err(_Ctx, #{domain := Domain, what := unknown_domain}) when is_binary(Domain) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => unknown_domain, domain => Domain}};
+err(_Ctx, #{what := bad_from_jid}) ->
+    #{message => <<"Sending from this JID is not allowed">>, extensions => #{code => bad_from_jid}};
 err(_Ctx, #{domain := Domain, what := domain_not_found}) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => domain_not_found, domain => Domain}};
 err(_Ctx, #{domain := Domain, what := domain_duplicate}) when is_binary(Domain) ->

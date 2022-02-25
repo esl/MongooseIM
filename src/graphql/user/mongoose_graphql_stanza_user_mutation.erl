@@ -40,7 +40,7 @@ send_stanza(#{user := User}, #{<<"stanza">> := Packet}) ->
         true ->
             do_routing(From, To, Packet);
         false ->
-            {error, bad_from_jid}
+            {error, #{what => bad_from_jid}}
     end.
 
 do_routing(From = #jid{lserver = LServer}, To, Packet) ->
@@ -95,6 +95,6 @@ with_from(_Ctx = #{user := User}, Opts, Next) ->
                 false ->
                     ?LOG_ERROR(#{what => bad_from_jid,
                                  user_jid => User, from_jid => From}),
-                    {error, bad_from_jid}
+                    {error, #{what => bad_from_jid}}
             end
     end.

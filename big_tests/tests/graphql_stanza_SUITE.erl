@@ -37,7 +37,8 @@ admin_stanza_category() ->
 
 user_stanza_caregory() ->
     [user_send_message,
-     user_send_message_without_from].
+     user_send_message_without_from,
+     user_send_message_with_spoofed_from].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -121,6 +122,24 @@ user_send_message_without_from_story(Config, Alice, Bob) ->
     #{<<"id">> := MamID} = Res,
     assert_not_empty(MamID),
     escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+
+user_send_message_with_spoofed_from(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_message_with_spoofed_from_story/3).
+
+user_send_message_with_spoofed_from_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Vars = #{from => escalus_client:short_jid(Bob),
+             to => escalus_client:short_jid(Bob),
+             body => Body},
+    Res = execute_user_send_message(Alice, Vars, Config),
+    {{<<"200">>, <<"OK">>},
+     #{<<"data">> := #{<<"stanza">> := #{<<"sendMessage">> := null}},
+       <<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"bad_from_jid">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual([<<"stanza">>, <<"sendMessage">>], ErrPath),
+    ?assertEqual(<<"Sending from this JID is not allowed">>, ErrMsg).
 
 admin_send_message_to_unparsable_jid(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
