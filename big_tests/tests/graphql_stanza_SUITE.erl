@@ -38,7 +38,11 @@ admin_stanza_category() ->
 user_stanza_caregory() ->
     [user_send_message,
      user_send_message_without_from,
-     user_send_message_with_spoofed_from].
+     user_send_message_with_spoofed_from,
+     user_send_message_headline,
+     user_send_message_headline_with_spoofed_from,
+     user_send_stanza,
+     user_send_stanza_with_spoofed_from].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -133,13 +137,7 @@ user_send_message_with_spoofed_from_story(Config, Alice, Bob) ->
              to => escalus_client:short_jid(Bob),
              body => Body},
     Res = execute_user_send_message(Alice, Vars, Config),
-    {{<<"200">>, <<"OK">>},
-     #{<<"data">> := #{<<"stanza">> := #{<<"sendMessage">> := null}},
-       <<"errors">> := Errors}} = Res,
-    [#{<<"extensions">> := #{<<"code">> := <<"bad_from_jid">>},
-       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
-    ?assertEqual([<<"stanza">>, <<"sendMessage">>], ErrPath),
-    ?assertEqual(<<"Sending from this JID is not allowed">>, ErrMsg).
+    spoofed_error(<<"sendMessage">>, Res).
 
 admin_send_message_to_unparsable_jid(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}],
@@ -175,6 +173,36 @@ admin_send_message_headline_story(Config, Alice, Bob) ->
     %% Headlines are not stored in MAM
     <<>> = MamID.
 
+user_send_message_headline(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_message_headline_story/3).
+
+user_send_message_headline_story(Config, Alice, Bob) ->
+    Subject = <<"Welcome">>,
+    Body = <<"Hi!">>,
+    Vars = #{from => escalus_client:full_jid(Alice),
+             to => escalus_client:short_jid(Bob),
+             subject => Subject, body => Body},
+    Res = ok_result(<<"stanza">>, <<"sendMessageHeadLine">>,
+                    execute_user_send_message_headline(Alice, Vars, Config)),
+    #{<<"id">> := MamID} = Res,
+    %% Headlines are not stored in MAM
+    <<>> = MamID,
+    escalus:assert(is_message, escalus:wait_for_stanza(Bob)).
+
+user_send_message_headline_with_spoofed_from(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_message_headline_with_spoofed_from_story/3).
+
+user_send_message_headline_with_spoofed_from_story(Config, Alice, Bob) ->
+    Subject = <<"Welcome">>,
+    Body = <<"Hi!">>,
+    Vars = #{from => escalus_client:short_jid(Bob),
+             to => escalus_client:short_jid(Bob),
+             subject => Subject, body => Body},
+    Res = execute_user_send_message_headline(Alice, Vars, Config),
+    spoofed_error(<<"sendMessageHeadLine">>, Res).
+
 admin_send_stanza(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_send_stanza_story/3).
@@ -186,6 +214,30 @@ admin_send_stanza_story(Config, Alice, Bob) ->
     Res = ok_result(<<"stanza">>, <<"sendStanza">>, execute_send_stanza(Vars, Config)),
     #{<<"id">> := MamID} = Res,
     assert_not_empty(MamID).
+
+user_send_stanza(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_stanza_story/3).
+
+user_send_stanza_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Alice),
+    Vars = #{stanza => exml:to_binary(Stanza)},
+    Res = ok_result(<<"stanza">>, <<"sendStanza">>,
+                    execute_user_send_stanza(Alice, Vars, Config)),
+    #{<<"id">> := MamID} = Res,
+    assert_not_empty(MamID).
+
+user_send_stanza_with_spoofed_from(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_send_stanza_with_spoofed_from_story/3).
+
+user_send_stanza_with_spoofed_from_story(Config, Alice, Bob) ->
+    Body = <<"Hi!">>,
+    Stanza = escalus_stanza:from(escalus_stanza:chat_to_short_jid(Bob, Body), Bob),
+    Vars = #{stanza => exml:to_binary(Stanza)},
+    Res = execute_user_send_stanza(Alice, Vars, Config),
+    spoofed_error(<<"sendStanza">>, Res).
 
 admin_send_unparsable_stanza(Config) ->
     Vars = #{stanza => <<"<test">>},
@@ -357,11 +409,26 @@ execute_send_message_headline(Vars, Config) ->
     execute_auth(#{query => Q, variables => Vars,
                    operationName => <<"M1">>}, Config).
 
+execute_user_send_message_headline(User, Vars, _Config) ->
+    Creds = graphql_helper:make_creds(User),
+    Q = <<"mutation M1($from: JID, $to: JID!, $subject: String, $body: String) "
+          "{ stanza { sendMessageHeadLine("
+            "from: $from, to: $to, subject: $subject, body: $body) { id } } }">>,
+    QQ = #{query => Q, variables => Vars, operationName => <<"M1">>},
+    graphql_helper:execute(user, QQ, Creds).
+
 execute_send_stanza(Vars, Config) ->
     Q = <<"mutation M1($stanza: Stanza!) "
           "{ stanza { sendStanza(stanza: $stanza) { id } } }">>,
     execute_auth(#{query => Q, variables => Vars,
                    operationName => <<"M1">>}, Config).
+
+execute_user_send_stanza(User, Vars, _Config) ->
+    Creds = graphql_helper:make_creds(User),
+    Q = <<"mutation M1($stanza: Stanza!) "
+          "{ stanza { sendStanza(stanza: $stanza) { id } } }">>,
+    QQ = #{query => Q, variables => Vars, operationName => <<"M1">>},
+    graphql_helper:execute(user, QQ, Creds).
 
 execute_get_last_messages(Vars, Config) ->
     Q = <<"query Q1($caller: JID!, $with: JID, $limit: Int, $before: DateTime) "
@@ -385,3 +452,12 @@ check_stanza_map(#{<<"sender">> := SenderJID,
      true = byte_size(StanzaID) > 6,
      true = is_integer(calendar:rfc3339_to_system_time(binary_to_list(TS))),
      {ok, #xmlel{name = <<"message">>}} = exml:parse(XML).
+
+spoofed_error(Call, Res) ->
+    {{<<"200">>, <<"OK">>},
+     #{<<"data">> := #{<<"stanza">> := #{Call := null}},
+       <<"errors">> := Errors}} = Res,
+    [#{<<"extensions">> := #{<<"code">> := <<"bad_from_jid">>},
+       <<"message">> := ErrMsg, <<"path">> := ErrPath}] = Errors,
+    ?assertEqual([<<"stanza">>, Call], ErrPath),
+    ?assertEqual(<<"Sending from this JID is not allowed">>, ErrMsg).
