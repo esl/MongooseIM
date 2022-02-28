@@ -102,30 +102,19 @@ stop(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"pool_tag">> => #option{type = atom,
-                                           validate = non_empty},
-                 <<"bind_pool_tag">> => #option{type = atom,
-                                                validate = non_empty},
-                 <<"base">> => #option{type = binary},
-                 <<"uids">> => #list{items = mongoose_ldap_config:uids()},
-                 <<"filter">> => #option{type = binary,
-                                         validate = ldap_filter},
-                 <<"dn_filter">> => mongoose_ldap_config:dn_filter(),
-                 <<"local_filter">> => mongoose_ldap_config:local_filter(),
-                 <<"deref">> => #option{type = atom,
-                                        validate = {enum, [never, always, finding, searching]}}
-                },
-       defaults = #{<<"pool_tag">> => default,
-                    <<"bind_pool_tag">> => bind,
-                    <<"base">> => <<>>,
-                    <<"uids">> => [{<<"uid">>, <<"%u">>}],
-                    <<"filter">> => <<>>,
-                    <<"dn_filter">> => {undefined, []},
-                    <<"local_filter">> => undefined,
-                    <<"deref">> => never},
-       format_items = map
-      }.
+    CommonLDAPSpec = mongoose_ldap_config:spec(),
+    Items = #{<<"bind_pool_tag">> => #option{type = atom,
+                                             validate = non_empty},
+              <<"uids">> => #list{items = mongoose_ldap_config:uids()},
+              <<"dn_filter">> => mongoose_ldap_config:dn_filter(),
+              <<"local_filter">> => mongoose_ldap_config:local_filter()},
+    Defaults = #{<<"bind_pool_tag">> => bind,
+                 <<"base">> => <<>>,
+                 <<"uids">> => [{<<"uid">>, <<"%u">>}],
+                 <<"dn_filter">> => {undefined, []},
+                 <<"local_filter">> => undefined},
+    CommonLDAPSpec#section{items = maps:merge(CommonLDAPSpec#section.items, Items),
+                           defaults = maps:merge(CommonLDAPSpec#section.defaults, Defaults)}.
 
 -spec start_link(HostType :: mongooseim:host_type()) -> {ok, pid()} | {error, any()}.
 start_link(HostType) ->
@@ -467,17 +456,20 @@ result_attrs(#state{uids = UIDs,
 -spec parse_options(HostType :: mongooseim:host_type()) -> state().
 parse_options(HostType) ->
     Opts = mongoose_config:get_opt([{auth, HostType}, ldap]),
-    EldapID = {HostType, maps:get(pool_tag, Opts)},
-    BindEldapID = {HostType, maps:get(bind_pool_tag, Opts)},
-    Base = maps:get(base, Opts),
-    DerefAliases = eldap_utils:deref_aliases(maps:get(deref, Opts)),
-    RawUIDs = maps:get(uids, Opts),
+    #{pool_tag := PoolTag,
+      bind_pool_tag := BindPoolTag,
+      base := Base,
+      deref := Deref,
+      uids := RawUIDs,
+      filter := RawUserFilter,
+      dn_filter := {DNFilter, DNFilterAttrs},
+      local_filter := LocalFilter} = Opts,
+    EldapID = {HostType, PoolTag},
+    BindEldapID = {HostType, BindPoolTag},
+    DerefAliases = eldap_utils:deref_aliases(Deref),
     UIDs = eldap_utils:uids_domain_subst(HostType, RawUIDs),
-    RawUserFilter = maps:get(filter, Opts),
     UserFilter = eldap_utils:process_user_filter(UIDs, RawUserFilter),
     SearchFilter = eldap_utils:get_search_filter(UserFilter),
-    {DNFilter, DNFilterAttrs} = maps:get(dn_filter, Opts),
-    LocalFilter = maps:get(local_filter, Opts),
     #state{host_type = HostType,
            eldap_id = EldapID,
            bind_eldap_id = BindEldapID,
