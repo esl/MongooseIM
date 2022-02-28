@@ -126,7 +126,8 @@ init(_HostType, _Opts) ->
     ok.
 
 -spec tear_down(mongooseim:host_type()) -> ok.
-tear_down(_HostType) ->
+tear_down(HostType) ->
+    clear_persistent_term(HostType),
     ok.
 
 -spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
@@ -138,7 +139,6 @@ remove_user(_HostType, _LUser, _LServer) ->
 -spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, [exml:element()]}.
 get_vcard(HostType, LUser, LServer) ->
     State = get_state(HostType, LServer),
-    LServer = State#state.serverhost,
     JID = jid:make(LUser, LServer, <<>>),
     case ejabberd_auth:does_user_exist(JID) of
         true ->
@@ -425,6 +425,17 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
                         [{<<"%s">>, V, 1} || V <- AttrValues]).
 
 get_state(HostType, LServer) ->
+    Key = config_key(HostType, LServer),
+    case persistent_term:get(Key, undefined) of
+        undefined ->
+            State = create_state(HostType, LServer),
+            persistent_term:put(Key, State),
+            State;
+        State ->
+            State
+    end.
+
+create_state(HostType, LServer) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_vcard),
     Val = gen_mod:get_opt(host, Opts),
     MyHost = mongoose_subdomain_utils:get_fqdn(Val, LServer),
@@ -488,3 +499,16 @@ get_state(HostType, LServer) ->
            search_reported_attrs = SearchReportedAttrs,
            search_operator = SearchOperator,
            matches = Matches}.
+
+clear_persistent_term(HostType) ->
+    Terms = persistent_term:get(),
+    States = lists:filter(fun({K, _V}) -> is_host_type_config_key(HostType, K) end, Terms),
+    [persistent_term:erase(Key) || {Key, _V} <- States].
+
+is_host_type_config_key(HostType, {?MODULE, HostType, _LServer}) ->
+    true;
+is_host_type_config_key(_HT, _K) ->
+    false.
+
+config_key(HostType, LServer) ->
+    {?MODULE, HostType, LServer}.
