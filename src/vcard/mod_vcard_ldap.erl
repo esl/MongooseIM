@@ -31,7 +31,7 @@
 
 -behaviour(mod_vcard_backend).
 
-%% mod_vcards callbacks
+%% mod_vcard_backend callbacks
 -export([init/2,
          tear_down/1,
          remove_user/3,
@@ -119,20 +119,23 @@
 
 
 %%--------------------------------------------------------------------
-%% mod_vcards callbacks
+%% mod_vcard_backend callbacks
 %%--------------------------------------------------------------------
-
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     ok.
 
+-spec tear_down(mongooseim:host_type()) -> ok.
 tear_down(_HostType) ->
     ok.
 
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user(_HostType, _LUser, _LServer) ->
     %% no need to handle this - in ldap
     %% removing user = delete all user info
     ok.
 
+-spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, [exml:element()]}.
 get_vcard(HostType, LUser, LServer) ->
     State = get_state(HostType, LServer),
     LServer = State#state.serverhost,
@@ -151,17 +154,22 @@ get_vcard(HostType, LUser, LServer) ->
             {ok, []}
     end.
 
+-spec set_vcard(mongooseim:host_type(), jid:luser(), jid:lserver(), exml:element(), mod_vcard:vcard_search()) ->
+    {error, exml:element()}.
 set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
+-spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) -> [eldap:eldap_entry()].
 search(HostType, LServer, Data) ->
     State = get_state(HostType, LServer),
     search_internal(State, Data).
 
+-spec search_fields(mongooseim:host_type(), jid:lserver()) -> [{binary(), binary()}].
 search_fields(HostType, LServer) ->
     State = get_state(HostType, LServer),
     State#state.search_fields.
 
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) -> exml:element().
 search_reported_fields(HostType, LServer, Lang) ->
     State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
