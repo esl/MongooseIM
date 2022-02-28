@@ -22,14 +22,14 @@ execute(_Ctx, _Obj, <<"sendStanza">>, Opts) ->
 send_message(#{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
     Packet = mongoose_stanza_helper:build_message(
                jid:to_binary(From), jid:to_binary(To), Body),
-    mongoose_stanza_helper:route(From, To, Packet).
+    mongoose_stanza_helper:route(From, To, Packet, true).
 
 send_message_headline(Opts = #{<<"from">> := From, <<"to">> := To}) ->
     Packet = mongoose_stanza_helper:build_message_with_headline(
                jid:to_binary(From), jid:to_binary(To), Opts),
-    mongoose_stanza_helper:route(From, To, Packet).
+    mongoose_stanza_helper:route(From, To, Packet, true).
 
 send_stanza(#{<<"stanza">> := Packet}) ->
     From = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-    mongoose_stanza_helper:route(From, To, Packet).
+    mongoose_stanza_helper:route(From, To, Packet, true).

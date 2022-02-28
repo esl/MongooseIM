@@ -27,19 +27,20 @@ send_message_headline(Ctx, Opts) ->
 
 send_message2(#{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
     Packet = mongoose_stanza_helper:build_message(jid:to_binary(From), jid:to_binary(To), Body),
-    mongoose_stanza_helper:route(From, To, Packet).
+    %% SkipAuth = false, because we already checked if From exists
+    mongoose_stanza_helper:route(From, To, Packet, false).
 
 send_message_headline2(Opts = #{<<"from">> := From, <<"to">> := To}) ->
     Packet = mongoose_stanza_helper:build_message_with_headline(
                jid:to_binary(From), jid:to_binary(To), Opts),
-    mongoose_stanza_helper:route(From, To, Packet).
+    mongoose_stanza_helper:route(From, To, Packet, false).
 
 send_stanza(#{user := User}, #{<<"stanza">> := Packet}) ->
     From = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
     case compare_bare_jids(User, From) of
         true ->
-            mongoose_stanza_helper:route(From, To, Packet);
+            mongoose_stanza_helper:route(From, To, Packet, false);
         false ->
             {error, #{what => bad_from_jid}}
     end.

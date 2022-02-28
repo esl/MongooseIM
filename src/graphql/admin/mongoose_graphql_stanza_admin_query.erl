@@ -17,7 +17,7 @@ execute(_Ctx, _Obj, <<"getLastMessages">>, Opts) ->
 get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before})
         when is_integer(Limit) ->
-    case mongoose_graphql_helper:check_user(Caller) of
+    case mongoose_graphql_helper:check_user(Caller, true) of
         {ok, _HostType} ->
             mongoose_stanza_helper:get_last_messages(Caller, Limit, With, Before);
         Error ->

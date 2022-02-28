@@ -1,6 +1,6 @@
 -module(mongoose_graphql_helper).
 
--export([check_user/1]).
+-export([check_user/2]).
 
 -export([format_result/2, make_error/2, make_error/3]).
 
@@ -26,16 +26,18 @@ make_error({Reason, Msg}, Context) ->
 make_error(Reason, Msg, Context) ->
     {error, #resolver_error{reason = Reason, msg = iolist_to_binary(Msg), context = Context}}.
 
--spec check_user(jid:jid()) -> {ok, mongooseim:host_type()} | {error, term()}.
-check_user(#jid{lserver = LServer} = Jid) ->
+-spec check_user(jid:jid(), boolean()) -> {ok, mongooseim:host_type()} | {error, term()}.
+check_user(#jid{lserver = LServer} = Jid, CheckAuth) ->
     case mongoose_domain_api:get_domain_host_type(LServer) of
         {ok, HostType} ->
-            check_auth(HostType, Jid);
+            check_auth(HostType, Jid, CheckAuth);
         _ ->
             {error, #{what => unknown_domain, domain => LServer}}
     end.
 
-check_auth(HostType, Jid) ->
+check_auth(HostType, Jid, false) ->
+    {ok, HostType};
+check_auth(HostType, Jid, true) ->
    case ejabberd_auth:does_user_exist(HostType, Jid, stored) of
        true ->
            {ok, HostType};

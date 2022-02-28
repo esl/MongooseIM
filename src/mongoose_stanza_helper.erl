@@ -3,7 +3,7 @@
 -export([build_message_with_headline/3]).
 -export([parse_from_to/2]).
 -export([get_last_messages/4]).
--export([route/3]).
+-export([route/4]).
 
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
@@ -83,8 +83,8 @@ row_to_map(#{id := Id, jid := From, packet := Msg}) ->
             <<"stanza_id">> => StanzaID, <<"stanza">> => Msg},
     {ok, Map}.
 
-route(From = #jid{lserver = LServer}, To, Packet) ->
-    case mongoose_graphql_helper:check_user(From) of
+route(From = #jid{lserver = LServer}, To, Packet, SkipAuth) ->
+    case mongoose_graphql_helper:check_user(From, SkipAuth) of
         {ok, HostType} ->
             do_routing2(HostType, LServer, From, To, Packet);
         Error ->
