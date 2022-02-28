@@ -11,11 +11,11 @@
 
 -spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
         result().
-execute(_Ctx, _Obj, <<"getLastMessages">>, Opts) ->
-    get_last_messages(Opts).
+execute(#{user := User}, _Obj, <<"getLastMessages">>, Opts) ->
+    get_last_messages(Opts, User).
 
-get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
-                    <<"with">> := With, <<"before">> := Before})
+get_last_messages(#{<<"limit">> := Limit,
+                    <<"with">> := With, <<"before">> := Before}, Caller)
         when is_integer(Limit) ->
     case mongoose_graphql_helper:check_user(Caller) of
         {ok, _HostType} ->

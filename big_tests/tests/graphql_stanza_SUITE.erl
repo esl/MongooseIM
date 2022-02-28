@@ -42,7 +42,8 @@ user_stanza_caregory() ->
      user_send_message_headline,
      user_send_message_headline_with_spoofed_from,
      user_send_stanza,
-     user_send_stanza_with_spoofed_from].
+     user_send_stanza_with_spoofed_from,
+     user_get_last_messages].
 
 init_per_suite(Config) ->
     Config1 = escalus:init_per_suite(Config),
@@ -307,6 +308,25 @@ admin_get_last_messages_story(Config, Alice, Bob) ->
     #{<<"stanzas">> := [M2], <<"limit">> := 50} = Res2,
     check_stanza_map(M2, Alice).
 
+user_get_last_messages(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_last_messages_story/3).
+
+user_get_last_messages_story(Config, Alice, Bob) ->
+    user_send_message_story(Config, Alice, Bob),
+    mam_helper:wait_for_archive_size(Alice, 1),
+    mam_helper:wait_for_archive_size(Bob, 1),
+    Vars1 = #{caller => escalus_client:full_jid(Alice)},
+    Vars2 = #{caller => escalus_client:full_jid(Bob)},
+    Res1 = ok_result(<<"stanza">>, <<"getLastMessages">>,
+                     execute_user_get_last_messages(Alice, Vars1, Config)),
+    #{<<"stanzas">> := [M1], <<"limit">> := 50} = Res1,
+    check_stanza_map(M1, Alice),
+    Res2 = ok_result(<<"stanza">>, <<"getLastMessages">>,
+                     execute_user_get_last_messages(Alice, Vars2, Config)),
+    #{<<"stanzas">> := [M2], <<"limit">> := 50} = Res2,
+    check_stanza_map(M2, Alice).
+
 admin_get_last_messages_for_unknown_user(Config) ->
     Domain = domain_helper:domain(),
     Jid = <<"maybemaybebutnot@", Domain/binary>>,
@@ -437,6 +457,14 @@ execute_get_last_messages(Vars, Config) ->
                      "{ stanzas { stanza_id stanza sender timestamp } limit } } }">>,
     execute_auth(#{query => Q, variables => Vars,
                    operationName => <<"Q1">>}, Config).
+
+execute_user_get_last_messages(User, Vars, _Config) ->
+    Creds = graphql_helper:make_creds(User),
+    Q = <<"query Q1($with: JID, $limit: Int, $before: DateTime) "
+          "{ stanza { getLastMessages(with: $with, limit: $limit, before: $before) "
+                     "{ stanzas { stanza_id stanza sender timestamp } limit } } }">>,
+    QQ = #{query => Q, variables => Vars, operationName => <<"Q1">>},
+    graphql_helper:execute(user, QQ, Creds).
 
 assert_not_empty(Bin) when byte_size(Bin) > 0 -> ok.
 
