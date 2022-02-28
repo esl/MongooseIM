@@ -17,4 +17,4 @@ execute(#{user := User}, _Obj, <<"getLastMessages">>, Opts) ->
 get_last_messages(#{<<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before}, Caller)
         when is_integer(Limit) ->
-    mongoose_graphql_mam_helper:get_last_messages(Caller, Limit, With, Before).
+    mongoose_stanza_helper:get_last_messages(Caller, Limit, With, Before).

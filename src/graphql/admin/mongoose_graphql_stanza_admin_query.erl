@@ -19,7 +19,7 @@ get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
         when is_integer(Limit) ->
     case mongoose_graphql_helper:check_user(Caller) of
         {ok, _HostType} ->
-            mongoose_graphql_mam_helper:get_last_messages(Caller, Limit, With, Before);
+            mongoose_stanza_helper:get_last_messages(Caller, Limit, With, Before);
         Error ->
             Error
     end.
