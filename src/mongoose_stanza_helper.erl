@@ -64,6 +64,10 @@ parse_jid(Jid) when is_binary(Jid) ->
         B -> B
     end.
 
+-spec get_last_messages(Caller :: jid:jid(),
+                        Limit :: non_neg_integer(),
+                        With :: null | jid:jid(),
+                        Before :: null | non_neg_integer()) -> {ok, map()}.
 get_last_messages(Caller, Limit, With, Before) ->
     With2 = null_as_undefined(With),
     Before2 = null_as_undefined(Before), %% Before is in microseconds
@@ -83,15 +87,18 @@ row_to_map(#{id := Id, jid := From, packet := Msg}) ->
             <<"stanza_id">> => StanzaID, <<"stanza">> => Msg},
     {ok, Map}.
 
+-spec route(From :: jid:jid(), To :: jid:jid(),
+            Packet :: exml:element(), SkipAuth :: boolean()) ->
+    {ok, map()} | {error, term()}.
 route(From = #jid{lserver = LServer}, To, Packet, SkipAuth) ->
     case mongoose_graphql_helper:check_user(From, SkipAuth) of
         {ok, HostType} ->
-            do_routing2(HostType, LServer, From, To, Packet);
+            do_route(HostType, LServer, From, To, Packet);
         Error ->
             Error
     end.
 
-do_routing2(HostType, LServer, From, To, Packet) ->
+do_route(HostType, LServer, From, To, Packet) ->
     %% Based on mod_commands:do_send_packet/3
     Acc = mongoose_acc:new(#{location => ?LOCATION,
                               host_type => HostType,

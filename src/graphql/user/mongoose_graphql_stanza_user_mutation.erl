@@ -17,7 +17,9 @@ execute(Ctx, _Obj, <<"sendMessage">>, Opts) ->
 execute(Ctx, _Obj, <<"sendMessageHeadLine">>, Opts) ->
     send_message_headline(Ctx, Opts);
 execute(Ctx, _Obj, <<"sendStanza">>, Opts) ->
-    send_stanza(Ctx, Opts).
+    send_stanza(Ctx, Opts);
+execute(_Ctx, _Obj, _, _Opts) ->
+    {error, <<"no user field in context">>}.
 
 send_message(Ctx, Opts) ->
     with_from(Ctx, Opts, fun send_message2/1).

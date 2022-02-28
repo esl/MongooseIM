@@ -12,7 +12,9 @@
 -spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
         result().
 execute(#{user := User}, _Obj, <<"getLastMessages">>, Opts) ->
-    get_last_messages(Opts, User).
+    get_last_messages(Opts, User);
+execute(_Ctx, _Obj, _, _Opts) ->
+    {error, <<"no user field in context">>}.
 
 get_last_messages(#{<<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before}, Caller)
