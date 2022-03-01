@@ -34,6 +34,9 @@
         end).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
+-import(config_parser_helper, [merge_with_default_pool_config/1, default_s2s/0,
+                               mod_config/2, default_mod_config/1,
+                               config/2, default_config/1]).
 
 -type key_prefix() :: top_level_key_prefix() | key_path_prefix().
 -type top_level_key_prefix() :: atom().
@@ -218,6 +221,7 @@ groups() ->
                             mod_keystore_keys,
                             mod_last,
                             mod_mam_meta,
+                            mod_mam_meta_riak,
                             mod_mam_meta_pm,
                             mod_mam_meta_muc,
                             mod_muc,
@@ -1467,7 +1471,7 @@ access_merge_host_and_global(_Config) ->
 %% tests: s2s
 
 s2s_host_config(_Config) ->
-    DefaultS2S = config_parser_helper:default_s2s(),
+    DefaultS2S = default_s2s(),
     EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
     ?cfg(host_key(s2s), DefaultS2S,
          EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
@@ -2128,87 +2132,92 @@ mod_last(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_mam_meta(_Config) ->
+    check_module_defaults(mod_mam_meta),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, Cfg) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{bucket_type, <<"mam_bucket">>}]),
+    P = [modules, mod_mam_meta],
+    test_segmented_cache_config(<<"cache">>, cache, T,
+                                fun([{cache, Opts}]) -> [{P ++ [cache], Opts}] end),
+    test_mod_mam_meta(T, P).
+
+mod_mam_meta_riak(_Config) ->
+    T = fun(Opts) ->
+                #{<<"modules">> => #{<<"mod_mam_meta">> => Opts#{<<"backend">> => <<"riak">>}}}
+        end,
+    P = [modules, mod_mam_meta, riak],
+    ?cfgh(P, default_config([modules, mod_mam_meta, riak]), T(#{})),
+    ?cfgh(P ++ [bucket_type], <<"mam_bucket">>,
           T(#{<<"riak">> => #{<<"bucket_type">> => <<"mam_bucket">>}})),
-    ?cfgh(M([{search_index, <<"mam_index">>}]),
+    ?cfgh(P ++ [search_index], <<"mam_index">>,
           T(#{<<"riak">> => #{<<"search_index">> => <<"mam_index">>}})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => <<>>}})),
     ?errh(T(#{<<"riak">> => #{<<"search_index">> => <<>>}})).
 
 mod_mam_meta_pm(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"pm">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, [{pm, Cfg}]) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{archive_groupchats, true}]),
-          T(#{<<"archive_groupchats">> => true})),
-    ?cfgh(M([{same_mam_id_for_peers, true}]),
-          T(#{<<"same_mam_id_for_peers">> => true})),
+    P = [modules, mod_mam_meta, pm],
+    test_mod_mam_meta(T, P),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [archive_groupchats], true, T(#{<<"archive_groupchats">> => true})),
+    ?cfgh(P ++ [same_mam_id_for_peers], true, T(#{<<"same_mam_id_for_peers">> => true})),
+    ?errh(T(#{<<"host">> => <<"muc.@HOST@">>})), % muc-only
     ?errh(T(#{<<"archive_groupchats">> => <<"not really">>})),
     ?errh(T(#{<<"same_mam_id_for_peers">> => <<"not really">>})).
 
 mod_mam_meta_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, [{muc, Cfg}]) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{host, {prefix, <<"muc.">>}}]),
-          T(#{<<"host">> => <<"muc.@HOST@">>})),
-    ?cfgh(M([{host, {fqdn, <<"muc.test">>}}]),
-          T(#{<<"host">> => <<"muc.test">>})),
+    P = [modules, mod_mam_meta, muc],
+    test_mod_mam_meta(T, P),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [host], {prefix, <<"muc.">>}, T(#{<<"host">> => <<"muc.@HOST@">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"muc.test">>}, T(#{<<"host">> => <<"muc.test">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
-    ?errh(T(#{<<"archive_groupchats">> => true})),
-    ?errh(T(#{<<"same_mam_id_for_peers">> => true})).
+    ?errh(T(#{<<"archive_groupchats">> => true})), % pm-only
+    ?errh(T(#{<<"same_mam_id_for_peers">> => true})). % pm-only
 
-test_mod_mam_meta(T, M) ->
-    test_async_worker(T, M),
-    test_cache_config(T, M),
-    ?cfgh(M([{backend, rdbms}]),
+test_mod_mam_meta(T, P) ->
+    test_async_writer(T, P),
+    ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{no_stanzaid_element, true}]),
+    ?cfgh(P ++ [no_stanzaid_element], true,
           T(#{<<"no_stanzaid_element">> => true})),
-    ?cfgh(M([{is_archivable_message, mod_mam_utils}]),
+    ?cfgh(P ++ [is_archivable_message], mod_mam_utils,
           T(#{<<"is_archivable_message">> => <<"mod_mam_utils">>})),
-    ?cfgh(M([{archive_chat_markers, false}]),
-          T(#{<<"archive_chat_markers">> => false})),
-    ?cfgh(M([{message_retraction, true}]),
-          T(#{<<"message_retraction">> => true})),
-    ?cfgh(M([{rdbms_message_format, simple}]),
-          T(#{<<"rdbms_message_format">> => <<"simple">>})),
-    ?cfgh(M([{user_prefs_store, rdbms}]),
+    ?cfgh(P ++ [archive_chat_markers], true,
+          T(#{<<"archive_chat_markers">> => true})),
+    ?cfgh(P ++ [message_retraction], false,
+          T(#{<<"message_retraction">> => false})),
+    ?cfgh(P ++ [user_prefs_store], rdbms,
           T(#{<<"user_prefs_store">> => <<"rdbms">>})),
-    ?cfgh(M([{full_text_search, false}]),
+    ?cfgh(P ++ [full_text_search], false,
           T(#{<<"full_text_search">> => false})),
-    ?cfgh(M([{default_result_limit, 100}]),
+    ?cfgh(P ++ [cache_users], false,
+          T(#{<<"cache_users">> => false})),
+    ?cfgh(P ++ [default_result_limit], 100,
           T(#{<<"default_result_limit">> => 100})),
-    ?cfgh(M([{max_result_limit, 1000}]),
+    ?cfgh(P ++ [max_result_limit], 1000,
           T(#{<<"max_result_limit">> => 1000})),
-    ?cfgh(M([{db_jid_format, mam_jid_rfc}]),
+    ?cfgh(P ++ [db_jid_format], mam_jid_rfc,
           T(#{<<"db_jid_format">> => <<"mam_jid_rfc">>})),
-    ?cfgh(M([{db_message_format, mam_message_xml}]),
+    ?cfgh(P ++ [db_message_format], mam_message_xml,
           T(#{<<"db_message_format">> => <<"mam_message_xml">>})),
-    ?cfgh(M([{simple, false}]),
-          T(#{<<"simple">> => false})),
-    ?cfgh(M([{extra_fin_element, mod_mam_utils}]),
+    ?cfgh(P ++ [extra_fin_element], mod_mam_utils,
           T(#{<<"extra_fin_element">> => <<"mod_mam_utils">>})),
-    ?cfgh(M([{extra_lookup_params, mod_mam_utils}]),
+    ?cfgh(P ++ [extra_lookup_params], mod_mam_utils,
           T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
     ?errh(T(#{<<"backend">> => <<"notepad">>})),
     ?errh(T(#{<<"no_stanzaid_element">> => <<"true">>})),
     ?errh(T(#{<<"is_archivable_message">> => <<"mod_mam_fake">>})),
     ?errh(T(#{<<"archive_chat_markers">> => <<"maybe">>})),
     ?errh(T(#{<<"message_retraction">> => 1})),
-    ?errh(T(#{<<"rdbms_message_format">> => <<"complex">>})),
     ?errh(T(#{<<"user_prefs_store">> => <<"textfile">>})),
     ?errh(T(#{<<"full_text_search">> => <<"disabled">>})),
+    ?errh(T(#{<<"cache_users">> => []})),
     ?errh(T(#{<<"default_result_limit">> => -1})),
     ?errh(T(#{<<"max_result_limit">> => -2})),
     ?errh(T(#{<<"db_jid_format">> => <<"not_a_module">>})),
     ?errh(T(#{<<"db_message_format">> => <<"not_a_module">>})),
-    ?errh(T(#{<<"simple">> => <<"yes">>})),
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errh(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
@@ -2237,19 +2246,17 @@ test_segmented_cache_config(NameK, NameV, T, M) ->
     ?errh(T(#{NameK => #{<<"number_of_segments">> => 0}})),
     ?errh(T(#{NameK => #{<<"number_of_segments">> => <<"infinity">>}})).
 
-test_async_worker(T, M) ->
-    ?cfgh(M([{async_writer, [{flush_interval, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"flush_interval">> => 1500}})),
-    ?cfgh(M([{async_writer, [{batch_size, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"batch_size">> => 1500}})),
-    ?cfgh(M([{async_writer, [{pool_size, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"pool_size">> => 1500}})),
-    ?cfgh(M([{async_writer, [{enabled, false}]}]),
-          T(#{<<"async_writer">> => #{<<"enabled">> => false}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"flush_interval">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"batch_size">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"pool_size">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"enabled">> => <<"wrong">>}})).
+test_async_writer(ParentT, ParentP) ->
+    P = ParentP ++ [async_writer],
+    T = fun(Opts) -> ParentT(#{<<"async_writer">> => Opts}) end,
+    ?cfgh(P ++ [flush_interval], 1500, T(#{<<"flush_interval">> => 1500})),
+    ?cfgh(P ++ [batch_size], 1500, T(#{<<"batch_size">> => 1500})),
+    ?cfgh(P ++ [pool_size], 1500, T(#{<<"pool_size">> => 1500})),
+    ?cfgh(P ++ [enabled], false, T(#{<<"enabled">> => false})),
+    ?errh(T(#{<<"flush_interval">> => -1})),
+    ?errh(T(#{<<"batch_size">> => -1})),
+    ?errh(T(#{<<"pool_size">> => -1})),
+    ?errh(T(#{<<"enabled">> => <<"wrong">>})).
 
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
@@ -3112,7 +3119,7 @@ check_iqdisc_map(Module, RequiredOpts) ->
     ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
 check_module_defaults(Mod) ->
-    ExpectedCfg = config_parser_helper:default_mod_config(Mod),
+    ExpectedCfg = default_mod_config(Mod),
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
 
 modopts(Mod, Opts) ->
@@ -3155,7 +3162,7 @@ auth_raw(Method, Opts) ->
 %% helpers for 'pool' tests
 
 pool_config(PoolIn) ->
-    Pool = config_parser_helper:merge_with_default_pool_config(PoolIn),
+    Pool = merge_with_default_pool_config(PoolIn),
     [{outgoing_pools, [Pool]}].
 
 pool_raw(Type, Tag, Opts) ->

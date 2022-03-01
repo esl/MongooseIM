@@ -389,16 +389,17 @@ options("s2s_only") ->
      {{s2s, <<"localhost">>}, custom_s2s()}].
 
 all_modules() ->
-    #{mod_mam_rdbms_user => [{muc, true}, {pm, true}],
+    #{mod_mam_rdbms_user => #{muc => true, pm => true},
       mod_event_pusher_hook_translator => [],
       mod_mam_muc =>
-          [{archive_chat_markers, true},
-           {async_writer, [{enabled, false}]},
-           {full_text_search, true},
-           {host, {fqdn, <<"muc.example.com">>}},
-           {is_archivable_message, mod_mam_utils}],
+          mod_config(mod_mam_muc,
+                     #{archive_chat_markers => true,
+                       async_writer => config([modules, mod_mam_meta, async_writer],
+                                              #{enabled => false}),
+                       host => {fqdn, <<"muc.example.com">>},
+                       no_stanzaid_element => true}),
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
-      mod_mam_cache_user => [{muc, true}, {pm, true}],
+      mod_mam_cache_user => #{cache => [], muc => true, pm => true},
       mod_offline =>
           [{access_max_user_messages, max_user_offline_messages},
            {backend, riak},
@@ -451,7 +452,7 @@ all_modules() ->
            {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
            {wpool, [{workers, 200}]}],
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
-      mod_mam_rdbms_arch_async => [{pm, []}],
+      mod_mam_rdbms_arch_async => #{pm => default_config([modules, mod_mam_meta, async_writer])},
       mod_keystore =>
           [{keys,
             [{access_secret, ram},
@@ -484,10 +485,13 @@ all_modules() ->
                           iqdisc => one_queue},
       mod_carboncopy => [{iqdisc, no_queue}],
       mod_mam =>
-          [{archive_chat_markers, true},
-           {full_text_search, false},
-           {is_archivable_message, mod_mam_utils},
-           {no_stanzaid_element, true}],
+          mod_config(mod_mam,
+                     #{archive_chat_markers => true,
+                       archive_groupchats => false,
+                       async_writer => default_config([modules, mod_mam_meta, async_writer]),
+                       full_text_search => false,
+                       same_mam_id_for_peers => false,
+                       no_stanzaid_element => true}),
       mod_disco =>
           mod_config(mod_disco,
                      #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
@@ -507,14 +511,14 @@ all_modules() ->
            {ldap_rfilter, "(objectClass=inetOrgPerson)"},
            {ldap_user_cache_validity, 1},
            {ldap_userdesc, "cn"}],
-      mod_mam_mnesia_prefs => [{muc, true}],
+      mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
           [{listen_port, 5600},
            {local_host, "localhost"},
            {proxy_host, "localhost"},
            {proxy_port, 5600},
            {sdp_origin, "127.0.0.1"}],
-      mod_mam_rdbms_prefs => [{pm, true}],
+      mod_mam_rdbms_prefs => #{pm => true},
       mod_extdisco =>
           #{iqdisc => one_queue,
             service => [#{host => <<"stun1">>, password => <<"password">>,
@@ -584,23 +588,27 @@ all_modules() ->
             remove_on_kicked => true,
             reset_markers => [<<"displayed">>]},
       mod_mam_meta =>
-          [{archive_chat_markers, true},
-           {backend, rdbms},
-           {full_text_search, true},
-           {is_archivable_message, mod_mam_utils},
-           {muc,
-            [{async_writer, [{enabled, false}]},
-             {host, {fqdn, <<"muc.example.com">>}},
-             {rdbms_message_format, simple},
-             {user_prefs_store, mnesia}]},
-           {no_stanzaid_element, true},
-           {pm, [{full_text_search, false}, {user_prefs_store, rdbms}]}],
+          mod_config(mod_mam_meta,
+                     #{archive_chat_markers => true,
+                       muc =>
+                           #{async_writer => config([modules, mod_mam_meta, async_writer],
+                                                    #{enabled => false}),
+                             db_message_format => mam_message_xml,
+                             host => {fqdn, <<"muc.example.com">>},
+                             user_prefs_store => mnesia},
+                       no_stanzaid_element => true,
+                       pm =>
+                           #{archive_groupchats => false,
+                             full_text_search => false,
+                             same_mam_id_for_peers => false,
+                             user_prefs_store => rdbms}}),
       mod_register =>
           [{access, all},
            {password_strength, 32},
            {registration_watchers, [<<"JID1">>, <<"JID2">>]},
            {welcome_message, {"Subject", "Body"}}],
-      mod_mam_rdbms_arch => [{no_writer, true}, {pm, true}],
+      mod_mam_rdbms_arch =>
+          mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
       mod_event_pusher_rabbit =>
           [{chat_msg_exchange,
             [{name, <<"chat_msg">>},
@@ -637,7 +645,7 @@ all_modules() ->
                        matches => 1,
                        search => true}),
       mod_mam_muc_rdbms_arch =>
-          [{muc, true}, {db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
+          mod_config(mod_mam_muc_rdbms_arch, #{db_message_format => mam_message_xml}),
       mod_stream_management =>
           [{ack_freq, 1},
            {buffer_max, 30},
@@ -889,4 +897,44 @@ default_mod_config(mod_vcard) ->
       ldap_search_operator => 'and',
       ldap_binary_search_fields => []};
 default_mod_config(mod_version) ->
-    #{iqdisc => no_queue, os_info => false}.
+    #{iqdisc => no_queue, os_info => false};
+default_mod_config(mod_mam_meta) ->
+    (common_mam_config())#{backend => rdbms, cache_users => true, cache => []};
+default_mod_config(mod_mam) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
+default_mod_config(mod_mam_muc) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
+default_mod_config(mod_mam_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_mini};
+default_mod_config(mod_mam_muc_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_rfc}.
+
+default_config([modules, M]) ->
+    default_mod_config(M);
+default_config([modules, mod_mam_meta, pm]) ->
+    #{archive_groupchats => false, same_mam_id_for_peers => false};
+default_config([modules, mod_mam_meta, muc]) ->
+    #{host => {prefix, <<"conference.">>}};
+default_config([modules, mod_mam_meta, async_writer]) ->
+    #{batch_size => 30, enabled => true, flush_interval => 2000,
+      pool_size => 4 * erlang:system_info(schedulers_online)};
+default_config([modules, mod_mam_meta, riak]) ->
+    #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>}.
+
+common_mam_config() ->
+    #{no_stanzaid_element => false,
+      is_archivable_message => mod_mam_utils,
+      send_message => mod_mam_utils,
+      archive_chat_markers => false,
+      message_retraction => true,
+      full_text_search => true,
+      default_result_limit => 50,
+      max_result_limit => 50,
+      async_writer => default_config([modules, mod_mam_meta, async_writer])}.
+
+config(Path, Opts) ->
+    maps:merge(default_config(Path), Opts).

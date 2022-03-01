@@ -156,9 +156,9 @@
   archive_chat_markers = true
   full_text_search = true
   pm.user_prefs_store = "rdbms"
-  pm.full_text_search =  false
+  pm.full_text_search = false
   muc.host = "muc.example.com"
-  muc.rdbms_message_format = "simple"
+  muc.db_message_format = "mam_message_xml"
   muc.async_writer.enabled = false
   muc.user_prefs_store = "mnesia"
 
