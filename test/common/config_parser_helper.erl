@@ -662,7 +662,7 @@ pgsql_modules() ->
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
            {welcome_message, {"Hello", "I am MongooseIM"}}],
       mod_roster => [{backend, rdbms}],
-      mod_sic => [], mod_stream_management => [],
+      mod_sic => default_mod_config(mod_sic), mod_stream_management => [],
       mod_vcard => mod_config(mod_vcard, #{backend => rdbms, host => {prefix, <<"vjud.">>}})}.
 
 auth_with_methods(Methods) ->
@@ -836,6 +836,8 @@ default_mod_config(mod_inbox) ->
       iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_sic) ->
+    #{iqdisc => one_queue};
 default_mod_config(mod_time) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_vcard) ->
