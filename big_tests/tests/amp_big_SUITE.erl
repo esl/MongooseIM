@@ -1000,8 +1000,8 @@ offline_modules(off) ->
      {mod_offline_stub, []}].
 
 privacy_modules(on) ->
-    [{mod_privacy, config_parser_helper:default_mod_config(mod_privacy)},
-     {mod_blocking, config_parser_helper:default_mod_config(mod_privacy)}];
+    [{mod_privacy, []},
+     {mod_blocking, []}];
 privacy_modules(off) ->
     [{mod_privacy, stopped},
      {mod_blocking, stopped}].

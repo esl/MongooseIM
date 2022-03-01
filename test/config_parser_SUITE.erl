@@ -194,6 +194,7 @@ groups() ->
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
+                            mod_blocking,
                             mod_bosh,
                             mod_caps,
                             mod_cache_users,
@@ -311,8 +312,8 @@ supported_features(_Config) ->
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}, mod_amp], #{},
+    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], [],
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -1602,6 +1603,9 @@ mod_auth_token(_Config) ->
     ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"value">> => 10}})),
     ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"unit">> => <<"days">>}})).
 
+mod_blocking(_Config) ->
+    test_privacy_opts(mod_blocking).
+
 mod_bosh(_Config) ->
     check_module_defaults(mod_bosh),
     P = [modules, mod_bosh],
@@ -2579,9 +2583,12 @@ mod_ping(_Config) ->
     check_iqdisc(mod_ping).
 
 mod_privacy(_Config) ->
-    check_module_defaults(mod_privacy),
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
-    P = [modules, mod_privacy],
+    test_privacy_opts(mod_privacy).
+
+test_privacy_opts(Module) ->
+    T = fun(Opts) -> #{<<"modules">> => #{atom_to_binary(Module) => Opts}} end,
+    P = [modules, Module],
+    check_module_defaults(Module),
     ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
     ?cfgh(P ++ [riak, defaults_bucket_type], <<"defaults">>,
@@ -3063,7 +3070,7 @@ mod_version(_Config) ->
     ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
-    ?cfgh([modules, mod_amp], #{}, #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 incorrect_module(_Config) ->

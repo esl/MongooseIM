@@ -792,7 +792,7 @@ modules() ->
                || Module <- configurable_modules()],
     Items = maps:from_list(Modules),
     #section{
-       items = Items#{default => #section{items = #{}, format_items = map}},
+       items = Items#{default => #section{items = #{}}},
        validate_keys = module,
        format_items = map,
        wrap = host_config
@@ -801,6 +801,7 @@ modules() ->
 configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
+     mod_blocking,
      mod_bosh,
      mod_cache_users,
      mod_caps,
