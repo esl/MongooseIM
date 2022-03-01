@@ -31,13 +31,13 @@ type MUCLightAdminQuery @protected{
 }
 
 type Room{
-  jid: JID 
-  name: String
-  subject: String
-  participants: [RoomUser!]
+  jid: JID!
+  name: String!
+  subject: String!
+  participants: [RoomUser!]!
 }
 
 type RoomUser{
-  jid: JID
-  affiliation: Affiliation
+  jid: JID!
+  affiliation: Affiliation!
 }

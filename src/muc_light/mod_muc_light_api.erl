@@ -21,9 +21,9 @@
 -include("mongoose_rsm.hrl").
 
 -type room() :: #{jid := jid:jid(),
-                 name := binary(),
-                 subject := binary(),
-                 aff_users := aff_users()}.
+                  name := binary(),
+                  subject := binary(),
+                  aff_users := aff_users()}.
 
 -export_type([room/0]).
 
@@ -109,13 +109,13 @@ change_room_config(#jid{luser = RoomID, lserver = MUCServer} = RoomJID,
 
 -spec change_affiliation(jid:jid(), jid:jid(), jid:jid(), binary()) -> ok.
 change_affiliation(RoomJID, SenderJID, RecipientJID, Affiliation) ->
-            RecipientBare = jid:to_bare(RecipientJID),
-            S = jid:to_bare(SenderJID),
-            Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
-                            [affiliate(jid:to_binary(RecipientBare), Affiliation)]),
-            ejabberd_router:route(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
-                                           <<"set">>, [Changes])),
-            ok.
+    RecipientBare = jid:to_bare(RecipientJID),
+    S = jid:to_bare(SenderJID),
+    Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
+                    [affiliate(jid:to_binary(RecipientBare), Affiliation)]),
+    ejabberd_router:route(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
+                                   <<"set">>, [Changes])),
+    ok.
 
 -spec remove_user_from_room(jid:jid(), jid:jid(), jid:jid()) ->
     {ok, iolist()}.
@@ -182,7 +182,7 @@ delete_room(RoomJID) ->
 
 -spec get_room_messages(jid:jid(), integer() | undefined,
                         mod_mam:unix_timestamp() | undefined) ->
-    {ok, list()} | {muc_server_not_found | internal, iolist()}.
+    {ok, [mod_mam:message_row()]} | {muc_server_not_found | internal, iolist()}.
 get_room_messages(RoomJID, PageSize, Before) ->
     case mongoose_domain_api:get_subdomain_host_type(RoomJID#jid.lserver) of
         {ok, HostType} ->
