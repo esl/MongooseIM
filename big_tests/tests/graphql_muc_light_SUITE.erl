@@ -781,17 +781,22 @@ admin_get_room_messages_story(Config, Alice) ->
     send_message_to_room(RoomJID, jid:from_binary(AliceBin), Message),
     mam_helper:maybe_wait_for_archive(Config),
     % Get messages so far
-    Res = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 50, null), Config),
-    [#{<<"stanza">> := StanzaXML}] = get_ok_value(?GET_MESSAGES_PATH, Res),
+    Limit = 40,
+    Res = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), Limit, null), Config),
+    #{<<"stanzas">> := [#{<<"stanza">> := StanzaXML}], <<"limit">> := Limit} =
+        get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)),
     % Get messages before the given date and time
     Before = <<"2022-02-17T04:54:13+00:00">>,
-    Res2 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 50, Before), Config),
-    ?assertMatch([], get_ok_value(?GET_MESSAGES_PATH, Res2)),
+    Res2 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), null, Before), Config),
+    ?assertMatch(#{<<"stanzas">> := [], <<"limit">> := 50}, get_ok_value(?GET_MESSAGES_PATH, Res2)),
+    % Try to pass too big page size value
+    Res3 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 51, Before), Config),
+    ?assertMatch(#{<<"limit">> := 50},get_ok_value(?GET_MESSAGES_PATH, Res3)),
     % Try with a non-existing domain
-    Res3 = execute_auth(get_room_messages_body(
-                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), 50, null), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
+    Res4 = execute_auth(get_room_messages_body(
+                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not found">>)).
 
 admin_list_user_rooms(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_list_user_rooms_story/2).

@@ -7,8 +7,10 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
-                                            null_to_undefined/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1,
+                                            make_ok_user/1,
+                                            null_to_undefined/1,
+                                            page_size_or_max_limit/2]).
 
 execute(_Ctx, _Obj, <<"listUserRooms">>, Args) ->
     list_user_rooms(Args);
@@ -52,10 +54,11 @@ get_room_config(#{<<"room">> := RoomJID}) ->
 get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize,
                     <<"before">> := Before}) ->
     Before2 = null_to_undefined(Before),
-    case mod_muc_light_api:get_room_messages(RoomJID, PageSize, Before2) of
+    PageSize2 = page_size_or_max_limit(PageSize, 50),
+    case mod_muc_light_api:get_room_messages(RoomJID, PageSize2, Before2) of
         {ok, Rows} ->
             Maps = lists:map(fun mongoose_graphql_stanza_helper:row_to_map/1, Rows),
-            {ok, #{<<"stanzas">> => Maps, <<"limit">> => null}};
+            {ok, #{<<"stanzas">> => Maps, <<"limit">> => PageSize2}};
         Err ->
             make_error(Err, #{room => RoomJID})
     end.
