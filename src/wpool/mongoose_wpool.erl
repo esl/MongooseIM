@@ -226,7 +226,7 @@ stop(PoolType, HostType, Tag) ->
 -spec is_configured(pool_type()) -> boolean().
 is_configured(PoolType) ->
     Pools = mongoose_config:get_opt(outgoing_pools, []),
-    lists:any(fun(M) -> maps:is_key(PoolType, M) end, Pools).
+    lists:any(fun(#{type := Type}) -> Type =:= PoolType end, Pools).
 
 -spec get_worker(pool_type()) -> worker_result().
 get_worker(PoolType) ->
