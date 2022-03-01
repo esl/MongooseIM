@@ -14,6 +14,8 @@ type MUCLightAdminMutation @protected{
   kickUser(room: JID!, user: JID!): String
   "Send a message to a MUC Light room"
   sendMessageToRoom(room: JID!, from: JID!, body: String!): String
+  "Set the user blocking list"
+  setBlockingList(user: JID!, items: [BlockingInput!]!): String
 }
 
 """
@@ -28,4 +30,6 @@ type MUCLightAdminQuery @protected{
   listRoomUsers(room: JID!): [RoomUser!]
   "Get the list of MUC Light rooms that the user participates in"
   listUserRooms(user: JID!): [JID!]
+  "Get the user blocking list"
+  getBlockingList(user: JID!): [BlockingItem!]
 }

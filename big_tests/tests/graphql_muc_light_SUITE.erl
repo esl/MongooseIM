@@ -72,7 +72,8 @@ admin_muc_light_handler() ->
      admin_get_room_messages,
      admin_list_user_rooms,
      admin_list_room_users,
-     admin_get_room_config
+     admin_get_room_config,
+     admin_blocking_list
     ].
 
 init_per_suite(Config) ->
@@ -485,6 +486,37 @@ user_get_room_config_story(Config, Alice, Bob) ->
 
 %% Admin test cases
 
+admin_blocking_list(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun admin_blocking_list_story/3).
+
+admin_blocking_list_story(Config, Alice, Bob) ->
+    AliceBin = escalus_client:full_jid(Alice),
+    BobBin = escalus_client:full_jid(Bob),
+    BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    Res = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res)),
+    Res2 = execute_auth(admin_set_blocking_body(
+                          AliceBin, [{<<"USER">>, <<"DENY">>, BobBin}]), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
+                                          <<"successfully">>)),
+    Res3 = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    ?assertEqual([#{<<"what">> => <<"USER">>,
+                    <<"action">> => <<"DENY">>,
+                    <<"who">> => BobShortBin}],
+                 get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
+    Res4 = execute_auth(admin_set_blocking_body(
+                          AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}]), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
+                                          <<"successfully">>)),
+    Res5 = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
+    ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)),
+    % Check whether errors are handled correctly
+    InvalidUser = make_bare_jid(?UNKNOWN, ?UNKNOWN_DOMAIN),
+    Res6 = execute_auth(admin_get_user_blocking_body(InvalidUser), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res6), <<"not found">>)),
+    Res7 = execute_auth(admin_set_blocking_body(InvalidUser, []), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res7), <<"not found">>)).
+
 admin_create_room(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_create_room_story/2).
 
@@ -828,6 +860,10 @@ get_room_aff(JID) ->
     {ok, _, Aff, _} = get_room_info(JID),
     Aff. 
 
+prepare_blocking_items_for_query(Items) ->
+    [#{<<"who">> => Who, <<"what">> => What,
+       <<"action">> => Action} || {What, Action, Who} <- Items].
+
 %% Request bodies
 
 admin_create_room_body(MUCDomain, Name, Owner, Subject, Id) ->
@@ -947,4 +983,19 @@ get_room_config_body(RoomJID) ->
               { jid name subject participants {jid affiliation} } } }">>,
     OpName = <<"Q1">>,
     Vars = #{<<"room">> => RoomJID},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+admin_get_user_blocking_body(UserJID) ->
+    Query = <<"query Q1($user: JID!)
+              { muc_light { getBlockingList(user: $user)
+              { who what action } } }">>,
+    OpName = <<"Q1">>,
+    Vars = #{<<"user">> => UserJID},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+admin_set_blocking_body(UserJID, Items) ->
+    Query = <<"mutation M1($user: JID!, $items: [BlockingInput!]!)
+              { muc_light { setBlockingList(user: $user, items: $items) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{<<"user">> => UserJID, <<"items">> => prepare_blocking_items_for_query(Items)},
     #{query => Query, operationName => OpName, variables => Vars}.

@@ -4,6 +4,28 @@ enum Affiliation{
   NONE
 }
 
+input BlockingInput{
+  what: BlockingWhat!
+  action: BlockingAction!
+  who: JID!
+}
+
+type BlockingItem{
+  what: BlockingWhat!
+  action: BlockingAction!
+  who: JID!
+}
+
+enum BlockingAction{
+  ALLOW,
+  DENY
+}
+
+enum BlockingWhat{
+  USER,
+  ROOM
+}
+
 type Room{
   jid: JID!
   name: String!

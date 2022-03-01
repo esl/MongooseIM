@@ -20,7 +20,9 @@ execute(_Ctx, _Obj, <<"deleteRoom">>, Args) ->
 execute(_Ctx, _Obj, <<"kickUser">>, Args) ->
     kick_user(Args);
 execute(_Ctx, _Obj, <<"sendMessageToRoom">>, Args) ->
-    send_msg_to_room(Args).
+    send_msg_to_room(Args);
+execute(_Ctx, _Obj, <<"setBlockingList">>, Args) ->
+    set_blocking_list(Args).
 
 -spec create_room(map()) -> {ok, map()} | {error, resolver_error()}.
 create_room(#{<<"id">> := null} = Args) ->
@@ -65,3 +67,13 @@ kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
 send_msg_to_room(#{<<"room">> := RoomJID, <<"from">> := FromJID, <<"body">> := Message}) ->
     Result = mod_muc_light_api:send_message(RoomJID, FromJID, Message),
     format_result(Result, #{room => jid:to_binary(RoomJID), from => jid:to_binary(FromJID)}).
+
+-spec set_blocking_list(map()) -> {ok, binary()} | {error, resolver_error()}.
+set_blocking_list(#{<<"user">> := UserJID, <<"items">> := Items}) ->
+    Items2 = prepare_blocking_items(Items),
+    Result = mod_muc_light_api:set_blocking(UserJID, Items2),
+    format_result(Result, #{user => jid:to_binary(UserJID)}).
+
+prepare_blocking_items(Items) ->
+    [{What, Action, jid:to_lus(Who)} || #{<<"who">> := Who, <<"what">> := What,
+                                          <<"action">> := Action} <- Items].
