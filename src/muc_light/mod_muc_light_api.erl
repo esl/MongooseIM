@@ -16,7 +16,9 @@
          get_room_info/1,
          get_room_info/2,
          get_room_aff/1,
-         get_room_aff/2
+         get_room_aff/2,
+         get_blocking_list/1,
+         set_blocking/2
         ]).
 
 -include("mod_muc_light.hrl").
@@ -309,6 +311,29 @@ get_user_rooms(#jid{lserver = LServer} = UserJID) ->
             ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
+-spec get_blocking_list(jid:jid()) -> {ok, [blocking_item()]} | {muc_server_not_found, iolist()}.
+get_blocking_list(#jid{lserver = LServer} = User) ->
+    case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
+            {ok, mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(User), MUCServer)};
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
+
+-spec set_blocking(jid:jid(), [blocking_item()]) -> {ok | muc_server_not_found, iolist()}.
+set_blocking(#jid{lserver = LServer} = User, Items) ->
+     case mongoose_domain_api:get_domain_host_type(LServer) of
+        {ok, HostType} ->
+            MUCServer = mod_muc_light_utils:server_host_to_muc_host(HostType, LServer),
+            Q = query(?NS_MUC_LIGHT_BLOCKING, [blocking_item(I) || I <- Items]),
+            Iq = iq(jid:to_binary(User), MUCServer, <<"set">>, [Q]),
+            ejabberd_router:route(User, jid:from_binary(MUCServer), Iq),
+            {ok, "User blocking list updated successfully"};
+        {error, not_found} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
+
  %% Internal
 
 make_room(JID, Name, Subject, AffUsers) ->
@@ -334,6 +359,13 @@ affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
     #xmlel{name = <<"user">>,
            attrs = [{<<"affiliation">>, Kind}],
            children = [ #xmlcdata{ content = JID } ]
+          }.
+
+-spec blocking_item(blocking_item()) -> #xmlel{}.
+blocking_item({What, Action, Who}) ->
+    #xmlel{name = atom_to_binary(What),
+           attrs = [{<<"action">>, atom_to_binary(Action)}],
+           children = [#xmlcdata{ content = jid:to_binary(Who)}]
           }.
 
 -spec make_room_config(binary(), binary()) -> create_req_props().
