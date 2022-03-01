@@ -168,6 +168,16 @@ init_per_testcase(create_existing_room_deny = CaseName, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [], Config),
     escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                         CaseName =:= disco_info_with_mam ->
+    case mam_helper:backend() of
+        disabled ->
+            {skip, "No MAM backend available"};
+        Backend ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Backend)),
+            create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
+            escalus:init_per_testcase(CaseName, Config)
+    end;
 init_per_testcase(CaseName, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
@@ -179,9 +189,16 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per test case
 
+required_modules(CaseName, MAMBackend) ->
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => MAMBackend,
+                                             muc => #{host => subhost_pattern(?MUCHOST)}})} |
+     common_required_modules(CaseName)].
+
 required_modules(CaseName) ->
-    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName)},
-     {mod_mam_muc, mam_muc_config(CaseName)}].
+    [{mod_mam_meta, stopped} | common_required_modules(CaseName)].
+
+common_required_modules(CaseName) ->
+    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName)}].
 
 muc_light_opts(disco_rooms_rsm) ->
     [{rooms_per_page, 1}];
@@ -200,13 +217,6 @@ common_muc_light_opts() ->
     [{host, subhost_pattern(muc_helper:muc_host_pattern())},
      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
      {legacy_mode, true}].
-
-mam_muc_config(CaseName) when CaseName =:= disco_features_with_mam;
-                              CaseName =:= disco_info_with_mam ->
-    [{backend, rdbms},
-     {host, subhost_pattern(?MUCHOST)}];
-mam_muc_config(_CaseName) ->
-    stopped.
 
 %% ---------------------- Helpers ----------------------
 
