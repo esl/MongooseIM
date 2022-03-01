@@ -269,30 +269,31 @@
   matches = 1
   search = true
   host = "directory.example.com"
+  backend = "ldap"
 
-  [[modules.mod_vcard.ldap_vcard_map]]
+  [[modules.mod_vcard.ldap.vcard_map]]
     vcard_field = "FAMILY"
     ldap_pattern = "%s"
     ldap_field = "sn"
 
-  [[modules.mod_vcard.ldap_vcard_map]]
+  [[modules.mod_vcard.ldap.vcard_map]]
     vcard_field = "FN"
     ldap_pattern = "%s"
     ldap_field = "displayName"
 
-  [[modules.mod_vcard.ldap_search_fields]]
+  [[modules.mod_vcard.ldap.search_fields]]
     search_field = "User"
     ldap_field = "%u"
 
-  [[modules.mod_vcard.ldap_search_fields]]
+  [[modules.mod_vcard.ldap.search_fields]]
     search_field = "Full Name"
     ldap_field = "displayName"
 
-  [[modules.mod_vcard.ldap_search_reported]]
+  [[modules.mod_vcard.ldap.search_reported]]
     search_field = "Full Name"
     vcard_field = "FN"
 
-  [[modules.mod_vcard.ldap_search_reported]]
+  [[modules.mod_vcard.ldap.search_reported]]
     search_field = "Given Name"
     vcard_field = "FIRST"
 

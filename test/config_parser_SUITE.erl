@@ -2954,18 +2954,20 @@ mod_vcard(_Config) ->
     ?cfgh(P ++ [matches], infinity,
           T(#{<<"matches">> => <<"infinity">>})),
     %% ldap
-    ?cfgh(P ++ [ldap_pool_tag], default,
-          T(#{<<"ldap_pool_tag">> => <<"default">>})),
-    ?cfgh(P ++ [ldap_base], "ou=Users,dc=ejd,dc=com",
-          T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
-    ?cfgh(P ++ [ldap_filter], <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
-          T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
-    ?cfgh(P ++ [ldap_deref], never,
-          T(#{<<"ldap_deref">> => <<"never">>})),
-    ?cfgh(P ++ [ldap_search_operator], 'or',
-          T(#{<<"ldap_search_operator">> => <<"or">>})),
-    ?cfgh(P ++ [ldap_binary_search_fields], [<<"PHOTO">>],
-          T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
+    ?cfgh(P ++ [ldap], config_parser_helper:default_config(P ++ [ldap]),
+          T(#{<<"backend">> => <<"ldap">>})),
+    ?cfgh(P ++ [ldap, pool_tag], my_tag,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"pool_tag">> => <<"my_tag">>}})),
+    ?cfgh(P ++ [ldap, base], <<"ou=Users,dc=ejd,dc=com">>,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"base">> => <<"ou=Users,dc=ejd,dc=com">>}})),
+    ?cfgh(P ++ [ldap, filter], <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>}})),
+    ?cfgh(P ++ [ldap, deref], always,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"deref">> => <<"always">>}})),
+    ?cfgh(P ++ [ldap, search_operator], 'or',
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"search_operator">> => <<"or">>}})),
+    ?cfgh(P ++ [ldap, binary_search_fields], [<<"PHOTO">>],
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"binary_search_fields">> => [<<"PHOTO">>]}})),
     %% riak
     ?cfgh(P ++ [riak, bucket_type], <<"vcard">>,
           T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
@@ -2991,9 +2993,10 @@ mod_vcard(_Config) ->
     ?errh(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
 
 mod_vcard_ldap_uids(_Config) ->
-    P = [modules, mod_vcard, ldap_uids],
+    P = [modules, mod_vcard, ldap, uids],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"uids">> => Opts}}}} end,
     RequiredOpts = #{<<"attr">> => <<"name">>},
     ExpectedCfg = <<"name">>,
     ?cfgh(P, [], T([])),
@@ -3007,9 +3010,10 @@ mod_vcard_ldap_uids(_Config) ->
     ?errh(T(RequiredOpts#{<<"format">> => true})).
 
 mod_vcard_ldap_vcard_map(_Config) ->
-    P = [modules, mod_vcard, ldap_vcard_map],
+    P = [modules, mod_vcard, ldap, vcard_map],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"vcard_map">> => Opts}}}} end,
     RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
                      <<"ldap_pattern">> => <<"%s">>,
                      <<"ldap_field">> => <<"sn">>},
@@ -3022,9 +3026,10 @@ mod_vcard_ldap_vcard_map(_Config) ->
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_fields(_Config) ->
-    P = [modules, mod_vcard, ldap_search_fields],
+    P = [modules, mod_vcard, ldap, search_fields],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"search_fields">> => Opts}}}} end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"ldap_field">> => <<"cn">>},
     ExpectedCfg = {<<"Full Name">>, <<"cn">>},
@@ -3035,9 +3040,10 @@ mod_vcard_ldap_search_fields(_Config) ->
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_reported(_Config) ->
-    P = [modules, mod_vcard, ldap_search_reported],
+    P = [modules, mod_vcard, ldap, search_reported],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"search_reported">> => Opts}}}} end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"vcard_field">> => <<"FN">>},
     ExpectedCfg = {<<"Full Name">>, <<"FN">>},

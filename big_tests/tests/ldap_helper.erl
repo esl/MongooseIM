@@ -58,7 +58,7 @@ get_usp(Spec) ->
     {Username, Server, Password}.
 
 get_ldap_base(Server) ->
-    list_to_binary(rpc(mim(), gen_mod, get_module_opt, [Server, mod_vcard, ldap_base, ""])).
+    rpc(mim(), gen_mod, get_module_opt, [Server, mod_vcard, [ldap, base]]).
 
 call_ldap(Server, F, Args) ->
     rpc(mim(), mongoose_wpool, call, [ldap, Server, default, {F, Args}]).
