@@ -537,7 +537,7 @@ definitions:
       timestamp:
         type: integer
         format: int64
-        description: Unix timestamp in miliseconds.
+        description: Unix timestamp in milliseconds.
       body:
         type: string
         description: |

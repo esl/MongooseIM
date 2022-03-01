@@ -40,10 +40,10 @@ On the one hand, a custom solution means building everything from scratch, that 
 On the other hand, we have XMPP, a super tested technology broadly used by millions of people every day,
 so we can say that’s an advantage over a custom approach.
 
-Everytime I talk about XMPP, someone asks me 'Why not just REST?’.
+Every time I talk about XMPP, someone asks me 'Why not just REST?’.
 Well, there is a misconception here.
 REST is not a protocol, it’s just a way of architecting a networked application;
-it’s just a standarized way of doing something (that I love btw).
+it’s just a standardized way of doing something (that I love btw).
 So let’s change the question to something that makes more sense:
 “Why not just build a custom REST chat application?”.
 The first thing that comes to my mind is what I already explained in the previous paragraph,
@@ -62,7 +62,7 @@ like SSE or WebSockets.
 
 There is one more XMPP advantage over a custom REST chat application.
 REST uses HTTP, an application level protocol that is built on top of a transport level protocol: TCP.
-So everytime you want to use your REST solution,
+So every time you want to use your REST solution,
 you will need HTTP,
 a protocol that is not always available everywhere (maybe you need to embed this in a cheap piece of hardware?).
 Besides, we have XMPP built on top of TCP that’s going to be always available.
@@ -76,7 +76,7 @@ Well, you know a lot already but let’s make a list. Lists are always good:
 * Everything we send and receive is going to be XML and it’s called Stanza.
 * We have three different types of stanzas: iq, message and presence.
 * Every individual on the XMPP network is univocally identified by a JID (Jabber ID).
-* All the stanzas are cointained in a Stream. Let’s imagine the Stream as a white canvas where you and the server write the stanzas.
+* All the stanzas are contained in a Stream. Let’s imagine the Stream as a white canvas where you and the server write the stanzas.
 * Stream, iq, message and presence are the core of XMPP. You can find everything perfectly detailed in RFC6120
 XMPP can be extended to accomplish different stuff. Each extension is called XEP (XMPP Extension Protocol).
 
@@ -114,7 +114,7 @@ The defined stanzas are: `<message/>`, `<presence/>` and `<iq/>`.
 ### `<message/>`
 
 This is a basic `<message/>` stanza.
-Everytime you want to send a message to someone (a JID), you will have to send this stanza:
+Every time you want to send a message to someone (a JID), you will have to send this stanza:
 
 ```xml
 <message from='andres@erlang-solutions.com/iphone' to='juana@erlang-solutions.com' type='chat'>
@@ -153,13 +153,13 @@ And we get back another `iq` with the same id with the result of the previous qu
 
 Used to exchange presence information, as you could have imagined.
 Usually presences are sent from the client to the server and broadcasted by it.
-The most basic, yet valid presence, to indicate to the server that a user is avaiable is:
+The most basic, yet valid presence, to indicate to the server that a user is available is:
 
 ```xml
 <presence/>
 ```
 
-After a sucessfull connection,
+After a successful connection,
 you are not going to receive any `<message/>` until you make yourself available sending the previous presence.
 
 If you want to make yourself unavailable, you just have to send:
@@ -189,12 +189,12 @@ So the client is going to write to this file and server too.
 Ok, but how is a socket related to a Stream?
 Well, we are going to be connected to a server using a socket,
 therefore we are going to have a 'shared file’ between the client and the server.
-This shared file is a white canvas where we are going to start writting our XML stanzas.
+This shared file is a white canvas where we are going to start writing our XML stanzas.
 The first thing we are going to write to this file is an opening `<stream>` tag! 
 And there you go… that’s our stream.
 
 Perfect, I understand what a stream is, but I still don’t understand how to send a message to the server.
-Well, the only thing we need to do to send a message is writting a <message/> stanza in our shared file.
+Well, the only thing we need to do to send a message is writing a <message/> stanza in our shared file.
 But what happens when the server wants to send me a message?
 Simple: it will write the message in the 'shared file’.
 
@@ -388,7 +388,7 @@ in the previous example we want it in the main thread.
 Our app is super ugly, let’s put on some makeup!
 We have nothing but an `XMPPController` and a hardcoded call in the `AppDelegate`.
 I’m going to create a `ViewController` that is going to be presented modally as soon as the app starts,
-that `ViewController` will have the neccesary fields/info to log in to the server.
+that `ViewController` will have the necessary fields/info to log in to the server.
 
 I’m going to create a `LogInViewControllerDelegate` that is going to tell to our `ViewController`
 that the `Log in` button was pressed and that’s it.
@@ -413,8 +413,8 @@ extension ViewController: LogInViewControllerDelegate {
 }
 ```
 
-Why are we adding `ViewController` as a delegate of `XMPPStream` if our `XMPPController` alreay has that delegate implemented?
-Because we need to know if this connection and authentication was successfull or notin our `ViewController`
+Why are we adding `ViewController` as a delegate of `XMPPStream` if our `XMPPController` already has that delegate implemented?
+Because we need to know if this connection and authentication was successful or not in our `ViewController`
 so we are able to dismiss the `LogInViewController` or show an error message if something failed.
 This is why being able to add multiple delegates is so useful.
 

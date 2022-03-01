@@ -44,7 +44,7 @@ Example: `"hosts" -> {"dc1.example.com", "dc2.example.com"}`.
 `mod_global_distrib` establishes its own listeners and dedicated TCP/TLS connections for message routing.
 Each node listens on preconfigured endpoints, where each node in a datacenter can have any number of endpoints, including none.
 The endpoints are shared between all datacenters.
-If a node becomes unavailable, its endpoint entries in the database will expire and will be readded once the node comes back online.
+If a node becomes unavailable, its endpoint entries in the database will expire and will be read once the node comes back online.
 
 Connections between nodes in distinct datacenters are opened on the first request and then maintained as long as the destination endpoint is present in Redis.
 When a node needs to connect to a remote cluster, specified number of connections are opened to every endpoint reported by that datacenter.

@@ -591,7 +591,7 @@ In order to block a user, a query must contain at least one 'user' item with a '
 
 #### 4.5.4. Unblocking
 
-In order to cancel a blocking, a query must contain at least one 'room' or 'user' item with an 'allow' action and an appriopriate bare JID in the content.
+In order to cancel a blocking, a query must contain at least one 'room' or 'user' item with an 'allow' action and an appropriate bare JID in the content.
 
 Unblocking a JID that is not blocked does not trigger any error. The server MUST return an empty IQ result in such case.
 

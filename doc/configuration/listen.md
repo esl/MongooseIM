@@ -143,7 +143,7 @@ Same syntax as for `auth.methods` option.
 
 ## TLS options for C2S
 
-The following options allow enabling and configuring TLS which makes the client-to-server conenctions secure.
+The following options allow enabling and configuring TLS which makes the client-to-server connections secure.
 They all have the `tls.` prefix.
 
 ### `listen.c2s.tls.mode`

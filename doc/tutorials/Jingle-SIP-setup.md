@@ -16,7 +16,7 @@ We are going to use the following open source software:
     * I recommend downloading binaries for your system from [official source](https://routr.io/docs/introduction/installation/#custom).
 * Jitsi (XMPP and SIP client application) - [https://desktop.jitsi.org](https://desktop.jitsi.org/)
 * Otalk - web based XMPP client - [https://github.com/otalk/otalk-im-client](https://github.com/otalk/otalk-im-client)
-    * Folow the instructions on [otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) to run it
+    * Follow the instructions on [otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) to run it
 
 We will use 2 users `xmpp.user@xmpp.example` and `sip.user@sip.example`.
 
@@ -147,8 +147,8 @@ Here we need to unselect the `Configure proxy automatically` and put the IP of o
 
 Now we have to add `sip.user@sip.example` to Jitsi's XMPP network in order to connect this user to MongooseIM over XMPP.
 It's very similar to adding a user to Jitsi's SIP network, the only difference is the password,
-for the XMPP conection it's `test_pass` as set when registering the user in MongooseIM.
-Here we also need to go to the `Advanced` window and the `Connection` tab in order to put the IP addres (the same as before) in the `Connect Server` field.
+for the XMPP connection it's `test_pass` as set when registering the user in MongooseIM.
+Here we also need to go to the `Advanced` window and the `Connection` tab in order to put the IP address (the same as before) in the `Connect Server` field.
 Remember to check the `Override server default options` box.
 
 To connect `sip.user@sip.exmple` to MongooseIM over XMPP is to cheat Jingle a bit, so that the client app for user `sip.xmpp@xmpp.example` can start the Jingle call.
