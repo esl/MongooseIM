@@ -536,7 +536,7 @@ handle_package(Dir, ReturnMessID,
     end.
 
 should_archive_if_groupchat(HostType, <<"groupchat">>) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, archive_groupchats, false);
+    gen_mod:get_module_opt(HostType, ?MODULE, archive_groupchats);
 should_archive_if_groupchat(_, _) ->
     true.
 
@@ -549,7 +549,7 @@ return_external_message_id_if_ok(_, _, _MessID) -> undefined.
 return_acc_with_mam_id_if_configured(undefined, _, Acc) ->
     Acc;
 return_acc_with_mam_id_if_configured(ExtMessId, HostType, Acc) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, same_mam_id_for_peers, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, same_mam_id_for_peers) of
         false -> mongoose_acc:set(mam, mam_id, ExtMessId, Acc);
         true -> mongoose_acc:set_permanent(mam, mam_id, ExtMessId, Acc)
     end.
@@ -713,9 +713,9 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) 
                             Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
 is_archivable_message(HostType, Dir, Packet) ->
-    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, HostType),
+    M = mod_mam_params:is_archivable_message_module(?MODULE, HostType),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
-    erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
+    erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
 config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}

@@ -48,14 +48,14 @@
 %% gen_mod callbacks
 %%-------------------------------------------------------------------
 
--spec start(jid:server(), list()) -> ok.
-start(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)),
     ok.
 
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)),
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)),
     ok.
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(),

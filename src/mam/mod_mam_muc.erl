@@ -616,9 +616,9 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
                             Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
 is_archivable_message(HostType, Dir, Packet) ->
-    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, HostType),
+    M = mod_mam_params:is_archivable_message_module(?MODULE, HostType),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
-    erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
+    erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
 
 -spec hooks(host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
@@ -630,8 +630,7 @@ hooks(HostType) ->
 
 add_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel),
-    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host,
-                                                 mod_muc:default_host()),
+    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host),
 
     gen_iq_handler:add_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
                                                 ?NS_MAM_04, mod_muc_iq,
@@ -644,8 +643,7 @@ add_iq_handlers(HostType, Opts) ->
     ok.
 
 remove_iq_handlers(HostType) ->
-    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host,
-                                                 mod_muc:default_host()),
+    MUCSubdomainPattern = gen_mod:get_module_opt(HostType, ?MODULE, host),
     gen_iq_handler:remove_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,
                                                    ?NS_MAM_04, mod_muc_iq),
     gen_iq_handler:remove_iq_handler_for_subdomain(HostType, MUCSubdomainPattern,

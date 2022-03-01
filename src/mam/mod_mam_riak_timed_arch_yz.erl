@@ -60,69 +60,38 @@
 %% - `muc' option starts multichat archives
 %%
 %% Use both options `pm, muc' to archive both MUC and private messages
-start(Host, Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_chat_archive(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc_archive(Host, Opts);
-        false ->
-            ok
-    end.
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
+    ejabberd_hooks:add(hooks(HostType, Opts)).
 
-start_chat_archive(Host, _Opts) ->
-    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    ejabberd_hooks:delete(hooks(HostType, Opts)).
 
-start_muc_archive(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50),
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50).
+hooks(HostType, Opts) ->
+    lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
-stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_chat_archive(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc_archive(Host);
-        false ->
-            ok
-    end.
-
-stop_chat_archive(Host) ->
-    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message_muc, 50),
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
-
-stop_muc_archive(Host) ->
-    ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
-    ok.
+hooks(HostType, pm, #{pm := true}) ->
+    [{mam_archive_message, HostType, ?MODULE, archive_message, 50},
+     {mam_archive_size, HostType, ?MODULE, archive_size, 50},
+     {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
+     {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}];
+hooks(HostType, muc, #{muc := true}) ->
+    [{mam_muc_archive_message, HostType, ?MODULE, archive_message_muc, 50},
+     {mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
+     {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages_muc, 50},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50},
+     {get_mam_muc_gdpr_data, HostType, ?MODULE, get_mam_muc_gdpr_data, 50}];
+hooks(_HostType, _Opt, _Opts) ->
+    [].
 
 yz_search_index(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, search_index, <<"mam">>).
+    gen_mod:get_module_opt(Host, ?MODULE, [riak, search_index]).
 
 mam_bucket_type(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, bucket_type, <<"mam_yz">>).
+    gen_mod:get_module_opt(Host, ?MODULE, [riak, bucket_type]).
 
 %% LocJID - archive owner's JID
 %% RemJID - interlocutor's JID
@@ -535,4 +504,4 @@ stored_binary_to_packet(Host, Bin) ->
 
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
-    gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_xml).
+    gen_mod:get_module_opt(Host, ?MODULE, db_message_format).

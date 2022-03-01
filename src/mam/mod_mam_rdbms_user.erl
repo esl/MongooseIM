@@ -48,6 +48,7 @@ hooks(HostType) ->
      || {true, Hook, Fun, N} <- hooks2(HostType)].
 
 hooks2(HostType) ->
+    %% FIXME the auto_remove option is missing from the config spec
     AR = gen_mod:get_module_opt(HostType, ?MODULE, auto_remove, false),
     PM = gen_mod:get_module_opt(HostType, ?MODULE, pm, false),
     MUC = gen_mod:get_module_opt(HostType, ?MODULE, muc, false),

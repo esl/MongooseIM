@@ -72,7 +72,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(host_type(), _) -> ok.
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     ejabberd_hooks:add(hooks(HostType)).
 
@@ -84,14 +84,8 @@ stop(HostType) ->
 %% Add hooks for mod_mam_muc
 
 hooks(HostType) ->
-    NoWriter = gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false),
-    case NoWriter of
-        true ->
-            [];
-        false ->
-            [{mam_muc_archive_message, HostType, ?MODULE, archive_message, 50}]
-    end ++
-    [{mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
+    [{mam_muc_archive_message, HostType, ?MODULE, archive_message, 50},
+     {mam_muc_archive_size, HostType, ?MODULE, archive_size, 50},
      {mam_muc_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
      {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50},
      {get_mam_muc_gdpr_data, HostType, ?MODULE, get_mam_muc_gdpr_data, 50}].
@@ -760,8 +754,8 @@ stored_binary_to_packet(HostType, Bin) ->
 
 -spec db_message_format(HostType :: host_type()) -> module().
 db_message_format(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
+    gen_mod:get_module_opt(HostType, ?MODULE, db_message_format).
 
 -spec pool_name(HostType :: host_type()) -> mongoose_wpool:pool_name().
 pool_name(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
+    default.
