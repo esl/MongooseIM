@@ -560,9 +560,8 @@ admin_create_room_story(Config, Alice) ->
     Name = <<"first room">>,
     Subject = <<"testing">>,
     Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, null), Config),
-    Path = [data, muc_light, createRoom],
     #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject,
-      <<"participants">> := Participants} = get_ok_value(Path, Res),
+      <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{server = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
     % Try with a non-existing domain
@@ -580,8 +579,8 @@ admin_create_identified_room_story(Config, Alice) ->
     Subject = <<"testing">>,
     Id = <<"my_room">>,
     Res = execute_auth(admin_create_room_body(MucServer, Name, AliceBin, Subject, Id), Config),
-    Path = [data, muc_light, createRoom],
-    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} = get_ok_value(Path, Res),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{user = Id, server = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
     Res2 = execute_auth(admin_create_room_body(MucServer, <<"snd room">>, AliceBin, Subject, Id),
@@ -607,8 +606,8 @@ admin_change_room_config_story(Config, Alice) ->
     Subject2 = <<"not testing">>,
     Res = execute_auth(admin_change_room_configuration_body(jid:to_binary(RoomJID),
                                                             AliceBin, Name2, Subject2), Config),
-    Path = [data, muc_light, changeRoomConfiguration],
-    ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2}, get_ok_value(Path, Res)).
+    ?assertMatch(#{<<"name">> := Name2, <<"subject">> := Subject2},
+                 get_ok_value(?CHANGE_CONFIG_PATH, Res)).
 
 admin_change_room_config_errors(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -654,7 +653,7 @@ admin_invite_user_story(Config, Alice, Bob) ->
     {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, Name, <<"subject2">>, AliceBin),
 
     Res = execute_auth(admin_invite_user_body(jid:to_binary(RoomJID), AliceBin, BobBin), Config),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value([data, muc_light, inviteUser], Res),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
                                           <<"successfully">>)),
     BobName = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
     AliceName = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
@@ -718,7 +717,7 @@ admin_kick_user_story(Config, Alice, Bob) ->
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     ?assertEqual(2, length(get_room_aff(RoomJID))),
     Res = execute_auth(admin_kick_user_body(jid:to_binary(RoomJID), BobBin), Config),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value([data, muc_light, kickUser], Res),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))).
 
@@ -770,7 +769,6 @@ admin_get_room_messages(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_get_room_messages_story/2).
 
 admin_get_room_messages_story(Config, Alice) ->
-    Path = [data, muc_light, getRoomMessages, stanzas],
     AliceBin = escalus_client:short_jid(Alice),
     %Domain = escalus_client:server(Alice),
     MUCServer = ?config(muc_light_host, Config),
@@ -784,12 +782,12 @@ admin_get_room_messages_story(Config, Alice) ->
     mam_helper:maybe_wait_for_archive(Config),
     % Get messages so far
     Res = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 50, null), Config),
-    [#{<<"stanza">> := StanzaXML}] = get_ok_value(Path, Res),
+    [#{<<"stanza">> := StanzaXML}] = get_ok_value(?GET_MESSAGES_PATH, Res),
     ?assertMatch({ok, #xmlel{name = <<"message">>}}, exml:parse(StanzaXML)),
     % Get messages before the given date and time
     Before = <<"2022-02-17T04:54:13+00:00">>,
     Res2 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 50, Before), Config),
-    ?assertMatch([], get_ok_value(Path, Res2)),
+    ?assertMatch([], get_ok_value(?GET_MESSAGES_PATH, Res2)),
     % Try with a non-existing domain
     Res3 = execute_auth(get_room_messages_body(
                           make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), 50, null), Config),
@@ -799,7 +797,6 @@ admin_list_user_rooms(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_list_user_rooms_story/2).
 
 admin_list_user_rooms_story(Config, Alice) ->
-    Path = [data, muc_light, listUserRooms],
     AliceBin = escalus_client:short_jid(Alice),
     Domain = escalus_client:server(Alice),
     MUCServer = ?config(muc_light_host, Config),
@@ -809,10 +806,10 @@ admin_list_user_rooms_story(Config, Alice) ->
     {ok, #{jid := RoomJID2}} = create_room(<<>>, MUCServer, RoomName2, <<"subject">>, AliceBin),
     Res = execute_auth(admin_list_user_rooms_body(AliceBin), Config),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
-                 lists:sort(get_ok_value(Path, Res))),
+                 lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res))),
     % Try with a non-existing user
     Res2 = execute_auth(admin_list_user_rooms_body(<<"not-exist@", Domain/binary>>), Config),
-    ?assertEqual([], lists:sort(get_ok_value(Path, Res2))),
+    ?assertEqual([], lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res2))),
     % Try with a non-existing domain
     Res3 = execute_auth(admin_list_user_rooms_body(<<"not-exist@not-exist">>), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
@@ -828,7 +825,7 @@ admin_list_room_users_story(Config, Alice) ->
     {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
     Res = execute_auth(list_room_users_body(jid:to_binary(RoomJID)), Config),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
-                 get_ok_value([data, muc_light, listRoomUsers], Res)),
+                 get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
     % Try with a non-existing domain
     Res2 = execute_auth(list_room_users_body(
                           make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN)), Config),
