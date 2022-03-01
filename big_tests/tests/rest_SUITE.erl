@@ -101,13 +101,14 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config1 = rest_helper:maybe_enable_mam(mam_helper:backend(), host_type(), Config),
-    Config2 = ejabberd_node_utils:init(Config1),
-    escalus:init_per_suite(Config2).
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    Config2 = rest_helper:maybe_enable_mam(mam_helper:backend(), host_type(), Config1),
+    Config3 = ejabberd_node_utils:init(Config2),
+    escalus:init_per_suite(Config3).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rest_helper:maybe_disable_mam(mam_helper:backend(), host_type()),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(auth, Config) ->
