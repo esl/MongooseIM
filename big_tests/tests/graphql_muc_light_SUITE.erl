@@ -55,7 +55,8 @@ user_muc_light_handler() ->
      user_get_room_messages,
      user_list_rooms,
      user_list_room_users,
-     user_get_room_config
+     user_get_room_config,
+     user_blocking_list
     ].
 
 admin_muc_light_handler() ->
@@ -483,6 +484,38 @@ user_get_room_config_story(Config, Alice, Bob) ->
                                            #{<<"jid">> => BobLower,
                                              <<"affiliation">> => <<"MEMBER">>}]},
                  get_ok_value(?GET_ROOM_CONFIG_PATH, Res5)).
+
+user_blocking_list(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun user_blocking_list_story/3).
+
+user_blocking_list_story(Config, Alice, Bob) ->
+    Ep = ?config(schema_endpoint, Config),
+    CredsAlice = make_creds(Alice),
+    BobBin = escalus_client:full_jid(Bob),
+    BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    {ok, #{jid := RoomJID}} = create_room(<<>>, ?config(muc_light_host, Config),
+                                          <<"room">>, <<"subject">>, BobBin),
+    RoomBin = jid:to_binary(RoomJID),
+    Res = execute(Ep, user_get_blocking_body(), CredsAlice),
+    ?assertMatch([], get_ok_value(?GET_BLOCKING_LIST_PATH, Res)),
+    Res2 = execute(Ep, user_set_blocking_body([{<<"USER">>, <<"DENY">>, BobBin}]), CredsAlice),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
+                                          <<"successfully">>)),
+    Res3 = execute(Ep, user_get_blocking_body(), CredsAlice),
+    ?assertEqual([#{<<"what">> => <<"USER">>,
+                    <<"action">> => <<"DENY">>,
+                    <<"who">> => BobShortBin}],
+                 get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
+    Res4 = execute(Ep, user_set_blocking_body([{<<"USER">>, <<"ALLOW">>, BobBin},
+                                               {<<"ROOM">>, <<"DENY">>, jid:to_binary(RoomJID)}]),
+                   CredsAlice),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
+                                          <<"successfully">>)),
+    Res5 = execute(Ep, user_get_blocking_body(), CredsAlice),
+    ?assertEqual([#{<<"what">> => <<"ROOM">>,
+                    <<"action">> => <<"DENY">>,
+                    <<"who">> => RoomBin}],
+                 get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)).
 
 %% Admin test cases
 
@@ -998,4 +1031,16 @@ admin_set_blocking_body(UserJID, Items) ->
               { muc_light { setBlockingList(user: $user, items: $items) } }">>,
     OpName = <<"M1">>,
     Vars = #{<<"user">> => UserJID, <<"items">> => prepare_blocking_items_for_query(Items)},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_get_blocking_body() ->
+    Query = <<"query Q1 { muc_light { getBlockingList { who what action } } }">>,
+    OpName = <<"Q1">>,
+    #{query => Query, operationName => OpName}.
+
+user_set_blocking_body(Items) ->
+    Query = <<"mutation M1($items: [BlockingInput!]!)
+              { muc_light { setBlockingList(items: $items) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{<<"items">> => prepare_blocking_items_for_query(Items)},
     #{query => Query, operationName => OpName, variables => Vars}.

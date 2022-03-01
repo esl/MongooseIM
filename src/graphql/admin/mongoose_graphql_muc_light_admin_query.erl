@@ -7,7 +7,8 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
+                                            null_to_undefined/1]).
 
 execute(_Ctx, _Obj, <<"listUserRooms">>, Args) ->
     list_user_rooms(Args);
@@ -63,16 +64,8 @@ get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize,
 get_blocking_list(#{<<"user">> := UserJID}) ->
     case mod_muc_light_api:get_blocking_list(UserJID) of
         {ok, Items} ->
-            Items2 = lists:map(fun blocking_item_to_map/1, Items),
+            Items2 = lists:map(fun mongoose_graphql_muc_light_helper:blocking_item_to_map/1, Items),
             {ok, Items2};
         Err ->
             make_error(Err, #{user => UserJID})
     end.
-
-%% Helpers
-
-blocking_item_to_map({What, Action, Who}) ->
-    {ok, #{<<"what">> => What, <<"action">> => Action, <<"who">> => Who}}.
-
-null_to_undefined(null) -> undefined;
-null_to_undefined(V) -> V.

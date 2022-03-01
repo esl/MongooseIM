@@ -7,7 +7,7 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1, prepare_blocking_items/1]).
 
 execute(Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Ctx, Args);
@@ -20,7 +20,9 @@ execute(Ctx, _Obj, <<"deleteRoom">>, Args) ->
 execute(Ctx, _Obj, <<"kickUser">>, Args) ->
     kick_user(Ctx, Args);
 execute(Ctx, _Obj, <<"sendMessageToRoom">>, Args) ->
-    send_msg_to_room(Ctx, Args).
+    send_msg_to_room(Ctx, Args);
+execute(Ctx, _Obj, <<"setBlockingList">>, Args) ->
+    set_blocking_list(Ctx, Args).
 
 -spec create_room(map(), map()) -> {ok, map()} | {error, resolver_error()}.
 create_room(Ctx, #{<<"id">> := null} = Args) ->
@@ -65,6 +67,12 @@ kick_user(#{user := UserJID}, #{<<"room">> := RoomJID, <<"user">> := UserToKickJ
 send_msg_to_room(#{user := UserJID}, #{<<"room">> := RoomJID, <<"body">> := Message}) ->
     Result = mod_muc_light_api:send_message(RoomJID, UserJID, Message),
     format_result(Result, #{room => jid:to_binary(RoomJID)}).
+
+-spec set_blocking_list(map(), map()) -> {ok, binary()} | {error, resolver_error()}.
+set_blocking_list(#{user := UserJID}, #{<<"items">> := Items}) ->
+    Items2 = prepare_blocking_items(Items),
+    Result = mod_muc_light_api:set_blocking(UserJID, Items2),
+    format_result(Result, #{user => jid:to_binary(UserJID)}).
 
 %% Helpers
 

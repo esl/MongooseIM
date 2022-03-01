@@ -7,7 +7,10 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
+-import(mongoose_graphql_muc_light_helper, [make_room/1,
+                                            make_ok_user/1,
+                                            blocking_item_to_map/1,
+                                            null_to_undefined/1,
                                             page_size_or_max_limit/2]).
 
 execute(Ctx, _Obj, <<"listRooms">>, Args) ->
@@ -17,7 +20,9 @@ execute(Ctx, _Obj, <<"listRoomUsers">>, Args) ->
 execute(Ctx, _Obj, <<"getRoomConfig">>, Args) ->
     get_room_config(Ctx, Args);
 execute(Ctx, _Obj, <<"getRoomMessages">>, Args) ->
-    get_room_messages(Ctx, Args).
+    get_room_messages(Ctx, Args);
+execute(Ctx, _Obj, <<"getBlockingList">>, Args) ->
+    get_blocking_list(Ctx, Args).
 
 -spec list_user_rooms(map(), map()) -> {ok, [{ok, jid:simple_bare_jid()}]}.
 list_user_rooms(#{user := UserJID}, #{}) ->
@@ -55,7 +60,8 @@ get_room_messages(#{user := UserJID}, #{<<"room">> := RoomJID, <<"pageSize">> :=
             make_error(Err, #{room => RoomJID})
     end.
 
-%% Helpers
-
-null_to_undefined(null) -> undefined;
-null_to_undefined(V) -> V.
+-spec get_blocking_list(map(), map()) -> {ok, [{ok, map()}]}.
+get_blocking_list(#{user := UserJID}, #{}) ->
+    {ok, Items} = mod_muc_light_api:get_blocking_list(UserJID),
+    Items2 = lists:map(fun mongoose_graphql_muc_light_helper:blocking_item_to_map/1, Items),
+    {ok, Items2}.

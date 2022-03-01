@@ -7,7 +7,8 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
+                                            prepare_blocking_items/1]).
 
 execute(_Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Args);
@@ -73,7 +74,3 @@ set_blocking_list(#{<<"user">> := UserJID, <<"items">> := Items}) ->
     Items2 = prepare_blocking_items(Items),
     Result = mod_muc_light_api:set_blocking(UserJID, Items2),
     format_result(Result, #{user => jid:to_binary(UserJID)}).
-
-prepare_blocking_items(Items) ->
-    [{What, Action, jid:to_lus(Who)} || #{<<"who">> := Who, <<"what">> := What,
-                                          <<"action">> := Action} <- Items].
