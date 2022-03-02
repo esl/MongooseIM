@@ -149,14 +149,18 @@ user_create_identified_room_story(Config, Alice) ->
     Subject = <<"testing">>,
     Id = <<"my_user_room">>,
     Res = execute(Ep, user_create_room_body(MucServer, Name, Subject, Id), Creds),
-    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} = get_ok_value(?CREATE_ROOM_PATH, Res),
+    #{<<"jid">> := JID, <<"name">> := Name, <<"subject">> := Subject} =
+        get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{user = Id, server = MucServer}, jid:from_binary(JID)),
     % Create a room with an existing ID
     Res2 = execute(Ep, user_create_room_body(MucServer, <<"snd room">>, Subject, Id), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
     % Try with a non-existing domain
     Res3 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, Subject, Id), Creds),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
+    % Try with an empty string passed as ID
+    Res4 = execute(Ep, user_create_room_body(MucServer, <<"name">>, Subject, <<>>), Creds),
+    ?assertNotEqual(nomatch, binary:match(get_coertion_err_msg(Res4), <<"Given string is empty">>)).
 
 user_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_change_room_config_story/2).
@@ -589,7 +593,10 @@ admin_create_identified_room_story(Config, Alice) ->
     % Try with a non-existing domain
     Res3 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, AliceBin, Subject, Id),
                         Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
+    % Try with an empty string passed as ID
+    Res4 = execute_auth(admin_create_room_body(MucServer, <<"name">>, AliceBin, Subject, <<>>), Config),
+    ?assertNotEqual(nomatch, binary:match(get_coertion_err_msg(Res4), <<"Given string is empty">>)).
 
 admin_change_room_config(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_change_room_config_story/2).
@@ -898,10 +905,16 @@ prepare_blocking_items_for_query(Items) ->
     [#{<<"who">> => Who, <<"what">> => What,
        <<"action">> => Action} || {What, Action, Who} <- Items].
 
+get_coertion_err_msg(Response) ->
+  {{<<"400">>, <<"Bad Request">>},
+   #{<<"errors">> := [#{<<"message">> := Msg,
+                        <<"extensions">> := #{<<"code">> := <<"input_coercion">>}}]}} = Response,
+    Msg.
+
 %% Request bodies
 
 admin_create_room_body(MUCDomain, Name, Owner, Subject, Id) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $owner: JID!, $subject: String!, $id: String)
+    Query = <<"mutation M1($mucDomain: String!, $name: String!, $owner: JID!, $subject: String!, $id: NonEmptyString)
               { muc_light { createRoom(mucDomain: $mucDomain, name: $name, owner: $owner, subject: $subject, id: $id)
               { jid name subject participants {jid affiliation} } } }">>,
     OpName = <<"M1">>,
@@ -947,7 +960,7 @@ admin_list_user_rooms_body(User) ->
     #{query => Query, operationName => OpName, variables => Vars}.
 
 user_create_room_body(MUCDomain, Name, Subject, Id) ->
-    Query = <<"mutation M1($mucDomain: String!, $name: String!, $subject: String!, $id: String)
+    Query = <<"mutation M1($mucDomain: String!, $name: String!, $subject: String!, $id: NonEmptyString)
               { muc_light { createRoom(mucDomain: $mucDomain, name: $name, subject: $subject, id: $id)
               { jid name subject participants {jid affiliation} } } }">>,
     OpName = <<"M1">>,
