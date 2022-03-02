@@ -111,7 +111,7 @@ remove_domain(_HostType, _Domain) ->
 
 -spec bucket_type(host_type(), jid:lserver()) -> riakc_obj:bucket().
 bucket_type(HostType, LServer) ->
-    {gen_mod:get_module_opt(HostType, mod_last, bucket_type, <<"last">>), LServer}.
+    {gen_mod:get_module_opt(HostType, mod_last, [riak, bucket_type]), LServer}.
 
 -spec infinity() -> non_neg_integer().
 infinity() ->

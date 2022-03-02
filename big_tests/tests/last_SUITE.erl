@@ -162,5 +162,10 @@ get_last_activity(Stanza) ->
 get_last_status(Stanza) ->
     exml_query:path(Stanza, [{element, <<"query">>}, cdata]).
 
+required_modules(riak) ->
+    [{mod_last, #{backend => riak,
+                  iqdisc => one_queue,
+                  riak => #{bucket_type => <<"last">>}}}];
 required_modules(Backend) ->
-    [{mod_last, [{backend, Backend}]}].
+    [{mod_last, #{backend => Backend,
+                  iqdisc => one_queue}}].

@@ -8,7 +8,7 @@ Use with caution, as it was observed that a user disconnect spike might result i
 
 ### `modules.mod_last.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).

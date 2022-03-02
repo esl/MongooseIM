@@ -107,7 +107,7 @@ group_to_modules(markers_removal) ->
 group_to_modules(vcard_removal) ->
     [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
-    [{mod_last, [{backend, rdbms}]}].
+    [{mod_last, config_parser_helper:mod_config(mod_last, #{backend => rdbms})}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
