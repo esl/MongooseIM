@@ -59,7 +59,7 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
--ignore_xref([behaviour_info/1, loaded_modules_with_opts/0,
+-ignore_xref([loaded_modules_with_opts/0,
               loaded_modules_with_opts/1, hosts_and_opts_with_module/1]).
 
 -include("mongoose.hrl").
@@ -73,12 +73,6 @@
 -type module_opts() :: [{opt_key(), opt_value()}] % deprecated, will be removed
                      | #{opt_key() => opt_value()}. % recommended
 
-%% -export([behaviour_info/1]).
-%% behaviour_info(callbacks) ->
-%%     [{start, 2},
-%%      {stop, 1}];
-%% behaviour_info(_Other) ->
-%%     undefined.
 -callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
 -callback supported_features() -> [module_feature()].
