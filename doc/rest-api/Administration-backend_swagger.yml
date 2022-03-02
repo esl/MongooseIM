@@ -391,7 +391,7 @@ paths:
       responses:
         204:
           description: "The operation was successful."
-  /muc-lights/{XMPPHost}:
+  /muc-lights/{XMPPMUCHost}:
     parameters:
       - $ref: '#/parameters/hostName'
     post:

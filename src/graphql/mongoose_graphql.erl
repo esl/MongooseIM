@@ -127,6 +127,8 @@ admin_mapping_rules() ->
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
         'AccountAdminQuery' => mongoose_graphql_account_admin_query,
         'AccountAdminMutation' => mongoose_graphql_account_admin_mutation,
+        'MUCLightAdminMutation' => mongoose_graphql_muc_light_admin_mutation,
+        'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},

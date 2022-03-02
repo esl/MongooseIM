@@ -54,7 +54,8 @@ negative_response() ->
     [delete_room_by_non_owner,
      delete_non_existent_room,
      delete_room_without_having_a_membership,
-     create_non_unique_room
+     create_non_unique_room,
+     create_room_on_non_existing_muc_server
     ].
 
 %%--------------------------------------------------------------------
@@ -92,7 +93,8 @@ end_per_testcase(CaseName, Config) ->
 
 create_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Path = path([domain()]),
+        MUCLightDomain = muc_light_domain(),
+        Path = path([MUCLightDomain]),
         Name = <<"wonderland">>,
         Body = #{ name => Name,
                   owner => escalus_client:short_jid(Alice),
@@ -100,14 +102,14 @@ create_unique_room(Config) ->
                 },
         {{<<"201">>, _}, _} = rest_helper:post(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
-        MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
         true = is_room_domain(MUCLightDomain, Item)
     end).
 
 create_identifiable_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Path = path([domain()]),
+        MUCLightDomain = muc_light_domain(),
+        Path = path([MUCLightDomain]),
         RandBits = base16:encode(crypto:strong_rand_bytes(5)),
         Name = <<"wonderland">>,
         RoomID = <<"just_some_id_", RandBits/binary>>,
@@ -120,20 +122,19 @@ create_identifiable_room(Config) ->
         {{<<"201">>, _}, RoomJID} = rest_helper:putt(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
         [RoomIDescaped, MUCLightDomain] = binary:split(RoomJID, <<"@">>),
-        MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
         true = is_room_domain(MUCLightDomain, Item),
         true = is_room_id(RoomIDescaped, Item)
     end).
 
 invite_to_room(Config) ->
-    Name = <<"wonderland">>,
-    Path = path([muc_light_domain(), Name, "participants"]),
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
+        RoomID = atom_to_binary(?FUNCTION_NAME),
+        Path = path([muc_light_domain(), RoomID, "participants"]),
         %% XMPP: Alice creates a room.
-        Stt = stanza_create_room(undefined,
-            [{<<"roomname">>, Name}], [{Kate, member}]),
+        Stt = stanza_create_room(RoomID,
+            [{<<"roomname">>, <<"wonderland">>}], [{Kate, member}]),
         escalus:send(Alice, Stt),
         %% XMPP: Alice recieves a affiliation message to herself and
         %% an IQ result when creating the MUC Light room.
@@ -154,15 +155,15 @@ invite_to_room(Config) ->
       end).
 
 send_message_to_room(Config) ->
-    Name = <<"wonderland">>,
-    Path = path([muc_light_domain(), Name, "messages"]),
+    RoomID = atom_to_binary(?FUNCTION_NAME),
+    Path = path([muc_light_domain(), RoomID, "messages"]),
     Text = <<"Hello everyone!">>,
     escalus:fresh_story(Config,
       [{alice, 1}, {bob, 1}, {kate, 1}],
       fun(Alice, Bob, Kate) ->
         %% XMPP: Alice creates a room.
-        escalus:send(Alice, stanza_create_room(undefined,
-            [{<<"roomname">>, Name}], [{Bob, member}, {Kate, member}])),
+        escalus:send(Alice, stanza_create_room(RoomID,
+            [{<<"roomname">>, <<"wonderland">>}], [{Bob, member}, {Kate, member}])),
         %% XMPP: Alice gets her own affiliation info
         escalus:wait_for_stanza(Alice),
         %% XMPP: And Alice gets IQ result
@@ -180,50 +181,55 @@ send_message_to_room(Config) ->
     end).
 
 delete_room_by_owner(Config) ->
+    RoomID = atom_to_binary(?FUNCTION_NAME),
     RoomName = <<"wonderland">>,
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
                                 {{<<"204">>, <<"No Content">>}, <<"">>} =
-                                    check_delete_room(Config, RoomName, RoomName,
+                                    check_delete_room(Config, RoomName, RoomID, RoomID,
                                                       Alice, [Bob, Kate], Alice)
                         end).
 
 delete_room_by_non_owner(Config) ->
+    RoomID = atom_to_binary(?FUNCTION_NAME),
     RoomName = <<"wonderland">>,
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
                                 {{<<"403">>, <<"Forbidden">>},
-                                 <<"you can not delete this room">>} =
-                                    check_delete_room(Config, RoomName, RoomName,
+                                 <<"Given user cannot delete this room">>} =
+                                    check_delete_room(Config, RoomName, RoomID, RoomID,
                                                       Alice, [Bob, Kate], Bob)
                         end).
 
 delete_non_existent_room(Config) ->
+    RoomID = atom_to_binary(?FUNCTION_NAME),
     RoomName = <<"wonderland">>,
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
-                                {{<<"404">>, _}, <<"room does not exist">>} =
-                                    check_delete_room(Config, RoomName, <<"some_non_existent_room">>,
+                                {{<<"404">>, _}, <<"Cannot remove not existing room">>} =
+                                    check_delete_room(Config, RoomName, RoomID,
+                                                      <<"some_non_existent_room">>,
                                                       Alice, [Bob, Kate], Alice)
                         end).
 
 delete_room_without_having_a_membership(Config) ->
+    RoomID = atom_to_binary(?FUNCTION_NAME),
     RoomName = <<"wonderland">>,
     escalus:fresh_story(Config,
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
-                                {{<<"403">>, _}, <<"given user does not occupy this room">>} =
-                                    check_delete_room(Config, RoomName, RoomName,
+                                {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
+                                    check_delete_room(Config, RoomName, RoomID, RoomID,
                                                       Alice, [Bob], Kate)
                         end).
 
 
 create_non_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Path = path([domain()]),
+        Path = path([muc_light_domain()]),
         RandBits = base16:encode(crypto:strong_rand_bytes(5)),
         Name = <<"wonderland">>,
         RoomID = <<"just_some_id_", RandBits/binary>>,
@@ -235,6 +241,17 @@ create_non_unique_room(Config) ->
         {{<<"201">>, _}, _RoomJID} = rest_helper:putt(admin, Path, Body),
         {{<<"403">>, _}, <<"Room already exists">>} = rest_helper:putt(admin, Path, Body),
         ok
+    end).
+
+create_room_on_non_existing_muc_server(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Path = path([domain_helper:domain()]),
+        Name = <<"wonderland">>,
+        Body = #{ name => Name,
+                  owner => escalus_client:short_jid(Alice),
+                  subject => <<"Lewis Carol">>
+                },
+        {{<<"404">>,<<"Not Found">>}, _} = rest_helper:post(admin, Path, Body)
     end).
 
 %%--------------------------------------------------------------------
@@ -276,11 +293,11 @@ member_is_affiliated(Stanza, User) ->
     Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
     MemberJID == Data.
 
-check_delete_room(_Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
+check_delete_room(_Config, RoomName, RoomIDToCreate, RoomIDToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
     Members = [{Member, member} || Member <- RoomMembers],
-    escalus:send(RoomOwner, stanza_create_room(undefined,
-                                           [{<<"roomname">>, RoomNameToCreate}],
+    escalus:send(RoomOwner, stanza_create_room(RoomIDToCreate,
+                                           [{<<"roomname">>, RoomName}],
                                            Members)),
     %% XMPP RoomOwner gets affiliation and IQ result
     Affiliations = [{RoomOwner, owner} | Members],
@@ -290,7 +307,7 @@ check_delete_room(_Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
     escalus:assert(is_iq_result, CreationResult),
     muc_light_helper:verify_aff_bcast(Members, Affiliations),
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
-    Path = path([muc_light_domain(), RoomNameToDelete, ShortJID, "management"]),
+    Path = path([muc_light_domain(), RoomIDToDelete, ShortJID, "management"]),
     rest_helper:delete(admin, Path).
 
 

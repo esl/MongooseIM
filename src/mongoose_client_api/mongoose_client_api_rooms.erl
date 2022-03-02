@@ -123,13 +123,12 @@ from_json(Req, State) ->
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
-        {error, Short, Desc} ->
-            mongoose_client_api:bad_request(Req, format_error(Short, Desc), State);
-        Room ->
-            RoomJID = jid:from_binary(Room),
+        {ok, #{jid := RoomJID}} ->
             RespBody = #{<<"id">> => RoomJID#jid.luser},
             RespReq = cowboy_req:set_resp_body(jiffy:encode(RespBody), Req),
-            {true, RespReq, State}
+            {true, RespReq, State};
+        {Short, Desc} ->
+            mongoose_client_api:bad_request(Req, format_error(Short, Desc), State)
     end.
 
 format_error(Short, Desc) ->
@@ -142,19 +141,16 @@ term_to_bin(Term) ->
     iolist_to_binary(io_lib:format("~p", [Term])).
 
 handle_request_by_method(<<"POST">>, JSONData, _Req,
-                         #{user := User, jid := #jid{lserver = Server}}) ->
+                         #{jid := #jid{lserver = LServer} = UserJID}) ->
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject);
-
+    MUCServer = muc_light_domain(LServer),
+    mod_muc_light_api:create_room(MUCServer, <<>>, RoomName, UserJID, Subject);
 handle_request_by_method(<<"PUT">>, JSONData, Req, State) ->
     assert_room_id_set(Req, State),
-    #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
+    #{jid := #jid{lserver = LServer} = UserJID, room_id := RoomID} = State,
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    mod_muc_light_commands:create_identifiable_room(Server,
-                                                    RoomID,
-                                                    RoomName,
-                                                    User,
-                                                    Subject).
+    MUCServer = muc_light_domain(LServer),
+    mod_muc_light_api:create_room(MUCServer, RoomID, RoomName, UserJID, Subject).
 
 assert_room_id_set(_Req, #{room_id := _} = _State) ->
     ok.
