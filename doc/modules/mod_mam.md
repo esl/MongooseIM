@@ -190,7 +190,7 @@ The MUC host that will be archived if MUC archiving is enabled.
 #### Example
 
 The example below presents how to override common option for `muc` module specifically.
-Please note that you can override all common options in similar way.
+Please note that you can override all common options (except `cache`) in a similar way.
 
 ```toml
 [modules.mod_mam_meta]
@@ -224,17 +224,6 @@ modules.mod_mam_meta.cache.number_of_segments
 * **Example:** `modules.mod_mam_meta.cache.module = "mod_cache_users"`
 
 Configures which cache to use, either start an internal instance, or reuse the cache created by `mod_cache_users`, if such module was enabled. Note that if reuse is desired – that is, `cache.module = "mod_cache_users"`, other cache configuration parameters are not allowed.
-
-#### `modules.mod_mam_meta.rdbms_message_format`
-* **Syntax:** string, one of `"internal"` and `"simple"`
-* **Default:** `"internal"`
-* **Example:** `modules.mod_mam_meta.rdbms_message_format = "simple"`
-
-!!! Warning
-    Archive MUST be empty to change this option
-
-When set to `simple`, stores messages in XML and full JIDs.
-When set to `internal`, stores messages and JIDs in internal format.
 
 #### `modules.mod_mam_meta.async_writer.enabled`
 * **Syntax:** boolean
@@ -366,32 +355,24 @@ This sets the maximum page size of returned results.
 #### `modules.mod_mam_meta.db_jid_format`
 
 * **Syntax:** string, one of `"mam_jid_rfc"`, `"mam_jid_mini"` or a module implementing `mam_jid` behaviour
-* **Default:** `"mam_jid_rfc"` for `mod_mam_muc_rdbms_arch`, `"mam_jid_mini"` for `mod_mam_rdbms_arch`
+* **Default:** `"mam_jid_rfc"` for MUC archive, `"mam_jid_mini"` for PM archive
 * **Example:** `modules.mod_mam_meta.db_jid_format = "mam_jid_mini"`
 
 Sets the internal MAM jid encoder/decoder module for RDBMS.
-It is set to `"mam_jid_rfc"` when [`rdbms_message_format`](#modulesmod_mam_metardbms_message_format) is set to `"simple"`.
+
+!!! Warning
+    Archive MUST be empty to change this option
 
 #### `modules.mod_mam_meta.db_message_format`
 
 * **Syntax:** string, one of `"mam_message_xml"`, `"mam_message_eterm"`, `"mam_message_compressed_eterm"` or a module implementing `mam_message` behaviour
-* **Default:** different values for different backends, described below.
+* **Default:** `"mam_message_compressed_eterm"` for RDBMS, `"mam_message_xml"` for Riak and Cassandra
 * **Example:** `modules.mod_mam_meta.db_message_format = "mam_message_compressed_eterm"`
 
 Sets the internal MAM message encoder/decoder module.
-Default values for:
 
-* RDBMS: `"mam_message_compressed_eterm"` by default, and `"mam_message_xml"` when [`rdbms_message_format`](#modulesmod_mam_metardbms_message_format) is set to `"simple"`
-* Riak: `"mam_message_xml"`
-* Cassandra: `"mam_message_compressed_eterm"`  by default, and `"mam_message_xml"` when [`simple`](#modulesmod_mam_metasimple) is set to `true`
-
-#### `modules.mod_mam_meta.simple`
-
-* **Syntax:** boolean
-* **Default:** `false`
-* **Example:** `modules.mod_mam_meta.simple = true`
-
-Sets `db_message_format` to `"mam_message_xml"` for Cassandra.
+!!! Warning
+    Archive MUST be empty to change this option
 
 #### `modules.mod_mam_meta.extra_fin_element`
 
@@ -420,7 +401,7 @@ This module can be used to add extra lookup parameters to MAM lookup queries.
   pm.user_prefs_store = "rdbms"
 
   muc.host = "muc.example.com"
-  muc.rdbms_message_format = "simple"
+  muc.db_message_format = "mam_message_xml"
   muc.async_writer.enabled = false
   muc.user_prefs_store = "mnesia"
 

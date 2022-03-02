@@ -201,7 +201,8 @@
          run_set_and_get_prefs_case/4,
          muc_light_host/0,
          host_type/0,
-         set_wait_for_parallel_writer/2
+         set_wait_for_parallel_writer/2,
+         config_opts/1
         ]).
 
 -import(muc_light_helper,
@@ -255,8 +256,7 @@ rdbms_configs(true) ->
      rdbms_mnesia,
      rdbms_async_cache,
      rdbms_cache,
-     rdbms_mnesia_cache,
-     rdbms_mnesia_muc_cache
+     rdbms_mnesia_cache
     ];
 rdbms_configs(_) ->
     [].
@@ -606,22 +606,14 @@ init_per_group(muc_rsm04, Config) ->
     [{props, mam04_props()}|Config];
 
 init_per_group(Group, ConfigIn) ->
-   C = configuration(Group),
-   B = basic_group(Group),
-   try init_modules(C, B, ConfigIn) of
-        skip ->
-            {skip, print_configuration_not_supported(C, B)};
-        Config0 ->
-            ct:pal("Init per group ~p; configuration ~p; basic group ~p",
-                   [Group, C, B]),
-            Config01 = dynamic_modules:save_modules(host_type(), Config0),
-            Config1 = do_init_per_group(C, Config01),
-            [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)]
-   catch Class:Reason:Stacktrace ->
-             ct:pal("Failed to start configuration=~p basic_group=~p",
-                    [C, B]),
-             erlang:raise(Class, Reason, Stacktrace)
-   end.
+    C = configuration(Group),
+    B = basic_group(Group),
+    {ModulesToStart, Config0} = required_modules_for_group(C, B, ConfigIn),
+    ct:pal("Init per group ~p; configuration ~p; basic group ~p", [Group, C, B]),
+    Config01 = dynamic_modules:save_modules(host_type(), Config0),
+    dynamic_modules:ensure_modules(host_type(), ModulesToStart),
+    Config1 = do_init_per_group(C, Config01),
+    [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)].
 
 do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
@@ -652,229 +644,84 @@ end_per_group(muc_rsm_all, Config) ->
 end_per_group(Group, Config) ->
     C = configuration(Group),
     B = basic_group(Group),
-    Config0 = dynamic_modules:restore_modules(Config),
-    Config1 = end_state(C, B, Config0),
-    Config2 = end_modules(C, B, Config1),
+    Config0 = end_state(C, B, Config),
+    Config1 = dynamic_modules:restore_modules(Config0),
     escalus_fresh:clean(),
-    delete_users(Config2).
+    delete_users(Config1).
 
-init_modules(rdbms, muc_light, Config) ->
-    Config1 = init_modules_for_muc_light(rdbms, Config),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    Config1;
-init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
-    dynamic_modules:start(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
-    init_modules(BT, generic, [{muc_domain, muc_light_helper:muc_host_pattern()} | Config]);
-init_modules(BT = cassandra, muc_light, Config) ->
-    init_modules_for_muc_light(BT, Config);
-init_modules(cassandra, muc_all, Config) ->
-    init_module(host_type(), mod_mam_muc_cassandra_arch, []),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
-    Config;
-init_modules(BT = elasticsearch, muc_light, Config) ->
-    init_modules_for_muc_light(BT, Config);
-init_modules(elasticsearch, muc_all, Config) ->
-    init_module(host_type(), mod_mam_muc_elasticsearch_arch, []),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}]),
-    Config;
-init_modules(rdbms, C, Config) when C =:= muc_all;
-                                    C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_simple, C, Config) when C =:= muc_all;
-                                           C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_async_pool, C, Config) when C =:= muc_all;
-                                               C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
-    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    set_wait_for_parallel_writer(muc, Config);
-init_modules(rdbms_mnesia, C, Config) when C =:= muc_all;
-                                           C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_cache, C, Config) when C =:= muc_all;
-                                          C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_cache_user, [muc]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_async_cache, C, Config) when C =:= muc_all;
-                                                C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]}]), %% 1ms
-    init_module(host_type(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_cache_user, [muc]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    set_wait_for_parallel_writer(muc, Config);
-init_modules(rdbms_mnesia_muc_cache, C, Config) when C =:= muc_all;
-                                                     C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_cache_user, [muc]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
-    skip;
-init_modules(rdbms_mnesia_cache, C, Config) when C =:= muc_all;
-                                                 C =:= muc_disabled_retraction ->
-    init_module(host_type(), mod_mam_muc_rdbms_arch, []),
-    init_module(host_type(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host_type(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host_type(), mod_mam_cache_user, [muc]),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(BackendType, muc_light, Config) ->
-    Config1 = init_modules_for_muc_light(BackendType, Config),
-    case BackendType of
-        cassandra -> ok;
-        elasticsearch -> ok;
-        _ ->
-            init_module(host_type(), mod_mam_rdbms_arch_async, [{muc, [{flush_interval, 1}]},
-                                                                {pm, [{flush_interval, 1}]}]),
-            init_module(host_type(), mod_mam_rdbms_user, [muc, pm])
-    end,
-    Config1;
-init_modules(rdbms, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, []),
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
-init_modules(rdbms_simple, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, [rdbms_simple_opts()]),
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
-init_modules(riak_timed_yz_buckets, C, Config) ->
-    init_module(host_type(), mod_mam_riak_timed_arch_yz, [pm, muc]),
-    init_module(host_type(), mod_mam_mnesia_prefs, [pm, muc,
-                                               {archive_key, mam_archive_key_server_user}]),
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_muc, [{host, subhost_pattern(muc_domain(Config))}] ++
-                                     addin_mam_options(C, Config)),
-    Config;
-init_modules(cassandra, C, Config) ->
-    init_module(host_type(), mod_mam_cassandra_arch, [pm]),
-    init_module(host_type(), mod_mam_cassandra_prefs, [pm]),
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    Config;
-init_modules(elasticsearch, C, Config) ->
-    init_module(host_type(), mod_mam_elasticsearch_arch, [pm]),
-    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    Config;
-init_modules(rdbms_async_pool, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    set_wait_for_parallel_writer(pm, Config);
-init_modules(rdbms_mnesia, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, []),
-    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    Config;
-init_modules(rdbms_cache, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, []),
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    init_module(host_type(), mod_mam_cache_user, [pm]),
-    Config;
-init_modules(rdbms_async_cache, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, [no_writer]),
-    init_module(host_type(), mod_mam_rdbms_arch_async, [{pm, [{flush_interval, 1}]}]), %% 1ms
-    init_module(host_type(), mod_mam_rdbms_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    init_module(host_type(), mod_mam_cache_user, [pm]),
-    set_wait_for_parallel_writer(pm, Config);
-init_modules(rdbms_mnesia_cache, C, Config) ->
-    init_module(host_type(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host_type(), mod_mam_rdbms_arch, []),
-    init_module(host_type(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host_type(), mod_mam_rdbms_user, [pm]),
-    init_module(host_type(), mod_mam_cache_user, [pm]),
+required_modules_for_group(C, muc_light, Config) ->
+    Extra = mam_opts_for_conf(C),
+    MUCHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
+    Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
+    Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
+    {[{mod_muc_light, [{host, MUCHost}]},
+      {mod_mam_meta, Opts}], Config1};
+required_modules_for_group(C, BG, Config) when BG =:= muc_all;
+                                               BG =:= muc_disabled_retraction ->
+    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
+    MUCHost = subhost_pattern(muc_domain(Config)),
+    Opts = config_opts(Extra#{muc => #{host => MUCHost}}),
+    Config1 = maybe_set_wait(C, [muc], [{mam_meta_opts, Opts} | Config]),
+    {[{mod_mam_meta, Opts}], Config1};
+required_modules_for_group(C, BG, Config) ->
+    Extra = maps:merge(mam_opts_for_conf(C), mam_opts_for_base_group(BG)),
+    Opts = config_opts(Extra#{pm => #{}}),
+    Config1 = maybe_set_wait(C, [pm], [{mam_meta_opts, Opts} | Config]),
+    {[{mod_mam_meta, Opts}], Config1}.
+
+maybe_set_wait(C, Types, Config) when C =:= rdbms_async_pool;
+                                      C =:= rdbms_async_cache ->
+    [{wait_for_parallel_writer, Types} | Config];
+maybe_set_wait(_C, _, Config) ->
     Config.
 
-rdbms_simple_opts() ->
-    [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
-
-init_modules_for_muc_light(BackendType, Config) ->
-    dynamic_modules:restart(host_type(), mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())}]),
-    Config1 = init_modules(BackendType, muc_all, [{muc_domain, muc_light_helper:muc_host_pattern()} | Config]),
-    init_modules(BackendType, pm, [{archive_groupchats, false} | Config1]).
-
-end_modules(C, muc_light, Config) ->
-    end_modules(C, generic, Config),
-    dynamic_modules:stop(host_type(), mod_muc_light),
-    Config;
-end_modules(_, _, Config) ->
-    dynamic_modules:ensure_stopped(host_type(), mam_modules()),
-    Config.
+mam_opts_for_conf(riak_timed_yz_buckets) ->
+    #{backend => riak,
+      user_prefs_store => mnesia};
+mam_opts_for_conf(elasticsearch) ->
+    #{backend => elasticsearch,
+      user_prefs_store => mnesia};
+mam_opts_for_conf(cassandra) ->
+    #{backend => cassandra,
+      user_prefs_store => cassandra};
+mam_opts_for_conf(rdbms_simple) ->
+    SimpleOpts = #{db_jid_format => mam_jid_rfc,
+                   db_message_format => mam_message_xml},
+    maps:merge(SimpleOpts, mam_opts_for_conf(rdbms));
+mam_opts_for_conf(rdbms) ->
+    #{user_prefs_store => rdbms,
+      async_writer => #{enabled => false},
+      cache_users => false};
+mam_opts_for_conf(rdbms_async_pool) ->
+    #{user_prefs_store => rdbms,
+      async_writer => #{flush_interval => 1},
+      cache_users => false};
+mam_opts_for_conf(rdbms_mnesia) ->
+    #{user_prefs_store => mnesia,
+      async_writer => #{enabled => false},
+      cache_users => false};
+mam_opts_for_conf(rdbms_cache) ->
+    #{user_prefs_store => rdbms,
+      async_writer => #{enabled => false}};
+mam_opts_for_conf(rdbms_async_cache) ->
+    #{user_prefs_store => rdbms,
+      async_writer => #{flush_interval => 1}};
+mam_opts_for_conf(rdbms_mnesia_cache) ->
+    #{user_prefs_store => mnesia,
+      async_writer => #{enabled => false}}.
 
 muc_domain(Config) ->
     proplists:get_value(muc_domain, Config, muc_helper:muc_host_pattern()).
 
-addin_mam_options(disabled_text_search, Config) ->
-    [{full_text_search, false} | addin_mam_options(Config)];
-addin_mam_options(C, Config) when C =:= disabled_retraction;
-                                  C =:= muc_disabled_retraction ->
-    [{message_retraction, false} | addin_mam_options(Config)];
-addin_mam_options(chat_markers, Config) ->
-    [{archive_chat_markers, true} | addin_mam_options(Config)];
-addin_mam_options(_BasicGroup, Config) ->
-    addin_mam_options(Config).
-
-addin_mam_options(Config) ->
-    [{archive_groupchats, proplists:get_value(archive_groupchats, Config, false)}].
-
-mam_modules() ->
-    [mod_mam,
-     mod_mam_muc,
-     mod_mam_cassandra_arch,
-     mod_mam_muc_cassandra_arch,
-     mod_mam_cassandra_prefs,
-     mod_mam_elasticsearch_arch,
-     mod_mam_muc_elasticsearch_arch,
-     mod_mam_rdbms_arch,
-     mod_mam_muc_rdbms_arch,
-     mod_mam_rdbms_arch_async,
-     mod_mam_rdbms_prefs,
-     mod_mam_mnesia_prefs,
-     mod_mam_rdbms_user,
-     mod_mam_cache_user,
-     mod_mam_riak_timed_arch_yz].
+mam_opts_for_base_group(disabled_text_search) ->
+    #{full_text_search => false};
+mam_opts_for_base_group(BG) when BG =:= disabled_retraction;
+                                 BG =:= muc_disabled_retraction ->
+    #{message_retraction => false};
+mam_opts_for_base_group(chat_markers) ->
+    #{archive_chat_markers => true};
+mam_opts_for_base_group(_BG) ->
+    #{}.
 
 init_state(_, muc_all, Config) ->
     Config;
@@ -925,7 +772,7 @@ init_per_testcase(C, Config) when C =:= retract_message;
     skip_if_retraction_not_supported(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=retract_message_on_stanza_id, Config) ->
     Init = fun() ->
-                   dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+                   dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
                    escalus:init_per_testcase(C, Config)
         end,
     skip_if_retraction_not_supported(Config, Init);
@@ -954,23 +801,23 @@ init_per_testcase(C=muc_archive_request, Config) ->
         end,
     escalus:init_per_testcase(C, start_alice_room(Config2));
 init_per_testcase(C=muc_no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=no_elements, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=only_stanzaid, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=same_stanza_id, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(C)),
+    dynamic_modules:ensure_modules(host_type(), required_modules(C, Config)),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
@@ -1138,47 +985,34 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per testcase
 
-required_modules(Case) ->
-    required_modules(Case, []).
-
-% muc_light basic group
-required_modules(muc_light_simple, Config) ->
-    [{mod_mam, [{archive_groupchats, false}]},
-     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
-required_modules(muc_light_shouldnt_modify_pm_archive, Config) ->
-    [{mod_mam, [{archive_groupchats, false}]},
-     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
 required_modules(muc_light_stored_in_pm_if_allowed_to, Config) ->
-    [{mod_mam, [{archive_groupchats, true}]},
-     {mod_mam_muc, dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config)}];
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{archive_groupchats => true}},
+    [{mod_mam_meta, NewOpts}];
 required_modules(muc_light_chat_markers_are_archived_if_enabled, Config) ->
-    Opts = dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config),
-    [{mod_mam, [{archive_groupchats, false}]},
-     {mod_mam_muc, [{archive_chat_markers, true} | Opts]}];
-required_modules(muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
-    Opts = dynamic_modules:get_saved_config(host_type(), mod_mam_muc, Config),
-    [{mod_mam, [{archive_groupchats, false}]},
-     {mod_mam_muc, [{archive_chat_markers, false} | Opts]}];
-% muc_configurable_archiveid basic group
-required_modules(muc_no_elements, _Config) ->
-    [{mod_mam_muc, [no_stanzaid_element]}];
-required_modules(muc_only_stanzaid, _Config) ->
-    [{mod_mam_muc, []}];
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{archive_chat_markers => true}},
+    [{mod_mam_meta, NewOpts}];
+required_modules(muc_no_elements, Config) ->
+    Opts = #{muc := MUC} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{muc := MUC#{no_stanzaid_element => true}},
+    [{mod_mam_meta, NewOpts}];
+required_modules(muc_only_stanzaid, Config) ->
+    Opts = ?config(mam_meta_opts, Config),
+    [{mod_mam_meta, Opts}];
 % configurable_archiveid basic group
-required_modules(no_elements, _Config) ->
-    [{mod_mam, [no_stanzaid_element]}];
-required_modules(only_stanzaid, _Config) ->
-    [{mod_mam, []}];
-required_modules(same_stanza_id, _Config) ->
-    [{mod_mam, [same_mam_id_for_peers]}];
-required_modules(retract_message_on_stanza_id, _Config) ->
-    [{mod_mam, [{same_mam_id_for_peers, true}]}];
-required_modules(_, _) ->
-    [].
-
-init_module(Host, Mod, Args) ->
-    lists:member(Mod, mam_modules()) orelse ct:fail("Unknown module ~p", [Mod]),
-    dynamic_modules:ensure_modules(Host, [{Mod, Args}]).
+required_modules(no_elements, Config) ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{no_stanzaid_element => true}},
+    [{mod_mam_meta, NewOpts}];
+required_modules(CaseName, Config) when CaseName =:= same_stanza_id;
+                                        CaseName =:= retract_message_on_stanza_id ->
+    Opts = #{pm := PM} = ?config(mam_meta_opts, Config),
+    NewOpts = Opts#{pm := PM#{same_mam_id_for_peers => true}},
+    [{mod_mam_meta, NewOpts}];
+required_modules(_, Config) ->
+    Opts = ?config(mam_meta_opts, Config),
+    [{mod_mam_meta, Opts}].
 
 %%--------------------------------------------------------------------
 %% Group name helpers

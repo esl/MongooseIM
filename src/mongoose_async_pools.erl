@@ -43,7 +43,12 @@ config_spec() ->
        items = #{<<"enabled">> => #option{type = boolean},
                  <<"flush_interval">> => #option{type = integer, validate = non_negative},
                  <<"batch_size">> => #option{type = integer, validate = non_negative},
-                 <<"pool_size">> => #option{type = integer, validate = non_negative}}
+                 <<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"enabled">> => true,
+                    <<"flush_interval">> => 2000,
+                    <<"batch_size">> => 30,
+                    <<"pool_size">> => 4 * erlang:system_info(schedulers_online)},
+       format_items = map
       }.
 
 -spec pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
@@ -112,9 +117,9 @@ gen_pool_name(HostType, PoolId) ->
 
 -spec make_wpool_opts(mongooseim:host_type(), pool_id(), pool_opts()) -> any().
 make_wpool_opts(HostType, PoolId, Opts) ->
-    Interval = maps:get(flush_interval, Opts, 1000),
-    MaxSize = maps:get(batch_size, Opts, 100),
-    NumWorkers = maps:get(pool_size, Opts, 4 * erlang:system_info(schedulers_online)),
+    Interval = maps:get(flush_interval, Opts),
+    MaxSize = maps:get(batch_size, Opts),
+    NumWorkers = maps:get(pool_size, Opts),
     FlushCallback = maps:get(flush_callback, Opts),
     FlushExtra = make_extra(HostType, PoolId, Opts),
     ProcessOpts = [{message_queue_data, off_heap}],

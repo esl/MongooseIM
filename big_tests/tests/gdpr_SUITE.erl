@@ -57,11 +57,8 @@
         ]).
 
 -import(mongooseimctl_helper, [mongooseimctl/3]).
-
 -import(distributed_helper, [mim/0, subhost_pattern/1, rpc/4]).
-
 -import(muc_light_helper, [room_bin_jid/1]).
-
 -import(domain_helper, [host_type/0]).
 
 -define(ROOM, <<"tt1">>).
@@ -223,7 +220,7 @@ init_per_group(_GN, Config) ->
 end_per_group(_GN, Config) ->
     Config.
 
-try_backend_for_mam( Config,Backend) ->
+try_backend_for_mam(Config, Backend) ->
     case is_backend_enabled(Backend) of
         true -> [{mam_backend, Backend} | Config];
         false -> {skip, backend_is_not_configured}
@@ -357,36 +354,34 @@ groupchat_module(muclight) ->
       {rooms_in_rosters, true}]}].
 
 mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
-                                       CN =:= retrieve_mam_pm->
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]}]}];
+                                       CN =:= retrieve_mam_pm ->
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend, pm => #{}})}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                        CN =:= retrieve_mam_muc_light ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{},
+                                             muc => #{host => HostPattern}})},
      {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {rdbms_message_format, simple}, %% ignored for any other than rdbms backend
-                     simple, %% used only by cassandra backend
-                     {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             db_message_format => mam_message_xml,
+                                             pm => #{archive_groupchats => true},
+                                             muc => #{host => HostPattern}})},
      {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{},
+                                             muc => #{host => HostPattern}})},
      {mod_muc, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{archive_groupchats => true},
+                                             muc => #{host => HostPattern}})},
      {mod_muc, [{host, HostPattern}]}].
 
 pick_enabled_backend() ->

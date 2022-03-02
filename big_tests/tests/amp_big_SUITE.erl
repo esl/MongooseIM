@@ -988,12 +988,10 @@ required_modules(_) ->
     [].
 
 mam_modules(on) ->
-    [{mod_mam_rdbms_user, [pm]},
-     {mod_mam_rdbms_prefs, [pm]},
-     {mod_mam_rdbms_arch, []},
-     {mod_mam, []}];
+    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{},
+                                             async_writer => #{enabled => false}})}];
 mam_modules(off) ->
-    [{mod_mam, stopped}].
+    [{mod_mam_meta, stopped}].
 
 offline_modules(on) ->
     [{mod_offline, [{access_max_user_messages, max_user_offline_messages}]}];

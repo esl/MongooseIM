@@ -836,14 +836,14 @@ packet_to_search_body(false, _Packet) ->
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc,
                            HostType :: mongooseim:host_type()) -> boolean().
 has_full_text_search(Module, HostType) ->
-    gen_mod:get_module_opt(HostType, Module, full_text_search, true).
+    gen_mod:get_module_opt(HostType, Module, full_text_search).
 
 %% Message retraction
 
 -spec has_message_retraction(Module :: mod_mam | mod_mam_muc,
                              HostType :: mongooseim:host_type()) -> boolean().
 has_message_retraction(Module, HostType) ->
-    gen_mod:get_module_opt(HostType, Module, message_retraction, true).
+    gen_mod:get_module_opt(HostType, Module, message_retraction).
 
 %% -----------------------------------------------------------------------
 %% JID serialization
