@@ -2889,8 +2889,8 @@ mod_shared_roster_ldap(_Config) ->
     ?errh(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
-    check_iqdisc(mod_sic),
-    ?cfgh(modopts(mod_sic, []), #{<<"modules">> => #{<<"mod_sic">> => #{}}}).
+    check_module_defaults(mod_sic),
+    check_iqdisc_map(mod_sic).
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,

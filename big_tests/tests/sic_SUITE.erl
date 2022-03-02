@@ -47,7 +47,7 @@ end_per_suite(Config) ->
 
 init_per_group(mod_sic_tests, Config) ->
     Config1 = dynamic_modules:save_modules(host_type(), Config),
-    dynamic_modules:ensure_modules(host_type(), [{mod_sic, []}]),
+    dynamic_modules:ensure_modules(host_type(), [{mod_sic, config_parser_helper:default_mod_config(mod_sic)}]),
     Config1;
 init_per_group(_GroupName, Config) ->
     Config.
