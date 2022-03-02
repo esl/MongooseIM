@@ -61,9 +61,11 @@
          prepared/1,
          execute/3,
          execute_cast/3,
+         execute_request/3,
          execute_successfully/3,
          sql_query/2,
          sql_query_cast/2,
+         sql_query_request/2,
          sql_query_t/1,
          sql_transaction/2,
          transaction_with_delayed_retry/3,
@@ -117,7 +119,7 @@
          code_change/3]).
 
 -ignore_xref([behaviour_info/1, print_state/1,
-              sql_query_cast/2, execute_cast/3,
+              sql_query_cast/2, sql_query_request/2, execute_cast/3, execute_request/3,
               sql_query_t/1, use_escaped/1,
               escape_like/1, escape_like_prefix/1, use_escaped_like/1,
               escape_binary/2, use_escaped_binary/1,
@@ -197,6 +199,11 @@ execute(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
 execute_cast(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
     sql_cast(HostType, {sql_execute, Name, Parameters}).
 
+-spec execute_request(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
+                     reference().
+execute_request(HostType, Name, Parameters) when is_atom(Name), is_list(Parameters) ->
+    sql_request(HostType, {sql_execute, Name, Parameters}).
+
 %% Same as execute/3, but would fail loudly on any error.
 -spec execute_successfully(HostType :: server(), Name :: atom(), Parameters :: [term()]) ->
                      query_result().
@@ -232,6 +239,10 @@ query_name_to_string(Name) ->
 -spec sql_query(HostType :: server(), Query :: any()) -> query_result().
 sql_query(HostType, Query) ->
     sql_call(HostType, {sql_query, Query}).
+
+-spec sql_query_request(HostType :: server(), Query :: any()) -> reference().
+sql_query_request(HostType, Query) ->
+    sql_request(HostType, {sql_query, Query}).
 
 -spec sql_query_cast(HostType :: server(), Query :: any()) -> query_result().
 sql_query_cast(HostType, Query) ->
@@ -295,11 +306,26 @@ sql_call0(HostType, Msg) ->
     Timestamp = erlang:monotonic_time(millisecond),
     mongoose_wpool:call(rdbms, HostType, {sql_cmd, Msg, Timestamp}).
 
+-spec sql_request(HostType :: server(), Msg :: rdbms_msg()) -> any().
+sql_request(HostType, Msg) ->
+    case get_state() of
+        undefined -> sql_request0(HostType, Msg);
+        State ->
+            {Res, NewState} = nested_op(Msg, State),
+            put_state(NewState),
+            Res
+    end.
+
+-spec sql_request0(HostType :: server(), Msg :: rdbms_msg()) -> any().
+sql_request0(HostType, Msg) ->
+    Timestamp = erlang:monotonic_time(millisecond),
+    mongoose_wpool:send_request(rdbms, HostType, {sql_cmd, Msg, Timestamp}).
+
 -spec sql_cast(HostType :: server(), Msg :: rdbms_msg()) -> any().
 sql_cast(HostType, Msg) ->
     case get_state() of
         undefined -> sql_cast0(HostType, Msg);
-        State     ->
+        State ->
             {Res, NewState} = nested_op(Msg, State),
             put_state(NewState),
             Res

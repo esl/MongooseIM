@@ -66,6 +66,7 @@ rdbms_queries_cases() ->
 
      insert_batch_with_null_case,
      test_cast_insert,
+     test_request_insert,
      arguments_from_two_tables].
 
 suite() ->
@@ -353,6 +354,19 @@ test_cast_insert(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => cast_queries}).
 
+test_request_insert(Config) ->
+    erase_table(Config),
+    sql_prepare(Config, insert_one, test_types, [unicode],
+                <<"INSERT INTO test_types(unicode) VALUES (?)">>),
+    sql_execute_request(Config, insert_one, [<<"check1">>]),
+    sql_query_request(Config, <<"INSERT INTO test_types(unicode) VALUES ('check2')">>),
+    mongoose_helper:wait_until(
+      fun() ->
+              SelectResult = sql_query(Config, "SELECT unicode FROM test_types"),
+              ?assertEqual({selected, [{<<"check1">>}, {<<"check2">>}]},
+                           selected_to_sorted(SelectResult))
+      end, ok, #{name => request_queries}).
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -382,6 +396,12 @@ sql_execute_cast(_Config, Name, Parameters) ->
 
 sql_query_cast(_Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_query_cast, [host_type(), Query]).
+
+sql_execute_request(_Config, Name, Parameters) ->
+    slow_rpc(mongoose_rdbms, execute_request, [host_type(), Name, Parameters]).
+
+sql_query_request(_Config, Query) ->
+    slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), Query]).
 
 escape_null(_Config) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_null, []).
