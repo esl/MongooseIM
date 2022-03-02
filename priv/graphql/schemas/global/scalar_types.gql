@@ -1,3 +1,4 @@
 scalar DateTime
 scalar Stanza
 scalar JID
+scalar NonEmptyString
