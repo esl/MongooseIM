@@ -167,7 +167,7 @@ user_change_room_config_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     Creds = make_creds(Alice),
     % Create a new room
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, <<"ornithology">>, <<"birds">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"ornithology">>, <<"birds">>, AliceBin),
     % Try to change the room configuration
     Name2 = <<"changed room">>,
     Subject2 = <<"not testing">>,
@@ -187,7 +187,7 @@ user_change_room_config_errors_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+        create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     % Try to change the config with a non-existing domain
     Res = execute(Ep, user_change_room_configuration_body(
                         make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), RoomName, <<"subject2">>), CredsAlice),
@@ -218,7 +218,7 @@ user_invite_user_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     Domain = escalus_client:server(Alice),
     Name = <<"first room">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, Name, <<"subject2">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, <<"subject2">>, AliceBin),
     % Room owner can invite a user
     Res = execute(Ep, user_invite_user_body(jid:to_binary(RoomJID), BobBin), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
@@ -242,7 +242,7 @@ user_invite_user_errors_story(Config, Alice, Bob) ->
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, <<"first room">>, <<"subject">>, AliceBin),
+        create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
     % Try to invite a user to not existing room
     Res = execute(Ep, user_invite_user_body(
                         make_bare_jid(?UNKNOWN, MUCServer), BobBin), CredsAlice),
@@ -268,7 +268,7 @@ user_delete_room_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     Name = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, Name, <<"subject">>, AliceBin),
+        create_room(MUCServer, Name, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Member cannot delete room
     Res = execute(Ep, delete_room_body(jid:to_binary(RoomJID)), CredsBob),
@@ -297,7 +297,7 @@ user_kick_user_story(Config, Alice, Bob) ->
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Member kicks himself from a room
     ?assertEqual(2, length(get_room_aff(RoomJID))),
@@ -324,7 +324,7 @@ user_send_message_to_room_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     RoomName = <<"first room">>,
     MsgBody = <<"Hello there!">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     Res = execute(Ep, user_send_message_to_room_body(jid:to_binary(RoomJID), MsgBody), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
@@ -345,7 +345,7 @@ user_send_message_to_room_errors_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
-        create_room(<<>>, MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
+        create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
     % Try with a non-existing domain
     Res = execute(Ep, user_send_message_to_room_body(
                         make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), MsgBody), CredsAlice),
@@ -355,7 +355,7 @@ user_send_message_to_room_errors_story(Config, Alice, Bob) ->
                          jid:to_binary(ARoomJID), MsgBody), CredsBob),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not occupy this room">>)),
     % Try with a room not occupied by this user
-    {ok, #{jid := _RoomJID2}} = create_room(<<>>, MUCServer, <<"bob room">>, <<"subject">>, BobBin),
+    {ok, #{jid := _RoomJID2}} = create_room(MUCServer, <<"bob room">>, <<"subject">>, BobBin),
     Res3 = execute(Ep, user_send_message_to_room_body(
                          jid:to_binary(ARoomJID), MsgBody), CredsBob),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not occupy this room">>)).
@@ -370,7 +370,7 @@ user_get_room_messages_story(Config, Alice, Bob) ->
     CredsBob = make_creds(Bob),
     AliceBin = escalus_client:short_jid(Alice),
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, <<"first room">>, <<"subject">>, AliceBin),
+        create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
     Message = <<"Hello friends">>,
     send_message_to_room(RoomJID, jid:from_binary(AliceBin), Message),
     mam_helper:maybe_wait_for_archive(Config),
@@ -404,8 +404,8 @@ user_list_rooms_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     CredsAlice = make_creds(Alice),
     AliceBin = escalus_client:short_jid(Alice),
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, <<"room a">>, <<"subject">>, AliceBin),
-    {ok, #{jid := RoomJID2}} = create_room(<<>>, MUCServer, <<"room b">>, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"room a">>, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID2}} = create_room(MUCServer, <<"room b">>, <<"subject">>, AliceBin),
     Res = execute(Ep, user_list_rooms_body(), CredsAlice),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
                  lists:sort(get_ok_value(?USER_LIST_ROOMS_PATH, Res))).
@@ -421,7 +421,7 @@ user_list_room_users_story(Config, Alice, Bob) ->
     AliceBin = escalus_client:short_jid(Alice),
     BobBin = escalus_client:short_jid(Bob),
     AliceLower = escalus_utils:jid_to_lower(AliceBin),
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, <<"room a">>, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"room a">>, <<"subject">>, AliceBin),
     % Owner can list rooms
     Res = execute(Ep, list_room_users_body(jid:to_binary(RoomJID)), CredsAlice),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
@@ -458,7 +458,7 @@ user_get_room_config_story(Config, Alice, Bob) ->
     RoomName = <<"first room">>,
     RoomSubject = <<"Room about nothing">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, RoomName, RoomSubject, AliceBin),
+        create_room(MUCServer, RoomName, RoomSubject, AliceBin),
     RoomJIDBin = jid:to_binary(RoomJID),
     Res = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsAlice),
     % Owner can get a config
@@ -493,7 +493,7 @@ user_blocking_list_story(Config, Alice, Bob) ->
     CredsAlice = make_creds(Alice),
     BobBin = escalus_client:full_jid(Bob),
     BobShortBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-    {ok, #{jid := RoomJID}} = create_room(<<>>, ?config(muc_light_host, Config),
+    {ok, #{jid := RoomJID}} = create_room(?config(muc_light_host, Config),
                                           <<"room">>, <<"subject">>, BobBin),
     RoomBin = jid:to_binary(RoomJID),
     Res = execute(Ep, user_get_blocking_body(), CredsAlice),
@@ -600,7 +600,7 @@ admin_change_room_config_story(Config, Alice) ->
     Name = <<"first room">>,
     Subject = <<"testing">>,
     % Create a new room
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, Name, Subject, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, Subject, AliceBin),
     % Try to change the room configuration
     Name2 = <<"changed room">>,
     Subject2 = <<"not testing">>,
@@ -619,7 +619,7 @@ admin_change_room_config_errors_story(Config, Alice, Bob) ->
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+        create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     % Try to change the config with a non-existing domain
     Res = execute_auth(admin_change_room_configuration_body(
@@ -650,7 +650,7 @@ admin_invite_user_story(Config, Alice, Bob) ->
     Domain = escalus_client:server(Alice),
     MUCServer = ?config(muc_light_host, Config),
     Name = <<"first room">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, Name, <<"subject2">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, Name, <<"subject2">>, AliceBin),
 
     Res = execute_auth(admin_invite_user_body(jid:to_binary(RoomJID), AliceBin, BobBin), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?INVITE_USER_PATH, Res),
@@ -670,7 +670,7 @@ admin_invite_user_errors_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     MUCServer = ?config(muc_light_host, Config),
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, <<"first room">>, <<"subject">>, AliceBin),
+        create_room(MUCServer, <<"first room">>, <<"subject">>, AliceBin),
     % Try to invite a user to not existing room
     Res = execute_auth(admin_invite_user_body(
                          make_bare_jid(?UNKNOWN, MUCServer), AliceBin, BobBin), Config),
@@ -692,7 +692,7 @@ admin_delete_room_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     Name = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, Name, <<"subject">>, AliceBin),
+        create_room(MUCServer, Name, <<"subject">>, AliceBin),
     Res = execute_auth(delete_room_body(jid:to_binary(RoomJID)), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res),
                                           <<"successfully">>)),
@@ -712,8 +712,7 @@ admin_kick_user_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
-    RoomID = <<"kick_user_test_room">>,
-    {ok, #{jid := RoomJID}} = create_room(RoomID, MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     ?assertEqual(2, length(get_room_aff(RoomJID))),
     Res = execute_auth(admin_kick_user_body(jid:to_binary(RoomJID), BobBin), Config),
@@ -731,7 +730,7 @@ admin_send_message_to_room_story(Config, Alice, Bob) ->
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
     MsgBody = <<"Hello there!">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     Res = execute_auth(admin_send_message_to_room_body(
                          jid:to_binary(RoomJID), AliceBin, MsgBody), Config),
@@ -750,7 +749,7 @@ admin_send_message_to_room_errors_story(Config, Alice, Bob) ->
     MUCServer = ?config(muc_light_host, Config),
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
-        create_room(<<>>, MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
+        create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
     % Try with a non-existing domain
     Res2 = execute_auth(admin_send_message_to_room_body(
                           make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), AliceBin, MsgBody), Config),
@@ -760,7 +759,7 @@ admin_send_message_to_room_errors_story(Config, Alice, Bob) ->
                           jid:to_binary(ARoomJID), BobBin, MsgBody), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"does not occupy this room">>)),
     % Try with a room not occupied by this user
-    {ok, #{jid := _RoomJID2}} = create_room(<<>>, MUCServer, <<"bob room">>, <<"subject">>, BobBin),
+    {ok, #{jid := _RoomJID2}} = create_room(MUCServer, <<"bob room">>, <<"subject">>, BobBin),
     Res4 = execute_auth(admin_send_message_to_room_body(
                           jid:to_binary(ARoomJID), BobBin, MsgBody), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"does not occupy this room">>)).
@@ -775,8 +774,8 @@ admin_get_room_messages_story(Config, Alice) ->
     RoomName = <<"first room">>,
     RoomName2 = <<"second room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
-    {ok, _} = create_room(<<>>, MUCServer, RoomName2, <<"subject">>, AliceBin),
+        create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, _} = create_room(MUCServer, RoomName2, <<"subject">>, AliceBin),
     Message = <<"Hello friends">>,
     send_message_to_room(RoomJID, jid:from_binary(AliceBin), Message),
     mam_helper:maybe_wait_for_archive(Config),
@@ -807,8 +806,8 @@ admin_list_user_rooms_story(Config, Alice) ->
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
     RoomName2 = <<"second room">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
-    {ok, #{jid := RoomJID2}} = create_room(<<>>, MUCServer, RoomName2, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID2}} = create_room(MUCServer, RoomName2, <<"subject">>, AliceBin),
     Res = execute_auth(admin_list_user_rooms_body(AliceBin), Config),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
                  lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res))),
@@ -827,7 +826,7 @@ admin_list_room_users_story(Config, Alice) ->
     AliceLower = escalus_utils:jid_to_lower(AliceBin),
     MUCServer = ?config(muc_light_host, Config),
     RoomName = <<"first room">>,
-    {ok, #{jid := RoomJID}} = create_room(<<>>, MUCServer, RoomName, <<"subject">>, AliceBin),
+    {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     Res = execute_auth(list_room_users_body(jid:to_binary(RoomJID)), Config),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
@@ -850,7 +849,7 @@ admin_get_room_config_story(Config, Alice) ->
     RoomName = <<"first room">>,
     RoomSubject = <<"Room about nothing">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
-        create_room(<<>>, MUCServer, RoomName, RoomSubject, AliceBin),
+        create_room(MUCServer, RoomName, RoomSubject, AliceBin),
     RoomJIDBin = jid:to_binary(RoomJID),
     Res = execute_auth(get_room_config_body(jid:to_binary(RoomJID)), Config),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
@@ -877,9 +876,9 @@ get_room_messages(ID, Domain) ->
     {ok, Messages} = rpc(mim(), mod_muc_light_api, get_room_messages, [Domain, ID]),
     Messages.
 
-create_room(Id, Domain, Name, Subject, CreatorBin) ->
+create_room(Domain, Name, Subject, CreatorBin) ->
     CreatorJID = jid:from_binary(CreatorBin),
-    rpc(mim(), mod_muc_light_api, create_room, [Domain, Id, Name, CreatorJID, Subject]).
+    rpc(mim(), mod_muc_light_api, create_room, [Domain, CreatorJID, Name, Subject]).
 
 invite_user(RoomJID, SenderBin, RecipientBin) ->
     SenderJID = jid:from_binary(SenderBin),

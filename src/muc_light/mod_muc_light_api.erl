@@ -1,7 +1,8 @@
 %% @doc Provide an interface for frontends (like graphql or ctl) to manage MUC Light rooms.
 -module(mod_muc_light_api).
 
--export([create_room/5,
+-export([create_room/4,
+         create_room/5,
          invite_to_room/3,
          change_room_config/4,
          change_affiliation/4,
@@ -26,6 +27,9 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
+-type create_room_result() :: {ok, room()} | {already_exists | max_occupants_reached |
+                                              validation_error | muc_server_not_found, iolist()}.
+
 -type room() :: #{jid := jid:jid(),
                   name := binary(),
                   subject := binary(),
@@ -41,26 +45,16 @@
         {validation_error, io_lib:format("Validation failed for key: ~p with reason ~p",
                                          [Key, Reason])}).
 
--spec create_room(jid:lserver(), binary(), binary(), jid:jid(), binary()) ->
-    {ok, room()} | {already_exists | max_occupants_reached | validation_error |
-                    muc_server_not_found, iolist()}.
-create_room(MUCLightDomain, RoomID, RoomTitle, CreatorJID, Subject) ->
-    MUCServiceJID = jid:make_bare(RoomID, MUCLightDomain),
-    Config = make_room_config(RoomTitle, Subject),
-    try mod_muc_light:try_to_create_room(CreatorJID, MUCServiceJID, Config) of
-        {ok, RoomJID, #create{aff_users = AffUsers}} ->
-            {ok, make_room(RoomJID, RoomTitle, Subject, AffUsers)};
-        {error, exists} ->
-            {already_exist, "Room already exists"};
-        {error, max_occupants_reached} ->
-            {max_occupants_reached, "Max occupants number reached"};
-        {error, {Key, Reason}} ->
-            ?VALIDATION_ERROR_RESULT(Key, Reason)
-    catch
-        error:{muc_host_to_host_type_failed, _, _} ->
-            ?MUC_SERVER_NOT_FOUND_RESULT
-    end.
+-spec create_room(jid:lserver(), jid:jid(), binary(), binary()) -> create_room_result().
+    create_room(MUCLightDomain, CreatorJID, RoomTitle, Subject) ->
+    RoomJID = jid:make_bare(<<>>, MUCLightDomain),
+    create_room_raw(RoomJID, CreatorJID, RoomTitle, Subject).
 
+-spec create_room(jid:lserver(), jid:luser(), jid:jid(), binary(), binary()) ->
+    create_room_result().
+create_room(MUCLightDomain, RoomID, CreatorJID, RoomTitle, Subject) ->
+    RoomJID = jid:make_bare(RoomID, MUCLightDomain),
+    create_room_raw(RoomJID, CreatorJID, RoomTitle, Subject).
 
 -spec invite_to_room(jid:jid(), jid:jid(), jid:jid()) ->
     {ok | not_room_member | muc_server_not_found, iolist()}.
@@ -336,32 +330,24 @@ set_blocking(#jid{lserver = LServer} = User, Items) ->
 
  %% Internal
 
-make_room(JID, Name, Subject, AffUsers) ->
-    #{jid => JID, name => Name, subject => Subject, aff_users => AffUsers}.
+-spec create_room_raw(jid:jid(), jid:jid(), binary(), binary()) -> create_room_result().
+create_room_raw(InRoomJID, CreatorJID, RoomTitle, Subject) ->
+    Config = make_room_config(RoomTitle, Subject),
+    try mod_muc_light:try_to_create_room(CreatorJID, InRoomJID, Config) of
+        {ok, RoomJID, #create{aff_users = AffUsers}} ->
+            {ok, make_room(RoomJID, RoomTitle, Subject, AffUsers)};
+        {error, exists} ->
+            {already_exist, "Room already exists"};
+        {error, max_occupants_reached} ->
+            {max_occupants_reached, "Max occupants number reached"};
+        {error, {Key, Reason}} ->
+            ?VALIDATION_ERROR_RESULT(Key, Reason)
+    catch
+        error:{muc_host_to_host_type_failed, _, _} ->
+            ?MUC_SERVER_NOT_FOUND_RESULT
+    end.
 
-iq(To, From, Type, Children) ->
-    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, From},
-                    {<<"to">>, To},
-                    {<<"type">>, Type},
-                    {<<"id">>, UUID}],
-           children = Children
-          }.
-
-query(NS, Children) when is_binary(NS), is_list(Children) ->
-    #xmlel{name = <<"query">>,
-           attrs = [{<<"xmlns">>, NS}],
-           children = Children
-          }.
-
-affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
-    #xmlel{name = <<"user">>,
-           attrs = [{<<"affiliation">>, Kind}],
-           children = [ #xmlcdata{ content = JID } ]
-          }.
-
--spec blocking_item(blocking_item()) -> #xmlel{}.
+-spec blocking_item(blocking_item()) -> exml:element().
 blocking_item({What, Action, Who}) ->
     #xmlel{name = atom_to_binary(What),
            attrs = [{<<"action">>, atom_to_binary(Action)}],
@@ -402,6 +388,31 @@ is_user_room_member(HostType, UserUS, {_, MUCServer} = RoomLUS) ->
         RoomJIDs when is_list(RoomJIDs) ->
             lists:any(fun(LUS) -> LUS =:= RoomLUS end, RoomJIDs)
     end.
+
+make_room(JID, Name, Subject, AffUsers) ->
+    #{jid => JID, name => Name, subject => Subject, aff_users => AffUsers}.
+
+iq(To, From, Type, Children) ->
+    UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    #xmlel{name = <<"iq">>,
+           attrs = [{<<"from">>, From},
+                    {<<"to">>, To},
+                    {<<"type">>, Type},
+                    {<<"id">>, UUID}],
+           children = Children
+          }.
+
+query(NS, Children) when is_binary(NS), is_list(Children) ->
+    #xmlel{name = <<"query">>,
+           attrs = [{<<"xmlns">>, NS}],
+           children = Children
+          }.
+
+affiliate(JID, Kind) when is_binary(JID), is_binary(Kind) ->
+    #xmlel{name = <<"user">>,
+           attrs = [{<<"affiliation">>, Kind}],
+           children = [ #xmlcdata{ content = JID } ]
+          }.
 
 maybe_before(undefined, Now) ->
     Now;

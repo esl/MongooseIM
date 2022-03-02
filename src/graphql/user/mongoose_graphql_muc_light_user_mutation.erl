@@ -25,11 +25,17 @@ execute(Ctx, _Obj, <<"setBlockingList">>, Args) ->
     set_blocking_list(Ctx, Args).
 
 -spec create_room(map(), map()) -> {ok, map()} | {error, resolver_error()}.
-create_room(Ctx, #{<<"id">> := null} = Args) ->
-    create_room(Ctx, Args#{<<"id">> => <<>>});
+create_room(#{user := UserJID}, #{<<"id">> := null, <<"mucDomain">> := MUCDomain,
+                                  <<"name">> := RoomName, <<"subject">> := Subject}) ->
+    case mod_muc_light_api:create_room(MUCDomain, UserJID, RoomName, Subject) of
+        {ok, Room} ->
+            {ok, make_room(Room)};
+        Err ->
+            make_error(Err, #{mucDomain => MUCDomain})
+    end;
 create_room(#{user := UserJID}, #{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain,
                                   <<"name">> := RoomName, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, RoomID, RoomName, UserJID, Subject) of
+    case mod_muc_light_api:create_room(MUCDomain, RoomID, UserJID, RoomName, Subject) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
