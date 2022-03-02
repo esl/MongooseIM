@@ -114,7 +114,7 @@ change_affiliation(RoomJID, SenderJID, RecipientJID, Affiliation) ->
     Changes = query(?NS_MUC_LIGHT_AFFILIATIONS,
                     [affiliate(jid:to_binary(RecipientBare), Affiliation)]),
     ejabberd_router:route(S, RoomJID, iq(jid:to_binary(S), jid:to_binary(RoomJID),
-                                   <<"set">>, [Changes])),
+                                         <<"set">>, [Changes])),
     ok.
 
 -spec remove_user_from_room(jid:jid(), jid:jid(), jid:jid()) ->
