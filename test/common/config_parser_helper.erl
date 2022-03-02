@@ -318,8 +318,8 @@ options("outgoing_pools") ->
                         request_timeout => 2000}},
        #{type => ldap, scope => host, tag => default,
          opts => #{workers => 5},
-         conn_opts => #{password => "ldap-admin-password",
-                        rootdn => "cn=admin,dc=example,dc=com",
+         conn_opts => #{password => <<"ldap-admin-password">>,
+                        rootdn => <<"cn=admin,dc=example,dc=com">>,
                         servers => ["ldap-server.example.com"]}},
        #{type => rabbit, scope => host, tag => event_pusher,
          opts => #{workers => 20},
@@ -808,8 +808,8 @@ default_pool_conn_opts(http) ->
     #{path_prefix => "/",
       request_timeout => 2000};
 default_pool_conn_opts(ldap) ->
-    #{rootdn => "",
-      password => "",
+    #{rootdn => <<"">>,
+      password => <<"">>,
       encrypt => none,
       servers => ["localhost"],
       connect_interval => 10000};

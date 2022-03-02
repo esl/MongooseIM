@@ -34,7 +34,6 @@
          make_filter/3,
          get_state/2,
          case_insensitive_match/2,
-         get_mod_opt/4,
          deref_aliases/1,
          process_user_filter/2,
          get_search_filter/1,
@@ -216,34 +215,6 @@ uids_domain_subst(Host, UIDs) ->
                   (A) -> A
               end,
               UIDs).
-
-
--spec get_mod_opt(atom(), gen_mod:module_opts(), fun(), any()) -> any().
-get_mod_opt(Key, Opts, F, Default) ->
-    case gen_mod:get_opt(Key, Opts, Default) of
-        Default ->
-            Default;
-        Val ->
-            prepare_opt_val(Key, Val, F, Default)
-    end.
-
--type check_fun() :: fun((any()) -> any()) | {module(), atom()}.
--spec prepare_opt_val(any(), any(), check_fun(), any()) -> any().
-prepare_opt_val(Opt, Val, F, Default) ->
-    Res = case F of
-              {Mod, Fun} ->
-                  catch Mod:Fun(Val);
-              _ ->
-                  catch F(Val)
-          end,
-    case Res of
-        {'EXIT', _} ->
-            ?LOG_ERROR(#{what => configuration_error, option => Opt,
-                         value => Val, default => Default}),
-            Default;
-        _ ->
-            Res
-    end.
 
 deref_aliases(never) -> neverDerefAliases;
 deref_aliases(searching) -> derefInSearching;

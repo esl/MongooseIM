@@ -1364,12 +1364,12 @@ pool_ldap_encrypt(_Config) ->
     ?err(pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => true})).
 
 pool_ldap_rootdn(_Config) ->
-    ?cfg(pool_config(#{type => ldap, conn_opts => #{rootdn => "my_rootdn"}}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{rootdn => <<"my_rootdn">>}}),
          pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"my_rootdn">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => false})).
 
 pool_ldap_password(_Config) ->
-    ?cfg(pool_config(#{type => ldap, conn_opts => #{password => "pass"}}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{password => <<"pass">>}}),
          pool_conn_raw(<<"ldap">>, #{<<"password">> => <<"pass">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"password">> => true})).
 
