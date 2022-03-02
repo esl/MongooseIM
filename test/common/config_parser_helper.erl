@@ -507,11 +507,12 @@ all_modules() ->
                      #{base => <<"ou=Users,dc=ejd,dc=com">>,
                        filter => <<"(objectClass=inetOrgPerson)">>,
                        group_cache_validity => 1,
-                       groupattr => "ou",
-                       memberattr => "cn",
-                       rfilter => "(objectClass=inetOrgPerson)",
+                       groupattr => <<"ou">>,
+                       groupdesc => <<"ou">>, % would be added with incorrect value by mod_config/2
+                       memberattr => <<"cn">>,
+                       rfilter => <<"(objectClass=inetOrgPerson)">>,
                        user_cache_validity => 1,
-                       userdesc => "cn"}),
+                       userdesc => <<"cn">>}),
       mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
           [{listen_port, 5600},
@@ -856,7 +857,11 @@ default_mod_config(mod_private) ->
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
 default_mod_config(mod_shared_roster_ldap) ->
-    #{pool_tag => default, deref => never, filter => <<"">>};
+    #{pool_tag => default, deref => never, filter => <<"">>,
+      groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,
+      memberattr => <<"memberUid">>, memberattr_format => <<"%u">>, memberattr_format_re => <<"">>,
+      auth_check => true, user_cache_validity => 300, group_cache_validity => 300, user_cache_size => 1000,
+      group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_time) ->

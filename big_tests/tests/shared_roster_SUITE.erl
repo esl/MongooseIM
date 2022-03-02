@@ -156,11 +156,11 @@ get_auth_method() ->
 
 get_ldap_opts() ->
     Opts = #{base => <<"ou=Users,dc=esl,dc=com">>,
-             groupattr => "ou",
-             memberattr => "cn",
-             userdesc => "cn",
+             groupattr => <<"ou">>,
+             memberattr => <<"cn">>,
+             userdesc => <<"cn">>,
              filter => <<"(objectClass=inetOrgPerson)">>,
-             rfilter => "(objectClass=inetOrgPerson)",
+             rfilter => <<"(objectClass=inetOrgPerson)">>,
              group_cache_validity => 1,
              user_cache_validity => 1},
     maps:merge(config_parser_helper:default_mod_config(mod_shared_roster_ldap), Opts).
