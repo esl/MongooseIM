@@ -22,6 +22,7 @@
          stop/0, stop/1, stop/2, stop/3,
          get_worker/1, get_worker/2, get_worker/3,
          call/2, call/3, call/4, call/5,
+         send_request/2, send_request/3, send_request/4, send_request/5,
          cast/2, cast/3, cast/4, cast/5,
          get_pool_settings/3, get_pools/0, stats/3]).
 
@@ -37,6 +38,7 @@
 -export([expand_pools/2]).
 
 -ignore_xref([call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
+              send_request/2, send_request/4, send_request/5,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
@@ -267,6 +269,31 @@ call(PoolType, HostType, Tag, HashKey, Request) ->
         Err ->
             Err
     end.
+
+send_request(PoolType, Request) ->
+    send_request(PoolType, global, Request).
+
+send_request(PoolType, HostType, Request) ->
+    send_request(PoolType, HostType, default, Request).
+
+send_request(PoolType, HostType, Tag, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
+        {ok, #mongoose_wpool{strategy = Strategy, call_timeout = CallTimeout} = Pool} ->
+            wpool_send_request(make_pool_name(Pool), Request, Strategy, CallTimeout);
+        Err ->
+            Err
+    end.
+
+send_request(PoolType, HostType, Tag, HashKey, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
+        {ok, #mongoose_wpool{call_timeout = CallTimeout} = Pool} ->
+            wpool_send_request(make_pool_name(Pool), Request, {hash_worker, HashKey}, CallTimeout);
+        Err ->
+            Err
+    end.
+
+wpool_send_request(PoolName, Request, Strategy, Timeout) ->
+    wpool:send_request(PoolName, Request, Strategy, Timeout).
 
 cast(PoolType, Request) ->
     cast(PoolType, global, Request).

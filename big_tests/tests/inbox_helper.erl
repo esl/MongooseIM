@@ -12,7 +12,8 @@
          skip_or_run_inbox_tests/1,
          maybe_run_in_parallel/1,
          inbox_opts/0,
-         inbox_modules/0,
+         inbox_opts/1,
+         inbox_modules/1,
          muclight_modules/0,
          clear_inbox_all/0,
          foreach_check_inbox/4,
@@ -120,6 +121,12 @@ inbox_ns_conversation() ->
 inbox_opts() ->
     config_parser_helper:default_mod_config(mod_inbox).
 
+inbox_opts(regular) ->
+    inbox_opts();
+inbox_opts(async_pools) ->
+    (inbox_opts())#{backend => rdbms_async,
+                    async_writer => #{pool_size => 4}}.
+
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
             orelse mongoose_helper:is_rdbms_enabled(domain()) of
@@ -138,14 +145,18 @@ maybe_run_in_parallel(Gs) ->
 insert_parallels(Gs) ->
     Fun = fun({muclight_config, Conf, Tests}) ->
                   {muclight_config, Conf, Tests};
+             ({regular, Conf, Tests}) ->
+                  {regular, Conf, Tests};
+             ({async_pools, Conf, Tests}) ->
+                  {async_pools, Conf, Tests};
              ({Group, Conf, Tests}) ->
                   {Group, [parallel | Conf], Tests}
           end,
     lists:map(Fun, Gs).
 
-inbox_modules() ->
+inbox_modules(Backend) ->
     [
-     {mod_inbox, inbox_opts()}
+     {mod_inbox, inbox_opts(Backend)}
     ].
 
 muclight_modules() ->
@@ -173,6 +184,12 @@ check_inbox(Client, Convs, QueryOpts) ->
                   QueryOpts :: inbox_query_params(),
                   CheckOpts :: inbox_check_params()) -> ok | no_return().
 check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
+    {ok, Res} = mongoose_helper:wait_until(
+                  fun() -> do_check_inbox(Client, Convs, QueryOpts, CheckOpts) end,
+                  ok, #{name => inbox_size, validator => fun(_) -> true end}),
+    Res.
+
+do_check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
     ExpectedSortedConvs = case maps:get(order, QueryOpts, undefined) of
                               asc -> lists:reverse(Convs);
                               _ -> Convs
@@ -237,12 +254,31 @@ get_inbox(Client, ExpectedResult) ->
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
     GetInbox = make_inbox_stanza(GetParams),
-    escalus:send(Client, GetInbox),
-    Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
-    ResIQ = escalus:wait_for_stanza(Client),
+    Validator = fun(#{respond_messages := Val}) -> ExpectedCount =:= length(Val) end,
+    {ok, Inbox} = mongoose_helper:wait_until(
+                    fun() -> do_get_inbox(Client, GetInbox) end,
+                    ExpectedCount, #{validator => Validator, name => inbox_size}),
+    #{respond_iq := ResIQ, respond_messages := Stanzas} = Inbox,
     ?assert(escalus_pred:is_iq_result(GetInbox, ResIQ)),
     check_result(ResIQ, ExpectedResult),
     Stanzas.
+
+do_get_inbox(Client, GetInbox) ->
+    escalus:send(Client, GetInbox),
+    [ResIQ | Messages] = lists:reverse(receive_inbox(Client, GetInbox)),
+    #{respond_iq => ResIQ,
+      respond_messages => lists:reverse(Messages)}.
+
+receive_inbox(Client, GetInbox) ->
+    S = escalus:wait_for_stanza(Client),
+    case escalus_pred:is_iq_error(GetInbox, S) of
+        true -> ct:fail("Unexpected error IQ: ~p", [S]);
+        false -> ok
+    end,
+    case escalus_pred:is_iq_result(GetInbox, S) of
+        true  -> [S];
+        false -> [S | receive_inbox(Client, GetInbox)]
+    end.
 
 get_unread_count(Msg) ->
     [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),

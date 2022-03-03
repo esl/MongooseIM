@@ -80,7 +80,7 @@ muc_config_spec() ->
 
 root_config_items() ->
     Cache = mongoose_user_cache:config_spec(),
-    AsyncWriter = mod_mam_rdbms_arch_async:config_spec(),
+    AsyncWriter = async_config_spec(),
     #{<<"cache">> => Cache#section{include = always},
       <<"async_writer">> => AsyncWriter#section{include = always}}.
 
@@ -120,15 +120,28 @@ common_config_items() ->
      }.
 
 pm_config_items() ->
-    #{<<"async_writer">> => mod_mam_rdbms_arch_async:config_spec(),
+    #{<<"async_writer">> => async_config_spec(),
       <<"archive_groupchats">> => #option{type = boolean},
       <<"same_mam_id_for_peers">> => #option{type = boolean}}.
 
 muc_config_items() ->
-    #{<<"async_writer">> => mod_mam_rdbms_arch_async:config_spec(),
+    #{<<"async_writer">> => async_config_spec(),
       <<"host">> => #option{type = string,
                             validate = subdomain_template,
                             process = fun mongoose_subdomain_utils:make_subdomain_pattern/1}}.
+
+async_config_spec() ->
+    #section{
+       items = #{<<"enabled">> => #option{type = boolean},
+                 <<"flush_interval">> => #option{type = integer, validate = non_negative},
+                 <<"batch_size">> => #option{type = integer, validate = non_negative},
+                 <<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"enabled">> => true,
+                    <<"flush_interval">> => 2000,
+                    <<"batch_size">> => 30,
+                    <<"pool_size">> => 4 * erlang:system_info(schedulers_online)},
+       format_items = map
+      }.
 
 riak_config_spec() ->
     #section{
@@ -234,7 +247,7 @@ add_rdbms_deps(user_cache, Type, #{cache_users := true, cache := CacheOpts}, Dep
     add_dep(mod_mam_cache_user, #{Type => true, cache => CacheOpts}, Deps1);
 add_rdbms_deps(async_writer, Type, #{async_writer := AsyncOpts = #{enabled := true}}, Deps) ->
     Deps1 = add_dep(rdbms_arch_module(Type), #{no_writer => true}, Deps),
-    add_dep(mod_mam_rdbms_arch_async, #{Type => AsyncOpts}, Deps1);
+    add_dep(rdbms_async_arch_module(Type), AsyncOpts, Deps1);
 add_rdbms_deps(_, _Type, _Opts, Deps) ->
     Deps.
 
@@ -259,6 +272,9 @@ rdbms_arch_defaults() ->
 
 rdbms_arch_module(pm) -> mod_mam_rdbms_arch;
 rdbms_arch_module(muc) -> mod_mam_muc_rdbms_arch.
+
+rdbms_async_arch_module(pm) -> mod_mam_rdbms_arch_async;
+rdbms_async_arch_module(muc) -> mod_mam_muc_rdbms_arch_async.
 
 elasticsearch_arch_module(pm) -> mod_mam_elasticsearch_arch;
 elasticsearch_arch_module(muc) -> mod_mam_muc_elasticsearch_arch.

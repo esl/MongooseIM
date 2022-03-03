@@ -42,10 +42,12 @@
 
 -export([join/2,
          prepare_upsert/6,
-         execute_upsert/5]).
+         execute_upsert/5,
+         request_upsert/5]).
 
 -ignore_xref([
-    count_records_where/3, get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
+    request_upsert/5, count_records_where/3,
+    get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
 ]).
 
 %% We have only two compile time options for db queries:
@@ -88,6 +90,22 @@ execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
             mongoose_rdbms:execute(Host, Name, InsertParams ++ UpdateParams);
         {odbc, mssql} ->
             mongoose_rdbms:execute(Host, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+-spec request_upsert(Host :: mongoose_rdbms:server(),
+                     Name :: atom(),
+                     InsertParams :: [any()],
+                     UpdateParams :: [any()],
+                     UniqueKeyValues :: [any()]) -> reference().
+request_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms:db_type()} of
+        {mysql, _} ->
+            mongoose_rdbms:execute_request(Host, Name, InsertParams ++ UpdateParams);
+        {pgsql, _} ->
+            mongoose_rdbms:execute_request(Host, Name, InsertParams ++ UpdateParams);
+        {odbc, mssql} ->
+            mongoose_rdbms:execute_request(Host, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 

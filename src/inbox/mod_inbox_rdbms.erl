@@ -23,6 +23,7 @@
          get_inbox_unread/2,
          get_entry_properties/2,
          set_entry_properties/3]).
+-export([check_result/1]).
 
 -type archived() :: binary().
 -type muted_until() :: binary().
@@ -108,8 +109,7 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
       Count :: integer(),
       MsgId :: binary(),
       Timestamp :: integer().
-set_inbox(HostType, {LUser, LServer, ToBareJid}, Content, Count, MsgId, Timestamp) ->
-    LToBareJid = jid:nameprep(ToBareJid),
+set_inbox(HostType, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp) ->
     InsertParams = [LUser, LServer, LToBareJid,
                     Content, Count, MsgId, Timestamp],
     UpdateParams = [Content, Count, MsgId, Timestamp, false],
@@ -122,8 +122,7 @@ set_inbox(HostType, {LUser, LServer, ToBareJid}, Content, Count, MsgId, Timestam
 
 -spec remove_inbox_row(HostType :: mongooseim:host_type(),
                        InboxEntryKey :: mod_inbox:entry_key()) -> mod_inbox:write_res().
-remove_inbox_row(HostType, {LUser, LServer, ToBareJid}) ->
-    LToBareJid = jid:nameprep(ToBareJid),
+remove_inbox_row(HostType, {LUser, LServer, LToBareJid}) ->
     Res = execute_delete(HostType, LUser, LServer, LToBareJid),
     check_result(Res).
 
@@ -145,8 +144,7 @@ set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
                             MsgId :: binary(),
                             Timestamp :: integer(),
                             Incrs :: pos_integer()) -> mod_inbox:count_res().
-set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Timestamp, Incrs) ->
-    LToBareJid = jid:nameprep(ToBareJid),
+set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs) ->
     InsertParams = [LUser, LServer, LToBareJid, Content, Incrs, MsgId, Timestamp],
     UpdateParams = [Content, MsgId, Timestamp, false, Incrs],
     UniqueKeyValues  = [LUser, LServer, LToBareJid],
@@ -157,8 +155,7 @@ set_inbox_incr_unread(HostType, {LUser, LServer, ToBareJid}, Content, MsgId, Tim
 -spec reset_unread(HosType :: mongooseim:host_type(),
                    InboxEntryKey :: mod_inbox:entry_key(),
                    MsgId :: binary() | undefined) -> mod_inbox:write_res().
-reset_unread(HostType, {LUser, LServer, ToBareJid}, MsgId) ->
-    LToBareJid = jid:nameprep(ToBareJid),
+reset_unread(HostType, {LUser, LServer, LToBareJid}, MsgId) ->
     Res = execute_reset_unread(HostType, LUser, LServer, LToBareJid, MsgId),
     check_result(Res).
 

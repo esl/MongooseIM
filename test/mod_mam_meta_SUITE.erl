@@ -78,7 +78,7 @@ produces_valid_configurations(_Config) ->
     check_equal_opts(mod_mam_cache_user, #{pm => true, muc => true, cache => []}, Deps),
     check_equal_opts(mod_mam_mnesia_prefs, #{muc => true}, Deps),
     check_equal_opts(mod_mam_rdbms_prefs, #{pm => true}, Deps),
-    check_equal_opts(mod_mam_rdbms_arch_async, #{muc => AsyncOpts}, Deps).
+    check_equal_opts(mod_mam_muc_rdbms_arch_async, AsyncOpts, Deps).
 
 handles_riak_config(_Config) ->
     PM = config([modules, mod_mam_meta, pm], #{user_prefs_store => mnesia}),
@@ -116,7 +116,7 @@ example_muc_only_no_pref_good_performance(_Config) ->
       [{mod_mam_rdbms_user, #{muc => true, pm => true}},
        {mod_mam_cache_user, #{muc => true, cache => []}},
        {mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch, #{no_writer => true})},
-       {mod_mam_rdbms_arch_async, #{muc => AsyncOpts}},
+       {mod_mam_muc_rdbms_arch_async, AsyncOpts},
        {mod_mam_muc, mod_config(mod_mam_muc, mod_config(mod_mam_muc, MUCOpts))}
       ], Deps).
 
@@ -130,7 +130,7 @@ example_pm_only_good_performance(_Config) ->
        {mod_mam_cache_user, #{pm => true, cache => []}},
        {mod_mam_mnesia_prefs, #{pm => true}},
        {mod_mam_rdbms_arch, mod_config(mod_mam_rdbms_arch, #{no_writer => true})},
-       {mod_mam_rdbms_arch_async, #{pm => AsyncOpts}},
+       {mod_mam_rdbms_arch_async, AsyncOpts},
        {mod_mam, default_mod_config(mod_mam)}
       ], Deps).
 

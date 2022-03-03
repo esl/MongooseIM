@@ -35,6 +35,7 @@ all() ->
      host_specific_pools_are_preserved,
      pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
      global_pool_is_used_by_default,
+     request_behaves_as_gen_server_send_request,
      dead_pool_is_restarted,
      dead_pool_is_stopped_before_restarted,
      riak_pool_cant_be_started_with_available_worker_strategy,
@@ -197,6 +198,13 @@ global_pool_is_used_by_default(_C) ->
     ?assertEqual(mongoose_wpool:make_pool_name(generic, global, default),
                  mongoose_wpool:call(generic, global, default, request)).
 
+request_behaves_as_gen_server_send_request(_C) ->
+    Pools = [#{type => generic, scope => global, tag => default, opts => #{}, conn_opts => #{}} ],
+    StartRes = mongoose_wpool:start_configured_pools(Pools),
+    ?assertMatch([{ok, _}], StartRes),
+    Req1 = mongoose_wpool:send_request(generic, {?MODULE, echo, [send_request]}),
+    ?assertEqual({reply, {ok, send_request}}, gen_server:wait_response(Req1, 5000)).
+
 dead_pool_is_restarted(_C) ->
     Size = 3,
     {PoolName, KillingSwitch} = start_killable_pool(Size, kill_and_restart),
@@ -320,3 +328,5 @@ wait_until_pool_is_dead(PoolName) ->
 
 set_killing_switch(KillingSwitch, Value) ->
     ets:update_element(KillingSwitch, kill_worker, {2, Value}).
+
+echo(Val) -> Val.

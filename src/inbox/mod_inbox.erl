@@ -102,6 +102,10 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     mod_inbox_muc:stop(HostType),
+    case mongoose_config:get_opt([{modules, HostType}, mod_inbox, backend]) of
+        rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
+        _ -> ok
+    end,
     ejabberd_hooks:delete(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm).
@@ -114,7 +118,8 @@ supported_features() ->
 config_spec() ->
     Markers = mongoose_chat_markers:chat_marker_names(),
     #section{
-        items = #{<<"backend">> => #option{type = atom, validate = {enum, [rdbms]}},
+        items = #{<<"backend">> => #option{type = atom, validate = {enum, [rdbms, rdbms_async]}},
+                  <<"async_writer">> => async_config_spec(),
                   <<"reset_markers">> => #list{items = #option{type = binary,
                                                                validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
@@ -132,6 +137,14 @@ config_spec() ->
                     },
         format_items = map
     }.
+
+async_config_spec() ->
+    #section{
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       format_items = map,
+       include = always
+      }.
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ

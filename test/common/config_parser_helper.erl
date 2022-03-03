@@ -452,7 +452,7 @@ all_modules() ->
            {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
            {wpool, [{workers, 200}]}],
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
-      mod_mam_rdbms_arch_async => #{pm => default_config([modules, mod_mam_meta, async_writer])},
+      mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
       mod_keystore =>
           [{keys,
             [{access_secret, ram},
@@ -582,6 +582,7 @@ all_modules() ->
               {pool_name, http_pool}]]}],
       mod_inbox =>
           #{backend => rdbms,
+            async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
             iqdisc => no_queue,
             aff_changes => true,
             groupchat => [muclight],
@@ -839,6 +840,7 @@ default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
+      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
       groupchat => [muclight],
       aff_changes => true,
       remove_on_kicked => true,
