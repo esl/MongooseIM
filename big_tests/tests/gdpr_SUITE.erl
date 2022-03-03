@@ -294,8 +294,7 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    Backend = pick_enabled_backend(),
-    dynamic_modules:ensure_modules(host_type(), [{mod_roster, [{backend, Backend}]}]),
+    roster_started(),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     GN = proplists:get_value(group, Config),
@@ -391,6 +390,15 @@ pick_enabled_backend() ->
     ],
     proplists:get_value(true, BackendsList, mnesia).
 
+roster_required_modules() ->
+    Backend = pick_enabled_backend(),
+    [{mod_roster, roster_backend_opts(Backend)}].
+
+roster_backend_opts(riak) ->
+    RiakDefaults = config_parser_helper:default_config([modules, mod_roster, riak]),
+    config_parser_helper:mod_config(mod_roster, #{backend => riak, riak => RiakDefaults});
+roster_backend_opts(Backend) ->
+    config_parser_helper:mod_config(mod_roster, #{backend => Backend}).
 
 vcard_required_modules() ->
     Backend = pick_enabled_backend(),
@@ -423,6 +431,9 @@ is_mim2_started() ->
         pong -> true;
         _ -> false
     end.
+
+roster_started() ->
+    dynamic_modules:ensure_modules(host_type(), roster_required_modules()).
 
 vcard_started() ->
     dynamic_modules:ensure_modules(host_type(), vcard_required_modules()).

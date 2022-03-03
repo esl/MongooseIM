@@ -20,7 +20,7 @@
 %% Callbacks
 %% (exactly the same as specs in this module)
 
--callback init(mongooseim:host_type(), list()) -> ok.
+-callback init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 
 -callback transaction(mongooseim:host_type(), fun(() -> any())) ->
     {aborted, any()} | {atomic, any()} | {error, any()}.
@@ -51,7 +51,7 @@
 
 -optional_callbacks([remove_domain_t/2]).
 
--spec init(mongooseim:host_type(), list()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
     TrackedFuns = [read_roster_version,
                    write_roster_version,

@@ -33,7 +33,7 @@
 
 %% mod_roster backend API
 
--spec init(mongooseim:host_type(), list()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, _Opts) ->
     prepare_queries(HostType),
     ok.

@@ -2807,27 +2807,27 @@ registration_watchers(JidBins) ->
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 mod_roster(_Config) ->
+    check_iqdisc_map(mod_roster),
+    check_module_defaults(mod_roster),
+    P = [modules, mod_roster],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_roster, Cfg) end,
-
-    ?cfgh(M([{versioning, false}]),
-          T(#{<<"versioning">> => false})),
-    ?cfgh(M([{store_current_id, false}]),
-          T(#{<<"store_current_id">> => false})),
-    ?cfgh(M([{backend, mnesia}]),
-          T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{bucket_type, <<"rosters">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"rosters">>}})),
-    ?cfgh(M([{version_bucket_type, <<"roster_versions">>}]),
-          T(#{<<"riak">> => #{<<"version_bucket_type">> => <<"roster_versions">>}})),
+    ?cfgh(P ++ [versioning],  true,
+          T(#{<<"versioning">> => true})),
+    ?cfgh(P ++ [store_current_id], true,
+          T(#{<<"store_current_id">> => true})),
+    ?cfgh(P ++ [backend], rdbms,
+          T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"my_type">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"my_type">>}})),
+    ?cfgh(P ++ [riak, version_bucket_type], <<"my_versions">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"version_bucket_type">> => <<"my_versions">>}})),
 
     ?errh(T(#{<<"versioning">> => 1})),
     ?errh(T(#{<<"store_current_id">> => 1})),
     ?errh(T(#{<<"backend">> => 1})),
     ?errh(T(#{<<"backend">> => <<"iloveyou">>})),
     ?errh(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_roster).
+    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_shared_roster_ldap(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
