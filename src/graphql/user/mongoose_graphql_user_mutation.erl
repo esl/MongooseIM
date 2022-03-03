@@ -5,4 +5,6 @@
 -ignore_xref([execute/4]).
 
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
-    {ok, account}.
+    {ok, account};
+execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
+    {ok, muc_light}.

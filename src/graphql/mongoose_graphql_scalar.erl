@@ -11,6 +11,7 @@
 input(<<"DateTime">>, DT) -> binary_to_microseconds(DT);
 input(<<"Stanza">>, Value) -> exml:parse(Value);
 input(<<"JID">>, Jid) -> jid_from_binary(Jid);
+input(<<"NonEmptyString">>, Value) -> non_empty_string_to_binary(Value);
 input(Ty, V) ->
     error_logger:info_report({coercing_generic_scalar, Ty, V}),
     {ok, V}.
@@ -24,6 +25,7 @@ input(Ty, V) ->
 output(<<"DateTime">>, DT) -> {ok, microseconds_to_binary(DT)};
 output(<<"Stanza">>, Elem) -> {ok, exml:to_binary(Elem)};
 output(<<"JID">>, Jid) -> {ok, jid:to_binary(Jid)};
+output(<<"NonEmptyString">>, Value) -> binary_to_non_empty_string(Value);
 output(Ty, V) ->
     error_logger:info_report({output_generic_scalar, Ty, V}),
     {ok, V}.
@@ -43,6 +45,16 @@ binary_to_microseconds(DT) ->
         Microseconds ->
             {ok, Microseconds}
     end.
+
+non_empty_string_to_binary(<<>>) ->
+    {error, "Given string is empty"};
+non_empty_string_to_binary(String) ->
+    {ok, String}.
+
+binary_to_non_empty_string(<<>>) ->
+    {error, "Empty binary cannot be converted to NonEmptyString"};
+binary_to_non_empty_string(Val) ->
+    {ok, Val}.
 
 microseconds_to_binary(Microseconds) ->
     Opts = [{offset, "Z"}, {unit, microsecond}],

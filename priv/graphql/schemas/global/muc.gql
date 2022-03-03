@@ -3,3 +3,37 @@ enum Affiliation{
   MEMBER
   NONE
 }
+
+input BlockingInput{
+  entityType: BlockedEntityType!
+  action: BlockingAction!
+  entity: JID!
+}
+
+type BlockingItem{
+  entityType: BlockedEntityType!
+  action: BlockingAction!
+  entity: JID!
+}
+
+enum BlockingAction{
+  ALLOW,
+  DENY
+}
+
+enum BlockedEntityType{
+  USER,
+  ROOM
+}
+
+type Room{
+  jid: JID!
+  name: String!
+  subject: String!
+  participants: [RoomUser!]!
+}
+
+type RoomUser{
+  jid: JID!
+  affiliation: Affiliation!
+}

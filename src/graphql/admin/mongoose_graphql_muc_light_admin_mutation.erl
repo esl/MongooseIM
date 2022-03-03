@@ -7,7 +7,8 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1,
+                                            prepare_blocking_items/1]).
 
 execute(_Ctx, _Obj, <<"createRoom">>, Args) ->
     create_room(Args);
@@ -20,14 +21,22 @@ execute(_Ctx, _Obj, <<"deleteRoom">>, Args) ->
 execute(_Ctx, _Obj, <<"kickUser">>, Args) ->
     kick_user(Args);
 execute(_Ctx, _Obj, <<"sendMessageToRoom">>, Args) ->
-    send_msg_to_room(Args).
+    send_msg_to_room(Args);
+execute(_Ctx, _Obj, <<"setBlockingList">>, Args) ->
+    set_blocking_list(Args).
 
 -spec create_room(map()) -> {ok, map()} | {error, resolver_error()}.
-create_room(#{<<"id">> := null} = Args) ->
-    create_room(Args#{<<"id">> => <<>>});
+create_room(#{<<"id">> := null, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
+              <<"owner">> := CreatorJID, <<"subject">> := Subject}) ->
+    case mod_muc_light_api:create_room(MUCDomain, CreatorJID, RoomName, Subject) of
+        {ok, Room} ->
+            {ok, make_room(Room)};
+        Err ->
+            make_error(Err, #{mucDomain => MUCDomain, creator => CreatorJID})
+    end;
 create_room(#{<<"id">> := RoomID, <<"mucDomain">> := MUCDomain, <<"name">> := RoomName,
               <<"owner">> := CreatorJID, <<"subject">> := Subject}) ->
-    case mod_muc_light_api:create_room(MUCDomain, RoomID, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCDomain, RoomID, CreatorJID, RoomName, Subject) of
         {ok, Room} ->
             {ok, make_room(Room)};
         Err ->
@@ -65,3 +74,9 @@ kick_user(#{<<"room">> := RoomJID, <<"user">> := UserJID}) ->
 send_msg_to_room(#{<<"room">> := RoomJID, <<"from">> := FromJID, <<"body">> := Message}) ->
     Result = mod_muc_light_api:send_message(RoomJID, FromJID, Message),
     format_result(Result, #{room => jid:to_binary(RoomJID), from => jid:to_binary(FromJID)}).
+
+-spec set_blocking_list(map()) -> {ok, binary()} | {error, resolver_error()}.
+set_blocking_list(#{<<"user">> := UserJID, <<"items">> := Items}) ->
+    Items2 = prepare_blocking_items(Items),
+    Result = mod_muc_light_api:set_blocking(UserJID, Items2),
+    format_result(Result, #{user => jid:to_binary(UserJID)}).

@@ -163,7 +163,7 @@ commands() ->
     jid:literal_jid() | {error, not_found | denied, iolist()}.
 create_unique_room(MUCServer, RoomName, Creator, Subject) ->
     CreatorJID = jid:from_binary(Creator),
-    case mod_muc_light_api:create_room(MUCServer, <<>>, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCServer, CreatorJID, RoomName, Subject) of
         {ok, #{jid := JID}} -> jid:to_binary(JID);
         Error -> format_err_result(Error)
     end.
@@ -173,7 +173,7 @@ create_unique_room(MUCServer, RoomName, Creator, Subject) ->
     jid:literal_jid() | {error, not_found | denied, iolist()}.
 create_identifiable_room(MUCServer, Identifier, RoomName, Creator, Subject) ->
     CreatorJID = jid:from_binary(Creator),
-    case mod_muc_light_api:create_room(MUCServer, Identifier, RoomName, CreatorJID, Subject) of
+    case mod_muc_light_api:create_room(MUCServer, Identifier, CreatorJID, RoomName, Subject) of
         {ok, #{jid := JID}} -> jid:to_binary(JID);
         Error -> format_err_result(Error)
     end.

@@ -7,7 +7,10 @@
 -include("../mongoose_graphql_types.hrl").
 
 -import(mongoose_graphql_helper, [make_error/2, format_result/2]).
--import(mongoose_graphql_muc_light_helper, [make_room/1, make_ok_user/1]).
+-import(mongoose_graphql_muc_light_helper, [make_room/1,
+                                            make_ok_user/1,
+                                            null_to_undefined/1,
+                                            page_size_or_max_limit/2]).
 
 execute(_Ctx, _Obj, <<"listUserRooms">>, Args) ->
     list_user_rooms(Args);
@@ -16,9 +19,11 @@ execute(_Ctx, _Obj, <<"listRoomUsers">>, Args) ->
 execute(_Ctx, _Obj, <<"getRoomConfig">>, Args) ->
     get_room_config(Args);
 execute(_Ctx, _Obj, <<"getRoomMessages">>, Args) ->
-    get_room_messages(Args).
+    get_room_messages(Args);
+execute(_Ctx, _Obj, <<"getBlockingList">>, Args) ->
+    get_blocking_list(Args).
 
--spec list_user_rooms(map()) -> {ok, [binary()]} | {error, resolver_error()}.
+-spec list_user_rooms(map()) -> {ok, [{ok, binary()}]} | {error, resolver_error()}.
 list_user_rooms(#{<<"user">> := UserJID}) ->
     case mod_muc_light_api:get_user_rooms(UserJID) of
         {ok, Rooms} ->
@@ -27,7 +32,7 @@ list_user_rooms(#{<<"user">> := UserJID}) ->
             make_error(Err, #{user => UserJID})
     end.
 
--spec list_room_users(map()) -> {ok, [map()]} | {error, resolver_error()}.
+-spec list_room_users(map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
 list_room_users(#{<<"room">> := RoomJID}) ->
     case mod_muc_light_api:get_room_aff(RoomJID) of
         {ok, Affs} ->
@@ -49,15 +54,21 @@ get_room_config(#{<<"room">> := RoomJID}) ->
 get_room_messages(#{<<"room">> := RoomJID, <<"pageSize">> := PageSize,
                     <<"before">> := Before}) ->
     Before2 = null_to_undefined(Before),
-    case mod_muc_light_api:get_room_messages(RoomJID, PageSize, Before2) of
+    PageSize2 = page_size_or_max_limit(PageSize, 50),
+    case mod_muc_light_api:get_room_messages(RoomJID, PageSize2, Before2) of
         {ok, Rows} ->
             Maps = lists:map(fun mongoose_graphql_stanza_helper:row_to_map/1, Rows),
-            {ok, #{<<"stanzas">> => Maps, <<"limit">> => null}};
+            {ok, #{<<"stanzas">> => Maps, <<"limit">> => PageSize2}};
         Err ->
             make_error(Err, #{room => RoomJID})
     end.
 
-%% Helpers
-
-null_to_undefined(null) -> undefined;
-null_to_undefined(V) -> V.
+-spec get_blocking_list(map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
+get_blocking_list(#{<<"user">> := UserJID}) ->
+    case mod_muc_light_api:get_blocking_list(UserJID) of
+        {ok, Items} ->
+            Items2 = lists:map(fun mongoose_graphql_muc_light_helper:blocking_item_to_map/1, Items),
+            {ok, Items2};
+        Err ->
+            make_error(Err, #{user => UserJID})
+    end.

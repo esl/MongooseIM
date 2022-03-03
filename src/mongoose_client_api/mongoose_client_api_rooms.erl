@@ -144,13 +144,13 @@ handle_request_by_method(<<"POST">>, JSONData, _Req,
                          #{jid := #jid{lserver = LServer} = UserJID}) ->
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     MUCServer = muc_light_domain(LServer),
-    mod_muc_light_api:create_room(MUCServer, <<>>, RoomName, UserJID, Subject);
+    mod_muc_light_api:create_room(MUCServer, UserJID, RoomName, Subject);
 handle_request_by_method(<<"PUT">>, JSONData, Req, State) ->
     assert_room_id_set(Req, State),
     #{jid := #jid{lserver = LServer} = UserJID, room_id := RoomID} = State,
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     MUCServer = muc_light_domain(LServer),
-    mod_muc_light_api:create_room(MUCServer, RoomID, RoomName, UserJID, Subject).
+    mod_muc_light_api:create_room(MUCServer, RoomID, UserJID, RoomName, Subject).
 
 assert_room_id_set(_Req, #{room_id := _} = _State) ->
     ok.

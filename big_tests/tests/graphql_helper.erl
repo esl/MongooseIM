@@ -4,9 +4,10 @@
 
 -export([execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
 -export([init_admin_handler/1]).
--export([get_ok_value/2, get_err_msg/1]).
+-export([get_ok_value/2, get_err_msg/1, make_creds/1]).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("escalus/include/escalus.hrl").
 
 -spec execute(atom(), binary(), {binary(), binary()} | undefined) ->
     {Status :: tuple(), Data :: map()}.
@@ -70,6 +71,11 @@ get_ok_value([errors | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}
     get_value(Path, Error);
 get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
     get_value(Path, Data).
+
+make_creds(#client{props = Props} = Client) ->
+    JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
+    Password = proplists:get_value(password, Props),
+    {JID, Password}.
 
 %% Internal
 

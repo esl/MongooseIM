@@ -141,6 +141,8 @@ user_mapping_rules() ->
         'UserMutation' => mongoose_graphql_user_mutation,
         'AccountUserQuery' => mongoose_graphql_account_user_query,
         'AccountUserMutation' => mongoose_graphql_account_user_mutation,
+        'MUCLightUserMutation' => mongoose_graphql_muc_light_user_mutation,
+        'MUCLightUserQuery' => mongoose_graphql_muc_light_user_query,
         'SessionUserQuery' => mongoose_graphql_session_user_query,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
