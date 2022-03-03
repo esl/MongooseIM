@@ -1,4 +1,5 @@
 -module(mongoose_graphql_stanza_admin_mutation).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 
@@ -8,25 +9,21 @@
 -include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
--type result() :: {ok, map()} | {error, term()}.
-
--spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
-    result().
-execute(_Ctx, _Obj, <<"sendMessage">>, Opts) ->
-    send_message(Opts);
-execute(_Ctx, _Obj, <<"sendMessageHeadLine">>, Opts) ->
-    send_message_headline(Opts);
-execute(_Ctx, _Obj, <<"sendStanza">>, Opts) ->
-    send_stanza(Opts).
+execute(_Ctx, _Obj, <<"sendMessage">>, Args) ->
+    send_message(Args);
+execute(_Ctx, _Obj, <<"sendMessageHeadLine">>, Args) ->
+    send_message_headline(Args);
+execute(_Ctx, _Obj, <<"sendStanza">>, Args) ->
+    send_stanza(Args).
 
 send_message(#{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
     Packet = mongoose_stanza_helper:build_message(
                jid:to_binary(From), jid:to_binary(To), Body),
     mongoose_stanza_helper:route(From, To, Packet, true).
 
-send_message_headline(Opts = #{<<"from">> := From, <<"to">> := To}) ->
+send_message_headline(Args = #{<<"from">> := From, <<"to">> := To}) ->
     Packet = mongoose_stanza_helper:build_message_with_headline(
-               jid:to_binary(From), jid:to_binary(To), Opts),
+               jid:to_binary(From), jid:to_binary(To), Args),
     mongoose_stanza_helper:route(From, To, Packet, true).
 
 send_stanza(#{<<"stanza">> := Packet}) ->

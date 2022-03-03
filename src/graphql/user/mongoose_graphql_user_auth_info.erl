@@ -1,4 +1,5 @@
 -module(mongoose_graphql_user_auth_info).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 

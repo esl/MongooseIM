@@ -1,4 +1,5 @@
 -module(mongoose_graphql_stanza_admin_query).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 
@@ -7,12 +8,8 @@
 -include("../mongoose_graphql_types.hrl").
 -include("mongoose_logger.hrl").
 
--type result() :: {ok, map()} | {error, term()}.
-
--spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
-        result().
-execute(_Ctx, _Obj, <<"getLastMessages">>, Opts) ->
-    get_last_messages(Opts).
+execute(_Ctx, _Obj, <<"getLastMessages">>, Args) ->
+    get_last_messages(Args).
 
 get_last_messages(#{<<"caller">> := Caller, <<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before})

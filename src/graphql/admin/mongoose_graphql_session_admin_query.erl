@@ -1,4 +1,5 @@
 -module(mongoose_graphql_session_admin_query).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 

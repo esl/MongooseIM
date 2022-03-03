@@ -1,4 +1,5 @@
 -module(mongoose_graphql_stanza_user_query).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 
@@ -7,14 +8,8 @@
 -include("../mongoose_graphql_types.hrl").
 -include("mongoose_logger.hrl").
 
--type result() :: {ok, map()} | {error, term()}.
-
--spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
-        result().
-execute(#{user := User}, _Obj, <<"getLastMessages">>, Opts) ->
-    get_last_messages(Opts, User);
-execute(_Ctx, _Obj, _, _Opts) ->
-    {error, <<"no user field in context">>}.
+execute(#{user := User}, _Obj, <<"getLastMessages">>, Args) ->
+    get_last_messages(Args, User).
 
 get_last_messages(#{<<"limit">> := Limit,
                     <<"with">> := With, <<"before">> := Before}, Caller)

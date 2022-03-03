@@ -19,8 +19,16 @@
                      vars := map(),
                      authorized := boolean(),
                      ctx := map()}.
+-type context() :: map().
+-type object() :: term().
+-type field() :: binary().
+-type args() :: term().
 
--export_type([request/0]).
+-type result() :: {ok, term()} | {error, term()}.
+-callback execute(Ctx :: context(), Obj :: object(), Field :: field(), Args :: args()) ->
+            result().
+
+-export_type([request/0, context/0, object/0, field/0, args/0]).
 
 -define(USER_EP_NAME, user_schema_ep).
 -define(ADMIN_EP_NAME, admin_schema_ep).
