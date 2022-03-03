@@ -1,8 +1,14 @@
+"""
+Allow user to query MAM archive.
+"""
 type StanzaUserQuery @protected{
   "Get n last messages to/from a given contact (optional) with limit and optional date"
   getLastMessages(with: JID, limit: Int = 50, before: DateTime): StanzasPayload
 }
 
+"""
+Allow user to send messages.
+"""
 type StanzaUserMutation @protected{
   "Send a chat message to a local or remote bare or full JID"
   sendMessage(from: JID, to: JID!, body: String!): SendStanzaPayload
