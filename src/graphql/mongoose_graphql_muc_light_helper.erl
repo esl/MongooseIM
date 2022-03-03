@@ -22,11 +22,11 @@ make_ok_user({JID, Aff}) ->
     {ok, #{<<"jid">> => JID, <<"affiliation">> => Aff}}.
 
 prepare_blocking_items(Items) ->
-    [{What, Action, jid:to_lus(Who)} || #{<<"who">> := Who, <<"what">> := What,
+    [{What, Action, jid:to_lus(Who)} || #{<<"entity">> := Who, <<"entityType">> := What,
                                           <<"action">> := Action} <- Items].
 
 blocking_item_to_map({What, Action, Who}) ->
-    {ok, #{<<"what">> => What, <<"action">> => Action, <<"who">> => Who}}.
+    {ok, #{<<"entityType">> => What, <<"action">> => Action, <<"entity">> => Who}}.
 
 null_to_undefined(null) -> undefined;
 null_to_undefined(V) -> V.

@@ -121,7 +121,7 @@ change_affiliation(RoomJID, SenderJID, RecipientJID, Affiliation) ->
     {ok, iolist()}.
 remove_user_from_room(RoomJID, SenderJID, RecipientJID) ->
     ok = change_affiliation(RoomJID, SenderJID, RecipientJID, <<"none">>),
-    {ok, io_lib:format("User ~s kicked successfully", [jid:to_binary(RecipientJID)])}.
+    {ok, io_lib:format("Stanza kicking user ~s sent successfully", [jid:to_binary(RecipientJID)])}.
 
 -spec send_message(jid:jid(), jid:jid(), binary()) ->
     {ok | not_room_member | muc_server_not_found, iolist()}.
@@ -208,7 +208,7 @@ get_room_messages(RoomJID, PageSize, Before) ->
 
 -spec get_room_messages(mongooseim:host_type(), jid:jid(), jid:jid() | undefined,
                         integer() | undefined, mod_mam:unix_timestamp() | undefined) ->
-    {ok, list()} | {muc_server_not_found | internal, iolist()}.
+    {ok, list()} | {internal, iolist()}.
 get_room_messages(HostType, RoomJID, CallerJID, PageSize, Before) ->
     ArchiveID = mod_mam_muc:archive_id_int(HostType, RoomJID),
     Now = os:system_time(microsecond),

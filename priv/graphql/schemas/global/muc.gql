@@ -5,15 +5,15 @@ enum Affiliation{
 }
 
 input BlockingInput{
-  what: BlockingWhat!
+  entityType: BlockedEntityType!
   action: BlockingAction!
-  who: JID!
+  entity: JID!
 }
 
 type BlockingItem{
-  what: BlockingWhat!
+  entityType: BlockedEntityType!
   action: BlockingAction!
-  who: JID!
+  entity: JID!
 }
 
 enum BlockingAction{
@@ -21,7 +21,7 @@ enum BlockingAction{
   DENY
 }
 
-enum BlockingWhat{
+enum BlockedEntityType{
   USER,
   ROOM
 }

@@ -134,7 +134,7 @@ user_create_room_story(Config, Alice) ->
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{server = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, Name, Subject, null), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
 
@@ -155,7 +155,7 @@ user_create_identified_room_story(Config, Alice) ->
     % Create a room with an existing ID
     Res2 = execute(Ep, user_create_room_body(MucServer, <<"snd room">>, Subject, Id), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute(Ep, user_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, Subject, Id), Creds),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % Try with an empty string passed as ID
@@ -192,15 +192,15 @@ user_change_room_config_errors_story(Config, Alice, Bob) ->
     RoomName = <<"first room">>,
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
-    % Try to change the config with a non-existing domain
+    % Try to change the config with a non-existent domain
     Res = execute(Ep, user_change_room_configuration_body(
                         make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), RoomName, <<"subject2">>), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
-    % Try to change the config of the non-existing room
+    % Try to change the config of the non-existent room
     Res2 = execute(Ep, user_change_room_configuration_body(
                          make_bare_jid(?UNKNOWN, MUCServer), RoomName, <<"subject2">>), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try to change the config by the user that not occupy this room
+    % Try to change the config by the user that does not occupy this room
     Res3 = execute(Ep, user_change_room_configuration_body(
                          jid:to_binary(RoomJID), RoomName, <<"subject2">>), CredsBob),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not occupy this room">>)),
@@ -255,7 +255,7 @@ user_invite_user_errors_story(Config, Alice, Bob) ->
     Res2 = execute(Ep, user_invite_user_body(
                          jid:to_binary(RoomJID), AliceBin), CredsBob),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not occupy this room">>)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute(Ep, user_invite_user_body(
                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), BobBin), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
@@ -283,10 +283,10 @@ user_delete_room_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res2),
                                           <<"successfully">>)),
     ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute(Ep, delete_room_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res4 = execute(Ep, delete_room_body(make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not existing room">>)).
 
@@ -309,11 +309,16 @@ user_kick_user_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))),
+    % Member cannot kick the room owner. The kick stanza is sent successfully,
+    % but is ignored by server
+    {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
+    Res2 = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), AliceBin), CredsBob),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res2), <<"successfully">>)),
+    ?assertEqual(2, length(get_room_aff(RoomJID))),
     % Owner kicks the member from a room
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res2 = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), BobBin), CredsAlice),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res2),
-                                          <<"successfully">>)),
+    Res3 = execute(Ep, user_kick_user_body(jid:to_binary(RoomJID), BobBin), CredsAlice),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?KICK_USER_PATH, Res3), <<"successfully">>)),
     ?assertEqual(1, length(get_room_aff(RoomJID))).
 
 user_send_message_to_room(Config) ->
@@ -331,8 +336,7 @@ user_send_message_to_room_story(Config, Alice, Bob) ->
     {ok, #{jid := RoomJID}} = create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
     Res = execute(Ep, user_send_message_to_room_body(jid:to_binary(RoomJID), MsgBody), CredsAlice),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
-                                          <<"successfully">>)),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res), <<"successfully">>)),
     [_, Msg] = escalus:wait_for_stanzas(Bob, 2),
     escalus:assert(is_message, Msg).
 
@@ -350,7 +354,7 @@ user_send_message_to_room_errors_story(Config, Alice, Bob) ->
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
         create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res = execute(Ep, user_send_message_to_room_body(
                         make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), MsgBody), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
@@ -391,7 +395,7 @@ user_get_room_messages_story(Config, Alice, Bob) ->
     % Try to pass too big page size value
     Res3 = execute(Ep, get_room_messages_body(jid:to_binary(RoomJID), 51, Before), CredsAlice),
     ?assertMatch(#{<<"limit">> := 50}, get_ok_value(?GET_MESSAGES_PATH, Res3)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res4 = execute(Ep, get_room_messages_body(
                           make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not found">>)),
@@ -426,15 +430,15 @@ user_list_room_users_story(Config, Alice, Bob) ->
     BobBin = escalus_client:short_jid(Bob),
     AliceLower = escalus_utils:jid_to_lower(AliceBin),
     {ok, #{jid := RoomJID}} = create_room(MUCServer, <<"room a">>, <<"subject">>, AliceBin),
-    % Owner can list rooms
+    % Owner can list room users
     Res = execute(Ep, list_room_users_body(jid:to_binary(RoomJID)), CredsAlice),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute(Ep, list_room_users_body(
                          make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res3 = execute(Ep, list_room_users_body(
                          make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
@@ -470,10 +474,10 @@ user_get_room_config_story(Config, Alice, Bob) ->
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value(?GET_ROOM_CONFIG_PATH, Res)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute(Ep, get_room_config_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res3 = execute(Ep, get_room_config_body(make_bare_jid(?UNKNOWN, MUCServer)), CredsAlice),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
     % User that is not a member cannot get a room config
@@ -481,7 +485,7 @@ user_get_room_config_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not occupy this room">>)),
     % Member can get a config
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    Res5 = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsAlice),
+    Res5 = execute(Ep, get_room_config_body(jid:to_binary(RoomJID)), CredsBob),
     ?assertEqual(#{<<"jid">> => RoomJIDBin, <<"subject">> => RoomSubject, <<"name">> => RoomName,
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>},
@@ -506,9 +510,9 @@ user_blocking_list_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
                                           <<"successfully">>)),
     Res3 = execute(Ep, user_get_blocking_body(), CredsAlice),
-    ?assertEqual([#{<<"what">> => <<"USER">>,
+    ?assertEqual([#{<<"entityType">> => <<"USER">>,
                     <<"action">> => <<"DENY">>,
-                    <<"who">> => BobShortBin}],
+                    <<"entity">> => BobShortBin}],
                  get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
     Res4 = execute(Ep, user_set_blocking_body([{<<"USER">>, <<"ALLOW">>, BobBin},
                                                {<<"ROOM">>, <<"DENY">>, jid:to_binary(RoomJID)}]),
@@ -516,9 +520,9 @@ user_blocking_list_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res4),
                                           <<"successfully">>)),
     Res5 = execute(Ep, user_get_blocking_body(), CredsAlice),
-    ?assertEqual([#{<<"what">> => <<"ROOM">>,
+    ?assertEqual([#{<<"entityType">> => <<"ROOM">>,
                     <<"action">> => <<"DENY">>,
-                    <<"who">> => RoomBin}],
+                    <<"entity">> => RoomBin}],
                  get_ok_value(?GET_BLOCKING_LIST_PATH, Res5)).
 
 %% Admin test cases
@@ -537,9 +541,9 @@ admin_blocking_list_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SET_BLOCKING_LIST_PATH, Res2),
                                           <<"successfully">>)),
     Res3 = execute_auth(admin_get_user_blocking_body(AliceBin), Config),
-    ?assertEqual([#{<<"what">> => <<"USER">>,
+    ?assertEqual([#{<<"entityType">> => <<"USER">>,
                     <<"action">> => <<"DENY">>,
-                    <<"who">> => BobShortBin}],
+                    <<"entity">> => BobShortBin}],
                  get_ok_value(?GET_BLOCKING_LIST_PATH, Res3)),
     Res4 = execute_auth(admin_set_blocking_body(
                           AliceBin, [{<<"USER">>, <<"ALLOW">>, BobBin}]), Config),
@@ -568,7 +572,7 @@ admin_create_room_story(Config, Alice) ->
       <<"participants">> := Participants} = get_ok_value(?CREATE_ROOM_PATH, Res),
     ?assertMatch(#jid{server = MucServer}, jid:from_binary(JID)),
     ?assertEqual([#{<<"jid">> => AliceBinLower, <<"affiliation">> => <<"OWNER">>}], Participants),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, Name, AliceBin, Subject, null),
                         Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)).
@@ -590,7 +594,7 @@ admin_create_identified_room_story(Config, Alice) ->
     Res2 = execute_auth(admin_create_room_body(MucServer, <<"snd room">>, AliceBin, Subject, Id),
                         Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"already exists">>)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute_auth(admin_create_room_body(?UNKNOWN_DOMAIN, <<"name">>, AliceBin, Subject, Id),
                         Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)),
@@ -628,16 +632,16 @@ admin_change_room_config_errors_story(Config, Alice, Bob) ->
     {ok, #{jid := #jid{luser = RoomID} = RoomJID}} =
         create_room(MUCServer, RoomName, <<"subject">>, AliceBin),
     {ok, _} = invite_user(RoomJID, AliceBin, BobBin),
-    % Try to change the config with a non-existing domain
+    % Try to change the config with a non-existent domain
     Res = execute_auth(admin_change_room_configuration_body(
                          make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, RoomName, <<"subject2">>), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)),
-    % Try to change the config of the non-existing room
+    % Try to change the config of the non-existent room
     Res2 = execute_auth(admin_change_room_configuration_body(
                           make_bare_jid(<<"unknown">>, MUCServer), AliceBin,
                           RoomName, <<"subject2">>), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try to change the config by the non-existing user
+    % Try to change the config by the non-existent user
     Res3 = execute_auth(admin_change_room_configuration_body(
                           jid:to_binary(RoomJID), <<"wrong-user@wrong-domain">>,
                           RoomName, <<"subject2">>), Config),
@@ -686,7 +690,7 @@ admin_invite_user_errors_story(Config, Alice, Bob) ->
     Res2 = execute_auth(admin_invite_user_body(
                           jid:to_binary(RoomJID), BobBin, AliceBin), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not occupy this room">>)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute_auth(admin_invite_user_body(
                           make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), AliceBin, BobBin), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
@@ -704,10 +708,10 @@ admin_delete_room_story(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_ROOM_PATH, Res),
                                           <<"successfully">>)),
     ?assertEqual({error, not_exists}, get_room_info(jid:from_binary(RoomJID))),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute_auth(delete_room_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res3 = execute_auth(delete_room_body(make_bare_jid(?UNKNOWN, MUCServer)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
@@ -757,7 +761,7 @@ admin_send_message_to_room_errors_story(Config, Alice, Bob) ->
     MsgBody = <<"Hello there!">>,
     {ok, #{jid := #jid{luser = ARoomID} = ARoomJID}} =
         create_room(MUCServer, <<"alice room">>, <<"subject">>, AliceBin),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute_auth(admin_send_message_to_room_body(
                           make_bare_jid(ARoomID, ?UNKNOWN_DOMAIN), AliceBin, MsgBody), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
@@ -799,7 +803,7 @@ admin_get_room_messages_story(Config, Alice) ->
     % Try to pass too big page size value
     Res3 = execute_auth(get_room_messages_body(jid:to_binary(RoomJID), 51, Before), Config),
     ?assertMatch(#{<<"limit">> := 50},get_ok_value(?GET_MESSAGES_PATH, Res3)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res4 = execute_auth(get_room_messages_body(
                           make_bare_jid(RoomID, ?UNKNOWN_DOMAIN), Limit, null), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res4), <<"not found">>)).
@@ -818,10 +822,10 @@ admin_list_user_rooms_story(Config, Alice) ->
     Res = execute_auth(admin_list_user_rooms_body(AliceBin), Config),
     ?assertEqual(lists:sort([jid:to_binary(RoomJID), jid:to_binary(RoomJID2)]),
                  lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res))),
-    % Try with a non-existing user
+    % Try with a non-existent user
     Res2 = execute_auth(admin_list_user_rooms_body(<<"not-exist@", Domain/binary>>), Config),
     ?assertEqual([], lists:sort(get_ok_value(?LIST_USER_ROOMS_PATH, Res2))),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res3 = execute_auth(admin_list_user_rooms_body(<<"not-exist@not-exist">>), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
@@ -837,11 +841,11 @@ admin_list_room_users_story(Config, Alice) ->
     Res = execute_auth(list_room_users_body(jid:to_binary(RoomJID)), Config),
     ?assertEqual([#{<<"jid">> => AliceLower, <<"affiliation">> => <<"OWNER">>}],
                  get_ok_value(?LIST_ROOM_USERS_PATH, Res)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute_auth(list_room_users_body(
                           make_bare_jid(RoomJID#jid.luser, ?UNKNOWN_DOMAIN)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res3 = execute_auth(list_room_users_body(
                           make_bare_jid(?UNKNOWN, MUCServer)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
@@ -863,10 +867,10 @@ admin_get_room_config_story(Config, Alice) ->
                     <<"participants">> => [#{<<"jid">> => AliceLower,
                                              <<"affiliation">> => <<"OWNER">>}]},
                  get_ok_value([data, muc_light, getRoomConfig], Res)),
-    % Try with a non-existing domain
+    % Try with a non-existent domain
     Res2 = execute_auth(get_room_config_body(make_bare_jid(RoomID, ?UNKNOWN_DOMAIN)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
-    % Try with a non-existing room
+    % Try with a non-existent room
     Res3 = execute_auth(get_room_config_body(make_bare_jid(?UNKNOWN, MUCServer)), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
 
@@ -902,7 +906,7 @@ get_room_aff(JID) ->
     Aff. 
 
 prepare_blocking_items_for_query(Items) ->
-    [#{<<"who">> => Who, <<"what">> => What,
+    [#{<<"entity">> => Who, <<"entityType">> => What,
        <<"action">> => Action} || {What, Action, Who} <- Items].
 
 get_coertion_err_msg(Response) ->
@@ -1035,7 +1039,7 @@ get_room_config_body(RoomJID) ->
 admin_get_user_blocking_body(UserJID) ->
     Query = <<"query Q1($user: JID!)
               { muc_light { getBlockingList(user: $user)
-              { who what action } } }">>,
+              { entity entityType action } } }">>,
     OpName = <<"Q1">>,
     Vars = #{<<"user">> => UserJID},
     #{query => Query, operationName => OpName, variables => Vars}.
@@ -1048,7 +1052,7 @@ admin_set_blocking_body(UserJID, Items) ->
     #{query => Query, operationName => OpName, variables => Vars}.
 
 user_get_blocking_body() ->
-    Query = <<"query Q1 { muc_light { getBlockingList { who what action } } }">>,
+    Query = <<"query Q1 { muc_light { getBlockingList { entity entityType action } } }">>,
     OpName = <<"Q1">>,
     #{query => Query, operationName => OpName}.
 

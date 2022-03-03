@@ -15,8 +15,8 @@ input(<<"Affiliation">>, <<"MEMBER">>) -> {ok, member};
 input(<<"Affiliation">>, <<"NONE">>) -> {ok, none};
 input(<<"BlockingAction">>, <<"ALLOW">>) -> {ok, allow};
 input(<<"BlockingAction">>, <<"DENY">>) -> {ok, deny};
-input(<<"BlockingWhat">>, <<"USER">>) -> {ok, user};
-input(<<"BlockingWhat">>, <<"ROOM">>) -> {ok, room}.
+input(<<"BlockedEntityType">>, <<"USER">>) -> {ok, user};
+input(<<"BlockedEntityType">>, <<"ROOM">>) -> {ok, room}.
 
 output(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Show)))};
@@ -28,5 +28,5 @@ output(<<"Affiliation">>, Aff) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))};
 output(<<"BlockingAction">>, Action) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Action)))};
-output(<<"BlockingWhat">>, What) ->
+output(<<"BlockedEntityType">>, What) ->
     {ok, list_to_binary(string:to_upper(atom_to_list(What)))}.
