@@ -67,7 +67,7 @@ parse_jid(Jid) when is_binary(Jid) ->
 -spec get_last_messages(Caller :: jid:jid(),
                         Limit :: non_neg_integer(),
                         With :: null | jid:jid(),
-                        Before :: null | non_neg_integer()) -> {ok, map()}.
+                        Before :: null | mod_mam:unix_timestamp()) -> {ok, map()}.
 get_last_messages(Caller, Limit, With, Before) ->
     With2 = null_as_undefined(With),
     Before2 = null_as_undefined(Before), %% Before is in microseconds
