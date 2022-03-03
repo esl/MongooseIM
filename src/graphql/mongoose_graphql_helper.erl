@@ -35,7 +35,7 @@ check_user(#jid{lserver = LServer} = Jid, CheckAuth) ->
             {error, #{what => unknown_domain, domain => LServer}}
     end.
 
-check_auth(HostType, Jid, false) ->
+check_auth(HostType, _Jid, false) ->
     {ok, HostType};
 check_auth(HostType, Jid, true) ->
    case ejabberd_auth:does_user_exist(HostType, Jid, stored) of

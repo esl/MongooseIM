@@ -1,4 +1,5 @@
 -module(mongoose_graphql_muc_light_admin_mutation).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 
