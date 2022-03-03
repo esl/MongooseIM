@@ -4,9 +4,11 @@
 
 -include("mongoose_logger.hrl").
 
--define(MUC_PER_MESSAGE_FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]).
--define(MUC_FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, flush_time]).
+-define(PER_MESSAGE_FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]).
+-define(FLUSH_TIME, [mod_mam_muc_rdbms_async_pool_writer, flush_time]).
 
+-behaviour(gen_mod).
+-export([start/2, stop/1, supported_features/0]).
 -export([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
 -ignore_xref([archive_muc_message/3, mam_muc_archive_sync/2, flush/2]).
 
@@ -20,11 +22,32 @@ mam_muc_archive_sync(Result, HostType) ->
     mongoose_async_pools:sync(HostType, muc_mam),
     Result.
 
+%%% gen_mod callbacks
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts) ->
+    {PoolOpts, Extra} = mod_mam_rdbms_arch_async:make_pool_opts(muc, Opts),
+    mod_mam_rdbms_arch_async:prepare_insert_queries(muc, Extra),
+    mongoose_metrics:ensure_metric(HostType, ?PER_MESSAGE_FLUSH_TIME, histogram),
+    mongoose_metrics:ensure_metric(HostType, ?FLUSH_TIME, histogram),
+    ejabberd_hooks:add(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
+    ejabberd_hooks:add(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
+    mongoose_async_pools:start_pool(HostType, muc_mam, PoolOpts).
+
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    ejabberd_hooks:delete(mam_muc_archive_sync, HostType, ?MODULE, mam_muc_archive_sync, 50),
+    ejabberd_hooks:delete(mam_muc_archive_message, HostType, ?MODULE, archive_muc_message, 50),
+    mongoose_async_pools:stop_pool(HostType, muc_mam).
+
+-spec supported_features() -> [atom()].
+supported_features() ->
+    [dynamic_domains].
+
 %%% flush callbacks
 flush(Acc, Extra = #{host_type := HostType, queue_length := MessageCount}) ->
     {FlushTime, Result} = timer:tc(fun do_flush_muc/2, [Acc, Extra]),
-    mongoose_metrics:update(HostType, ?MUC_PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
-    mongoose_metrics:update(HostType, ?MUC_FLUSH_TIME, FlushTime),
+    mongoose_metrics:update(HostType, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    mongoose_metrics:update(HostType, ?FLUSH_TIME, FlushTime),
     Result.
 
 %% mam workers callbacks

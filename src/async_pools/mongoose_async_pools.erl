@@ -1,6 +1,5 @@
 -module(mongoose_async_pools).
 
--include("mongoose_config_spec.hrl").
 -include("mongoose_logger.hrl").
 
 -behaviour(supervisor).
@@ -8,7 +7,7 @@
 -ignore_xref([start_link/3]).
 
 % API
--export([start_pool/3, stop_pool/2, config_spec/0]).
+-export([start_pool/3, stop_pool/2]).
 -export([put_task/3, put_task/4]).
 -ignore_xref([put_task/3]).
 -export([sync/2]).
@@ -72,20 +71,6 @@ start_pool(HostType, PoolId, PoolOpts) ->
 stop_pool(HostType, PoolId) ->
     ?LOG_INFO(#{what => async_pool_stopping, host_type => HostType, pool_id => PoolId}),
     ejabberd_sup:stop_child(sup_name(HostType, PoolId)).
-
--spec config_spec() -> mongoose_config_spec:config_section().
-config_spec() ->
-    #section{
-       items = #{<<"enabled">> => #option{type = boolean},
-                 <<"flush_interval">> => #option{type = integer, validate = non_negative},
-                 <<"batch_size">> => #option{type = integer, validate = non_negative},
-                 <<"pool_size">> => #option{type = integer, validate = non_negative}},
-       defaults = #{<<"enabled">> => true,
-                    <<"flush_interval">> => 2000,
-                    <<"batch_size">> => 30,
-                    <<"pool_size">> => 4 * erlang:system_info(schedulers_online)},
-       format_items = map
-      }.
 
 -spec pool_name(mongooseim:host_type(), pool_id()) -> pool_name().
 pool_name(HostType, PoolId) ->

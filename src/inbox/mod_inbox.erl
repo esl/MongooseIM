@@ -119,7 +119,7 @@ config_spec() ->
     Markers = mongoose_chat_markers:chat_marker_names(),
     #section{
         items = #{<<"backend">> => #option{type = atom, validate = {enum, [rdbms, rdbms_async]}},
-                  <<"async_writer">> => mongoose_async_pools:config_spec(),
+                  <<"async_writer">> => async_config_spec(),
                   <<"reset_markers">> => #list{items = #option{type = binary,
                                                                validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
@@ -129,7 +129,6 @@ config_spec() ->
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
         },
         defaults = #{<<"backend">> => rdbms,
-                     <<"async_writer">> => async_writer_defaults(),
                      <<"groupchat">> => [muclight],
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
@@ -139,10 +138,13 @@ config_spec() ->
         format_items = map
     }.
 
-async_writer_defaults() ->
-    #{<<"flush_interval">> => 500,
-      <<"batch_size">> => 1000,
-      <<"pool_size">> => 2}.
+async_config_spec() ->
+    #section{
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       format_items = map,
+       include = always
+      }.
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ

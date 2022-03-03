@@ -15,7 +15,7 @@ Only RDBMS storage is supported, but `rdbms` means flushes to inbox are synchron
 
 #### `modules.mod_inbox.async_writer.pool_size`
 * **Syntax:** non-negative integer
-* **Default:** `4 * erlang:system_info(schedulers_online)`
+* **Default:** `2 * erlang:system_info(schedulers_online)`
 * **Example:** `modules.mod_inbox.async_writer.pool_size = 32`
 
 Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
