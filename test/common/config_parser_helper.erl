@@ -43,7 +43,7 @@ options("host_types") ->
      {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
-     {{modules, <<"yet another host type">>}, #{mod_amp => []}},
+     {{modules, <<"yet another host type">>}, #{mod_amp => #{}}},
      {{replaced_wait_timeout, <<"another host type">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"some host type">>}, 2000},
@@ -657,13 +657,13 @@ all_modules() ->
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
-      mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => [], mod_commands => [],
+      mod_amp => #{}, mod_blocking => #{}, mod_bosh => default_mod_config(mod_bosh),
+      mod_carboncopy => [], mod_commands => #{},
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
-      mod_muc_commands => [], mod_muc_light_commands => [],
+      mod_muc_commands => #{}, mod_muc_light_commands => #{},
       mod_offline => [{backend, rdbms}],
-      mod_privacy => [{backend, rdbms}],
+      mod_privacy => default_mod_config(mod_privacy),
       mod_private => default_mod_config(mod_private),
       mod_register =>
           [{access, register},
@@ -844,6 +844,8 @@ default_mod_config(mod_inbox) ->
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
+default_mod_config(mod_privacy) ->
+    #{backend => rdbms};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_sic) ->

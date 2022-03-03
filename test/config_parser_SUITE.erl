@@ -311,8 +311,8 @@ supported_features(_Config) ->
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [],
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{},
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -2579,16 +2579,25 @@ mod_ping(_Config) ->
     check_iqdisc(mod_ping).
 
 mod_privacy(_Config) ->
+    check_module_defaults(mod_privacy),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_privacy, Cfg) end,
-    ?cfgh(M([{backend, mnesia}]),
+    P = [modules, mod_privacy],
+    ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{defaults_bucket_type, <<"defaults">>}]),
-          T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
-    ?cfgh(M([{names_bucket_type, <<"names">>}]),
-          T(#{<<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
-    ?cfgh(M([{bucket_type, <<"bucket">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?cfgh(P ++ [riak, defaults_bucket_type], <<"defaults">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
+    ?cfgh(P ++ [riak, names_bucket_type], <<"names">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"bucket">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?cfgh(P ++ [riak],
+         #{defaults_bucket_type => <<"privacy_defaults">>,
+           names_bucket_type => <<"privacy_lists_names">>,
+           bucket_type => <<"privacy_lists">>},
+          T(#{<<"backend">> => <<"riak">>})),
     ?errh(T(#{<<"backend">> => <<"mongoddt">>})),
     ?errh(T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<>>}})),
     ?errh(T(#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),
@@ -3054,7 +3063,7 @@ mod_version(_Config) ->
     ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
-    ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?cfgh([modules, mod_amp], #{}, #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 incorrect_module(_Config) ->

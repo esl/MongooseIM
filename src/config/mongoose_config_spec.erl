@@ -792,7 +792,7 @@ modules() ->
                || Module <- configurable_modules()],
     Items = maps:from_list(Modules),
     #section{
-       items = Items#{default => #section{items = #{}}},
+       items = Items#{default => #section{items = #{}, format_items = map}},
        validate_keys = module,
        format_items = map,
        wrap = host_config
