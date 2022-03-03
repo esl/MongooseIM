@@ -160,19 +160,11 @@ clear_caps_cache(CapsNode) ->
 get_backend(HostType, Module) ->
     try rpc(mim(), mongoose_backend, get_backend_module, [HostType, Module])
     catch
-        error:{badrpc, _Reason} ->
-            % TODO: get rid of this after dynamically compiled modules are gone
-            get_backend_old(Module)
+        error:{badrpc, _Reason} -> false
     end.
 
 get_backend_name(HostType, Module) ->
     rpc(mim(), mongoose_backend, get_backend_name, [HostType, Module]).
-
-get_backend_old(Module) ->
-    case rpc(mim(), Module, backend, []) of
-        {badrpc, _Reason} -> false;
-        Backend -> Backend
-    end.
 
 generic_count(mod_offline_backend, {LUser, LServer}) ->
     HostType = domain_helper:host_type(),
