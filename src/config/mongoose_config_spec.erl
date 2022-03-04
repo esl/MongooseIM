@@ -633,8 +633,8 @@ outgoing_pool_connection(<<"ldap">>) ->
                 },
        format_items = map,
        include = always,
-       defaults = #{<<"rootdn">> => <<"">>,
-                    <<"password">> => <<"">>,
+       defaults = #{<<"rootdn">> => <<>>,
+                    <<"password">> => <<>>,
                     <<"encrypt">> => none,
                     <<"servers">> => ["localhost"],
                     <<"connect_interval">> => 10000}

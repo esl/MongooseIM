@@ -23,7 +23,7 @@ spec() ->
                   <<"filter">> => #option{type = binary}},
         defaults = #{<<"pool_tag">> => default,
                      <<"deref">> => never,
-                     <<"filter">> => <<"">>},
+                     <<"filter">> => <<>>},
         format_items = map
     }.
 

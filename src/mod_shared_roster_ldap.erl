@@ -131,15 +131,15 @@ config_spec() ->
                  <<"useruid">> => <<"cn">>,
                  <<"memberattr">> => <<"memberUid">>,
                  <<"memberattr_format">> => <<"%u">>,
-                 <<"memberattr_format_re">> => <<"">>,
+                 <<"memberattr_format_re">> => <<>>,
                  <<"auth_check">> => true,
                  <<"user_cache_validity">> => ?USER_CACHE_VALIDITY,
                  <<"group_cache_validity">> => ?GROUP_CACHE_VALIDITY,
                  <<"user_cache_size">> => ?CACHE_SIZE,
                  <<"group_cache_size">> => ?CACHE_SIZE,
-                 <<"rfilter">> => <<"">>,
-                 <<"gfilter">> => <<"">>,
-                 <<"ufilter">> => <<"">>},
+                 <<"rfilter">> => <<>>,
+                 <<"gfilter">> => <<>>,
+                 <<"ufilter">> => <<>>},
     CommonLDAPSpec#section{items = maps:merge(CommonLDAPSpec#section.items, Items),
                            defaults = maps:merge(CommonLDAPSpec#section.defaults, Defaults),
                            process = fun process_ldap_options/1}.
@@ -533,7 +533,7 @@ parse_options(Host, #{base := Base, pool_tag := EldapID, deref := Deref, filter 
     SubFilter = <<"(&(", UIDAttr/binary, "=", UIDAttrFormat/binary,
                   ")(", GroupAttr/binary, "=%g))">>,
     UIDAttrFormatRe = case UIDAttrFormatReIn of
-                          <<"">> -> UIDAttrFormatReIn;
+                          <<>> -> UIDAttrFormatReIn;
                           RE ->
                               {ok, MP} = re:compile(RE),
                               MP
@@ -579,7 +579,7 @@ parse_options(Host, #{base := Base, pool_tag := EldapID, deref := Deref, filter 
            group_cache_size = GroupCacheSize,
            group_cache_validity = GroupCacheValidity}.
 
-check_filter(<<"">>) -> <<"">>;
+check_filter(<<>>) -> <<>>;
 check_filter(F) ->
     {ok, _} = eldap_filter:parse(F),
     F.

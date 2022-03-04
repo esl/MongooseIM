@@ -458,8 +458,7 @@ ldap_opts() ->
                  base => <<"ou=Users,dc=esl,dc=com">>,
                  search_fields => [{"Full Name", "cn"}, {"User", "uid"}],
                  vcard_map => [{"FN", "%s", ["cn"]}]},
-    DefaultLDAPOpts = config_parser_helper:default_config([modules, mod_vcard, ldap]),
-    LDAPOptsWithDefaults = maps:merge(DefaultLDAPOpts, LDAPOpts),
+    LDAPOptsWithDefaults = config_parser_helper:config([modules, mod_vcard, ldap], LDAPOpts),
     config_parser_helper:mod_config(mod_vcard, #{backend => ldap, ldap => LDAPOptsWithDefaults}).
 
 ensure_started(HostType, Opts) ->
