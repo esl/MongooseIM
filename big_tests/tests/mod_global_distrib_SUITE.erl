@@ -203,9 +203,10 @@ init_per_group_generic(Config0) ->
                   [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) ||
                       VirtHost <- VirtHosts],
 
+                  SMOpts = config_parser_helper:mod_config(mod_stream_management, #{resume_timeout => 1}),
                   dynamic_modules:ensure_modules(Node, domain(),
                                                  [{mod_global_distrib, Opts},
-                                                  {mod_stream_management, [{resume_timeout, 1}]}]),
+                                                  {mod_stream_management, SMOpts}]),
                   Config2
           end,
           Config0,

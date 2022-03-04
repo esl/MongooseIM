@@ -12,6 +12,8 @@ while the management of the session tables and configuration is implemented in
 * **Default:** "mnesia"
 * **Example:** `backend = "mnesia"`
 
+Currently, only "mnesia" is supported.
+
 ### `modules.mod_stream_management.buffer`
 * **Syntax:** boolean
 * **Default:** true

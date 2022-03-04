@@ -36,27 +36,22 @@
         {smid :: mod_stream_management:smid(),
          sid :: ejabberd_sm:sid() }).
 
-init(_HostType, Opts) ->
+init(_HostType, #{stale_h := StaleOpts}) ->
     mnesia:create_table(sm_session, [{ram_copies, [node()]},
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
     mnesia:add_table_copy(sm_session, node(), ram_copies),
-    maybe_init_stale_h(Opts),
+    maybe_init_stale_h(StaleOpts),
     ok.
 
-maybe_init_stale_h(Opts) ->
-    StaleOpts = gen_mod:get_opt(stale_h, Opts, [{enabled, false}]),
-    case proplists:get_value(enabled, StaleOpts, false) of
-        false ->
-            ok;
-        true ->
-            ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
-            mnesia:create_table(stream_mgmt_stale_h,
-                                [{ram_copies, [node()]},
-                                 {attributes, record_info(fields, stream_mgmt_stale_h)}]),
-            mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
-            start_cleaner(StaleOpts)
-    end.
+maybe_init_stale_h(StaleOpts = #{enabled := true}) ->
+    ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
+    mnesia:create_table(stream_mgmt_stale_h,
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, stream_mgmt_stale_h)}]),
+    mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
+    start_cleaner(StaleOpts);
+maybe_init_stale_h(_) -> ok.
 
 -spec register_smid(HostType, SMID, SID) ->
     ok | {error, term()} when
@@ -140,10 +135,7 @@ start_cleaner(Opts) ->
 start_link(Opts) ->
     gen_server:start_link({local, stream_management_stale_h}, ?MODULE, [Opts], []).
 
-init([Opts]) ->
-    %% In seconds
-    RepeatAfter = proplists:get_value(stale_h_repeat_after, Opts, 1800),
-    GeriatricAge = proplists:get_value(stale_h_geriatric, Opts, 3600),
+init([#{stale_h_repeat_after := RepeatAfter, stale_h_geriatric := GeriatricAge}]) ->
     State = #smgc_state{gc_repeat_after = RepeatAfter,
                         gc_geriatric = GeriatricAge},
     schedule_check(State),
@@ -166,7 +158,7 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 schedule_check(#smgc_state{gc_repeat_after = RepeatAfter}) ->
-    erlang:send_after(RepeatAfter * 1000, self(), check).
+    erlang:send_after(timer:seconds(RepeatAfter), self(), check).
 
 clear_table(GeriatricAge) ->
     TimeToDie = erlang:monotonic_time(second) - GeriatricAge,

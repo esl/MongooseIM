@@ -1,9 +1,6 @@
 -include("mod_privacy.hrl").
 
 -define(STREAM_MGMT_H_MAX, (1 bsl 32 - 1)).
--define(STREAM_MGMT_CACHE_MAX, 100).
--define(STREAM_MGMT_ACK_FREQ, 1). %% It's the *denominator* of the frequency
--define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
 -define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
 -type jid_set() :: gb_sets:set(jid:simple_jid()).
@@ -68,9 +65,9 @@
                 stream_mgmt_out_acked = 0,
                 stream_mgmt_buffer = [] :: [mongoose_acc:t()],
                 stream_mgmt_buffer_size = 0,
-                stream_mgmt_buffer_max = ?STREAM_MGMT_CACHE_MAX,
-                stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ,
-                stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT,
+                stream_mgmt_buffer_max,
+                stream_mgmt_ack_freq,
+                stream_mgmt_resume_timeout,
                 stream_mgmt_resume_tref,
                 stream_mgmt_resumed_from,
                 stream_mgmt_constraint_check_tref,

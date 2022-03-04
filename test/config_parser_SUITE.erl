@@ -2910,15 +2910,14 @@ mod_sic(_Config) ->
     check_iqdisc_map(mod_sic).
 
 mod_stream_management(_Config) ->
+    check_module_defaults(mod_stream_management),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_stream_management, Cfg) end,
-    ?cfgh(M([{buffer_max, no_buffer}]),  T(#{<<"buffer">> => false})),
-    ?cfgh(M([{buffer_max, 10}]),  T(#{<<"buffer_max">> => 10})),
-    ?cfgh(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
-    ?cfgh(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
-    ?cfgh(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
-    ?cfgh(M([{backend, mnesia}]),
-          T(#{<<"backend">> => <<"mnesia">>})),
+    P = [modules, mod_stream_management],
+    ?cfgh(P ++ [buffer_max], no_buffer, T(#{<<"buffer">> => false})),
+    ?cfgh(P ++ [buffer_max], 10,  T(#{<<"buffer_max">> => 10})),
+    ?cfgh(P ++ [ack_freq], never, T(#{<<"ack">> => false})),
+    ?cfgh(P ++ [ack_freq], 1, T(#{<<"ack_freq">> => 1})),
+    ?cfgh(P ++ [resume_timeout], 999, T(#{<<"resume_timeout">> => 999})),
 
     ?errh(T(#{<<"buffer">> => 0})),
     ?errh(T(#{<<"buffer_max">> => -1})),
@@ -2928,12 +2927,13 @@ mod_stream_management(_Config) ->
     ?errh(T(#{<<"backend">> => <<"iloveyou">>})).
 
 mod_stream_management_stale_h(_Config) ->
+    P = [modules, mod_stream_management, stale_h],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_stream_management">> => #{<<"stale_h">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_stream_management, [{stale_h, Cfg}]) end,
-    ?cfgh(M([{enabled, true}]), T(#{<<"enabled">> => true})),
-    ?cfgh(M([{stale_h_repeat_after, 1800}]), T(#{<<"repeat_after">> => 1800})),
-    ?cfgh(M([{stale_h_geriatric, 3600}]), T(#{<<"geriatric">> => 3600})),
+    ?cfgh(P ++ [enabled], true, T(#{<<"enabled">> => true})),
+    ?cfgh(P ++ [stale_h_repeat_after], 999, T(#{<<"repeat_after">> => 999})),
+    ?cfgh(P ++ [stale_h_geriatric], 999, T(#{<<"geriatric">> => 999})),
+    ?cfgh(P, config_parser_helper:default_config(P), T(#{})),
 
     ?errh(T(#{<<"enabled">> => <<"true">>})),
     ?errh(T(#{<<"repeat_after">> => -1})),
