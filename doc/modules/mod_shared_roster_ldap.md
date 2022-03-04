@@ -107,7 +107,7 @@ Specifies how many roster group entries are kept in cache.
 ### `modules.mod_shared_roster_ldap.rfilter`
 * **Syntax:** string
 * **Default:** `""`
-* **Example:** `rfilter = "(objectClass=inetOrgPerson)"`
+* **Example:** `rfilter = ""`
 
 Used to find names of all shared roster groups.
 
