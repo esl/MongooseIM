@@ -29,16 +29,16 @@
          remove_user_t/3]).
 
 -define(ROSTER_BUCKET(HostType, LServer),
-        {get_opt(HostType, bucket_type, <<"rosters">>), LServer}).
+        {get_opt(HostType, [riak, bucket_type]), LServer}).
 -define(VER_BUCKET(HostType, LServer),
-        {get_opt(HostType, version_bucket_type, <<"roster_versions">>), LServer}).
+        {get_opt(HostType, [riak, version_bucket_type]), LServer}).
 
-get_opt(HostType, Opt, Def) ->
-    gen_mod:get_module_opt(HostType, mod_roster, Opt, Def).
+get_opt(HostType, Opt) ->
+    gen_mod:get_module_opt(HostType, mod_roster, Opt).
 
 %% --------------------- mod_roster backend API -------------------------------
 
--spec init(mongooseim:host_type(), list()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     ok. % Common Riak pool is used
 

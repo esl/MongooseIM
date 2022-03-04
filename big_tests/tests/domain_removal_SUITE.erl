@@ -99,7 +99,7 @@ group_to_modules(inbox_removal) ->
 group_to_modules(private_removal) ->
     [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
 group_to_modules(roster_removal) ->
-    [{mod_roster, [{backend, rdbms}]}];
+    [{mod_roster, config_parser_helper:mod_config(mod_roster, #{backend => rdbms})}];
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}];
 group_to_modules(markers_removal) ->

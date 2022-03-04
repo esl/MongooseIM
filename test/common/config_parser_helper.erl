@@ -574,7 +574,7 @@ all_modules() ->
            {region, "eu-west-1"},
            {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
            {sns_host, "sns.eu-west-1.amazonaws.com"}],
-      mod_roster => [{store_current_id, true}, {versioning, true}],
+      mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
       mod_event_pusher_http =>
           [{configs,
             [[{callback_module, mod_event_pusher_http_defaults},
@@ -670,7 +670,7 @@ pgsql_modules() ->
           [{access, register},
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
            {welcome_message, {"Hello", "I am MongooseIM"}}],
-      mod_roster => [{backend, rdbms}],
+      mod_roster => mod_config(mod_roster, #{backend => rdbms}),
       mod_sic => default_mod_config(mod_sic), mod_stream_management => [],
       mod_vcard => mod_config(mod_vcard, #{backend => rdbms, host => {prefix, <<"vjud.">>}})}.
 
@@ -848,6 +848,8 @@ default_mod_config(mod_inbox) ->
       iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_roster) ->
+    #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_time) ->
@@ -931,7 +933,9 @@ default_config([modules, mod_mam_meta, async_writer]) ->
     #{batch_size => 30, enabled => true, flush_interval => 2000,
       pool_size => 4 * erlang:system_info(schedulers_online)};
 default_config([modules, mod_mam_meta, riak]) ->
-    #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>}.
+    #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
+default_config([modules, mod_roster, riak]) ->
+    #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
