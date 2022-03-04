@@ -1,4 +1,5 @@
 -module(mongoose_graphql_stanza_admin_mutation).
+-behaviour(mongoose_graphql).
 
 -export([execute/4]).
 
@@ -8,63 +9,24 @@
 -include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
--type result() :: {ok, map()} | {error, term()}.
-
--spec execute(graphql:endpoint_context(), graphql:ast(), binary(), map()) ->
-    result().
-execute(_Ctx, _Obj, <<"sendMessage">>, Opts) ->
-    send_message(Opts);
-execute(_Ctx, _Obj, <<"sendMessageHeadLine">>, Opts) ->
-    send_message_headline(Opts);
-execute(_Ctx, _Obj, <<"sendStanza">>, Opts) ->
-    send_stanza(Opts).
+execute(_Ctx, _Obj, <<"sendMessage">>, Args) ->
+    send_message(Args);
+execute(_Ctx, _Obj, <<"sendMessageHeadLine">>, Args) ->
+    send_message_headline(Args);
+execute(_Ctx, _Obj, <<"sendStanza">>, Args) ->
+    send_stanza(Args).
 
 send_message(#{<<"from">> := From, <<"to">> := To, <<"body">> := Body}) ->
-    Packet = mongoose_stanza_helper:build_message(jid:to_binary(From), jid:to_binary(To), Body),
-    do_routing(From, To, Packet).
+    Packet = mongoose_stanza_helper:build_message(
+               jid:to_binary(From), jid:to_binary(To), Body),
+    mongoose_stanza_helper:route(From, To, Packet, true).
 
-send_message_headline(Opts = #{<<"from">> := From, <<"to">> := To}) ->
-    Packet = build_message_with_headline(jid:to_binary(From), jid:to_binary(To), Opts),
-    do_routing(From, To, Packet).
+send_message_headline(Args = #{<<"from">> := From, <<"to">> := To}) ->
+    Packet = mongoose_stanza_helper:build_message_with_headline(
+               jid:to_binary(From), jid:to_binary(To), Args),
+    mongoose_stanza_helper:route(From, To, Packet, true).
 
 send_stanza(#{<<"stanza">> := Packet}) ->
     From = jid:from_binary(exml_query:attr(Packet, <<"from">>)),
     To = jid:from_binary(exml_query:attr(Packet, <<"to">>)),
-    do_routing(From, To, Packet).
-
-do_routing(From = #jid{lserver = LServer}, To, Packet) ->
-    case mongoose_graphql_helper:check_user(From) of
-        {ok, HostType} ->
-            do_routing2(HostType, LServer, From, To, Packet);
-        Error ->
-            Error
-    end.
-
-do_routing2(HostType, LServer, From, To, Packet) ->
-    %% Based on mod_commands:do_send_packet/3
-    Acc = mongoose_acc:new(#{location => ?LOCATION,
-                              host_type => HostType,
-                              lserver => LServer,
-                              element => Packet}),
-    Acc1 = mongoose_hooks:user_send_packet(Acc, From, To, Packet),
-    Acc2 = ejabberd_router:route(From, To, Acc1),
-    MessID = mod_mam_utils:get_mam_id_ext(Acc2),
-    {ok, #{ <<"id">> => MessID }}.
-
-build_message_with_headline(FromBin, ToBin,
-                            #{<<"body">> := Body, <<"subject">> := Subject}) ->
-    Children = maybe_cdata_elem(<<"subject">>, Subject) ++
-               maybe_cdata_elem(<<"body">>, Body),
-    Attrs = [{<<"type">>, <<"headline">>},
-             {<<"id">>, mongoose_bin:gen_from_crypto()},
-             {<<"from">>, FromBin},
-             {<<"to">>, ToBin}],
-    #xmlel{name = <<"message">>, attrs = Attrs, children = Children}.
-
-maybe_cdata_elem(_, null) -> [];
-maybe_cdata_elem(_, <<>>) -> [];
-maybe_cdata_elem(Name, Text) when is_binary(Text) ->
-    [cdata_elem(Name, Text)].
-
-cdata_elem(Name, Text) when is_binary(Name), is_binary(Text) ->
-    #xmlel{name = Name, children = [#xmlcdata{content = Text}]}.
+    mongoose_stanza_helper:route(From, To, Packet, true).

@@ -8,7 +8,7 @@
 -spec lookup_recent_messages(
         ArcJID :: jid:jid(),
         With :: jid:jid() | undefined,
-        Before :: non_neg_integer() | undefined,
+        Before :: mod_mam:unix_timestamp() | undefined,
         Limit :: non_neg_integer()) ->
     [mod_mam:message_row()].
 lookup_recent_messages(_, _, _, Limit) when Limit > 500 ->

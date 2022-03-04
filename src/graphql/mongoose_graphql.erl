@@ -19,8 +19,16 @@
                      vars := map(),
                      authorized := boolean(),
                      ctx := map()}.
+-type context() :: map().
+-type object() :: term().
+-type field() :: binary().
+-type args() :: map().
 
--export_type([request/0]).
+-type result() :: {ok, term()} | {error, term()}.
+-callback execute(Ctx :: context(), Obj :: object(), Field :: field(), Args :: args()) ->
+            result().
+
+-export_type([request/0, context/0, object/0, field/0, args/0]).
 
 -define(USER_EP_NAME, user_schema_ep).
 -define(ADMIN_EP_NAME, admin_schema_ep).
@@ -144,6 +152,8 @@ user_mapping_rules() ->
         'MUCLightUserMutation' => mongoose_graphql_muc_light_user_mutation,
         'MUCLightUserQuery' => mongoose_graphql_muc_light_user_query,
         'SessionUserQuery' => mongoose_graphql_session_user_query,
+        'StanzaUserMutation' => mongoose_graphql_stanza_user_mutation,
+        'StanzaUserQuery' => mongoose_graphql_stanza_user_query,
         'UserAuthInfo' => mongoose_graphql_user_auth_info,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},

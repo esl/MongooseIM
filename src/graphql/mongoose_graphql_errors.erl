@@ -9,6 +9,7 @@
 -ignore_xref([format_error/1, err/2, crash/2]).
 
 -include("mongoose_graphql_types.hrl").
+-include("mongoose_logger.hrl").
 
 -type err_msg() :: #{message := binary(), extensions => map(), path => list()}.
 
@@ -18,6 +19,8 @@ err(_Ctx, #{jid := Jid, what := unknown_user}) when is_binary(Jid) ->
     #{message => <<"Given user does not exist">>, extensions => #{code => unknown_user, jid => Jid}};
 err(_Ctx, #{domain := Domain, what := unknown_domain}) when is_binary(Domain) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => unknown_domain, domain => Domain}};
+err(_Ctx, #{what := bad_from_jid}) ->
+    #{message => <<"Sending from this JID is not allowed">>, extensions => #{code => bad_from_jid}};
 err(_Ctx, #{domain := Domain, what := domain_not_found}) ->
     #{message => <<"Given domain does not exist">>, extensions => #{code => domain_not_found, domain => Domain}};
 err(_Ctx, #{domain := Domain, what := domain_duplicate}) when is_binary(Domain) ->
@@ -40,7 +43,8 @@ err(_Ctx, ErrorTerm) ->
 
 %% callback invoked when resolver crashes
 -spec crash(map(), term()) -> err_msg().
-crash(_Ctx, #{type := Type}) ->
+crash(_Ctx, Err = #{type := Type}) ->
+    ?LOG_ERROR(Err#{what => graphql_crash}),
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
 

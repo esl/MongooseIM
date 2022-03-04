@@ -16,6 +16,8 @@ type UserQuery{
   muc_light: MUCLightUserQuery
   "Session management"
   session: SessionUserQuery
+  "Stanza management"
+  stanza: StanzaUserQuery
 }
 
 """
@@ -27,4 +29,6 @@ type UserMutation @protected{
   account: AccountUserMutation
   "MUC Light room management"
   muc_light: MUCLightUserMutation
+  "Stanza management"
+  stanza: StanzaUserMutation
 }
