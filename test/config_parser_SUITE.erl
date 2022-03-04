@@ -1634,12 +1634,13 @@ mod_caps(_Config) ->
     ?errh(T(<<"cache_life_time">>, <<"infinity">>)).
 
 mod_cache_users(_Config) ->
+    check_module_defaults(mod_cache_users),
+    P = [modules, mod_cache_users],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_cache_users">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_cache_users, [{K, V}]) end,
-    ?cfgh(M(time_to_live, 8600), T(<<"time_to_live">>, 8600)),
-    ?cfgh(M(time_to_live, infinity), T(<<"time_to_live">>, <<"infinity">>)),
-    ?cfgh(M(number_of_segments, 10), T(<<"number_of_segments">>, 10)),
-    ?cfgh(M(strategy, fifo), T(<<"strategy">>, <<"fifo">>)),
+    ?cfgh(P ++ [time_to_live], 8600, T(<<"time_to_live">>, 8600)),
+    ?cfgh(P ++ [time_to_live], infinity, T(<<"time_to_live">>, <<"infinity">>)),
+    ?cfgh(P ++ [number_of_segments], 10, T(<<"number_of_segments">>, 10)),
+    ?cfgh(P ++ [strategy], fifo, T(<<"strategy">>, <<"fifo">>)),
     ?errh(T(<<"time_to_live">>, 0)),
     ?errh(T(<<"strategy">>, <<"lifo">>)),
     ?errh(T(<<"number_of_segments">>, 0)),
@@ -2135,8 +2136,7 @@ mod_mam_meta(_Config) ->
     check_module_defaults(mod_mam_meta),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
     P = [modules, mod_mam_meta],
-    test_segmented_cache_config(<<"cache">>, cache, T,
-                                fun([{cache, Opts}]) -> [{P ++ [cache], Opts}] end),
+    test_cache_config(T, P),
     test_mod_mam_meta(T, P).
 
 mod_mam_meta_riak(_Config) ->
@@ -2221,26 +2221,33 @@ test_mod_mam_meta(T, P) ->
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errh(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
-test_cache_config(T, M) ->
-    ?cfgh(M([{cache_users, false}]),
-          T(#{<<"cache_users">> => false})),
-    ?errh(T(#{<<"cache_users">> => []})),
-    test_segmented_cache_config(<<"cache">>, cache, T, M).
+test_cache_config(ParentT, ParentP) ->
+    P = ParentP ++ [cache],
+    T = fun(Opts) -> ParentT(#{<<"cache">> => Opts}) end,
+    ?cfgh(P ++ [module], internal, T(#{<<"module">> => <<"internal">>})),
+    ?cfgh(P ++ [time_to_live], 8600, T(#{<<"time_to_live">> => 8600})),
+    ?cfgh(P ++ [time_to_live], infinity, T(#{<<"time_to_live">> => <<"infinity">>})),
+    ?cfgh(P ++ [number_of_segments], 10, T(#{<<"number_of_segments">> => 10})),
+    ?cfgh(P ++ [strategy], fifo, T(#{<<"strategy">> => <<"fifo">>})),
+    ?errh(T(#{<<"module">> => <<"mod_wrong_cache">>})),
+    ?errh(T(#{<<"time_to_live">> => 0})),
+    ?errh(T(#{<<"strategy">> => <<"lifo">>})),
+    ?errh(T(#{<<"number_of_segments">> => 0})),
+    ?errh(T(#{<<"number_of_segments">> => <<"infinity">>})),
+    ?errh(T(#{<<"cache">> => []})).
 
 test_segmented_cache_config(NameK, NameV, T, M) ->
-    ?cfgh(M([{NameV, [{module, internal}]}]),
+    ?cfgh(M([{NameV, #{module => internal}}]),
           T(#{NameK => #{<<"module">> => <<"internal">>}})),
-    ?cfgh(M([{NameV, [{time_to_live, 8600}]}]),
+    ?cfgh(M([{NameV, #{time_to_live => 8600}}]),
           T(#{NameK => #{<<"time_to_live">> => 8600}})),
-    ?cfgh(M([{NameV, [{time_to_live, infinity}]}]),
+    ?cfgh(M([{NameV, #{time_to_live => infinity}}]),
           T(#{NameK => #{<<"time_to_live">> => <<"infinity">>}})),
-    ?cfgh(M([{NameV, [{number_of_segments, 10}]}]),
+    ?cfgh(M([{NameV, #{number_of_segments => 10}}]),
           T(#{NameK => #{<<"number_of_segments">> => 10}})),
-    ?cfgh(M([{NameV, [{strategy, fifo}]}]),
+    ?cfgh(M([{NameV, #{strategy => fifo}}]),
           T(#{NameK => #{<<"strategy">> => <<"fifo">>}})),
     ?errh(T(#{NameK => #{<<"module">> => <<"mod_wrong_cache">>}})),
-    ?errh(T(#{NameK => #{<<"module">> => <<"mod_cache_users">>,
-                               <<"time_to_live">> => 8600}})),
     ?errh(T(#{NameK => #{<<"time_to_live">> => 0}})),
     ?errh(T(#{NameK => #{<<"strategy">> => <<"lifo">>}})),
     ?errh(T(#{NameK => #{<<"number_of_segments">> => 0}})),

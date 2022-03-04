@@ -399,7 +399,7 @@ all_modules() ->
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
-      mod_mam_cache_user => #{cache => [], muc => true, pm => true},
+      mod_mam_cache_user => #{cache => default_config([modules, mod_mam_meta, cache]), muc => true, pm => true},
       mod_offline =>
           [{access_max_user_messages, max_user_offline_messages},
            {backend, riak},
@@ -822,6 +822,8 @@ default_pool_conn_opts(_Type) ->
 mod_config(Module, ExtraOpts) ->
     maps:merge(default_mod_config(Module), ExtraOpts).
 
+default_mod_config(mod_cache_users) ->
+    #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
@@ -907,7 +909,8 @@ default_mod_config(mod_vcard) ->
 default_mod_config(mod_version) ->
     #{iqdisc => no_queue, os_info => false};
 default_mod_config(mod_mam_meta) ->
-    (common_mam_config())#{backend => rdbms, cache_users => true, cache => []};
+    (common_mam_config())#{backend => rdbms, cache_users => true,
+                           cache => default_config([modules, mod_mam_meta, cache])};
 default_mod_config(mod_mam) ->
     maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
 default_mod_config(mod_mam_muc) ->
@@ -927,6 +930,9 @@ default_config([modules, mod_mam_meta, pm]) ->
     #{archive_groupchats => false, same_mam_id_for_peers => false};
 default_config([modules, mod_mam_meta, muc]) ->
     #{host => {prefix, <<"conference.">>}};
+default_config([modules, mod_mam_meta, cache]) ->
+    #{module => internal, strategy => fifo,
+      time_to_live => 480, number_of_segments => 3};
 default_config([modules, mod_mam_meta, async_writer]) ->
     #{batch_size => 30, enabled => true, flush_interval => 2000,
       pool_size => 4 * erlang:system_info(schedulers_online)};

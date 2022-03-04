@@ -218,7 +218,7 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
-                 <<"cache_affs">> => mongoose_user_cache:config_spec(),
+                 <<"cache_affs">> => cache_config_spec(),
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -238,6 +238,10 @@ config_spec() ->
                                               process = fun ?MODULE:process_config_schema/1}
                 }
       }.
+
+cache_config_spec() ->
+    Sec = mongoose_user_cache:config_spec(),
+    Sec#section{defaults = #{}}.
 
 config_schema_spec() ->
     #section{
