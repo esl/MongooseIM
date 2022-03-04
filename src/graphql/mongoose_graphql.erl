@@ -22,7 +22,7 @@
 -type context() :: map().
 -type object() :: term().
 -type field() :: binary().
--type args() :: term().
+-type args() :: map().
 
 -type result() :: {ok, term()} | {error, term()}.
 -callback execute(Ctx :: context(), Obj :: object(), Field :: field(), Args :: args()) ->
