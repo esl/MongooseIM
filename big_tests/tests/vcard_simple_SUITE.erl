@@ -454,14 +454,12 @@ configure_mod_vcard(Config) ->
     end.
 
 ldap_opts() ->
-    VCardOpts = #{backend => ldap,
-                  host => subhost_pattern("vjud.@HOST@"),
-                  ldap_uids => [{<<"uid">>}], %% equivalent to {<<"uid">>, <<"%u">>}
-                  ldap_filter => <<"(objectClass=inetOrgPerson)">>,
-                  ldap_base => "ou=Users,dc=esl,dc=com",
-                  ldap_search_fields => [{"Full Name", "cn"}, {"User", "uid"}],
-                  ldap_vcard_map => [{"FN", "%s", ["cn"]}]},
-    config_parser_helper:mod_config(mod_vcard, VCardOpts).
+    LDAPOpts = #{filter => <<"(objectClass=inetOrgPerson)">>,
+                 base => <<"ou=Users,dc=esl,dc=com">>,
+                 search_fields => [{"Full Name", "cn"}, {"User", "uid"}],
+                 vcard_map => [{"FN", "%s", ["cn"]}]},
+    LDAPOptsWithDefaults = config_parser_helper:config([modules, mod_vcard, ldap], LDAPOpts),
+    config_parser_helper:mod_config(mod_vcard, #{backend => ldap, ldap => LDAPOptsWithDefaults}).
 
 ensure_started(HostType, Opts) ->
     dynamic_modules:stop(HostType, mod_vcard),

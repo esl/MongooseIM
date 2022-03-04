@@ -25,7 +25,7 @@
 
 %% gen_server callbacks
 
--spec init(list()) -> {ok, state()}.
+-spec init(gen_mod:module_opts()) -> {ok, state()}.
 init(Options) ->
     State = initial_state(Options),
     self() ! connect,
@@ -58,33 +58,15 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% internal functions
 
-initial_state(Opts) ->
-    Servers = eldap_utils:get_mod_opt(servers, Opts,
-                      fun(L) ->
-                              lists:map(fun(H) when is_list(H) -> H end, L)
-                      end, ["localhost"]),
-    Encrypt = eldap_utils:get_mod_opt(encrypt, Opts,
-                      fun(tls) -> tls;
-                         (none) -> none
-                      end, none),
-    TLSOptions = eldap_utils:get_mod_opt(tls_options, Opts,
-                        fun(L) when is_list(L) -> L end, []),
-    Port = eldap_utils:get_mod_opt(port, Opts,
-                   fun(I) when is_integer(I), I>0 -> I end,
-                   case Encrypt of
-                       tls -> ?LDAPS_PORT;
-                       starttls -> ?LDAP_PORT;
-                       _ -> ?LDAP_PORT
-                   end),
-    RootDN = eldap_utils:get_mod_opt(rootdn, Opts,
-                     fun iolist_to_binary/1,
-                     <<"">>),
-    Password = eldap_utils:get_mod_opt(password, Opts,
-                 fun iolist_to_binary/1,
-                 <<"">>),
-    ConnectInterval = eldap_utils:get_mod_opt(connect_interval, Opts,
-                                  fun(I) when is_integer(I), I>0 -> I end,
-                                  default_connect_interval()),
+initial_state(Opts = #{servers := Servers, encrypt := Encrypt, rootdn := RootDN, password := Password,
+                       connect_interval := ConnectInterval}) ->
+    TLSOptions = maps:get(tls_options, Opts, []),
+    DefaultPort = case Encrypt of
+                      tls -> ?LDAPS_PORT;
+                      starttls -> ?LDAP_PORT;
+                      _ -> ?LDAP_PORT
+                  end,
+    Port = maps:get(port, Opts, DefaultPort),
     #{handle => none,
       servers => Servers,
       encrypt => Encrypt,
@@ -149,6 +131,3 @@ retry_call_eldap(Request, State) ->
 
 do_call_eldap(_Request, #{handle := none}) -> {error, not_connected};
 do_call_eldap({F, Args}, #{handle := Handle}) -> apply(eldap, F, [Handle | Args]).
-
-default_connect_interval() ->
-    10000.

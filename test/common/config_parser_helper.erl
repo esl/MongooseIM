@@ -318,8 +318,8 @@ options("outgoing_pools") ->
                         request_timeout => 2000}},
        #{type => ldap, scope => host, tag => default,
          opts => #{workers => 5},
-         conn_opts => #{password => "ldap-admin-password",
-                        rootdn => "cn=admin,dc=example,dc=com",
+         conn_opts => #{password => <<"ldap-admin-password">>,
+                        rootdn => <<"cn=admin,dc=example,dc=com">>,
                         servers => ["ldap-server.example.com"]}},
        #{type => rabbit, scope => host, tag => event_pusher,
          opts => #{workers => 20},
@@ -503,14 +503,16 @@ all_modules() ->
                               modules => [mod_muc, mod_disco]}]}),
       mod_last => #{backend => mnesia, iqdisc => {queues, 10}},
       mod_shared_roster_ldap =>
-          [{ldap_base, "ou=Users,dc=ejd,dc=com"},
-           {ldap_filter, "(objectClass=inetOrgPerson)"},
-           {ldap_group_cache_validity, 1},
-           {ldap_groupattr, "ou"},
-           {ldap_memberattr, "cn"},
-           {ldap_rfilter, "(objectClass=inetOrgPerson)"},
-           {ldap_user_cache_validity, 1},
-           {ldap_userdesc, "cn"}],
+          mod_config(mod_shared_roster_ldap,
+                     #{base => <<"ou=Users,dc=ejd,dc=com">>,
+                       filter => <<"(objectClass=inetOrgPerson)">>,
+                       group_cache_validity => 1,
+                       groupattr => <<"ou">>,
+                       groupdesc => <<"ou">>, % would be added with incorrect value by mod_config/2
+                       memberattr => <<"cn">>,
+                       rfilter => <<"(objectClass=inetOrgPerson)">>,
+                       user_cache_validity => 1,
+                       userdesc => <<"cn">>}),
       mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
           [{listen_port, 5600},
@@ -636,13 +638,17 @@ all_modules() ->
       mod_vcard =>
           mod_config(mod_vcard,
                      #{host => {fqdn, <<"directory.example.com">>},
-                       ldap_search_fields =>
-                        [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}],
-                       ldap_search_reported =>
-                        [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}],
-                       ldap_vcard_map =>
-                        [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-                         {<<"FN">>, <<"%s">>, [<<"displayName">>]}],
+                       backend => ldap,
+                       ldap => #{search_fields =>
+                                 [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}],
+                                 search_reported =>
+                                 [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}],
+                                 vcard_map =>
+                                 [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                                  {<<"FN">>, <<"%s">>, [<<"displayName">>]}],
+                                 pool_tag => default, deref => never, filter => <<"">>,
+                                 uids => [{<<"uid">>, <<"%u">>}], search_operator => 'and',
+                                 binary_search_fields => []},
                        matches => 1,
                        search => true}),
       mod_mam_muc_rdbms_arch =>
@@ -802,8 +808,8 @@ default_pool_conn_opts(http) ->
     #{path_prefix => "/",
       request_timeout => 2000};
 default_pool_conn_opts(ldap) ->
-    #{rootdn => "",
-      password => "",
+    #{rootdn => <<"">>,
+      password => <<"">>,
       encrypt => none,
       servers => ["localhost"],
       connect_interval => 10000};
@@ -850,6 +856,12 @@ default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_shared_roster_ldap) ->
+    #{pool_tag => default, deref => never, filter => <<"">>,
+      groupattr => <<"cn">>, groupdesc => <<"cn">>, userdesc => <<"cn">>, useruid => <<"cn">>,
+      memberattr => <<"memberUid">>, memberattr_format => <<"%u">>, memberattr_format_re => <<"">>,
+      auth_check => true, user_cache_validity => 300, group_cache_validity => 300, user_cache_size => 1000,
+      group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_time) ->
@@ -859,53 +871,7 @@ default_mod_config(mod_vcard) ->
       host => {prefix, <<"vjud.">>},
       search => true,
       backend => mnesia,
-      matches => 30,
-      ldap_pool_tag => default,
-      ldap_uids => [{<<"uid">>, <<"%u">>}],
-      ldap_vcard_map => [{<<"NICKNAME">>, <<"%u">>, []},
-                         {<<"FN">>, <<"%s">>, [<<"displayName">>]},
-                         {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-                         {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
-                         {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
-                         {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
-                         {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
-                         {<<"CTRY">>, <<"%s">>, [<<"c">>]},
-                         {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
-                         {<<"STREET">>, <<"%s">>, [<<"street">>]},
-                         {<<"REGION">>, <<"%s">>, [<<"st">>]},
-                         {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
-                         {<<"TITLE">>, <<"%s">>, [<<"title">>]},
-                         {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
-                         {<<"DESC">>, <<"%s">>, [<<"description">>]},
-                         {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
-                         {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
-                         {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
-                         {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
-                         {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}],
-      ldap_search_fields => [{<<"User">>, <<"%u">>},
-                             {<<"Full Name">>, <<"displayName">>},
-                             {<<"Given Name">>, <<"givenName">>},
-                             {<<"Middle Name">>, <<"initials">>},
-                             {<<"Family Name">>, <<"sn">>},
-                             {<<"Nickname">>, <<"%u">>},
-                             {<<"Birthday">>, <<"birthDay">>},
-                             {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
-                             {<<"Email">>, <<"mail">>},
-                             {<<"Organization Name">>, <<"o">>},
-                             {<<"Organization Unit">>, <<"ou">>}],
-      ldap_search_reported => [{<<"Full Name">>, <<"FN">>},
-                               {<<"Given Name">>, <<"FIRST">>},
-                               {<<"Middle Name">>, <<"MIDDLE">>},
-                               {<<"Family Name">>, <<"LAST">>},
-                               {<<"Nickname">>, <<"NICK">>},
-                               {<<"Birthday">>, <<"BDAY">>},
-                               {<<"Country">>, <<"CTRY">>},
-                               {<<"City">>, <<"LOCALITY">>},
-                               {<<"Email">>, <<"EMAIL">>},
-                               {<<"Organization Name">>, <<"ORGNAME">>},
-                               {<<"Organization Unit">>, <<"ORGUNIT">>}],
-      ldap_search_operator => 'and',
-      ldap_binary_search_fields => []};
+      matches => 30};
 default_mod_config(mod_version) ->
     #{iqdisc => no_queue, os_info => false};
 default_mod_config(mod_mam_meta) ->
@@ -935,7 +901,56 @@ default_config([modules, mod_mam_meta, async_writer]) ->
 default_config([modules, mod_mam_meta, riak]) ->
     #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
 default_config([modules, mod_roster, riak]) ->
-    #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>}.
+    #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>};
+default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
+    #{pool_tag => default,
+      deref => never,
+      filter => <<"">>,
+      uids => [{<<"uid">>, <<"%u">>}],
+      vcard_map => [{<<"NICKNAME">>, <<"%u">>, []},
+                    {<<"FN">>, <<"%s">>, [<<"displayName">>]},
+                    {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                    {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
+                    {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
+                    {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
+                    {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
+                    {<<"CTRY">>, <<"%s">>, [<<"c">>]},
+                    {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
+                    {<<"STREET">>, <<"%s">>, [<<"street">>]},
+                    {<<"REGION">>, <<"%s">>, [<<"st">>]},
+                    {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
+                    {<<"TITLE">>, <<"%s">>, [<<"title">>]},
+                    {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
+                    {<<"DESC">>, <<"%s">>, [<<"description">>]},
+                    {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
+                    {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
+                    {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
+                    {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
+                    {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}],
+      search_fields => [{<<"User">>, <<"%u">>},
+                        {<<"Full Name">>, <<"displayName">>},
+                        {<<"Given Name">>, <<"givenName">>},
+                        {<<"Middle Name">>, <<"initials">>},
+                        {<<"Family Name">>, <<"sn">>},
+                        {<<"Nickname">>, <<"%u">>},
+                        {<<"Birthday">>, <<"birthDay">>},
+                        {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
+                        {<<"Email">>, <<"mail">>},
+                        {<<"Organization Name">>, <<"o">>},
+                        {<<"Organization Unit">>, <<"ou">>}],
+      search_reported => [{<<"Full Name">>, <<"FN">>},
+                          {<<"Given Name">>, <<"FIRST">>},
+                          {<<"Middle Name">>, <<"MIDDLE">>},
+                          {<<"Family Name">>, <<"LAST">>},
+                          {<<"Nickname">>, <<"NICK">>},
+                          {<<"Birthday">>, <<"BDAY">>},
+                          {<<"Country">>, <<"CTRY">>},
+                          {<<"City">>, <<"LOCALITY">>},
+                          {<<"Email">>, <<"EMAIL">>},
+                          {<<"Organization Name">>, <<"ORGNAME">>},
+                          {<<"Organization Unit">>, <<"ORGUNIT">>}],
+      search_operator => 'and',
+      binary_search_fields => []}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,

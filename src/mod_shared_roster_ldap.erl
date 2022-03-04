@@ -72,7 +72,7 @@
          user_desc = <<>>                             :: binary(),
          user_uid = <<>>                              :: binary(),
          uid_format = <<>>                            :: binary(),
-         uid_format_re = <<>>                         :: binary(),
+         uid_format_re = <<>>                         :: binary() | re:mp(),
          filter = <<>>                                :: binary(),
          ufilter = <<>>                               :: binary(),
          rfilter = <<>>                               :: binary(),
@@ -105,34 +105,48 @@ stop(Host) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"ldap_pool_tag">> => #option{type = atom,
-                                                validate = pool_name},
-                 <<"ldap_base">> => #option{type = string},
-                 <<"ldap_deref">> => #option{type = atom,
-                                             validate = {enum, [never, always, finding, searching]}},
-                 <<"ldap_groupattr">> => #option{type = string},
-                 <<"ldap_groupdesc">> => #option{type = string},
-                 <<"ldap_userdesc">> => #option{type = string},
-                 <<"ldap_useruid">> => #option{type = string},
-                 <<"ldap_memberattr">> => #option{type = string},
-                 <<"ldap_memberattr_format">> => #option{type = string},
-                 <<"ldap_memberattr_format_re">> => #option{type = string},
-                 <<"ldap_auth_check">> => #option{type = boolean},
-                 <<"ldap_user_cache_validity">> => #option{type = integer,
-                                                           validate = positive},
-                 <<"ldap_group_cache_validity">> => #option{type = integer,
-                                                            validate = positive},
-                 <<"ldap_user_cache_size">> => #option{type = integer,
-                                                       validate = positive},
-                 <<"ldap_group_cache_size">> => #option{type = integer,
-                                                        validate = positive},
-                 <<"ldap_rfilter">> => #option{type = string},
-                 <<"ldap_gfilter">> => #option{type = string},
-                 <<"ldap_ufilter">> => #option{type = string},
-                 <<"ldap_filter">> => #option{type = string}
-                }
-      }.
+    CommonLDAPSpec = mongoose_ldap_config:spec(),
+    Items = #{<<"groupattr">> => #option{type = binary},
+              <<"groupdesc">> => #option{type = binary},
+              <<"userdesc">> => #option{type = binary},
+              <<"useruid">> => #option{type = binary},
+              <<"memberattr">> => #option{type = binary},
+              <<"memberattr_format">> => #option{type = binary},
+              <<"memberattr_format_re">> => #option{type = binary},
+              <<"auth_check">> => #option{type = boolean},
+              <<"user_cache_validity">> => #option{type = integer,
+                                                   validate = positive},
+              <<"group_cache_validity">> => #option{type = integer,
+                                                    validate = positive},
+              <<"user_cache_size">> => #option{type = integer,
+                                               validate = positive},
+              <<"group_cache_size">> => #option{type = integer,
+                                                validate = positive},
+              <<"rfilter">> => #option{type = binary},
+              <<"gfilter">> => #option{type = binary},
+              <<"ufilter">> => #option{type = binary}
+    },
+    Defaults = #{<<"groupattr">> => <<"cn">>,
+                 <<"userdesc">> => <<"cn">>,
+                 <<"useruid">> => <<"cn">>,
+                 <<"memberattr">> => <<"memberUid">>,
+                 <<"memberattr_format">> => <<"%u">>,
+                 <<"memberattr_format_re">> => <<>>,
+                 <<"auth_check">> => true,
+                 <<"user_cache_validity">> => ?USER_CACHE_VALIDITY,
+                 <<"group_cache_validity">> => ?GROUP_CACHE_VALIDITY,
+                 <<"user_cache_size">> => ?CACHE_SIZE,
+                 <<"group_cache_size">> => ?CACHE_SIZE,
+                 <<"rfilter">> => <<>>,
+                 <<"gfilter">> => <<>>,
+                 <<"ufilter">> => <<>>},
+    CommonLDAPSpec#section{items = maps:merge(CommonLDAPSpec#section.items, Items),
+                           defaults = maps:merge(CommonLDAPSpec#section.defaults, Defaults),
+                           process = fun process_ldap_options/1}.
+
+process_ldap_options(Opts = #{groupattr := GroupAttr}) ->
+    GroupDesc = maps:get(groupdesc, Opts, GroupAttr),
+    Opts#{groupdesc => GroupDesc}.
 
 %%--------------------------------------------------------------------
 %% Hooks
@@ -205,7 +219,7 @@ get_jid_info({Subscription, Groups}, _HostType, ToJID, JID) ->
         error -> {Subscription, Groups}
     end.
 
--spec in_subscription(Acc:: mongoose_acc:t(),
+-spec in_subscription(Acc :: mongoose_acc:t(),
                       ToJID :: jid:jid(),
                       FromJID :: jid:jid(),
                       Type :: mod_roster:sub_presence(),
@@ -220,9 +234,9 @@ in_subscription(Acc, ToJID, FromJID, Type, _Reason) ->
         _ -> Acc
     end.
 
--spec out_subscription(Acc:: mongoose_acc:t(),
+-spec out_subscription(Acc :: mongoose_acc:t(),
                        FromJID :: jid:jid(),
-                       ToJID ::jid:jid(),
+                       ToJID :: jid:jid(),
                        Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
 out_subscription(Acc, FromJID, ToJID, Type) ->
@@ -231,7 +245,7 @@ out_subscription(Acc, FromJID, ToJID, Type) ->
             {stop, Acc};
         {stop, false} ->
             {stop, Acc};
-         false -> Acc
+        false -> Acc
     end.
 
 process_subscription(Direction, #jid{luser = LUser, lserver = LServer}, ToJID, _Type) ->
@@ -342,7 +356,7 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
                     %% Something else. Pretend we got no results.
                     []
             end;
-        _->
+        _ ->
             %% Filter parsing failed. Pretend we got no results.
             []
     end.
@@ -373,7 +387,7 @@ get_group_users(Host, Group) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
     case cache_tab:dirty_lookup(shared_roster_ldap_group,
                                 {Group, Host},
-                                fun () -> search_group_info(State, Group) end)
+                                fun() -> search_group_info(State, Group) end)
     of
         {ok, #group_info{members = Members}}
           when Members /= undefined ->
@@ -385,7 +399,7 @@ get_group_name(Host, Group) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
     case cache_tab:dirty_lookup(shared_roster_ldap_group,
                                 {Group, Host},
-                                fun () -> search_group_info(State, Group) end)
+                                fun() -> search_group_info(State, Group) end)
     of
         {ok, #group_info{desc = GroupName}}
           when GroupName /= undefined ->
@@ -397,7 +411,7 @@ get_user_name(User, Host) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
     case cache_tab:dirty_lookup(shared_roster_ldap_user,
                                 {User, Host},
-                                fun () -> search_user_name(State, User) end)
+                                fun() -> search_user_name(State, User) end)
     of
         {ok, UserName} -> UserName;
         error -> User
@@ -420,7 +434,7 @@ search_group_info(State, Group) ->
                 end,
     AuthChecker = case State#state.auth_check of
                       true -> fun ejabberd_auth:does_user_exist/1;
-                      _ -> fun (_U, _S) -> true end
+                      false -> fun(_JID) -> true end
                   end,
     Host = State#state.host,
     case eldap_search(State,
@@ -432,7 +446,7 @@ search_group_info(State, Group) ->
             error;
         LDAPEntries ->
             {GroupDesc, MembersLists} = ldap_entries_to_group(LDAPEntries, Host, Group, State,
-                                                             Extractor, AuthChecker),
+                                                              Extractor, AuthChecker),
             {ok, #group_info{desc = GroupDesc, members = lists:usort(MembersLists)}}
     end.
 
@@ -503,65 +517,27 @@ get_user_part_re(String, Pattern) ->
         _ -> {error, badmatch}
     end.
 
-parse_options(Host, Opts) ->
-    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
-                                      fun(A) when is_atom(A) -> A end, default),
-    Base = eldap_utils:get_base(Opts),
-    DerefAliases = eldap_utils:get_deref_aliases(Opts),
-    GroupAttr = eldap_utils:get_mod_opt(ldap_groupattr, Opts,
-                                        fun iolist_to_binary/1,
-                                        <<"cn">>),
-    GroupDesc = eldap_utils:get_mod_opt(ldap_groupdesc, Opts,
-                                        fun iolist_to_binary/1,
-                                        GroupAttr),
-    UserDesc = eldap_utils:get_mod_opt(ldap_userdesc, Opts,
-                                       fun iolist_to_binary/1,
-                                       <<"cn">>),
-    UserUID = eldap_utils:get_mod_opt(ldap_useruid, Opts,
-                                      fun iolist_to_binary/1,
-                                      <<"cn">>),
-    UIDAttr = eldap_utils:get_mod_opt(ldap_memberattr, Opts,
-                                      fun iolist_to_binary/1,
-                                      <<"memberUid">>),
-    UIDAttrFormat = eldap_utils:get_mod_opt(ldap_memberattr_format, Opts,
-                                            fun iolist_to_binary/1,
-                                            <<"%u">>),
-    UIDAttrFormatRe = eldap_utils:get_mod_opt(ldap_memberattr_format_re, Opts,
-                                              fun(S) ->
-                                                      Re = iolist_to_binary(S),
-                                                      {ok, MP} = re:compile(Re),
-                                                      MP
-                                              end, <<"">>),
-    AuthCheck = eldap_utils:get_mod_opt(ldap_auth_check, Opts,
-                                        fun(false) -> false;
-                                           (true) -> true
-                                        end, true),
-    UserCacheValidity = eldap_utils:get_mod_opt(
-                          ldap_user_cache_validity, Opts,
-                          fun(I) when is_integer(I), I>0 -> I end,
-                          ?USER_CACHE_VALIDITY),
-    GroupCacheValidity = eldap_utils:get_mod_opt(
-                           ldap_group_cache_validity, Opts,
-                           fun(I) when is_integer(I), I>0 -> I end,
-                           ?GROUP_CACHE_VALIDITY),
-    UserCacheSize = eldap_utils:get_mod_opt(
-                      ldap_user_cache_size, Opts,
-                      fun(I) when is_integer(I), I>0 -> I end,
-                      ?CACHE_SIZE),
-    GroupCacheSize = eldap_utils:get_mod_opt(
-                       ldap_group_cache_size, Opts,
-                       fun(I) when is_integer(I), I>0 -> I end,
-                       ?CACHE_SIZE),
-    ConfigFilter = eldap_utils:get_mod_opt(ldap_filter, Opts,
-                                       fun check_filter/1, <<"">>),
-    ConfigUserFilter = eldap_utils:get_mod_opt(ldap_ufilter, Opts,
-                                           fun check_filter/1, <<"">>),
-    ConfigGroupFilter = eldap_utils:get_mod_opt(ldap_gfilter, Opts,
-                                            fun check_filter/1, <<"">>),
-    RosterFilter = eldap_utils:get_mod_opt(ldap_rfilter, Opts,
-                                       fun check_filter/1, <<"">>),
+
+parse_options(Host, #{base := Base, pool_tag := EldapID, deref := Deref, filter := FilterIn,
+                      groupattr := GroupAttr, groupdesc := GroupDesc, userdesc := UserDesc,
+                      useruid := UserUID, memberattr := UIDAttr, memberattr_format := UIDAttrFormat,
+                      memberattr_format_re := UIDAttrFormatReIn, auth_check := AuthCheck,
+                      user_cache_validity := UserCacheValidity, group_cache_validity := GroupCacheValidity,
+                      user_cache_size := UserCacheSize, group_cache_size := GroupCacheSize,
+                      ufilter := UFilterIn, gfilter := GFilterIn, rfilter := RFilterIn}) ->
+    DerefAliases = eldap_utils:deref_aliases(Deref),
+    ConfigFilter = check_filter(FilterIn),
+    ConfigUserFilter = check_filter(UFilterIn),
+    ConfigGroupFilter = check_filter(GFilterIn),
+    RosterFilter = check_filter(RFilterIn),
     SubFilter = <<"(&(", UIDAttr/binary, "=", UIDAttrFormat/binary,
                   ")(", GroupAttr/binary, "=%g))">>,
+    UIDAttrFormatRe = case UIDAttrFormatReIn of
+                          <<>> -> UIDAttrFormatReIn;
+                          RE ->
+                              {ok, MP} = re:compile(RE),
+                              MP
+                      end,
     UserSubFilter = case ConfigUserFilter of
                         <<"">> ->
                             eldap_filter:do_sub(SubFilter, [{<<"%g">>, <<"*">>}]);
@@ -603,7 +579,7 @@ parse_options(Host, Opts) ->
            group_cache_size = GroupCacheSize,
            group_cache_validity = GroupCacheValidity}.
 
+check_filter(<<>>) -> <<>>;
 check_filter(F) ->
-    NewF = iolist_to_binary(F),
-    {ok, _} = eldap_filter:parse(NewF),
-    NewF.
+    {ok, _} = eldap_filter:parse(F),
+    F.

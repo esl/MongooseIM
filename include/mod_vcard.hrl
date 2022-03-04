@@ -12,6 +12,8 @@
                       orgname, lorgname,
                       orgunit, lorgunit}).
 -record(vcard, {us, vcard}).
+-type vcard_search() :: #vcard_search{}.
+-export_type([vcard_search/0]).
 
 -define(TLFIELD(Type, Label, Var),
 	#xmlel{name = <<"field">>,

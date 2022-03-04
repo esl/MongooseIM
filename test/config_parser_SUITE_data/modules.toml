@@ -248,14 +248,14 @@
   store_current_id = true
 
 [modules.mod_shared_roster_ldap]
-  ldap_base = "ou=Users,dc=ejd,dc=com"
-  ldap_groupattr = "ou"
-  ldap_memberattr = "cn"
-  ldap_userdesc = "cn"
-  ldap_filter = "(objectClass=inetOrgPerson)"
-  ldap_rfilter = "(objectClass=inetOrgPerson)"
-  ldap_group_cache_validity = 1
-  ldap_user_cache_validity = 1
+  base = "ou=Users,dc=ejd,dc=com"
+  groupattr = "ou"
+  memberattr = "cn"
+  userdesc = "cn"
+  filter = "(objectClass=inetOrgPerson)"
+  rfilter = "(objectClass=inetOrgPerson)"
+  group_cache_validity = 1
+  user_cache_validity = 1
 
 [modules.mod_stream_management]
   buffer_max = 30
@@ -269,30 +269,31 @@
   matches = 1
   search = true
   host = "directory.example.com"
+  backend = "ldap"
 
-  [[modules.mod_vcard.ldap_vcard_map]]
+  [[modules.mod_vcard.ldap.vcard_map]]
     vcard_field = "FAMILY"
     ldap_pattern = "%s"
     ldap_field = "sn"
 
-  [[modules.mod_vcard.ldap_vcard_map]]
+  [[modules.mod_vcard.ldap.vcard_map]]
     vcard_field = "FN"
     ldap_pattern = "%s"
     ldap_field = "displayName"
 
-  [[modules.mod_vcard.ldap_search_fields]]
+  [[modules.mod_vcard.ldap.search_fields]]
     search_field = "User"
     ldap_field = "%u"
 
-  [[modules.mod_vcard.ldap_search_fields]]
+  [[modules.mod_vcard.ldap.search_fields]]
     search_field = "Full Name"
     ldap_field = "displayName"
 
-  [[modules.mod_vcard.ldap_search_reported]]
+  [[modules.mod_vcard.ldap.search_reported]]
     search_field = "Full Name"
     vcard_field = "FN"
 
-  [[modules.mod_vcard.ldap_search_reported]]
+  [[modules.mod_vcard.ldap.search_reported]]
     search_field = "Given Name"
     vcard_field = "FIRST"
 

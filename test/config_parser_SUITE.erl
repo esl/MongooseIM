@@ -1364,12 +1364,12 @@ pool_ldap_encrypt(_Config) ->
     ?err(pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => true})).
 
 pool_ldap_rootdn(_Config) ->
-    ?cfg(pool_config(#{type => ldap, conn_opts => #{rootdn => "my_rootdn"}}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{rootdn => <<"my_rootdn">>}}),
          pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"my_rootdn">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => false})).
 
 pool_ldap_password(_Config) ->
-    ?cfg(pool_config(#{type => ldap, conn_opts => #{password => "pass"}}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{password => <<"pass">>}}),
          pool_conn_raw(<<"ldap">>, #{<<"password">> => <<"pass">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"password">> => true})).
 
@@ -2831,71 +2831,72 @@ mod_roster(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_shared_roster_ldap(_Config) ->
+    check_module_defaults(mod_shared_roster_ldap),
+    P = [modules, mod_shared_roster_ldap],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_shared_roster_ldap, Cfg) end,
-    ?cfgh(M([{ldap_pool_tag, default}]),
-          T(#{<<"ldap_pool_tag">> => <<"default">>})),
-    ?cfgh(M([{ldap_base,  "string"}]),
-          T(#{<<"ldap_base">> => <<"string">>})),
-    ?cfgh(M([{ldap_deref, never}]),
-          T(#{<<"ldap_deref">> => <<"never">>})),
+    ?cfgh(P ++ [pool_tag], my_tag,
+          T(#{<<"pool_tag">> => <<"my_tag">>})),
+    ?cfgh(P ++ [base], <<"string">>,
+          T(#{<<"base">> => <<"string">>})),
+    ?cfgh(P ++ [deref], always,
+          T(#{<<"deref">> => <<"always">>})),
     %% Options: attributes
-    ?cfgh(M([ {ldap_groupattr, "cn"}]),
-          T(#{<<"ldap_groupattr">> => <<"cn">>})),
-    ?cfgh(M([{ldap_groupdesc, "default"}]),
-          T(#{<<"ldap_groupdesc">> => <<"default">>})),
-    ?cfgh(M([{ldap_userdesc, "cn"}]),
-          T(#{<<"ldap_userdesc">> => <<"cn">>})),
-    ?cfgh(M([{ldap_useruid, "cn"}]),
-          T(#{<<"ldap_useruid">> => <<"cn">>})),
-    ?cfgh(M([{ldap_memberattr, "memberUid"}]),
-          T(#{<<"ldap_memberattr">> => <<"memberUid">>})),
-    ?cfgh(M([{ldap_memberattr_format, "%u"}]),
-          T(#{<<"ldap_memberattr_format">> => <<"%u">>})),
-    ?cfgh(M([{ldap_memberattr_format_re,""}]),
-          T(#{<<"ldap_memberattr_format_re">> => <<"">>})),
+    ?cfgh(P ++ [groupattr], <<"cn">>,
+          T(#{<<"groupattr">> => <<"cn">>})),
+    ?cfgh(P ++ [groupdesc], <<"default">>,
+          T(#{<<"groupdesc">> => <<"default">>})),
+    ?cfgh(P ++ [userdesc], <<"cn">>,
+          T(#{<<"userdesc">> => <<"cn">>})),
+    ?cfgh(P ++ [useruid], <<"cn">>,
+          T(#{<<"useruid">> => <<"cn">>})),
+    ?cfgh(P ++ [memberattr], <<"memberUid">>,
+          T(#{<<"memberattr">> => <<"memberUid">>})),
+    ?cfgh(P ++ [memberattr_format], <<"%u">>,
+          T(#{<<"memberattr_format">> => <<"%u">>})),
+    ?cfgh(P ++ [memberattr_format_re], <<"">>,
+          T(#{<<"memberattr_format_re">> => <<"">>})),
     %% Options: parameters
-    ?cfgh(M([ {ldap_auth_check, true}]),
-          T(#{<<"ldap_auth_check">> => true})),
-    ?cfgh(M([{ldap_user_cache_validity, 300}]),
-          T(#{<<"ldap_user_cache_validity">> => 300})),
-    ?cfgh(M([{ldap_group_cache_validity, 300}]),
-          T(#{<<"ldap_group_cache_validity">> => 300})),
-    ?cfgh(M([{ldap_user_cache_size, 300}]),
-          T(#{<<"ldap_user_cache_size">> => 300})),
-    ?cfgh(M([{ldap_group_cache_size, 300}]),
-          T(#{<<"ldap_group_cache_size">> => 300})),
+    ?cfgh(P ++ [auth_check], true,
+          T(#{<<"auth_check">> => true})),
+    ?cfgh(P ++ [user_cache_validity], 300,
+          T(#{<<"user_cache_validity">> => 300})),
+    ?cfgh(P ++ [group_cache_validity], 300,
+          T(#{<<"group_cache_validity">> => 300})),
+    ?cfgh(P ++ [user_cache_size], 300,
+          T(#{<<"user_cache_size">> => 300})),
+    ?cfgh(P ++ [group_cache_size], 300,
+          T(#{<<"group_cache_size">> => 300})),
     %% Options: LDAP filters
-    ?cfgh(M([{ldap_rfilter, "rfilter_test"}]),
-          T(#{<<"ldap_rfilter">> => <<"rfilter_test">>})),
-    ?cfgh(M([{ldap_gfilter, "gfilter_test"}]),
-          T(#{<<"ldap_gfilter">> => <<"gfilter_test">>})),
-    ?cfgh(M([{ldap_ufilter, "ufilter_test"}]),
-          T(#{<<"ldap_ufilter">> => <<"ufilter_test">>})),
-    ?cfgh(M([{ldap_filter, "filter_test"}]),
-          T(#{<<"ldap_filter">> => <<"filter_test">>})),
-    ?errh(T(#{<<"ldap_pool_tag">> => 1})),
-    ?errh(T(#{<<"ldap_base">> => 1})),
-    ?errh(T(#{<<"ldap_deref">> => 1})),
+    ?cfgh(P ++ [rfilter], <<"rfilter_test">>,
+          T(#{<<"rfilter">> => <<"rfilter_test">>})),
+    ?cfgh(P ++ [gfilter], <<"gfilter_test">>,
+          T(#{<<"gfilter">> => <<"gfilter_test">>})),
+    ?cfgh(P ++ [ufilter], <<"ufilter_test">>,
+          T(#{<<"ufilter">> => <<"ufilter_test">>})),
+    ?cfgh(P ++ [filter], <<"filter_test">>,
+          T(#{<<"filter">> => <<"filter_test">>})),
+    ?errh(T(#{<<"pool_tag">> => 1})),
+    ?errh(T(#{<<"base">> => 1})),
+    ?errh(T(#{<<"deref">> => 1})),
     %% Options: attributes
-    ?errh(T(#{<<"ldap_groupattr">> => 1})),
-    ?errh(T(#{<<"ldap_groupdesc">> => 1})),
-    ?errh(T(#{<<"ldap_userdesc">> => 1})),
-    ?errh(T(#{<<"ldap_useruid">> => 1})),
-    ?errh(T(#{<<"ldap_memberattr">> => 1})),
-    ?errh(T(#{<<"ldap_memberattr_format">> => 1})),
-    ?errh(T(#{<<"ldap_memberattr_format_re">> => 1})),
+    ?errh(T(#{<<"groupattr">> => 1})),
+    ?errh(T(#{<<"groupdesc">> => 1})),
+    ?errh(T(#{<<"userdesc">> => 1})),
+    ?errh(T(#{<<"useruid">> => 1})),
+    ?errh(T(#{<<"memberattr">> => 1})),
+    ?errh(T(#{<<"memberattr_format">> => 1})),
+    ?errh(T(#{<<"memberattr_format_re">> => 1})),
     %% Options: parameters
-    ?errh(T(#{<<"ldap_auth_check">> => 1})),
-    ?errh(T(#{<<"ldap_user_cache_validity">> => -1})),
-    ?errh(T(#{<<"ldap_group_cache_validity">> => -1})),
-    ?errh(T(#{<<"ldap_user_cache_size">> => -1})),
-    ?errh(T(#{<<"ldap_group_cache_size">> => -1})),
+    ?errh(T(#{<<"auth_check">> => 1})),
+    ?errh(T(#{<<"user_cache_validity">> => -1})),
+    ?errh(T(#{<<"group_cache_validity">> => -1})),
+    ?errh(T(#{<<"user_cache_size">> => -1})),
+    ?errh(T(#{<<"group_cache_size">> => -1})),
     %% Options: LDAP filters
-    ?errh(T(#{<<"ldap_rfilter">> => 1})),
-    ?errh(T(#{<<"ldap_gfilter">> => 1})),
-    ?errh(T(#{<<"ldap_ufilter">> => 1})),
-    ?errh(T(#{<<"ldap_filter">> => 1})).
+    ?errh(T(#{<<"rfilter">> => 1})),
+    ?errh(T(#{<<"gfilter">> => 1})),
+    ?errh(T(#{<<"ufilter">> => 1})),
+    ?errh(T(#{<<"filter">> => 1})).
 
 mod_sic(_Config) ->
     check_module_defaults(mod_sic),
@@ -2953,18 +2954,20 @@ mod_vcard(_Config) ->
     ?cfgh(P ++ [matches], infinity,
           T(#{<<"matches">> => <<"infinity">>})),
     %% ldap
-    ?cfgh(P ++ [ldap_pool_tag], default,
-          T(#{<<"ldap_pool_tag">> => <<"default">>})),
-    ?cfgh(P ++ [ldap_base], "ou=Users,dc=ejd,dc=com",
-          T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
-    ?cfgh(P ++ [ldap_filter], <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
-          T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
-    ?cfgh(P ++ [ldap_deref], never,
-          T(#{<<"ldap_deref">> => <<"never">>})),
-    ?cfgh(P ++ [ldap_search_operator], 'or',
-          T(#{<<"ldap_search_operator">> => <<"or">>})),
-    ?cfgh(P ++ [ldap_binary_search_fields], [<<"PHOTO">>],
-          T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
+    ?cfgh(P ++ [ldap], config_parser_helper:default_config(P ++ [ldap]),
+          T(#{<<"backend">> => <<"ldap">>})),
+    ?cfgh(P ++ [ldap, pool_tag], my_tag,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"pool_tag">> => <<"my_tag">>}})),
+    ?cfgh(P ++ [ldap, base], <<"ou=Users,dc=ejd,dc=com">>,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"base">> => <<"ou=Users,dc=ejd,dc=com">>}})),
+    ?cfgh(P ++ [ldap, filter], <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>}})),
+    ?cfgh(P ++ [ldap, deref], always,
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"deref">> => <<"always">>}})),
+    ?cfgh(P ++ [ldap, search_operator], 'or',
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"search_operator">> => <<"or">>}})),
+    ?cfgh(P ++ [ldap, binary_search_fields], [<<"PHOTO">>],
+          T(#{<<"backend">> => <<"ldap">>, <<"ldap">> => #{<<"binary_search_fields">> => [<<"PHOTO">>]}})),
     %% riak
     ?cfgh(P ++ [riak, bucket_type], <<"vcard">>,
           T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
@@ -2990,9 +2993,10 @@ mod_vcard(_Config) ->
     ?errh(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
 
 mod_vcard_ldap_uids(_Config) ->
-    P = [modules, mod_vcard, ldap_uids],
+    P = [modules, mod_vcard, ldap, uids],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"uids">> => Opts}}}} end,
     RequiredOpts = #{<<"attr">> => <<"name">>},
     ExpectedCfg = <<"name">>,
     ?cfgh(P, [], T([])),
@@ -3006,9 +3010,10 @@ mod_vcard_ldap_uids(_Config) ->
     ?errh(T(RequiredOpts#{<<"format">> => true})).
 
 mod_vcard_ldap_vcard_map(_Config) ->
-    P = [modules, mod_vcard, ldap_vcard_map],
+    P = [modules, mod_vcard, ldap, vcard_map],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"vcard_map">> => Opts}}}} end,
     RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
                      <<"ldap_pattern">> => <<"%s">>,
                      <<"ldap_field">> => <<"sn">>},
@@ -3021,9 +3026,10 @@ mod_vcard_ldap_vcard_map(_Config) ->
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_fields(_Config) ->
-    P = [modules, mod_vcard, ldap_search_fields],
+    P = [modules, mod_vcard, ldap, search_fields],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"search_fields">> => Opts}}}} end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"ldap_field">> => <<"cn">>},
     ExpectedCfg = {<<"Full Name">>, <<"cn">>},
@@ -3034,9 +3040,10 @@ mod_vcard_ldap_search_fields(_Config) ->
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_reported(_Config) ->
-    P = [modules, mod_vcard, ldap_search_reported],
+    P = [modules, mod_vcard, ldap, search_reported],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
+                           #{<<"mod_vcard">> => #{<<"backend">> => <<"ldap">>,
+                                                  <<"ldap">> => #{<<"search_reported">> => Opts}}}} end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"vcard_field">> => <<"FN">>},
     ExpectedCfg = {<<"Full Name">>, <<"FN">>},
