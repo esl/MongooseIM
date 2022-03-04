@@ -2817,6 +2817,8 @@ mod_roster(_Config) ->
           T(#{<<"store_current_id">> => true})),
     ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [riak], config_parser_helper:default_config(P ++ [riak]),
+          T(#{<<"backend">> => <<"riak">>})),
     ?cfgh(P ++ [riak, bucket_type], <<"my_type">>,
           T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"my_type">>}})),
     ?cfgh(P ++ [riak, version_bucket_type], <<"my_versions">>,
