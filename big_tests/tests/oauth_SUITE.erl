@@ -475,5 +475,6 @@ required_modules() ->
      {mod_auth_token, auth_token_opts()}].
 
 auth_token_opts() ->
-    [{ {validity_period, access}, {60, minutes} },
-     { {validity_period, refresh}, {1, days} }].
+    Defaults = config_parser_helper:default_mod_config(mod_auth_token),
+    Defaults#{validity_period => #{access => #{value => 60, unit => minutes},
+                                   refresh => #{value => 1, unit => days}}}.

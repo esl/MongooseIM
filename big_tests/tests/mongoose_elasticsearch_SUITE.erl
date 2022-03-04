@@ -44,42 +44,38 @@ all_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case is_elasticsearch_enabled() of
-        true ->
+    case get_elastic_pools() of
+        [] ->
+            {skip, elasticsearch_unavailable};
+        [_] = Pools ->
             ok = rpc(mim(), mongoose_wpool, stop, [elastic, global, default]),
-            Config;
-        false ->
-            {skip, elasticsearch_unavailable}
+            [{elastic_pools, Pools} | Config]
     end.
 
-end_per_suite(_Config) ->
-    case is_elasticsearch_enabled() of
-        true ->
-            ok;
-        false ->
-            ok = rpc(mim(), mongoose_elasticsearch, start, [])
-    end.
-
+end_per_suite(Config) ->
+    Pools = ?config(elastic_pools, Config),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [Pools]).
 
 %%--------------------------------------------------------------------
 %% Test cases
 %%--------------------------------------------------------------------
 
-start_and_stop_sequence(_Config) ->
-    rpc(mim(), mongoose_wpool, start, [elastic, global, default, [], []]),
+start_and_stop_sequence(Config) ->
+    ElasticPools = ?config(elastic_pools, Config),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [ElasticPools]),
     ?assertMatch({ok, _}, rpc(mim(), mongoose_elasticsearch, health, [])),
 
     rpc(mim(), mongoose_wpool, stop, [elastic, global, default]),
     ?assertMatch({error, _}, rpc(mim(), mongoose_elasticsearch, health, [])),
 
-    rpc(mim(), mongoose_wpool, start, [elastic, global, default, [], []]),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [ElasticPools]),
     ?assertMatch({ok, _}, rpc(mim(), mongoose_elasticsearch, health, [])).
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec is_elasticsearch_enabled() -> boolean().
-is_elasticsearch_enabled() ->
-    rpc(mim(), mongoose_wpool, is_configured, [elastic]).
-
+-spec get_elastic_pools() -> list().
+get_elastic_pools() ->
+    Pools = rpc(mim(), mongoose_config, get_opt, [outgoing_pools]),
+    [Pool || Pool = #{type := elastic, scope := global, tag := default} <- Pools].

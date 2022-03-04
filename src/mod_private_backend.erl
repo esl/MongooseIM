@@ -19,7 +19,7 @@
 
 -callback init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts :: list().
+    Opts :: gen_mod:module_opts().
 
 -callback multi_set_data(HostType, LUser, LServer, NS2XML) -> Result when
     HostType :: mongooseim:host_type(),
@@ -58,7 +58,7 @@
 
 -spec init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts :: list().
+    Opts :: gen_mod:module_opts().
 init(HostType, Opts) ->
     TrackedFuns = [multi_get_data, multi_set_data],
     mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),

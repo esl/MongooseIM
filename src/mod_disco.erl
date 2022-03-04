@@ -58,10 +58,10 @@
 -include("mongoose_config_spec.hrl").
 
 -type return_hidden() :: ejabberd_router:return_hidden().
+-type server_info() :: #{name := binary(), urls := [binary()], modules => module()}.
 
--spec start(mongooseim:host_type(), list()) -> 'ok'.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, NS, Component, Handler, #{}, IQDisc) ||
         {Component, NS, Handler} <- iq_handlers()],
     ejabberd_hooks:add(hooks(HostType)).
@@ -95,7 +95,12 @@ config_spec() ->
                  <<"server_info">> => #list{items = server_info_spec()},
                  <<"users_can_see_hidden_services">> => #option{type = boolean},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
-                }
+                },
+       defaults = #{<<"extra_domains">> => [],
+                    <<"server_info">> => [],
+                    <<"users_can_see_hidden_services">> => true,
+                    <<"iqdisc">> => one_queue},
+       format_items = map
       }.
 
 server_info_spec() ->
@@ -107,7 +112,8 @@ server_info_spec() ->
                  <<"modules">> => #list{items = #option{type = atom,
                                                         validate = module}}
                 },
-       required = [<<"name">>, <<"urls">>]
+       required = [<<"name">>, <<"urls">>],
+       format_items = map
       }.
 
 supported_features() -> [dynamic_domains].
@@ -232,15 +238,16 @@ disco_local_features(Acc) ->
 %% @doc Support for: XEP-0157 Contact Addresses for XMPP Services
 -spec disco_info(mongoose_disco:info_acc()) -> mongoose_disco:info_acc().
 disco_info(Acc = #{host_type := HostType, module := Module, node := <<>>}) ->
-    ServerInfoList = gen_mod:get_module_opt(HostType, ?MODULE, server_info, []),
-    Fields = lists:filtermap(fun(Info) -> process_server_info(Module, Info) end, ServerInfoList),
+    ServerInfoList = gen_mod:get_module_opt(HostType, ?MODULE, server_info),
+    Fields = [server_info_to_field(ServerInfo) || ServerInfo <- ServerInfoList,
+                                                  is_module_allowed(Module, ServerInfo)],
     mongoose_disco:add_info([#{xmlns => ?NS_SERVERINFO, fields => Fields}], Acc);
 disco_info(Acc) ->
     Acc.
 
 -spec get_extra_domains(mongooseim:host_type()) -> [jid:lserver()].
 get_extra_domains(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains, []).
+    gen_mod:get_module_opt(HostType, ?MODULE, extra_domains).
 
 %% Internal functions
 
@@ -249,7 +256,7 @@ should_return_hidden(_HostType, #jid{ luser = <<>> } = _From) ->
     %% We respect "is hidden" flag only when a client performs the query
     all;
 should_return_hidden(HostType, _From) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, users_can_see_hidden_services, true) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, users_can_see_hidden_services) of
         true -> all;
         false -> only_public
     end.
@@ -331,15 +338,10 @@ make_iq_result(IQ, NameSpace, Node, ChildrenXML) ->
 make_node_attrs(<<>>) -> [];
 make_node_attrs(Node) -> [{<<"node">>, Node}].
 
-process_server_info(Module, ServerInfo) ->
-    case is_module_allowed(Module, proplists:get_value(modules, ServerInfo, all)) of
-        true ->
-            {true, #{var => proplists:get_value(name, ServerInfo),
-                     values => proplists:get_value(urls, ServerInfo)}};
-        false ->
-            false
-    end.
+-spec server_info_to_field(server_info()) -> mongoose_disco:info_field().
+server_info_to_field(#{name := Name, urls := URLs}) ->
+    #{var => Name, values => URLs}.
 
-is_module_allowed(_Module, all) -> true;
-is_module_allowed(undefined, Modules) -> is_module_allowed(?MODULE, Modules);
-is_module_allowed(Module, Modules) -> lists:member(Module, Modules).
+-spec is_module_allowed(module(), server_info()) -> boolean().
+is_module_allowed(Module, #{modules := Modules}) -> lists:member(Module, Modules);
+is_module_allowed(_Module, #{}) -> true.

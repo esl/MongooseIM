@@ -40,86 +40,41 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: jid:server(), Opts :: list()) -> any().
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
     mnesia:create_table(mam_prefs,
             [{disc_copies, [node()]},
              {attributes, record_info(fields, mam_prefs)}]),
     mnesia:add_table_copy(mam_prefs, node(), disc_copies),
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end.
+    ejabberd_hooks:add(hooks(HostType, Opts)).
 
-
--spec stop(Host :: jid:server()) -> any().
-stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    ejabberd_hooks:delete(hooks(HostType, Opts)).
 
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
 
 %% ----------------------------------------------------------------------
-%% Add hooks for mod_mam
+%% Hooks
 
--spec start_pm(jid:server(), list()) -> 'ok'.
-start_pm(Host, _Opts) ->
-    ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
+hooks(HostType, Opts) ->
+    lists:flatmap(fun(Type) -> hooks(HostType, Type, Opts) end, [pm, muc]).
 
-
--spec stop_pm(jid:server()) -> 'ok'.
-stop_pm(Host) ->
-    ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:delete(mam_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc_muc
-
--spec start_muc(jid:server(), list()) -> 'ok'.
-start_muc(Host, _Opts) ->
-    ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:add(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
--spec stop_muc(jid:server()) -> 'ok'.
-stop_muc(Host) ->
-    ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
-    ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
-    ejabberd_hooks:delete(mam_muc_set_prefs, Host, ?MODULE, set_prefs, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
+hooks(HostType, pm, #{pm := true}) ->
+    [{mam_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
+     {mam_get_prefs, HostType, ?MODULE, get_prefs, 50},
+     {mam_set_prefs, HostType, ?MODULE, set_prefs, 50},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+hooks(HostType, muc, #{muc := true}) ->
+    [{mam_muc_get_behaviour, HostType, ?MODULE, get_behaviour, 50},
+     {mam_muc_get_prefs, HostType, ?MODULE, get_prefs, 50},
+     {mam_muc_set_prefs, HostType, ?MODULE, set_prefs, 50},
+     {mam_muc_remove_archive, HostType, ?MODULE, remove_archive, 50}];
+hooks(_HostType, _Opt, _Opts) ->
+    [].
 
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks

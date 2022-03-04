@@ -54,8 +54,8 @@
          ]).
 
 -import(domain_helper, [host_type/0, domain/0]).
-
 -import(mongoose_helper, [backup_and_set_config_option/3, restore_config_option/2]).
+-import(config_parser_helper, [default_mod_config/1]).
 
 -define(PASSWORD, <<"pa5sw0rd">>).
 -define(SUBJECT, <<"subject">>).
@@ -94,7 +94,7 @@
 
 all() -> [
           {group, disco},
-          {group, disco_non_parallel},
+          {group, disco_with_mam},
           {group, disco_rsm},
           {group, disco_rsm_with_offline},
           {group, moderator},
@@ -136,10 +136,10 @@ groups() ->
                               disco_items,
                               disco_items_nonpublic
                              ]},
-         {disco_non_parallel, [], [
-                                  disco_features_with_mam,
-                                  disco_info_with_mam
-                                 ]},
+         {disco_with_mam, [parallel], [
+                                       disco_features_with_mam,
+                                       disco_info_with_mam
+                                      ]},
          {disco_rsm, [parallel], rsm_cases()},
          {disco_rsm_with_offline, [parallel], rsm_cases_with_offline()},
          {moderator, [parallel], [
@@ -322,7 +322,7 @@ init_per_suite(Config) ->
     mongoose_helper:inject_module(?MODULE),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(host_type(), Config2),
-    dynamic_modules:restart(host_type(), mod_disco, []),
+    dynamic_modules:restart(host_type(), mod_disco, default_mod_config(mod_disco)),
     load_muc(),
     mongoose_helper:ensure_muc_clean(),
     Config3.
@@ -345,12 +345,17 @@ init_per_group(admin, Config) ->
 init_per_group(admin_membersonly, Config) ->
     Config;
 
-init_per_group(G, Config) when G =:= disco;
-                               G =:= disco_non_parallel ->
+init_per_group(G, Config) when G =:= disco ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
-    start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
-        [{persistent, true}]);
+    start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]);
+
+init_per_group(G, Config) when G =:= disco_with_mam ->
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+    Config2 = dynamic_modules:save_modules(host_type(), Config1),
+    setup_mam(mam_helper:backend()),
+    [Alice | _] = ?config(escalus_users, Config2),
+    start_room(Config2, Alice, <<"alicesroom">>, <<"aliceonchat">>, [{persistent, true}]);
 
 init_per_group(disco_rsm, Config) ->
     mongoose_helper:ensure_muc_clean(),
@@ -367,11 +372,11 @@ init_per_group(disco_rsm_with_offline, Config) ->
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
-    PoolOpts = [{strategy, available_worker}, {workers, 5}],
-    HTTPOpts = [{server, "http://localhost:8080"},
-                {path_prefix, "/muc/auth/"}],
+    PoolOpts = #{strategy => available_worker, workers => 5},
+    HTTPOpts = #{server => "http://localhost:8080", path_prefix => "/muc/auth/", request_timeout => 2000},
     [{ok, _}] = ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
-                                             [[{http, global, muc_http_auth_test, PoolOpts, HTTPOpts}]]),
+                                             [[#{type => http, scope => global, tag => muc_http_auth_test,
+                                                 opts => PoolOpts, conn_opts => HTTPOpts}]]),
     case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
@@ -380,17 +385,9 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
     dynamic_modules:ensure_modules(host_type(), required_modules(http_auth)),
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
-    case mam_helper:backend() of
-        rdbms ->
-            dynamic_modules:restart(host_type(), mod_mam_muc_rdbms_arch, [muc]),
-            dynamic_modules:restart(host_type(), mod_mam_rdbms_prefs, [muc]),
-            dynamic_modules:restart(host_type(), mod_mam_rdbms_user, [pm, muc]),
-            HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-            dynamic_modules:restart(host_type(), mod_mam_muc, [{host, HostPattern}]);
-        _ ->
-            ok
-    end,
-    Config;
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    setup_mam(mam_helper:backend()),
+    Config1;
 init_per_group(register_over_s2s, Config) ->
     Config1 = s2s_helper:init_s2s(Config),
     Config2 = s2s_helper:configure_s2s(both_plain, Config1),
@@ -432,10 +429,14 @@ end_per_group(room_registration_race_condition, Config) ->
 end_per_group(admin_membersonly, Config) ->
     Config;
 
-end_per_group(G, Config) when G =:= disco;
-                              G =:= disco_non_parallel ->
+end_per_group(G, Config) when G =:= disco ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
+
+end_per_group(G, Config) when G =:= disco_with_mam ->
+    destroy_room(Config),
+    escalus:delete_users(Config, escalus:get_users([alice, bob])),
+    dynamic_modules:restore_modules(Config);
 
 end_per_group(G, Config) when G =:= disco_rsm_with_offline;
                               G =:= disco_rsm ->
@@ -451,16 +452,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
     dynamic_modules:restore_modules(Config);
 end_per_group(hibernation, Config) ->
-    case mam_helper:backend() of
-        rdbms ->
-    dynamic_modules:stop(host_type(), mod_mam_muc_rdbms_arch),
-    dynamic_modules:stop(host_type(), mod_mam_rdbms_prefs),
-    dynamic_modules:stop(host_type(), mod_mam_rdbms_user),
-            dynamic_modules:stop(host_type(), mod_mam_muc);
-        _ ->
-            ok
-    end,
-    Config;
+    dynamic_modules:restore_modules(Config);
 end_per_group(register_over_s2s, Config) ->
     s2s_helper:end_s2s(Config),
     escalus:delete_users(Config, escalus:get_users([alice2, bob, kate]));
@@ -521,25 +513,26 @@ init_per_testcase(CaseName =reserved_nickname_request, Config) ->
     [Alice | _] = ?config(escalus_users, Config),
     Config1 = start_room(Config, Alice, <<"alicesroom">>, <<"alice">>, []),
     escalus:init_per_testcase(CaseName, Config1);
-init_per_testcase(CN, Config)
-  when CN =:= hibernated_room_can_be_queried_for_archive orelse
-       CN =:= stopped_rooms_history_is_available ->
+init_per_testcase(CN, Config) when CN =:= hibernated_room_can_be_queried_for_archive;
+                                   CN =:= stopped_rooms_history_is_available;
+                                   CN =:= disco_features_with_mam;
+                                   CN =:= disco_info_with_mam ->
     case mam_helper:backend() of
-        rdbms ->
-            escalus:init_per_testcase(CN, Config);
-        _ ->
-            {skip, "MAM works only for RDBMS as of now"}
+        disabled ->
+            {skip, "No MAM backend available"};
+        _Backend ->
+            escalus:init_per_testcase(CN, Config)
     end;
-
-init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
-                                         CaseName =:= disco_info_with_mam ->
-    dynamic_modules:restart(host_type(), mod_mam_muc,
-                          [{backend, rdbms},
-                           {host, subhost_pattern(muc_helper:muc_host_pattern())}]),
-    escalus:init_per_testcase(CaseName, Config);
-
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
+
+setup_mam(disabled) -> ok;
+setup_mam(Backend) ->
+    HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
+    dynamic_modules:ensure_modules(
+      host_type(), [{mod_mam_meta,
+                     mam_helper:config_opts(#{backend => Backend,
+                                              muc => #{host => HostPattern}})}]).
 
 meck_room() ->
     RPCSpec = (mim())#{timeout => timer:seconds(10)}, % it takes long to compile this module
@@ -601,11 +594,6 @@ end_per_testcase(CaseName =registration_request, Config) ->
 
 end_per_testcase(CaseName =reserved_nickname_request, Config) ->
     destroy_room(Config),
-    escalus:end_per_testcase(CaseName, Config);
-
-end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
-                                        CaseName =:= disco_info_with_mam ->
-    dynamic_modules:stop(host_type(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->

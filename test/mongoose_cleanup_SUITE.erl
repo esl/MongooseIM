@@ -106,7 +106,7 @@ auth_anonymous(_Config) ->
 last(_Config) ->
     HostType = host_type(),
     {U, S, R, _JID, SID} = get_fake_session(),
-    mod_last:start(HostType, [{backend, mnesia}, {iqdisc, no_queue}]),
+    mod_last:start(HostType, config_parser_helper:mod_config(mod_last, #{iqdisc => no_queue})),
     not_found = mod_last:get_last_info(HostType, U, S),
     Status1 = <<"status1">>,
     #{} = mod_last:on_presence_update(new_acc(S), U, S, R, Status1),
@@ -124,10 +124,10 @@ stream_management(_Config) ->
     {U, S, R, _JID, SID} = get_fake_session(),
     mod_stream_management:start(HostType, []),
     SMID = <<"123">>,
-    mod_stream_management:register_smid(SMID, SID),
-    {sid, SID} = mod_stream_management:get_sid(SMID),
+    mod_stream_management:register_smid(HostType, SMID, SID),
+    {sid, SID} = mod_stream_management:get_sid(HostType, SMID),
     mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
-    {error, smid_not_found} = mod_stream_management:get_sid(SMID).
+    {error, smid_not_found} = mod_stream_management:get_sid(HostType, SMID).
 
 local(_Config) ->
     ejabberd_local:start_link(),
@@ -157,7 +157,7 @@ s2s(_Config) ->
     [] = ejabberd_s2s:get_connections_pids(FromTo).
 
 bosh(_Config) ->
-    mod_bosh:start(?HOST, []),
+    mod_bosh:start(?HOST, config_parser_helper:default_mod_config(mod_bosh)),
     SID = <<"sid">>,
     Self = self(),
     {error, _} = mod_bosh:get_session_socket(SID),
@@ -196,7 +196,7 @@ setup_meck([mongoose_bin | R]) ->
     meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end),
     setup_meck(R);
 setup_meck([mod_bosh_socket | R]) ->
-    meck:new(mod_bosh_socket),
+    meck:new(mod_bosh_socket, [passthrough]),
     meck:expect(mod_bosh_socket, start_supervisor, fun() -> {ok, self()} end),
     setup_meck(R);
 setup_meck([]) ->

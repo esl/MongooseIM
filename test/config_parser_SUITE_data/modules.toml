@@ -10,10 +10,9 @@
   report_commands_node = true
 
 [modules.mod_auth_token]
-  validity_period = [
-    {token = "access", value = 13, unit = "minutes"},
-    {token = "refresh", value = 13, unit = "days"}
-  ]
+  iqdisc.type = "one_queue"
+  validity_period.access = {value = 13, unit = "minutes"}
+  validity_period.refresh = {value = 13, unit = "days"}
 
 [modules.mod_bosh]
   inactivity = 20
@@ -73,6 +72,8 @@
   backend.rabbit.groupchat_msg_exchange.recv_topic = "groupchat_msg_recv"
 
 [modules.mod_extdisco]
+  iqdisc.type = "one_queue"
+
   [[modules.mod_extdisco.service]]
     type = "stun"
     host = "stun1"
@@ -155,9 +156,9 @@
   archive_chat_markers = true
   full_text_search = true
   pm.user_prefs_store = "rdbms"
-  pm.full_text_search =  false
+  pm.full_text_search = false
   muc.host = "muc.example.com"
-  muc.rdbms_message_format = "simple"
+  muc.db_message_format = "mam_message_xml"
   muc.async_writer.enabled = false
   muc.user_prefs_store = "mnesia"
 

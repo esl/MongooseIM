@@ -84,6 +84,7 @@
 {suites, "tests", service_mongoose_system_metrics_SUITE}.
 {suites, "tests", shared_roster_SUITE}.
 {suites, "tests", sic_SUITE}.
+{suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_SUITE}.
@@ -95,6 +96,7 @@
 {suites, "tests", domain_removal_SUITE}.
 {suites, "tests", mam_send_message_SUITE}.
 {suites, "tests", dynamic_domains_SUITE}.
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.

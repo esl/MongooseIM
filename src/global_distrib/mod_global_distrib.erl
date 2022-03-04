@@ -38,7 +38,7 @@
 %% See "gen_mod logic" block below in this file
 %%--------------------------------------------------------------------
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
@@ -306,7 +306,7 @@ get_bound_connection(Server, GDID, Pid) when is_pid(Pid) ->
 %% gen_mod logic
 %%--------------------------------------------------------------------
 
--spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(Opts) ->
     ConnectionsOpts =
         lists:ukeysort(1, proplists:get_value(connections, Opts, []) ++ default_conn_opts()),

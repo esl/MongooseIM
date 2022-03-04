@@ -500,7 +500,7 @@ make_my_disco_hash(HostType, LServer) ->
             <<>>;
         {result, FeaturesXML} ->
             IdentityXML = mongoose_disco:get_local_identity(HostType, JID, JID, <<>>, <<>>),
-            InfoXML = mongoose_disco:get_info(HostType, undefined, <<>>, <<>>),
+            InfoXML = mongoose_disco:get_info(HostType, mod_disco, <<>>, <<>>),
             make_disco_hash(IdentityXML ++ InfoXML ++ FeaturesXML, sha1)
     end.
 

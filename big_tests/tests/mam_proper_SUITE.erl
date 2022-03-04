@@ -6,6 +6,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(domain_helper, [host_type/0]).
 
 %% Common Test init/teardown functions
 suite() ->
@@ -19,16 +20,21 @@ groups() ->
 
 init_per_suite(C) ->
     application:ensure_all_started(jid),
-    escalus:init_per_suite(C).
+    C1 = dynamic_modules:save_modules(host_type(), C),
+    escalus:init_per_suite(C1).
 
 end_per_suite(C) ->
+    dynamic_modules:restore_modules(C),
     escalus:end_per_suite(C).
 
-init_per_group(_G, C) ->
+init_per_group(G, _C) ->
     case mongoose_helper:is_rdbms_enabled(domain_helper:host_type()) of
-        true -> C;
+        true -> dynamic_modules:ensure_modules(host_type(), required_modules(G));
         false -> {skip, "rdbms not enabled"}
     end.
+
+required_modules(_G) ->
+    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}].
 
 end_per_group(_G, C) ->
     C.

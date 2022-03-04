@@ -53,7 +53,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(host_type(), _) -> ok.
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, _Opts) ->
     start_hooks(HostType),
     register_prepared_queries(),
@@ -93,8 +93,7 @@ stop_hooks(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
 hooks(HostType) ->
-    NoWriter = gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false),
-    case NoWriter of
+    case gen_mod:get_module_opt(HostType, ?MODULE, no_writer) of
         true ->
             [];
         false ->
@@ -199,11 +198,11 @@ column_names(Mappings) ->
 
 -spec db_jid_codec(host_type(), module()) -> module().
 db_jid_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_jid_format, mam_jid_rfc).
+    gen_mod:get_module_opt(HostType, Module, db_jid_format).
 
 -spec db_message_codec(host_type(), module()) -> module().
 db_message_codec(HostType, Module) ->
-    gen_mod:get_module_opt(HostType, Module, db_message_format, mam_message_compressed_eterm).
+    gen_mod:get_module_opt(HostType, Module, db_message_format).
 
 -spec get_retract_id(exml:element(), env_vars()) -> none | mod_mam_utils:retraction_id().
 get_retract_id(Packet, #{has_message_retraction := Enabled}) ->

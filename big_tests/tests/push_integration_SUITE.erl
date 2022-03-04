@@ -129,10 +129,12 @@ init_per_suite(Config) ->
     mongoose_push_mock:start(Config),
     Port = mongoose_push_mock:port(),
 
-    PoolOpts = [{strategy, available_worker}, {workers, 20}],
-    HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
+    PoolOpts = #{strategy => available_worker, workers => 20},
+    HTTPOpts = #{server => "https://localhost:" ++ integer_to_list(Port), path_prefix => "/",
+                 request_timeout => 2000},
     rpc(?RPC_SPEC, mongoose_wpool, start_configured_pools,
-        [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
+        [[#{type => http, scope => global, tag => mongoose_push_http, opts => PoolOpts,
+           conn_opts => HTTPOpts}]]),
     ConfigWithModules = dynamic_modules:save_modules(domain(), Config),
     escalus:init_per_suite(ConfigWithModules).
 
@@ -1022,8 +1024,4 @@ muc_light_opts() ->
      {rooms_in_rosters, true}
     ].
 inbox_opts() ->
-    [{aff_changes, false},
-     {remove_on_kicked, true},
-     {groupchat, [muclight]},
-     {markers, [displayed]}].
-
+    (inbox_helper:inbox_opts())#{aff_changes := false}.

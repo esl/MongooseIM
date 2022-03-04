@@ -19,11 +19,7 @@
 -export([get_personal_data/3]).
 
 %% gen_mod
--export([start/2]).
--export([stop/1]).
--export([supported_features/0]).
--export([deps/2]).
--export([config_spec/0]).
+-export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
 
 -export([process_iq/5,
          user_send_packet/4,
@@ -87,16 +83,14 @@ process_entry(#{remote_jid := RemJID,
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec deps(jid:lserver(), list()) -> gen_mod:deps_list().
+-spec deps(jid:lserver(), list()) -> gen_mod_deps:deps().
 deps(_Host, Opts) ->
-    groupchat_deps(Opts).
+    Groupchats = gen_mod:get_opt(groupchat, Opts),
+    muclight_dep(Groupchats) ++ muc_dep(Groupchats).
 
--spec start(HostType :: mongooseim:host_type(), Opts :: list()) -> ok.
-start(HostType, Opts) ->
-    FullOpts = add_default_backend(Opts),
-    IQDisc = gen_mod:get_opt(iqdisc, FullOpts, no_queue),
-    MucTypes = gen_mod:get_opt(groupchat, FullOpts, [muclight]),
-    mod_inbox_backend:init(HostType, FullOpts),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
+    mod_inbox_backend:init(HostType, Opts),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(HostType),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm,
@@ -105,11 +99,13 @@ start(HostType, Opts) ->
                                              fun mod_inbox_entries:process_iq_conversation/5, #{}, IQDisc),
     ok.
 
-
-
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     mod_inbox_muc:stop(HostType),
+    case mongoose_config:get_opt([{modules, HostType}, mod_inbox, backend]) of
+        rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
+        _ -> ok
+    end,
     ejabberd_hooks:delete(hooks(HostType)),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm).
@@ -122,15 +118,33 @@ supported_features() ->
 config_spec() ->
     Markers = mongoose_chat_markers:chat_marker_names(),
     #section{
-        items = #{<<"reset_markers">> => #list{items = #option{type = binary,
+        items = #{<<"backend">> => #option{type = atom, validate = {enum, [rdbms, rdbms_async]}},
+                  <<"async_writer">> => async_config_spec(),
+                  <<"reset_markers">> => #list{items = #option{type = binary,
                                                                validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
                                                            validate = {enum, [muc, muclight]}}},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
-        }
+        },
+        defaults = #{<<"backend">> => rdbms,
+                     <<"groupchat">> => [muclight],
+                     <<"aff_changes">> => true,
+                     <<"remove_on_kicked">> => true,
+                     <<"reset_markers">> => [<<"displayed">>],
+                     <<"iqdisc">> => no_queue
+                    },
+        format_items = map
     }.
+
+async_config_spec() ->
+    #section{
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       format_items = map,
+       include = always
+      }.
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
@@ -526,12 +540,6 @@ hooks(HostType) ->
      {disco_local_features, HostType, ?MODULE, disco_local_features, 99}
     ].
 
-add_default_backend(Opts) ->
-    case lists:keyfind(backend, 1, Opts) of
-        false -> [{backend, rdbms} | Opts];
-        _ -> Opts
-    end.
-
 get_groupchat_types(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, groupchat, [muclight]).
 
@@ -539,23 +547,15 @@ config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
 
-groupchat_deps(Opts) ->
-    case lists:keyfind(groupchat, 1, Opts) of
-        {groupchat, List} ->
-            muclight_dep(List) ++ muc_dep(List);
-        false ->
-            []
-    end.
-
 muclight_dep(List) ->
     case lists:member(muclight, List) of
-        true -> [{mod_muc_light, hard}];
+        true -> [{mod_muc_light, [], hard}];
         false -> []
     end.
 
 muc_dep(List) ->
     case lists:member(muc, List) of
-        true -> [{mod_muc, hard}];
+        true -> [{mod_muc, [], hard}];
         false -> []
     end.
 

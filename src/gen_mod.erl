@@ -26,22 +26,7 @@
 -module(gen_mod).
 -author('alexey@process-one.net').
 
--type dep_arguments() :: proplists:proplist().
--type deps_list() :: [
-                      {module(), dep_arguments(), gen_mod_deps:hardness()} |
-                      {module(), gen_mod_deps:hardness()} |
-                      {service, mongoose_service:service()}
-                     ].
-
--type module_deps_list() :: [
-                              {module(), dep_arguments(), gen_mod_deps:hardness()} |
-                              {module(), gen_mod_deps:hardness()}
-                             ].
-
--type service_deps_list() :: [atom()].
-
--export_type([deps_list/0,
-              module_opts/0]).
+-export_type([opt_key/0, opt_value/0, module_opts/0]).
 
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
@@ -55,7 +40,7 @@
          get_opt/2,
          get_opt/3,
          get_opt/4,
-         set_opt/3,
+         get_module_opt/3,
          get_module_opt/4,
          get_module_opts/2,
          get_loaded_module_opts/2,
@@ -74,7 +59,7 @@
 
 -export([is_app_running/1]). % we have to mock it in some tests
 
--ignore_xref([behaviour_info/1, loaded_modules_with_opts/0,
+-ignore_xref([loaded_modules_with_opts/0,
               loaded_modules_with_opts/1, hosts_and_opts_with_module/1]).
 
 -include("mongoose.hrl").
@@ -82,14 +67,12 @@
 -type module_feature() :: atom().
 -type domain_name() :: mongooseim:domain_name().
 -type host_type() :: mongooseim:host_type().
--type module_opts() :: list().
+-type key_path() :: mongoose_config:key_path().
+-type opt_key() :: atom().
+-type opt_value() :: mongoose_config:value().
+-type module_opts() :: [{opt_key(), opt_value()}] % deprecated, will be removed
+                     | #{opt_key() => opt_value()}. % recommended
 
-%% -export([behaviour_info/1]).
-%% behaviour_info(callbacks) ->
-%%     [{start, 2},
-%%      {stop, 1}];
-%% behaviour_info(_Other) ->
-%%     undefined.
 -callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
 -callback supported_features() -> [module_feature()].
@@ -106,7 +89,7 @@
 %% TODO: think about getting rid of HostType param for deps/2 interface, currently
 %% it's used only by global_distrib modules (see mod_global_distrib_utils:deps/4
 %% function).
--callback deps(HostType :: host_type(), Opts :: proplists:list()) -> deps_list().
+-callback deps(host_type(), module_opts()) -> gen_mod_deps:deps().
 
 -optional_callbacks([config_spec/0, supported_features/0, deps/2]).
 
@@ -265,6 +248,11 @@ wait_for_stop(MonitorReference) ->
             timeout
     end.
 
+-spec get_opt(opt_key() | key_path(), module_opts()) -> opt_value().
+get_opt(Path, Opts) when is_list(Path), is_map(Opts) ->
+    lists:foldl(fun maps:get/2, Opts, Path);
+get_opt(Opt, Opts) when is_map(Opts) ->
+    maps:get(Opt, Opts);
 get_opt(Opt, Opts) ->
     case lists:keysearch(Opt, 1, Opts) of
         false ->
@@ -273,14 +261,16 @@ get_opt(Opt, Opts) ->
             Val
     end.
 
-get_opt(Opt, Opts, Default) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            Default;
-        {value, {_, Val}} ->
-            Val
+-spec get_opt(opt_key() | key_path(), module_opts(), opt_value()) -> opt_value().
+get_opt(Path, Opts, Default) ->
+    try
+        get_opt(Path, Opts)
+    catch
+        error:{badkey, _} -> Default;
+        throw:{undefined_option, _} -> Default
     end.
 
+%% @deprecated Processing should be done in the config spec
 get_opt(Opt, Opts, F, Default) ->
     case lists:keysearch(Opt, 1, Opts) of
         false ->
@@ -289,16 +279,8 @@ get_opt(Opt, Opts, F, Default) ->
             F(Val)
     end.
 
--spec set_opt(_, [tuple()], _) -> [tuple(), ...].
-set_opt(Opt, Opts, Value) ->
-    lists:keystore(Opt, 1, Opts, {Opt, Value}).
-
-
-%%% TODO Make Opt an atom. Fix in mod_auth_token:
-%%% 374: The call gen_mod:get_module_opt(Domain::any(), 'mod_auth_token',
-%%% {'validity_period','access' | 'refresh'}, {1 | 25,'days' | 'hours'})
-%%% breaks the contract (mongooseim:host_type(), module(), atom(), term()) -> term()
--spec get_module_opt(mongooseim:host_type(), module(), term(), term()) -> term().
+-spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path(), opt_value()) ->
+          opt_value().
 get_module_opt(HostType, Module, Opt, Default) ->
     %% Fail in dev builds.
     %% It protects against passing something weird as a Module argument
@@ -307,10 +289,17 @@ get_module_opt(HostType, Module, Opt, Default) ->
     ModuleOpts = get_module_opts(HostType, Module),
     get_opt(Opt, ModuleOpts, Default).
 
+-spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) -> opt_value().
+get_module_opt(HostType, Module, Opt) ->
+    ?ASSERT_MODULE(Module),
+    ModuleOpts = get_loaded_module_opts(HostType, Module),
+    get_opt(Opt, ModuleOpts).
 
+-spec get_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module], []).
 
+-spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module]).
 
@@ -390,8 +379,7 @@ assert_loaded(HostType, Module) ->
 is_loaded(HostType, Module) ->
     maps:is_key(Module, loaded_modules_with_opts(HostType)).
 
--spec get_deps(HostType :: host_type(), Module :: module(),
-               Opts :: proplists:proplist()) -> module_deps_list().
+-spec get_deps(host_type(), module(), module_opts()) -> gen_mod_deps:module_deps().
 get_deps(HostType, Module, Opts) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
@@ -404,8 +392,7 @@ get_deps(HostType, Module, Opts) ->
             []
     end.
 
--spec get_required_services(host_type(), module(), proplists:proplist()) ->
-    service_deps_list().
+-spec get_required_services(host_type(), module(), module_opts()) -> [mongoose_service:service()].
 get_required_services(HostType, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false

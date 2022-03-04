@@ -2,6 +2,7 @@
 
 # cd to repo
 cd "$(dirname "$0")/../"
+source tools/common-vars.sh
 
 source tools/db-versions.sh
 
@@ -12,12 +13,12 @@ minio_access_key="AKIAIAOAONIULXQGMOUA"
 minio_secret_key="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"
 minio_bucket="mybucket"
 
-docker rm -v -f "${minio_docker_name}" || echo "Skip removing previous container"
+$DOCKER rm -v -f "${minio_docker_name}" || echo "Skip removing previous container"
 
 IMAGE="minio/minio:$MINIO_VERSION"
 MC_IMAGE="minio/mc:$MINIO_MC_VERSION"
 
-docker run -d -p 9000:9000 \
+$DOCKER run -d -p 9000:9000 \
     --name "${minio_docker_name}" \
     -e "MINIO_ACCESS_KEY=${minio_access_key}" \
     -e "MINIO_SECRET_KEY=${minio_secret_key}" \
@@ -37,4 +38,4 @@ EOF
 
 # The config script in ${mc_cmd} needs to be run in `minio/mc` container
 # because `minio/server` container doesn't have the `mc` command.
-docker run --rm --entrypoint sh $MC_IMAGE -c "${mc_cmd}"
+$DOCKER run --rm --entrypoint sh $MC_IMAGE -c "${mc_cmd}"

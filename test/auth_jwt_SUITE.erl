@@ -45,10 +45,14 @@ suite() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(jid),
+    meck:new(ejabberd_auth, [no_link, passthrough]),
+    meck:expect(ejabberd_auth, auth_modules_for_host_type,
+                fun(_) -> [] end),
     Config.
 
 end_per_suite(Config) ->
     unset_auth_opts(),
+    meck:unload(ejabberd_auth),
     Config.
 
 init_per_group(public_key, Config) ->
@@ -92,7 +96,7 @@ check_password_fails_for_correct_token_but_wrong_username(_C) ->
                                              generate_token(hs256, 0, ?JWT_KEY)).
 
 authorize(_C) ->
-    Creds0 = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE),
+    Creds0 = mongoose_credentials:new(?DOMAIN, ?HOST_TYPE, #{}),
     Creds = mongoose_credentials:extend(Creds0, [{username, ?USERNAME},
                                                  {password, generate_token(hs256, 0, ?JWT_KEY)},
                                                  {digest, fake},

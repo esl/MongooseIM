@@ -118,16 +118,15 @@ get_roster(ConfigIn) ->
         ],
     Config = mongoose_metrics(ConfigIn, Metrics),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,_Bob) ->
         escalus_client:send(Alice, escalus_stanza:roster_get()),
         escalus_client:wait_for_stanza(Alice)
-
         end).
 
 add_contact(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1}]),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
         escalus_client:send(Alice,
@@ -144,7 +143,7 @@ roster_push(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modRosterSets], 1},
                                          {['_', modRosterPush], 2}]),
 
-    escalus:story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
+    escalus:fresh_story(Config, [{alice, 2}, {bob, 1}], fun(Alice1, Alice2, Bob) ->
 
         %% add contact
         escalus_client:send(Alice1,
@@ -164,7 +163,7 @@ roster_push(ConfigIn) ->
 subscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceSubscriptions], 1}]),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
 
@@ -203,7 +202,7 @@ subscribe(ConfigIn) ->
 decline_subscription(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
 
@@ -230,7 +229,7 @@ decline_subscription(ConfigIn) ->
 unsubscribe(ConfigIn) ->
     Config = mongoose_metrics(ConfigIn, [{['_', modPresenceUnsubscriptions], 1}]),
 
-    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_client:short_jid(Bob),
         AliceJid = escalus_client:short_jid(Alice),
 

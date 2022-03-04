@@ -3,15 +3,15 @@
 -include("mongoose.hrl").
 
 %% API
--export([start/0, stop/0]).
+-export([start/0, stop/0, unfold_opts/1]).
 
 %% Module management utilities for tests
 -export([replace_modules/3, ensure_stopped/2, ensure_started/3]).
 -ignore_xref([replace_modules/3, ensure_stopped/2, ensure_started/3]).
 
 -type module_opts() :: gen_mod:module_opts().
--type module_map() :: #{module() => gen_mod:module_opts()}.
--type module_list() :: [{module(), gen_mod:module_opts()}].
+-type module_map() :: gen_mod_deps:module_map().
+-type module_list() :: gen_mod_deps:module_list().
 
 %% @doc Start all configured modules in the dependency order.
 -spec start() -> 'ok'.
@@ -68,7 +68,7 @@ ensure_stopped(HostType, Module) ->
 -spec ensure_started(mongooseim:host_type(), module(), module_opts()) ->
           already_started | {started, term()} | {restarted, module_opts(), term()}.
 ensure_started(HostType, Module, RawOpts) ->
-    Opts = proplists:unfold(RawOpts),
+    Opts = unfold_opts(RawOpts),
     Modules = get_modules(HostType),
     case maps:find(Module, Modules) of
         error ->
@@ -81,6 +81,10 @@ ensure_started(HostType, Module, RawOpts) ->
             {ok, Result} = start_module(HostType, Module, Opts, Modules),
             {restarted, PrevOpts, Result}
     end.
+
+-spec unfold_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
+unfold_opts(Opts) when is_map(Opts) -> Opts;
+unfold_opts(Opts) -> proplists:unfold(Opts).
 
 %% Helpers
 

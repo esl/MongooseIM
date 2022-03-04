@@ -53,8 +53,6 @@ containers:
   - &ldap_container
     image: osixia/openldap:__LDAP_VERSION__
     environment:
-      - SQL_TEMP_DIR: /tmp/sql
-      - POSTGRES_PASSWORD: password
       - LDAP_DOMAIN: "esl.com"
       - LDAP_ADMIN_PASSWORD: "mongooseim_secret"
       - LDAP_ORGANISATION: "Erlang Solutions"

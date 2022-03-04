@@ -33,6 +33,8 @@
 
 {suites, "tests", dynamic_domains_SUITE}.
 
+{suites, "tests", extdisco_SUITE}.
+
 {suites, "tests", gdpr_SUITE}.
 {skip_groups, "tests", gdpr_SUITE,
  [retrieve_personal_data_pubsub,
@@ -130,6 +132,7 @@
 
 {suites, "tests", sic_SUITE}.
 
+{suites, "tests", smart_markers_SUITE}.
 {suites, "tests", sm_SUITE}.
 {suites, "tests", users_api_SUITE}.
 {suites, "tests", vcard_SUITE}.
@@ -138,6 +141,7 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 
 {suites, "tests", domain_removal_SUITE}.
+{suites, "tests", auth_methods_for_c2s_SUITE}.
 
 {config, ["dynamic_domains.config", "test.config"]}.
 

@@ -170,6 +170,9 @@
   {{#c2s_dhfile}}
   tls.dhfile = {{{c2s_dhfile}}}
   {{/c2s_dhfile}}
+  {{#allowed_auth_methods}}
+  allowed_auth_methods = [{{{allowed_auth_methods}}}]
+  {{/allowed_auth_methods}}
 {{#secondary_c2s}}
 
 {{{secondary_c2s}}}

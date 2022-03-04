@@ -34,6 +34,9 @@
         end).
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
+-import(config_parser_helper, [merge_with_default_pool_config/1, default_s2s/0,
+                               mod_config/2, default_mod_config/1,
+                               config/2, default_config/1]).
 
 -type key_prefix() :: top_level_key_prefix() | key_path_prefix().
 -type top_level_key_prefix() :: atom().
@@ -163,7 +166,6 @@ groups() ->
                          pool_cassandra_keyspace,
                          pool_cassandra_auth,
                          pool_cassandra_tls,
-                         pool_ldap_host,
                          pool_ldap_port,
                          pool_ldap_servers,
                          pool_ldap_encrypt,
@@ -176,7 +178,8 @@ groups() ->
                                       acl_merge_host_and_global,
                                       access,
                                       access_merge_host_and_global]},
-     {s2s, [parallel], [s2s_dns_timeout,
+     {s2s, [parallel], [s2s_host_config,
+                        s2s_dns_timeout,
                         s2s_dns_retries,
                         s2s_outgoing_port,
                         s2s_outgoing_ip_versions,
@@ -218,6 +221,7 @@ groups() ->
                             mod_keystore_keys,
                             mod_last,
                             mod_mam_meta,
+                            mod_mam_meta_riak,
                             mod_mam_meta_pm,
                             mod_mam_meta_muc,
                             mod_muc,
@@ -1035,45 +1039,41 @@ auth_dummy(_Config) ->
 %% tests: outgoing_pools
 
 pool_type(_Config) ->
-    ?cfg(pool_config({http, global, default, [], []}),
+    ?cfg(pool_config(#{type => http}),
          pool_raw(<<"http">>, <<"default">>, #{})),
     ?err(pool_raw(<<"swimming_pool">>, <<"default">>, #{})).
 
 pool_tag(_Config) ->
-    ?cfg(pool_config({http, global, my_pool, [], []}),
+    ?cfg(pool_config(#{type => http, tag => my_pool}),
          pool_raw(<<"http">>, <<"my_pool">>, #{})),
     ?err(pool_raw(<<"http">>, 1000, #{})).
 
 pool_scope(_Config) ->
-    ?cfg(pool_config({http, global, default, [], []}),
-         pool_raw(<<"http">>, <<"default">>, #{})),
-    ?cfg(pool_config({http, global, default, [], []}),
-         pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"global">>})),
-    ?cfg(pool_config({http, host, default, [], []}),
+    ?cfg(pool_config(#{type => http, scope => host}),
          pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"host">>})),
-    ?cfg(pool_config({http, <<"localhost">>, default, [], []}),
+    ?cfg(pool_config(#{type => http, scope => <<"localhost">>}),
          pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>,
                                                <<"host">> => <<"localhost">>})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"whatever">>})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"scope">> => <<"single_host">>})).
 
 pool_workers(_Config) ->
-    ?cfg(pool_config({http, global, default, [{workers, 10}], []}),
-         pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 10})),
+    ?cfg(pool_config(#{type => http, opts => #{workers => 11}}),
+         pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 11})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"workers">> => 0})).
 
 pool_strategy(_Config) ->
-    ?cfg(pool_config({http, global, default, [{strategy, best_worker}], []}),
-         pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"best_worker">>})),
+    ?cfg(pool_config(#{type => http, opts => #{strategy => random_worker}}),
+         pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"random_worker">>})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"strategy">> => <<"worst_worker">>})).
 
 pool_call_timeout(_Config) ->
-    ?cfg(pool_config({http, global, default, [{call_timeout, 5000}], []}),
-         pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 5000})),
+    ?cfg(pool_config(#{type => http, opts => #{call_timeout => 999}}),
+         pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 999})),
     ?err(pool_raw(<<"http">>, <<"default">>, #{<<"call_timeout">> => 0})).
 
 pool_rdbms_settings(_Config) ->
-    ?cfg(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"}]}),
+    ?cfg(pool_config(#{type => rdbms, conn_opts => #{server => "DSN=mydb"}}),
          pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
                                       <<"settings">> => <<"DSN=mydb">>})),
     ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"mysql">>,
@@ -1083,8 +1083,8 @@ pool_rdbms_settings(_Config) ->
     ?err(pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>})).
 
 pool_rdbms_keepalive_interval(_Config) ->
-    ?cfg(pool_config({rdbms, global, default, [], [{server, "DSN=mydb"},
-                                                   {keepalive_interval, 1000}]}),
+    ?cfg(pool_config(#{type => rdbms, conn_opts => #{server => "DSN=mydb",
+                                                     keepalive_interval => 1000}}),
          pool_conn_raw(<<"rdbms">>, #{<<"driver">> => <<"odbc">>,
                                       <<"settings">> => <<"DSN=mydb">>,
                                       <<"keepalive_interval">> => 1000})),
@@ -1094,8 +1094,8 @@ pool_rdbms_keepalive_interval(_Config) ->
 
 pool_rdbms_server(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", "db", "dbuser", "secret"}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret"}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts)),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> := <<"odbc">>})),
     [?err(pool_conn_raw(<<"rdbms">>, maps:without([K], ServerOpts))) ||
@@ -1105,35 +1105,35 @@ pool_rdbms_server(_Config) ->
 
 pool_rdbms_port(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", 1234, "db", "dbuser", "secret"}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => 1234})),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"port">> => <<"airport">>})).
 
 pool_rdbms_tls(_Config) ->
     ServerOpts = rdbms_opts(),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                 [{ssl, required}]}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                                 [{ssl, required}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{<<"required">> => true}})),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                 [{ssl, true}]}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                                 [{ssl, true}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{}})),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {mysql, "localhost", "db", "dbuser", "secret", []}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {mysql, "localhost", "db", "dbuser", "secret", []}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"driver">> => <<"mysql">>,
                                                 <<"tls">> => #{}})),
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", 1234, "db", "dbuser", "secret",
-                                 [{ssl, true}]}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", 1234, "db", "dbuser", "secret",
+                                                 [{ssl, true}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => #{},
                                                 <<"port">> => 1234})),
 
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config({rdbms, global, default, [],
-                      [{server, {pgsql, "localhost", "db", "dbuser", "secret",
-                                 [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}]}),
+    ?cfg(pool_config(#{type => rdbms,
+                       conn_opts => #{server => {pgsql, "localhost", "db", "dbuser", "secret",
+                                                 [{ssl, true}, {ssl_opts, [{certfile, "cert.pem"}]}]}}}),
          pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
                                                     #{<<"certfile">> => <<"cert.pem">>}})),
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> =>
@@ -1141,57 +1141,61 @@ pool_rdbms_tls(_Config) ->
     ?err(pool_conn_raw(<<"rdbms">>, ServerOpts#{<<"tls">> => <<"secure">>})).
 
 pool_http_host(_Config) ->
-    ?cfg(pool_config({http, global, default, [], [{server, "https://localhost:8443"}]}),
+    ?cfg(pool_config(#{type => http, conn_opts => #{server => "https://localhost:8443"}}),
          pool_conn_raw(<<"http">>, #{<<"host">> => <<"https://localhost:8443">>})),
     ?err(pool_conn_raw(<<"http">>, #{<<"host">> => 8443})),
     ?err(pool_conn_raw(<<"http">>, #{<<"host">> => ""})).
 
 pool_http_path_prefix(_Config) ->
-    ?cfg(pool_config({http, global, default, [], [{path_prefix, "/"}]}),
-         pool_conn_raw(<<"http">>, #{<<"path_prefix">> => <<"/">>})),
+    ?cfg(pool_config(#{type => http, conn_opts => #{path_prefix => "/my_path/"}}),
+         pool_conn_raw(<<"http">>, #{<<"path_prefix">> => <<"/my_path/">>})),
     ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => 8443})),
     ?err(pool_conn_raw(<<"http">>, #{<<"path_prefix">> => ""})).
 
 pool_http_request_timeout(_Config) ->
-    ?cfg(pool_config({http, global, default, [], [{request_timeout, 2000}]}),
-         pool_conn_raw(<<"http">>, #{<<"request_timeout">> => 2000})),
+    ?cfg(pool_config(#{type => http, conn_opts => #{request_timeout => 999}}),
+         pool_conn_raw(<<"http">>, #{<<"request_timeout">> => 999})),
     ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => -1000})),
     ?err(pool_conn_raw(<<"http">>, #{<<"request_timeout">> => <<"infinity">>})).
 
 pool_http_tls(_Config) ->
-    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"} ]}]}),
+    ?cfg(pool_config(#{type => http, conn_opts => #{http_opts => [{certfile, "cert.pem"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>}})),
-    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"},
-                                                               {verify, verify_peer},
-                                                               {cacertfile, "priv/ca.pem"},
-                                                               {server_name_indication, disable}]}]}),
+    ?cfg(pool_config(#{type => http,
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, disable}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => false}})),
-    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"},
-                                                               {verify, verify_peer},
-                                                               {cacertfile, "priv/ca.pem"},
-                                                               {server_name_indication, "domain.com"}]}]}),
+    ?cfg(pool_config(#{type => http,
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, "domain.com"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => true,
                                                     <<"server_name_indication_host">> => <<"domain.com">>}})),
-    ?cfg(pool_config({http, global, default, [], [{http_opts, [{certfile, "cert.pem"},
-                                                               {verify, verify_peer},
-                                                               {cacertfile, "priv/ca.pem"},
-                                                               {server_name_indication, "domain.com"},
-                                                               {customize_hostname_check,
-                                                                [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}]}]}),
+    ?cfg(pool_config(#{type => http,
+                       conn_opts => #{http_opts => [{certfile, "cert.pem"},
+                                                    {verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"},
+                                                    {server_name_indication, "domain.com"},
+                                                    {customize_hostname_check,
+                                                     [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"certfile">> => <<"cert.pem">>,
                                                     <<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>,
                                                     <<"server_name_indication">> => true,
                                                     <<"server_name_indication_host">> => <<"domain.com">>,
                                                     <<"server_name_indication_protocol">> => <<"https">>}})),
-    ?cfg(pool_config({http, global, default, [], [{http_opts, [{verify, verify_peer},
-                                                               {cacertfile, "priv/ca.pem"}]}]}),
+    ?cfg(pool_config(#{type => http,
+                       conn_opts => #{http_opts => [{verify, verify_peer},
+                                                    {cacertfile, "priv/ca.pem"}]}}),
          pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
                                                     <<"cacertfile">> => <<"priv/ca.pem">>}})),
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => #{<<"verify_peer">> => true,
@@ -1207,44 +1211,42 @@ pool_http_tls(_Config) ->
     ?err(pool_conn_raw(<<"http">>, #{<<"tls">> => <<"secure">>})).
 
 pool_redis_host(_Config) ->
-    ?cfg(pool_config({redis, global, default, [], [{host, "localhost"}]}),
-         pool_conn_raw(<<"redis">>, #{<<"host">> => <<"localhost">>})),
+    ?cfg(pool_config(#{type => redis, conn_opts => #{host => "my_host"}}),
+         pool_conn_raw(<<"redis">>, #{<<"host">> => <<"my_host">>})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => 8443})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"host">> => ""})).
 
 pool_redis_port(_Config) ->
-    ?cfg(pool_config({redis, global, default, [], [{port, 6379}]}),
-         pool_conn_raw(<<"redis">>, #{<<"port">> => 6379})),
+    ?cfg(pool_config(#{type => redis, conn_opts => #{port => 9999}}),
+         pool_conn_raw(<<"redis">>, #{<<"port">> => 9999})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => 666666})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"port">> => <<"airport">>})).
 
 pool_redis_database(_Config) ->
-    ?cfg(pool_config({redis, global, default, [], [{database, 0}]}),
-         pool_conn_raw(<<"redis">>, #{<<"database">> => 0})),
+    ?cfg(pool_config(#{type => redis, conn_opts => #{database => 1}}),
+         pool_conn_raw(<<"redis">>, #{<<"database">> => 1})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => -1})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"database">> => <<"my_database">>})).
 
 pool_redis_password(_Config) ->
-    ?cfg(pool_config({redis, global, default, [], [{password, ""}]}),
-         pool_conn_raw(<<"redis">>, #{<<"password">> => <<"">>})),
-    ?cfg(pool_config({redis, global, default, [], [{password, "password1"}]}),
+    ?cfg(pool_config(#{type => redis, conn_opts => #{password => "password1"}}),
          pool_conn_raw(<<"redis">>, #{<<"password">> => <<"password1">>})),
     ?err(pool_conn_raw(<<"redis">>, #{<<"password">> => 0})).
 
 pool_riak_address(_Config) ->
-    ?cfg(pool_config({riak, global, default, [], [{address, "127.0.0.1"}]}),
+    ?cfg(pool_config(#{type => riak, conn_opts => #{address => "127.0.0.1"}}),
          pool_conn_raw(<<"riak">>, #{<<"address">> => <<"127.0.0.1">>})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => 66})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"address">> => <<"">>})).
 
 pool_riak_port(_Config) ->
-    ?cfg(pool_config({riak, global, default, [], [{port, 8087}]}),
+    ?cfg(pool_config(#{type => riak, conn_opts => #{port => 8087}}),
          pool_conn_raw(<<"riak">>, #{<<"port">> => 8087})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => 666666})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"port">> => <<"airport">>})).
 
 pool_riak_credentials(_Config) ->
-    ?cfg(pool_config({riak, global, default, [], [{credentials, "user", "pass"}]}),
+    ?cfg(pool_config(#{type => riak, conn_opts => #{credentials => {"user", "pass"}}}),
          pool_conn_raw(<<"riak">>, #{<<"credentials">> =>
                                          #{<<"user">> => <<"user">>, <<"password">> => <<"pass">>}})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"credentials">> => #{<<"user">> => <<"user">>}})),
@@ -1252,16 +1254,17 @@ pool_riak_credentials(_Config) ->
                                          #{<<"user">> => <<"">>, <<"password">> => 011001}})).
 
 pool_riak_cacertfile(_Config) ->
-    ?cfg(pool_config({riak, global, default, [], [{cacertfile, "cacert.pem"}]}),
+    ?cfg(pool_config(#{type => riak, conn_opts => #{cacertfile => "cacert.pem"}}),
          pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"cacertfile">> => <<"cacert.pem">>}})),
     ?err(pool_conn_raw(<<"riak">>, #{<<"cacertfile">> => <<"">>})).
 
 pool_riak_tls(_Config) ->
     %% make sure these options are not extracted out of 'ssl_opts'
     %% all the TLS options are checked by 'listen_tls_*' tests
-    ?cfg(pool_config({riak, global, default, [], [{ssl_opts, [{certfile, "path/to/cert.pem"},
-                                                              {dhfile, "cert.pem"},
-                                                              {keyfile, "path/to/key.pem"}]}]}),
+    ?cfg(pool_config(#{type => riak,
+                       conn_opts => #{ssl_opts => [{certfile, "path/to/cert.pem"},
+                                                   {dhfile, "cert.pem"},
+                                                   {keyfile, "path/to/key.pem"}]}}),
          pool_conn_raw(<<"riak">>, #{<<"tls">> => #{<<"certfile">> => <<"path/to/cert.pem">>,
                                                     <<"dhfile">> => <<"cert.pem">>,
                                                     <<"keyfile">> => <<"path/to/key.pem">>}})),
@@ -1269,9 +1272,9 @@ pool_riak_tls(_Config) ->
     ?err(pool_conn_raw(<<"riak">>, #{<<"tls">> => <<"secure">>})).
 
 pool_cassandra_servers(_Config) ->
-    ?cfg(pool_config({cassandra, global, default, [],
-                      [{servers, [{"cassandra_server1.example.com", 9042},
-                                  {"cassandra_server2.example.com", 9042}]}]}),
+    ?cfg(pool_config(#{type => cassandra,
+                       conn_opts => #{servers => [{"cassandra_server1.example.com", 9042},
+                                                  {"cassandra_server2.example.com", 9042}]}}),
          pool_conn_raw(<<"cassandra">>,
                        #{<<"servers">> => [#{<<"ip_address">> => <<"cassandra_server1.example.com">>,
                                              <<"port">> => 9042},
@@ -1282,14 +1285,14 @@ pool_cassandra_servers(_Config) ->
                                             <<"port">> => 9042}})).
 
 pool_cassandra_keyspace(_Config) ->
-    ?cfg(pool_config({cassandra, global, default, [], [{keyspace, "big_mongooseim"}]}),
+    ?cfg(pool_config(#{type => cassandra, conn_opts => #{keyspace => big_mongooseim}}),
          pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"big_mongooseim">>})),
     ?err(pool_conn_raw(<<"cassandra">>, #{<<"keyspace">> => <<"">>})).
 
 pool_cassandra_auth(_Config) ->
-    ?cfg(pool_config({cassandra, global, default, [], [{auth, {cqerl_auth_plain_handler,
-                                                               [{<<"auser">>, <<"secretpass">>}]
-                                                              }}]}),
+    ?cfg(pool_config(#{type => cassandra,
+                       conn_opts => #{auth => {cqerl_auth_plain_handler,
+                                               [{<<"auser">>, <<"secretpass">>}]}}}),
          pool_conn_raw(<<"cassandra">>,
                        #{<<"auth">> => #{<<"plain">> => #{<<"username">> => <<"auser">>,
                                                           <<"password">> => <<"secretpass">>}}})),
@@ -1297,92 +1300,87 @@ pool_cassandra_auth(_Config) ->
 
 pool_cassandra_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config({cassandra, global, default, [], [{ssl, [{verify, verify_none}]}]}),
+    ?cfg(pool_config(#{type => cassandra, conn_opts => #{ssl => [{verify, verify_none}]}}),
          pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify_peer">> => false}})),
     ?err(pool_conn_raw(<<"cassandra">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
 pool_elastic_host(_Config) ->
-    ?cfg(pool_config({elastic, global, default, [], [{host, "localhost"}]}),
-         pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"localhost">>})),
+    ?cfg(pool_config(#{type => elastic, conn_opts => #{host => "my_host"}}),
+         pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"my_host">>})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"host">> => <<"">>})).
 
 pool_elastic_port(_Config) ->
-    ?cfg(pool_config({elastic, global, default, [], [{port, 9200}]}),
-         pool_conn_raw(<<"elastic">>, #{<<"port">> => 9200})),
+    ?cfg(pool_config(#{type => elastic, conn_opts => #{port => 9999}}),
+         pool_conn_raw(<<"elastic">>, #{<<"port">> => 9999})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => 122333})),
     ?err(pool_conn_raw(<<"elastic">>, #{<<"port">> => <<"airport">>})).
 
 pool_rabbit_amqp_host(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{amqp_host, "localhost"}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{amqp_host => "localhost"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"localhost">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_host">> => <<"">>})).
 
 pool_rabbit_amqp_port(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{amqp_port, 5672}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{amqp_port => 5672}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => 5672})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_port">> => <<"airport">>})).
 
 pool_rabbit_amqp_username(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{amqp_username, "guest"}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{amqp_username => "guest"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"guest">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_username">> => <<"">>})).
 
 pool_rabbit_amqp_password(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{amqp_password, "guest"}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{amqp_password => "guest"}}),
          pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"guest">>})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"amqp_password">> => <<"">>})).
 
 pool_rabbit_amqp_confirms_enabled(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{confirms_enabled, true}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{confirms_enabled => true}}),
          pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => true})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"confirms_enabled">> => <<"yes">>})).
 
 pool_rabbit_amqp_max_worker_queue_len(_Config) ->
-    ?cfg(pool_config({rabbit, global, default, [], [{max_worker_queue_len, 100}]}),
+    ?cfg(pool_config(#{type => rabbit, conn_opts => #{max_worker_queue_len => 100}}),
          pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 100})),
     ?err(pool_conn_raw(<<"rabbit">>, #{<<"max_worker_queue_len">> => 0})).
 
-pool_ldap_host(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{host, "localhost"}]}),
-         pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"localhost">>})),
-    ?err(pool_conn_raw(<<"ldap">>, #{<<"host">> => <<"">>})).
-
 pool_ldap_port(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{port, 389}]}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{port => 389}}),
          pool_conn_raw(<<"ldap">>, #{<<"port">> => 389})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"port">> => <<"airport">>})).
 
 pool_ldap_servers(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [],
-                      [{servers, ["primary-ldap-server.example.com",
-                                  "secondary-ldap-server.example.com"]}]}),
+    ?cfg(pool_config(#{type => ldap,
+                       conn_opts => #{servers => ["primary-ldap-server.example.com",
+                                                  "secondary-ldap-server.example.com"]}}),
          pool_conn_raw(<<"ldap">>, #{<<"servers">> => [<<"primary-ldap-server.example.com">>,
                                                        <<"secondary-ldap-server.example.com">>]})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"servers">> => #{<<"server">> => <<"example.com">>}})).
 
 pool_ldap_encrypt(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{encrypt, none}]}),
-         pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => <<"none">>})),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{encrypt => tls}}),
+         pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => <<"tls">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"encrypt">> => true})).
 
 pool_ldap_rootdn(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{rootdn, ""}]}),
-         pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"">>})),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{rootdn => "my_rootdn"}}),
+         pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => <<"my_rootdn">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"rootdn">> => false})).
 
 pool_ldap_password(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{password, "pass"}]}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{password => "pass"}}),
          pool_conn_raw(<<"ldap">>, #{<<"password">> => <<"pass">>})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"password">> => true})).
 
 pool_ldap_connect_interval(_Config) ->
-    ?cfg(pool_config({ldap, global, default, [], [{connect_interval, 10000}]}),
-         pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => 10000})),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{connect_interval => 9999}}),
+         pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => 9999})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"connect_interval">> => <<"infinity">>})).
 
 pool_ldap_tls(_Config) ->
     %% one option tested here as they are all checked by 'listen_tls_*' tests
-    ?cfg(pool_config({ldap, global, default, [], [{tls_options, [{verify, verify_peer}]}]}),
+    ?cfg(pool_config(#{type => ldap, conn_opts => #{tls_options => [{verify, verify_peer}]}}),
          pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify_peer">> => true}})),
     ?err(pool_conn_raw(<<"ldap">>, #{<<"tls">> => #{<<"verify">> => <<"verify_none">>}})).
 
@@ -1472,55 +1470,67 @@ access_merge_host_and_global(_Config) ->
 
 %% tests: s2s
 
+s2s_host_config(_Config) ->
+    DefaultS2S = default_s2s(),
+    EmptyHostConfig = host_config(#{<<"s2s">> => #{}}),
+    ?cfg(host_key(s2s), DefaultS2S,
+         EmptyHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
+    StartTLSHostConfig = host_config(#{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
+    ?cfg(host_key(s2s), DefaultS2S#{use_starttls => required},
+         StartTLSHostConfig#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}).
+
 s2s_dns_timeout(_Config) ->
-    ?cfg([s2s_dns, timeout], 10, #{}), % default
-    ?cfg([s2s_dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
-    ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
+    ?cfgh([s2s, dns, timeout], 10, #{}), % default
+    ?cfgh([s2s, dns, timeout], 5, #{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 5}}}),
+    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"timeout">> => 0}}}).
 
 s2s_dns_retries(_Config) ->
-    ?cfg([s2s_dns, retries], 2, #{}), % default
-    ?cfg([s2s_dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
-    ?err(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
+    ?cfgh([s2s, dns, retries], 2, #{}), % default
+    ?cfgh([s2s, dns, retries], 1, #{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 1}}}),
+    ?errh(#{<<"s2s">> => #{<<"dns">> => #{<<"retries">> => 0}}}).
 
 s2s_outgoing_port(_Config) ->
-    ?cfg([s2s_outgoing, port], 5269, #{}), % default
-    ?cfg([s2s_outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
+    ?cfgh([s2s, outgoing, port], 5269, #{}), % default
+    ?cfgh([s2s, outgoing, port], 5270, #{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => 5270}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"port">> => <<"http">>}}}).
 
 s2s_outgoing_ip_versions(_Config) ->
-    ?cfg([s2s_outgoing, ip_versions], [4, 6], #{}), % default
-    ?cfg([s2s_outgoing, ip_versions], [6, 4],
+    ?cfgh([s2s, outgoing, ip_versions], [4, 6], #{}), % default
+    ?cfgh([s2s, outgoing, ip_versions], [6, 4],
          #{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [6, 4]}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => []}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"ip_versions">> => [<<"http">>]}}}).
 
 s2s_outgoing_timeout(_Config) ->
-    ?cfg([s2s_outgoing, connection_timeout], 10000, #{}), % default
-    ?cfg([s2s_outgoing, connection_timeout], 5000,
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
-    ?cfg([s2s_outgoing, connection_timeout], infinity,
-         #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
-    ?err(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
+    ?cfgh([s2s, outgoing, connection_timeout], 10000, #{}), % default
+    ?cfgh([s2s, outgoing, connection_timeout], 5000,
+          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 5000}}}),
+    ?cfgh([s2s, outgoing, connection_timeout], infinity,
+          #{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => <<"infinity">>}}}),
+    ?errh(#{<<"s2s">> => #{<<"outgoing">> => #{<<"connection_timeout">> => 0}}}).
 
 s2s_use_starttls(_Config) ->
-    ?cfg(s2s_use_starttls, required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
-    ?err(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
+    ?cfgh([s2s, use_starttls], false, #{}), % default
+    ?cfgh([s2s, use_starttls], required, #{<<"s2s">> => #{<<"use_starttls">> => <<"required">>}}),
+    ?errh(#{<<"s2s">> => #{<<"use_starttls">> => <<"unnecessary">>}}).
 
 s2s_certfile(_Config) ->
-    ?cfg(s2s_certfile, "cert.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"cert.pem">>}}),
-    ?err(#{<<"s2s">> => #{<<"certfile">> => []}}).
+    ?cfgh([s2s, certfile], "priv/server.pem",  #{<<"s2s">> => #{<<"certfile">> => <<"priv/server.pem">>}}),
+    ?errh([#{reason := invalid_filename}], #{<<"s2s">> => #{<<"certfile">> => <<"nofile.pem">>}}),
+    ?errh(#{<<"s2s">> => #{<<"certfile">> => []}}).
 
 s2s_default_policy(_Config) ->
-    ?cfgh(s2s_default_policy, deny, #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
+    ?cfgh([s2s, default_policy], allow, #{}), % default
+    ?cfgh([s2s, default_policy], deny, #{<<"s2s">> => #{<<"default_policy">> => <<"deny">>}}),
     ?errh(#{<<"s2s">> => #{<<"default_policy">> => <<"ask">>}}).
 
 s2s_host_policy(_Config) ->
     Policy = #{<<"host">> => <<"host1">>,
                <<"policy">> => <<"allow">>},
-    ?cfgh(s2s_host_policy, #{<<"host1">> => allow},
+    ?cfgh([s2s, host_policy], #{<<"host1">> => allow},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy]}}),
-    ?cfgh(s2s_host_policy, #{<<"host1">> => allow,
-                             <<"host2">> => deny},
+    ?cfgh([s2s, host_policy], #{<<"host1">> => allow,
+                                <<"host2">> => deny},
           #{<<"s2s">> => #{<<"host_policy">> => [Policy, #{<<"host">> => <<"host2">>,
                                                            <<"policy">> => <<"deny">>}]}}),
     ?errh(#{<<"s2s">> => #{<<"host_policy">> => [maps:without([<<"host">>], Policy)]}}),
@@ -1534,76 +1544,82 @@ s2s_address(_Config) ->
     Addr = #{<<"host">> => <<"host1">>,
              <<"ip_address">> => <<"192.168.1.2">>,
              <<"port">> => 5321},
-    ?cfg(s2s_address, #{}, #{}),% default
-    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2", port => 5321}},
-         #{<<"s2s">> => #{<<"address">> => [Addr]}}),
-    ?cfg(s2s_address, #{<<"host1">> => #{ip_address => "192.168.1.2"}},
-         #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
-    ?err(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
+    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2", port => 5321}},
+          #{<<"s2s">> => #{<<"address">> => [Addr]}}),
+    ?cfgh([s2s, address], #{<<"host1">> => #{ip_address => "192.168.1.2"}},
+          #{<<"s2s">> => #{<<"address">> => [maps:without([<<"port">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"host">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [maps:without([<<"ip_address">>], Addr)]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"host">> => <<>>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"ip_address">> => <<"host2">>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr#{<<"port">> => <<"seaport">>}]}}),
+    ?errh(#{<<"s2s">> => #{<<"address">> => [Addr, maps:remove(<<"port">>, Addr)]}}).
 
 s2s_ciphers(_Config) ->
-    ?cfg(s2s_ciphers, "TLSv1.2:TLSv1.3",
-         #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2:TLSv1.3">>}}),
-    ?err(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
+    ?cfgh([s2s, ciphers], ejabberd_tls:default_ciphers(), #{}), % default
+    ?cfgh([s2s, ciphers], "TLSv1.2",
+          #{<<"s2s">> => #{<<"ciphers">> => <<"TLSv1.2">>}}),
+    ?errh(#{<<"s2s">> => #{<<"ciphers">> => [<<"cipher1">>, <<"cipher2">>]}}).
 
 s2s_shared(_Config) ->
-    ?cfgh(s2s_shared, <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
+    ?cfgh([s2s, shared], <<"secret">>, #{<<"s2s">> => #{<<"shared">> => <<"secret">>}}),
     ?errh(#{<<"s2s">> => #{<<"shared">> => 536837}}).
 
 s2s_max_retry_delay(_Config) ->
-    ?cfgh(s2s_max_retry_delay, 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
+    ?cfgh([s2s, max_retry_delay], 120, #{<<"s2s">> => #{<<"max_retry_delay">> => 120}}),
     ?errh(#{<<"s2s">> => #{<<"max_retry_delay">> => 0}}).
 
 %% modules
 
 mod_adhoc(_Config) ->
-    check_iqdisc(mod_adhoc),
-    M = fun(K, V) -> modopts(mod_adhoc, [{K, V}]) end,
+    check_module_defaults(mod_adhoc),
+    check_iqdisc_map(mod_adhoc),
+    P = [modules, mod_adhoc],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
-    ?cfgh(M(report_commands_node, true), T(<<"report_commands_node">>, true)),
-    ?cfgh(M(report_commands_node, false), T(<<"report_commands_node">>, false)),
+    ?cfgh(P ++ [report_commands_node], true, T(<<"report_commands_node">>, true)),
+    ?cfgh(P ++ [report_commands_node], false, T(<<"report_commands_node">>, false)),
     %% not boolean
     ?errh(T(<<"report_commands_node">>, <<"hello">>)).
 
 mod_auth_token(_Config) ->
-    check_iqdisc(mod_auth_token),
-    P = fun(X) ->
-                Opts = #{<<"validity_period">> => X},
-                #{<<"modules">> => #{<<"mod_auth_token">> => Opts}}
-        end,
-    ?cfgh(modopts(mod_auth_token, [{{validity_period, access}, {13, minutes}},
-                                   {{validity_period, refresh}, {31, days}}]),
-          P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>},
-             #{<<"token">> => <<"refresh">>, <<"value">> => 31, <<"unit">> => <<"days">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => <<"13">>,
-               <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => 13, <<"unit">> => <<"minute">>}])),
-    ?errh(P([#{<<"token">> => <<"Access">>, <<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"value">> => 13, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"unit">> => <<"minutes">>}])),
-    ?errh(P([#{<<"token">> => <<"access">>, <<"value">> => 13}])).
+    check_module_defaults(mod_auth_token),
+    check_iqdisc_map(mod_auth_token),
+    P = [modules, mod_auth_token],
+    T = fun(K, V) -> #{<<"modules">> => #{<<"mod_auth_token">> => #{K => V}}} end,
+    ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
+    ?cfgh(P ++ [validity_period, access], #{unit => minutes, value => 13},
+          T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => 13, <<"unit">> => <<"minutes">>}})),
+    ?cfgh(P ++ [validity_period, refresh], #{unit => days, value => 31},
+          T(<<"validity_period">>,
+            #{<<"refresh">> => #{<<"value">> => 31, <<"unit">> => <<"days">>}})),
+    ?errh(T(<<"backend">>, <<"nosql">>)),
+    ?errh(T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => -1, <<"unit">> => <<"minutes">>}})),
+    ?errh(T(<<"validity_period">>,
+            #{<<"access">> => #{<<"value">> => 10, <<"unit">> => <<"centuries">>}})),
+    ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"value">> => 10}})),
+    ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"unit">> => <<"days">>}})).
 
 mod_bosh(_Config) ->
+    check_module_defaults(mod_bosh),
+    P = [modules, mod_bosh],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_bosh">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_bosh, [{K, V}]) end,
-    ?cfgh(M(inactivity, 10), T(<<"inactivity">>, 10)),
-    ?cfgh(M(inactivity, infinity), T(<<"inactivity">>, <<"infinity">>)),
-    ?cfgh(M(inactivity, 10), T(<<"inactivity">>, 10)),
-    ?cfgh(M(max_wait, infinity), T(<<"max_wait">>, <<"infinity">>)),
-    ?cfgh(M(server_acks, true), T(<<"server_acks">>, true)),
-    ?cfgh(M(server_acks, false), T(<<"server_acks">>, false)),
-    ?cfgh(M(maxpause, 10), T(<<"max_pause">>, 10)),
-    ?errh(T(<<"inactivity">>, -1)),
+    ?cfgh(P ++ [backend], mnesia, T(<<"backend">>, <<"mnesia">>)),
+    ?cfgh(P ++ [inactivity], 10, T(<<"inactivity">>, 10)),
+    ?cfgh(P ++ [inactivity], infinity, T(<<"inactivity">>, <<"infinity">>)),
+    ?cfgh(P ++ [max_wait], 10, T(<<"max_wait">>, 10)),
+    ?cfgh(P ++ [max_wait], infinity, T(<<"max_wait">>, <<"infinity">>)),
+    ?cfgh(P ++ [server_acks], true, T(<<"server_acks">>, true)),
+    ?cfgh(P ++ [server_acks], false, T(<<"server_acks">>, false)),
+    ?cfgh(P ++ [max_pause], 10, T(<<"max_pause">>, 10)),
+    ?errh(T(<<"backend">>, <<"nodejs">>)),
+    ?errh(T(<<"inactivity">>, 0)),
     ?errh(T(<<"inactivity">>, <<"10">>)),
     ?errh(T(<<"inactivity">>, <<"inactivity">>)),
     ?errh(T(<<"max_wait">>, <<"10">>)),
-    ?errh(T(<<"max_wait">>, -1)),
+    ?errh(T(<<"max_wait">>, 0)),
     ?errh(T(<<"server_acks">>, -1)),
     ?errh(T(<<"maxpause">>, 0)).
 
@@ -1640,31 +1656,28 @@ mod_csi(_Config) ->
     ?errh(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
-    check_iqdisc(mod_disco),
+    check_module_defaults(mod_disco),
+    check_iqdisc_map(mod_disco),
+    P = [modules, mod_disco],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
-    ?cfgh(modopts(mod_disco, [{users_can_see_hidden_services, true}]),
+    ?cfgh(P ++ [users_can_see_hidden_services], true,
           T(<<"users_can_see_hidden_services">>, true)),
-    ?cfgh(modopts(mod_disco, [{users_can_see_hidden_services, false}]),
+    ?cfgh(P ++ [users_can_see_hidden_services], false,
           T(<<"users_can_see_hidden_services">>, false)),
     %% extra_domains are binaries
-    ?cfgh(modopts(mod_disco, [{extra_domains, [<<"localhost">>, <<"erlang-solutions.com">>]}]),
+    ?cfgh(P ++ [extra_domains], [<<"localhost">>, <<"erlang-solutions.com">>],
           T(<<"extra_domains">>, [<<"localhost">>, <<"erlang-solutions.com">>])),
-    ?cfgh(modopts(mod_disco, [{extra_domains, []}]),
+    ?cfgh(P ++ [extra_domains], [],
           T(<<"extra_domains">>, [])),
     Info = #{<<"name">> => <<"abuse-address">>,
              <<"urls">> => [<<"admin@example.com">>]},
     SpiritUrls = [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
-    ?cfgh(modopts(mod_disco, [{server_info, [[{name, <<"abuse-address">>},
-                                              {urls, [<<"admin@example.com">>]}],
-                                             [{modules, [mod_muc, mod_disco]},
-                                              {name, <<"friendly-spirits">>},
-                                              {urls, SpiritUrls}]
-                                            ]}
-                             ]),
-          T(<<"server_info">>, [Info, #{<<"modules">> => [<<"mod_muc">>, <<"mod_disco">>],
-                                        <<"name">> => <<"friendly-spirits">>,
-                                        <<"urls">> => SpiritUrls}
-                               ])),
+    ?cfgh(P ++ [server_info],
+          [#{name => <<"abuse-address">>, urls => [<<"admin@example.com">>]},
+           #{name => <<"friendly-spirits">>, urls => SpiritUrls, modules => [mod_muc, mod_disco]}],
+          T(<<"server_info">>, [Info, #{<<"name">> => <<"friendly-spirits">>,
+                                        <<"urls">> => SpiritUrls,
+                                        <<"modules">> => [<<"mod_muc">>, <<"mod_disco">>]}])),
     ?errh(T(<<"users_can_see_hidden_services">>, 1)),
     ?errh(T(<<"users_can_see_hidden_services">>, <<"true">>)),
     ?errh(T(<<"extra_domains">>, [<<"user@localhost">>])),
@@ -1680,52 +1693,47 @@ mod_disco(_Config) ->
     ?errh(T(<<"server_info">>, [maps:remove(<<"urls">>, Info)])).
 
 mod_extdisco(_Config) ->
+    check_module_defaults(mod_extdisco),
+    check_iqdisc_map(mod_extdisco),
+    P = [modules, mod_extdisco, service],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_extdisco">> =>
                                  #{<<"service">> => [Opts]}}}
         end,
-    M = fun(Opts) -> modopts(mod_extdisco, [Opts]) end,
-    RequiredOpts = #{
-                     <<"type">> => <<"stun">>,
-                     <<"host">> => <<"stun1">>},
-    ExpectedCfg = [{host, "stun1"},
-                   {type, stun}],
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{port, 3478}]),
-          T(RequiredOpts#{<<"port">> => 3478})),
-    ?cfgh(M(ExpectedCfg ++ [{transport, "udp"}]),
-          T(RequiredOpts#{<<"transport">> => <<"udp">>})),
-    ?cfgh(M(ExpectedCfg ++ [{username, "username"}]),
-          T(RequiredOpts#{<<"username">> => <<"username">>})),
-    ?cfgh(M(ExpectedCfg ++ [{password, "password"}]),
-          T(RequiredOpts#{<<"password">> => <<"password">>})),
+    RequiredOpts = #{<<"type">> => <<"stun">>, <<"host">> => <<"stun1">>},
+    Service = #{type => stun, host => <<"stun1">>},
+    ?cfgh(P, [Service], T(RequiredOpts)),
+    ?cfgh(P, [Service#{port => 3478}], T(RequiredOpts#{<<"port">> => 3478})),
+    ?cfgh(P, [Service#{transport => <<"udp">>}], T(RequiredOpts#{<<"transport">> => <<"udp">>})),
+    ?cfgh(P, [Service#{username => <<"user">>}], T(RequiredOpts#{<<"username">> => <<"user">>})),
+    ?cfgh(P, [Service#{password => <<"pass">>}], T(RequiredOpts#{<<"password">> => <<"pass">>})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     [?errh(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
-    ?errh(T(RequiredOpts#{<<"type">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"host">> => <<"">>})),
+    ?errh(T(RequiredOpts#{<<"type">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"host">> => <<>>})),
     ?errh(T(RequiredOpts#{<<"port">> => -1})),
-    ?errh(T(RequiredOpts#{<<"transport">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"username">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"password">> => <<"">>})).
+    ?errh(T(RequiredOpts#{<<"transport">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"username">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"password">> => <<>>})).
 
 mod_inbox(_Config) ->
+    check_module_defaults(mod_inbox),
+    check_iqdisc_map(mod_inbox),
+    P = [modules, mod_inbox],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
-    M = fun(Opts) -> modopts(mod_inbox, Opts) end,
     ChatMarkers = [<<"displayed">>, <<"received">>, <<"acknowledged">>],
-    ?cfgh(M([{reset_markers, ChatMarkers}]),
-          T(#{<<"reset_markers">> => ChatMarkers})),
-    ?cfgh(M([{groupchat, [muc, muclight]}]),
-          T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
-    ?cfgh(M([{aff_changes, true}]),
-          T(#{<<"aff_changes">> => true})),
-    ?cfgh(M([{remove_on_kicked, false}]),
-          T(#{<<"remove_on_kicked">> => false})),
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
+    ?cfgh(P ++ [reset_markers], ChatMarkers, T(#{<<"reset_markers">> => ChatMarkers})),
+    ?cfgh(P ++ [groupchat], [muc, muclight], T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
+    ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
+    ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),
+    ?errh(T(#{<<"backend">> => <<"nodejs">>})),
     ?errh(T(#{<<"reset_markers">> => 1})),
     ?errh(T(#{<<"reset_markers">> => [<<"destroyed">>]})),
     ?errh(T(#{<<"groupchat">> => [<<"test">>]})),
     ?errh(T(#{<<"aff_changes">> => 1})),
-    ?errh(T(#{<<"remove_on_kicked">> => 1})),
-    check_iqdisc(mod_inbox).
+    ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
 mod_global_distrib(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
@@ -2111,99 +2119,105 @@ mod_keystore_keys(_Config) ->
                            <<"path">> => <<"does/not/exists">>}])).
 
 mod_last(_Config) ->
-    check_iqdisc(mod_last),
+    check_iqdisc_map(mod_last),
+    check_module_defaults(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_last, Cfg) end,
-    ?cfgh(M([{backend, mnesia}]),
-          T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{bucket_type, <<"test">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
-
+    P = [modules, mod_last],
+    ?cfgh(P ++ [backend], mnesia, T(#{<<"backend">> => <<"mnesia">>})),
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"last">>, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_mam_meta(_Config) ->
+    check_module_defaults(mod_mam_meta),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, Cfg) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{bucket_type, <<"mam_bucket">>}]),
+    P = [modules, mod_mam_meta],
+    test_segmented_cache_config(<<"cache">>, cache, T,
+                                fun([{cache, Opts}]) -> [{P ++ [cache], Opts}] end),
+    test_mod_mam_meta(T, P).
+
+mod_mam_meta_riak(_Config) ->
+    T = fun(Opts) ->
+                #{<<"modules">> => #{<<"mod_mam_meta">> => Opts#{<<"backend">> => <<"riak">>}}}
+        end,
+    P = [modules, mod_mam_meta, riak],
+    ?cfgh(P, default_config([modules, mod_mam_meta, riak]), T(#{})),
+    ?cfgh(P ++ [bucket_type], <<"mam_bucket">>,
           T(#{<<"riak">> => #{<<"bucket_type">> => <<"mam_bucket">>}})),
-    ?cfgh(M([{search_index, <<"mam_index">>}]),
+    ?cfgh(P ++ [search_index], <<"mam_index">>,
           T(#{<<"riak">> => #{<<"search_index">> => <<"mam_index">>}})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => <<>>}})),
     ?errh(T(#{<<"riak">> => #{<<"search_index">> => <<>>}})).
 
 mod_mam_meta_pm(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"pm">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, [{pm, Cfg}]) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{archive_groupchats, true}]),
-          T(#{<<"archive_groupchats">> => true})),
-    ?cfgh(M([{same_mam_id_for_peers, true}]),
-          T(#{<<"same_mam_id_for_peers">> => true})),
+    P = [modules, mod_mam_meta, pm],
+    test_mod_mam_meta(T, P),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [archive_groupchats], true, T(#{<<"archive_groupchats">> => true})),
+    ?cfgh(P ++ [same_mam_id_for_peers], true, T(#{<<"same_mam_id_for_peers">> => true})),
+    ?errh(T(#{<<"host">> => <<"muc.@HOST@">>})), % muc-only
     ?errh(T(#{<<"archive_groupchats">> => <<"not really">>})),
     ?errh(T(#{<<"same_mam_id_for_peers">> => <<"not really">>})).
 
 mod_mam_meta_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => #{<<"muc">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_mam_meta, [{muc, Cfg}]) end,
-    test_mod_mam_meta(T, M),
-    ?cfgh(M([{host, {prefix, <<"muc.">>}}]),
-          T(#{<<"host">> => <<"muc.@HOST@">>})),
-    ?cfgh(M([{host, {fqdn, <<"muc.test">>}}]),
-          T(#{<<"host">> => <<"muc.test">>})),
+    P = [modules, mod_mam_meta, muc],
+    test_mod_mam_meta(T, P),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [host], {prefix, <<"muc.">>}, T(#{<<"host">> => <<"muc.@HOST@">>})),
+    ?cfgh(P ++ [host], {fqdn, <<"muc.test">>}, T(#{<<"host">> => <<"muc.test">>})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
-    ?errh(T(#{<<"archive_groupchats">> => true})),
-    ?errh(T(#{<<"same_mam_id_for_peers">> => true})).
+    ?errh(T(#{<<"archive_groupchats">> => true})), % pm-only
+    ?errh(T(#{<<"same_mam_id_for_peers">> => true})). % pm-only
 
-test_mod_mam_meta(T, M) ->
-    test_async_worker(T, M),
-    test_cache_config(T, M),
-    ?cfgh(M([{backend, rdbms}]),
+test_mod_mam_meta(T, P) ->
+    test_async_writer(T, P),
+    ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{no_stanzaid_element, true}]),
+    ?cfgh(P ++ [no_stanzaid_element], true,
           T(#{<<"no_stanzaid_element">> => true})),
-    ?cfgh(M([{is_archivable_message, mod_mam_utils}]),
+    ?cfgh(P ++ [is_archivable_message], mod_mam_utils,
           T(#{<<"is_archivable_message">> => <<"mod_mam_utils">>})),
-    ?cfgh(M([{archive_chat_markers, false}]),
-          T(#{<<"archive_chat_markers">> => false})),
-    ?cfgh(M([{message_retraction, true}]),
-          T(#{<<"message_retraction">> => true})),
-    ?cfgh(M([{rdbms_message_format, simple}]),
-          T(#{<<"rdbms_message_format">> => <<"simple">>})),
-    ?cfgh(M([{user_prefs_store, rdbms}]),
+    ?cfgh(P ++ [archive_chat_markers], true,
+          T(#{<<"archive_chat_markers">> => true})),
+    ?cfgh(P ++ [message_retraction], false,
+          T(#{<<"message_retraction">> => false})),
+    ?cfgh(P ++ [user_prefs_store], rdbms,
           T(#{<<"user_prefs_store">> => <<"rdbms">>})),
-    ?cfgh(M([{full_text_search, false}]),
+    ?cfgh(P ++ [full_text_search], false,
           T(#{<<"full_text_search">> => false})),
-    ?cfgh(M([{default_result_limit, 100}]),
+    ?cfgh(P ++ [cache_users], false,
+          T(#{<<"cache_users">> => false})),
+    ?cfgh(P ++ [default_result_limit], 100,
           T(#{<<"default_result_limit">> => 100})),
-    ?cfgh(M([{max_result_limit, 1000}]),
+    ?cfgh(P ++ [max_result_limit], 1000,
           T(#{<<"max_result_limit">> => 1000})),
-    ?cfgh(M([{db_jid_format, mam_jid_rfc}]),
+    ?cfgh(P ++ [db_jid_format], mam_jid_rfc,
           T(#{<<"db_jid_format">> => <<"mam_jid_rfc">>})),
-    ?cfgh(M([{db_message_format, mam_message_xml}]),
+    ?cfgh(P ++ [db_message_format], mam_message_xml,
           T(#{<<"db_message_format">> => <<"mam_message_xml">>})),
-    ?cfgh(M([{simple, false}]),
-          T(#{<<"simple">> => false})),
-    ?cfgh(M([{extra_fin_element, mod_mam_utils}]),
+    ?cfgh(P ++ [extra_fin_element], mod_mam_utils,
           T(#{<<"extra_fin_element">> => <<"mod_mam_utils">>})),
-    ?cfgh(M([{extra_lookup_params, mod_mam_utils}]),
+    ?cfgh(P ++ [extra_lookup_params], mod_mam_utils,
           T(#{<<"extra_lookup_params">> => <<"mod_mam_utils">>})),
     ?errh(T(#{<<"backend">> => <<"notepad">>})),
     ?errh(T(#{<<"no_stanzaid_element">> => <<"true">>})),
     ?errh(T(#{<<"is_archivable_message">> => <<"mod_mam_fake">>})),
     ?errh(T(#{<<"archive_chat_markers">> => <<"maybe">>})),
     ?errh(T(#{<<"message_retraction">> => 1})),
-    ?errh(T(#{<<"rdbms_message_format">> => <<"complex">>})),
     ?errh(T(#{<<"user_prefs_store">> => <<"textfile">>})),
     ?errh(T(#{<<"full_text_search">> => <<"disabled">>})),
+    ?errh(T(#{<<"cache_users">> => []})),
     ?errh(T(#{<<"default_result_limit">> => -1})),
     ?errh(T(#{<<"max_result_limit">> => -2})),
     ?errh(T(#{<<"db_jid_format">> => <<"not_a_module">>})),
     ?errh(T(#{<<"db_message_format">> => <<"not_a_module">>})),
-    ?errh(T(#{<<"simple">> => <<"yes">>})),
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errh(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
@@ -2232,19 +2246,17 @@ test_segmented_cache_config(NameK, NameV, T, M) ->
     ?errh(T(#{NameK => #{<<"number_of_segments">> => 0}})),
     ?errh(T(#{NameK => #{<<"number_of_segments">> => <<"infinity">>}})).
 
-test_async_worker(T, M) ->
-    ?cfgh(M([{async_writer, [{flush_interval, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"flush_interval">> => 1500}})),
-    ?cfgh(M([{async_writer, [{batch_size, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"batch_size">> => 1500}})),
-    ?cfgh(M([{async_writer, [{pool_size, 1500}]}]),
-          T(#{<<"async_writer">> => #{<<"pool_size">> => 1500}})),
-    ?cfgh(M([{async_writer, [{enabled, false}]}]),
-          T(#{<<"async_writer">> => #{<<"enabled">> => false}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"flush_interval">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"batch_size">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"pool_size">> => -1}})),
-    ?errh(T(#{<<"async_writer">> => #{<<"enabled">> => <<"wrong">>}})).
+test_async_writer(ParentT, ParentP) ->
+    P = ParentP ++ [async_writer],
+    T = fun(Opts) -> ParentT(#{<<"async_writer">> => Opts}) end,
+    ?cfgh(P ++ [flush_interval], 1500, T(#{<<"flush_interval">> => 1500})),
+    ?cfgh(P ++ [batch_size], 1500, T(#{<<"batch_size">> => 1500})),
+    ?cfgh(P ++ [pool_size], 1500, T(#{<<"pool_size">> => 1500})),
+    ?cfgh(P ++ [enabled], false, T(#{<<"enabled">> => false})),
+    ?errh(T(#{<<"flush_interval">> => -1})),
+    ?errh(T(#{<<"batch_size">> => -1})),
+    ?errh(T(#{<<"pool_size">> => -1})),
+    ?errh(T(#{<<"enabled">> => <<"wrong">>})).
 
 mod_muc(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
@@ -2582,15 +2594,16 @@ mod_privacy(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
+    check_iqdisc_map(mod_private),
+    check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_private, Cfg) end,
-    ?cfgh(M([{backend, riak}]),
-          T(#{<<"backend">> => <<"riak">>})),
-    ?cfgh(M([{bucket_type, <<"private_stuff">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
+    P = [modules, mod_private],
+    ?cfgh(P ++ [backend], riak, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"private">>, T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"private_stuff">>, T(#{<<"backend">> => <<"riak">>,
+        <<"riak">> => #{<<"bucket_type">> => <<"private_stuff">>}})),
     ?errh(T(#{<<"backend">> => <<"mssql">>})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_private).
+    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_pubsub(_Config) ->
     check_iqdisc(mod_pubsub),
@@ -2793,27 +2806,29 @@ registration_watchers(JidBins) ->
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 mod_roster(_Config) ->
+    check_iqdisc_map(mod_roster),
+    check_module_defaults(mod_roster),
+    P = [modules, mod_roster],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_roster, Cfg) end,
-
-    ?cfgh(M([{versioning, false}]),
-          T(#{<<"versioning">> => false})),
-    ?cfgh(M([{store_current_id, false}]),
-          T(#{<<"store_current_id">> => false})),
-    ?cfgh(M([{backend, mnesia}]),
-          T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{bucket_type, <<"rosters">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"rosters">>}})),
-    ?cfgh(M([{version_bucket_type, <<"roster_versions">>}]),
-          T(#{<<"riak">> => #{<<"version_bucket_type">> => <<"roster_versions">>}})),
+    ?cfgh(P ++ [versioning],  true,
+          T(#{<<"versioning">> => true})),
+    ?cfgh(P ++ [store_current_id], true,
+          T(#{<<"store_current_id">> => true})),
+    ?cfgh(P ++ [backend], rdbms,
+          T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [riak], config_parser_helper:default_config(P ++ [riak]),
+          T(#{<<"backend">> => <<"riak">>})),
+    ?cfgh(P ++ [riak, bucket_type], <<"my_type">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"my_type">>}})),
+    ?cfgh(P ++ [riak, version_bucket_type], <<"my_versions">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"version_bucket_type">> => <<"my_versions">>}})),
 
     ?errh(T(#{<<"versioning">> => 1})),
     ?errh(T(#{<<"store_current_id">> => 1})),
     ?errh(T(#{<<"backend">> => 1})),
     ?errh(T(#{<<"backend">> => <<"iloveyou">>})),
     ?errh(T(#{<<"riak">> => #{<<"version_bucket_type">> => 1}})),
-    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
-    check_iqdisc(mod_roster).
+    ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_shared_roster_ldap(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_shared_roster_ldap">> => Opts}} end,
@@ -2883,8 +2898,8 @@ mod_shared_roster_ldap(_Config) ->
     ?errh(T(#{<<"ldap_filter">> => 1})).
 
 mod_sic(_Config) ->
-    check_iqdisc(mod_sic),
-    ?cfgh(modopts(mod_sic, []), #{<<"modules">> => #{<<"mod_sic">> => #{}}}).
+    check_module_defaults(mod_sic),
+    check_iqdisc_map(mod_sic).
 
 mod_stream_management(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_stream_management">> => Opts}} end,
@@ -2894,12 +2909,15 @@ mod_stream_management(_Config) ->
     ?cfgh(M([{ack_freq, never}]), T(#{<<"ack">> => false})),
     ?cfgh(M([{ack_freq, 1}]), T(#{<<"ack_freq">> => 1})),
     ?cfgh(M([{resume_timeout, 600}]), T(#{<<"resume_timeout">> => 600})),
+    ?cfgh(M([{backend, mnesia}]),
+          T(#{<<"backend">> => <<"mnesia">>})),
 
     ?errh(T(#{<<"buffer">> => 0})),
     ?errh(T(#{<<"buffer_max">> => -1})),
     ?errh(T(#{<<"ack">> => <<"false">>})),
     ?errh(T(#{<<"ack_freq">> => 0})),
-    ?errh(T(#{<<"resume_timeout">> => true})).
+    ?errh(T(#{<<"resume_timeout">> => true})),
+    ?errh(T(#{<<"backend">> => <<"iloveyou">>})).
 
 mod_stream_management_stale_h(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
@@ -2914,43 +2932,44 @@ mod_stream_management_stale_h(_Config) ->
     ?errh(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc(mod_time),
-    ?cfgh(modopts(mod_time, []), #{<<"modules">> => #{<<"mod_time">> => #{}}}).
+    check_iqdisc_map(mod_time),
+    check_module_defaults(mod_time).
 
 mod_vcard(_Config) ->
-    check_iqdisc(mod_vcard),
+    check_module_defaults(mod_vcard),
+    check_iqdisc_map(mod_vcard),
+    P = [modules, mod_vcard],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_vcard, Cfg) end,
-    ?cfgh(M([{iqdisc, one_queue}]),
+    ?cfgh(P ++ [iqdisc], one_queue,
           T(#{<<"iqdisc">> => #{<<"type">> => <<"one_queue">>}})),
-    ?cfgh(M([{host, {prefix, <<"vjud.">>}}]),
+    ?cfgh(P ++ [host], {prefix, <<"vjud.">>},
           T(#{<<"host">> => <<"vjud.@HOST@">>})),
-    ?cfgh(M([{host, {fqdn, <<"vjud.test">>}}]),
+    ?cfgh(P ++ [host], {fqdn, <<"vjud.test">>},
           T(#{<<"host">> => <<"vjud.test">>})),
-    ?cfgh(M([{search, true}]),
+    ?cfgh(P ++ [search], true,
           T(#{<<"search">> => true})),
-    ?cfgh(M([{backend, mnesia}]),
+    ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{matches, infinity}]),
+    ?cfgh(P ++ [matches], infinity,
           T(#{<<"matches">> => <<"infinity">>})),
     %% ldap
-    ?cfgh(M([{ldap_pool_tag, default}]),
+    ?cfgh(P ++ [ldap_pool_tag], default,
           T(#{<<"ldap_pool_tag">> => <<"default">>})),
-    ?cfgh(M([{ldap_base, "ou=Users,dc=ejd,dc=com"}]),
+    ?cfgh(P ++ [ldap_base], "ou=Users,dc=ejd,dc=com",
           T(#{<<"ldap_base">> => <<"ou=Users,dc=ejd,dc=com">>})),
-    ?cfgh(M([{ldap_filter, <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>}]),
+    ?cfgh(P ++ [ldap_filter], <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>,
           T(#{<<"ldap_filter">> => <<"(&(objectClass=shadowAccount)(memberOf=Jabber Users))">>})),
-    ?cfgh(M([{ldap_deref, never}]),
+    ?cfgh(P ++ [ldap_deref], never,
           T(#{<<"ldap_deref">> => <<"never">>})),
-    ?cfgh(M([{ldap_search_operator, 'or'}]),
+    ?cfgh(P ++ [ldap_search_operator], 'or',
           T(#{<<"ldap_search_operator">> => <<"or">>})),
-    ?cfgh(M([{ldap_binary_search_fields, [<<"PHOTO">>]}]),
+    ?cfgh(P ++ [ldap_binary_search_fields], [<<"PHOTO">>],
           T(#{<<"ldap_binary_search_fields">> => [<<"PHOTO">>]})),
     %% riak
-    ?cfgh(M([{bucket_type, <<"vcard">>}]),
-          T(#{<<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
-    ?cfgh(M([{search_index, <<"vcard">>}]),
-          T(#{<<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"vcard">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"bucket_type">> => <<"vcard">>}})),
+    ?cfgh(P ++ [riak, search_index], <<"vcard">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> =>  #{<<"search_index">> => <<"vcard">>}})),
 
     ?errh(T(#{<<"host">> => 1})),
     ?errh(T(#{<<"host">> => <<"is this a host? no.">>})),
@@ -2971,67 +2990,69 @@ mod_vcard(_Config) ->
     ?errh(T(#{<<"riak">> =>  #{<<"search_index">> => 1}})).
 
 mod_vcard_ldap_uids(_Config) ->
+    P = [modules, mod_vcard, ldap_uids],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_vcard">> => #{<<"ldap_uids">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_uids, Cfg}]) end,
     RequiredOpts = #{<<"attr">> => <<"name">>},
     ExpectedCfg = <<"name">>,
-    ?cfgh(M([]), T([])),
-    ?cfgh(M([ExpectedCfg]), T([RequiredOpts])),
-    ?cfgh(M([{<<"name">>, <<"%u@mail.example.org">>}]),
+    ?cfgh(P, [], T([])),
+    ?cfgh(P, [ExpectedCfg], T([RequiredOpts])),
+    ?cfgh(P, [{<<"name">>, <<"%u@mail.example.org">>}],
           T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}])),
-    ?cfgh(M([{<<"name">>, <<"%u@mail.example.org">>}, ExpectedCfg]),
+    ?cfgh(P, [{<<"name">>, <<"%u@mail.example.org">>}, ExpectedCfg],
           T([RequiredOpts#{<<"format">> => <<"%u@mail.example.org">>}, RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"attr">> := 1})),
     ?errh(T(RequiredOpts#{<<"format">> => true})).
 
 mod_vcard_ldap_vcard_map(_Config) ->
+    P = [modules, mod_vcard, ldap_vcard_map],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_vcard">> => #{<<"ldap_vcard_map">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_vcard_map, Cfg}]) end,
     RequiredOpts = #{<<"vcard_field">> => <<"FAMILY">>,
                      <<"ldap_pattern">> => <<"%s">>,
                      <<"ldap_field">> => <<"sn">>},
     ExpectedCfg = {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-    ?cfgh(M([]), T([])),
-    ?cfgh(M([ExpectedCfg]), T([RequiredOpts])),
+    ?cfgh(P, [], T([])),
+    ?cfgh(P, [ExpectedCfg], T([RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"vcard_field">> := false})),
     ?errh(T(RequiredOpts#{<<"ldap_pattern">> := false})),
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_fields(_Config) ->
+    P = [modules, mod_vcard, ldap_search_fields],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_vcard">> => #{<<"ldap_search_fields">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_fields, Cfg}]) end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"ldap_field">> => <<"cn">>},
     ExpectedCfg = {<<"Full Name">>, <<"cn">>},
-    ?cfgh(M([]), T([])),
-    ?cfgh(M([ExpectedCfg]), T([RequiredOpts])),
+    ?cfgh(P, [], T([])),
+    ?cfgh(P, [ExpectedCfg], T([RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"search_field">> := false})),
     ?errh(T(RequiredOpts#{<<"ldap_field">> := -1})).
 
 mod_vcard_ldap_search_reported(_Config) ->
+    P = [modules, mod_vcard, ldap_search_reported],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_vcard">> => #{<<"ldap_search_reported">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_vcard, [{ldap_search_reported, Cfg}]) end,
     RequiredOpts = #{<<"search_field">> => <<"Full Name">>,
                      <<"vcard_field">> => <<"FN">>},
     ExpectedCfg = {<<"Full Name">>, <<"FN">>},
-    ?cfgh(M([]), T([])),
-    ?cfgh(M([ExpectedCfg]), T([RequiredOpts])),
+    ?cfgh(P, [], T([])),
+    ?cfgh(P, [ExpectedCfg], T([RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"search_field">> := false})),
     ?errh(T(RequiredOpts#{<<"vcard_field">> := -1})).
 
 mod_version(_Config) ->
+    check_module_defaults(mod_version),
+    check_iqdisc_map(mod_version),
+    P = [modules, mod_version],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
-    ?cfgh(modopts(mod_version, [{os_info, false}]), T(#{<<"os_info">> => false})),
-    ?errh(T(#{<<"os_info">> => 1})),
-    check_iqdisc(mod_version).
+    ?cfgh(P ++ [os_info], true, T(#{<<"os_info">> => true})),
+    ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
     ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
@@ -3089,6 +3110,20 @@ check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
           iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
     ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
 
+check_iqdisc_map(Module) ->
+    check_iqdisc_map(Module, #{}).
+
+check_iqdisc_map(Module, RequiredOpts) ->
+    ?cfgh([modules, Module, iqdisc], {queues, 10},
+          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
+    ?cfgh([modules, Module, iqdisc], parallel,
+          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
+    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
+
+check_module_defaults(Mod) ->
+    ExpectedCfg = default_mod_config(Mod),
+    ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
+
 modopts(Mod, Opts) ->
     [{[modules, Mod], Opts}].
 
@@ -3128,7 +3163,8 @@ auth_raw(Method, Opts) ->
 
 %% helpers for 'pool' tests
 
-pool_config(Pool) ->
+pool_config(PoolIn) ->
+    Pool = merge_with_default_pool_config(PoolIn),
     [{outgoing_pools, [Pool]}].
 
 pool_raw(Type, Tag, Opts) ->
@@ -3181,7 +3217,7 @@ maybe_insert_dummy_domain(M) ->
 -spec host_opts([{key_prefix(), mongoose_config:value()}]) ->
           [{mongoose_config:key() | mongoose_config:key_path(), mongoose_config:value()}].
 host_opts(ExpectedOptions) ->
-    [{host_key(Key), Value} || {Key, Value} <- ExpectedOptions].
+    lists:map(fun({Key, Value}) -> {host_key(Key), Value} end, ExpectedOptions).
 
 %% @doc Build full per-host config key for host-or-global options
 -spec host_key(top_level_key_prefix()) -> mongoose_config:key();
@@ -3266,15 +3302,13 @@ compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
     ?eq(inet:ntoa(IP1), IP2);
-compare_nodes([{modules, _}, mod_extdisco], V1, V2) ->
-    compare_ordered_lists(V1, V2, fun compare_unordered_lists/2);
-compare_nodes([{modules, _}, _Module], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
     compare_maps(V1, V2, fun({K1, MV1}, {K2, MV2}) ->
                                  ?eq(K1, K2),
                                  compare_nodes(Node ++ [K1], MV1, MV2)
                          end);
+compare_nodes([{modules, _}, _Module], V1, V2) ->
+    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) ->
     ?eq({Node, V1}, {Node, V2}).
 
@@ -3315,13 +3349,13 @@ handle_item_with_opts({M1, O1}, {M2, O2}) ->
     ?eq(M1, M2),
     compare_unordered_lists(O1, O2).
 
-handle_conn_pool({Type1, Scope1, Tag1, POpts1, COpts1},
-                 {Type2, Scope2, Tag2, POpts2, COpts2}) ->
+handle_conn_pool(#{type := Type1, scope := Scope1, tag := Tag1, opts := POpts1, conn_opts := COpts1},
+                 #{type := Type2, scope := Scope2, tag := Tag2, opts := POpts2, conn_opts := COpts2}) ->
     ?eq(Type1, Type2),
     ?eq(Scope1, Scope2),
     ?eq(Tag1, Tag2),
-    compare_unordered_lists(POpts1, POpts2),
-    compare_unordered_lists(COpts1, COpts2, fun handle_conn_opt/2).
+    compare_maps(POpts1, POpts2),
+    compare_maps(COpts1, COpts2, fun handle_conn_opt/2).
 
 handle_conn_opt({server, {D1, H1, DB1, U1, P1, O1}},
                 {server, {D2, H2, DB2, U2, P2, O2}}) ->
@@ -3377,17 +3411,10 @@ create_files(Config) ->
     %% The files must exist for validation to pass
     Root = small_path_helper:repo_dir(Config),
     file:make_dir("priv"),
-    PrivkeyPath = filename:join(Root, "tools/ssl/mongooseim/privkey.pem"),
-    CertPath = filename:join(Root, "tools/ssl/mongooseim/cert.pem"),
-    CaPath = filename:join(Root, "tools/ssl/ca/cacert.pem"),
-    DHPath = filename:join(Root, "tools/ssl/mongooseim/dh_server.pem"),
+    [ensure_copied(filename:join(Root, From), To) || {From, To} <- files_to_copy()],
     ok = file:write_file("priv/access_psk", ""),
     ok = file:write_file("priv/provision_psk", ""),
-    ok = filelib:ensure_dir("www/muc/dummy"),
-    ensure_copied(CaPath, "priv/ca.pem"),
-    ensure_copied(CertPath, "priv/cert.pem"),
-    ensure_copied(PrivkeyPath, "priv/dc1.pem"),
-    ensure_copied(DHPath, "priv/dh.pem").
+    ok = filelib:ensure_dir("www/muc/dummy").
 
 ensure_copied(From, To) ->
     case file:copy(From, To) of
@@ -3397,3 +3424,10 @@ ensure_copied(From, To) ->
             error(#{what => ensure_copied_failed, from => From, to => To,
                     reason => Other})
     end.
+
+files_to_copy() ->
+    [{"tools/ssl/mongooseim/privkey.pem", "priv/dc1.pem"},
+     {"tools/ssl/mongooseim/cert.pem", "priv/cert.pem"},
+     {"tools/ssl/mongooseim/dh_server.pem", "priv/dh.pem"},
+     {"tools/ssl/mongooseim/server.pem", "priv/server.pem"},
+     {"tools/ssl/ca/cacert.pem", "priv/ca.pem"}].

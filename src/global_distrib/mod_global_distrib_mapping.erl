@@ -174,7 +174,7 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
@@ -229,9 +229,9 @@ unregister_subhost(_, SubHost) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec deps(proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(proplists:proplist()) -> gen_mod_deps:deps().
 deps(_Opts) ->
-    [{mod_global_distrib_receiver, hard}].
+    [{mod_global_distrib_receiver, [], hard}].
 
 -spec start() -> any().
 start() ->

@@ -29,8 +29,8 @@
 %%====================================================================
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    start_cache(HostType, Opts),
+start(HostType, Opts = #{cache := CacheOpts}) ->
+    start_cache(HostType, CacheOpts),
     ejabberd_hooks:add(hooks(HostType, Opts)),
     ok.
 

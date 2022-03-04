@@ -19,7 +19,8 @@
          total_privacy_items/0,
          total_private_items/0,
          total_vcard_items/0,
-         total_roster_items/0]).
+         total_roster_items/0,
+         generic_count/1]).
 
 -export([clear_last_activity/2,
          clear_caps_cache/1]).
@@ -159,19 +160,11 @@ clear_caps_cache(CapsNode) ->
 get_backend(HostType, Module) ->
     try rpc(mim(), mongoose_backend, get_backend_module, [HostType, Module])
     catch
-        error:{badrpc, _Reason} ->
-            % TODO: get rid of this after dynamically compiled modules are gone
-            get_backend_old(Module)
+        error:{badrpc, _Reason} -> false
     end.
 
 get_backend_name(HostType, Module) ->
     rpc(mim(), mongoose_backend, get_backend_name, [HostType, Module]).
-
-get_backend_old(Module) ->
-    case rpc(mim(), Module, backend, []) of
-        {badrpc, _Reason} -> false;
-        Backend -> Backend
-    end.
 
 generic_count(mod_offline_backend, {LUser, LServer}) ->
     HostType = domain_helper:host_type(),
@@ -188,6 +181,7 @@ generic_count_per_host_type(HostType, Module) ->
             generic_count_backend(B)
     end.
 
+generic_count_backend(mod_smart_markers_rdbms) -> count_rdbms(<<"smart_markers">>);
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
 generic_count_backend(mod_offline_rdbms) -> count_rdbms(<<"offline_message">>);
 generic_count_backend(mod_offline_riak) -> count_riak(<<"offline">>);
@@ -222,7 +216,7 @@ count_wildpattern(Table) ->
 count_rdbms(Table) ->
     {selected, [{N}]} =
         rpc(mim(), mongoose_rdbms, sql_query,
-            [<<"localhost">>, [<<"select count(*) from ", Table/binary, " ;">>]]),
+            [domain_helper:host_type(), [<<"select count(*) from ", Table/binary, " ;">>]]),
     count_to_integer(N).
 
 count_to_integer(N) when is_binary(N) ->

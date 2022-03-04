@@ -20,66 +20,66 @@
 -behaviour(gen_mod).
 
 %% gen_mod callbacks.
--export([start/2, stop/1, config_spec/0]).
+-export([start/2, stop/1, supported_features/0, config_spec/0]).
 
--export([process_iq/4]).
+-export([process_iq/5]).
 
--ignore_xref([process_iq/4]).
+-ignore_xref([process_iq/5]).
 
 -include("jlib.hrl").
--include("mongoose.hrl").
 -include("mongoose_config_spec.hrl").
 
--spec start(jid:server(), list()) -> ok.
-start(Host, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host,
-        ?NS_EXTDISCO, ?MODULE, process_iq, IQDisc).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{iqdisc := IQDisc}) ->
+    gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_EXTDISCO, ejabberd_local,
+                                             fun ?MODULE:process_iq/5, #{}, IQDisc).
 
--spec stop(jid:server()) -> ok.
-stop(Host) ->
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_EXTDISCO).
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_EXTDISCO, ejabberd_local).
+
+supported_features() ->
+    [dynamic_domains].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-        items = #{<<"service">> => #list{items = service_config_spec(),
-                                         wrap = none}}
-        }.
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                       <<"service">> => #list{items = service_config_spec()}},
+             defaults = #{<<"iqdisc">> => no_queue,
+                          <<"service">> => []},
+             format_items = map}.
 
 service_config_spec() ->
-    #section{
-        items = #{<<"type">> => #option{type = atom,
-                                        validate = non_empty},
-                  <<"host">> => #option{type = string,
-                                        validate = non_empty},
-                  <<"port">> => #option{type = integer,
-                                        validate = port},
-                  <<"transport">> => #option{type = string,
-                                             validate = {enum, ["udp", "tcp"]}},
-                  <<"username">> => #option{type = string,
-                                            validate = non_empty},
-                  <<"password">> => #option{type = string,
-                                            validate = non_empty}
-            },
-        required = [<<"type">>, <<"host">>]
-    }.
+    #section{items = #{<<"type">> => #option{type = atom,
+                                             validate = non_empty},
+                       <<"host">> => #option{type = binary,
+                                             validate = non_empty},
+                       <<"port">> => #option{type = integer,
+                                             validate = port},
+                       <<"transport">> => #option{type = binary,
+                                                  validate = {enum, [<<"udp">>, <<"tcp">>]}},
+                       <<"username">> => #option{type = binary,
+                                           validate = non_empty},
+                       <<"password">> => #option{type = binary,
+                                                 validate = non_empty}
+                      },
+             required = [<<"type">>, <<"host">>],
+             format_items = map}.
 
--spec process_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_iq(_From, _To = #jid{lserver = LServer}, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
+    HostType = mongoose_acc:host_type(Acc),
     {ResponseType, Response} = case request_type(SubEl) of
         all_services ->
-            RequestedServices = get_external_services(LServer),
+            RequestedServices = get_external_services(HostType),
             {result, create_iq_response(RequestedServices)};
         {credentials, {Type, Host}} ->
-            Services = get_external_services(LServer, Type),
-            RequestedServices = lists:filter(fun(Opts) ->
-                gen_mod:get_opt(host, Opts, undefined) == binary_to_list(Host)
-                end, Services),
+            Services = get_external_services(HostType, Type),
+            RequestedServices = lists:filter(fun(#{host := H}) -> H =:= Host end, Services),
             {result, create_iq_response_credentials(RequestedServices)};
         {selected_services, Type} ->
-            RequestedServices = get_external_services(LServer, Type),
+            RequestedServices = get_external_services(HostType, Type),
             {result, create_iq_response_services(RequestedServices, Type)};
         _ ->
             {error, [mongoose_xmpp_errors:bad_request()]}
@@ -123,46 +123,18 @@ create_iq_response_credentials(Services) ->
         attrs = [{<<"xmlns">>, ?NS_EXTDISCO}],
         children = prepare_services_element(Services)}.
 
-get_external_services(LServer) ->
-    case gen_mod:get_module_opts(LServer, ?MODULE) of
-        [] -> [];
-        ServicesWithOpts -> ServicesWithOpts
-    end.
+get_external_services(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, service).
 
-get_external_services(LServer, Type) ->
-    [Opts || Opts <- get_external_services(LServer), gen_mod:get_opt(type, Opts) == Type].
+get_external_services(HostType, Type) ->
+    [Service || Service = #{type := T} <- get_external_services(HostType), T =:= Type].
 
 prepare_services_element(Services) ->
-    lists:reverse(
-      lists:foldl(
-        fun(Opts, Acc) ->
-                RequiredElements = required_elements(Opts),
-                OptionalElements = optional_elements(Opts),
-                NewResult = #xmlel{name = <<"service">>,
-                                    attrs = RequiredElements ++ OptionalElements},
-                [NewResult | Acc]
-        end, [], Services)).
+    [#xmlel{name = <<"service">>, attrs = make_attrs(Service)} || Service <- Services].
 
-required_elements(Opts) ->
-    Host = gen_mod:get_opt(host, Opts, <<"">>),
-    Type = gen_mod:get_opt(type, Opts),
-    [{<<"type">>, atom_to_binary(Type, utf8)}, {<<"host">>, Host}].
+make_attrs(Service) ->
+    [{atom_to_binary(Key), format_value(Key, Value)} || {Key, Value} <- maps:to_list(Service)].
 
-optional_elements(Opts) ->
-    Port = gen_mod:get_opt(port, Opts, undefined),
-    Transport = gen_mod:get_opt(transport, Opts, undefined),
-    Password = gen_mod:get_opt(password, Opts, undefined),
-    Username = gen_mod:get_opt(username, Opts, undefined),
-    Elements = [{<<"port">>, i2b(Port)},
-                {<<"transport">>, Transport},
-                {<<"password">>, Password},
-                {<<"username">>, Username}],
-    filter_undefined_elements(Elements).
-
-filter_undefined_elements(Elements) ->
-    lists:filter(fun({_, undefined}) -> false;
-                    (_)              -> true
-                 end, Elements).
-
-i2b(X) when is_integer(X) -> integer_to_binary(X);
-i2b(X) -> X.
+format_value(port, Port) -> integer_to_binary(Port);
+format_value(type, Type) -> atom_to_binary(Type);
+format_value(_, Value) when is_binary(Value) -> Value.

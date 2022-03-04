@@ -71,11 +71,11 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
                             [#cowboy_state{ref = Ref, opts = Opts}]},
                  transient, infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
-    TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
+    TransportOpts = proplists:get_value(transport_options, Opts, []),
     TransportOptsMap = maps:from_list(TransportOpts),
     TransportOptsMap2 = TransportOptsMap#{socket_opts => [{port, Port}, {ip, IP}]},
     TransportOptsMap3 = maybe_insert_max_connections(TransportOptsMap2, Opts),
-    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOptsMap3),
+    Opts2 = lists:keystore(transport_options, 1, Opts, {transport_options, TransportOptsMap3}),
     {ok, _} = start_cowboy(Ref, Opts2),
     {ok, Pid}.
 

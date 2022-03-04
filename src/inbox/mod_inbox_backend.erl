@@ -18,7 +18,7 @@
 
 -callback init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts :: list().
+    Opts :: gen_mod:module_opts().
 
 -callback get_inbox(HostType, LUser, LServer, Params) -> mod_inbox:get_inbox_res() when
     HostType :: mongooseim:host_type(),
@@ -78,7 +78,7 @@
 
 -spec init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
-    Opts :: list().
+    Opts :: gen_mod:module_opts().
 init(HostType, Opts) ->
     mongoose_backend:init(HostType, ?MAIN_MODULE, callback_funs(), Opts),
     Args = [HostType, Opts],

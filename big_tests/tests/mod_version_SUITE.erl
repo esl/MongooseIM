@@ -5,6 +5,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -31,10 +33,11 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(soft_version, Config) ->
-    dynamic_modules:start(domain_helper:host_type(), mod_version, []),
+    dynamic_modules:start(domain_helper:host_type(), mod_version, default_mod_config(mod_version)),
     Config;
 init_per_group(soft_version_with_os, Config) ->
-    dynamic_modules:start(domain_helper:host_type(), mod_version, [{os_info, true}]),
+    ModuleConfig = mod_config(mod_version, #{os_info => true}),
+    dynamic_modules:start(domain_helper:host_type(), mod_version, ModuleConfig),
     Config.
 
 end_per_group(_Group, Config) ->

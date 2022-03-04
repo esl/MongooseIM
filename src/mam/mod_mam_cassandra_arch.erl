@@ -77,40 +77,24 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
-start(HostType, Opts) ->
-    start_pm(HostType, Opts).
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
+-spec stop(host_type()) -> ok.
 stop(HostType) ->
-    stop_pm(HostType).
+    ejabberd_hooks:delete(hooks(HostType)).
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
-start_pm(HostType, _Opts) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_archive_message, HostType, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:add(mam_archive_size, HostType, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, HostType, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
-
-stop_pm(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_archive_message, HostType, ?MODULE, archive_message, 50)
-    end,
-    ejabberd_hooks:delete(mam_archive_size, HostType, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_remove_archive, HostType, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50),
-    ok.
+-spec hooks(host_type()) -> [ejabberd_hooks:hook()].
+hooks(HostType) ->
+    [{mam_archive_message, HostType, ?MODULE, archive_message, 50},
+     {mam_archive_size, HostType, ?MODULE, archive_size, 50},
+     {mam_lookup_messages, HostType, ?MODULE, lookup_messages, 50},
+     {mam_remove_archive, HostType, ?MODULE, remove_archive, 50},
+     {get_mam_pm_gdpr_data, HostType, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
 %% ----------------------------------------------------------------------
 %% mongoose_cassandra_worker callbacks
@@ -755,8 +739,8 @@ stored_binary_to_packet(HostType, Bin) ->
 
 -spec db_message_format(HostType :: host_type()) -> module().
 db_message_format(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, db_message_format, mam_message_xml).
+    gen_mod:get_module_opt(HostType, ?MODULE, db_message_format).
 
 -spec pool_name(HostType :: host_type()) -> term().
-pool_name(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, pool_name, default).
+pool_name(_HostType) ->
+    default.

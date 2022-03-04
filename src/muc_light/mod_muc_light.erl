@@ -189,7 +189,7 @@ stop(HostType) ->
     mod_muc_light_db_backend:stop(HostType),
     ok.
 
--spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod:deps_list().
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_HostType, Opts) ->
     case gen_mod:get_opt(cache_affs, Opts, undefined) of
         undefined ->

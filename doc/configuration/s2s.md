@@ -21,7 +21,7 @@ Default policy for opening new S2S connections to/from remote servers.
 * **Syntax:** array of TOML tables with the following mandatory content:
     * `host` - string, host name
     * `policy` - string, `"allow"` or `"deny"`
-* **Default:** `"allow"`
+* **Default:** not set, `default_policy` is used
 * **Example:**
 
 ```toml

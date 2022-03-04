@@ -57,11 +57,8 @@
         ]).
 
 -import(mongooseimctl_helper, [mongooseimctl/3]).
-
 -import(distributed_helper, [mim/0, subhost_pattern/1, rpc/4]).
-
 -import(muc_light_helper, [room_bin_jid/1]).
-
 -import(domain_helper, [host_type/0]).
 
 -define(ROOM, <<"tt1">>).
@@ -223,7 +220,7 @@ init_per_group(_GN, Config) ->
 end_per_group(_GN, Config) ->
     Config.
 
-try_backend_for_mam( Config,Backend) ->
+try_backend_for_mam(Config, Backend) ->
     case is_backend_enabled(Backend) of
         true -> [{mam_backend, Backend} | Config];
         false -> {skip, backend_is_not_configured}
@@ -297,8 +294,7 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    Backend = pick_enabled_backend(),
-    dynamic_modules:ensure_modules(host_type(), [{mod_roster, [{backend, Backend}]}]),
+    roster_started(),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     GN = proplists:get_value(group, Config),
@@ -344,10 +340,8 @@ init_inbox(CN, Config, GroupChatType) ->
     end.
 inbox_required_modules(Type) ->
     GroupChatModules = groupchat_module(Type),
-    Inbox = {mod_inbox, [{aff_changes, true},
-                         {remove_on_kicked, true},
-                         {groupchat, [Type]},
-                         {markers, [displayed]}]},
+    InboxOpts = (inbox_helper:inbox_opts())#{groupchat => [Type]},
+    Inbox = {mod_inbox, InboxOpts},
      GroupChatModules ++ [Inbox] .
 
 groupchat_module(muc) ->
@@ -359,36 +353,34 @@ groupchat_module(muclight) ->
       {rooms_in_rosters, true}]}].
 
 mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
-                                       CN =:= retrieve_mam_pm->
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]}]}];
+                                       CN =:= retrieve_mam_pm ->
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend, pm => #{}})}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                        CN =:= retrieve_mam_muc_light ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{},
+                                             muc => #{host => HostPattern}})},
      {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {rdbms_message_format, simple}, %% ignored for any other than rdbms backend
-                     simple, %% used only by cassandra backend
-                     {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             db_message_format => mam_message_xml,
+                                             pm => #{archive_groupchats => true},
+                                             muc => #{host => HostPattern}})},
      {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, false}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{},
+                                             muc => #{host => HostPattern}})},
      {mod_muc, [{host, HostPattern}]}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, Backend},
-                     {pm, [{archive_groupchats, true}]},
-                     {muc, [{host, HostPattern}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
+                                             pm => #{archive_groupchats => true},
+                                             muc => #{host => HostPattern}})},
      {mod_muc, [{host, HostPattern}]}].
 
 pick_enabled_backend() ->
@@ -398,9 +390,25 @@ pick_enabled_backend() ->
     ],
     proplists:get_value(true, BackendsList, mnesia).
 
+roster_required_modules() ->
+    Backend = pick_enabled_backend(),
+    [{mod_roster, roster_backend_opts(Backend)}].
+
+roster_backend_opts(riak) ->
+    RiakDefaults = config_parser_helper:default_config([modules, mod_roster, riak]),
+    config_parser_helper:mod_config(mod_roster, #{backend => riak, riak => RiakDefaults});
+roster_backend_opts(Backend) ->
+    config_parser_helper:mod_config(mod_roster, #{backend => Backend}).
 
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_enabled_backend()}]}].
+    Backend = pick_enabled_backend(),
+    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, vcard_backend_opts(Backend))}].
+
+vcard_backend_opts(riak) ->
+    #{backend => riak, riak => #{bucket_type => <<"vcard">>,
+                                 search_index => <<"vcard">>}};
+vcard_backend_opts(Backend) ->
+    #{backend => Backend}.
 
 offline_required_modules() ->
     [{mod_offline, [{backend, pick_enabled_backend()}]}].
@@ -424,6 +432,9 @@ is_mim2_started() ->
         _ -> false
     end.
 
+roster_started() ->
+    dynamic_modules:ensure_modules(host_type(), roster_required_modules()).
+
 vcard_started() ->
     dynamic_modules:ensure_modules(host_type(), vcard_required_modules()).
 
@@ -431,7 +442,12 @@ offline_started() ->
     dynamic_modules:ensure_modules(host_type(), offline_required_modules()).
 
 private_required_modules() ->
-    [{mod_private, [{backend, pick_enabled_backend()}]}].
+    [{mod_private, create_private_config(pick_enabled_backend())}].
+
+create_private_config(riak) ->
+    config_parser_helper:mod_config(mod_private, #{backend => riak, riak => #{bucket_type => <<"private">>}});
+create_private_config(Backend) ->
+    config_parser_helper:mod_config(mod_private, #{backend => Backend}).
 
 private_started() ->
     dynamic_modules:ensure_modules(host_type(), private_required_modules()).

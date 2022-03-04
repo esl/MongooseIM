@@ -56,6 +56,7 @@
 -module(mod_smart_markers).
 
 -include("jlib.hrl").
+-include("mod_muc_light.hrl").
 
 -xep([{xep, 333}, {version, "0.3"}]).
 -behaviour(gen_mod).
@@ -69,11 +70,10 @@
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4]).
-
--ignore_xref([
-    behaviour_info/1, user_send_packet/4
-]).
+-export([user_send_packet/4, remove_user/3, remove_domain/3,
+         forget_room/4, room_new_affiliations/4]).
+-ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3,
+              forget_room/4, room_new_affiliations/4]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
@@ -111,7 +111,12 @@ supported_features() ->
 %%--------------------------------------------------------------------
 -spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90}].
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
+     {remove_user, HostType, ?MODULE, remove_user, 60},
+     {remove_domain, HostType, ?MODULE, remove_domain, 60},
+     {forget_room, HostType, ?MODULE, forget_room, 85},
+     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}
+    ].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
@@ -123,6 +128,45 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
+
+remove_user(Acc, User, Server) ->
+    HostType = mongoose_acc:host_type(Acc),
+    mod_smart_markers_backend:remove_user(HostType, jid:make_bare(User, Server)),
+    Acc.
+
+-spec remove_domain(mongoose_hooks:simple_acc(),
+                    mongooseim:host_type(), jid:lserver()) ->
+    mongoose_hooks:simple_acc().
+remove_domain(Acc, HostType, Domain) ->
+    mod_smart_markers_backend:remove_domain(HostType, Domain),
+    Acc.
+
+-spec forget_room(mongoose_hooks:simple_acc(), mongooseim:host_type(), jid:lserver(), jid:luser()) ->
+    mongoose_hooks:simple_acc().
+forget_room(Acc, HostType, RoomS, RoomU) ->
+    mod_smart_markers_backend:remove_to(HostType, jid:make_noprep(RoomU, RoomS, <<>>)),
+    Acc.
+
+%% The new affs can be found in the Acc:element, where we can scan for 'none' ones
+-spec room_new_affiliations(mongoose_acc:t(), jid:jid(), mod_muc_light:aff_users(), binary()) ->
+    mongoose_acc:t().
+room_new_affiliations(Acc, RoomJid, _NewAffs, _NewVersion) ->
+    HostType = mod_muc_light_utils:acc_to_host_type(Acc),
+    case mongoose_acc:element(Acc) of
+        undefined -> Acc;
+        Packet ->
+            case exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
+                                           {element_with_attr, <<"affiliation">>, <<"none">>},
+                                           cdata]) of
+                [] -> Acc;
+                Users ->
+                    [begin
+                         FromJid = jid:to_bare(jid:from_binary(User)),
+                         mod_smart_markers_backend:remove_to_for_user(HostType, FromJid, RoomJid)
+                     end || User <- Users ],
+                    Acc
+            end
+    end.
 
 %%--------------------------------------------------------------------
 %% Other API
@@ -167,11 +211,16 @@ is_valid_host(Acc, From, To) ->
 -spec extract_chat_markers(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	[chat_marker()].
 extract_chat_markers(Acc, From, To, Packet) ->
-    TS = mongoose_acc:timestamp(Acc),
     case mongoose_chat_markers:list_chat_markers(Packet) of
         [] -> [];
         ChatMarkers ->
-            CM = #{from => From, to => To, thread => get_thread(Packet), timestamp => TS},
+            TS = mongoose_acc:timestamp(Acc),
+            CM = #{from => From,
+                   to => To,
+                   thread => get_thread(Packet),
+                   timestamp => TS,
+                   type => undefined,
+                   id => undefined},
             [CM#{type => Type, id => Id} || {Type, Id} <- ChatMarkers]
     end.
 

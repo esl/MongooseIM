@@ -12,7 +12,8 @@
 -include_lib("common_test/include/ct.hrl").
 
 all() ->
-    [{group, auth_removal},
+    [
+     {group, auth_removal},
      {group, cache_removal},
      {group, mam_removal},
      {group, inbox_removal},
@@ -21,8 +22,10 @@ all() ->
      {group, private_removal},
      {group, roster_removal},
      {group, offline_removal},
+     {group, markers_removal},
      {group, vcard_removal},
-     {group, last_removal}].
+     {group, last_removal}
+    ].
 
 groups() ->
     [
@@ -37,6 +40,7 @@ groups() ->
      {private_removal, [], [private_removal]},
      {roster_removal, [], [roster_removal]},
      {offline_removal, [], [offline_removal]},
+     {markers_removal, [], [markers_removal]},
      {vcard_removal, [], [vcard_removal]},
      {last_removal, [], [last_removal]}
     ].
@@ -79,10 +83,10 @@ group_to_modules(auth_removal) ->
     [];
 group_to_modules(cache_removal) ->
     [{mod_cache_users, []},
-     {mod_mam_meta, [{backend, rdbms}, {pm, []}]}];
+     {mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}];
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_mam_meta, [{backend, rdbms}, {pm, []}, {muc, [{host, MucHost}]}]},
+    [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}, muc => #{host => MucHost}})},
      {mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(muc_light_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
@@ -91,17 +95,19 @@ group_to_modules(muc_removal) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
     [{mod_muc, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(inbox_removal) ->
-    [{mod_inbox, []}];
+    [{mod_inbox, inbox_helper:inbox_opts()}];
 group_to_modules(private_removal) ->
-    [{mod_private, [{backend, rdbms}]}];
+    [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
 group_to_modules(roster_removal) ->
-    [{mod_roster, [{backend, rdbms}]}];
+    [{mod_roster, config_parser_helper:mod_config(mod_roster, #{backend => rdbms})}];
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}];
+group_to_modules(markers_removal) ->
+    [{mod_smart_markers, [{backend, rdbms}]}];
 group_to_modules(vcard_removal) ->
-    [{mod_vcard, [{backend, rdbms}]}];
+    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
-    [{mod_last, [{backend, rdbms}]}].
+    [{mod_last, config_parser_helper:mod_config(mod_last, #{backend => rdbms})}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -288,6 +294,27 @@ offline_removal(Config) ->
         ?assertMatch({ok, [_]}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid])),
         run_remove_domain(),
         ?assertMatch({ok, []}, rpc(mim(), mod_offline_rdbms, fetch_messages, [host_type(), BobJid]))
+    end).
+
+markers_removal(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Body = <<"Hello Bob!">>,
+        MsgId = escalus_stanza:id(),
+        Msg = escalus_stanza:set_id(escalus_stanza:chat_to(Bob, Body), MsgId),
+        escalus:send(Alice, Msg),
+        escalus:wait_for_stanza(Bob),
+        ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
+        escalus:send(Bob, ChatMarker),
+        escalus:wait_for_stanza(Alice),
+        mongoose_helper:wait_until(
+          fun() -> 1 =< mongoose_helper:generic_count(mod_smart_markers) end, true),
+        % check messages in DB
+        AliceJid = jid:from_binary(escalus_client:full_jid(Alice)),
+        ?assertMatch([_], rpc(mim(), mod_smart_markers_backend, get_chat_markers,
+                                    [host_type(), AliceJid, undefined, 0])),
+        run_remove_domain(),
+        ?assertMatch([], rpc(mim(), mod_smart_markers_backend, get_chat_markers,
+                                   [host_type(), AliceJid, undefined, 0]))
     end).
 
 roster_removal(Config) ->

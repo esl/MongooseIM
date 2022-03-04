@@ -74,7 +74,7 @@ get_modules_metrics(Host, Modules) ->
         fun(M) ->
             case erlang:function_exported(M, config_metrics, 1) of
                 true -> {M, M:config_metrics(Host)};
-                false -> {M ,[{none, none}]}
+                false -> {M, [{none, none}]}
             end
         end, Modules).
 
@@ -172,7 +172,7 @@ get_outgoing_pools() ->
     OutgoingPools = mongoose_config:get_opt(outgoing_pools, []),
     [#{report_name => outgoing_pools,
        key => type,
-       value => Type} || {Type, _, _, _, _} <- OutgoingPools].
+       value => Type} || #{type := Type} <- OutgoingPools].
 
 get_xmpp_stanzas_count(PrevReport) ->
     StanzaTypes = [xmppMessageSent, xmppMessageReceived, xmppIqSent,

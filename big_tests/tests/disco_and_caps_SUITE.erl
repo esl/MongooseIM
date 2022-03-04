@@ -5,6 +5,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(domain_helper, [host_type/0, domain/0]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 
 all() ->
     [{group, disco_with_caps},
@@ -193,14 +194,15 @@ user_can_query_server_info(Config) ->
 
 required_modules(disco_with_caps) ->
     [{mod_caps, []},
-     {mod_disco, []}];
+     {mod_disco, default_mod_config(mod_disco)}];
 required_modules(disco_with_extra_features) ->
-    [{mod_disco, [{extra_domains, [extra_domain()]},
-                  {server_info, [server_info(abuse, []),
-                                 server_info(admin, [{modules, [mod_disco]}]),
-                                 server_info(sales, [{modules, [mod_pubsub]}])]
-                  }]
-     }].
+    [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].
+
+extra_disco_opts() ->
+    #{extra_domains => [extra_domain()],
+      server_info => [server_info(abuse, #{}),
+                      server_info(admin, #{modules => [mod_disco]}),
+                      server_info(sales, #{modules => [mod_pubsub]})]}.
 
 get_form_fields(Stanza) ->
      exml_query:paths(Stanza, [{element_with_ns, <<"query">>, ?NS_DISCO_INFO},
@@ -211,7 +213,7 @@ extra_domain() ->
     <<"eXtra.example.com">>.
 
 server_info(Type, Extra) ->
-    [{name, name(Type)}, {urls, urls(Type)} | Extra].
+    maps:merge(#{name => name(Type), urls => urls(Type)}, Extra).
 
 name(abuse) -> <<"abuse-addresses">>;
 name(admin) -> <<"admin-addresses">>;

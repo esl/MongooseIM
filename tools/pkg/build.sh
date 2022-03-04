@@ -81,7 +81,11 @@ docker build -t mongooseim-${platform}:${version}-${revision} \
     -f ${dockerfile_path} \
     $context_path
 
+docker rm -f mongooseim-pkg-container &>/dev/null || echo "ok"
+
 # Run ready docker image with tested mongooseim package and move it to
 # built packages directory
-docker run --rm -v "${built_packages_directory}:/built_packages" \
-    "mongooseim-${platform}:${version}-${revision}"
+docker run --name=mongooseim-pkg-container "mongooseim-${platform}:${version}-${revision}"
+# Dot is like /*, but for docker.
+# Moves all files in the directory.
+docker cp "mongooseim-pkg-container:/built_packages/." "${built_packages_directory}/"

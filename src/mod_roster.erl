@@ -23,7 +23,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
-%%% @doc Roster management (Mnesia storage).
+%%% @doc Roster management.
 %%%
 %%% Includes support for XEP-0237: Roster Versioning.
 %%% The roster versioning follows an all-or-nothing strategy:
@@ -53,7 +53,7 @@
          item_to_xml/1
         ]).
 
-% Main hooks
+% Hook handlers
 -export([
          get_user_roster/2,
          in_subscription/5,
@@ -73,7 +73,7 @@
 -export([config_metrics/1]).
 
 -ignore_xref([
-    behaviour_info/1, get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
+    get_jid_info/4, get_personal_data/3, get_subscription_lists/2,
     get_user_roster/2, get_user_rosters_length/2, get_versioning_feature/2,
     in_subscription/5, item_to_xml/1, out_subscription/4, process_subscription_t/6,
     remove_user/3, remove_domain/3, transaction/2
@@ -133,9 +133,8 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
 %% mod_roster's callbacks
 %%--------------------------------------------------------------------
 
--spec start(mongooseim:host_type(), list()) -> any().
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts = #{iqdisc := IQDisc}) ->
     mod_roster_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ROSTER, ejabberd_sm,
@@ -155,7 +154,13 @@ config_spec() ->
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_roster}},
                  <<"riak">> => riak_config_spec()
-                }
+                },
+       format_items = map,
+       defaults = #{<<"iqdisc">> => one_queue,
+                    <<"versioning">> => false,
+                    <<"store_current_id">> => false,
+                    <<"backend">> => mnesia},
+       process = fun remove_unused_backend_opts/1
       }.
 
 riak_config_spec() ->
@@ -163,8 +168,14 @@ riak_config_spec() ->
                                                     validate = non_empty},
                        <<"version_bucket_type">> => #option{type = binary,
                                                             validate = non_empty}},
-             wrap = none
-            }.
+             include = always,
+             format_items = map,
+             defaults = #{<<"bucket_type">> => <<"rosters">>,
+                          <<"version_bucket_type">> => <<"roster_versions">>}
+    }.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 supported_features() -> [dynamic_domains].
 
@@ -964,9 +975,9 @@ item_to_map(#roster{} = Roster) ->
     #{jid => ContactJid, name => ContactName, subscription => Subs,
       groups => Groups, ask => Ask}.
 
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    OptsToReport = [{backend, mnesia}], % list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 %% Backend API wrappers
 

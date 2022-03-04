@@ -9,7 +9,8 @@
 init() ->
     ok.
 
-start(HostType, Tag, WpoolOpts, ConnOpts) ->
+start(HostType, Tag, WpoolOpts, ConnOptsIn) ->
+    ConnOpts = maps:to_list(ConnOptsIn),
     WorkerSpec = {mongoose_ldap_worker, ConnOpts},
     ProcName = mongoose_wpool:make_pool_name(ldap, HostType, Tag),
     mongoose_wpool:start_sup_pool(ldap, ProcName, [{worker, WorkerSpec} | WpoolOpts]).

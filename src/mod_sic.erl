@@ -50,9 +50,7 @@
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-
+start(HostType, #{iqdisc := IQDisc}) ->
     [gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_SIC, Component, Fn, #{}, IQDisc) ||
         {Component, Fn} <- iq_handlers()],
     ok.
@@ -73,8 +71,9 @@ iq_handlers() ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()}}.
+    #section{items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc()},
+             defaults = #{<<"iqdisc">> => one_queue},
+             format_items = map}.
 
 -spec supported_features() -> [atom()].
 supported_features() -> [dynamic_domains].

@@ -22,9 +22,11 @@ options("host_types") ->
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {sm_backend, {mnesia, []}},
-     {s2s_address, #{}},
-     {s2s_dns, default_s2s_dns()},
-     {s2s_outgoing, default_s2s_outgoing()},
+     {{s2s, <<"another host type">>}, default_s2s()},
+     {{s2s, <<"localhost">>}, default_s2s()},
+     {{s2s, <<"some host type">>}, default_s2s()},
+     {{s2s, <<"this is host type">>}, default_s2s()},
+     {{s2s, <<"yet another host type">>}, default_s2s()},
      {{auth, <<"another host type">>}, auth_with_methods(#{})},
      {{auth, <<"localhost">>},
       auth_with_methods(#{rdbms => #{users_number_estimate => false}})},
@@ -38,7 +40,7 @@ options("host_types") ->
                                         program => "/usr/bin/bash"},
                           http => #{}})},
      {{modules, <<"another host type">>}, #{mod_offline => []}},
-     {{modules, <<"localhost">>}, #{mod_vcard => []}},
+     {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
      {{modules, <<"yet another host type">>}, #{mod_amp => []}},
@@ -82,9 +84,8 @@ options("miscellaneous") ->
          {periodic_report, 10800000},
          report,
          {tracking_id, "UA-123456789"}]}]},
-     {s2s_address, #{}},
-     {s2s_dns, default_s2s_dns()},
-     {s2s_outgoing, default_s2s_outgoing()},
+     {{s2s, <<"anonymous.localhost">>}, default_s2s()},
+     {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, {mnesia, []}},
      {{auth, <<"anonymous.localhost">>}, custom_auth()},
      {{auth, <<"localhost">>}, custom_auth()},
@@ -107,9 +108,8 @@ options("modules") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {s2s_address, #{}},
-     {s2s_dns, default_s2s_dns()},
-     {s2s_outgoing, default_s2s_outgoing()},
+     {{s2s, <<"dummy_host">>}, default_s2s()},
+     {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, {mnesia, []}},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
@@ -228,24 +228,21 @@ options("mongooseim-pgsql") ->
      {max_fsm_queue, 1000},
      {mongooseimctl_access_commands, []},
      {outgoing_pools,
-      [{rdbms, global, default,
-        [{workers, 5}],
-        [{server,
-          {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
-           [{ssl, required},
-            {ssl_opts,
-             [{cacertfile, "priv/ca.pem"},
-              {server_name_indication, disable},
-              {verify, verify_peer}]}]}}]},
-       {redis, <<"localhost">>, global_distrib, [{workers, 10}], []}]},
+      lists:map(fun merge_with_default_pool_config/1,
+      [#{type => rdbms, scope => global, tag => default,
+         opts => #{workers => 5},
+         conn_opts => #{server =>
+                        {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
+                         [{ssl, required},
+                          {ssl_opts,
+                           [{cacertfile, "priv/ca.pem"},
+                            {server_name_indication, disable},
+                            {verify, verify_peer}]}]}}},
+       #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+         opts => #{workers => 10}, conn_opts => #{}}])},
      {rdbms_server_type, generic},
      {registration_timeout, infinity},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {s2s_address, #{<<"fed1">> => #{ip_address => "127.0.0.1"}}},
-     {s2s_certfile, "tools/ssl/mongooseim/server.pem"},
-     {s2s_dns, default_s2s_dns()},
-     {s2s_outgoing, (default_s2s_outgoing())#{port => 5299}},
-     {s2s_use_starttls, optional},
      {services,
       [{service_admin_extra,
         [{submods,
@@ -276,9 +273,9 @@ options("mongooseim-pgsql") ->
      {{replaced_wait_timeout, <<"anonymous.localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"localhost.bis">>}, 2000},
-     {{s2s_default_policy, <<"anonymous.localhost">>}, allow},
-     {{s2s_default_policy, <<"localhost">>}, allow},
-     {{s2s_default_policy, <<"localhost.bis">>}, allow},
+     {{s2s, <<"anonymous.localhost">>}, pgsql_s2s()},
+     {{s2s, <<"localhost">>}, pgsql_s2s()},
+     {{s2s, <<"localhost.bis">>}, pgsql_s2s()},
      {{access, global}, pgsql_access()},
      {{access, <<"anonymous.localhost">>}, pgsql_access()},
      {{access, <<"localhost">>}, pgsql_access()},
@@ -307,57 +304,57 @@ options("outgoing_pools") ->
      {loglevel, warning},
      {mongooseimctl_access_commands, []},
      {outgoing_pools,
-      [{cassandra, global, default, [],
-        [{keyspace, "big_mongooseim"},
-         {servers,
-          [{"cassandra_server1.example.com", 9042},
-           {"cassandra_server2.example.com", 9042}]}]},
-       {elastic, global, default, [], [{host, "localhost"}]},
-       {http, global, mongoose_push_http,
-        [{workers, 50}],
-        [{server, "https://localhost:8443"},
-         {path_prefix, "/"},
-         {request_timeout, 2000}]},
-       {ldap, host, default,
-        [{workers, 5}],
-        [{password, "ldap-admin-password"},
-         {rootdn, "cn=admin,dc=example,dc=com"},
-         {servers, ["ldap-server.example.com"]}]},
-       {rabbit, host, event_pusher,
-        [{workers, 20}],
-        [{amqp_host, "localhost"},
-         {amqp_password, "guest"},
-         {amqp_port, 5672},
-         {amqp_username, "guest"},
-         {confirms_enabled, true},
-         {max_worker_queue_len, 100}]},
-       {rdbms, global, default,
-        [{workers, 5}],
-        [{server,
-          {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
-           [{ssl, required},
-            {ssl_opts,
-             [{cacertfile, "priv/ca.pem"},
-              {server_name_indication, disable},
-              {verify, verify_peer}]}]}},
-         {keepalive_interval, 30}]},
-       {redis, <<"localhost">>, global_distrib, [{workers, 10}], []},
-       {riak, global, default,
-        [{strategy, next_worker}, {workers, 20}],
-        [{address, "127.0.0.1"},
-         {credentials, "username", "pass"},
-         {port, 8087},
-         {ssl_opts,
-          [{certfile, "path/to/cert.pem"},
-           {keyfile, "path/to/key.pem"},
-           {verify, verify_peer}]},
-         {cacertfile, "path/to/cacert.pem"}]}]},
+      lists:map(fun merge_with_default_pool_config/1,
+      [#{type => cassandra, scope => global, tag => default, opts => #{},
+         conn_opts => #{keyspace => big_mongooseim,
+                        servers => [{"cassandra_server1.example.com", 9042},
+                                    {"cassandra_server2.example.com", 9042}]}},
+       #{type => elastic, scope => global, tag => default, opts => #{},
+         conn_opts => #{host => "localhost"}},
+       #{type => http, scope => global, tag => mongoose_push_http,
+         opts => #{workers => 50},
+         conn_opts => #{server => "https://localhost:8443",
+                        path_prefix => "/",
+                        request_timeout => 2000}},
+       #{type => ldap, scope => host, tag => default,
+         opts => #{workers => 5},
+         conn_opts => #{password => "ldap-admin-password",
+                        rootdn => "cn=admin,dc=example,dc=com",
+                        servers => ["ldap-server.example.com"]}},
+       #{type => rabbit, scope => host, tag => event_pusher,
+         opts => #{workers => 20},
+         conn_opts => #{amqp_host => "localhost",
+                        amqp_password => <<"guest">>,
+                        amqp_port => 5672,
+                        amqp_username => <<"guest">>,
+                        confirms_enabled => true,
+                        max_worker_queue_len => 100}},
+       #{type => rdbms, scope => global, tag => default,
+         opts => #{workers => 5},
+         conn_opts => #{server =>
+                        {pgsql, "localhost", "ejabberd", "ejabberd", "mongooseim_secret",
+                         [{ssl, required},
+                          {ssl_opts, [{cacertfile, "priv/ca.pem"},
+                                      {server_name_indication, disable},
+                                      {verify, verify_peer}]}]},
+                        keepalive_interval => 30}},
+       #{type => redis, scope => <<"localhost">>, tag => global_distrib,
+         opts => #{workers => 10}, conn_opts => #{}},
+       #{type => riak, scope => global, tag => default,
+         opts => #{strategy => next_worker, workers => 20},
+         conn_opts => #{address => "127.0.0.1",
+                        credentials => {"username", "pass"},
+                        port => 8087,
+                        ssl_opts => [{certfile, "path/to/cert.pem"},
+                                     {keyfile, "path/to/key.pem"},
+                                     {verify, verify_peer}],
+                        cacertfile => "path/to/cacert.pem"}}])},
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {s2s_address, #{}},
-     {s2s_dns, default_s2s_dns()},
-     {s2s_outgoing, default_s2s_outgoing()},
+     {{s2s, <<"anonymous.localhost">>}, default_s2s()},
+     {{s2s, <<"localhost">>}, default_s2s()},
+     {{s2s, <<"localhost.bis">>}, default_s2s()},
      {sm_backend, {mnesia, []}},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
@@ -381,9 +378,6 @@ options("s2s_only") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {s2s_certfile, "tools/ssl/mongooseim/server.pem"},
-     {s2s_ciphers, "TLSv1.2:TLSv1.3"},
-     {s2s_use_starttls, optional},
      {sm_backend, {mnesia, []}},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
@@ -391,34 +385,21 @@ options("s2s_only") ->
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"dummy_host">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
-     {s2s_address, #{<<"fed1">> => #{ip_address => "127.0.0.1"},
-                     <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}}},
-     {s2s_dns, #{retries => 1, timeout => 30}},
-     {s2s_outgoing, #{connection_timeout => 4000,
-                     ip_versions => [6, 4],
-                     port => 5299}},
-     {{s2s_default_policy, <<"dummy_host">>}, allow},
-     {{s2s_default_policy, <<"localhost">>}, allow},
-     {{s2s_max_retry_delay, <<"dummy_host">>}, 30},
-     {{s2s_max_retry_delay, <<"localhost">>}, 30},
-     {{s2s_shared, <<"dummy_host">>}, <<"shared secret">>},
-     {{s2s_shared, <<"localhost">>}, <<"shared secret">>},
-     {{s2s_host_policy, <<"dummy_host">>}, #{<<"fed1">> => allow,
-                                           <<"reg1">> => deny}},
-     {{s2s_host_policy, <<"localhost">>}, #{<<"fed1">> => allow,
-                                          <<"reg1">> => deny}}].
+     {{s2s, <<"dummy_host">>}, custom_s2s()},
+     {{s2s, <<"localhost">>}, custom_s2s()}].
 
 all_modules() ->
-    #{mod_mam_rdbms_user => [{muc, true}, {pm, true}],
+    #{mod_mam_rdbms_user => #{muc => true, pm => true},
       mod_event_pusher_hook_translator => [],
       mod_mam_muc =>
-          [{archive_chat_markers, true},
-           {async_writer, [{enabled, false}]},
-           {full_text_search, true},
-           {host, {fqdn, <<"muc.example.com">>}},
-           {is_archivable_message, mod_mam_utils}],
+          mod_config(mod_mam_muc,
+                     #{archive_chat_markers => true,
+                       async_writer => config([modules, mod_mam_meta, async_writer],
+                                              #{enabled => false}),
+                       host => {fqdn, <<"muc.example.com">>},
+                       no_stanzaid_element => true}),
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
-      mod_mam_cache_user => [{muc, true}, {pm, true}],
+      mod_mam_cache_user => #{cache => [], muc => true, pm => true},
       mod_offline =>
           [{access_max_user_messages, max_user_offline_messages},
            {backend, riak},
@@ -470,8 +451,8 @@ all_modules() ->
            {plugin_module, mod_event_pusher_push_plugin_defaults},
            {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
            {wpool, [{workers, 200}]}],
-      mod_adhoc => [{iqdisc, one_queue}, {report_commands_node, true}],
-      mod_mam_rdbms_arch_async => [{pm, []}],
+      mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
+      mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
       mod_keystore =>
           [{keys,
             [{access_secret, ram},
@@ -497,26 +478,30 @@ all_modules() ->
            {max_items_node, 1000},
            {pep_mapping, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}]},
            {plugins, [<<"flat">>, <<"pep">>]}],
-      mod_version => [{os_info, true}],
-      mod_auth_token =>
-          [{{validity_period, access}, {13, minutes}},
-           {{validity_period, refresh}, {13, days}}],
+      mod_version => mod_config(mod_version, #{os_info => true}),
+      mod_auth_token => #{backend => rdbms,
+                          validity_period => #{access => #{unit => minutes, value => 13},
+                                               refresh => #{unit => days, value => 13}},
+                          iqdisc => one_queue},
       mod_carboncopy => [{iqdisc, no_queue}],
       mod_mam =>
-          [{archive_chat_markers, true},
-           {full_text_search, false},
-           {is_archivable_message, mod_mam_utils},
-           {no_stanzaid_element, true}],
+          mod_config(mod_mam,
+                     #{archive_chat_markers => true,
+                       archive_groupchats => false,
+                       async_writer => default_config([modules, mod_mam_meta, async_writer]),
+                       full_text_search => false,
+                       same_mam_id_for_peers => false,
+                       no_stanzaid_element => true}),
       mod_disco =>
-          [{extra_domains, [<<"some_domain">>, <<"another_domain">>]},
-           {iqdisc, one_queue},
-           {server_info,
-            [[{name, <<"abuse-address">>}, {urls, [<<"admin@example.com">>]}],
-             [{modules, [mod_muc, mod_disco]},
-              {name, <<"friendly-spirits">>},
-              {urls, [<<"spirit1@localhost">>, <<"spirit2@localhost">>]}]]},
-           {users_can_see_hidden_services, true}],
-      mod_last => [{backend, mnesia}, {iqdisc, {queues, 10}}],
+          mod_config(mod_disco,
+                     #{extra_domains => [<<"some_domain">>, <<"another_domain">>],
+                       server_info =>
+                           [#{name => <<"abuse-address">>,
+                              urls => [<<"admin@example.com">>]},
+                            #{name => <<"friendly-spirits">>,
+                              urls => [<<"spirit1@localhost">>, <<"spirit2@localhost">>],
+                              modules => [mod_muc, mod_disco]}]}),
+      mod_last => #{backend => mnesia, iqdisc => {queues, 10}},
       mod_shared_roster_ldap =>
           [{ldap_base, "ou=Users,dc=ejd,dc=com"},
            {ldap_filter, "(objectClass=inetOrgPerson)"},
@@ -526,28 +511,23 @@ all_modules() ->
            {ldap_rfilter, "(objectClass=inetOrgPerson)"},
            {ldap_user_cache_validity, 1},
            {ldap_userdesc, "cn"}],
-      mod_mam_mnesia_prefs => [{muc, true}],
+      mod_mam_mnesia_prefs => #{muc => true},
       mod_jingle_sip =>
           [{listen_port, 5600},
            {local_host, "localhost"},
            {proxy_host, "localhost"},
            {proxy_port, 5600},
            {sdp_origin, "127.0.0.1"}],
-      mod_mam_rdbms_prefs => [{pm, true}],
+      mod_mam_rdbms_prefs => #{pm => true},
       mod_extdisco =>
-          [[{host, "stun1"},
-            {password, "password"},
-            {port, 3478},
-            {transport, "udp"},
-            {type, stun},
-            {username, "username"}],
-           [{host, "stun2"},
-            {password, "password"},
-            {port, 2222},
-            {transport, "tcp"},
-            {type, stun},
-            {username, "username"}],
-           [{host, "192.168.0.1"}, {type, turn}]],
+          #{iqdisc => one_queue,
+            service => [#{host => <<"stun1">>, password => <<"password">>,
+                          port => 3478, transport => <<"udp">>, type => stun,
+                          username => <<"username">>},
+                        #{host => <<"stun2">>, password => <<"password">>,
+                          port => 2222, transport => <<"tcp">>, type => stun,
+                          username => <<"username">>},
+                        #{host => <<"192.168.0.1">>, type => turn}]},
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
           [{access_log, muc},
@@ -594,35 +574,42 @@ all_modules() ->
            {region, "eu-west-1"},
            {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
            {sns_host, "sns.eu-west-1.amazonaws.com"}],
-      mod_roster => [{store_current_id, true}, {versioning, true}],
+      mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
       mod_event_pusher_http =>
           [{configs,
             [[{callback_module, mod_event_pusher_http_defaults},
               {path, "/notifications"},
               {pool_name, http_pool}]]}],
       mod_inbox =>
-          [{aff_changes, true},
-           {groupchat, [muclight]},
-           {remove_on_kicked, true},
-           {reset_markers, [<<"displayed">>]}],
+          #{backend => rdbms,
+            async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+            iqdisc => no_queue,
+            aff_changes => true,
+            groupchat => [muclight],
+            remove_on_kicked => true,
+            reset_markers => [<<"displayed">>]},
       mod_mam_meta =>
-          [{archive_chat_markers, true},
-           {backend, rdbms},
-           {full_text_search, true},
-           {is_archivable_message, mod_mam_utils},
-           {muc,
-            [{async_writer, [{enabled, false}]},
-             {host, {fqdn, <<"muc.example.com">>}},
-             {rdbms_message_format, simple},
-             {user_prefs_store, mnesia}]},
-           {no_stanzaid_element, true},
-           {pm, [{full_text_search, false}, {user_prefs_store, rdbms}]}],
+          mod_config(mod_mam_meta,
+                     #{archive_chat_markers => true,
+                       muc =>
+                           #{async_writer => config([modules, mod_mam_meta, async_writer],
+                                                    #{enabled => false}),
+                             db_message_format => mam_message_xml,
+                             host => {fqdn, <<"muc.example.com">>},
+                             user_prefs_store => mnesia},
+                       no_stanzaid_element => true,
+                       pm =>
+                           #{archive_groupchats => false,
+                             full_text_search => false,
+                             same_mam_id_for_peers => false,
+                             user_prefs_store => rdbms}}),
       mod_register =>
           [{access, all},
            {password_strength, 32},
            {registration_watchers, [<<"JID1">>, <<"JID2">>]},
            {welcome_message, {"Subject", "Body"}}],
-      mod_mam_rdbms_arch => [{no_writer, true}, {pm, true}],
+      mod_mam_rdbms_arch =>
+          mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
       mod_event_pusher_rabbit =>
           [{chat_msg_exchange,
             [{name, <<"chat_msg">>},
@@ -634,7 +621,8 @@ all_modules() ->
              {sent_topic, <<"groupchat_msg_sent">>}]},
            {presence_exchange, [{name, <<"presence">>}, {type, <<"topic">>}]}],
       mod_bosh =>
-          [{inactivity, 20}, {maxpause, 120}, {max_wait, infinity}, {server_acks, true}],
+          #{backend => mnesia, inactivity => 20, max_wait => infinity,
+            server_acks => true, max_pause => 120},
       mod_muc =>
           [{access, muc},
            {access_create, muc_create},
@@ -646,18 +634,19 @@ all_modules() ->
            {host, {fqdn, <<"muc.example.com">>}},
            {http_auth_pool, my_auth_pool}],
       mod_vcard =>
-          [{host, {fqdn, <<"directory.example.com">>}},
-           {ldap_search_fields,
-            [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}]},
-           {ldap_search_reported,
-            [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}]},
-           {ldap_vcard_map,
-            [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
-             {<<"FN">>, <<"%s">>, [<<"displayName">>]}]},
-           {matches, 1},
-           {search, true}],
+          mod_config(mod_vcard,
+                     #{host => {fqdn, <<"directory.example.com">>},
+                       ldap_search_fields =>
+                        [{<<"User">>, <<"%u">>}, {<<"Full Name">>, <<"displayName">>}],
+                       ldap_search_reported =>
+                        [{<<"Full Name">>, <<"FN">>}, {<<"Given Name">>, <<"FIRST">>}],
+                       ldap_vcard_map =>
+                        [{<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                         {<<"FN">>, <<"%s">>, [<<"displayName">>]}],
+                       matches => 1,
+                       search => true}),
       mod_mam_muc_rdbms_arch =>
-          [{muc, true}, {db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
+          mod_config(mod_mam_muc_rdbms_arch, #{db_message_format => mam_message_xml}),
       mod_stream_management =>
           [{ack_freq, 1},
            {buffer_max, 30},
@@ -668,21 +657,22 @@ all_modules() ->
              {stale_h_repeat_after, 1800}]}]}.
 
 pgsql_modules() ->
-    #{mod_adhoc => [], mod_amp => [], mod_blocking => [], mod_bosh => [],
+    #{mod_adhoc => default_mod_config(mod_adhoc),
+      mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => [], mod_commands => [],
-      mod_disco => [{users_can_see_hidden_services, false}],
-      mod_last => [{backend, rdbms}],
+      mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
+      mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
       mod_privacy => [{backend, rdbms}],
-      mod_private => [{backend, rdbms}],
+      mod_private => default_mod_config(mod_private),
       mod_register =>
           [{access, register},
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
            {welcome_message, {"Hello", "I am MongooseIM"}}],
-      mod_roster => [{backend, rdbms}],
-      mod_sic => [], mod_stream_management => [],
-      mod_vcard => [{backend, rdbms}, {host, {prefix, <<"vjud.">>}}]}.
+      mod_roster => mod_config(mod_roster, #{backend => rdbms}),
+      mod_sic => default_mod_config(mod_sic), mod_stream_management => [],
+      mod_vcard => mod_config(mod_vcard, #{backend => rdbms, host => {prefix, <<"vjud.">>}})}.
 
 auth_with_methods(Methods) ->
     maps:merge(default_auth(), Methods#{methods => lists:sort(maps:keys(Methods))}).
@@ -718,9 +708,34 @@ default_auth() ->
       sasl_external => [standard],
       sasl_mechanisms => cyrsasl:default_modules()}.
 
-default_s2s_dns() ->
-     #{retries => 2,
-       timeout => 10}.
+pgsql_s2s() ->
+    Outgoing = (default_s2s_outgoing())#{port => 5299},
+    (default_s2s())#{address => #{<<"fed1">> => #{ip_address => "127.0.0.1"}},
+                     certfile => "priv/server.pem",
+                     outgoing => Outgoing,
+                     use_starttls => optional}.
+
+custom_s2s() ->
+    #{address =>
+          #{<<"fed1">> => #{ip_address => "127.0.0.1"},
+            <<"fed2">> => #{ip_address => "127.0.0.1", port => 8765}},
+      certfile => "priv/server.pem",
+      ciphers => ejabberd_tls:default_ciphers(),
+      default_policy => allow,
+      dns => #{retries => 1, timeout => 30},
+      host_policy => #{<<"fed1">> => allow, <<"reg1">> => deny},
+      max_retry_delay => 30,
+      outgoing => #{connection_timeout => 4000, ip_versions => [6, 4], port => 5299},
+      shared => <<"shared secret">>,
+      use_starttls => optional}.
+
+default_s2s() ->
+    #{ciphers => ejabberd_tls:default_ciphers(),
+      default_policy => allow,
+      dns => #{retries => 2, timeout => 10},
+      max_retry_delay => 300,
+      outgoing => default_s2s_outgoing(),
+      use_starttls => false}.
 
 default_s2s_outgoing() ->
      #{connection_timeout => 10000,
@@ -750,3 +765,188 @@ pgsql_access() ->
       muc_create => [#{acl => local, value => allow}],
       register => [#{acl => all, value => allow}],
       s2s_shaper => [#{acl => all, value => fast}]}.
+
+merge_with_default_pool_config(PoolIn = #{type := Type}) ->
+    DefaultConfig = #{opts := DefaultOpts, conn_opts := DefaultConnOpts} = default_pool_config(Type),
+    WpoolOptsWithDefaults = maps:merge(DefaultOpts, maps:get(opts, PoolIn, #{})),
+    ConnOptsWithDefaults = maps:merge(DefaultConnOpts, maps:get(conn_opts, PoolIn, #{})),
+    maps:merge(DefaultConfig, PoolIn#{opts => WpoolOptsWithDefaults,
+                                      conn_opts => ConnOptsWithDefaults}).
+
+default_pool_config(Type) ->
+    #{scope => global,
+      tag => default,
+      opts => default_pool_wpool_opts(Type),
+      conn_opts => default_pool_conn_opts(Type)}.
+
+default_pool_wpool_opts(cassandra) ->
+    #{workers => 20,
+      strategy => best_worker,
+      call_timeout => 5000};
+default_pool_wpool_opts(rdbms) ->
+    #{workers => 10,
+      strategy => best_worker,
+      call_timeout => 60000};
+default_pool_wpool_opts(_) ->
+    #{workers => 10,
+      strategy => best_worker,
+      call_timeout => 5000}.
+
+default_pool_conn_opts(cassandra) ->
+    #{servers => [{"localhost", 9042}],
+      keyspace => mongooseim};
+default_pool_conn_opts(elastic) ->
+    #{host => "localhost",
+      port => 9200};
+default_pool_conn_opts(http) ->
+    #{path_prefix => "/",
+      request_timeout => 2000};
+default_pool_conn_opts(ldap) ->
+    #{rootdn => "",
+      password => "",
+      encrypt => none,
+      servers => ["localhost"],
+      connect_interval => 10000};
+default_pool_conn_opts(rabbit) ->
+    #{amqp_port => 5672,
+      confirms_enabled => false,
+      max_worker_queue_len => 1000};
+default_pool_conn_opts(redis) ->
+    #{host => "127.0.0.1",
+      port => 6379,
+      database => 0,
+      password => ""};
+default_pool_conn_opts(_Type) ->
+    #{}.
+
+mod_config(Module, ExtraOpts) ->
+    maps:merge(default_mod_config(Module), ExtraOpts).
+
+default_mod_config(mod_adhoc) ->
+    #{iqdisc => one_queue, report_commands_node => false};
+default_mod_config(mod_auth_token) ->
+    #{backend => rdbms, iqdisc => no_queue,
+      validity_period => #{access => #{unit => hours, value => 1},
+                           refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_bosh) ->
+    #{backend => mnesia, inactivity => 30, max_wait => infinity,
+      server_acks => false, max_pause => 120};
+default_mod_config(mod_disco) ->
+    #{extra_domains => [], server_info => [],
+      users_can_see_hidden_services => true, iqdisc => one_queue};
+default_mod_config(mod_extdisco) ->
+    #{iqdisc => no_queue, service => []};
+default_mod_config(mod_last) ->
+    #{iqdisc => one_queue, backend => mnesia};
+default_mod_config(mod_inbox) ->
+    #{backend => rdbms,
+      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+      groupchat => [muclight],
+      aff_changes => true,
+      remove_on_kicked => true,
+      reset_markers => [<<"displayed">>],
+      iqdisc => no_queue};
+default_mod_config(mod_private) ->
+    #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_roster) ->
+    #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
+default_mod_config(mod_sic) ->
+    #{iqdisc => one_queue};
+default_mod_config(mod_time) ->
+    #{iqdisc => one_queue};
+default_mod_config(mod_vcard) ->
+    #{iqdisc => parallel,
+      host => {prefix, <<"vjud.">>},
+      search => true,
+      backend => mnesia,
+      matches => 30,
+      ldap_pool_tag => default,
+      ldap_uids => [{<<"uid">>, <<"%u">>}],
+      ldap_vcard_map => [{<<"NICKNAME">>, <<"%u">>, []},
+                         {<<"FN">>, <<"%s">>, [<<"displayName">>]},
+                         {<<"FAMILY">>, <<"%s">>, [<<"sn">>]},
+                         {<<"GIVEN">>, <<"%s">>, [<<"givenName">>]},
+                         {<<"MIDDLE">>, <<"%s">>, [<<"initials">>]},
+                         {<<"ORGNAME">>, <<"%s">>, [<<"o">>]},
+                         {<<"ORGUNIT">>, <<"%s">>, [<<"ou">>]},
+                         {<<"CTRY">>, <<"%s">>, [<<"c">>]},
+                         {<<"LOCALITY">>, <<"%s">>, [<<"l">>]},
+                         {<<"STREET">>, <<"%s">>, [<<"street">>]},
+                         {<<"REGION">>, <<"%s">>, [<<"st">>]},
+                         {<<"PCODE">>, <<"%s">>, [<<"postalCode">>]},
+                         {<<"TITLE">>, <<"%s">>, [<<"title">>]},
+                         {<<"URL">>, <<"%s">>, [<<"labeleduri">>]},
+                         {<<"DESC">>, <<"%s">>, [<<"description">>]},
+                         {<<"TEL">>, <<"%s">>, [<<"telephoneNumber">>]},
+                         {<<"EMAIL">>, <<"%s">>, [<<"mail">>]},
+                         {<<"BDAY">>, <<"%s">>, [<<"birthDay">>]},
+                         {<<"ROLE">>, <<"%s">>, [<<"employeeType">>]},
+                         {<<"PHOTO">>, <<"%s">>, [<<"jpegPhoto">>]}],
+      ldap_search_fields => [{<<"User">>, <<"%u">>},
+                             {<<"Full Name">>, <<"displayName">>},
+                             {<<"Given Name">>, <<"givenName">>},
+                             {<<"Middle Name">>, <<"initials">>},
+                             {<<"Family Name">>, <<"sn">>},
+                             {<<"Nickname">>, <<"%u">>},
+                             {<<"Birthday">>, <<"birthDay">>},
+                             {<<"Country">>, <<"c">>}, {<<"City">>, <<"l">>},
+                             {<<"Email">>, <<"mail">>},
+                             {<<"Organization Name">>, <<"o">>},
+                             {<<"Organization Unit">>, <<"ou">>}],
+      ldap_search_reported => [{<<"Full Name">>, <<"FN">>},
+                               {<<"Given Name">>, <<"FIRST">>},
+                               {<<"Middle Name">>, <<"MIDDLE">>},
+                               {<<"Family Name">>, <<"LAST">>},
+                               {<<"Nickname">>, <<"NICK">>},
+                               {<<"Birthday">>, <<"BDAY">>},
+                               {<<"Country">>, <<"CTRY">>},
+                               {<<"City">>, <<"LOCALITY">>},
+                               {<<"Email">>, <<"EMAIL">>},
+                               {<<"Organization Name">>, <<"ORGNAME">>},
+                               {<<"Organization Unit">>, <<"ORGUNIT">>}],
+      ldap_search_operator => 'and',
+      ldap_binary_search_fields => []};
+default_mod_config(mod_version) ->
+    #{iqdisc => no_queue, os_info => false};
+default_mod_config(mod_mam_meta) ->
+    (common_mam_config())#{backend => rdbms, cache_users => true, cache => []};
+default_mod_config(mod_mam) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
+default_mod_config(mod_mam_muc) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
+default_mod_config(mod_mam_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_mini};
+default_mod_config(mod_mam_muc_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_rfc}.
+
+default_config([modules, M]) ->
+    default_mod_config(M);
+default_config([modules, mod_mam_meta, pm]) ->
+    #{archive_groupchats => false, same_mam_id_for_peers => false};
+default_config([modules, mod_mam_meta, muc]) ->
+    #{host => {prefix, <<"conference.">>}};
+default_config([modules, mod_mam_meta, async_writer]) ->
+    #{batch_size => 30, enabled => true, flush_interval => 2000,
+      pool_size => 4 * erlang:system_info(schedulers_online)};
+default_config([modules, mod_mam_meta, riak]) ->
+    #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
+default_config([modules, mod_roster, riak]) ->
+    #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>}.
+
+common_mam_config() ->
+    #{no_stanzaid_element => false,
+      is_archivable_message => mod_mam_utils,
+      send_message => mod_mam_utils,
+      archive_chat_markers => false,
+      message_retraction => true,
+      full_text_search => true,
+      default_result_limit => 50,
+      max_result_limit => 50,
+      async_writer => default_config([modules, mod_mam_meta, async_writer])}.
+
+config(Path, Opts) ->
+    maps:merge(default_config(Path), Opts).

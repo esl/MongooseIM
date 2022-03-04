@@ -45,6 +45,8 @@
 -type service() :: atom().
 -type options() :: [term()].
 
+-export_type([service/0]).
+
 -callback start(Opts :: list()) -> any().
 -callback stop() -> any().
 -callback config_spec() -> mongoose_config_spec:config_section().

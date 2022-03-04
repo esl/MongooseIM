@@ -73,8 +73,8 @@ LDAP base directory which stores user accounts.
 * **Syntax:** array of TOML tables with the following content:
     * `attr` - string, mandatory, name of the attribute
     * `format` - pattern, default: `"%u"`, requires `attr`
-* **Default:** `[{attr = "my_uid"}]`
-* **Example:** `uids = [{attr = "my_uid", format = "%u@example.org"}, {attr = "another_uid"}]`
+* **Default:** `[{attr = "uid"}]`
+* **Example:** `uids = [{attr = "uid", format = "%u@example.org"}, {attr = "another_uid"}]`
 
 List of LDAP attributes that contain the user name (user's part of the JID), used to search for user accounts.
 They are used as alternatives - it is enough if one of them contains the name.

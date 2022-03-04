@@ -78,23 +78,26 @@
 -export_type([broadcast/0, packet/0, state/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
+-type sock_data() :: term().
+-type start_result() :: {error, _}
+    | {ok, undefined | pid()}
+    | {ok, undefined | pid(), _}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(_, list())
--> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
+-spec start(sock_data(), ejabberd_listener:opts()) -> start_result().
 start(SockData, Opts) ->
     ?SUPERVISOR_START(SockData, Opts).
 
+-spec start_link(sock_data(), ejabberd_listener:opts()) -> start_result().
 start_link(SockData, Opts) ->
-    p1_fsm_old:start_link(
-      ejabberd_c2s, [SockData, Opts], ?FSMOPTS ++ fsm_limit_opts(Opts)).
+    p1_fsm_old:start_link(ejabberd_c2s, {SockData, Opts},
+                          ?FSMOPTS ++ fsm_limit_opts(Opts)).
 
 socket_type() ->
     xml_stream.
-
 
 %% @doc Return Username, Resource and presence information
 get_presence(FsmRef) ->
@@ -174,14 +177,9 @@ run_remote_hook_after(Delay, Pid, HandlerName, Args) ->
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 
-%%----------------------------------------------------------------------
-%% Func: init/1
-%% Returns: {ok, StateName, StateData}          |
-%%          {ok, StateName, StateData, Timeout} |
-%%          ignore                              |
-%%          {stop, StopReason}
-%%----------------------------------------------------------------------
-init([{SockMod, Socket}, Opts]) ->
+-spec init({sock_data(), ejabberd_listener:opts()}) ->
+        {stop, normal} | {ok, wait_for_stream, state(), non_neg_integer()}.
+init({{SockMod, Socket}, Opts}) ->
     Access = case lists:keyfind(access, 1, Opts) of
                  {_, A} -> A;
                  _ -> all
@@ -238,6 +236,7 @@ init([{SockMod, Socket}, Opts]) ->
                 false -> Socket
             end,
             SocketMonitor = mongoose_transport:monitor(SockMod, Socket1),
+            CredOpts = mongoose_credentials:make_opts(Opts),
             {ok, wait_for_stream, #state{server         = ?MYNAME,
                                          socket         = Socket1,
                                          sockmod        = SockMod,
@@ -254,7 +253,8 @@ init([{SockMod, Socket}, Opts]) ->
                                          shaper         = Shaper,
                                          ip             = IP,
                                          lang           = ?MYLANG,
-                                         hibernate_after= HibernateAfter
+                                         hibernate_after= HibernateAfter,
+                                         cred_opts      = CredOpts
                                         },
              ?C2S_OPEN_TIMEOUT}
     end.
@@ -344,8 +344,9 @@ stream_start_negotiate_features(#state{} = S) ->
     end.
 
 stream_start_features_before_auth(#state{server = Server,
-                                         host_type = HostType} = S) ->
-    Creds0 = mongoose_credentials:new(Server, HostType),
+                                         host_type = HostType,
+                                         cred_opts = CredOpts} = S) ->
+    Creds0 = mongoose_credentials:new(Server, HostType, CredOpts),
     Creds = maybe_add_cert(Creds0, S),
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, HostType, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
@@ -2797,13 +2798,13 @@ maybe_enable_stream_mgmt(NextState, El, StateData = #state{host_type = HostType}
             c2s_stream_error(mongoose_xmpp_errors:invalid_namespace(), StateData)
     end.
 
-enable_stream_resumption(SD) ->
+enable_stream_resumption(SD = #state{host_type = HostType}) ->
     SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
               undefined -> ejabberd_sm:make_new_sid();
               RSID -> RSID
           end,
-    ok = mod_stream_management:register_smid(SMID, SID),
+    ok = mod_stream_management:register_smid(HostType, SMID, SID),
     {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
 
@@ -3104,7 +3105,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
                          auth_module => NSD#state.auth_module },
                 ejabberd_sm:open_session(NSD#state.host_type, SID, NSD#state.jid, Priority, Info),
-                ok = mod_stream_management:register_smid(SMID, SID),
+                ok = mod_stream_management:register_smid(NSD#state.host_type, SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
                                                   NSD#state.stream_mgmt_in),

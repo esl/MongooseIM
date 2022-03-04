@@ -19,6 +19,7 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0,
@@ -36,6 +37,7 @@
 
 all() ->
     [
+     {group, without_bosh},
      {group, essential},
      {group, essential_https},
      {group, chat},
@@ -48,6 +50,7 @@ all() ->
 
 groups() ->
     [
+     {without_bosh, [], [reject_connection_when_mod_bosh_is_disabled]},
      {essential, [shuffle], essential_test_cases()},
      {essential_https, [shuffle], essential_test_cases()},
      {chat, [shuffle], chat_test_cases()},
@@ -104,8 +107,8 @@ acks_test_cases() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    dynamic_modules:save_modules(host_type(), Config),
-    escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config]).
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd}} | Config1]).
 
 end_per_suite(Config) ->
     dynamic_modules:restore_modules(Config),
@@ -115,8 +118,9 @@ end_per_suite(Config) ->
 init_per_group(time, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(time)),
     Config;
-init_per_group(essential, Config) ->
-    dynamic_modules:ensure_modules(host_type(), required_modules(essential)),
+init_per_group(GroupName, Config) when GroupName =:= essential;
+                                       GroupName =:= without_bosh ->
+    dynamic_modules:ensure_modules(host_type(), required_modules(GroupName)),
     [{user, carol} | Config];
 init_per_group(essential_https, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(essential_https)),
@@ -132,6 +136,7 @@ init_per_group(GroupName, Config) ->
 
 end_per_group(GroupName, _Config) when GroupName =:= time;
                                        GroupName =:= essential;
+                                       GroupName =:= without_bosh;
                                        GroupName =:= essential_https ->
     ok;
 end_per_group(_GroupName, Config) ->
@@ -146,16 +151,18 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per group
 
+required_modules(without_bosh) ->
+    [{mod_bosh, stopped}];
 required_modules(GroupName) ->
-    [{mod_bosh, required_bosh_opts(GroupName)}].
+    [{mod_bosh, maps:merge(config_parser_helper:default_mod_config(mod_bosh),
+                           required_bosh_opts(GroupName))}].
 
 required_bosh_opts(time) ->
-    [{max_wait, ?MAX_WAIT},
-     {inactivity, ?INACTIVITY}];
+    #{max_wait => ?MAX_WAIT, inactivity => ?INACTIVITY};
 required_bosh_opts(server_acks) ->
-    [{server_acks, true}];
+    #{server_acks => true};
 required_bosh_opts(_Group) ->
-    [].
+    #{}.
 
 %%--------------------------------------------------------------------
 %% Tests
@@ -184,37 +191,65 @@ create_and_terminate_session(Config) ->
     %% Assert the session was terminated.
     wait_for_zero_bosh_sessions().
 
-accept_higher_hold_value(Config) ->
-    #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"2">>),
-    {<<"hold">>, <<"1">>} = lists:keyfind(<<"hold">>, 1, RespAttrs).
+reject_connection_when_mod_bosh_is_disabled(Config) ->
+    {Domain, Path, Client} = get_fusco_connection(Config),
+    Rid = rand:uniform(1000000),
+    Body = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
+    Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
+    {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
+
+    ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs)),
+    ?assertEqual([], get_bosh_sessions()),
+    fusco_cp:stop(Client).
 
 do_not_accept_0_hold_value(Config) ->
-    #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"0">>),
-    {<<"type">>, <<"terminate">>} = lists:keyfind(<<"type">>, 1, RespAttrs).
-
-
-send_specific_hold(Config, HoldValue) ->
     {Domain, Path, Client} = get_fusco_connection(Config),
-
     Rid = rand:uniform(1000000),
     Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
     #xmlel{attrs = Attrs0} = Body0,
-    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, HoldValue}),
+    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, <<"0">>}),
     Body = Body0#xmlel{attrs = Attrs},
-
     Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
     {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
 
-    {ok, #xmlel{attrs = RespAttrs} = Resp} = exml:parse(RespBody),
-    case lists:keyfind(<<"sid">>, 1, RespAttrs) of
-        {<<"sid">>, SID} ->
-            TerminateBody = escalus_bosh:session_termination_body(Rid + 1, SID),
-            fusco_request(Client, <<"POST">>, Path, exml:to_iolist(TerminateBody));
-        _ ->
-            skip
+    ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs)),
+    ?assertEqual([], get_bosh_sessions()),
+    fusco_cp:stop(Client).
+
+accept_higher_hold_value(Config) ->
+    {Domain, Path, Client} = get_fusco_connection(Config),
+    Rid = rand:uniform(1000000),
+    Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Domain, nil),
+    #xmlel{attrs = Attrs0} = Body0,
+    Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, <<"2">>}),
+    Body = Body0#xmlel{attrs = Attrs},
+    Result = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(Body)),
+    {{<<"200">>, <<"OK">>}, _Headers, RespBody, _, _} = Result,
+    {ok, #xmlel{attrs = RespAttrs}} = exml:parse(RespBody),
+
+    %% Server returns its hold value, which is 1
+    #{<<"hold">> := <<"1">>, <<"sid">> := SID} = maps:from_list(RespAttrs),
+    ?assertMatch([_], get_bosh_sessions()),
+
+    TerminateBody = escalus_bosh:session_termination_body(Rid + 1, SID),
+    Res2 = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(TerminateBody)),
+    {{<<"200">>, <<"OK">>}, _, RespBody2, _, _} = Res2,
+    {ok, #xmlel{attrs = RespAttrs2}} = exml:parse(RespBody2),
+    case maps:from_list(RespAttrs2) of
+        #{<<"type">> := <<"terminate">>} ->
+            ok;
+        #{<<"sid">> := SID} ->
+            %% Server sent stream features separately, one more request needed
+            EmptyBody = escalus_bosh:empty_body(Rid + 2, SID),
+            Res3 = fusco_request(Client, <<"POST">>, Path, exml:to_iolist(EmptyBody)),
+            {{<<"200">>, <<"OK">>}, _, RespBody3, _, _} = Res3,
+            {ok, #xmlel{attrs = RespAttrs3}} = exml:parse(RespBody3),
+            ?assertMatch(#{<<"type">> := <<"terminate">>}, maps:from_list(RespAttrs3))
     end,
-    fusco_cp:stop(Client),
-    Resp.
+    ?assertEqual([], get_bosh_sessions()),
+    fusco_cp:stop(Client).
 
 fusco_request(Client, Method, Path, Body) ->
     fusco_request(Client, Method, Path, Body, []).

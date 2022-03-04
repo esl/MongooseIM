@@ -60,6 +60,7 @@
                 tls_cert_verify = false :: boolean(),
                 tls_options = []        :: [{_, _}],
                 server                  :: jid:server() | undefined,
+                host_type               :: mongooseim:host_type() | undefined,
                 authenticated = false   :: boolean(),
                 auth_domain             :: binary() | undefined,
                 connections = dict:new(),
@@ -136,31 +137,19 @@ init([{SockMod, Socket}, Opts]) ->
                  {value, {_, S}} -> S;
                  _ -> none
              end,
-    UseTLS = mongoose_config:get_opt(s2s_use_starttls, false),
-    {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
-    TLSOpts1 = case mongoose_config:lookup_opt(s2s_certfile) of
-                  {error, not_found} ->
-                      [];
-                  {ok, CertFile} ->
-                      [{certfile, CertFile}]
-              end,
-    TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
+    TLSOpts = lists:filter(fun({protocol_options, _}) -> true;
                                ({dhfile, _}) -> true;
                                ({cafile, _}) -> true;
                                ({ciphers, _}) -> true;
                                (_) -> false
                             end, Opts),
-    TLSOpts = lists:append(TLSOpts1, TLSOpts2),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
             sockmod = SockMod,
             streamid = new_id(),
             shaper = Shaper,
-            tls = StartTLS,
             tls_enabled = false,
-            tls_required = TLSRequired,
-            tls_cert_verify = TLSCertVerify,
             tls_options = TLSOpts,
             timer = Timer}}.
 
@@ -173,69 +162,90 @@ init([{SockMod, Socket}, Opts]) ->
 
 -spec wait_for_stream(ejabberd:xml_stream_item(), state()) -> fsm_return().
 wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
-    case {xml:get_attr_s(<<"xmlns">>, Attrs),
-          xml:get_attr_s(<<"xmlns:db">>, Attrs),
-          xml:get_attr_s(<<"to">>, Attrs),
-          xml:get_attr_s(<<"version">>, Attrs) == <<"1.0">>} of
-        {<<"jabber:server">>, _, Server, true} when
-              StateData#state.tls and (not StateData#state.authenticated) ->
-            send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
-            SASL =
-                case StateData#state.tls_enabled of
-                    true ->
-                        verify_cert_and_get_sasl(StateData#state.sockmod,
-                                                 StateData#state.socket,
-                                                 StateData#state.tls_cert_verify);
-                    _Else ->
-                        []
-                end,
-            StartTLS = get_tls_xmlel(StateData),
-            case SASL of
-                {error_cert_verif, CertError} ->
-                    RemoteServer = xml:get_attr_s(<<"from">>, Attrs),
-                    ?LOG_INFO(#{what => s2s_connection_closing,
-                                text => <<"Closing s2s connection">>,
-                                server => StateData#state.server,
-                                remote_server => RemoteServer,
-                                reason => cert_error,
-                                cert_error => CertError}),
-                    send_text(StateData, exml:to_binary(
-                                mongoose_xmpp_errors:policy_violation(<<"en">>, CertError))),
-                    {atomic, Pid} = ejabberd_s2s:find_connection(
-                                      jid:make(<<"">>, Server, <<"">>),
-                                      jid:make(<<"">>, RemoteServer, <<"">>)),
-                    ejabberd_s2s_out:stop_connection(Pid),
-
-                    {stop, normal, StateData};
-                _ ->
-                    send_element(StateData,
-                                 #xmlel{name = <<"stream:features">>,
-                                        children = SASL ++ StartTLS ++ stream_features(Server)}),
-                    {next_state, wait_for_feature_request, StateData#state{server = Server}}
+    case maps:from_list(Attrs) of
+        AttrMap = #{<<"xmlns">> := <<"jabber:server">>, <<"to">> := Server} ->
+            case StateData#state.server of
+                undefined ->
+                    case mongoose_domain_api:get_host_type(Server) of
+                        {error, not_found} ->
+                            stream_start_error(StateData, mongoose_xmpp_errors:host_unknown());
+                        {ok, HostType} ->
+                            UseTLS = mongoose_config:get_opt([{s2s, HostType}, use_starttls]),
+                            {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
+                            start_stream(AttrMap, StateData#state{server = Server,
+                                                                  host_type = HostType,
+                                                                  tls = StartTLS,
+                                                                  tls_required = TLSRequired,
+                                                                  tls_cert_verify = TLSCertVerify})
+                    end;
+                Server ->
+                    start_stream(AttrMap, StateData);
+                _Other ->
+                    Msg = <<"The 'to' attribute differs from the originally provided one">>,
+                    stream_start_error(StateData, mongoose_xmpp_errors:host_unknown(?MYLANG, Msg))
             end;
-        {<<"jabber:server">>, _, Server, true} when
-              StateData#state.authenticated ->
-            send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
-            send_element(StateData,
-                         #xmlel{name = <<"stream:features">>,
-                                children = stream_features(Server)}),
-            {next_state, stream_established, StateData};
-        {<<"jabber:server">>, <<"jabber:server:dialback">>, _Server, _} ->
-            send_text(StateData, ?STREAM_HEADER(<<"">>)),
-            {next_state, stream_established, StateData};
+        #{<<"xmlns">> := <<"jabber:server">>} ->
+            Msg = <<"The 'to' attribute is missing">>,
+            stream_start_error(StateData, mongoose_xmpp_errors:improper_addressing(?MYLANG, Msg));
         _ ->
-            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
-            {stop, normal, StateData}
+            stream_start_error(StateData, mongoose_xmpp_errors:invalid_namespace())
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
-    send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary,
-                (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary,
-                (?STREAM_TRAILER)/binary>>),
-    {stop, normal, StateData};
+    stream_start_error(StateData, mongoose_xmpp_errors:xml_not_well_formed());
 wait_for_stream(timeout, StateData) ->
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
+    {stop, normal, StateData}.
+
+start_stream(#{<<"version">> := <<"1.0">>, <<"from">> := RemoteServer},
+             StateData = #state{tls = true, authenticated = false, server = Server,
+                                host_type = HostType}) ->
+    SASL = case StateData#state.tls_enabled of
+               true ->
+                   verify_cert_and_get_sasl(StateData#state.sockmod,
+                                            StateData#state.socket,
+                                            StateData#state.tls_cert_verify);
+               _Else ->
+                   []
+           end,
+    StartTLS = get_tls_xmlel(StateData),
+    case SASL of
+        {error_cert_verif, CertError} ->
+            ?LOG_INFO(#{what => s2s_connection_closing,
+                        text => <<"Closing s2s connection">>,
+                        server => StateData#state.server,
+                        remote_server => RemoteServer,
+                        reason => cert_error,
+                        cert_error => CertError}),
+            Res = stream_start_error(StateData,
+                                     mongoose_xmpp_errors:policy_violation(?MYLANG, CertError)),
+            {atomic, Pid} = ejabberd_s2s:find_connection(jid:make(<<>>, Server, <<>>),
+                                                         jid:make(<<>>, RemoteServer, <<>>)),
+            ejabberd_s2s_out:stop_connection(Pid),
+            Res;
+        _ ->
+            send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
+            send_element(StateData,
+                         #xmlel{name = <<"stream:features">>,
+                                children = SASL ++ StartTLS ++ stream_features(HostType, Server)}),
+            {next_state, wait_for_feature_request, StateData}
+    end;
+start_stream(#{<<"version">> := <<"1.0">>},
+             StateData = #state{authenticated = true, host_type = HostType, server = Server}) ->
+    send_text(StateData, ?STREAM_HEADER(<<" version='1.0'">>)),
+    send_element(StateData, #xmlel{name = <<"stream:features">>,
+                                   children = stream_features(HostType, Server)}),
+    {next_state, stream_established, StateData};
+start_stream(#{<<"xmlns:db">> := <<"jabber:server:dialback">>}, StateData) ->
+    send_text(StateData, ?STREAM_HEADER(<<>>)),
+    {next_state, stream_established, StateData};
+start_stream(_, StateData) ->
+    stream_start_error(StateData, mongoose_xmpp_errors:invalid_xml()).
+
+stream_start_error(StateData, Error) ->
+    send_text(StateData, ?STREAM_HEADER(<<>>)),
+    send_element(StateData, Error),
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData}.
 
 -spec wait_for_feature_request(ejabberd:xml_stream_item(), state()
@@ -250,15 +260,9 @@ wait_for_feature_request({xmlstreamelement, El}, StateData) ->
                                    TLSEnabled == false,
                                    SockMod == gen_tcp ->
             ?LOG_DEBUG(#{what => s2s_starttls}),
-            #state{socket = Socket, server = Server} = StateData,
-            TLSOpts = case mongoose_config:lookup_opt([domain_certfile, Server]) of
-                          {error, not_found} ->
-                              StateData#state.tls_options;
-                          {ok, CertFile} ->
-                              lists:keystore(certfile, 1, StateData#state.tls_options, {certfile, CertFile})
-                      end,
+            TLSOpts = tls_options(StateData),
             TLSSocket = (StateData#state.sockmod):starttls(
-                          Socket, TLSOpts,
+                          StateData#state.socket, TLSOpts,
                           exml:to_binary(
                             #xmlel{name = <<"proceed">>,
                                    attrs = [{<<"xmlns">>, ?NS_TLS}]})),
@@ -297,6 +301,13 @@ wait_for_feature_request({xmlstreamerror, _}, StateData) ->
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
 
+tls_options(#state{host_type = HostType, tls_options = TLSOptions}) ->
+    case ejabberd_s2s:lookup_certfile(HostType) of
+        {ok, CertFile} ->
+            [{certfile, CertFile} | TLSOptions];
+        {error, not_found} ->
+            TLSOptions
+    end.
 
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
@@ -320,7 +331,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                                             Key, StateData#state.streamid}),
                     Conns = dict:store({LFrom, LTo}, wait_for_verification,
                                         StateData#state.connections),
-                    change_shaper(StateData, LTo, jid:make(<<"">>, LFrom, <<"">>)),
+                    change_shaper(StateData, LTo, jid:make(<<>>, LFrom, <<>>)),
                     {next_state,
                      stream_established,
                      StateData#state{connections = Conns,
@@ -337,7 +348,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
                          to => To, from => From, message_id => Id, key => Key}),
             LTo = jid:nameprep(To),
             LFrom = jid:nameprep(From),
-            Type = case ejabberd_s2s:key({LTo, LFrom}, Id) of
+            Type = case ejabberd_s2s:key(StateData#state.host_type, {LTo, LFrom}, Id) of
                        Key -> <<"valid">>;
                        _ -> <<"invalid">>
                    end,
@@ -581,12 +592,9 @@ send_text(StateData, Text) ->
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 
--spec stream_features(binary()) -> [exml:element()].
-stream_features(Domain) ->
-    case mongoose_domain_api:get_domain_host_type(Domain) of
-        {ok, HostType} -> mongoose_hooks:s2s_stream_features(HostType, Domain);
-        {error, not_found} -> []
-    end.
+-spec stream_features(mongooseim:host_type(), binary()) -> [exml:element()].
+stream_features(HostType, Domain) ->
+    mongoose_hooks:s2s_stream_features(HostType, Domain).
 
 -spec change_shaper(state(), jid:lserver(), jid:jid()) -> any().
 change_shaper(StateData, Host, JID) ->

@@ -234,6 +234,16 @@ init_per_testcase(disco_rooms_rsm = CaseName, Config) ->
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(disco_rooms_rsm, Config);
+init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                         CaseName =:= disco_info_with_mam ->
+    case mam_helper:backend() of
+        disabled ->
+            {skip, "No MAM backend available"};
+        Backend ->
+            dynamic_modules:ensure_modules(host_type(), required_modules(CaseName, Backend)),
+            create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
+            escalus:init_per_testcase(CaseName, Config)
+    end;
 init_per_testcase(CaseName, Config) ->
     dynamic_modules:ensure_modules(host_type(), required_modules(CaseName)),
     case lists:member(CaseName, ?ROOM_LESS_CASES) of
@@ -248,9 +258,16 @@ end_per_testcase(CaseName, Config) ->
 
 %% Module configuration per test case
 
+required_modules(CaseName, MAMBackend) ->
+    [{mod_mam_meta, mam_helper:config_opts(#{backend => MAMBackend,
+                                             muc => #{host => subhost_pattern(?MUCHOST)}})} |
+     common_required_modules(CaseName)].
+
 required_modules(CaseName) ->
-    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName) ++ schema_opts(CaseName)},
-     {mod_mam_muc, mam_muc_config(CaseName)}].
+    [{mod_mam_meta, stopped} | common_required_modules(CaseName)].
+
+common_required_modules(CaseName) ->
+    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName) ++ schema_opts(CaseName)}].
 
 muc_light_opts(CaseName) when CaseName =:= disco_rooms_rsm;
                               CaseName =:= disco_rooms_empty_page_1;
@@ -288,13 +305,6 @@ common_muc_light_opts() ->
                    {time_to_live, 2},
                    {number_of_segments, 3}]},
      {rooms_in_rosters, true}].
-
-mam_muc_config(CaseName) when CaseName =:= disco_features_with_mam;
-                              CaseName =:= disco_info_with_mam ->
-    [{backend, rdbms},
-     {host, subhost_pattern(?MUCHOST)}];
-mam_muc_config(_CaseName) ->
-    stopped.
 
 %%--------------------------------------------------------------------
 %% MUC light tests

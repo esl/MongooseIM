@@ -9,14 +9,12 @@
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 
--type call_timeout() :: pos_integer() | undefined.
 -record(mongoose_wpool, {
           name :: pool_name(),
           atom_name :: wpool:name(),
-          strategy :: wpool:strategy() | undefined,
-          call_timeout :: call_timeout()
+          strategy :: wpool:strategy(),
+          call_timeout :: pos_integer()
          }).
--dialyzer({no_match, start/4}).
 
 %% API
 -export([ensure_started/0,
@@ -24,6 +22,7 @@
          stop/0, stop/1, stop/2, stop/3,
          get_worker/1, get_worker/2, get_worker/3,
          call/2, call/3, call/4, call/5,
+         send_request/2, send_request/3, send_request/4, send_request/5,
          cast/2, cast/3, cast/4, cast/5,
          get_pool_settings/3, get_pools/0, stats/3]).
 
@@ -38,7 +37,8 @@
 %% Mostly for tests
 -export([expand_pools/2]).
 
--ignore_xref([behaviour_info/1, call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
+-ignore_xref([call/2, cast/2, cast/3, expand_pools/2, get_worker/2,
+              send_request/2, send_request/4, send_request/5,
               is_configured/2, is_configured/1, is_configured/1, start/2, start/3,
               start/5, start_configured_pools/1, start_configured_pools/2, stats/3,
               stop/1, stop/2]).
@@ -59,21 +59,21 @@
                       HostType :: host_type_or_global(),
                       Tag :: tag()}.
 
+-type pool_opts_in() :: map().
 -type pool_opts() :: [wpool:option()].
--type conn_opts() :: [{atom(), any()}].
+-type conn_opts() :: map().
 
--type pool_tuple_in() :: {PoolType :: pool_type(),
-                          HostType :: scope(),
-                          Tag :: tag(),
-                          WpoolOpts :: pool_opts(),
-                          ConnOpts :: conn_opts()}.
-%% Pool tuple with expanded HostType argument
--type pool_tuple() :: {PoolType :: pool_type(),
-                       %% does not contain `host' atom
-                       HostType :: host_type_or_global(),
-                       Tag :: tag(),
-                       WpoolOpts :: pool_opts(),
-                       ConnOpts :: conn_opts()}.
+-type pool_map_in() :: #{type := pool_type(),
+                         scope := scope(),
+                         tag := tag(),
+                         opts := pool_opts_in(),
+                         conn_opts := conn_opts()}.
+%% Pool map with expanded HostType argument instead of scope
+-type pool_map() :: #{type := pool_type(),
+                      host_type := host_type_or_global(),
+                      tag := tag(),
+                      opts := pool_opts(),
+                      conn_opts := conn_opts()}.
 -type pool_error() :: {pool_not_started, term()}.
 -type worker_result() :: {ok, pid()} | {error, pool_error()}.
 -type pool_record_result() :: {ok, #mongoose_wpool{}} | {error, pool_error()}.
@@ -87,17 +87,15 @@
 -export_type([pool_opts/0]).
 -export_type([conn_opts/0]).
 
--type callback_fun() :: init | start | default_opts | is_supported_strategy | stop.
+-type callback_fun() :: init | start | is_supported_strategy | stop.
 
 -callback init() -> ok | {error, term()}.
 -callback start(scope(), tag(), WPoolOpts :: pool_opts(), ConnOpts :: conn_opts()) ->
-    {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
-    {external, pid()} | {error, Reason :: term()}.
--callback default_opts() -> conn_opts().
+    {ok, {pid(), proplists:proplist()}} | {ok, pid()} | {error, Reason :: term()}.
 -callback is_supported_strategy(Strategy :: wpool:strategy()) -> boolean().
 -callback stop(scope(), tag()) -> ok.
 
--optional_callbacks([default_opts/0, is_supported_strategy/1]).
+-optional_callbacks([is_supported_strategy/1]).
 
 ensure_started() ->
     wpool:start(),
@@ -131,8 +129,9 @@ start_configured_pools(PoolsIn, HostTypes) ->
     Pools = expand_pools(PoolsIn, HostTypes),
     [start(Pool) || Pool <- Pools].
 
--spec start(pool_tuple()) -> start_result().
-start({PoolType, HostType, Tag, PoolOpts, ConnOpts}) ->
+-spec start(pool_map()) -> start_result().
+start(#{type := PoolType, host_type := HostType, tag := Tag,
+        opts := PoolOpts, conn_opts := ConnOpts}) ->
     start(PoolType, HostType, Tag, PoolOpts, ConnOpts).
 
 -spec start(pool_type(), pool_opts()) -> start_result().
@@ -146,13 +145,13 @@ start(PoolType, HostType, PoolOpts) ->
 -spec start(pool_type(), host_type_or_global(), tag(),
             pool_opts()) -> start_result().
 start(PoolType, HostType, Tag, PoolOpts) ->
-    start(PoolType, HostType, Tag, PoolOpts, []).
+    start(PoolType, HostType, Tag, PoolOpts, #{}).
 
 -spec start(pool_type(), host_type_or_global(), tag(),
             pool_opts(), conn_opts()) -> start_result().
 start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts = lists:append(Opts0) ++ default_opts(PoolType),
+    Opts = lists:append(Opts0),
     Strategy = proplists:get_value(strategy, Opts, best_worker),
     CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
     %% If a callback doesn't explicitly blacklist a strategy, let's proceed.
@@ -165,7 +164,7 @@ start(PoolType, HostType, Tag, PoolOpts, ConnOpts) ->
     end.
 
 -spec start(pool_type(), host_type_or_global(), tag(),
-            pool_opts(), conn_opts(), wpool:strategy(), call_timeout()) ->
+            pool_opts(), conn_opts(), wpool:strategy(), pos_integer()) ->
     start_result().
 start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
     case mongoose_wpool_mgr:start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts) of
@@ -174,11 +173,6 @@ start(PoolType, HostType, Tag, WpoolOptsIn, ConnOpts, Strategy, CallTimeout) ->
                                                 atom_name = make_pool_name(PoolType, HostType, Tag),
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),
-            {ok, Pid};
-        {external, Pid} ->
-            ets:insert(?MODULE, #mongoose_wpool{name = {PoolType, HostType, Tag},
-                                                atom_name = make_pool_name(PoolType, HostType, Tag)
-                                               }),
             {ok, Pid};
         Error ->
             Error
@@ -234,7 +228,7 @@ stop(PoolType, HostType, Tag) ->
 -spec is_configured(pool_type()) -> boolean().
 is_configured(PoolType) ->
     Pools = mongoose_config:get_opt(outgoing_pools, []),
-    lists:keymember(PoolType, 1, Pools).
+    lists:any(fun(#{type := Type}) -> Type =:= PoolType end, Pools).
 
 -spec get_worker(pool_type()) -> worker_result().
 get_worker(PoolType) ->
@@ -275,6 +269,31 @@ call(PoolType, HostType, Tag, HashKey, Request) ->
         Err ->
             Err
     end.
+
+send_request(PoolType, Request) ->
+    send_request(PoolType, global, Request).
+
+send_request(PoolType, HostType, Request) ->
+    send_request(PoolType, HostType, default, Request).
+
+send_request(PoolType, HostType, Tag, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
+        {ok, #mongoose_wpool{strategy = Strategy, call_timeout = CallTimeout} = Pool} ->
+            wpool_send_request(make_pool_name(Pool), Request, Strategy, CallTimeout);
+        Err ->
+            Err
+    end.
+
+send_request(PoolType, HostType, Tag, HashKey, Request) ->
+    case get_pool(PoolType, HostType, Tag) of
+        {ok, #mongoose_wpool{call_timeout = CallTimeout} = Pool} ->
+            wpool_send_request(make_pool_name(Pool), Request, {hash_worker, HashKey}, CallTimeout);
+        Err ->
+            Err
+    end.
+
+wpool_send_request(PoolName, Request, Strategy, Timeout) ->
+    wpool:send_request(PoolName, Request, Strategy, Timeout).
 
 cast(PoolType, Request) ->
     cast(PoolType, global, Request).
@@ -346,33 +365,29 @@ make_callback_module_name(PoolType) ->
     Name = "mongoose_wpool_" ++ atom_to_list(PoolType),
     list_to_atom(Name).
 
--spec default_opts(pool_type()) -> conn_opts().
-default_opts(PoolType) ->
-    Mod = make_callback_module_name(PoolType),
-    case erlang:function_exported(Mod, default_opts, 0) of
-        true -> Mod:default_opts();
-        false -> []
-    end.
-
--spec expand_pools([pool_tuple_in()], [mongooseim:host_type()]) -> [pool_tuple()].
+-spec expand_pools([pool_map_in()], [mongooseim:host_type()]) -> [pool_map()].
 expand_pools(Pools, HostTypes) ->
     %% First we select only pools for a specific vhost
-    HostSpecific = [{PoolType, HostType, Tag} ||
-                     {PoolType, HostType, Tag, _, _} <- Pools,
-                     is_binary(HostType)],
+    HostSpecific = [{Type, HT, Tag} || #{type := Type, scope := HT, tag := Tag} <- Pools, is_binary(HT)],
     %% Then we expand all pools with `host` as HostType parameter but using host specific configs
     %% if they were provided
-    F = fun({PoolType, host, Tag, WpoolOpts, ConnOpts}) ->
-                [{PoolType, HostType, Tag, WpoolOpts, ConnOpts} ||
-                 HostType <- HostTypes,
-                 not lists:member({PoolType, HostType, Tag}, HostSpecific)];
+    F = fun(M = #{type := PoolType, scope := host, tag := Tag}) ->
+                [M#{scope => HostType} || HostType <- HostTypes,
+                                          not lists:member({PoolType, HostType, Tag}, HostSpecific)];
            (Other) -> [Other]
         end,
-    lists:flatmap(F, Pools).
+    Pools1 = lists:flatmap(F, Pools),
+    lists:map(fun prepare_pool_map/1, Pools1).
 
--spec get_unique_types([pool_tuple_in()]) -> [pool_type()].
+-spec prepare_pool_map(pool_map_in()) -> pool_map().
+prepare_pool_map(Pool = #{scope := HT, opts := Opts}) ->
+    %% Rename "scope" field to "host_type" and change wpool opts to a KV list
+    Pool1 = maps:remove(scope, Pool),
+    Pool1#{host_type => HT, opts => maps:to_list(Opts)}.
+
+-spec get_unique_types([pool_map_in()]) -> [pool_type()].
 get_unique_types(Pools) ->
-    lists:usort([PoolType || {PoolType, _, _, _, _} <- Pools]).
+    lists:usort([maps:get(type, Pool) || Pool <- Pools]).
 
 -spec get_pool(pool_type(), host_type_or_global(), tag()) -> pool_record_result().
 get_pool(PoolType, HostType, Tag) ->

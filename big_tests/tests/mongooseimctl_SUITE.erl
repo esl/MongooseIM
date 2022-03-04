@@ -200,8 +200,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                       {roster_template, TemplatePath} | Config1]),
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last, []}]),
-    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(), [{mod_last, []}]),
+    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last,
+        config_parser_helper:default_mod_config(mod_last)}]),
+    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(),
+        [{mod_last, config_parser_helper:default_mod_config(mod_last)}]),
     prepare_roster_template(TemplatePath, domain()),
     %% dump_and_load requires at least one mnesia table
     %% ensure, that passwd table is available
@@ -226,7 +228,9 @@ init_per_group(basic, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
     Config;
 init_per_group(private, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_private, []}]),
+    dynamic_modules:ensure_modules(domain_helper:host_type(),
+                                   [{mod_private, #{iqdisc => one_queue}}]
+                                  ),
     Config;
 init_per_group(vcard, Config) ->
     case rpc(mim(), gen_mod, get_module_opt, [host_type(), mod_vcard, backend, mnesia]) of

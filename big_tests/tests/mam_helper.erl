@@ -115,8 +115,28 @@
          generate_msg_for_date_user/3,
          generate_msg_for_date_user/4,
          random_text/0,
-         put_msg/1
+         put_msg/1,
+         config_opts/1
         ]).
+
+-import(config_parser_helper, [config/2, mod_config/2]).
+
+config_opts(ExtraOpts) ->
+    lists:foldl(fun(Step, OptsIn) -> set_opts(Step, OptsIn) end,
+                ExtraOpts, [defaults, backend, pm, muc, async_writer]).
+
+set_opts(defaults, Opts) ->
+    mod_config(mod_mam_meta, Opts);
+set_opts(backend, #{backend := riak} = Opts) ->
+    Opts#{riak => config([modules, mod_mam_meta, riak], maps:get(riak, Opts, #{}))};
+set_opts(pm, #{pm := PMExtra} = Opts) ->
+    Opts#{pm := config([modules, mod_mam_meta, pm], PMExtra)};
+set_opts(muc, #{muc := MUCExtra} = Opts) ->
+    Opts#{muc := config([modules, mod_mam_meta, muc], MUCExtra)};
+set_opts(async_writer, #{async_writer := AsyncExtra} = Opts) ->
+    Opts#{async_writer := config([modules, mod_mam_meta, async_writer], AsyncExtra)};
+set_opts(_, Opts) ->
+    Opts.
 
 rpc_apply(M, F, Args) ->
     case rpc_call(M, F, Args) of

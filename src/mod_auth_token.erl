@@ -15,9 +15,6 @@
 -export([supported_features/0]).
 -export([config_spec/0]).
 
-%% Config spec callbacks
--export([process_validity_period/1]).
-
 %% Hook handlers
 -export([clean_tokens/3,
          disco_local_features/1]).
@@ -59,8 +56,8 @@
 ]).
 
 -type error() :: error | {error, any()}.
--type period() :: {Count :: non_neg_integer(),
-                   Unit  :: 'days' | 'hours' | 'minutes' | 'seconds'}.
+-type period() :: #{value := non_neg_integer(),
+                    unit := days | hours | minutes | seconds}.
 -type sequence_no() :: integer().
 -type serialized() :: binary().
 -type token() :: #token{}.
@@ -79,8 +76,7 @@
 %%
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_auth_token_backend:start(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     gen_iq_handler:add_iq_handler_for_domain(
@@ -106,29 +102,35 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"validity_period">> => #list{items = validity_period_spec(),
-                                                wrap = none},
-                 <<"iqdisc">> => mongoose_config_spec:iqdisc()
-                }
+       items = #{<<"backend">> => #option{type = atom,
+                                          validate = {module, mod_auth_token}},
+                 <<"validity_period">> => validity_periods_spec(),
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"backend">> => rdbms,
+                    <<"iqdisc">> => no_queue},
+       format_items = map
+      }.
+
+validity_periods_spec() ->
+    #section{
+       items = #{<<"access">> => validity_period_spec(),
+                 <<"refresh">> => validity_period_spec()},
+       defaults = #{<<"access">> => #{value => 1, unit => hours},
+                    <<"refresh">> => #{value => 25, unit => days}},
+       format_items = map,
+       include = always
       }.
 
 validity_period_spec() ->
     #section{
-       items = #{<<"token">> => #option{type = atom,
-                                        validate = {enum, [access, refresh, provision]}},
-                 <<"value">> => #option{type = integer,
+       items = #{<<"value">> => #option{type = integer,
                                         validate = non_negative},
                  <<"unit">> => #option{type = atom,
                                        validate = {enum, [days, hours, minutes, seconds]}}
                 },
        required = all,
-       process = fun ?MODULE:process_validity_period/1
+       format_items = map
       }.
-
-process_validity_period(KVs) ->
-    {[[{token, Token}], [{value, Value}], [{unit, Unit}]], []} =
-        proplists:split(KVs, [token, value, unit]),
-    {{validity_period, Token}, {Value, Unit}}.
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() ->
@@ -350,27 +352,20 @@ token(HostType, User, Type) ->
             {error, {Class, Reason}}
     end.
 
-%% {modules, [
-%%            {mod_auth_token, [{{validity_period, access}, {13, minutes}},
-%%                              {{validity_period, refresh}, {13, days}}]}
-%%           ]}.
 -spec expiry_datetime(mongooseim:host_type(), token_type(), non_neg_integer()) ->
       calendar:datetime().
 expiry_datetime(HostType, Type, UTCSeconds) ->
-    Period = get_validity_period(HostType, Type),
-    seconds_to_datetime(UTCSeconds + period_to_seconds(Period)).
+    #{value := Value, unit := Unit} = get_validity_period(HostType, Type),
+    seconds_to_datetime(UTCSeconds + period_to_seconds(Value, Unit)).
 
 -spec get_validity_period(mongooseim:host_type(), token_type()) -> period().
 get_validity_period(HostType, Type) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, {validity_period, Type},
-                           default_validity_period(Type)).
+    gen_mod:get_module_opt(HostType, ?MODULE, [validity_period, Type]).
 
-period_to_seconds({Days, days}) -> milliseconds_to_seconds(timer:hours(24 * Days));
-period_to_seconds({Hours, hours}) -> milliseconds_to_seconds(timer:hours(Hours));
-period_to_seconds({Minutes, minutes}) -> milliseconds_to_seconds(timer:minutes(Minutes));
-period_to_seconds({Seconds, seconds}) -> milliseconds_to_seconds(timer:seconds(Seconds)).
-
-milliseconds_to_seconds(Millis) -> erlang:round(Millis / 1000).
+period_to_seconds(Days, days) -> 24 * 3600 * Days;
+period_to_seconds(Hours, hours) -> 3600 * Hours;
+period_to_seconds(Minutes, minutes) -> 60 * Minutes;
+period_to_seconds(Seconds, seconds) -> Seconds.
 
 token_to_xmlel(#token{type = Type} = T) ->
     #xmlel{name = case Type of
@@ -379,9 +374,6 @@ token_to_xmlel(#token{type = Type} = T) ->
                   end,
            attrs = [{<<"xmlns">>, ?NS_ESL_TOKEN_AUTH}],
            children = [#xmlcdata{content = jlib:encode_base64(serialize(T))}]}.
-
-default_validity_period(access) -> {1, hours};
-default_validity_period(refresh) -> {25, days}.
 
 %% args: Token with Mac decoded from transport, #token
 %% is shared between tokens. Introduce other container types if
@@ -461,9 +453,9 @@ clean_tokens(Acc, User, Server) ->
     end,
     Acc.
 
-config_metrics(Host) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 -spec disco_local_features(mongoose_disco:feature_acc()) -> mongoose_disco:feature_acc().
 disco_local_features(Acc = #{node := <<>>}) ->

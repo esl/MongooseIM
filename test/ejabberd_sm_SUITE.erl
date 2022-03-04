@@ -76,7 +76,8 @@ init_redis_group(true, Config) ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
-                  Pool = {redis, global, default, [{strategy, random_worker}, {workers, 10}], []},
+                  PoolConf = #{type => redis, scope => global, tag => default},
+                  Pool = config_parser_helper:merge_with_default_pool_config(PoolConf),
                   mongoose_wpool:start_configured_pools([Pool], []),
                   Self ! ready,
                   receive stop -> ok end

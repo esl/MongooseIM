@@ -5,7 +5,7 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 ## Options
 ### `modules.mod_disco.iqdisc.type`
 * **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
-* **Default:** `"no_queue"`
+* **Default:** `"one_queue"`
 
 Strategy to handle incoming stanzas. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
