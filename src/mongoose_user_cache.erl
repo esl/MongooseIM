@@ -41,16 +41,21 @@ config_spec() ->
                  <<"time_to_live">> => #option{type = int_or_infinity, validate = positive},
                  <<"number_of_segments">> => #option{type = integer, validate = positive}
                 },
-       process = fun ?MODULE:process_cache_config/1
+       process = fun ?MODULE:process_cache_config/1,
+       defaults = #{<<"module">> => internal,
+                    <<"strategy">> => fifo,
+                    <<"time_to_live">> => 480,
+                    <<"number_of_segments">> => 3},
+       format_items = map
       }.
 
 %% If an external module is provided, disallow any other configuration key
-process_cache_config(KVs) ->
-    case lists:keyfind(module, 1, KVs) of
-        {module, Module} when Module =/= internal -> [{module, _}] = KVs;
-        _ -> ok
-    end,
-    KVs.
+process_cache_config(#{module := internal} = Config) ->
+    Config;
+process_cache_config(#{module := Module}) ->
+    #{module => Module};
+process_cache_config(Config) ->
+    Config.
 
 -spec start_new_cache(mongooseim:host_type(), module(), gen_mod:module_opts()) -> any().
 start_new_cache(HostType, Module, Opts) ->
@@ -62,9 +67,9 @@ start_new_cache(HostType, Module, Opts) ->
 do_start_new_cache(HostType, Module, Opts) ->
     CacheName = gen_mod:get_module_proc(HostType, Module),
     CacheOpts = #{merger_fun => fun maps:merge/2,
-                  segment_num => gen_mod:get_opt(number_of_segments, Opts, 3),
-                  strategy => gen_mod:get_opt(strategy, Opts, fifo),
-                  ttl => gen_mod:get_opt(time_to_live, Opts, {hours, 8})},
+                  segment_num => gen_mod:get_opt(number_of_segments, Opts),
+                  strategy => gen_mod:get_opt(strategy, Opts),
+                  ttl => gen_mod:get_opt(time_to_live, Opts)},
     Spec = #{id => CacheName, start => {segmented_cache, start_link, [CacheName, CacheOpts]},
              restart => permanent, shutdown => 5000,
              type => worker, modules => [segmented_cache]},

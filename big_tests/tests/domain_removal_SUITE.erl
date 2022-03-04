@@ -82,7 +82,7 @@ end_per_group(_Groupname, Config) ->
 group_to_modules(auth_removal) ->
     [];
 group_to_modules(cache_removal) ->
-    [{mod_cache_users, []},
+    [{mod_cache_users, config_parser_helper:default_mod_config(mod_cache_users)},
      {mod_mam_meta, mam_helper:config_opts(#{pm => #{}})}];
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),

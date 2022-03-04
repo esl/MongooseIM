@@ -68,6 +68,7 @@ produces_valid_configurations(_Config) ->
     MUC = config([modules, mod_mam_meta, muc],
                  maps:merge(MUCCoreOpts, MUCArchOpts#{user_prefs_store => mnesia})),
     Deps = deps(#{pm => PM, muc => MUC}),
+    Cache = default_config([modules, mod_mam_meta, cache]),
 
     check_equal_opts(mod_mam, mod_config(mod_mam, PMCoreOpts), Deps),
     check_equal_opts(mod_mam_muc, mod_config(mod_mam_muc, MUCCoreOpts), Deps),
@@ -75,7 +76,7 @@ produces_valid_configurations(_Config) ->
     check_equal_opts(mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch,
                                                         MUCArchOpts#{no_writer => true}), Deps),
     check_equal_opts(mod_mam_rdbms_user, #{pm => true, muc => true}, Deps),
-    check_equal_opts(mod_mam_cache_user, #{pm => true, muc => true, cache => []}, Deps),
+    check_equal_opts(mod_mam_cache_user, #{pm => true, muc => true, cache => Cache}, Deps),
     check_equal_opts(mod_mam_mnesia_prefs, #{muc => true}, Deps),
     check_equal_opts(mod_mam_rdbms_prefs, #{pm => true}, Deps),
     check_equal_opts(mod_mam_muc_rdbms_arch_async, AsyncOpts, Deps).
@@ -111,10 +112,11 @@ example_muc_only_no_pref_good_performance(_Config) ->
     MUC = config([modules, mod_mam_meta, muc], MUCOpts),
     Deps = deps(#{muc => MUC}),
     AsyncOpts = default_config([modules, mod_mam_meta, async_writer]),
+    Cache = default_config([modules, mod_mam_meta, cache]),
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{muc => true, pm => true}},
-       {mod_mam_cache_user, #{muc => true, cache => []}},
+       {mod_mam_cache_user, #{muc => true, cache => Cache}},
        {mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch, #{no_writer => true})},
        {mod_mam_muc_rdbms_arch_async, AsyncOpts},
        {mod_mam_muc, mod_config(mod_mam_muc, mod_config(mod_mam_muc, MUCOpts))}
@@ -124,10 +126,11 @@ example_pm_only_good_performance(_Config) ->
     PM = default_config([modules, mod_mam_meta, pm]),
     Deps = deps(#{pm => PM, user_prefs_store => mnesia}),
     AsyncOpts = default_config([modules, mod_mam_meta, async_writer]),
+    Cache = default_config([modules, mod_mam_meta, cache]),
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{pm => true}},
-       {mod_mam_cache_user, #{pm => true, cache => []}},
+       {mod_mam_cache_user, #{pm => true, cache => Cache}},
        {mod_mam_mnesia_prefs, #{pm => true}},
        {mod_mam_rdbms_arch, mod_config(mod_mam_rdbms_arch, #{no_writer => true})},
        {mod_mam_rdbms_arch_async, AsyncOpts},

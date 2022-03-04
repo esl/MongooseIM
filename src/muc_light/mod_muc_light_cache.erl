@@ -123,7 +123,7 @@ force_clear(HostType) ->
 %%====================================================================
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    FinalOpts = maps:to_list(maps:merge(defaults(), maps:from_list(Opts))),
+    FinalOpts = maps:merge(defaults(), Opts),
     mongoose_user_cache:start_new_cache(HostType, ?MODULE, FinalOpts).
 
 defaults() ->

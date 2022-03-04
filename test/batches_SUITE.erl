@@ -58,23 +58,32 @@ end_per_testcase(_TestCase, _Config) ->
     meck:unload(gen_mod),
     ok.
 
+cache_config() ->
+    config_parser_helper:default_mod_config(mod_cache_users).
+
+cache_config(internal) ->
+    Def = config_parser_helper:default_mod_config(mod_cache_users),
+    Def#{module => internal};
+cache_config(Module) ->
+    #{module => Module}.
+
 %% Tests
 internal_starts_another_cache(_) ->
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), []),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), [{module, internal}]),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(internal)),
     L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
     ?assertEqual(2, length(L)).
 
 external_does_not_start_another_cache(_) ->
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), []),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), [{module, ?mod(1)}]),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     L = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
     ?assertEqual(1, length(L)).
 
 internal_stop_does_stop_the_cache(_) ->
     meck:expect(gen_mod, get_module_opt, fun(_, _, module, _) -> internal end),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), []),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), [{module, internal}]),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(internal)),
     L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
     ct:pal("Value ~p~n", [L1]),
     mongoose_user_cache:stop_cache(host_type(), ?mod(2)),
@@ -84,8 +93,8 @@ internal_stop_does_stop_the_cache(_) ->
 
 external_stop_does_nothing(_) ->
     meck:expect(gen_mod, get_module_opt, fun(_, _, module, _) -> ?mod(1) end),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), []),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), [{module, ?mod(1)}]),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     L1 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
     mongoose_user_cache:stop_cache(host_type(), ?mod(2)),
     L2 = [S || S = {_Name, _Pid, worker, [segmented_cache]} <- supervisor:which_children(ejabberd_sup)],
@@ -93,8 +102,8 @@ external_stop_does_nothing(_) ->
 
 shared_cache_inserts_in_shared_table(_) ->
     meck:expect(gen_mod, get_module_opt, fun(_, _, module, _) -> ?mod(1) end),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), []),
-    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), [{module, ?mod(1)}]),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(1), cache_config()),
+    mongoose_user_cache:start_new_cache(host_type(), ?mod(2), cache_config(?mod(1))),
     mongoose_user_cache:merge_entry(host_type(), ?mod(2), some_jid(), #{}),
     ?assert(mongoose_user_cache:is_member(host_type(), ?mod(1), some_jid())).
 
