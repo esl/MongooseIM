@@ -91,6 +91,7 @@ cleanup(Node) ->
     KeyPattern = {'_', '_', '_', {'_', '$1'}},
     Guard = {'==', {node, '$1'}, Node},
     R = {KeyPattern, '_', '_'},
+    kiss:sync(?TABLE),
     Tuples = ets:select(?TABLE, [{R, [Guard], ['$_']}]),
     Keys = lists:map(fun({Key, _, _} = Tuple) ->
                           Session = tuple_to_session(Tuple),
