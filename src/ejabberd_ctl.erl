@@ -170,6 +170,7 @@ process(["mnesia"]) ->
     ?STATUS_SUCCESS;
 process(["mnesia", "info"]) ->
     mnesia:info(),
+    kiss_info(),
     ?STATUS_SUCCESS;
 process(["mnesia", Arg]) when is_list(Arg) ->
     case catch mnesia:system_info(list_to_atom(Arg)) of
@@ -928,3 +929,15 @@ get_dist_proto() ->
         _ -> "inet_tcp"
     end.
 
+kiss_info() ->
+    Tables = kiss_discovery:info(mongoose_kiss_discovery),
+    kiss_info(Tables).
+
+kiss_info([]) ->
+    ok;
+kiss_info(Tables) ->
+    ?PRINT("Kiss tables:~n", []),
+    [kiss_table_info(Table) || Table <- Tables].
+
+kiss_table_info(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) ->
+    ?PRINT("table=~0p size=~p memory=~0p words nodes=~0p~n", [Tab, Size, Memory, Nodes]).
