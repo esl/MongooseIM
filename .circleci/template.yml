@@ -543,7 +543,8 @@ jobs:
       preset:
         type: enum
         enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
-               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
+               elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia,
+               internal_kiss]
         description: Preset to run
         default: internal_mnesia
       db:
@@ -740,6 +741,15 @@ workflows:
           preset: internal_mnesia
           db: "mnesia minio"
           tls_dist: true
+          requires:
+            - otp_24_docker
+          filters: *all_tags
+      - big_tests_in_docker:
+          name: internal_kiss_24
+          executor: otp_24_redis
+          context: mongooseim-org
+          preset: internal_kiss
+          db: "mnesia kiss"
           requires:
             - otp_24_docker
           filters: *all_tags
