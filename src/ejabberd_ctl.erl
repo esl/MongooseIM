@@ -940,4 +940,4 @@ kiss_info(Tables) ->
     [kiss_table_info(Table) || Table <- Tables].
 
 kiss_table_info(#{memory := Memory, size := Size, nodes := Nodes, table := Tab}) ->
-    ?PRINT("table=~0p size=~p memory=~0p words nodes=~0p~n", [Tab, Size, Memory, Nodes]).
+    ?PRINT("table=~0p size=~p memory_words=~0p nodes=~0p~n", [Tab, Size, Memory, Nodes]).
