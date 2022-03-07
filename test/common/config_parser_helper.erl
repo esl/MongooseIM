@@ -629,10 +629,10 @@ all_modules() ->
           #{access => muc,
             access_create => muc_create,
             default_room_options =>
-            [{affiliations,
+            #{affiliations =>
               [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
-               {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}]},
-             {password_protected, true}],
+               {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}],
+              password_protected => true},
             host => {fqdn, <<"muc.example.com">>},
             http_auth_pool => my_auth_pool},
       mod_vcard =>

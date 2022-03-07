@@ -252,6 +252,7 @@ config_spec() ->
 
 default_room_config_spec() ->
     #section{
+       format_items = map,
        items = #{<<"title">> => #option{type = binary},
                  <<"description">> => #option{type = binary},
                  <<"allow_change_subj">> => #option{type = boolean},
@@ -408,7 +409,7 @@ init({HostType, Opts}) ->
     AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
     HttpAuthPool = gen_mod:get_opt(http_auth_pool, Opts, none),
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
-    DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
+    DefRoomOpts = maps:to_list(gen_mod:get_opt(default_room_options, Opts, #{})),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
     CheckInterval = gen_mod:get_opt(hibernated_room_check_interval, Opts, infinity),
     HibernatedTimeout = gen_mod:get_opt(hibernated_room_timeout, Opts, infinity),
