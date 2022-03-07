@@ -12,6 +12,8 @@ while the management of the session tables and configuration is implemented in
 * **Default:** "mnesia"
 * **Example:** `backend = "mnesia"`
 
+Currently, only "mnesia" is supported.
+
 ### `modules.mod_stream_management.buffer`
 * **Syntax:** boolean
 * **Default:** true
@@ -87,7 +89,7 @@ The maximum lifespan of a record in memory. After this, they will be chased for 
 
 ### In `ejabberd_c2s`
 
-The record `#smgc_state{}` in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
+The `state` record in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
 
 ```erlang
 stream_mgmt = false, %% whether SM is enabled, used in pattern matching inside `ejabberd_c2s`
@@ -96,9 +98,9 @@ stream_mgmt_id, %% the mod_stream_management:smid() unique identifier
 stream_mgmt_out_acked = 0, %% messages delivered to the user, and acked by the user (user's <h>)
 stream_mgmt_buffer = [], %% buffered stanzas not yet acked by the user
 stream_mgmt_buffer_size = 0, %% amount of messages buffered for the user
-stream_mgmt_buffer_max = ?STREAM_MGMT_CACHE_MAX, %% server's capacity for buffering
-stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ, %% how often the server requests acks
-stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT, %% resumption timeout
+stream_mgmt_buffer_max, %% server's capacity for buffering
+stream_mgmt_ack_freq, %% how often the server requests acks
+stream_mgmt_resume_timeout, %% resumption timeout
 stream_mgmt_resume_tref, %% a ref() to pattern-match a given timeout
 stream_mgmt_resumed_from, %% a ejabberd_sm:sid() to keep identifiying the old session
 stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for buffer_full check
@@ -109,7 +111,7 @@ stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for
 This module is just a "starter", to provide the configuration values to new client connections. It
 also provides a basic session table API and adds a new stream feature.
 
-At a bare minimum, this module keeps the config values in its `gen_mod` records, and keeps a mnesia
+This module keeps the config values in its `gen_mod` records, and its mnesia backend keeps a
 table defined as follows:
 
 ```erlang

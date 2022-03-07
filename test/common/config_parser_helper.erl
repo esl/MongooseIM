@@ -654,13 +654,13 @@ all_modules() ->
       mod_mam_muc_rdbms_arch =>
           mod_config(mod_mam_muc_rdbms_arch, #{db_message_format => mam_message_xml}),
       mod_stream_management =>
-          [{ack_freq, 1},
-           {buffer_max, 30},
-           {resume_timeout, 600},
-           {stale_h,
-            [{enabled, true},
-             {stale_h_geriatric, 3600},
-             {stale_h_repeat_after, 1800}]}]}.
+          mod_config(mod_stream_management, #{ack_freq => 2,
+                                              buffer_max => 30,
+                                              resume_timeout => 600,
+                                              stale_h => #{enabled => true,
+                                                           geriatric => 3600,
+                                                           repeat_after => 1800}})
+    }.
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
@@ -677,7 +677,8 @@ pgsql_modules() ->
            {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
            {welcome_message, {"Hello", "I am MongooseIM"}}],
       mod_roster => mod_config(mod_roster, #{backend => rdbms}),
-      mod_sic => default_mod_config(mod_sic), mod_stream_management => [],
+      mod_sic => default_mod_config(mod_sic),
+      mod_stream_management => default_mod_config(mod_stream_management),
       mod_vcard => mod_config(mod_vcard, #{backend => rdbms, host => {prefix, <<"vjud.">>}})}.
 
 auth_with_methods(Methods) ->
@@ -866,6 +867,14 @@ default_mod_config(mod_shared_roster_ldap) ->
       group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
+default_mod_config(mod_stream_management) ->
+    #{backend => mnesia,
+      buffer => true,
+      buffer_max => 100,
+      ack => true,
+      ack_freq => 1,
+      resume_timeout => 600,
+      stale_h => default_config([modules, mod_stream_management, stale_h])};
 default_mod_config(mod_time) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_vcard) ->
@@ -908,6 +917,10 @@ default_config([modules, mod_mam_meta, riak]) ->
     #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
 default_config([modules, mod_roster, riak]) ->
     #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>};
+default_config([modules, mod_stream_management, stale_h]) ->
+    #{enabled => false,
+      repeat_after => 1800,
+      geriatric => 3600};
 default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
     #{pool_tag => default,
       deref => never,

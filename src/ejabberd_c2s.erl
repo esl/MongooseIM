@@ -2781,9 +2781,9 @@ maybe_enable_stream_mgmt(NextState, El, StateData = #state{host_type = HostType}
                                          enable_stream_resumption(StateData)
                                  end,
             send_element_from_server_jid(NewSD, EnabledEl),
-            BufferMax = get_buffer_max(HostType),
-            AckFreq = get_ack_freq(HostType),
-            ResumeTimeout = get_resume_timeout(HostType),
+            BufferMax = mod_stream_management:get_buffer_max(HostType),
+            AckFreq = mod_stream_management:get_ack_freq(HostType),
+            ResumeTimeout = mod_stream_management:get_resume_timeout(HostType),
             fsm_next_state(NextState,
                            NewSD#state{stream_mgmt = true,
                                        stream_mgmt_buffer_max = BufferMax,
@@ -2967,18 +2967,6 @@ drop_last(N, List) ->
                                           {ToDrop-1, Acc}
                                   end, {N, []}, List),
     {N - ToDrop, List2}.
-
--spec get_buffer_max(mongooseim:host_type()) -> pos_integer() | infinity.
-get_buffer_max(HostType) ->
-    mod_stream_management:get_buffer_max(HostType, ?STREAM_MGMT_CACHE_MAX).
-
--spec get_ack_freq(mongooseim:host_type()) -> pos_integer().
-get_ack_freq(HostType) ->
-    mod_stream_management:get_ack_freq(HostType, ?STREAM_MGMT_ACK_FREQ).
-
--spec get_resume_timeout(mongooseim:host_type()) -> pos_integer().
-get_resume_timeout(HostType) ->
-    mod_stream_management:get_resume_timeout(HostType, ?STREAM_MGMT_RESUME_TIMEOUT).
 
 maybe_send_ack_request(Acc, #state{stream_mgmt = StreamMgmt})
   when StreamMgmt =:= false; StreamMgmt =:= disabled ->

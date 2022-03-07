@@ -259,7 +259,7 @@
 
 [modules.mod_stream_management]
   buffer_max = 30
-  ack_freq = 1
+  ack_freq = 2
   resume_timeout = 600
   stale_h.enabled = true
   stale_h.repeat_after = 1800

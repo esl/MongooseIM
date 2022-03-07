@@ -976,12 +976,12 @@ required_modules_for_group(muclight_msg_notifications, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost)];
 required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()},
-     {mod_stream_management, [{ack_freq, never},
-                              {resume_timeout,1}]},
+     {mod_stream_management, config_parser_helper:mod_config(mod_stream_management,
+                                                             #{ack_freq => never, resume_timeout => 1})},
      {mod_offline, []} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
-    [{mod_stream_management, [{ack_freq, never}]} |
+    [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})} |
      required_modules(API, PubSubHost, mod_event_pusher_push_plugin_enhanced)];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
