@@ -71,7 +71,13 @@
 
 -record(state, {}).
 
--type id() :: any().
+-type id() :: binary().
+-type callback() :: fun((From :: jid:jid(), To :: jid:jid(),
+                         Acc :: mongoose_acc:t(), IQ :: jlib:iq()) ->
+                             mongoose_acc:t()) |
+                    fun((From :: undefined, To :: undefined,
+                         Acc :: undefined, IQ :: timeout) ->
+                             undefined).
 
 -define(IQTABLE, local_iqtable).
 -define(NSTABLE, local_nstable).
@@ -119,18 +125,18 @@ process_iq(_, Acc, From, To, El) ->
 
 -spec process_iq_reply(From :: jid:jid(),
                        To :: jid:jid(),
-                       mongoose_acc:t(),
-                       IQ :: jlib:iq() ) -> mongoose_acc:t().
+                       Acc :: mongoose_acc:t(),
+                       IQ :: jlib:iq()) -> mongoose_acc:t().
 process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
     case get_iq_callback_in_cluster(ID, Acc) of
-        {ok, undefined, Function} ->
-            Function(From, To, Acc, IQ);
-        {ok, Module, Function} ->
-            Module:Function(From, To, Acc, IQ);
+        {ok, Callback} ->
+            Callback(From, To, Acc, IQ);
         _ ->
             Acc
     end.
 
+-spec get_iq_callback_in_cluster(id(), mongoose_acc:t()) ->
+        {ok, callback()} | {error, term()}.
 get_iq_callback_in_cluster(ID, Acc) ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
     BinNodeId = integer_to_binary(NodeId),
@@ -179,33 +185,37 @@ route_iq(From, To, Acc, IQ, F) ->
 
 
 %% Send an iq and wait for response
+%% This function is used to route IQs from the server to the client.
+%% A callback function would be called once a response is received from the client.
 -spec route_iq(From :: jid:jid(),
                To :: jid:jid(),
                Acc :: mongoose_acc:t(),
                IQ :: jlib:iq(),
-               F :: fun(),
+               Callback :: callback(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
-route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
+route_iq(From, To, Acc, #iq{type = Type} = IQ, Callback, Timeout)
+  when is_function(Callback) ->
     Packet = case Type == set orelse Type == get of
                 true ->
-                     %% Attach NodeId, so we know to which node to forward the response
-                     {ok, NodeId} = ejabberd_node_id:node_id(),
-                     ID = <<(integer_to_binary(NodeId))/binary, "_",
-                             (mongoose_bin:gen_from_crypto())/binary>>,
-                     Host = From#jid.lserver,
-                     register_iq_response_handler(Host, ID, undefined, F, Timeout),
+                     ID = make_iq_id(),
+                     register_iq_response_handler(ID, Callback, Timeout),
                      jlib:iq_to_xml(IQ#iq{id = ID});
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
     ejabberd_router:route(From, To, Acc, Packet).
 
--spec register_iq_response_handler(_Host :: jid:server(),
-                               ID :: id(),
-                               Module :: atom(),
-                               Function :: fun(),
-                               Timeout :: 'undefined' | pos_integer()) -> any().
-register_iq_response_handler(_Host, ID, Module, Function, Timeout0) ->
+make_iq_id() ->
+    %% Attach NodeId, so we know to which node to forward the response
+    {ok, NodeId} = ejabberd_node_id:node_id(),
+    Rand = mongoose_bin:gen_from_crypto(),
+    <<(integer_to_binary(NodeId))/binary, "_", Rand/binary>>.
+
+-spec register_iq_response_handler(
+           ID :: id(),
+           Callback :: callback(),
+           Timeout :: undefined | pos_integer()) -> any().
+register_iq_response_handler(ID, Callback, Timeout0) ->
     Timeout = case Timeout0 of
                   undefined ->
                       ?IQ_TIMEOUT;
@@ -213,7 +223,7 @@ register_iq_response_handler(_Host, ID, Module, Function, Timeout0) ->
                       N
               end,
     TRef = erlang:start_timer(Timeout, ejabberd_local, ID),
-    ets:insert(?IQRESPONSE, {ID, Module, Function, TRef}).
+    ets:insert(?IQRESPONSE, {ID, Callback, TRef}).
 
 -spec register_iq_handler(Domain :: jid:server(), Namespace :: binary(),
                           IQHandler :: mongoose_iq_handler:t()) -> ok.
@@ -395,45 +405,26 @@ directed_to(<<>>, _) ->
 directed_to(_, _) ->
     user.
 
--spec get_iq_callback(ID :: id()) -> 'error' | {'ok', Mod :: atom(), fun() | atom()}.
+-spec get_iq_callback(ID :: id()) -> error | {ok, fun()}.
 get_iq_callback(ID) ->
     case ets:lookup(?IQRESPONSE, ID) of
-        [{ID, Module, Function, TRef}] ->
-            cancel_timer(TRef),
+        [{ID, Callback, TRef}] ->
+            erlang:cancel_timer(TRef),
             ets:delete(?IQRESPONSE, ID),
-            {ok, Module, Function};
+            {ok, Callback};
         _ ->
             error
     end.
 
--spec process_iq_timeout(id()) -> id().
+-spec process_iq_timeout(id()) -> ok.
 process_iq_timeout(ID) ->
-    spawn(fun process_iq_timeout/0) ! ID.
+    spawn(fun() -> process_iq_timeout2(ID) end), ok.
 
--spec process_iq_timeout() -> ok | any().
-process_iq_timeout() ->
-    receive
-        ID ->
-            case get_iq_callback(ID) of
-                {ok, undefined, Function} ->
-                    Function(undefined, undefined, undefined, timeout);
-                _ ->
-                    ok
-            end
-    after 5000 ->
-            ok
-    end.
-
--spec cancel_timer(reference()) -> 'ok'.
-cancel_timer(TRef) ->
-    case erlang:cancel_timer(TRef) of
-        false ->
-            receive
-                {timeout, TRef, _} ->
-                    ok
-            after 0 ->
-                    ok
-            end;
+-spec process_iq_timeout2(id()) -> ok.
+process_iq_timeout2(ID) ->
+    case get_iq_callback(ID) of
+        {ok, Function} ->
+            Function(undefined, undefined, undefined, timeout), ok;
         _ ->
             ok
     end.
