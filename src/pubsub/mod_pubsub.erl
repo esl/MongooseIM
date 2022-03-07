@@ -81,14 +81,13 @@
 -export([create_node/5, create_node/7, delete_node/3,
          subscribe_node/5, unsubscribe_node/5, publish_item/6,
          delete_item/4, send_items/7, get_items/2, get_item/3,
-         get_cached_item/2,
-         tree_action/3, node_action/4, node_call/4]).
+         get_cached_item/2, tree_action/3, node_action/4]).
 
 %% general helpers for plugins
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/2, plugin/1, plugins/1, plugin_call/3, config/3,
+         tree/1, tree/2, plugin/1, plugins/1, plugin_call/3, config/3,
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
@@ -515,7 +514,7 @@ init_send_loop(ServerHost) ->
 %% The default plugin module is implicit.
 %% <p>The Erlang code for the plugin is located in a module called
 %% <em>node_plugin</em>. The 'node_' prefix is mandatory.</p>
-%% <p>The modules are initialized in alphetical order and the list is checked
+%% <p>The modules are initialized in alphabetical order and the list is checked
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
 init_plugins(Host, ServerHost, Opts) ->
@@ -533,7 +532,7 @@ init_plugins(Host, ServerHost, Opts) ->
     {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
 
 init_plugin(Host, ServerHost, Opts, Name, Acc) ->
-    Plugin = plugin(Host, Name),
+    Plugin = plugin(Name),
     case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
         {'EXIT', _Error} ->
             ?LOG_ERROR(#{what => pubsub_plugin_init_failed, plugin => Plugin,
@@ -548,7 +547,7 @@ terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
     lists:foreach(
       fun (Name) ->
               ?LOG_DEBUG(#{what => pubsub_terminate_plugin, plugin_name => Name}),
-              Plugin = plugin(Host, Name),
+              Plugin = plugin(Name),
               gen_pubsub_node:terminate(Plugin, Host, ServerHost)
       end,
       Plugins),
@@ -711,15 +710,14 @@ disco_sm_features(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
 -spec disco_features(error | jid:simple_jid(), binary(), jid:jid()) -> [mongoose_disco:feature()].
 disco_features(error, _Node, _From) ->
     [];
-disco_features(Host, <<>>, _From) ->
-    [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]];
+disco_features(_Host, <<>>, _From) ->
+    [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]];
 disco_features(Host, Node, From) ->
     Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
                      Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
-                             {result, [?NS_PUBSUB | [feature(F)
-                                                     || F <- plugin_features(Host, <<"pep">>)]]};
+                             {result, [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]]};
                          _ ->
                              {result, []}
                      end
@@ -973,7 +971,7 @@ handle_info(_Info, State) ->
 %% @private
 terminate(_Reason, #state{host = Host, server_host = ServerHost,
                           nodetree = TreePlugin, plugins = Plugins}) ->
-    SubdomainPattern = gen_mod:get_module_opt(ServerHost, ?MODULE, host, default_host()),
+    SubdomainPattern = gen_mod:get_module_opt(ServerHost, ?MODULE, host),
     mongoose_domain_api:unregister_subdomain(ServerHost, SubdomainPattern),
     case lists:member(?PEPNODE, Plugins) of
         true ->
@@ -1150,7 +1148,7 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
                                  attrs = [{<<"var">>, ?NS_PUBSUB}]}
                           | [#xmlel{name = <<"feature">>,
                                     attrs = [{<<"var">>, feature(F)}]}
-                             || F <- plugin_features(Host, Type)]],
+                             || F <- plugin_features(Type)]],
                      {result, [I | F]}
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
@@ -1247,7 +1245,7 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                       end,
                       tree_call(Host, get_subnodes, [Host, Node, From])),
     Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
-                              {result, Name} = node_call(Host, Type, get_item_name,
+                              {result, Name} = node_call(Type, get_item_name,
                                                          [Host, Node, RN]),
                               #xmlel{name = <<"item">>,
                                      attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
@@ -1604,7 +1602,7 @@ adhoc_request(_Host, _ServerHost, _Owner, Other, _Access, _Plugins) ->
 %% @doc <p>Sends the process pending subscriptions XForm for Host to Owner.</p>
 send_pending_node_form(Request, Host, Owner, Plugins) ->
     Filter = fun (Type) ->
-                     lists:member(<<"get-pending">>, plugin_features(Host, Type))
+                     lists:member(<<"get-pending">>, plugin_features(Type))
              end,
     case lists:filter(Filter, Plugins) of
         [] ->
@@ -1627,7 +1625,7 @@ send_pending_node_form(Request, Host, Owner, Plugins) ->
 
 get_pending_nodes(Host, Owner, Plugins) ->
     Tr = fun (Type) ->
-                 case node_call(Host, Type, get_pending_nodes, [Host, Owner]) of
+                 case node_call(Type, get_pending_nodes, [Host, Owner]) of
                      {result, Nodes} -> Nodes;
                      _ -> []
                  end
@@ -1664,7 +1662,7 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
     ?LOG_DEBUG(#{what => pubsub_sending_pending_auth_events,
         owner => jid:to_binary(Owner), sub_host => Host, pubsub_node => Node}),
     Action = fun(PubSubNode) ->
-                     get_node_subscriptions_transaction(Host, Owner, PubSubNode)
+                     get_node_subscriptions_transaction(Owner, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {N, Subs}} ->
@@ -1678,11 +1676,11 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
             Err
     end.
 
-get_node_subscriptions_transaction(Host, Owner, #pubsub_node{id = Nidx, type = Type}) ->
-    case lists:member(<<"get-pending">>, plugin_features(Host, Type)) of
+get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) ->
+    case lists:member(<<"get-pending">>, plugin_features(Type)) of
         true ->
-            case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
-                {result, owner} -> node_call(Host, Type, get_node_subscriptions, [Nidx]);
+            case node_call(Type, get_affiliation, [Nidx, Owner]) of
+                {result, owner} -> node_call(Type, get_node_subscriptions, [Nidx]);
                 _ -> {error, mongoose_xmpp_errors:forbidden()}
             end;
         false ->
@@ -1832,7 +1830,7 @@ handle_authorization_response_transaction(Host, FromLJID, Subscriber, Allow, Nod
     Owners = node_owners_call(Host, Type, Nidx, O),
     case lists:member(FromLJID, Owners) of
         true ->
-            {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
+            {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
             update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs);
         false ->
             {error, mongoose_xmpp_errors:forbidden()}
@@ -1850,7 +1848,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
                          true -> subscribed;
                          false -> none
                      end,
-            node_call(Host, Type, set_subscriptions, [Nidx, Subscriber, NewSub, SubId]),
+            node_call(Type, set_subscriptions, [Nidx, Subscriber, NewSub, SubId]),
             send_authorization_approval(Host, Subscriber, Node, NewSub),
             {result, ok};
         _ ->
@@ -1951,7 +1949,7 @@ create_node(Host, ServerHost, Node, Owner, Type) ->
       R             :: {result, [exml:element(), ...]}
                      | {error, exml:element()}.
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
-    case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
+    case lists:member(<<"instant-nodes">>, plugin_features(Type)) of
         true ->
             Node = mongoose_bin:gen_from_crypto(),
             case create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) of
@@ -2001,7 +1999,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                     create_node_reply(Node, Result);
                 Error ->
                     %% in case we change transaction to sync_dirty...
-                    %%  node_call(Host, Type, delete_node, [Host, Node]),
+                    %%  node_call(Type, delete_node, [Host, Node]),
                     %%  tree_call(Host, delete_node, [Host, Node]),
                     Error
             end;
@@ -2023,8 +2021,8 @@ parse_create_node_options_if_possible(_Host, _Type, InvalidConfigXEl) ->
     InvalidConfigXEl.
 
 create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions) ->
-    Parent = get_parent(Host, Type, Node),
-    case node_call(Host, Type, create_node_permission,
+    Parent = get_parent(Type, Node),
+    case node_call(Type, create_node_permission,
                    [Host, ServerHost, Node, Parent, Owner, Access]) of
         {result, true} ->
             create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions);
@@ -2032,12 +2030,12 @@ create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
-get_parent(Host, Type, Node) ->
-    case node_call(Host, Type, node_to_path, [Node]) of
+get_parent(Type, Node) ->
+    case node_call(Type, node_to_path, [Node]) of
         {result, [Node]} ->
             <<>>;
         {result, Path} ->
-            element(2, node_call(Host, Type, path_to_node,
+            element(2, node_call(Type, path_to_node,
                                  [lists:sublist(Path, length(Path)-1)]))
     end.
 
@@ -2049,12 +2047,12 @@ create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions)
     case tree_call(Host, create_node, [Host, Node, Type, Owner, NodeOptions, Parents]) of
         {ok, Nidx} ->
             SubsByDepth = get_node_subs_by_depth(Host, Node, Owner),
-            case node_call(Host, Type, create_node, [Nidx, Owner]) of
+            case node_call(Type, create_node, [Nidx, Owner]) of
                 {result, Result} -> {result, {Nidx, SubsByDepth, Result}};
                 Error -> Error
             end;
         {error, {virtual, Nidx}} ->
-            case node_call(Host, Type, create_node, [Nidx, Owner]) of
+            case node_call(Type, create_node, [Nidx, Owner]) of
                 {result, Result} -> {result, {Nidx, [], Result}};
                 Error -> Error
             end;
@@ -2134,11 +2132,11 @@ delete_node(Host, Node, Owner) ->
     end.
 
 delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx}) ->
-    case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
+    case node_call(Type, get_affiliation, [Nidx, Owner]) of
         {result, owner} ->
             SubsByDepth = get_node_subs_by_depth(Host, Node, service_jid(Host)),
             Removed = tree_call(Host, delete_node, [Host, Node]),
-            case node_call(Host, Type, delete_node, [Removed]) of
+            case node_call(Type, delete_node, [Removed]) of
                 {result, Res} -> {result, {SubsByDepth, Res}};
                 Error -> Error
             end;
@@ -2210,7 +2208,7 @@ subscribe_node(Host, Node, From, JID, ConfigurationXForm) ->
     end.
 
 subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
-    Features = plugin_features(Host, PubSubNode#pubsub_node.type),
+    Features = plugin_features(PubSubNode#pubsub_node.type),
     subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features).
 
 subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
@@ -2254,7 +2252,7 @@ subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
             Owners = node_owners_call(Host, Type, Nidx, O),
             {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
                                                            Owners, AccessModel, AllowedGroups),
-            node_call(Host, Type, subscribe_node,
+            node_call(Type, subscribe_node,
                       [Nidx, From, Subscriber, AccessModel,
                        SendLast, PS, RG, SubOpts])
     end.
@@ -2262,7 +2260,7 @@ subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
 check_subs_limit(Host, Type, Nidx) ->
     case get_max_subscriptions_node(Host) of
         Max when is_integer(Max) ->
-            case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
+            case node_call(Type, get_node_subscriptions, [Nidx]) of
                 {result, NodeSubs} -> count_subscribed(NodeSubs) >= Max;
                 _ -> false
             end;
@@ -2316,7 +2314,7 @@ unsubscribe_node(Host, Node, From, JID, SubId) when is_binary(JID) ->
     unsubscribe_node(Host, Node, From, string_to_ljid(JID), SubId);
 unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, unsubscribe_node, [Nidx, From, Subscriber, SubId])
+                     node_call(Type, unsubscribe_node, [Nidx, From, Subscriber, SubId])
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, default}} -> {result, []};
@@ -2356,7 +2354,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
     ItemPublisher = config(serverhost(Host), item_publisher, false),
     Action =
         fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                Features = plugin_features(Host, Type),
+                Features = plugin_features(Type),
                 PublishFeature = lists:member(<<"publish">>, Features),
                 PubOptsFeature = lists:member(<<"publish-options">>, Features),
                 PublishModel = get_option(Options, publish_model),
@@ -2389,7 +2387,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                     {true, Reason} ->
                         {error, Reason};
                     false ->
-                        node_call(Host, Type, publish_item,
+                        node_call(Type, publish_item,
                                   [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
                                    ItemPublisher, Payload, PublishOptions])
                 end
@@ -2452,7 +2450,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
                                     Type, Access, ItemId, Payload, PublishOptions) ->
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
-    case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
+    case lists:member(<<"auto-create">>, plugin_features(Type)) of
         true ->
             case create_node(Host, ServerHost, Node, Publisher, Type, Access, PublishOptions) of
                 {result,
@@ -2493,7 +2491,7 @@ delete_item(Host, Node, Publisher, ItemId) ->
 delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
-    Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
+    Action = fun(PubSubNode) -> delete_item_transaction(Publisher, ItemId, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2516,15 +2514,15 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
             Error
     end.
 
-delete_item_transaction(Host, Publisher, ItemId,
+delete_item_transaction(Publisher, ItemId,
                         #pubsub_node{options = Options, type = Type, id = Nidx}) ->
-    Features = plugin_features(Host, Type),
+    Features = plugin_features(Type),
     case lists:member(<<"persistent-items">>, Features) of
         true ->
             case lists:member(<<"delete-items">>, Features) of
                 true ->
                     PublishModel = get_option(Options, publish_model),
-                    node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
+                    node_call(Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
                 false ->
                     {error,
                      extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"delete-items">>)}
@@ -2550,7 +2548,7 @@ delete_item_transaction(Host, Publisher, ItemId,
 %%%
                | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
-    Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
+    Action = fun (PubSubNode) -> purge_node_transaction(Owner, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2570,8 +2568,8 @@ purge_node(Host, Node, Owner) ->
             Error
     end.
 
-purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type, id = Nidx}) ->
-    Features = plugin_features(Host, Type),
+purge_node_transaction(Owner, #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    Features = plugin_features(Type),
     case {lists:member(<<"purge-nodes">>, Features),
           lists:member(<<"persistent-items">>, Features),
           get_option(Options, persist_items)} of
@@ -2584,7 +2582,7 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
         {_, _, false} ->
             {error,
              extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
-        _ -> node_call(Host, Type, purge_node, [Nidx, Owner])
+        _ -> node_call(Type, purge_node, [Nidx, Owner])
     end.
 
 %% @doc <p>Return the items of a given node.</p>
@@ -2634,7 +2632,7 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
 get_items_transaction(Host, From, RSM, SubId,
                       #pubsub_node{options = Options, type = Type, id = Nidx, owners = O},
                       MaxItems, ItemIds) ->
-    Features = plugin_features(Host, Type),
+    Features = plugin_features(Type),
     case {lists:member(<<"retrieve-items">>, Features),
           lists:member(<<"persistent-items">>, Features)} of
         {false, _} ->
@@ -2657,12 +2655,12 @@ get_items_transaction(Host, From, RSM, SubId,
                      item_ids => ItemIds,
                      subscription_id => SubId},
 
-            node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts])
+            node_call(Type, get_items_if_authorised, [Nidx, From, Opts])
     end.
 
 get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), #{}])
+                     node_call(Type, get_items, [Nidx, service_jid(Host), #{}])
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, _}}} -> Items;
@@ -2671,7 +2669,7 @@ get_items(Host, Node) ->
 
 get_item(Host, Node, ItemId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, get_item, [Nidx, ItemId])
+                     node_call(Type, get_item, [Nidx, ItemId])
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Items}} -> Items;
@@ -2691,7 +2689,7 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
              presence_permission => PS,
              roster_permission => RG,
              rsm => RSM},
-    node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts]).
+    node_call(Type, get_items_if_authorised, [Nidx, From, Opts]).
 
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
@@ -2764,7 +2762,7 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
-                       Features = plugin_features(Host, Type),
+                       Features = plugin_features(Type),
                        case lists:member(<<"retrieve-affiliations">>, Features) of
                            true ->
                                {result, Affs} = node_action(Host, Type, get_entity_affiliations,
@@ -2803,7 +2801,7 @@ get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) -
 -spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid:jid()) ->
     {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
-    Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
+    Action = fun (PubSubNode) -> get_affiliations_transaction(JID, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, []}} ->
             {error, mongoose_xmpp_errors:item_not_found()};
@@ -2826,13 +2824,13 @@ get_affiliations(Host, Node, JID) ->
             Error
     end.
 
-get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
-    Features = plugin_features(Host, Type),
+get_affiliations_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
+    Features = plugin_features(Type),
     case lists:member(<<"modify-affiliations">>, Features) of
         true ->
-            case node_call(Host, Type, get_affiliation, [Nidx, JID]) of
+            case node_call(Type, get_affiliation, [Nidx, JID]) of
                 {result, owner} ->
-                    node_call(Host, Type, get_node_affiliations, [Nidx]);
+                    node_call(Type, get_node_affiliations, [Nidx]);
                 _ ->
                     {error, mongoose_xmpp_errors:forbidden()}
             end;
@@ -2918,14 +2916,14 @@ set_affiliations_transaction(Host, Owner,
 set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nidx } = N,
                                        Owners, Entities) ->
     lists:foreach(fun ({JID, owner}) ->
-                          node_call(Host, Type, set_affiliation, [Nidx, JID, owner]),
+                          node_call(Type, set_affiliation, [Nidx, JID, owner]),
                           NewOwner = jid:to_bare(JID),
                           NewOwners = [NewOwner | Owners],
                           tree_call(Host,
                                     set_node,
                                     [N#pubsub_node{owners = NewOwners}]);
                       ({JID, none}) ->
-                          node_call(Host, Type, set_affiliation, [Nidx, JID, none]),
+                          node_call(Type, set_affiliation, [Nidx, JID, none]),
                           OldOwner = jid:to_bare(JID),
                           case lists:member(OldOwner, Owners) of
                               true ->
@@ -2937,23 +2935,23 @@ set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nid
                                   ok
                           end;
                       ({JID, Affiliation}) ->
-                          node_call(Host, Type, set_affiliation, [Nidx, JID, Affiliation])
+                          node_call(Type, set_affiliation, [Nidx, JID, Affiliation])
                   end,
                   Entities).
 
 get_options(Host, Node, JID, SubId, Lang) ->
     Action = fun(PubSubNode) ->
-                     get_options_transaction(Host, Node, JID, SubId, Lang, PubSubNode)
+                     get_options_transaction(Node, JID, SubId, Lang, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
     end.
 
-get_options_transaction(Host, Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
-    case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
+get_options_transaction(Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
+    case lists:member(<<"subscription-options">>, plugin_features(Type)) of
         true ->
-            get_sub_options_xml(Host, JID, Lang, Node, Nidx, SubId, Type);
+            get_sub_options_xml(JID, Lang, Node, Nidx, SubId, Type);
         false ->
             {error,
              extended_error(mongoose_xmpp_errors:feature_not_implemented(),
@@ -2961,9 +2959,9 @@ get_options_transaction(Host, Node, JID, SubId, Lang, #pubsub_node{type = Type, 
     end.
 
 % TODO: Support Lang at some point again
-get_sub_options_xml(Host, JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
+get_sub_options_xml(JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
-    {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
+    {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
     SubscribedSubs = [{Id, Opts} || {Sub, Id, Opts} <- Subs, Sub == subscribed],
 
     case {RequestedSubId, SubscribedSubs} of
@@ -2997,7 +2995,7 @@ make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
 
 set_options(Host, Node, JID, SubId, ConfigXForm) ->
     Action = fun(PubSubNode) ->
-                     ok = set_options_transaction(Host, JID, SubId, ConfigXForm, PubSubNode),
+                     ok = set_options_transaction(JID, SubId, ConfigXForm, PubSubNode),
                      {result, []}
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
@@ -3005,30 +3003,30 @@ set_options(Host, Node, JID, SubId, ConfigXForm) ->
         Error -> Error
     end.
 
-set_options_transaction(Host, JID, SubId, ConfigXForm, #pubsub_node{type = Type, id = Nidx}) ->
-    case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
+set_options_transaction(JID, SubId, ConfigXForm, #pubsub_node{type = Type, id = Nidx}) ->
+    case lists:member(<<"subscription-options">>, plugin_features(Type)) of
         true ->
-            validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type);
+            validate_and_set_options_helper(ConfigXForm, JID, Nidx, SubId, Type);
         false ->
             {error,
              extended_error(mongoose_xmpp_errors:feature_not_implemented(),
                             unsupported, <<"subscription-options">>)}
     end.
 
-validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type) ->
+validate_and_set_options_helper(ConfigXForm, JID, Nidx, SubId, Type) ->
     SubOpts = pubsub_form_utils:parse_sub_xform(ConfigXForm),
-    set_options_helper(Host, SubOpts, JID, Nidx, SubId, Type).
+    set_options_helper(SubOpts, JID, Nidx, SubId, Type).
 
-set_options_helper(_Host, {error, Reason}, JID, Nidx, RequestedSubId, _Type) ->
+set_options_helper({error, Reason}, JID, Nidx, RequestedSubId, _Type) ->
     % TODO: Make smarter logging (better details formatting)
     ?LOG_DEBUG(#{what => pubsub_invalid_subscription_options, jid => JID,
         nidx => Nidx, sub_id => RequestedSubId, reason => Reason}),
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
-set_options_helper(_Host, {ok, []}, _JID, _Nidx, _RequestedSubId, _Type) ->
+set_options_helper({ok, []}, _JID, _Nidx, _RequestedSubId, _Type) ->
     {result, []};
-set_options_helper(Host, {ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
+set_options_helper({ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
-    {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
+    {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
     SubIds = [Id || {Sub, Id, _Opts} <- Subs, Sub == subscribed],
     case {RequestedSubId, SubIds} of
         {_, []} ->
@@ -3058,7 +3056,7 @@ set_options_helper(Host, {ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
     Response :: [exml:element()].
 get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(fun (Type, {Status, Acc}) ->
-                                 Features = plugin_features(Host, Type),
+                                 Features = plugin_features(Type),
                                  case lists:member(<<"retrieve-subscriptions">>, Features) of
                                      true ->
                                          Subscriber = jid:to_bare(JID),
@@ -3137,7 +3135,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
     [].
 
 get_subscriptions(Host, Node, JID) ->
-    Action = fun (PubSubNode) -> get_subscriptions_transaction(Host, JID, PubSubNode) end,
+    Action = fun (PubSubNode) -> get_subscriptions_transaction(JID, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Subs}} ->
             Entities =
@@ -3160,13 +3158,13 @@ get_subscriptions(Host, Node, JID) ->
             Error
     end.
 
-get_subscriptions_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
-    Features = plugin_features(Host, Type),
+get_subscriptions_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
+    Features = plugin_features(Type),
     case lists:member(<<"manage-subscriptions">>, Features) of
         true ->
-            case node_call(Host, Type, get_affiliation, [Nidx, JID]) of
+            case node_call(Type, get_affiliation, [Nidx, JID]) of
                 {result, owner} ->
-                    node_call(Host, Type, get_node_subscriptions, [Nidx]);
+                    node_call(Type, get_node_subscriptions, [Nidx]);
                 _ ->
                     {error, mongoose_xmpp_errors:forbidden()}
             end;
@@ -3235,7 +3233,7 @@ set_subscriptions_transaction(Host, Owner, Node,
     end.
 
 set_subscription_transaction(Host, Node, Nidx, Type, {JID, Sub, SubId}, Acc) ->
-    case node_call(Host, Type, set_subscriptions, [Nidx, JID, Sub, SubId]) of
+    case node_call(Type, set_subscriptions, [Nidx, JID, Sub, SubId]) of
         {error, Err} -> [{error, Err} | Acc];
         _ -> notify_subscription_change(Host, Node, JID, Sub), Acc
     end.
@@ -3613,10 +3611,10 @@ get_collection_subscriptions(Host, Node) ->
 
 get_node_subs_by_depth(Host, Node, From) ->
     ParentTree = tree_call(Host, get_parentnodes_tree, [Host, Node, From]),
-    [{Depth, [{N, get_node_subs(Host, N)} || N <- Nodes]} || {Depth, Nodes} <- ParentTree].
+    [{Depth, [{N, get_node_subs(N)} || N <- Nodes]} || {Depth, Nodes} <- ParentTree].
 
-get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
-    case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
+get_node_subs(#pubsub_node{type = Type, id = Nidx}) ->
+    case node_call(Type, get_node_subscriptions, [Nidx]) of
         {result, Subs} ->
             % TODO: Replace with proper DB/plugin call with sub type filter
             [{JID, SubID, Opts} || {JID, SubType, SubID, Opts} <- Subs, SubType == subscribed];
@@ -3772,16 +3770,16 @@ user_resource(_, _, Resource) ->
 
 get_configure(Host, Node, From, #{server_host := ServerHost, lang := Lang}) ->
     Action = fun(PubSubNode) ->
-                     get_configure_transaction(Host, ServerHost, Node, From, Lang, PubSubNode)
+                     get_configure_transaction(ServerHost, Node, From, Lang, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
 
-get_configure_transaction(Host, ServerHost, Node, From, Lang,
+get_configure_transaction(ServerHost, Node, From, Lang,
                           #pubsub_node{options = Options, type = Type, id = Nidx}) ->
-    case node_call(Host, Type, get_affiliation, [Nidx, From]) of
+    case node_call(Type, get_affiliation, [Nidx, From]) of
         {result, owner} ->
             Groups = mongoose_hooks:roster_groups(ServerHost),
             XEl = #xmlel{name = <<"x">>,
@@ -3831,16 +3829,16 @@ get_option(Options, Var, Def) ->
 
 node_options(Host, Type) ->
     case config(serverhost(Host), default_node_config) of
-        undefined -> node_plugin_options(Host, Type);
-        [] -> node_plugin_options(Host, Type);
+        undefined -> node_plugin_options(Type);
+        [] -> node_plugin_options(Type);
         Config -> Config
     end.
 
-node_plugin_options(Host, Type) ->
-    Module = plugin(Host, Type),
+node_plugin_options(Type) ->
+    Module = plugin(Type),
     case catch gen_pubsub_node:options(Module) of
         {'EXIT', {undef, _}} ->
-            DefaultModule = plugin(Host, ?STDNODE),
+            DefaultModule = plugin(?STDNODE),
             gen_pubsub_node:options(DefaultModule);
         Result ->
             Result
@@ -4000,7 +3998,7 @@ set_configure_submit(Host, Node, User, XEl, Lang) ->
     end.
 
 set_configure_transaction(Host, User, XEl, #pubsub_node{ type = Type, id = Nidx } = NodeRec) ->
-    case node_call(Host, Type, get_affiliation, [Nidx, User]) of
+    case node_call(Type, get_affiliation, [Nidx, User]) of
         {result, owner} ->
             case jlib:parse_xdata_submit(XEl) of
                 invalid -> {error, mongoose_xmpp_errors:bad_request()};
@@ -4205,9 +4203,6 @@ tree(_Host, <<"virtual">>) ->
 tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
-plugin(_Host, Name) ->
-    plugin(Name).
-
 plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
@@ -4274,8 +4269,8 @@ features() ->
 % see plugin "subscription-options",   % OPTIONAL
 % see plugin "subscription-notifications"   % OPTIONAL
 
-plugin_features(Host, Type) ->
-    Module = plugin(Host, Type),
+plugin_features(Type) ->
+    Module = plugin(Type),
     case catch gen_pubsub_node:features(Module) of
         {'EXIT', {undef, _}} -> [];
         Result -> Result
@@ -4283,12 +4278,12 @@ plugin_features(Host, Type) ->
 
 features(Host, <<>>) ->
     lists:usort(lists:foldl(fun (Plugin, Acc) ->
-                                    Acc ++ plugin_features(Host, Plugin)
+                                    Acc ++ plugin_features(Plugin)
                             end,
                             features(), plugins(Host)));
 features(Host, Node) when is_binary(Node) ->
     Action = fun (#pubsub_node{type = Type}) ->
-                     {result, plugin_features(Host, Type)}
+                     {result, plugin_features(Type)}
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, Features} -> lists:usort(features() ++ Features);
@@ -4316,10 +4311,10 @@ tree_action(Host, Function, Args) ->
     catch mod_pubsub_db_backend:dirty(Fun, ErrorDebug).
 
 %% @doc <p>node plugin call.</p>
-node_call(Host, Type, Function, Args) ->
+node_call(Type, Function, Args) ->
     ?LOG_DEBUG(#{what => pubsub_node_call, node_type => Type,
         action_function => Function, args => Args}),
-    PluginModule = plugin(Host, Type),
+    PluginModule = plugin(Type),
     plugin_call(PluginModule, Function, Args).
 
 plugin_call(PluginModule, Function, Args) ->
@@ -4360,7 +4355,7 @@ node_action(Host, Type, Function, Args) ->
         args => Args
      },
     mod_pubsub_db_backend:dirty(fun() ->
-                                        node_call(Host, Type, Function, Args)
+                                        node_call(Type, Function, Args)
                                 end, ErrorDebug).
 
 dirty(Host, Node, Action, ActionName) ->
@@ -4521,7 +4516,7 @@ purge_offline({_, LServer, _} = LJID) ->
       end, lists:usort(lists:flatten(Affs))).
 
 check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
-    Features = plugin_features(Host, PluginType),
+    Features = plugin_features(PluginType),
     case lists:member(<<"retract-items">>, Features)
          andalso lists:member(<<"persistent-items">>, Features)
          andalso lists:member(<<"retrieve-affiliations">>, Features) of
@@ -4582,5 +4577,5 @@ make_error_reply(Packet, Error) ->
     jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
+    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
