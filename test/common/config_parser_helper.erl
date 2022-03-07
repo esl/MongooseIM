@@ -658,8 +658,8 @@ all_modules() ->
                                               buffer_max => 30,
                                               resume_timeout => 600,
                                               stale_h => #{enabled => true,
-                                                           stale_h_geriatric => 3600,
-                                                           stale_h_repeat_after => 1800}})
+                                                           geriatric => 3600,
+                                                           repeat_after => 1800}})
     }.
 
 pgsql_modules() ->
@@ -874,9 +874,7 @@ default_mod_config(mod_stream_management) ->
       ack => true,
       ack_freq => 1,
       resume_timeout => 600,
-      stale_h => #{enabled => false,
-                   stale_h_repeat_after => 1800,
-                   stale_h_geriatric => 3600}};
+      stale_h => default_config([modules, mod_stream_management, stale_h])};
 default_mod_config(mod_time) ->
     #{iqdisc => one_queue};
 default_mod_config(mod_vcard) ->
@@ -921,8 +919,8 @@ default_config([modules, mod_roster, riak]) ->
     #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>};
 default_config([modules, mod_stream_management, stale_h]) ->
     #{enabled => false,
-      stale_h_repeat_after => 1800,
-      stale_h_geriatric => 3600};
+      repeat_after => 1800,
+      geriatric => 3600};
 default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
     #{pool_tag => default,
       deref => never,

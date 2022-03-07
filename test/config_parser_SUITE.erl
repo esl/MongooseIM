@@ -2931,8 +2931,8 @@ mod_stream_management_stale_h(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_stream_management">> => #{<<"stale_h">> => Opts}}} end,
     ?cfgh(P ++ [enabled], true, T(#{<<"enabled">> => true})),
-    ?cfgh(P ++ [stale_h_repeat_after], 999, T(#{<<"repeat_after">> => 999})),
-    ?cfgh(P ++ [stale_h_geriatric], 999, T(#{<<"geriatric">> => 999})),
+    ?cfgh(P ++ [repeat_after], 999, T(#{<<"repeat_after">> => 999})),
+    ?cfgh(P ++ [geriatric], 999, T(#{<<"geriatric">> => 999})),
     ?cfgh(P, config_parser_helper:default_config(P), T(#{})),
 
     ?errh(T(#{<<"enabled">> => <<"true">>})),

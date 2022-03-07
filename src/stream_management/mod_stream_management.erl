@@ -107,11 +107,9 @@ stale_h_config_spec() ->
     #section{
         items = #{<<"enabled">> => #option{type = boolean},
                   <<"repeat_after">> => #option{type = integer,
-                                                validate = positive,
-                                                wrap = {kv, stale_h_repeat_after}},
+                                                validate = positive},
                   <<"geriatric">> => #option{type = integer,
-                                             validate = positive,
-                                             wrap = {kv, stale_h_geriatric}}},
+                                             validate = positive}},
         format_items = map,
         include = always,
         defaults = #{<<"enabled">> => false,

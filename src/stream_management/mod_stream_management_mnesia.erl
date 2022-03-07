@@ -133,9 +133,9 @@ start_cleaner(Opts) ->
     ejabberd_sup:start_child(ChildSpec).
 
 start_link(Opts) ->
-    gen_server:start_link({local, stream_management_stale_h}, ?MODULE, [Opts], []).
+    gen_server:start_link({local, stream_management_stale_h}, ?MODULE, Opts, []).
 
-init([#{stale_h_repeat_after := RepeatAfter, stale_h_geriatric := GeriatricAge}]) ->
+init(#{repeat_after := RepeatAfter, geriatric := GeriatricAge}) ->
     State = #smgc_state{gc_repeat_after = RepeatAfter,
                         gc_geriatric = GeriatricAge},
     schedule_check(State),

@@ -215,8 +215,8 @@ common_sm_opts() ->
 
 stale_h(RepeatAfter, Geriatric) ->
     #{enabled => true,
-      stale_h_repeat_after => RepeatAfter,
-      stale_h_geriatric => Geriatric}.
+      repeat_after => RepeatAfter,
+      geriatric => Geriatric}.
 
 make_smid() ->
     base64:encode(crypto:strong_rand_bytes(21)).
