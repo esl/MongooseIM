@@ -47,13 +47,11 @@ success_response() ->
      create_identifiable_room,
      invite_to_room,
      send_message_to_room,
-     delete_room_by_owner
+     delete_room
     ].
 
 negative_response() ->
-    [delete_room_by_non_owner,
-     delete_non_existent_room,
-     delete_room_without_having_a_membership,
+    [delete_non_existent_room,
      create_non_unique_room,
      create_room_on_non_existing_muc_server
     ].
@@ -180,7 +178,7 @@ send_message_to_room(Config) ->
         [ see_message_from_user(U, Alice, Text) || U <- [Bob, Kate] ]
     end).
 
-delete_room_by_owner(Config) ->
+delete_room(Config) ->
     RoomID = atom_to_binary(?FUNCTION_NAME),
     RoomName = <<"wonderland">>,
     escalus:fresh_story(Config,
@@ -188,19 +186,7 @@ delete_room_by_owner(Config) ->
                         fun(Alice, Bob, Kate)->
                                 {{<<"204">>, <<"No Content">>}, <<"">>} =
                                     check_delete_room(Config, RoomName, RoomID, RoomID,
-                                                      Alice, [Bob, Kate], Alice)
-                        end).
-
-delete_room_by_non_owner(Config) ->
-    RoomID = atom_to_binary(?FUNCTION_NAME),
-    RoomName = <<"wonderland">>,
-    escalus:fresh_story(Config,
-                        [{alice, 1}, {bob, 1}, {kate, 1}],
-                        fun(Alice, Bob, Kate)->
-                                {{<<"403">>, <<"Forbidden">>},
-                                 <<"Given user cannot delete this room">>} =
-                                    check_delete_room(Config, RoomName, RoomID, RoomID,
-                                                      Alice, [Bob, Kate], Bob)
+                                                      Alice, [Bob, Kate])
                         end).
 
 delete_non_existent_room(Config) ->
@@ -212,20 +198,8 @@ delete_non_existent_room(Config) ->
                                 {{<<"404">>, _}, <<"Cannot remove not existing room">>} =
                                     check_delete_room(Config, RoomName, RoomID,
                                                       <<"some_non_existent_room">>,
-                                                      Alice, [Bob, Kate], Alice)
+                                                      Alice, [Bob, Kate])
                         end).
-
-delete_room_without_having_a_membership(Config) ->
-    RoomID = atom_to_binary(?FUNCTION_NAME),
-    RoomName = <<"wonderland">>,
-    escalus:fresh_story(Config,
-                        [{alice, 1}, {bob, 1}, {kate, 1}],
-                        fun(Alice, Bob, Kate)->
-                                {{<<"403">>, _}, <<"Given user does not occupy this room">>} =
-                                    check_delete_room(Config, RoomName, RoomID, RoomID,
-                                                      Alice, [Bob], Kate)
-                        end).
-
 
 create_non_unique_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -294,7 +268,7 @@ member_is_affiliated(Stanza, User) ->
     MemberJID == Data.
 
 check_delete_room(_Config, RoomName, RoomIDToCreate, RoomIDToDelete, RoomOwner,
-                  RoomMembers, UserToExecuteDelete) ->
+                  RoomMembers) ->
     Members = [{Member, member} || Member <- RoomMembers],
     escalus:send(RoomOwner, stanza_create_room(RoomIDToCreate,
                                            [{<<"roomname">>, RoomName}],
@@ -306,8 +280,7 @@ check_delete_room(_Config, RoomName, RoomIDToCreate, RoomIDToDelete, RoomOwner,
     CreationResult = escalus:wait_for_stanza(RoomOwner),
     escalus:assert(is_iq_result, CreationResult),
     muc_light_helper:verify_aff_bcast(Members, Affiliations),
-    ShortJID = escalus_client:short_jid(UserToExecuteDelete),
-    Path = path([muc_light_domain(), RoomIDToDelete, ShortJID, "management"]),
+    Path = path([muc_light_domain(), RoomIDToDelete, "management"]),
     rest_helper:delete(admin, Path).
 
 
