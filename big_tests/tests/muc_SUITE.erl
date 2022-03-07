@@ -403,14 +403,12 @@ init_per_group(_GroupName, Config) ->
 
 required_modules(http_auth) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    [{mod_muc, [
-                {host, subhost_pattern(MucHostPattern)},
-                {access, muc},
-                {access_create, muc_create},
-                {http_auth_pool, muc_http_auth_test},
-                {default_room_options, [{password_protected, true}]}
-               ]}
-    ].
+    Opts = #{host => subhost_pattern(MucHostPattern),
+             access => muc,
+             access_create => muc_create,
+             http_auth_pool => muc_http_auth_test,
+             default_room_options => [{password_protected, true}]},
+    [{mod_muc, Opts}].
 
 handle_http_auth(Req) ->
     Qs = cowboy_req:parse_qs(Req),

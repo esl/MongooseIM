@@ -28,7 +28,7 @@
 
 
 %% Called when MUC service starts or restarts for each domain
--callback init(mongooseim:host_type(), ModuleOpts :: list()) -> ok.
+-callback init(mongooseim:host_type(), ModuleOpts :: gen_mod:module_opts()) -> ok.
 
 -callback store_room(mongooseim:host_type(), muc_host(), mod_muc:room(), room_opts()) ->
     ok | {error, term()}.
@@ -63,7 +63,7 @@
 -optional_callbacks([remove_domain/3]).
 
 %% Called when MUC service starts or restarts for each domain
--spec init(mongooseim:host_type(), Opts :: list()) -> ok.
+-spec init(mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
     TrackedFuns = [store_room, restore_room, forget_room, get_rooms,
                      can_use_nick, get_nick, set_nick, unset_nick],

@@ -158,14 +158,14 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(host_type(), list())
+-spec start_link(host_type(), map())
             -> ignore | {error, _} | {ok, pid()}.
 start_link(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], []).
+    gen_server:start_link({local, Proc}, ?MODULE, {HostType, Opts}, []).
 
 -spec start(host_type(), _) -> ok.
-start(HostType, Opts) ->
+start(HostType, Opts) when is_map(Opts) ->
     ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
@@ -199,6 +199,7 @@ assert_server_running(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
+       format_items = map,
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
                  <<"host">> => #option{type = string,
@@ -391,8 +392,8 @@ get_nick(HostType, MucHost, From) ->
 %% gen_server callbacks
 %%====================================================================
 
--spec init([host_type() | list(), ...]) -> {'ok', state()}.
-init([HostType, Opts]) ->
+-spec init({host_type(), map()}) -> {'ok', state()}.
+init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},

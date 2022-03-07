@@ -4725,8 +4725,8 @@ stringxfield(Label, Var, Val, Lang) ->
 privatexfield(Label, Var, Val, Lang) ->
     xfield(<<"text-private">>, Label, Var, Val, Lang).
 
-notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = State) ->
-    mod_muc_log:set_room_occupants(Host, self(), JID, maps:values(Users)),
+notify_users_modified(#state{host_type = HostType, jid = JID, users = Users} = State) ->
+    mod_muc_log:set_room_occupants(HostType, self(), JID, maps:values(Users)),
     State.
 
 

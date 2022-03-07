@@ -50,17 +50,14 @@ load_muc() ->
     HostType = domain_helper:host_type(),
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
     ct:log("Starting MUC for ~p", [HostType]),
-    dynamic_modules:start(HostType, mod_muc,
-                          [{host, subhost_pattern(MucHostPattern)},
-                           {backend, Backend},
-                           {hibernate_timeout, 2000},
-                           {hibernated_room_check_interval, 1000},
-                           {hibernated_room_timeout, 2000},
-                           {access, muc},
-                           {access_create, muc_create}]),
+    Opts = #{host => subhost_pattern(MucHostPattern), backend => Backend,
+             hibernate_timeout => 2000,
+             hibernated_room_check_interval => 1000,
+             hibernated_room_timeout => 2000,
+             access => muc, access_create => muc_create},
+    dynamic_modules:start(HostType, mod_muc, Opts),
     dynamic_modules:start(HostType, mod_muc_log,
-                          [{outdir, "/tmp/muclogs"},
-                           {access_log, muc}]).
+                          #{outdir => "/tmp/muclogs", access_log => muc}).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),

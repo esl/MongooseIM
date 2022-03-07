@@ -75,7 +75,7 @@
 -type dir_name() :: 'room_jid' | 'room_name'.
 -type file_format() :: 'html' | 'plaintext'.
 
--record(logstate, {host         :: jid:server(),
+-record(logstate, {host_type    :: mongooseim:host_type(),
                    out_dir      :: binary(),
                    dir_type     :: dir_type(),
                    dir_name     :: dir_name(),
@@ -96,12 +96,12 @@
 %%====================================================================
 
 %% @doc Starts the server
--spec start_link(jid:server(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(mongooseim:host_type(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
+    gen_server:start_link({local, Proc}, ?MODULE, {Host, Opts}, []).
 
--spec start(jid:server(), _) -> {'error', _}
+-spec start(mongooseim:host_type(), map()) -> {'error', _}
                                   | {'ok', 'undefined' | pid()}
                                   | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
@@ -129,6 +129,7 @@ supported_features() ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
+       format_items = map,
        items = #{<<"outdir">> => #option{type = string,
                                          validate = dirname},
                  <<"access_log">> => #option{type = atom,
@@ -180,10 +181,10 @@ check_access_log(HostType, ServerHost, From) ->
             Res
     end.
 
--spec set_room_occupants(jid:server(), RoomPID :: pid(), RoomJID :: jid:jid(),
+-spec set_room_occupants(mongooseim:host_type(), RoomPID :: pid(), RoomJID :: jid:jid(),
                          Occupants :: [mod_muc_room:user()]) -> ok.
-set_room_occupants(Host, RoomPID, RoomJID, Occupants) ->
-    gen_server:cast(get_proc_name(Host), {set_room_occupants, RoomPID, RoomJID, Occupants}).
+set_room_occupants(HostType, RoomPID, RoomJID, Occupants) ->
+    gen_server:cast(get_proc_name(HostType), {set_room_occupants, RoomPID, RoomJID, Occupants}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -196,8 +197,8 @@ set_room_occupants(Host, RoomPID, RoomJID, Occupants) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([list() | jid:server(), ...]) -> {'ok', logstate()}.
-init([Host, Opts]) ->
+-spec init({HostType :: mongooseim:host_type(), map()}) -> {ok, logstate()}.
+init({HostType, Opts}) ->
     OutDir = list_to_binary(gen_mod:get_opt(outdir, Opts, "www/muc")),
     DirType = gen_mod:get_opt(dirtype, Opts, subdirs),
     DirName = gen_mod:get_opt(dirname, Opts, room_jid),
@@ -208,7 +209,7 @@ init([Host, Opts]) ->
     {TL1, TL2} = gen_mod:get_opt(top_link, Opts, {"/", "Home"}),
     TopLink = {list_to_binary(TL1), list_to_binary(TL2)},
     NoFollow = gen_mod:get_opt(spam_prevention, Opts, true),
-    {ok, #logstate{host = Host,
+    {ok, #logstate{host_type = HostType,
                 out_dir = OutDir,
                 dir_type = DirType,
                 dir_name = DirName,
