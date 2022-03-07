@@ -267,8 +267,7 @@ member_is_affiliated(Stanza, User) ->
     Data = exml_query:path(Stanza, [{element, <<"x">>}, {element, <<"user">>}, cdata]),
     MemberJID == Data.
 
-check_delete_room(_Config, RoomName, RoomIDToCreate, RoomIDToDelete, RoomOwner,
-                  RoomMembers) ->
+check_delete_room(_Config, RoomName, RoomIDToCreate, RoomIDToDelete, RoomOwner, RoomMembers) ->
     Members = [{Member, member} || Member <- RoomMembers],
     escalus:send(RoomOwner, stanza_create_room(RoomIDToCreate,
                                            [{<<"roomname">>, RoomName}],
