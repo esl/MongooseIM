@@ -55,8 +55,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(admin_account_handler, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_last, []}]),
-    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(), [{mod_last, []}]),
+    Mods = [{mod_last, config_parser_helper:default_mod_config(mod_last)}],
+    dynamic_modules:ensure_modules(domain_helper:host_type(), Mods),
+    dynamic_modules:ensure_modules(domain_helper:secondary_host_type(), Mods),
     Config1 = escalus:create_users(Config, escalus:get_users([alice])),
     graphql_helper:init_admin_handler(Config1);
 init_per_group(user_account_handler, Config) ->
