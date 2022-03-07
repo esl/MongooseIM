@@ -194,6 +194,7 @@ groups() ->
                         s2s_max_retry_delay]},
      {modules, [parallel], [mod_adhoc,
                             mod_auth_token,
+                            mod_blocking,
                             mod_bosh,
                             mod_caps,
                             mod_cache_users,
@@ -1602,6 +1603,9 @@ mod_auth_token(_Config) ->
     ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"value">> => 10}})),
     ?errh(T(<<"validity_period">>, #{<<"access">> => #{<<"unit">> => <<"days">>}})).
 
+mod_blocking(_Config) ->
+    test_privacy_opts(mod_blocking).
+
 mod_bosh(_Config) ->
     check_module_defaults(mod_bosh),
     P = [modules, mod_bosh],
@@ -2585,16 +2589,26 @@ mod_ping(_Config) ->
     check_iqdisc(mod_ping).
 
 mod_privacy(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_privacy">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_privacy, Cfg) end,
-    ?cfgh(M([{backend, mnesia}]),
+    test_privacy_opts(mod_privacy).
+
+test_privacy_opts(Module) ->
+    T = fun(Opts) -> #{<<"modules">> => #{atom_to_binary(Module) => Opts}} end,
+    P = [modules, Module],
+    check_module_defaults(Module),
+    ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{defaults_bucket_type, <<"defaults">>}]),
-          T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
-    ?cfgh(M([{names_bucket_type, <<"names">>}]),
-          T(#{<<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
-    ?cfgh(M([{bucket_type, <<"bucket">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?cfgh(P ++ [riak, defaults_bucket_type], <<"defaults">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"defaults_bucket_type">> => <<"defaults">>}})),
+    ?cfgh(P ++ [riak, names_bucket_type], <<"names">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"names_bucket_type">> => <<"names">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"bucket">>,
+          T(#{<<"backend">> => <<"riak">>,
+              <<"riak">> => #{<<"bucket_type">> => <<"bucket">>}})),
+    ?cfgh(P ++ [riak],
+          default_config([modules, mod_privacy, riak]),
+          T(#{<<"backend">> => <<"riak">>})),
     ?errh(T(#{<<"backend">> => <<"mongoddt">>})),
     ?errh(T(#{<<"riak">> => #{<<"defaults_bucket_type">> => <<>>}})),
     ?errh(T(#{<<"riak">> => #{<<"names_bucket_type">> => 1}})),

@@ -801,6 +801,7 @@ modules() ->
 configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
+     mod_blocking,
      mod_bosh,
      mod_cache_users,
      mod_caps,

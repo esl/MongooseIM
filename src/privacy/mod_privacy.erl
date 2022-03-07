@@ -43,7 +43,8 @@
          remove_user/3,
          remove_domain/3,
          updated_list/3,
-         disco_local_features/1
+         disco_local_features/1,
+         remove_unused_backend_opts/1
         ]).
 
 -export([config_metrics/1]).
@@ -69,10 +70,12 @@
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
-start(HostType, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) when is_map(Opts) ->
     mod_privacy_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)).
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
@@ -80,7 +83,10 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_privacy}},
-                 <<"riak">> => riak_config_spec()}
+                 <<"riak">> => riak_config_spec()},
+       defaults = #{<<"backend">> => mnesia},
+       format_items = map,
+       process = fun ?MODULE:remove_unused_backend_opts/1
       }.
 
 riak_config_spec() ->
@@ -92,8 +98,15 @@ riak_config_spec() ->
                  <<"bucket_type">> => #option{type = binary,
                                               validate = non_empty}
                 },
-       wrap = none
+       defaults = #{<<"defaults_bucket_type">> => <<"privacy_defaults">>,
+                    <<"names_bucket_type">> => <<"privacy_lists_names">>,
+                    <<"bucket_type">> => <<"privacy_lists">>},
+       format_items = map,
+       include = always
       }.
+
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 -spec supported_features() -> [atom()].
 supported_features() ->

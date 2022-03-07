@@ -44,15 +44,15 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
-get_bucket_name(HostType, Opt, Default) ->
-    {gen_mod:get_module_opt(HostType, mod_privacy, Opt, Default), HostType}.
+get_bucket_name(HostType, Opt) ->
+    {gen_mod:get_module_opt(HostType, mod_privacy, [riak, Opt]), HostType}.
 
 -define(BKT_DEFAULT_LIST(HostType),
-        get_bucket_name(HostType, defaults_bucket_type, <<"privacy_defaults">>)).
+        get_bucket_name(HostType, defaults_bucket_type)).
 -define(BKT_LISTS_NAMES(HostType),
-        get_bucket_name(HostType, names_bucket_type, <<"privacy_lists_names">>)).
+        get_bucket_name(HostType, names_bucket_type)).
 -define(BKT_LISTS(HostType),
-        get_bucket_name(HostType, bucket_type, <<"privacy_lists">>)).
+        get_bucket_name(HostType, bucket_type)).
 
 init(_HostType, _Opts) ->
     ok.

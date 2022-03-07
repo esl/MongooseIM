@@ -664,13 +664,14 @@ all_modules() ->
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
-      mod_amp => [], mod_blocking => [], mod_bosh => default_mod_config(mod_bosh),
+      mod_amp => [], mod_blocking => default_mod_config(mod_blocking),
+      mod_bosh => default_mod_config(mod_bosh),
       mod_carboncopy => [], mod_commands => [],
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => [], mod_muc_light_commands => [],
       mod_offline => [{backend, rdbms}],
-      mod_privacy => [{backend, rdbms}],
+      mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>
           [{access, register},
@@ -837,6 +838,8 @@ default_mod_config(mod_auth_token) ->
     #{backend => rdbms, iqdisc => no_queue,
       validity_period => #{access => #{unit => hours, value => 1},
                            refresh => #{unit => days, value => 25}}};
+default_mod_config(mod_blocking) ->
+    #{backend => mnesia};
 default_mod_config(mod_bosh) ->
     #{backend => mnesia, inactivity => 30, max_wait => infinity,
       server_acks => false, max_pause => 120};
@@ -855,6 +858,8 @@ default_mod_config(mod_inbox) ->
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
+default_mod_config(mod_privacy) ->
+    #{backend => mnesia};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_roster) ->
@@ -903,6 +908,10 @@ default_mod_config(mod_mam_muc_rdbms_arch) ->
 
 default_config([modules, M]) ->
     default_mod_config(M);
+default_config([modules, mod_privacy, riak]) ->
+    #{defaults_bucket_type => <<"privacy_defaults">>,
+      names_bucket_type => <<"privacy_lists_names">>,
+      bucket_type => <<"privacy_lists">>};
 default_config([modules, mod_mam_meta, pm]) ->
     #{archive_groupchats => false, same_mam_id_for_peers => false};
 default_config([modules, mod_mam_meta, muc]) ->

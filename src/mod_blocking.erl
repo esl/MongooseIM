@@ -24,9 +24,11 @@
 
 -type listitem() :: #listitem{}.
 
-start(HostType, _Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) when is_map(Opts) ->
     ejabberd_hooks:add(hooks(HostType)).
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)).
 
