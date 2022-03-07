@@ -63,7 +63,7 @@
   0},
  {<<"kiss">>,
   {git,"https://github.com/arcusfelis/kiss.git",
-       {ref,"56975c44de2c9515c99c620c6d23972170573020"}},
+       {ref,"4e7e23fcc0ffe58cf018a0f97437739133f859ed"}},
   0},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.9.2">>},0},
  {<<"lasse">>,{pkg,<<"lasse">>,<<"1.2.0">>},0},
