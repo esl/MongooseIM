@@ -40,6 +40,7 @@
 -define(ROOM_DELETED_SUCC_RESULT, {ok, "Room deleted successfully"}).
 -define(USER_NOT_ROOM_MEMBER_RESULT, {not_room_member, "Given user does not occupy this room"}).
 -define(ROOM_NOT_FOUND_RESULT, {room_not_found, "Room not found"}).
+-define(DELETE_NOT_EXISTING_ROOM_RESULT, {room_not_found, "Cannot remove not existing room"}).
 -define(MUC_SERVER_NOT_FOUND_RESULT, {muc_server_not_found, "MUC Light server not found"}).
 -define(VALIDATION_ERROR_RESULT(Key, Reason),
         {validation_error, io_lib:format("Validation failed for key: ~p with reason ~p",
@@ -162,7 +163,7 @@ delete_room(#jid{lserver = MUCServer} = RoomJID, UserJID) ->
                 {ok, member} ->
                     {not_allowed, "Given user cannot delete this room"};
                 {error, room_not_found} ->
-                    {room_not_found, "Cannot remove not existing room"}
+                    ?DELETE_NOT_EXISTING_ROOM_RESULT
             end;
         {error, not_found}->
             ?MUC_SERVER_NOT_FOUND_RESULT
@@ -174,7 +175,7 @@ delete_room(RoomJID) ->
         ok ->
             ?ROOM_DELETED_SUCC_RESULT;
         {error, not_exists} ->
-            ?ROOM_NOT_FOUND_RESULT
+            ?DELETE_NOT_EXISTING_ROOM_RESULT
     catch
         error:{muc_host_to_host_type_failed, _, _} ->
             ?MUC_SERVER_NOT_FOUND_RESULT
