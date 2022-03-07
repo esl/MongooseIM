@@ -239,10 +239,11 @@ delete_room(DomainName, RoomName, Owner) ->
     OwnerJID = jid:binary_to_bare(Owner),
     case muc_light_room_name_to_jid_and_aff(OwnerJID, RoomName, DomainName) of
         {ok, RoomJID, owner} -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
-        {ok, RoomJID, _} -> case mod_muc_light:equal_occupants(mod_muc_light_utils:room_jid_to_host_type(RoomJID)) of
-                            true -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
-                            false -> {error, denied, "you can not delete this room"}
-                          end;
+        {ok, RoomJID, _} ->
+            case mod_muc_light:equal_occupants(mod_muc_light_utils:room_jid_to_host_type(RoomJID)) of
+                true -> mod_muc_light:delete_room(jid:to_lus(RoomJID));
+                false -> {error, denied, "you can not delete this room"}
+            end;
         {error, given_user_does_not_occupy_any_room} -> {error, denied, "given user does not occupy this room"};
         {error, not_found} -> {error, not_found, "room does not exist"}
     end.
