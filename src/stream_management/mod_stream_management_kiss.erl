@@ -30,22 +30,17 @@
 -define(TABLE, kiss_strm_man).
 -define(TABLE_H, kiss_strm_man_h).
 
-init(_HostType, Opts) ->
+init(_HostType, Opts = #{stale_h := StaleOpts}) ->
     kiss:start(?TABLE, #{}),
     kiss_discovery:add_table(mongoose_kiss_discovery, ?TABLE),
-    maybe_init_stale_h(Opts),
+    maybe_init_stale_h(StaleOpts),
     ok.
 
-maybe_init_stale_h(Opts) ->
-    StaleOpts = gen_mod:get_opt(stale_h, Opts, [{enabled, false}]),
-    case proplists:get_value(enabled, StaleOpts, false) of
-        false ->
-            ok;
-        true ->
-            kiss:start(?TABLE_H, #{}),
-            kiss_discovery:add_table(mongoose_kiss_discovery, ?TABLE_H),
-            start_cleaner(StaleOpts)
-    end.
+maybe_init_stale_h(StaleOpts = #{enabled := true}) ->
+    kiss:start(?TABLE_H, #{}),
+    kiss_discovery:add_table(mongoose_kiss_discovery, ?TABLE_H),
+    start_cleaner(StaleOpts);
+maybe_init_stale_h(_) -> ok.
 
 -spec register_smid(HostType, SMID, SID) ->
     ok | {error, term()} when
@@ -113,12 +108,9 @@ start_cleaner(Opts) ->
     ejabberd_sup:start_child(ChildSpec).
 
 start_link(Opts) ->
-    gen_server:start_link({local, stream_management_stale_h}, ?MODULE, [Opts], []).
+    gen_server:start_link({local, stream_management_stale_h}, ?MODULE, Opts, []).
 
-init([Opts]) ->
-    %% In seconds
-    RepeatAfter = proplists:get_value(stale_h_repeat_after, Opts, 1800),
-    GeriatricAge = proplists:get_value(stale_h_geriatric, Opts, 3600),
+init(#{repeat_after := RepeatAfter, geriatric := GeriatricAge}) ->
     State = #smgc_state{gc_repeat_after = RepeatAfter,
                         gc_geriatric = GeriatricAge},
     schedule_check(State),
