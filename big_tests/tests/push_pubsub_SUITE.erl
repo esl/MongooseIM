@@ -65,11 +65,11 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(rest_integration_v1, Config) ->
-    restart_modules(Config, "v1");
+    restart_modules(Config, <<"v1">>);
 init_per_group(rest_integration_v2, Config) ->
-    restart_modules(Config, "v2");
+    restart_modules(Config, <<"v2">>);
 init_per_group(_, Config) ->
-    restart_modules(Config, "v2").
+    restart_modules(Config, <<"v2">>).
 
 end_per_group(_, Config) ->
     Config.
@@ -435,10 +435,10 @@ required_modules(APIVersion) ->
         {nodetree, <<"dag">>},
         {host, subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@")}
     ]},
-     {mod_push_service_mongoosepush, [
-         {pool_name, mongoose_push_http},
-         {api_version, APIVersion}
-     ]}].
+     {mod_push_service_mongoosepush,
+      config_parser_helper:mod_config(mod_push_service_mongoosepush, #{pool_name => mongoose_push_http,
+                                                                       api_version => APIVersion})
+     }].
 
 restart_modules(Config, APIVersion) ->
     dynamic_modules:restore_modules(Config),

@@ -19,7 +19,7 @@ It must be defined in [outgoing_pools setting](../configuration/outgoing-connect
 * **Default:** `"undefined"`
 * **Example:** `pool_name = "mongoose_push_http"`
 
-The name of the pool to use (as defined in `outgoing_pools`).
+The name of the pool to use (as defined in [`outgoing_pools`](../configuration/outgoing-connections.md)).
 
 ### `modules.mod_push_service_mongoosepush.api_version`
 * **Syntax:** string, `"v2"` or `"v3"`

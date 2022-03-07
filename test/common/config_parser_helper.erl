@@ -558,9 +558,9 @@ all_modules() ->
            {all_can_invite, true},
            {all_can_configure, true}],
       mod_push_service_mongoosepush =>
-          [{api_version, "v3"},
-           {max_http_connections, 100},
-           {pool_name, mongoose_push_http}],
+          #{api_version => <<"v3">>,
+            max_http_connections => 100,
+            pool_name => mongoose_push_http},
       mod_event_pusher_sns =>
           [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
            {account_id, "123456789012"},
@@ -848,6 +848,8 @@ default_mod_config(mod_inbox) ->
       iqdisc => no_queue};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_push_service_mongoosepush) ->
+    #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
 default_mod_config(mod_sic) ->

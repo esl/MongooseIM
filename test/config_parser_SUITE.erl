@@ -2716,14 +2716,15 @@ mod_pubsub_default_node_config(_Config) ->
     ?errh(T(#{<<"subscribe">> => <<"never">>})).
 
 mod_push_service_mongoosepush(_Config) ->
+    check_module_defaults(mod_push_service_mongoosepush),
+    P = [modules, mod_push_service_mongoosepush],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_push_service_mongoosepush">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_push_service_mongoosepush, Cfg) end,
-    ?cfgh(M([{pool_name, test_pool}]),
+    ?cfgh(P ++ [pool_name], test_pool,
           T(#{<<"pool_name">> => <<"test_pool">>})),
-    ?cfgh(M([{api_version, "v3"}]),
-          T(#{<<"api_version">> => <<"v3">>})),
-    ?cfgh(M([{max_http_connections, 100}]),
-          T(#{<<"max_http_connections">> => 100})),
+    ?cfgh(P ++ [api_version], <<"v2">>,
+          T(#{<<"api_version">> => <<"v2">>})),
+    ?cfgh(P ++ [max_http_connections], 999,
+          T(#{<<"max_http_connections">> => 999})),
     ?errh(T(#{<<"pool_name">> => 1})),
     ?errh(T(#{<<"api_version">> => <<"v4">>})),
     ?errh(T(#{<<"max_http_connections">> => -1})).
