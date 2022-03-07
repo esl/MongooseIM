@@ -532,10 +532,10 @@ all_modules() ->
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
-          [{access_log, muc},
-           {cssfile, <<"path/to/css/file">>},
-           {outdir, "www/muc"},
-           {top_link, {"/", "Home"}}],
+          #{access_log => muc,
+            cssfile => <<"path/to/css/file">>,
+            outdir => "www/muc",
+            top_link => {"/", "Home"}},
       mod_http_upload =>
           [{backend, s3},
            {expiration_time, 120},
@@ -626,15 +626,15 @@ all_modules() ->
           #{backend => mnesia, inactivity => 20, max_wait => infinity,
             server_acks => true, max_pause => 120},
       mod_muc =>
-          [{access, muc},
-           {access_create, muc_create},
-           {default_room_options,
+          #{access => muc,
+            access_create => muc_create,
+            default_room_options =>
             [{affiliations,
               [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
                {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}]},
-             {password_protected, true}]},
-           {host, {fqdn, <<"muc.example.com">>}},
-           {http_auth_pool, my_auth_pool}],
+             {password_protected, true}],
+            host => {fqdn, <<"muc.example.com">>},
+            http_auth_pool => my_auth_pool},
       mod_vcard =>
           mod_config(mod_vcard,
                      #{host => {fqdn, <<"directory.example.com">>},
