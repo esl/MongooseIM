@@ -28,10 +28,10 @@
 -export([create_identifiable_room/5]).
 -export([send_message/4]).
 -export([invite_to_room/4]).
--export([delete_room/3]).
+-export([delete_room/2]).
 -export([change_room_config/5]).
 
--ignore_xref([create_identifiable_room/5, create_unique_room/4, delete_room/3,
+-ignore_xref([create_identifiable_room/5, create_unique_room/4, delete_room/2,
               invite_to_room/4, send_message/4, change_room_config/5]).
 
 %%--------------------------------------------------------------------
@@ -114,10 +114,10 @@ commands() ->
       {module, ?MODULE},
       {function, invite_to_room},
       {action, create},
-      {identifiers, [domain, name]},
+      {identifiers, [domain, id]},
       {args,
        [{domain, binary},
-        {name, binary},
+        {id, binary},
         {sender, binary},
         {recipient, binary}
        ]},
@@ -130,10 +130,10 @@ commands() ->
       {module, ?MODULE},
       {function, send_message},
       {action, create},
-      {identifiers, [domain, name]},
+      {identifiers, [domain, id]},
       {args,
        [{domain, binary},
-        {name, binary},
+        {id, binary},
         {from, binary},
         {body, binary}
        ]},
@@ -146,11 +146,11 @@ commands() ->
       {module, ?MODULE},
       {function, delete_room},
       {action, delete},
-      {identifiers, [domain, name, owner]},
+      {identifiers, [domain, id]},
       {args,
        [{domain, binary},
-        {name, binary},
-        {owner, binary}]},
+        {id, binary}
+        ]},
       {result, ok}]
     ].
 
@@ -203,12 +203,11 @@ send_message(MUCServer, RoomID, Sender, Message) ->
     Result = mod_muc_light_api:send_message(RoomJID, SenderJID, Message),
     format_result_no_msg(Result).
 
--spec delete_room(jid:server(), jid:user(), jid:literal_jid()) ->
-    ok | {error, not_found | denied, iolist()}.
-delete_room(MUCServer, RoomID, Owner) ->
-    OwnerJID = jid:from_binary(Owner),
+-spec delete_room(jid:server(), jid:user()) ->
+    ok | {error, not_found, iolist()}.
+delete_room(MUCServer, RoomID) ->
     RoomJID = jid:make_bare(RoomID, MUCServer),
-    Result = mod_muc_light_api:delete_room(RoomJID, OwnerJID),
+    Result = mod_muc_light_api:delete_room(RoomJID),
     format_result_no_msg(Result).
 
 format_result_no_msg({ok, _}) -> ok;

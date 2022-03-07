@@ -713,7 +713,7 @@ admin_delete_room_story(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"not found">>)),
     % Try with a non-existent room
     Res3 = execute_auth(delete_room_body(make_bare_jid(?UNKNOWN, MUCServer)), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"not found">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res3), <<"Cannot remove">>)).
 
 admin_kick_user(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}], fun admin_kick_user_story/3).
