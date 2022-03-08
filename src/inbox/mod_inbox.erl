@@ -555,7 +555,7 @@ muclight_dep(List) ->
 
 muc_dep(List) ->
     case lists:member(muc, List) of
-        true -> [{mod_muc, #{}, hard}];
+        true -> [{mod_muc, mod_muc:default_opts(), hard}];
         false -> []
     end.
 

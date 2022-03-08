@@ -16,6 +16,15 @@
 
 -export_type([verify_fun/0]).
 
+%% Extend default opts with new ExtraOpts
+make_opts(ExtraOpts) ->
+    Opts = rpc(mim(), mod_muc, default_opts, []),
+    maps:merge(Opts, ExtraOpts).
+
+make_log_opts(ExtraOpts) ->
+    Opts = rpc(mim(), mod_muc_log, default_opts, []),
+    maps:merge(Opts, ExtraOpts).
+
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.
 foreach_occupant(Users, Stanza, VerifyFun) ->
@@ -56,8 +65,8 @@ load_muc() ->
              hibernated_room_timeout => 2000,
              access => muc, access_create => muc_create},
     LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
-    dynamic_modules:start(HostType, mod_muc, config_parser_helper:mod_config(mod_muc, Opts)),
-    dynamic_modules:start(HostType, mod_muc_log, config_parser_helper:mod_config(mod_muc_log, LogOpts)).
+    dynamic_modules:start(HostType, mod_muc, make_opts(Opts)),
+    dynamic_modules:start(HostType, mod_muc_log, make_log_opts(LogOpts)).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),

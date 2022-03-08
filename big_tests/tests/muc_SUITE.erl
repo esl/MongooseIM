@@ -403,13 +403,13 @@ init_per_group(_GroupName, Config) ->
 
 required_modules(http_auth) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    DefRoomOpts = rpc(mim(), mod_muc, default_room_defaults, []),
+    DefRoomOpts = rpc(mim(), mod_muc, default_room_opts, []),
     Opts = #{host => subhost_pattern(MucHostPattern),
              access => muc,
              access_create => muc_create,
              http_auth_pool => muc_http_auth_test,
              default_room => DefRoomOpts#{password_protected => true}},
-    [{mod_muc, config_parser_helper:mod_config(mod_muc, Opts)}].
+    [{mod_muc, muc_helper:make_opts(Opts)}].
 
 handle_http_auth(Req) ->
     Qs = cowboy_req:parse_qs(Req),

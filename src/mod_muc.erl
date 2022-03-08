@@ -72,13 +72,14 @@
 -export([hibernated_rooms_number/0]).
 
 -export([config_metrics/1]).
--export([default_room_defaults/0]).
+-export([default_opts/0]).
+-export([default_room_opts/0]).
 
 -ignore_xref([
     can_access_identity/4, can_access_room/4, acc_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
     online_rooms_number/0, register_room/4, restore_room/3, start_link/2,
-    default_room_defaults/0
+    default_room_opts/0
 ]).
 
 -include("mongoose.hrl").
@@ -250,35 +251,35 @@ config_spec() ->
                                                           validate = non_negative},
                  <<"default_room">> => default_room_config_spec()
                 },
-       defaults = defaults()
+       defaults = mongoose_config_utils:keys_are_binaries(default_opts())
       }.
 
-defaults() ->
+default_opts() ->
     #{
-         <<"backend">> => mnesia,
-         <<"host">> => default_host(),
-         <<"access">> => all,
-         <<"access_create">> => all,
-         <<"access_admin">> => none,
-         <<"access_persistent">> => all,
-         <<"history_size">> => 20,
-         <<"room_shaper">> => none,
-         <<"max_room_id">> => infinity,
-         <<"max_room_name">> => infinity,
-         <<"max_room_desc">> => infinity,
-         <<"min_message_interval">> => 0,
-         <<"min_presence_interval">> => 0,
-         <<"max_users">> => ?MAX_USERS_DEFAULT,
-         <<"max_users_admin_threshold">> => 5,
-         <<"user_message_shaper">> => none,
-         <<"user_presence_shaper">> => none,
-         <<"max_user_conferences">> => 10,
-         <<"http_auth_pool">> => none,
-         <<"load_permanent_rooms_at_startup">> => false,
-         <<"hibernate_timeout">> => timer:seconds(90),
-         <<"hibernated_room_check_interval">> => infinity,
-         <<"hibernated_room_timeout">> => infinity,
-         <<"default_room">> => default_room_defaults()
+         backend => mnesia,
+         host => default_host(),
+         access => all,
+         access_create => all,
+         access_admin => none,
+         access_persistent => all,
+         history_size => 20,
+         room_shaper => none,
+         max_room_id => infinity,
+         max_room_name => infinity,
+         max_room_desc => infinity,
+         min_message_interval => 0,
+         min_presence_interval => 0,
+         max_users => ?MAX_USERS_DEFAULT,
+         max_users_admin_threshold => 5,
+         user_message_shaper => none,
+         user_presence_shaper => none,
+         max_user_conferences => 10,
+         http_auth_pool => none,
+         load_permanent_rooms_at_startup => false,
+         hibernate_timeout => timer:seconds(90),
+         hibernated_room_check_interval => infinity,
+         hibernated_room_timeout => infinity,
+         default_room => default_room_opts()
     }.
 
 default_room_config_spec() ->
@@ -311,13 +312,10 @@ default_room_config_spec() ->
                  <<"subject">> => #option{type = binary},
                  <<"subject_author">> => #option{type = binary}
                 },
-       defaults = keys_are_binaries(default_room_defaults())
+       defaults = mongoose_config_utils:keys_are_binaries(default_room_opts())
       }.
 
-keys_are_binaries(KV) ->
-    maps:from_list([{atom_to_binary(K, latin1), V} || {K, V} <- maps:to_list(KV)]).
-
-default_room_defaults() ->
+default_room_opts() ->
     X = #config{},
     #{
         title => X#config.title,
