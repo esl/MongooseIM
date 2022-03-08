@@ -2935,167 +2935,83 @@ which_property_changed(Attrs, Lang) ->
 
 -spec can_change_ra(FAff :: mod_muc:affiliation(), FRole :: mod_muc:role(),
         TAff :: mod_muc:affiliation(), TRole :: mod_muc:role(),
-        RoleOrAff :: 'affiliation' | 'role', Value :: any(),
+        RoleOrAff :: affiliation | role, Value :: any(),
         ServiceAff :: mod_muc:affiliation())
-            -> 'cancel' | 'check_owner' | 'false' | 'nothing' | 'true'.
-can_change_ra(_FAffiliation, _FRole,
-          owner, _TRole,
-          affiliation, owner, owner) ->
-    %% A room owner tries to add as persistent owner a
-    %% participant that is already owner because he is MUC admin
-    true;
-can_change_ra(_FAffiliation, _FRole,
-              _TAffiliation, _TRole,
-              _RoleorAffiliation, _Value, owner) ->
-    %% Nobody can decrease MUC admin's role/affiliation
-    false;
-can_change_ra(_FAffiliation, _FRole,
-          TAffiliation, _TRole,
-          affiliation, Value, _ServiceAf)
-  when (TAffiliation == Value) ->
-    nothing;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, TRole,
-          role, Value, _ServiceAf)
-  when (TRole == Value) ->
-    nothing;
-can_change_ra(FAffiliation, _FRole,
-          outcast, _TRole,
-          affiliation, none, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          outcast, _TRole,
-          affiliation, member, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          outcast, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          outcast, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          none, _TRole,
-          affiliation, outcast, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          none, _TRole,
-          affiliation, member, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          none, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          none, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          member, _TRole,
-          affiliation, outcast, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          member, _TRole,
-          affiliation, none, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          member, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          member, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          admin, _TRole,
-          affiliation, _Affiliation, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          owner, _TRole,
-          affiliation, _Affiliation, _ServiceAf) ->
-    check_owner;
-can_change_ra(none, _FRole,
-              TAffiliation, _TRole,
-              affiliation, _Affiliation, _ServiceAf)
-    when (TAffiliation == admin orelse TAffiliation == owner) ->
-    cancel;
-can_change_ra(admin, _FRole,
-              owner, _TRole,
-              affiliation, _Value, _ServiceAf) ->
-    cancel;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, _TRole,
-          affiliation, _Value, _ServiceAf) ->
-    false;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, visitor,
-          role, none, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, visitor,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          _TAffiliation, visitor,
-          role, moderator, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, participant,
-          role, none, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, participant,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          _TAffiliation, participant,
-          role, moderator, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          owner, moderator,
-          role, visitor, _ServiceAf) ->
-    false;
-can_change_ra(owner, _FRole,
-          _TAffiliation, moderator,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          admin, moderator,
-          role, visitor, _ServiceAf) ->
-    false;
-can_change_ra(admin, _FRole,
-          _TAffiliation, moderator,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          owner, moderator,
-          role, participant, _ServiceAf) ->
-    false;
-can_change_ra(owner, _FRole,
-          _TAffiliation, moderator,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          admin, moderator,
-          role, participant, _ServiceAf) ->
-    false;
-can_change_ra(admin, _FRole,
-          _TAffiliation, moderator,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, _TRole,
-          role, _Value, _ServiceAf) ->
-    false.
+            -> cancel | check_owner | false | nothing | true.
+can_change_ra(FAff, _FRole, TAff, _TRole, affiliation, Value, ServiceAff) ->
+    can_change_aff(FAff, TAff, Value, ServiceAff);
+can_change_ra(FAff, FRole, TAff, TRole, role, Value, ServiceAff) ->
+    can_change_role(FAff, FRole, TAff, TRole, Value, ServiceAff).
+
+%% A room owner tries to add as persistent owner a
+%% participant that is already owner because he is MUC admin:
+can_change_aff(_FAff, owner, owner, owner) -> true;
+%% Nobody can decrease MUC admin's role/affiliation:
+can_change_aff(_FAff, _TAff, _Value, owner) -> false;
+can_change_aff(FAff, TAff, Value, _ServiceAf) ->
+    can_change_aff(FAff, TAff, Value).
+
+%% Nobody can decrease MUC admin's role/affiliation:
+can_change_role(_FAff, _FRole, _TAff, _TRole, _Value, owner) -> false;
+can_change_role(FAff, FRole, TAff, TRole, Value, _ServiceAf) ->
+    can_change_role(FAff, FRole, TAff, TRole, Value).
+
+%% Arguments:
+%% - Affiliation of the user making the request
+%% - Old affiliation
+%% - New affiliation
+can_change_aff(_FAff, Aff, Aff) -> nothing;
+can_change_aff(owner, outcast, none) -> true;
+can_change_aff(owner, outcast, member) -> true;
+can_change_aff(owner, outcast, admin) -> true;
+can_change_aff(owner, outcast, owner) -> true;
+can_change_aff(owner, none, outcast) -> true;
+can_change_aff(owner, none, member) -> true;
+can_change_aff(owner, none, admin) -> true;
+can_change_aff(owner, none, owner) -> true;
+can_change_aff(owner, member, outcast) -> true;
+can_change_aff(owner, member, none) -> true;
+can_change_aff(owner, member, admin) -> true;
+can_change_aff(owner, member, owner) -> true;
+can_change_aff(owner, admin, _Aff) -> true;
+can_change_aff(owner, owner, _Aff) -> check_owner;
+can_change_aff(admin, none, member) -> true;
+can_change_aff(admin, none, outcast) -> true;
+can_change_aff(admin, outcast, none) -> true;
+can_change_aff(admin, outcast, member) -> true;
+can_change_aff(admin, member, outcast) -> true;
+can_change_aff(admin, member, none) -> true;
+can_change_aff(none,  admin, _Aff) -> cancel;
+can_change_aff(none,  owner, _Aff) -> cancel;
+can_change_aff(admin, owner, _Aff) -> cancel;
+can_change_aff(_FAff, _TAff, _Aff) -> false.
+
+%% Arguments:
+%% - Affiliation of the user making the request
+%% - Role of the user making the request
+%% - Old affiliation
+%% - Old role
+%% - New role
+can_change_role(_FAff, _FRole, _TAff, Role, Role) -> nothing;
+can_change_role(_FAff, moderator, _TAff, visitor, none) -> true;
+can_change_role(_FAff, moderator, _TAff, visitor, participant) -> true;
+can_change_role(owner, _FRole, _TAff, visitor, moderator) -> true;
+can_change_role(admin, _FRole, _TAff, visitor, moderator) -> true;
+can_change_role(_FAff, moderator, _TAff, participant, none) -> true;
+can_change_role(_FAff, moderator, _TAff, participant, visitor) -> true;
+can_change_role(owner, _FRole, _TAff, participant, moderator) -> true;
+can_change_role(admin, _FRole, _TAff, participant, moderator) -> true;
+%% Owner/admin are always moderators:
+can_change_role(_FAff, _FRole, owner, moderator, visitor) -> false;
+can_change_role(_FAff, _FRole, admin, moderator, visitor) -> false;
+can_change_role(_FAff, _FRole, owner, moderator, participant) -> false;
+can_change_role(_FAff, _FRole, admin, moderator, participant) -> false;
+%% Non owner/admin could loose their moderator status:
+can_change_role(owner, _FRole, _TAff, moderator, visitor) -> true;
+can_change_role(admin, _FRole, _TAff, moderator, visitor) -> true;
+can_change_role(owner, _FRole, _TAff, moderator, participant) -> true;
+can_change_role(admin, _FRole, _TAff, moderator, participant) -> true;
+can_change_role(_FAff, _FRole, _TAff, _TRole, _NewRole) -> false.
 
 safe_send_kickban_presence(JID, Reason, Code, StateData) ->
     try
