@@ -371,17 +371,19 @@ mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
      {mod_muc_light, [{host, HostPattern}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
+    HostType = domain_helper:host_type(),
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              pm => #{},
                                              muc => #{host => HostPattern}})},
-     {mod_muc, #{host => HostPattern}}];
+     {mod_muc, dynamic_modules:start(HostType, mod_muc, #{host => HostPattern})}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
+    HostType = domain_helper:host_type(),
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              pm => #{archive_groupchats => true},
                                              muc => #{host => HostPattern}})},
-     {mod_muc, #{host => HostPattern}}].
+     {mod_muc, dynamic_modules:start(HostType, mod_muc, #{host => HostPattern})}].
 
 pick_enabled_backend() ->
     BackendsList = [

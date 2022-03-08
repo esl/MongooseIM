@@ -55,9 +55,9 @@ load_muc() ->
              hibernated_room_check_interval => 1000,
              hibernated_room_timeout => 2000,
              access => muc, access_create => muc_create},
-    dynamic_modules:start(HostType, mod_muc, Opts),
-    dynamic_modules:start(HostType, mod_muc_log,
-                          #{outdir => "/tmp/muclogs", access_log => muc}).
+    LogOpts = #{outdir => "/tmp/muclogs", access_log => muc},
+    dynamic_modules:start(HostType, mod_muc, config_parser_helper:mod_config(mod_muc, Opts)),
+    dynamic_modules:start(HostType, mod_muc_log, config_parser_helper:mod_config(mod_muc_log, LogOpts)).
 
 unload_muc() ->
     HostType = domain_helper:host_type(),

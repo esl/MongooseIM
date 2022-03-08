@@ -93,7 +93,8 @@ group_to_modules(muc_light_removal) ->
     [{mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
 group_to_modules(muc_removal) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
-    [{mod_muc, #{backend => rdbms, host => MucHost}}];
+    Opts = #{backend => rdbms, host => MucHost},
+    [{mod_muc, config_parser_helper:mod_config(mod_muc, Opts)}];
 group_to_modules(inbox_removal) ->
     [{mod_inbox, inbox_helper:inbox_opts()}];
 group_to_modules(private_removal) ->

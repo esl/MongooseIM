@@ -533,7 +533,7 @@ all_modules() ->
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
           #{access_log => muc,
-            cssfile => <<"path/to/css/file">>,
+            css_file => <<"path/to/css/file">>,
             outdir => "www/muc",
             top_link => {"/", "Home"}},
       mod_http_upload =>
@@ -628,7 +628,7 @@ all_modules() ->
       mod_muc =>
           #{access => muc,
             access_create => muc_create,
-            default_room_options =>
+            default_room =>
             #{affiliations =>
               [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
                {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}],
@@ -890,7 +890,11 @@ default_mod_config(mod_mam_rdbms_arch) ->
 default_mod_config(mod_mam_muc_rdbms_arch) ->
     #{no_writer => false,
       db_message_format => mam_message_compressed_eterm,
-      db_jid_format => mam_jid_rfc}.
+      db_jid_format => mam_jid_rfc};
+default_mod_config(mod_muc) ->
+    defaults_from_spec(mod_muc);
+default_mod_config(mod_muc_log) ->
+    defaults_from_spec(mod_muc_log).
 
 default_config([modules, M]) ->
     default_mod_config(M);
@@ -971,3 +975,21 @@ common_mam_config() ->
 
 config(Path, Opts) ->
     maps:merge(default_config(Path), Opts).
+
+defaults_from_spec(Module) ->
+    keys_are_atoms(defaults_from_spec2(Module)).
+
+defaults_from_spec2(Module) ->
+    try
+        %% Call from small tests
+        mongoose_config_utils:section_to_defaults(Module:config_spec())
+    catch _:_ ->
+              %% Call from big tests
+              Node = distributed_helper:mim(),
+              Spec = distributed_helper:rpc(Node, Module, config_spec, []),
+              distributed_helper:rpc(Node, mongoose_config_utils,
+                                     section_to_defaults, [Spec])
+    end.
+
+keys_are_atoms(KV) ->
+    maps:from_list([{binary_to_atom(K, latin1), V} || {K, V} <- maps:to_list(KV)]).

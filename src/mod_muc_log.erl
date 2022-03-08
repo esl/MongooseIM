@@ -141,14 +141,27 @@ config_spec() ->
                  <<"file_format">> => #option{type = atom,
                                               validate = {enum, [html, plaintext]}},
                  <<"css_file">> => #option{type = binary,
-                                           validate = non_empty,
-                                           wrap = {kv, cssfile}},
+                                           validate = non_empty},
                  <<"timezone">> => #option{type = atom,
                                            validate = {enum, [local, universal]}},
                  <<"top_link">> => top_link_config_spec(),
                  <<"spam_prevention">> => #option{type = boolean}
-                }
+                },
+          defaults = defaults()
       }.
+
+defaults() ->
+    #{
+         <<"outdir">> => "www/muc",
+         <<"access_log">> => muc_admin,
+         <<"dirtype">> => subdirs,
+         <<"dirname">> => room_jid,
+         <<"file_format">> => html,
+         <<"css_file">> => false,
+         <<"timezone">> => local,
+         <<"top_link">> => {"/", "Home"},
+         <<"spam_prevention">> => true
+    }.
 
 top_link_config_spec() ->
     #section{
@@ -199,16 +212,17 @@ set_room_occupants(HostType, RoomPID, RoomJID, Occupants) ->
 %%--------------------------------------------------------------------
 -spec init({HostType :: mongooseim:host_type(), map()}) -> {ok, logstate()}.
 init({HostType, Opts}) ->
-    OutDir = list_to_binary(gen_mod:get_opt(outdir, Opts, "www/muc")),
-    DirType = gen_mod:get_opt(dirtype, Opts, subdirs),
-    DirName = gen_mod:get_opt(dirname, Opts, room_jid),
-    FileFormat = gen_mod:get_opt(file_format, Opts, html), % Allowed values: html|plaintext
-    CSSFile = gen_mod:get_opt(cssfile, Opts, false),
-    AccessLog = gen_mod:get_opt(access_log, Opts, muc_admin),
-    Timezone = gen_mod:get_opt(timezone, Opts, local),
-    {TL1, TL2} = gen_mod:get_opt(top_link, Opts, {"/", "Home"}),
-    TopLink = {list_to_binary(TL1), list_to_binary(TL2)},
-    NoFollow = gen_mod:get_opt(spam_prevention, Opts, true),
+    #{
+        access_log := AccessLog,
+        css_file := CSSFile,
+        dirname := DirName,
+        dirtype := DirType,
+        file_format := FileFormat,
+        outdir := OutDir,
+        spam_prevention := NoFollow,
+        timezone := Timezone,
+        top_link := TopLink
+     } = Opts,
     {ok, #logstate{host_type = HostType,
                 out_dir = OutDir,
                 dir_type = DirType,
@@ -256,7 +270,7 @@ handle_cast({add_to_log, Type, Data, Room, Opts}, State) ->
     catch Class:Reason:Stacktrace ->
               ?LOG_ERROR(#{what => muc_add_to_log_failed, room => Room,
                            class => Class, reason => Reason, stacktrace => Stacktrace,
-                           log_type => Type, log_data => Data}, State)
+                           log_type => Type, log_data => Data})
     end,
     {noreply, State};
 handle_cast({set_room_occupants, RoomPID, RoomJID, Users}, State) ->

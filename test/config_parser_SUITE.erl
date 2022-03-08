@@ -2346,7 +2346,7 @@ mod_muc(_Config) ->
 mod_muc_default_room(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_muc">> => #{<<"default_room">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_muc, #{default_room_options => Cfg}) end,
+    M = fun(Cfg) -> modopts(mod_muc, #{default_room => Cfg}) end,
     ?cfgh(M(#{}), T(#{})),
     ?cfgh(M(#{title => <<"living room">>}),
           T(#{<<"title">> => <<"living room">>})),
@@ -2424,7 +2424,7 @@ mod_muc_default_room_affiliations(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_muc">> =>
                                  #{<<"default_room">> => #{<<"affiliations">> => Opts}}}} end,
-    M = fun(Cfg) -> modopts(mod_muc, #{default_room_options => #{affiliations => Cfg}}) end,
+    M = fun(Cfg) -> modopts(mod_muc, #{default_room => #{affiliations => Cfg}}) end,
     RequiredOpts = #{<<"user">> => <<"alice">>,
                      <<"server">> => <<"localhost">>,
                      <<"resource">> => <<"phone">>,
@@ -2451,7 +2451,7 @@ mod_muc_log(_Config) ->
           T(#{<<"dirname">> => <<"room_name">>})),
     ?cfgh(M(#{file_format => html}),
           T(#{<<"file_format">> => <<"html">>})),
-    ?cfgh(M(#{cssfile => <<"path/to/css_file">>}),
+    ?cfgh(M(#{css_file => <<"path/to/css_file">>}),
           T(#{<<"css_file">> => <<"path/to/css_file">>})),
     ?cfgh(M(#{timezone => local}),
           T(#{<<"timezone">> => <<"local">>})),
