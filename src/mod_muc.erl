@@ -72,15 +72,11 @@
 -export([hibernated_rooms_number/0]).
 
 -export([config_metrics/1]).
--export([default_opts/0]).
--export([default_room_opts/0]).
 
 -ignore_xref([
     can_access_identity/4, can_access_room/4, acc_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
-    online_rooms_number/0, register_room/4, restore_room/3, start_link/2,
-    default_room_opts/0
-]).
+    online_rooms_number/0, register_room/4, restore_room/3, start_link/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -251,36 +247,37 @@ config_spec() ->
                                                           validate = non_negative},
                  <<"default_room">> => default_room_config_spec()
                 },
-       defaults = mongoose_config_utils:keys_are_binaries(default_opts())
+       defaults = defaults()
       }.
 
-default_opts() ->
-    #{
-         backend => mnesia,
-         host => default_host(),
-         access => all,
-         access_create => all,
-         access_admin => none,
-         access_persistent => all,
-         history_size => 20,
-         room_shaper => none,
-         max_room_id => infinity,
-         max_room_name => infinity,
-         max_room_desc => infinity,
-         min_message_interval => 0,
-         min_presence_interval => 0,
-         max_users => ?MAX_USERS_DEFAULT,
-         max_users_admin_threshold => 5,
-         user_message_shaper => none,
-         user_presence_shaper => none,
-         max_user_conferences => 10,
-         http_auth_pool => none,
-         load_permanent_rooms_at_startup => false,
-         hibernate_timeout => timer:seconds(90),
-         hibernated_room_check_interval => infinity,
-         hibernated_room_timeout => infinity,
-         default_room => default_room_opts()
-    }.
+defaults() ->
+    #{<<"backend">> => mnesia,
+      <<"host">> => default_host(),
+      <<"access">> => all,
+      <<"access_create">> => all,
+      <<"access_admin">> => none,
+      <<"access_persistent">> => all,
+      <<"history_size">> => 20,
+      <<"room_shaper">> => none,
+      <<"max_room_id">> => infinity,
+      <<"max_room_name">> => infinity,
+      <<"max_room_desc">> => infinity,
+      <<"min_message_interval">> => 0,
+      <<"min_presence_interval">> => 0,
+      <<"max_users">> => ?MAX_USERS_DEFAULT,
+      <<"max_users_admin_threshold">> => 5,
+      <<"user_message_shaper">> => none,
+      <<"user_presence_shaper">> => none,
+      <<"max_user_conferences">> => 10,
+      <<"http_auth_pool">> => none,
+      <<"load_permanent_rooms_at_startup">> => false,
+      <<"hibernate_timeout">> => timer:seconds(90),
+      <<"hibernated_room_check_interval">> => infinity,
+      <<"hibernated_room_timeout">> => infinity,
+      <<"default_room">> => keys_as_atoms(default_room_opts())}.
+
+keys_as_atoms(Map) ->
+    maps:from_list([{binary_to_atom(K), V} || {K, V} <- maps:to_list(Map)]).
 
 default_room_config_spec() ->
     #section{
@@ -312,37 +309,35 @@ default_room_config_spec() ->
                  <<"subject">> => #option{type = binary},
                  <<"subject_author">> => #option{type = binary}
                 },
-       defaults = mongoose_config_utils:keys_are_binaries(default_room_opts())
+       defaults = default_room_opts()
       }.
 
 default_room_opts() ->
     X = #config{},
-    #{
-        title => X#config.title,
-        description => X#config.description,
-        allow_change_subj => X#config.allow_change_subj,
-        allow_query_users => X#config.allow_query_users,
-        allow_private_messages => X#config.allow_private_messages,
-        allow_visitor_status => X#config.allow_visitor_status,
-        allow_visitor_nickchange => X#config.allow_visitor_nickchange,
-        public => X#config.public,
-        public_list => X#config.public_list,
-        persistent => X#config.persistent,
-        moderated => X#config.moderated,
-        members_by_default => X#config.members_by_default,
-        members_only => X#config.members_only,
-        allow_user_invites => X#config.allow_user_invites,
-        allow_multiple_sessions => X#config.allow_multiple_sessions,
-        password_protected => X#config.password_protected,
-        password => X#config.password,
-        anonymous => X#config.anonymous,
-        max_users => X#config.max_users,
-        logging => X#config.logging,
-        maygetmemberlist => X#config.maygetmemberlist,
-        affiliations => [],
-        subject => <<>>,
-        subject_author => <<>>
-    }.
+    #{<<"title">> => X#config.title,
+      <<"description">> => X#config.description,
+      <<"allow_change_subj">> => X#config.allow_change_subj,
+      <<"allow_query_users">> => X#config.allow_query_users,
+      <<"allow_private_messages">> => X#config.allow_private_messages,
+      <<"allow_visitor_status">> => X#config.allow_visitor_status,
+      <<"allow_visitor_nickchange">> => X#config.allow_visitor_nickchange,
+      <<"public">> => X#config.public,
+      <<"public_list">> => X#config.public_list,
+      <<"persistent">> => X#config.persistent,
+      <<"moderated">> => X#config.moderated,
+      <<"members_by_default">> => X#config.members_by_default,
+      <<"members_only">> => X#config.members_only,
+      <<"allow_user_invites">> => X#config.allow_user_invites,
+      <<"allow_multiple_sessions">> => X#config.allow_multiple_sessions,
+      <<"password_protected">> => X#config.password_protected,
+      <<"password">> => X#config.password,
+      <<"anonymous">> => X#config.anonymous,
+      <<"max_users">> => X#config.max_users,
+      <<"logging">> => X#config.logging,
+      <<"maygetmemberlist">> => X#config.maygetmemberlist,
+      <<"affiliations">> => [],
+      <<"subject">> => <<>>,
+      <<"subject_author">> => <<>>}.
 
 default_room_affiliations_spec() ->
     #section{

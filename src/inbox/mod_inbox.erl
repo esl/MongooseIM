@@ -86,7 +86,7 @@ process_entry(#{remote_jid := RemJID,
 -spec deps(jid:lserver(), list()) -> gen_mod_deps:deps().
 deps(_Host, Opts) ->
     Groupchats = gen_mod:get_opt(groupchat, Opts),
-    muclight_dep(Groupchats) ++ muc_dep(Groupchats).
+    muclight_dep(Groupchats).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
@@ -550,12 +550,6 @@ config_metrics(HostType) ->
 muclight_dep(List) ->
     case lists:member(muclight, List) of
         true -> [{mod_muc_light, [], hard}];
-        false -> []
-    end.
-
-muc_dep(List) ->
-    case lists:member(muc, List) of
-        true -> [{mod_muc, mod_muc:default_opts(), hard}];
         false -> []
     end.
 

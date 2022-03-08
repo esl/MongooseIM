@@ -403,7 +403,7 @@ init_per_group(_GroupName, Config) ->
 
 required_modules(http_auth) ->
     MucHostPattern = ct:get_config({hosts, mim, muc_service_pattern}),
-    DefRoomOpts = rpc(mim(), mod_muc, default_room_opts, []),
+    DefRoomOpts = config_parser_helper:default_room_opts(),
     Opts = #{host => subhost_pattern(MucHostPattern),
              access => muc,
              access_create => muc_create,

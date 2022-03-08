@@ -18,12 +18,10 @@
 
 %% Extend default opts with new ExtraOpts
 make_opts(ExtraOpts) ->
-    Opts = rpc(mim(), mod_muc, default_opts, []),
-    maps:merge(Opts, ExtraOpts).
+    config_parser_helper:mod_config(mod_muc, ExtraOpts).
 
 make_log_opts(ExtraOpts) ->
-    Opts = rpc(mim(), mod_muc_log, default_opts, []),
-    maps:merge(Opts, ExtraOpts).
+    config_parser_helper:mod_config(mod_muc_log, ExtraOpts).
 
 -spec foreach_occupant(
         Users :: [escalus:client()], Stanza :: #xmlel{}, VerifyFun :: verify_fun()) -> ok.

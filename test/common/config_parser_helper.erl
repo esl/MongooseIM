@@ -532,11 +532,11 @@ all_modules() ->
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
-          (mod_muc_log:default_opts())
-          #{access_log => muc,
-            css_file => <<"path/to/css/file">>,
-            outdir => "www/muc",
-            top_link => {"/", "Home"}},
+          mod_config(mod_muc_log,
+                     #{access_log => muc,
+                       css_file => <<"path/to/css/file">>,
+                       outdir => "www/muc",
+                       top_link => {"/", "Home"}}),
       mod_http_upload =>
           [{backend, s3},
            {expiration_time, 120},
@@ -627,17 +627,16 @@ all_modules() ->
           #{backend => mnesia, inactivity => 20, max_wait => infinity,
             server_acks => true, max_pause => 120},
       mod_muc =>
-          (mod_muc:default_opts())
-          #{access => muc,
-            access_create => muc_create,
-            default_room =>
-            (mod_muc:default_room_opts())
-            #{affiliations =>
-              [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
-               {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}],
-              password_protected => true},
-            host => {fqdn, <<"muc.example.com">>},
-            http_auth_pool => my_auth_pool},
+          mod_config(mod_muc,
+                     #{access => muc,
+                       access_create => muc_create,
+                       default_room => (default_room_opts())
+                       #{affiliations =>
+                         [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
+                          {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}],
+                         password_protected => true},
+                       host => {fqdn, <<"muc.example.com">>},
+                       http_auth_pool => my_auth_pool}),
       mod_vcard =>
           mod_config(mod_vcard,
                      #{host => {fqdn, <<"directory.example.com">>},
@@ -893,7 +892,68 @@ default_mod_config(mod_mam_rdbms_arch) ->
 default_mod_config(mod_mam_muc_rdbms_arch) ->
     #{no_writer => false,
       db_message_format => mam_message_compressed_eterm,
-      db_jid_format => mam_jid_rfc}.
+      db_jid_format => mam_jid_rfc};
+default_mod_config(mod_muc) ->
+    #{backend => mnesia,
+      host => {prefix,<<"conference.">>},
+      access => all,
+      access_create => all,
+      access_admin => none,
+      access_persistent => all,
+      history_size => 20,
+      room_shaper => none,
+      max_room_id => infinity,
+      max_room_name => infinity,
+      max_room_desc => infinity,
+      min_message_interval => 0,
+      min_presence_interval => 0,
+      max_users => 200,
+      max_users_admin_threshold => 5,
+      user_message_shaper => none,
+      user_presence_shaper => none,
+      max_user_conferences => 10,
+      http_auth_pool => none,
+      load_permanent_rooms_at_startup => false,
+      hibernate_timeout => timer:seconds(90),
+      hibernated_room_check_interval => infinity,
+      hibernated_room_timeout => infinity,
+      default_room => default_room_opts()};
+default_mod_config(mod_muc_log) ->
+    #{outdir => "www/muc",
+      access_log => muc_admin,
+      dirtype => subdirs,
+      dirname => room_jid,
+      file_format => html,
+      css_file => false,
+      timezone => local,
+      top_link => {"/", "Home"},
+      spam_prevention => true}.
+
+default_room_opts() ->
+    #{title => <<>>,
+      description => <<>>,
+      allow_change_subj => true,
+      allow_query_users => true,
+      allow_private_messages => true,
+      allow_visitor_status => true,
+      allow_visitor_nickchange => true,
+      public => true,
+      public_list => true,
+      persistent => false,
+      moderated => true,
+      members_by_default => true,
+      members_only => false,
+      allow_user_invites => false,
+      allow_multiple_sessions => false,
+      password_protected => false,
+      password => <<>>,
+      anonymous => true,
+      max_users => 200,
+      logging => false,
+      maygetmemberlist => [],
+      affiliations => [],
+      subject => <<>>,
+      subject_author => <<>>}.
 
 default_config([modules, M]) ->
     default_mod_config(M);

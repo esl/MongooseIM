@@ -43,14 +43,11 @@
 -export([config_spec/0,
          process_top_link/1]).
 
--export([default_opts/0]).
-
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -ignore_xref([start_link/2]).
--ignore_xref([default_opts/0]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -150,21 +147,19 @@ config_spec() ->
                  <<"top_link">> => top_link_config_spec(),
                  <<"spam_prevention">> => #option{type = boolean}
                 },
-          defaults = mongoose_config_utils:keys_are_binaries(default_opts())
+          defaults = defaults()
       }.
 
-default_opts() ->
-    #{
-         outdir => "www/muc",
-         access_log => muc_admin,
-         dirtype => subdirs,
-         dirname => room_jid,
-         file_format => html,
-         css_file => false,
-         timezone => local,
-         top_link => {"/", "Home"},
-         spam_prevention => true
-    }.
+defaults() ->
+    #{<<"outdir">> => "www/muc",
+      <<"access_log">> => muc_admin,
+      <<"dirtype">> => subdirs,
+      <<"dirname">> => room_jid,
+      <<"file_format">> => html,
+      <<"css_file">> => false,
+      <<"timezone">> => local,
+      <<"top_link">> => {"/", "Home"},
+      <<"spam_prevention">> => true}.
 
 top_link_config_spec() ->
     #section{
