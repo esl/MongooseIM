@@ -532,6 +532,7 @@ all_modules() ->
                         #{host => <<"192.168.0.1">>, type => turn}]},
       mod_csi => [{buffer_max, 40}],
       mod_muc_log =>
+          (mod_muc_log:default_opts())
           #{access_log => muc,
             css_file => <<"path/to/css/file">>,
             outdir => "www/muc",
@@ -626,9 +627,11 @@ all_modules() ->
           #{backend => mnesia, inactivity => 20, max_wait => infinity,
             server_acks => true, max_pause => 120},
       mod_muc =>
+          (mod_muc:default_opts())
           #{access => muc,
             access_create => muc_create,
             default_room =>
+            (mod_muc:default_room_opts())
             #{affiliations =>
               [{{<<"alice">>, <<"localhost">>, <<"resource1">>}, member},
                {{<<"bob">>, <<"localhost">>, <<"resource2">>}, owner}],

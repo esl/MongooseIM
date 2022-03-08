@@ -2266,8 +2266,9 @@ test_async_writer(ParentT, ParentP) ->
     ?errh(T(#{<<"enabled">> => <<"wrong">>})).
 
 mod_muc(_Config) ->
+    DefOpts = mod_muc:default_opts(),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_muc, Cfg) end,
+    M = fun(Cfg) -> modopts(mod_muc, maps:merge(DefOpts, Cfg)) end,
     ?cfgh(M(#{host => {prefix, <<"conference.">>}}),
           T(#{<<"host">> => <<"conference.@HOST@">>})),
     ?cfgh(M(#{host => {fqdn, <<"conference.test">>}}),
@@ -2344,9 +2345,11 @@ mod_muc(_Config) ->
     ?errh(T(#{<<"hibernated_room_timeout">> => false})).
 
 mod_muc_default_room(_Config) ->
+    DefOpts = mod_muc:default_opts(),
+    DefRoomOpts = mod_muc:default_room_opts(),
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_muc">> => #{<<"default_room">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_muc, #{default_room => Cfg}) end,
+    M = fun(Cfg) -> modopts(mod_muc, DefOpts#{default_room => maps:merge(DefRoomOpts, Cfg)}) end,
     ?cfgh(M(#{}), T(#{})),
     ?cfgh(M(#{title => <<"living room">>}),
           T(#{<<"title">> => <<"living room">>})),
@@ -2421,10 +2424,12 @@ mod_muc_default_room(_Config) ->
     ?errh(T(#{<<"subject_author">> => 1})).
 
 mod_muc_default_room_affiliations(_Config) ->
+    DefOpts = mod_muc:default_opts(),
+    DefRoomOpts = mod_muc:default_room_opts(),
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_muc">> =>
                                  #{<<"default_room">> => #{<<"affiliations">> => Opts}}}} end,
-    M = fun(Cfg) -> modopts(mod_muc, #{default_room => #{affiliations => Cfg}}) end,
+    M = fun(Cfg) -> modopts(mod_muc, DefOpts#{default_room => maps:merge(DefRoomOpts, #{affiliations => Cfg})}) end,
     RequiredOpts = #{<<"user">> => <<"alice">>,
                      <<"server">> => <<"localhost">>,
                      <<"resource">> => <<"phone">>,
@@ -2439,8 +2444,9 @@ mod_muc_default_room_affiliations(_Config) ->
     ?errh(T([RequiredOpts#{<<"affiliation">> := <<>>}])).
 
 mod_muc_log(_Config) ->
+    DefOpts = mod_muc_log:default_opts(),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_muc_log, Cfg) end,
+    M = fun(Cfg) -> modopts(mod_muc_log, maps:merge(DefOpts, Cfg)) end,
     ?cfgh(M(#{outdir => "www/muc"}),
           T(#{<<"outdir">> => <<"www/muc">>})),
     ?cfgh(M(#{access_log => muc_admin}),
@@ -2467,8 +2473,9 @@ mod_muc_log(_Config) ->
     ?errh(T(#{<<"spam_prevention">> => <<"spam and eggs and spam">>})).
 
 mod_muc_log_top_link(_Config) ->
+    DefOpts = mod_muc_log:default_opts(),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_log">> => #{<<"top_link">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_muc_log, #{top_link => Cfg}) end,
+    M = fun(Cfg) -> modopts(mod_muc_log, DefOpts#{top_link => Cfg}) end,
     RequiredOpts = #{<<"target">> => <<"https://esl.github.io/MongooseDocs/">>,
                      <<"text">> => <<"Docs">>},
     ExpectedCfg = {"https://esl.github.io/MongooseDocs/", "Docs"},
