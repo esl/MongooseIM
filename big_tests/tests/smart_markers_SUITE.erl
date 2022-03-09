@@ -5,6 +5,7 @@
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%% Suite configuration
 all() ->
@@ -52,9 +53,7 @@ group_to_module(one2one) ->
     [{mod_smart_markers, [{backend, rdbms}]}];
 group_to_module(muclight) ->
     [{mod_smart_markers, [{backend, rdbms}]},
-     {mod_muc_light,
-      [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-       {backend, rdbms}]}].
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].
 
 end_per_group(muclight, Config) ->
     muc_light_helper:clear_db(host_type()),

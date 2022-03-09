@@ -216,9 +216,9 @@
 
 -import(domain_helper, [domain/0]).
 
+-import(config_parser_helper, [default_mod_config/1]).
+
 -include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
@@ -654,7 +654,7 @@ required_modules_for_group(C, muc_light, Config) ->
     MUCHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_muc_light, [{host, MUCHost}]},
+    {[{mod_muc_light, default_mod_config(mod_muc_light)},
       {mod_mam_meta, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->

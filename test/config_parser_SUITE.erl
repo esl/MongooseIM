@@ -2140,7 +2140,7 @@ mod_mam_meta(_Config) ->
     check_module_defaults(mod_mam_meta),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_mam_meta">> => Opts}} end,
     P = [modules, mod_mam_meta],
-    test_cache_config(T, P),
+    test_cache_config(fun(Opts) -> T(#{<<"cache">> => Opts}) end, P ++ [cache]),
     test_mod_mam_meta(T, P).
 
 mod_mam_meta_riak(_Config) ->
@@ -2225,9 +2225,7 @@ test_mod_mam_meta(T, P) ->
     ?errh(T(#{<<"extra_fin_element">> => <<"bad_module">>})),
     ?errh(T(#{<<"extra_lookup_params">> => <<"bad_module">>})).
 
-test_cache_config(ParentT, ParentP) ->
-    P = ParentP ++ [cache],
-    T = fun(Opts) -> ParentT(#{<<"cache">> => Opts}) end,
+test_cache_config(T, P) ->
     ?cfgh(P ++ [module], internal, T(#{<<"module">> => <<"internal">>})),
     ?cfgh(P ++ [time_to_live], 8600, T(#{<<"time_to_live">> => 8600})),
     ?cfgh(P ++ [time_to_live], infinity, T(#{<<"time_to_live">> => <<"infinity">>})),
@@ -2239,23 +2237,6 @@ test_cache_config(ParentT, ParentP) ->
     ?errh(T(#{<<"number_of_segments">> => 0})),
     ?errh(T(#{<<"number_of_segments">> => <<"infinity">>})),
     ?errh(T(#{<<"cache">> => []})).
-
-test_segmented_cache_config(NameK, NameV, T, M) ->
-    ?cfgh(M([{NameV, #{module => internal}}]),
-          T(#{NameK => #{<<"module">> => <<"internal">>}})),
-    ?cfgh(M([{NameV, #{time_to_live => 8600}}]),
-          T(#{NameK => #{<<"time_to_live">> => 8600}})),
-    ?cfgh(M([{NameV, #{time_to_live => infinity}}]),
-          T(#{NameK => #{<<"time_to_live">> => <<"infinity">>}})),
-    ?cfgh(M([{NameV, #{number_of_segments => 10}}]),
-          T(#{NameK => #{<<"number_of_segments">> => 10}})),
-    ?cfgh(M([{NameV, #{strategy => fifo}}]),
-          T(#{NameK => #{<<"strategy">> => <<"fifo">>}})),
-    ?errh(T(#{NameK => #{<<"module">> => <<"mod_wrong_cache">>}})),
-    ?errh(T(#{NameK => #{<<"time_to_live">> => 0}})),
-    ?errh(T(#{NameK => #{<<"strategy">> => <<"lifo">>}})),
-    ?errh(T(#{NameK => #{<<"number_of_segments">> => 0}})),
-    ?errh(T(#{NameK => #{<<"number_of_segments">> => <<"infinity">>}})).
 
 test_async_writer(ParentT, ParentP) ->
     P = ParentP ++ [async_writer],
@@ -2451,32 +2432,33 @@ mod_muc_log_top_link(_Config) ->
     ?errh(T(RequiredOpts#{<<"text">> => <<"">>})).
 
 mod_muc_light(_Config) ->
+    check_module_defaults(mod_muc_light),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_muc_light">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_muc_light, Cfg) end,
-    test_segmented_cache_config(<<"cache_affs">>, cache_affs, T, M),
-    ?cfgh(M([{backend, mnesia}]),
+    P = [modules, mod_muc_light],
+    test_cache_config(fun(Opts) -> T(#{<<"cache_affs">> => Opts}) end, P ++ [cache_affs]),
+    ?cfgh(P ++ [backend], mnesia,
           T(#{<<"backend">> => <<"mnesia">>})),
-    ?cfgh(M([{host, {prefix, <<"muclight.">>}}]),
+    ?cfgh(P ++ [host], {prefix, <<"muclight.">>},
           T(#{<<"host">> => <<"muclight.@HOST@">>})),
-    ?cfgh(M([{host, {fqdn, <<"muclight.test">>}}]),
+    ?cfgh(P ++ [host], {fqdn, <<"muclight.test">>},
           T(#{<<"host">> => <<"muclight.test">>})),
-    ?cfgh(M([{equal_occupants, true}]),
+    ?cfgh(P ++ [equal_occupants], true,
           T(#{<<"equal_occupants">> => true})),
-    ?cfgh(M([{legacy_mode, false}]),
+    ?cfgh(P ++ [legacy_mode], false,
           T(#{<<"legacy_mode">> => false})),
-    ?cfgh(M([{rooms_per_user, 100}]),
+    ?cfgh(P ++ [rooms_per_user], 100,
           T(#{<<"rooms_per_user">> => 100})),
-    ?cfgh(M([{blocking, false}]),
+    ?cfgh(P ++ [blocking], false,
           T(#{<<"blocking">> => false})),
-    ?cfgh(M([{all_can_configure, true}]),
+    ?cfgh(P ++ [all_can_configure], true,
           T(#{<<"all_can_configure">> => true})),
-    ?cfgh(M([{all_can_invite, false}]),
+    ?cfgh(P ++ [all_can_invite], false,
           T(#{<<"all_can_invite">> => false})),
-    ?cfgh(M([{max_occupants, infinity}]),
+    ?cfgh(P ++ [max_occupants], infinity,
           T(#{<<"max_occupants">> => <<"infinity">>})),
-    ?cfgh(M([{rooms_per_page, 10}]),
+    ?cfgh(P ++ [rooms_per_page], 10,
           T(#{<<"rooms_per_page">> => 10})),
-    ?cfgh(M([{rooms_in_rosters, true}]),
+    ?cfgh(P ++ [rooms_in_rosters], true,
           T(#{<<"rooms_in_rosters">> => true})),
     ?errh(T(#{<<"backend">> => <<"frontend">>})),
     ?errh(T(#{<<"host">> => <<"what is a domain?!">>})),
@@ -2495,23 +2477,23 @@ mod_muc_light(_Config) ->
 mod_muc_light_config_schema(_Config) ->
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_muc_light">> => #{<<"config_schema">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_muc_light, [{config_schema, Cfg}]) end,
+    P = [modules, mod_muc_light, config_schema],
     Field = #{<<"field">> => <<"my_field">>},
-    ?cfgh(M([]), T([])),
-    ?cfgh(M([{<<"my_field">>, <<"My Room">>, my_field, binary}]),
+    ?cfgh(P, [], T([])),
+    ?cfgh(P, [{<<"my_field">>, <<"My Room">>, my_field, binary}],
           T([Field#{<<"string_value">> => <<"My Room">>}])),
-    ?cfgh(M([{<<"my_field">>, 1, my_field, integer}]),
+    ?cfgh(P, [{<<"my_field">>, 1, my_field, integer}],
           T([Field#{<<"integer_value">> => 1}])),
-    ?cfgh(M([{<<"my_field">>, 0.5, my_field, float}]),
+    ?cfgh(P, [{<<"my_field">>, 0.5, my_field, float}],
           T([Field#{<<"float_value">> => 0.5}])),
-    ?cfgh(M([{<<"my_field">>, 0, your_field, integer}]),
+    ?cfgh(P, [{<<"my_field">>, 0, your_field, integer}],
           T([Field#{<<"integer_value">> => 0,
                     <<"internal_key">> => <<"your_field">>}])),
-    ?cfgh(M([{<<"żółć"/utf8>>, <<"Рентгеноэлектрокардиографический"/utf8>>, 'żółć', binary}]),
+    ?cfgh(P, [{<<"żółć"/utf8>>, <<"Рентгеноэлектрокардиографический"/utf8>>, 'żółć', binary}],
           T([#{<<"field">> => <<"żółć"/utf8>>,
                <<"string_value">> => <<"Рентгеноэлектрокардиографический"/utf8>>}])),
-    ?cfgh(M([{<<"first">>, 1, first, integer}, % the config is u-key-sorted
-             {<<"second">>, <<"two">>, second, binary}]),
+    ?cfgh(P, [{<<"first">>, 1, first, integer}, % the config is u-key-sorted
+              {<<"second">>, <<"two">>, second, binary}],
           T([#{<<"field">> => <<"second">>, <<"string_value">> => <<"two">>},
              #{<<"field">> => <<"second">>, <<"float_value">> => 2.0},
              #{<<"field">> => <<"first">>, <<"integer_value">> => 1}])),

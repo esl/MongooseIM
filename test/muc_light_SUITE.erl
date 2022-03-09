@@ -3,13 +3,13 @@
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("common_test/include/ct.hrl").
 -include("mod_muc_light.hrl").
--include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include("mongoose.hrl").
 
 -define(DOMAIN, <<"localhost">>).
+
+-import(config_parser_helper, [default_mod_config/1]).
 
 %% ------------------------------------------------------------------
 %% Common Test callbacks
@@ -51,15 +51,15 @@ end_per_group(_, Config) ->
     Config.
 
 init_per_testcase(codec_calls, Config) ->
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
     meck_mongoose_subdomain_core(),
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    mongoose_config:set_opt(all_metrics_are_global, false),
     {ok, _} = application:ensure_all_started(exometer_core),
     gen_hook:start_link(),
     ejabberd_router:start_link(),
     mim_ct_sup:start_link(ejabberd_sup),
-    mod_muc_light:start(?DOMAIN, []),
+    mongoose_modules:start(),
     ets:new(testcalls, [named_table]),
     ets:insert(testcalls, {hooks, 0}),
     ets:insert(testcalls, {handlers, 0}),
@@ -68,15 +68,21 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(codec_calls, Config) ->
-    mod_muc_light:stop(?DOMAIN),
-    mongoose_config:unset_opt(all_metrics_are_global),
+    mongoose_modules:stop(),
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     application:stop(exometer_core),
     meck:unload(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     Config;
 end_per_testcase(_, Config) ->
     Config.
+
+opts() ->
+    [{hosts, [host_type()]},
+     {host_types, []},
+     {all_metrics_are_global, false},
+     {{modules, host_type()}, #{mod_muc_light => default_mod_config(mod_muc_light)}}].
 
 %% ------------------------------------------------------------------
 %% Test cases
@@ -294,7 +300,7 @@ owner_problem(AffUsers, Changes, false) ->
          {AffUsers, insert({User, owner}, Changes, InsertPos)});
 owner_problem(AffUsers, Changes, true) ->
     % Promote two users to owner
-    ?LET({{User1, _Aff}, {User2, _Aff}, InsertPos1, InsertPos2},
+    ?LET({{User1, Aff}, {User2, Aff}, InsertPos1, InsertPos2},
          {aff_user(5), aff_user(5), integer(1, length(Changes)), integer(1, length(Changes))},
          {AffUsers, insert({User2, owner},
                            insert({User1, owner}, Changes, InsertPos1),
@@ -447,6 +453,9 @@ check_count(Hooks, Handlers) ->
 meck_mongoose_subdomain_core() ->
     meck:new(mongoose_subdomain_core),
     meck:expect(mongoose_subdomain_core, register_subdomain,
-                fun(HostType, SubdomainPattern, PacketHandler) -> ok end),
+                fun(_HostType, _SubdomainPattern, _PacketHandler) -> ok end),
     meck:expect(mongoose_subdomain_core, unregister_subdomain,
-                fun(HostType, SubdomainPattern) -> ok end).
+                fun(_HostType, _SubdomainPattern) -> ok end).
+
+host_type() ->
+    ?DOMAIN.

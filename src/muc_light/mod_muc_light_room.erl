@@ -69,8 +69,7 @@ maybe_forget(Acc, {RoomU, RoomS}, NewAffs, Version) ->
     ok | {error, occupant_limit_exceeded}.
 participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
     HostType = mod_muc_light_utils:muc_host_to_host_type(MUCServer),
-    MaxOccupants = gen_mod:get_module_opt(
-                     HostType, mod_muc_light, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
+    MaxOccupants = gen_mod:get_module_opt(HostType, mod_muc_light, max_occupants),
     case length(NewAffUsers) > MaxOccupants of
         true -> {error, occupant_limit_exceeded};
         false -> ok
@@ -163,10 +162,10 @@ process_request(_UnknownReq, _From, _RoomUS, _Auth, _AffUsers, _Acc) ->
     {error, bad_request}.
 
 all_can_invite(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE).
+    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_invite).
 
 all_can_configure(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_configure, ?DEFAULT_ALL_CAN_CONFIGURE).
+    gen_mod:get_module_opt(HostType, mod_muc_light, all_can_configure).
 
 %% --------- Config set ---------
 

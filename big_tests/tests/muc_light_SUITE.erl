@@ -2,7 +2,6 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
--include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("mam_helper.hrl").
@@ -94,7 +93,8 @@
                            stanza_blocking_set/1,
                            default_config/1,
                            default_schema/0
-]).
+                          ]).
+-import(config_parser_helper, [mod_config/2]).
 
 -include("muc_light.hrl").
 
@@ -267,44 +267,42 @@ required_modules(CaseName) ->
     [{mod_mam_meta, stopped} | common_required_modules(CaseName)].
 
 common_required_modules(CaseName) ->
-    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName) ++ schema_opts(CaseName)}].
+    BasicOpts = maps:merge(common_muc_light_opts(), muc_light_opts(CaseName)),
+    Opts = maps:merge(BasicOpts, schema_opts(CaseName)),
+    [{mod_muc_light, mod_config(mod_muc_light, Opts)}].
 
 muc_light_opts(CaseName) when CaseName =:= disco_rooms_rsm;
                               CaseName =:= disco_rooms_empty_page_1;
                               CaseName =:= rooms_created_page_1 ->
-    [{rooms_per_page, 1}];
+    #{rooms_per_page => 1};
 muc_light_opts(CaseName) when CaseName =:= disco_rooms_empty_page_infinity;
                               CaseName =:= disco_rooms_created_page_infinity ->
-    [{rooms_per_page, infinity}];
+    #{rooms_per_page => infinity};
 muc_light_opts(all_can_configure) ->
-    [{all_can_configure, true}];
+    #{all_can_configure => true};
 muc_light_opts(create_room_with_equal_occupants) ->
-    [{equal_occupants, true}];
+    #{equal_occupants => true};
 muc_light_opts(rooms_per_user) ->
-    [{rooms_per_user, 1}];
+    #{rooms_per_user => 1};
 muc_light_opts(max_occupants) ->
-    [{max_occupants, 1}];
+    #{max_occupants => 1};
 muc_light_opts(block_user) ->
-    [{all_can_invite, true}];
+    #{all_can_invite => true};
 muc_light_opts(blocking_disabled) ->
-    [{blocking, false}];
+    #{blocking => false};
 muc_light_opts(_) ->
-    [].
+    #{}.
 
 schema_opts(CaseName) ->
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
-        true -> [{config_schema, custom_schema()}];
-        false -> []
+        true -> #{config_schema => custom_schema()};
+        false -> #{}
     end.
 
 common_muc_light_opts() ->
-    [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-     {cache_affs, #{module => internal,
-                    strategy => fifo,
-                    time_to_live => 2,
-                    number_of_segments => 3}},
-     {rooms_in_rosters, true}].
+    #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+      cache_affs => config_parser_helper:default_config([modules, mod_muc_light, cache_affs]),
+      rooms_in_rosters => true}.
 
 %%--------------------------------------------------------------------
 %% MUC light tests

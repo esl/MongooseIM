@@ -94,8 +94,7 @@ room_limit_reached(UserJid, HostType) ->
     check_room_limit_reached(jid:to_lus(UserJid), HostType, rooms_per_user(HostType)).
 
 rooms_per_user(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light,
-                           rooms_per_user, ?DEFAULT_ROOMS_PER_USER).
+    gen_mod:get_module_opt(HostType, mod_muc_light, rooms_per_user).
 
 -spec filter_out_prevented(HostType :: mongooseim:host_type(),
                            FromUS :: jid:simple_bare_jid(),
@@ -103,8 +102,7 @@ rooms_per_user(HostType) ->
                            AffUsers :: aff_users()) -> aff_users().
 filter_out_prevented(HostType, FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
     RoomsPerUser = rooms_per_user(HostType),
-    BlockingEnabled = gen_mod:get_module_opt(HostType, mod_muc_light,
-                                             blocking, ?DEFAULT_BLOCKING),
+    BlockingEnabled = gen_mod:get_module_opt(HostType, mod_muc_light, blocking),
     BlockingQuery = case {BlockingEnabled, RoomU} of
                         {true, <<>>} -> [{user, FromUS}];
                         {true, _} -> [{user, FromUS}, {room, RoomUS}];
@@ -314,7 +312,7 @@ muc_host_to_host_type(MucHost) ->
     end.
 
 subdomain_pattern(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc_light, host, mod_muc_light:default_host()).
+    gen_mod:get_module_opt(HostType, mod_muc_light, host).
 
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).

@@ -1,13 +1,11 @@
 -module(push_integration_SUITE).
 -compile([export_all, nowarn_export_all]).
--include_lib("escalus/include/escalus.hrl").
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
 
--define(MUCLIGHTHOST, <<"muclight.localhost">>).
 -define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
@@ -25,8 +23,8 @@
          become_available/2
         ]).
 -import(distributed_helper, [rpc/4, subhost_pattern/1]).
-
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -1018,10 +1016,8 @@ required_modules(API, PubSubHost, PluginModule) ->
     ].
 
 muc_light_opts() ->
-    [
-     {host, subhost_pattern(?MUCLIGHTHOST)},
-     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-     {rooms_in_rosters, true}
-    ].
+    mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                rooms_in_rosters => true}).
+
 inbox_opts() ->
     (inbox_helper:inbox_opts())#{aff_changes := false}.

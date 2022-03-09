@@ -547,19 +547,19 @@ all_modules() ->
                 {region, "eu-west-1"},
                 {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}]}],
       mod_muc_light =>
-          [{rooms_per_user, 10},
-           {rooms_per_page, 5},
-           {rooms_in_rosters, true},
-           {max_occupants, 50},
-           {legacy_mode, true},
-           {host, {fqdn, <<"muclight.example.com">>}},
-           {equal_occupants, true},
-           {config_schema,
-            [{<<"display-lines">>, 30, display_lines, integer},
-             {<<"roomname">>, <<"The Room">>, roomname, binary}]},
-           {blocking, false},
-           {all_can_invite, true},
-           {all_can_configure, true}],
+          mod_config(mod_muc_light, #{all_can_configure => true,
+                                      all_can_invite => true,
+                                      blocking => false,
+                                      config_schema =>
+                                          [{<<"display-lines">>, 30, display_lines, integer},
+                                           {<<"roomname">>, <<"The Room">>, roomname, binary}],
+                                      equal_occupants => true,
+                                      host => {fqdn, <<"muclight.example.com">>},
+                                      legacy_mode => true,
+                                      max_occupants => 50,
+                                      rooms_in_rosters => true,
+                                      rooms_per_page => 5,
+                                      rooms_per_user => 10}),
       mod_push_service_mongoosepush =>
           [{api_version, "v3"},
            {max_http_connections, 100},
@@ -832,8 +832,6 @@ default_pool_conn_opts(_Type) ->
 mod_config(Module, ExtraOpts) ->
     maps:merge(default_mod_config(Module), ExtraOpts).
 
-default_mod_config(mod_cache_users) ->
-    #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->
@@ -845,6 +843,8 @@ default_mod_config(mod_blocking) ->
 default_mod_config(mod_bosh) ->
     #{backend => mnesia, inactivity => 30, max_wait => infinity,
       server_acks => false, max_pause => 120};
+default_mod_config(mod_cache_users) ->
+    #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
 default_mod_config(mod_disco) ->
     #{extra_domains => [], server_info => [],
       users_can_see_hidden_services => true, iqdisc => one_queue};
@@ -860,6 +860,20 @@ default_mod_config(mod_inbox) ->
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
+default_mod_config(mod_muc_light) ->
+    #{backend => mnesia,
+      host => {prefix, <<"muclight.">>},
+      equal_occupants => false,
+      legacy_mode => false,
+      rooms_per_user => infinity,
+      blocking => true,
+      all_can_configure => false,
+      all_can_invite => false,
+      max_occupants => infinity,
+      rooms_per_page => 10,
+      rooms_in_rosters => false,
+      config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
+                        {<<"subject">>, <<>>, subject, binary}]};
 default_mod_config(mod_ping) ->
     #{send_pings => false,
       ping_interval => 60*1000,
@@ -993,6 +1007,9 @@ default_config([modules, mod_mam_meta, async_writer]) ->
       pool_size => 4 * erlang:system_info(schedulers_online)};
 default_config([modules, mod_mam_meta, riak]) ->
     #{bucket_type => <<"mam_yz">>, search_index => <<"mam">>};
+default_config([modules, mod_muc_light, cache_affs]) ->
+    #{module => internal, strategy => fifo,
+      time_to_live => 2, number_of_segments => 3};
 default_config([modules, mod_roster, riak]) ->
     #{bucket_type => <<"rosters">>, version_bucket_type => <<"roster_versions">>};
 default_config([modules, mod_stream_management, stale_h]) ->

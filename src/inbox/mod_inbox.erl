@@ -19,7 +19,7 @@
 -export([get_personal_data/3]).
 
 %% gen_mod
--export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 -export([process_iq/5,
          user_send_packet/4,
@@ -83,10 +83,6 @@ process_entry(#{remote_jid := RemJID,
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec deps(jid:lserver(), list()) -> gen_mod_deps:deps().
-deps(_Host, Opts) ->
-    Groupchats = gen_mod:get_opt(groupchat, Opts),
-    muclight_dep(Groupchats).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
@@ -541,17 +537,11 @@ hooks(HostType) ->
     ].
 
 get_groupchat_types(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, groupchat, [muclight]).
+    gen_mod:get_module_opt(HostType, ?MODULE, groupchat).
 
 config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
-
-muclight_dep(List) ->
-    case lists:member(muclight, List) of
-        true -> [{mod_muc_light, [], hard}];
-        false -> []
-    end.
 
 -spec muclight_enabled(HostType :: mongooseim:host_type()) -> boolean().
 muclight_enabled(HostType) ->

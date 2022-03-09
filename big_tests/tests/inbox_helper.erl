@@ -78,6 +78,7 @@
 -import(muc_helper, [foreach_recipient/2]).
 -import(muc_light_helper, [lbin/1]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(config_parser_helper, [mod_config/2]).
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
@@ -161,8 +162,7 @@ inbox_modules(Backend) ->
 
 muclight_modules() ->
     [
-     {mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-                      {backend, rdbms}]}
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}
     ].
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
