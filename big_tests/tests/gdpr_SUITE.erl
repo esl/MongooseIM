@@ -375,13 +375,13 @@ mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              pm => #{},
                                              muc => #{host => HostPattern}})},
-     {mod_muc, [{host, HostPattern}]}];
+     {mod_muc, muc_helper:make_opts(#{host => HostPattern})}];
 mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              pm => #{archive_groupchats => true},
                                              muc => #{host => HostPattern}})},
-     {mod_muc, [{host, HostPattern}]}].
+     {mod_muc, muc_helper:make_opts(#{host => HostPattern})}].
 
 pick_enabled_backend() ->
     BackendsList = [
