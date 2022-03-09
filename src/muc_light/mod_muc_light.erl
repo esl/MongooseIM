@@ -106,7 +106,7 @@ config_schema(MUCServer) ->
 
 -spec config_schema_for_host_type(host_type()) -> mod_muc_light_room_config:schema().
 config_schema_for_host_type(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, config_schema, default_schema()).
+    gen_mod:get_module_opt(HostType, ?MODULE, config_schema).
 
 force_clear_from_ct(HostType) ->
     catch mod_muc_light_cache:force_clear(HostType),
@@ -167,7 +167,7 @@ delete_room({_, RoomS} = RoomUS) ->
 %% gen_mod callbacks
 %%====================================================================
 
--spec start(HostType :: host_type(), Opts :: list()) -> ok.
+-spec start(host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
@@ -179,7 +179,7 @@ start(HostType, Opts) ->
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
     ok.
 
--spec stop(HostType :: host_type()) -> ok.
+-spec stop(host_type()) -> ok.
 stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
@@ -189,23 +189,20 @@ stop(HostType) ->
     ok.
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
-deps(_HostType, Opts) ->
-    case gen_mod:get_opt(cache_affs, Opts, undefined) of
-        undefined ->
-            [];
-        CacheOpts ->
-            [{mod_muc_light_cache, CacheOpts, hard}]
-    end.
+deps(_HostType, #{cache_affs := CacheOpts}) ->
+    [{mod_muc_light_cache, CacheOpts, hard}];
+deps(_HostType, #{}) ->
+    [].
 
 %% Init helpers
 subdomain_pattern(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
+    gen_mod:get_module_opt(HostType, ?MODULE, host).
 
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
 
 host_type_to_codec(HostType) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode) of
         true ->
             legacy;
         false ->
@@ -218,7 +215,7 @@ config_spec() ->
     #section{
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc_light_db}},
-                 <<"cache_affs">> => cache_config_spec(),
+                 <<"cache_affs">> => mod_muc_light_cache:config_spec(),
                  <<"host">> => #option{type = string,
                                        validate = subdomain_template,
                                        process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
@@ -236,12 +233,21 @@ config_spec() ->
                  <<"rooms_in_rosters">> => #option{type = boolean},
                  <<"config_schema">> => #list{items = config_schema_spec(),
                                               process = fun ?MODULE:process_config_schema/1}
-                }
+                },
+       defaults = #{<<"backend">> => mnesia,
+                    <<"host">> => default_host(),
+                    <<"equal_occupants">> => ?DEFAULT_EQUAL_OCCUPANTS,
+                    <<"legacy_mode">> => ?DEFAULT_LEGACY_MODE,
+                    <<"rooms_per_user">> => ?DEFAULT_ROOMS_PER_USER,
+                    <<"blocking">> => ?DEFAULT_BLOCKING,
+                    <<"all_can_configure">> => ?DEFAULT_ALL_CAN_CONFIGURE,
+                    <<"all_can_invite">> => ?DEFAULT_ALL_CAN_INVITE,
+                    <<"max_occupants">> => ?DEFAULT_MAX_OCCUPANTS,
+                    <<"rooms_per_page">> => ?DEFAULT_ROOMS_PER_PAGE,
+                    <<"rooms_in_rosters">> => ?DEFAULT_ROOMS_IN_ROSTERS,
+                    <<"config_schema">> => default_schema()},
+       format_items = map
       }.
-
-cache_config_spec() ->
-    Sec = mongoose_user_cache:config_spec(),
-    Sec#section{defaults = #{}}.
 
 config_schema_spec() ->
     #section{
@@ -253,26 +259,30 @@ config_schema_spec() ->
                  <<"internal_key">> => #option{type = atom,
                                                validate = non_empty}
                 },
-       required = [<<"field">>]
+       required = [<<"field">>],
+       format_items = map
       }.
 
+-spec process_config_schema([map()]) -> mod_muc_light_room_config:schema().
 process_config_schema(Items) ->
     lists:ukeysort(1, lists:map(fun process_config_schema_item/1, Items)).
 
-process_config_schema_item(KVs) ->
-    {[[{field, FieldName}], InternalKeyOpts], ValueOpts} =
-        proplists:split(KVs, [field, internal_key]),
-    {Value, Type} = process_config_schema_value(ValueOpts),
-    InternalKey = proplists:get_value(internal_key, InternalKeyOpts, binary_to_atom(FieldName)),
-    {FieldName, Value, InternalKey, Type}.
+process_config_schema_item(#{field := FieldName} = FieldSpec) ->
+    InternalKey = maps:get(internal_key, FieldSpec, binary_to_atom(FieldName)),
+    FieldTypes = schema_field_types(),
+    case [K || K <- maps:keys(FieldTypes), maps:is_key(K, FieldSpec)] of
+        [Key] ->
+            {FieldName, maps:get(Key, FieldSpec), InternalKey, maps:get(Key, FieldTypes)};
+        _ ->
+            error(#{what => invalid_schema_field_specification, field_spec => FieldSpec})
+    end.
 
-process_config_schema_value([{string_value, Val}]) -> {Val, binary};
-process_config_schema_value([{integer_value, Val}]) -> {Val, integer};
-process_config_schema_value([{float_value, Val}]) -> {Val, float}.
+schema_field_types() ->
+    #{string_value => binary, integer_value => integer, float_value => float}.
 
 hooks(HostType) ->
     Codec = host_type_to_codec(HostType),
-    Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters, ?DEFAULT_ROOMS_IN_ROSTERS),
+    Roster = gen_mod:get_module_opt(HostType, ?MODULE, rooms_in_rosters),
     [{is_muc_room_owner, HostType, ?MODULE, is_muc_room_owner, 50},
      {can_access_room, HostType, ?MODULE, can_access_room, 50},
      {acc_room_affiliations, HostType, ?MODULE, acc_room_affiliations, 50},
@@ -327,7 +337,7 @@ process_decoded_packet(HostType, From, To, Acc, El,
     handle_disco_items_get(HostType, Acc, From, To, DI, El);
 process_decoded_packet(HostType, From, To, Acc, El,
                        {ok, {_, #blocking{}} = Blocking}) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, blocking) of
         true ->
             case handle_blocking(Acc, From, To, Blocking) of
                 {error, _} = Res -> make_err(From, To, El, Acc, Res);
@@ -390,7 +400,7 @@ disco_local_items(Acc) ->
     Acc.
 
 legacy_mode(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE).
+    gen_mod:get_module_opt(HostType, ?MODULE, legacy_mode).
 
 -spec remove_user(Acc :: mongoose_acc:t(), User :: binary(), Server :: binary()) ->
     mongoose_acc:t().
@@ -445,7 +455,7 @@ process_iq_get(Acc, #jid{lserver = FromS} = From, To, #iq{} = IQ, _ActiveList) -
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
-          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+          gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of
         {{ok, {get, #blocking{} = Blocking}}, true} ->
             Items = mod_muc_light_db_backend:get_blocking(HostType, jid:to_lus(From), MUCHost),
             mod_muc_light_codec_backend:encode(
@@ -471,7 +481,7 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     HostType = mod_muc_light_utils:acc_to_host_type(Acc),
     MUCHost = server_host_to_muc_host(HostType, FromS),
     case {mod_muc_light_codec_backend:decode(From, To, IQ, Acc),
-          gen_mod:get_module_opt(HostType, ?MODULE, blocking, ?DEFAULT_BLOCKING)} of
+          gen_mod:get_module_opt(HostType, ?MODULE, blocking)} of
         {{ok, {set, #blocking{ items = Items }} = Blocking}, true} ->
             RouteFun = fun(_, _, Packet) -> put(encode_res, Packet) end,
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
@@ -569,7 +579,7 @@ prepare_affs(HostType, CreatorJid, RoomUS, #create{aff_users = AffUsers}) ->
     end.
 
 max_occupants(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS).
+    gen_mod:get_module_opt(HostType, ?MODULE, max_occupants).
 
 get_affiliation(Acc, Room, User) ->
     case get_room_affiliations_from_acc(Acc, Room) of
@@ -624,8 +634,7 @@ process_create_aff_users_if_valid(HostType, Creator, AffUsers) ->
     end.
 
 equal_occupants(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE,
-                           equal_occupants, ?DEFAULT_EQUAL_OCCUPANTS).
+    gen_mod:get_module_opt(HostType, ?MODULE, equal_occupants).
 
 -spec process_create_aff_users(Creator :: jid:simple_bare_jid(), AffUsers :: aff_users(),
                                EqualOccupants :: boolean()) ->
@@ -666,7 +675,7 @@ handle_disco_items_get(HostType, Acc, From, To, DiscoItems0, OrigPacket) ->
         Rooms ->
             RoomsInfo = get_rooms_info(HostType, lists:sort(Rooms)),
             RouteFun = make_handler_fun(Acc),
-            RoomsPerPage = gen_mod:get_module_opt(HostType, ?MODULE, rooms_per_page, ?DEFAULT_ROOMS_PER_PAGE),
+            RoomsPerPage = gen_mod:get_module_opt(HostType, ?MODULE, rooms_per_page),
             case apply_rsm(RoomsInfo, length(RoomsInfo),
                            page_service_limit(DiscoItems0#disco_items.rsm, RoomsPerPage)) of
                 {ok, RoomsInfoSlice, RSMOut} ->
