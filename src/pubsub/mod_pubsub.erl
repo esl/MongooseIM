@@ -678,8 +678,7 @@ disco_identity(error, _Node, _From) ->
 disco_identity(_Host, <<>>, _From) ->
     [pep_identity()];
 disco_identity(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
+    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
                              {result, [pep_identity(), pep_identity(Options)]};
@@ -713,8 +712,7 @@ disco_features(error, _Node, _From) ->
 disco_features(_Host, <<>>, _From) ->
     [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]];
 disco_features(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
+    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
                              {result, [?NS_PUBSUB | [feature(F) || F <- plugin_features(<<"pep">>)]]};
@@ -735,9 +733,8 @@ disco_sm_items(Acc = #{from_jid := From, to_jid := To, node := Node}) ->
 -spec disco_items(mod_pubsub:host(), mod_pubsub:nodeId(), jid:jid()) -> [mongoose_disco:item()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
-                               options = Options, type = Type, id = Nidx, owners = O},
+                               options = Options, type = Type, id = Nidx, owners = Owners},
                   Acc) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, _} ->
                              [disco_item(Node, Host, Options) | Acc];
@@ -759,8 +756,7 @@ disco_items(Host, <<>>, From) ->
         _ -> []
     end;
 disco_items(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
+    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
                      case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
                          {result, Items} ->
                              {result, [disco_item(Host, ItemId) ||
@@ -893,10 +889,10 @@ unsubscribe_user(Host, Entity, Owner) ->
 
 unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
     {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{options = Options, owners = O, id = Nidx},
+    lists:foreach(fun({#pubsub_node{options = Options, owners = Owners, id = Nidx},
                        subscribed, _, JID}) ->
                           Unsubscribe = match_option(Options, access_model, presence)
-                          andalso lists:member(BJID, node_owners_action(Host, PType, Nidx, O)),
+                          andalso lists:member(BJID, Owners),
                           case Unsubscribe of
                               true ->
                                   node_action(Host, PType,
@@ -1223,8 +1219,7 @@ iq_disco_items(Host, Item, From, RSM) ->
     end.
 
 iq_disco_items_transaction(Host, From, Node, RSM,
-                           #pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-    Owners = node_owners_call(Host, Type, Nidx, O),
+                           #pubsub_node{id = Nidx, type = Type, options = Options, owners = Owners}) ->
     {NodeItems, RsmOut} = case get_allowed_items_call(Host, Nidx,
                                                       From, Type, Options, Owners, RSM)
                           of
@@ -1689,7 +1684,7 @@ get_node_subscriptions_transaction(Owner, #pubsub_node{id = Nidx, type = Type}) 
 
 %%% authorization handling
 
-send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id = Nidx, owners = O},
+send_authorization_request(#pubsub_node{nodeid = {Host, Node}, owners = Owners},
                            Subscriber) ->
     Lang = <<"en">>,
     FormChildren = [#xmlel{name = <<"title">>, attrs = [],
@@ -1749,7 +1744,7 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id =
                                        children = FormChildren}]},
     lists:foreach(fun(Owner) ->
                           ejabberd_router:route(service_jid(Host), jid:make(Owner), Stanza)
-                  end, node_owners_action(Host, Type, Nidx, O)).
+                  end, Owners).
 
 find_authorization_response(#xmlel{ children = Els }) ->
     XData = lists:foldl(fun(#xmlel{name = <<"x">>, attrs = XAttrs} = XEl, Acc) ->
@@ -1826,8 +1821,7 @@ string_allow_to_boolean(<<"true">>) -> true;
 string_allow_to_boolean(_) -> false.
 
 handle_authorization_response_transaction(Host, FromLJID, Subscriber, Allow, Node,
-                                          #pubsub_node{type = Type, id = Nidx, owners = O}) ->
-    Owners = node_owners_call(Host, Type, Nidx, O),
+                                          #pubsub_node{type = Type, id = Nidx, owners = Owners}) ->
     case lists:member(FromLJID, Owners) of
         true ->
             {result, Subs} = node_call(Type, get_subscriptions, [Nidx, Subscriber]),
@@ -2240,7 +2234,7 @@ subscribe_node_transaction_step4(_Host, invalid, _From, _Subscriber, _PubSubNode
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
 subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
                                  #pubsub_node{options = Options, type = Type,
-                                              id = Nidx, owners = O}) ->
+                                              id = Nidx, owners = Owners}) ->
     case check_subs_limit(Host, Type, Nidx) of
         true ->
            {error, extended_error(mongoose_xmpp_errors:not_allowed(), <<"closed-node">>)};
@@ -2249,7 +2243,6 @@ subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
             SendLast = get_option(Options, send_last_published_item),
             AllowedGroups = get_option(Options, roster_groups_allowed, []),
 
-            Owners = node_owners_call(Host, Type, Nidx, O),
             {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
                                                            Owners, AccessModel, AllowedGroups),
             node_call(Type, subscribe_node,
@@ -2630,7 +2623,7 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     end.
 
 get_items_transaction(Host, From, RSM, SubId,
-                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O},
+                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = Owners},
                       MaxItems, ItemIds) ->
     Features = plugin_features(Type),
     case {lists:member(<<"retrieve-items">>, Features),
@@ -2644,7 +2637,6 @@ get_items_transaction(Host, From, RSM, SubId,
         _ ->
             AccessModel = get_option(Options, access_model),
             AllowedGroups = get_option(Options, roster_groups_allowed, []),
-            Owners = node_owners_call(Host, Type, Nidx, O),
             {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
                                                            AccessModel, AllowedGroups),
             Opts = #{access_model => AccessModel,
@@ -2879,9 +2871,7 @@ set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
     end.
 
 set_affiliations_transaction(Host, Owner,
-                             #pubsub_node{type = Type, id = Nidx,
-                                          owners = O, nodeid = {_, NodeId}} = N, Entities) ->
-    Owners = node_owners_call(Host, Type, Nidx, O),
+                             #pubsub_node{owners = Owners, nodeid = {_, NodeId}} = N, Entities) ->
     case lists:member(Owner, Owners) of
         true ->
             % It is a very simple check, as XEP doesn't state any
@@ -3215,8 +3205,7 @@ set_subscriptions(Host, Node, From, #{action_el := ActionEl} ) ->
     end.
 
 set_subscriptions_transaction(Host, Owner, Node,
-                              #pubsub_node{type = Type, id = Nidx, owners = O}, Entities) ->
-    Owners = node_owners_call(Host, Type, Nidx, O),
+                              #pubsub_node{type = Type, id = Nidx, owners = Owners}, Entities) ->
     case lists:member(Owner, Owners) of
         true ->
             Result =
@@ -3849,12 +3838,6 @@ filter_node_options(Options) ->
                         DefaultValue = proplists:get_value(Key, Options, Val),
                         [{Key, DefaultValue}|Acc]
                 end, [], node_flat:options()).
-
-node_owners_action(_Host, _Type, _Nidx, Owners) ->
-    Owners.
-
-node_owners_call(_Host, _Type, _Nidx, Owners) ->
-    Owners.
 
 %% @doc <p>Return the maximum number of items for a given node.</p>
 %% <p>Unlimited means that there is no limit in the number of items that can
