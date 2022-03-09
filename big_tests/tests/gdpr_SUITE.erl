@@ -60,6 +60,7 @@
 -import(distributed_helper, [mim/0, subhost_pattern/1, rpc/4]).
 -import(muc_light_helper, [room_bin_jid/1]).
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 
 -define(ROOM, <<"tt1">>).
 
@@ -342,15 +343,14 @@ inbox_required_modules(Type) ->
     GroupChatModules = groupchat_module(Type),
     InboxOpts = (inbox_helper:inbox_opts())#{groupchat => [Type]},
     Inbox = {mod_inbox, InboxOpts},
-     GroupChatModules ++ [Inbox] .
+    GroupChatModules ++ [Inbox] .
 
 groupchat_module(muc) ->
     [];
 groupchat_module(muclight) ->
-    [{mod_muc_light,
-     [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-      {rooms_in_rosters, true}]}].
+    [{mod_muc_light, mod_config(mod_muc_light,
+                                #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                  rooms_in_rosters => true})}].
 
 mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
                                        CN =:= retrieve_mam_pm ->
@@ -361,14 +361,14 @@ mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              pm => #{},
                                              muc => #{host => HostPattern}})},
-     {mod_muc_light, [{host, HostPattern}]}];
+     {mod_muc_light, default_mod_config(mod_muc_light)}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
     HostPattern = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam_meta, mam_helper:config_opts(#{backend => Backend,
                                              db_message_format => mam_message_xml,
                                              pm => #{archive_groupchats => true},
                                              muc => #{host => HostPattern}})},
-     {mod_muc_light, [{host, HostPattern}]}];
+     {mod_muc_light, default_mod_config(mod_muc_light)}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
                                        CN =:= retrieve_mam_muc ->
     HostPattern = subhost_pattern(muc_helper:muc_host_pattern()),

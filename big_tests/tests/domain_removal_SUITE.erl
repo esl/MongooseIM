@@ -4,6 +4,7 @@
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain_to_host_type/2, domain/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 -include("mam_helper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -87,10 +88,9 @@ group_to_modules(cache_removal) ->
 group_to_modules(mam_removal) ->
     MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_mam_meta, mam_helper:config_opts(#{pm => #{}, muc => #{host => MucHost}})},
-     {mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
 group_to_modules(muc_light_removal) ->
-    MucHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_muc_light, [{backend, rdbms}, {host, MucHost}]}];
+    [{mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
 group_to_modules(muc_removal) ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
     Opts = #{backend => rdbms, host => MucHost},
@@ -100,15 +100,15 @@ group_to_modules(inbox_removal) ->
 group_to_modules(private_removal) ->
     [{mod_private, #{iqdisc => one_queue, backend => rdbms}}];
 group_to_modules(roster_removal) ->
-    [{mod_roster, config_parser_helper:mod_config(mod_roster, #{backend => rdbms})}];
+    [{mod_roster, mod_config(mod_roster, #{backend => rdbms})}];
 group_to_modules(offline_removal) ->
     [{mod_offline, [{backend, rdbms}]}];
 group_to_modules(markers_removal) ->
     [{mod_smart_markers, [{backend, rdbms}]}];
 group_to_modules(vcard_removal) ->
-    [{mod_vcard, config_parser_helper:mod_config(mod_vcard, #{backend => rdbms})}];
+    [{mod_vcard, mod_config(mod_vcard, #{backend => rdbms})}];
 group_to_modules(last_removal) ->
-    [{mod_last, config_parser_helper:mod_config(mod_last, #{backend => rdbms})}].
+    [{mod_last, mod_config(mod_last, #{backend => rdbms})}].
 
 %%%===================================================================
 %%% Testcase specific setup/teardown

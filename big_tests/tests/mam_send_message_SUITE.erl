@@ -25,12 +25,9 @@
                              subhost_pattern/1,
                              rpc/4]).
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [mod_config/2]).
 
--include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
--include_lib("exml/include/exml_stream.hrl").
 
 all() ->
     [{group, send_message}].
@@ -79,8 +76,8 @@ group_to_modules(send_message) ->
     [{mod_mam_meta, mam_helper:config_opts(#{pm => #{},
                                              muc => #{host => MH},
                                              send_message => mam_send_message_example})},
-     {mod_muc_light, [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-                      {backend, mongoose_helper:mnesia_or_rdbms_backend()}]},
+     {mod_muc_light, mod_config(mod_muc_light,
+                                #{backend => mongoose_helper:mnesia_or_rdbms_backend()})},
      {mam_send_message_example, []}].
 
 load_custom_module() ->
