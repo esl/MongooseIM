@@ -405,10 +405,10 @@ all_modules() ->
            {backend, riak},
            {bucket_type, <<"offline">>}],
       mod_ping =>
-          [{ping_interval, 60000},
-           {ping_req_timeout, 32000},
-           {send_pings, true},
-           {timeout_action, none}],
+          mod_config(mod_ping, #{ping_interval => 60000,
+                                 ping_req_timeout => 32000,
+                                 send_pings => true,
+                                 timeout_action => none}),
       mod_event_pusher =>
           [{backends,
             [{http,
@@ -857,6 +857,12 @@ default_mod_config(mod_inbox) ->
       aff_changes => true,
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
+      iqdisc => no_queue};
+default_mod_config(mod_ping) ->
+    #{send_pings => false,
+      ping_interval => 60*1000,
+      timeout_action => none,
+      ping_req_timeout => 32*1000,
       iqdisc => no_queue};
 default_mod_config(mod_privacy) ->
     #{backend => mnesia};

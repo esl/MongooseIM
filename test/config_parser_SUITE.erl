@@ -2573,20 +2573,21 @@ mod_offline(_Config) ->
 
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_ping, Cfg) end,
-    ?cfgh(M([{send_pings, true}]),
+    P = [modules, mod_ping],
+    check_iqdisc_map(mod_ping),
+    check_module_defaults(mod_ping),
+    ?cfgh(P ++ [send_pings], true,
           T(#{<<"send_pings">> => true})),
-    ?cfgh(M([{ping_interval, timer:seconds(10)}]),
+    ?cfgh(P ++ [ping_interval], timer:seconds(10),
           T(#{<<"ping_interval">> => 10})),
-    ?cfgh(M([{timeout_action, kill}]),
+    ?cfgh(P ++ [timeout_action], kill,
           T(#{<<"timeout_action">> => <<"kill">>})),
-    ?cfgh(M([{ping_req_timeout, timer:seconds(20)}]),
+    ?cfgh(P ++ [ping_req_timeout], timer:seconds(20),
           T(#{<<"ping_req_timeout">> => 20})),
     ?errh(T(#{<<"send_pings">> => 1})),
     ?errh(T(#{<<"ping_interval">> => 0})),
     ?errh(T(#{<<"timeout_action">> => <<"kill_them_all">>})),
-    ?errh(T(#{<<"ping_req_timeout">> => 0})),
-    check_iqdisc(mod_ping).
+    ?errh(T(#{<<"ping_req_timeout">> => 0})).
 
 mod_privacy(_Config) ->
     test_privacy_opts(mod_privacy).

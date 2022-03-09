@@ -43,8 +43,7 @@
 %%====================================================================
 
 route_ping_iq(JID, Server, HostType) ->
-    PingReqTimeout = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout,
-                                            ?DEFAULT_PING_REQ_TIMEOUT),
+    PingReqTimeout = gen_mod:get_module_opt(HostType, ?MODULE, ping_req_timeout),
     IQ = #iq{type = get,
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
@@ -92,21 +91,22 @@ ensure_metrics(HostType) ->
 %% gen_mod callbacks
 %%====================================================================
 
-start(HostType, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{send_pings := SendPings, iqdisc := IQDisc}) ->
     ensure_metrics(HostType),
-    SendPings = gen_mod:get_opt(send_pings, Opts, ?DEFAULT_SEND_PINGS),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_sm,
                                              fun ?MODULE:iq_ping/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_PING, ejabberd_local,
                                              fun ?MODULE:iq_ping/5, #{}, IQDisc),
     maybe_add_hooks_handlers(HostType, SendPings).
 
+-spec maybe_add_hooks_handlers(mongooseim:host_type(), boolean()) -> ok.
 maybe_add_hooks_handlers(Host, true) ->
     ejabberd_hooks:add(hooks(Host));
 maybe_add_hooks_handlers(_, _) ->
     ok.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
 %%    a word of warning: timers are installed in c2s processes, so stopping mod_ping
 %%    won't stop currently running timers. They'll run one more time, and then stop.
@@ -128,7 +128,14 @@ config_spec() ->
                                                    validate = positive,
                                                    process = fun timer:seconds/1},
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()
-                }
+                },
+       defaults = #{<<"send_pings">> => ?DEFAULT_SEND_PINGS,
+                    <<"ping_interval">> => ?DEFAULT_PING_INTERVAL,
+                    <<"timeout_action">> => none,
+                    <<"ping_req_timeout">> => ?DEFAULT_PING_REQ_TIMEOUT,
+                    <<"iqdisc">> => no_queue
+                   },
+       format_items = map
       }.
 
 supported_features() -> [dynamic_domains].
@@ -195,7 +202,7 @@ handle_remote_call(send_ping, JID, Server, HostType, HandlerState) ->
     start_ping_timer(HandlerState, Server);
 handle_remote_call(timeout, JID, _Server, HostType, HandlerState) ->
     mongoose_hooks:user_ping_timeout(HostType, JID),
-    case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action, none) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, timeout_action) of
         kill -> ejabberd_c2s:stop(self());
         _ -> ok
     end,
@@ -207,8 +214,7 @@ handle_remote_call(remove_timer, _JID, _Server, _HostType, HandlerState) ->
 -spec start_ping_timer(term(), jid:server()) -> reference().
 start_ping_timer(HandlerState, HostType) ->
     cancel_timer(HandlerState),
-    PingInterval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval,
-                                          ?DEFAULT_PING_INTERVAL),
+    PingInterval = gen_mod:get_module_opt(HostType, ?MODULE, ping_interval),
     ejabberd_c2s:run_remote_hook_after(PingInterval, self(), mod_ping, send_ping).
 
 cancel_timer(empty_state) ->
