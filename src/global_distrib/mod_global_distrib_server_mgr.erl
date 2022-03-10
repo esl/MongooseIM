@@ -369,7 +369,7 @@ pick_connection_pool(Enabled) ->
 refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints,
                             last_endpoints = LastEndpoints } = State) ->
     ?LOG_DEBUG(ls(#{what => gd_refreshing_endpoints}, State)),
-    {ok, NewEndpoints} = get_endpoints(Server),
+    NewEndpoints = get_endpoints(Server),
     case NewEndpoints of
         LastEndpoints ->
             nothing_new;
@@ -403,15 +403,14 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
     end,
     State#state{ pending_endpoints = FinalPendingEndpoints, last_endpoints = NewEndpoints }.
 
--spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec get_endpoints(Server :: jid:lserver()) -> [mod_global_distrib_utils:endpoint()].
 get_endpoints(Server) ->
-    {ok, EndpointsToResolve} =
-    case mongoose_config:lookup_opt({global_distrib_addr, Server}) of
-        {error, not_found} -> mod_global_distrib_mapping:endpoints(Server);
-        {ok, Endpoints} -> {ok, Endpoints}
-    end,
-    Resolved = mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve),
-    {ok, Resolved}.
+    EndpointsToResolve =
+        case mongoose_config:lookup_opt({global_distrib_addr, Server}) of
+            {error, not_found} -> mod_global_distrib_mapping:endpoints(Server);
+            {ok, Endpoints} -> Endpoints
+        end,
+    mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve).
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
                       OldEnabled :: [endpoint_pid_tuple()]) ->

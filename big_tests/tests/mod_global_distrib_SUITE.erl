@@ -364,12 +364,11 @@ unpause_refresher(NodeName, _) ->
 %% Reads Redis to confirm that endpoints (in Redis) are overwritten
 %% with `advertised_endpoints` option value
 test_advertised_endpoints_override_endpoints(_Config) ->
-    Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
-                                 get_endpoints,
-                                 [<<"reg1">>]),
-    true = lists:all(fun({ok, E}) ->
-                             lists:sort(iptuples_to_string(E)) =:=
-                                 lists:sort(advertised_endpoints()) end, Endps).
+    Endps = execute_on_each_node(mod_global_distrib_mapping_redis, get_endpoints, [<<"reg1">>]),
+    true = lists:all(
+             fun(E) ->
+                     lists:sort(iptuples_to_string(E)) =:= lists:sort(advertised_endpoints())
+             end, Endps).
 
 %% @doc Verifies that hosts refresher will restart the outgoing connection pool if
 %% it goes down for some reason (crash or domain unavailability).
@@ -1295,8 +1294,8 @@ service_port() ->
 
 wait_for_domain(Node, Domain) ->
     F = fun() ->
-        {ok, Domains} = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
-        lists:member(Domain, Domains)
+                Domains = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
+                lists:member(Domain, Domains)
         end,
     mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
 

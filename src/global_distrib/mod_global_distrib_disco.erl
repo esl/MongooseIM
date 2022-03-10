@@ -73,15 +73,12 @@ opt(Key) ->
 -spec domains_for_disco(Host :: jid:lserver(), From :: jid:jid()) -> Domains :: [binary()].
 domains_for_disco(_Host, #jid{ luser = <<>> } = _From) ->
     %% Currently all non-user entities may discover all services
-    {ok, Domains} = mod_global_distrib_mapping:all_domains(),
-    Domains;
+    mod_global_distrib_mapping:all_domains();
 domains_for_disco(Host, _From) ->
     case gen_mod:get_module_opt(Host, mod_disco, users_can_see_hidden_services, true) of
         true ->
-            {ok, Domains} = mod_global_distrib_mapping:all_domains(),
-            Domains;
+            mod_global_distrib_mapping:all_domains();
         false ->
-            {ok, Domains} = mod_global_distrib_mapping:public_domains(),
-            Domains
+            mod_global_distrib_mapping:public_domains()
     end.
 

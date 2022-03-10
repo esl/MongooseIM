@@ -35,43 +35,13 @@
          session_opened/5, session_closed/5]).
 -export([endpoints/1, hosts/0]).
 
--define(MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, mod_global_distrib_mapping_backend).
 -ignore_xref([
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domains, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_domain, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_endpoints, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domain, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_hosts, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_public_domains, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_domain, 2},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, start, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, stop, 0},
-    behaviour_info/1, delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
+    delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
     insert_for_domain/2, insert_for_domain/3, insert_for_jid/1, packet_to_component/3,
     register_subhost/3, session_closed/5, session_opened/5, unregister_subhost/2
 ]).
 
 -type endpoint() :: mod_global_distrib_utils:endpoint().
-
-%%--------------------------------------------------------------------
-%% Callbacks
-%%--------------------------------------------------------------------
-
--callback start(Opts :: proplists:proplist()) -> any().
--callback stop() -> any().
--callback put_session(JID :: binary()) -> ok | error.
--callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_session(JID :: binary()) -> ok | error.
--callback put_domain(Domain :: binary(), IsHidden :: boolean()) -> ok | error.
--callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_domain(Domain :: binary()) -> ok | error.
--callback get_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_public_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_endpoints(Host :: binary()) -> {ok, [endpoint()]}.
--callback get_hosts() -> [Host :: jid:lserver()].
 
 %%--------------------------------------------------------------------
 %% API
@@ -143,15 +113,15 @@ delete_for_jid({_, _, _} = Jid) ->
       end,
       normalize_jid(Jid)).
 
--spec all_domains() -> {ok, [jid:lserver()]}.
+-spec all_domains() -> [jid:lserver()].
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec public_domains() -> {ok, [jid:lserver()]}.
+-spec public_domains() -> [jid:lserver()].
 public_domains() ->
     mod_global_distrib_mapping_backend:get_public_domains().
 
--spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
+-spec endpoints(Host :: jid:lserver()) -> [endpoint()].
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -237,8 +207,7 @@ deps(_Opts) ->
 start() ->
     Host = opt(global_host),
     Backend = opt(backend),
-    gen_mod:start_backend_module(?MODULE, [{backend, Backend}]),
-    mod_global_distrib_mapping_backend:start(opt(Backend)),
+    mod_global_distrib_mapping_backend:start([{backend, Backend} | opt(Backend)]),
 
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
     mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, spiral),
