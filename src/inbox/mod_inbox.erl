@@ -47,7 +47,7 @@
         'end' => integer(),
         order => asc | desc,
         hidden_read => true | false,
-        archive => boolean()
+        archive => boolean() | integer()
        }.
 
 -type count_res() :: ok | {ok, non_neg_integer()} | {error, term()}.
@@ -480,8 +480,10 @@ fields_to_params([{<<"archive">>, [Value]} | RFields], Acc) ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            field => archive, value => Value}),
             {error, bad_request, invalid_field_value(<<"archive">>, Value)};
-        Archive ->
-            fields_to_params(RFields, Acc#{ archive => Archive })
+        true ->
+            fields_to_params(RFields, Acc#{ archive => 1 });
+        false ->
+            fields_to_params(RFields, Acc#{ archive => 0 })
     end;
 
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->

@@ -192,10 +192,10 @@ form_to_query(_, [], Acc) ->
     Acc;
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, Acc#{archive => true});
+    form_to_query(TS, Rest, Acc#{archive => 1});
 form_to_query(TS, [#xmlel{name = <<"archive">>,
                           children = [#xmlcdata{content = <<"false">>}]} | Rest], Acc) ->
-    form_to_query(TS, Rest, Acc#{archive => false});
+    form_to_query(TS, Rest, Acc#{archive => 0});
 form_to_query(TS, [#xmlel{name = <<"read">>,
                           children = [#xmlcdata{content = <<"true">>}]} | Rest], Acc) ->
     form_to_query(TS, Rest, Acc#{unread_count => 0});

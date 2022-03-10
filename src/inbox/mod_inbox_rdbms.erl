@@ -119,7 +119,7 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
 set_inbox(HostType, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp) ->
     InsertParams = [LUser, LServer, LToBareJid,
                     Content, Count, MsgId, Timestamp],
-    UpdateParams = [Content, Count, MsgId, Timestamp, false],
+    UpdateParams = [Content, Count, MsgId, Timestamp, 0],
     UniqueKeyValues  = [LUser, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(HostType, inbox_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
@@ -153,7 +153,7 @@ set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
                             Incrs :: pos_integer()) -> mod_inbox:count_res().
 set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs) ->
     InsertParams = [LUser, LServer, LToBareJid, Content, Incrs, MsgId, Timestamp],
-    UpdateParams = [Content, MsgId, Timestamp, false, Incrs],
+    UpdateParams = [Content, MsgId, Timestamp, 0, Incrs],
     UniqueKeyValues  = [LUser, LServer, LToBareJid],
     Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread,
                                        InsertParams, UpdateParams, UniqueKeyValues),
@@ -338,7 +338,7 @@ lookup_sql_condition('end', Timestamp) when is_integer(Timestamp) ->
     " AND timestamp <= ?";
 lookup_sql_condition(hidden_read, true) ->
     " AND unread_count > 0";
-lookup_sql_condition(archive, Val) when is_boolean(Val) ->
+lookup_sql_condition(archive, Val) when is_integer(Val) ->
     " AND archive = ?";
 lookup_sql_condition(_, _) ->
     "".
@@ -382,7 +382,7 @@ update_sql_part(unread_count, 0) ->
     "unread_count = 0";
 update_sql_part(unread_count, 1) ->
     "unread_count = CASE unread_count WHEN 0 THEN 1 ELSE unread_count END";
-update_sql_part(archive, Val) when is_boolean(Val) ->
+update_sql_part(archive, Val) when is_integer(Val) ->
     "archive = ?";
 update_sql_part(muted_until, Val) when is_integer(Val) ->
     "muted_until = ?".
@@ -439,7 +439,7 @@ decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, Muted
     {ok, Parsed} = exml:parse(mongoose_rdbms:unescape_binary(HostType, Content)),
     BCount = mongoose_rdbms:result_to_integer(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
-    BoolArchive = mongoose_rdbms:to_bool(Archive),
+    BoolArchive = decode_box(Archive),
     NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
     #{remote_jid => Username,
       msg => Parsed,
@@ -450,12 +450,15 @@ decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, Muted
       muted_until => NumericMutedUntil}.
 
 decode_properties({BArchive, BCount, BMutedUntil}) ->
-    Archive = mongoose_rdbms:to_bool(BArchive),
+    Archive = decode_box(BArchive),
     Count = mongoose_rdbms:result_to_integer(BCount),
     MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
     #{archive => Archive,
       unread_count => Count,
       muted_until => MutedUntil}.
+
+decode_box(Bool) ->
+    mongoose_rdbms:to_bool(Bool).
 
 -spec check_result_is_expected(_, list()) -> mod_inbox:write_res().
 check_result_is_expected({updated, Val}, ValList) when is_list(ValList) ->

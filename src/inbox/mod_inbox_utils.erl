@@ -213,7 +213,9 @@ binary_to_bool(<<"true">>) -> true;
 binary_to_bool(<<"false">>) -> false;
 binary_to_bool(_) -> error.
 
--spec bool_to_binary(boolean()) -> binary() | error.
+-spec bool_to_binary(integer() | boolean()) -> binary() | error.
+bool_to_binary(1) -> <<"true">>;
+bool_to_binary(0) -> <<"false">>;
 bool_to_binary(true) -> <<"true">>;
 bool_to_binary(false) -> <<"false">>;
 bool_to_binary(_) -> error.
