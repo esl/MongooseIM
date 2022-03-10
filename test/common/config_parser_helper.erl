@@ -867,8 +867,6 @@ default_mod_config(mod_global_distrib) ->
       redis => default_config([modules, mod_global_distrib, redis]),
       cache => default_config([modules, mod_global_distrib, cache]),
       bounce => default_config([modules, mod_global_distrib, bounce])};
-default_mod_config(mod_last) ->
-    #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
@@ -877,6 +875,48 @@ default_mod_config(mod_inbox) ->
       remove_on_kicked => true,
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
+default_mod_config(mod_last) ->
+    #{iqdisc => one_queue, backend => mnesia};
+default_mod_config(mod_mam) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
+default_mod_config(mod_mam_meta) ->
+    (common_mam_config())#{backend => rdbms, cache_users => true,
+                           cache => default_config([modules, mod_mam_meta, cache])};
+default_mod_config(mod_mam_muc) ->
+    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
+default_mod_config(mod_mam_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_mini};
+default_mod_config(mod_mam_muc_rdbms_arch) ->
+    #{no_writer => false,
+      db_message_format => mam_message_compressed_eterm,
+      db_jid_format => mam_jid_rfc};
+default_mod_config(mod_muc) ->
+    #{backend => mnesia,
+      host => {prefix,<<"conference.">>},
+      access => all,
+      access_create => all,
+      access_admin => none,
+      access_persistent => all,
+      history_size => 20,
+      room_shaper => none,
+      max_room_id => infinity,
+      max_room_name => infinity,
+      max_room_desc => infinity,
+      min_message_interval => 0,
+      min_presence_interval => 0,
+      max_users => 200,
+      max_users_admin_threshold => 5,
+      user_message_shaper => none,
+      user_presence_shaper => none,
+      max_user_conferences => 10,
+      http_auth_pool => none,
+      load_permanent_rooms_at_startup => false,
+      hibernate_timeout => timer:seconds(90),
+      hibernated_room_check_interval => infinity,
+      hibernated_room_timeout => infinity,
+      default_room => default_room_opts()};
 default_mod_config(mod_muc_light) ->
     #{backend => mnesia,
       host => {prefix, <<"muclight.">>},
@@ -891,11 +931,21 @@ default_mod_config(mod_muc_light) ->
       rooms_in_rosters => false,
       config_schema => [{<<"roomname">>, <<"Untitled">>, roomname, binary},
                         {<<"subject">>, <<>>, subject, binary}]};
+default_mod_config(mod_muc_log) ->
+    #{outdir => "www/muc",
+      access_log => muc_admin,
+      dirtype => subdirs,
+      dirname => room_jid,
+      file_format => html,
+      css_file => false,
+      timezone => local,
+      top_link => {"/", "Home"},
+      spam_prevention => true};
 default_mod_config(mod_ping) ->
     #{send_pings => false,
-      ping_interval => 60*1000,
+      ping_interval => 60 * 1000,
       timeout_action => none,
-      ping_req_timeout => 32*1000,
+      ping_req_timeout => 32 * 1000,
       iqdisc => no_queue};
 default_mod_config(mod_privacy) ->
     #{backend => mnesia};
@@ -934,57 +984,7 @@ default_mod_config(mod_vcard) ->
       backend => mnesia,
       matches => 30};
 default_mod_config(mod_version) ->
-    #{iqdisc => no_queue, os_info => false};
-default_mod_config(mod_mam_meta) ->
-    (common_mam_config())#{backend => rdbms, cache_users => true,
-                           cache => default_config([modules, mod_mam_meta, cache])};
-default_mod_config(mod_mam) ->
-    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, pm]));
-default_mod_config(mod_mam_muc) ->
-    maps:merge(common_mam_config(), default_config([modules, mod_mam_meta, muc]));
-default_mod_config(mod_mam_rdbms_arch) ->
-    #{no_writer => false,
-      db_message_format => mam_message_compressed_eterm,
-      db_jid_format => mam_jid_mini};
-default_mod_config(mod_mam_muc_rdbms_arch) ->
-    #{no_writer => false,
-      db_message_format => mam_message_compressed_eterm,
-      db_jid_format => mam_jid_rfc};
-default_mod_config(mod_muc) ->
-    #{backend => mnesia,
-      host => {prefix,<<"conference.">>},
-      access => all,
-      access_create => all,
-      access_admin => none,
-      access_persistent => all,
-      history_size => 20,
-      room_shaper => none,
-      max_room_id => infinity,
-      max_room_name => infinity,
-      max_room_desc => infinity,
-      min_message_interval => 0,
-      min_presence_interval => 0,
-      max_users => 200,
-      max_users_admin_threshold => 5,
-      user_message_shaper => none,
-      user_presence_shaper => none,
-      max_user_conferences => 10,
-      http_auth_pool => none,
-      load_permanent_rooms_at_startup => false,
-      hibernate_timeout => timer:seconds(90),
-      hibernated_room_check_interval => infinity,
-      hibernated_room_timeout => infinity,
-      default_room => default_room_opts()};
-default_mod_config(mod_muc_log) ->
-    #{outdir => "www/muc",
-      access_log => muc_admin,
-      dirtype => subdirs,
-      dirname => room_jid,
-      file_format => html,
-      css_file => false,
-      timezone => local,
-      top_link => {"/", "Home"},
-      spam_prevention => true}.
+    #{iqdisc => no_queue, os_info => false}.
 
 default_room_opts() ->
     #{title => <<>>,
