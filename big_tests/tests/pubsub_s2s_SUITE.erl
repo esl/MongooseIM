@@ -73,8 +73,8 @@ init_per_group(ComplexName, Config) ->
     s2s_helper:configure_s2s(both_plain, Config2).
 
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]}].
+    #{nodetree => NodeTree,
+      plugins => [plugin_by_nodetree(NodeTree)]}.
 
 plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
 plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
@@ -124,8 +124,7 @@ publish_without_node_attr_test(Config) ->
       end).
 
 required_modules(ExtraOpts) ->
-    [{mod_pubsub, [
-                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {host, subhost_pattern("pubsub.@HOST@")}
-                   | ExtraOpts
-                  ]}].
+    Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                        host => subhost_pattern("pubsub.@HOST@")},
+                      ExtraOpts),
+    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].

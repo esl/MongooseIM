@@ -38,12 +38,10 @@
          % Get/set opts by host or from a list
          get_opt/2,
          get_opt/3,
-         get_opt/4,
          get_module_opt/3,
          get_module_opt/4,
          get_module_opts/2,
          get_loaded_module_opts/2,
-         get_opt_subhost/3,
          get_module_opt_subhost/3,
 
          loaded_modules/0,
@@ -266,15 +264,6 @@ get_opt(Path, Opts, Default) ->
         throw:{undefined_option, _} -> Default
     end.
 
-%% @deprecated Processing should be done in the config spec
-get_opt(Opt, Opts, F, Default) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            Default;
-        {value, {_, Val}} ->
-            F(Val)
-    end.
-
 -spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path(), opt_value()) ->
           opt_value().
 get_module_opt(HostType, Module, Opt, Default) ->
@@ -298,15 +287,6 @@ get_module_opts(HostType, Module) ->
 -spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module]).
-
--spec get_opt_subhost(domain_name(),
-                      list(),
-                      mongoose_subdomain_utils:subdomain_pattern()) ->
-    domain_name().
-get_opt_subhost(Host, Opts, Default) ->
-    %% TODO: try to get rid of this interface
-    Val = get_opt(host, Opts, Default),
-    mongoose_subdomain_utils:get_fqdn(Val, Host).
 
 -spec get_module_opt_subhost(domain_name(),
                              module(),

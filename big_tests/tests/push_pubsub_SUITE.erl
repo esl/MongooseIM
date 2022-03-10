@@ -430,11 +430,11 @@ pubsub_host(Host) ->
 
 %% Module config
 required_modules(APIVersion) ->
-    [{mod_pubsub, [
-        {plugins, [<<"dag">>, <<"push">>]},
-        {nodetree, <<"dag">>},
-        {host, subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@")}
-    ]},
+    [{mod_pubsub, #{
+        plugins => [<<"dag">>, <<"push">>],
+        nodetree => <<"dag">>,
+        host => subhost_pattern(?PUBSUB_SUB_DOMAIN ++ ".@HOST@")
+    }},
      {mod_push_service_mongoosepush,
       config_parser_helper:mod_config(mod_push_service_mongoosepush, #{pool_name => mongoose_push_http,
                                                                        api_version => APIVersion})

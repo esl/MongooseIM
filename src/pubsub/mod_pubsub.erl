@@ -291,7 +291,10 @@ config_spec() ->
                  <<"default_node_config">> => default_node_config_spec(),
                  <<"item_publisher">> => #option{type = boolean},
                  <<"sync_broadcast">> => #option{type = boolean}
-                }
+                },
+       defaults = #{<<"iqdisc">> => one_queue,
+                    <<"host">> => default_host()},
+       format_items = map
       }.
 
 pep_mapping_config_spec() ->
@@ -375,12 +378,12 @@ get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 -spec init(
-        [binary() | [{_, _}], ...])
+        [binary() | gen_mod:module_opts(), ...])
         -> {'ok', state()}.
 
-init([ServerHost, Opts]) ->
+init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     ?LOG_DEBUG(#{what => pubsub_init, server => ServerHost, opts => Opts}),
-    Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
+    Host = mongoose_subdomain_utils:get_fqdn(SubdomainPattern, ServerHost),
 
     init_backend(ServerHost, Opts),
 
@@ -421,19 +424,14 @@ init_backend(ServerHost, Opts) ->
     maybe_start_cache_module(ServerHost, Opts).
 
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
-    Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
-    PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,
-                                 fun(A) when is_boolean(A) -> A end, true),
-    LastItemCache = gen_mod:get_opt(last_item_cache, Opts,
-                                    fun(A) when A == rdbms orelse A == mnesia -> A end, false),
-    MaxItemsNode = gen_mod:get_opt(max_items_node, Opts,
-                                   fun(A) when is_integer(A) andalso A >= 0 -> A end, ?MAXITEMS),
-    MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts,
-                                  fun(A) when is_integer(A) andalso A >= 0 -> A end, undefined),
-    DefaultNodeCfg = gen_mod:get_opt(default_node_config, Opts,
-                                     fun(A) when is_list(A) -> filter_node_options(A) end, []),
-    ItemPublisher = gen_mod:get_opt(item_publisher, Opts,
-                                    fun(A) when is_boolean(A) -> A end, false),
+    Access = gen_mod:get_opt(access_createnode, Opts, all),
+    PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts, true),
+    LastItemCache = gen_mod:get_opt(last_item_cache, Opts, false),
+    MaxItemsNode = gen_mod:get_opt(max_items_node, Opts, ?MAXITEMS),
+    MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts, undefined),
+    NodeCfg = gen_mod:get_opt(default_node_config, Opts, []),
+    DefaultNodeCfg = filter_node_options(NodeCfg),
+    ItemPublisher = gen_mod:get_opt(item_publisher, Opts, false),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {nodetree, NodeTree}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {plugins, Plugins}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {last_item_cache, LastItemCache}),
@@ -474,8 +472,7 @@ pep_hooks() ->
      {c2s_remote_hook, handle_remote_hook, 100}
     ].
 
-add_pep_iq_handlers(ServerHost, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),
+add_pep_iq_handlers(ServerHost, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB, ?MODULE, iq_sm, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER,
                                   ?MODULE, iq_sm, IQDisc).
@@ -518,15 +515,11 @@ init_send_loop(ServerHost) ->
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
 init_plugins(Host, ServerHost, Opts) ->
-    TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts,
-                                            fun(A) when is_binary(A) -> A end,
-                                            ?STDTREE)),
+    TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts, ?STDTREE)),
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, Host, ServerHost, Opts),
-    Plugins = gen_mod:get_opt(plugins, Opts,
-                              fun(A) when is_list(A) -> A end, [?STDNODE]),
-    PepMapping = gen_mod:get_opt(pep_mapping, Opts,
-                                 fun(A) when is_list(A) -> A end, []),
+    Plugins = gen_mod:get_opt(plugins, Opts, [?STDNODE]),
+    PepMapping = gen_mod:get_opt(pep_mapping, Opts, []),
     ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
     {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
@@ -1157,7 +1150,6 @@ iq_disco_info(Host, SNode, From, Lang) ->
                      <<>> -> [<<>>];
                      _ -> mongoose_bin:tokens(SNode, <<"!">>)
                  end,
-                                                %   Node = string_to_node(RealSNode),
     case Node of
         <<>> ->
             Identities = identities(Host, Lang),
@@ -2029,8 +2021,7 @@ get_parent(Type, Node) ->
         {result, [Node]} ->
             <<>>;
         {result, Path} ->
-            element(2, node_call(Type, path_to_node,
-                                 [lists:sublist(Path, length(Path)-1)]))
+            element(2, node_call(Type, path_to_node, [lists:sublist(Path, length(Path)-1)]))
     end.
 
 create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions) ->
@@ -2076,9 +2067,7 @@ create_node_make_reply(Node) ->
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
           Owner :: jid:jid())
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> {result, [exml:element(), ...]} | {error, exml:element()}.
 delete_node(_Host, <<>>, _Owner) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
@@ -2164,9 +2153,7 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
         From          ::jid:jid(),
         JID           :: binary(),
         ConfigurationXForm :: exml:element() | undefined)
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> {result, [exml:element(), ...]} | {error, exml:element()}.
 subscribe_node(Host, Node, From, JID, ConfigurationXForm) ->
     SubOpts = case pubsub_form_utils:parse_sub_xform(ConfigurationXForm) of
                   {ok, GoodSubOpts} -> GoodSubOpts;
@@ -2300,9 +2287,7 @@ subscribe_node_reply(Subscriber, SubAttrs) ->
           From  ::jid:jid(),
           JID   :: binary() | jid:ljid(),
           SubId :: mod_pubsub:subId())
-        -> {result, []}
-%%%
-               | {error, exml:element()}.
+        -> {result, []} | {error, exml:element()}.
 unsubscribe_node(Host, Node, From, JID, SubId) when is_binary(JID) ->
     unsubscribe_node(Host, Node, From, string_to_ljid(JID), SubId);
 unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
@@ -2334,9 +2319,7 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
           Publisher  ::jid:jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
           Payload    :: mod_pubsub:payload())
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> {result, [exml:element(), ...]} | {error, exml:element()}.
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
@@ -2476,9 +2459,7 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
           Node      :: mod_pubsub:nodeId(),
           Publisher ::jid:jid(),
           ItemId    :: mod_pubsub:itemId())
-        -> {result, []}
-%%%
-               | {error, exml:element()}.
+        -> {result, []} | {error, exml:element()}.
 delete_item(Host, Node, Publisher, ItemId) ->
     delete_item(Host, Node, Publisher, ItemId, false).
 delete_item(_, <<>>, _, _, _) ->
@@ -2537,9 +2518,7 @@ delete_item_transaction(Publisher, ItemId,
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
           Owner :: jid:jid())
-        -> {result, []}
-%%%
-               | {error, exml:element()}.
+        -> {result, []} | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Owner, PubSubNode) end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
@@ -2748,9 +2727,7 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
         Node    :: mod_pubsub:nodeId(),
         JID     :: jid:jid(),
         Plugins :: #{plugins := [binary()]})
-        -> {result, [exml:element()]}
-%%%
-               | {error, exml:element()}.
+        -> {result, [exml:element()]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
@@ -2836,9 +2813,7 @@ get_affiliations_transaction(JID, #pubsub_node{type = Type, id = Nidx}) ->
         Node        :: mod_pubsub:nodeId(),
         From        ::jid:jid(),
         EntitiesEls :: #{action_el := exml:element()})
-        -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
-%%%
-               | {error, exml:element()}.
+        -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}} | {error, exml:element()}.
 set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
     EntitiesEls = xml:remove_cdata(ActionEl#xmlel.children),
     Owner = jid:to_lower(jid:to_bare(From)),
@@ -3833,6 +3808,8 @@ node_plugin_options(Type) ->
             Result
     end.
 
+filter_node_options([]) ->
+    [];
 filter_node_options(Options) ->
     lists:foldl(fun({Key, Val}, Acc) ->
                         DefaultValue = proplists:get_value(Key, Options, Val),
@@ -4113,7 +4090,7 @@ get_max_subscriptions_node(Host) ->
 
 %%%% last item cache handling
 maybe_start_cache_module(ServerHost, Opts) ->
-    case proplists:get_value(last_item_cache, Opts, false) of
+    case gen_mod:get_opt(last_item_cache, Opts, false) of
         false ->
             ok;
         _Backend ->
@@ -4464,7 +4441,6 @@ collection_shim(CollectionNode) ->
 
 %% The argument is a list of Jids because this function could be used
 %% with the 'pubsub#replyto' (type=jid-multi) node configuration.
-
 extended_headers(Jids) ->
     [#xmlel{name = <<"address">>,
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
@@ -4560,5 +4536,4 @@ make_error_reply(Packet, Error) ->
     jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).

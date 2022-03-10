@@ -481,13 +481,13 @@ all_modules() ->
                                    })
                       }),
       mod_pubsub =>
-          [{access_createnode, pubsub_createnode},
-           {backend, rdbms},
-           {ignore_pep_from_offline, false},
-           {last_item_cache, mnesia},
-           {max_items_node, 1000},
-           {pep_mapping, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}]},
-           {plugins, [<<"flat">>, <<"pep">>]}],
+          mod_config(mod_pubsub, #{access_createnode => pubsub_createnode,
+                                   backend => rdbms,
+                                   ignore_pep_from_offline => false,
+                                   last_item_cache => mnesia,
+                                   max_items_node => 1000,
+                                   pep_mapping => [{<<"urn:xmpp:microblog:0">>, <<"mb">>}],
+                                   plugins => [<<"flat">>, <<"pep">>]}),
       mod_version => mod_config(mod_version, #{os_info => true}),
       mod_auth_token => #{backend => rdbms,
                           validity_period => #{access => #{unit => minutes, value => 13},
@@ -951,6 +951,8 @@ default_mod_config(mod_privacy) ->
     #{backend => mnesia};
 default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
+default_mod_config(mod_pubsub) ->
+    #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
 default_mod_config(mod_roster) ->

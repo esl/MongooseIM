@@ -296,21 +296,21 @@ init_per_group(ComplexName, Config) ->
 
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := pubsub_item_publisher_option }) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]},
-     {item_publisher, true}];
+    #{nodetree => NodeTree,
+      plugins => [plugin_by_nodetree(NodeTree)],
+      item_publisher => true};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := hometree_specific }) ->
-    [{nodetree, NodeTree},
-     {plugins, [<<"hometree">>]}];
+    #{nodetree => NodeTree,
+      plugins => [<<"hometree">>]};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := last_item_cache}) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]},
-     {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}];
+    #{nodetree => NodeTree,
+      plugins => [plugin_by_nodetree(NodeTree)],
+      last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()};
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]}].
+    #{nodetree => NodeTree,
+      plugins => [plugin_by_nodetree(NodeTree)]}.
 
 plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
 plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
@@ -1873,11 +1873,10 @@ path_node_and_parent(Client, {NodeAddr, NodeName}) ->
     {{NodeAddr, Prefix}, {NodeAddr, <<Prefix/binary, "/", NodeName/binary>>}}.
 
 required_modules(ExtraOpts) ->
-    [{mod_pubsub, [
-                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {host, subhost_pattern("pubsub.@HOST@")}
-                   | ExtraOpts
-                  ]}].
+    Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                        host => subhost_pattern("pubsub.@HOST@")},
+                      ExtraOpts),
+    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].
 
 verify_config_fields(NodeConfig) ->
     ValidFields = [
