@@ -39,9 +39,8 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    FOpts = add_default_backend(Opts),
     TrackedFuns = [get_chat_markers, update_chat_marker],
-    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, FOpts),
+    mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
@@ -85,9 +84,3 @@ remove_to(HostType, To) ->
 remove_to_for_user(HostType, From, To) ->
     Args = [HostType, From, To],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
-
-add_default_backend(Opts) ->
-    case lists:keyfind(backend, 2, Opts) of
-        false -> [{backend, rdbms} | Opts];
-        _ -> Opts
-    end.

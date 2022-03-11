@@ -832,6 +832,8 @@ default_pool_conn_opts(_Type) ->
 mod_config(Module, ExtraOpts) ->
     maps:merge(default_mod_config(Module), ExtraOpts).
 
+default_mod_config(mod_smart_markers) ->
+    #{keep_private => false, backend => rdbms, iqdisc => no_queue};
 default_mod_config(mod_adhoc) ->
     #{iqdisc => one_queue, report_commands_node => false};
 default_mod_config(mod_auth_token) ->

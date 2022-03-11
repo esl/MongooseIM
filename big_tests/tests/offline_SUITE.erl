@@ -94,7 +94,8 @@ with_groupchat_modules() ->
      {mod_muc_light, mod_config(mod_muc_light, #{backend => MucLightBackend})}].
 
 chatmarkers_modules() ->
-    [{mod_offline, [{store_groupchat_messages, true},
+    [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)},
+     {mod_offline, [{store_groupchat_messages, true},
                     {backend, rdbms}]},
      {mod_offline_chatmarkers, [{store_groupchat_messages, true}]},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].

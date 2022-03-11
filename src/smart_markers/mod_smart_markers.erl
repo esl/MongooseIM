@@ -57,14 +57,13 @@
 
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
+-include("mongoose_config_spec.hrl").
 
 -xep([{xep, 333}, {version, "0.3"}]).
 -behaviour(gen_mod).
 
 %% gen_mod API
--export([start/2]).
--export([stop/1]).
--export([supported_features/0]).
+-export([start/2, stop/1, supported_features/0, config_spec/0]).
 
 %% gen_mod API
 -export([get_chat_markers/3]).
@@ -94,29 +93,50 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, Opts) ->
+start(HostType, #{iqdisc := IQDisc} = Opts) ->
     mod_smart_markers_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)).
+    ejabberd_hooks:add(hooks(HostType, Opts)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    ejabberd_hooks:delete(hooks(HostType, Opts)).
 
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"keep_private">> => #option{type = boolean},
+                 <<"backend">> => #option{type = atom, validate = {enum, [rdbms]}},
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"keep_private">> => false,
+                    <<"backend">> => rdbms,
+                    <<"iqdisc">> => no_queue},
+       format_items = map
+    }.
+
 %%--------------------------------------------------------------------
 %% Hook handlers
 %%--------------------------------------------------------------------
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
-     {remove_user, HostType, ?MODULE, remove_user, 60},
+%% HOOKS
+-spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> [ejabberd_hooks:hook()].
+hooks(HostType, #{keep_private := KeepPrivate}) ->
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90} |
+    private_hooks(HostType, KeepPrivate) ++ removal_hooks(HostType)].
+
+private_hooks(_HostType, false) ->
+    [];
+private_hooks(HostType, true) ->
+    [{filter_local_packet, HostType, ?MODULE, filter_local_packet, 20}].
+
+removal_hooks(HostType) ->
+    [{remove_user, HostType, ?MODULE, remove_user, 60},
      {remove_domain, HostType, ?MODULE, remove_domain, 60},
      {forget_room, HostType, ?MODULE, forget_room, 85},
-     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}
-    ].
+     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
