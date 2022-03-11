@@ -51,6 +51,7 @@
          c2s_stream_features/2,
          c2s_unauthenticated_iq/4,
          c2s_update_presence/2,
+         c2s_get_initial_info/3,
          check_bl_c2s/1,
          forbidden_session_hook/3,
          session_opening_allowed_for_user/2]).
@@ -590,6 +591,9 @@ c2s_unauthenticated_iq(HostType, Server, IQ, IP) ->
     Result :: mongoose_acc:t().
 c2s_update_presence(HostType, Acc) ->
     run_hook_for_host_type(c2s_update_presence, HostType, Acc, []).
+
+c2s_get_initial_info(HostType, Info, PendingMessages) ->
+    run_hook_for_host_type(c2s_get_initial_info, HostType, Info, [HostType, PendingMessages]).
 
 -spec check_bl_c2s(IP) -> Result when
     IP ::  inet:ip_address(),

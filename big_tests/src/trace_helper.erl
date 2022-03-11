@@ -4,12 +4,19 @@
 -export([stop/1]).
 
 run(Parent, Patterns) when is_pid(Parent) ->
-    spawn(fun() ->
+    Starter = self(),
+    Pid = spawn(fun() ->
             erlang:monitor(process, Parent),
             erlang:trace(all, true, [call]),
             [erlang:trace_pattern(Pattern, true, []) || Pattern <- Patterns],
+            Starter ! {started, self()},
             cycle(Parent)
-        end).
+        end),
+    %% Do not return until tracing is on
+    receive
+        {started, Pid} -> Pid
+    after 5000 -> {error, timeout}
+    end.
 
 stop(Pid) ->
     Pid ! stop,

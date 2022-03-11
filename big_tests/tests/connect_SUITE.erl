@@ -104,7 +104,8 @@ auth_bind_pipelined_cases() ->
     [
      auth_bind_pipelined_session,
      auth_bind_pipelined_auth_failure,
-     auth_bind_pipelined_session_with_presence
+     auth_bind_pipelined_session_with_presence,
+     auth_bind_pipelined_session_with_presence_and_carbons
     ].
 
 protocol_test_cases() ->
@@ -558,7 +559,7 @@ auth_bind_pipelined_session_with_presence(Config) ->
                 | escalus_fresh:create_fresh_user(Config, alice)],
 
     {Username, Server, Resource} = get_usr(UserSpec),
-    Conn = pipeline_connect(UserSpec, true),
+    Conn = pipeline_connect(UserSpec, presence),
 
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
@@ -593,6 +594,55 @@ auth_bind_pipelined_session_with_presence(Config) ->
     {value, Metric} = metrics_helper:get_counter_value(c2sPredictedPresencePriority),
     %% Metric updated
     ?assert(Metric > OldMetric).
+
+%% Checks that initial carbon-copy does not cause extra session-manager writes
+auth_bind_pipelined_session_with_presence_and_carbons(Config) ->
+    Backend = rpc(mim(), ejabberd_sm, sm_backend, []),
+    Patterns = [{Backend, '_', '_'}, {ejabberd_sm, '_', '_'},
+                {mod_carboncopy, c2s_get_initial_info, '_'}],
+    Pid = rpc(mim(), trace_helper, run, [self(), Patterns]),
+
+    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+                | escalus_fresh:create_fresh_user(Config, alice)],
+
+    {Username, Server, Resource} = get_usr(UserSpec),
+    Conn = pipeline_connect(UserSpec, presence_and_carbons),
+
+    %% Stream start
+    StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, StreamResponse),
+    escalus_session:stream_features(Conn, []),
+
+    %% Auth response
+    escalus_auth:wait_for_success(Username, Conn),
+    AuthStreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, AuthStreamResponse),
+    escalus_session:stream_features(Conn, []),
+
+    %% Bind response
+    BindResponse = escalus_connection:get_stanza(Conn, bind_response),
+    escalus:assert(is_bind_result, BindResponse),
+
+    %% Session response
+    SessionResponse = escalus_connection:get_stanza(Conn, session_response),
+    escalus:assert(is_iq_result, SessionResponse),
+
+    C2sPid = rpc(mim(), ejabberd_sm, get_session_pid, [jid:make(Username, Server, Resource)]),
+    ct:log("JID ~p ~p ~p", [Username, Server, Resource]),
+    ct:log("C2sPid ~p", [C2sPid]),
+    escalus:assert(is_presence, escalus_connection:get_stanza(Conn, initial_presence_response)),
+
+    escalus:assert(is_iq, [<<"result">>], escalus_connection:get_stanza(Conn, carbons_result)),
+    timer:sleep(1000),
+
+    trace_helper:stop(Pid),
+    Traces = trace_helper:flush(),
+    ct:log("Traces ~n~p", [Traces]),
+    Calls = [MFA || {trace, TracePid, call, MFA} <- Traces, TracePid =:= C2sPid],
+    JustWrites = [MFA || MFA = {ejabberd_sm, update_session, _} <- Calls],
+    %% One write means that presence priority got predicted
+    %% Two calls, if not predicted
+    [] = JustWrites.
 
 auth_bind_pipelined_auth_failure(Config) ->
     UserSpec = [{password, <<"badpassword">>}, {ssl, true},
@@ -903,7 +953,8 @@ pipeline_connect(UserSpec, SendPresence) ->
     Session = escalus_stanza:session(),
 
     Pres = case SendPresence of
-               true -> [escalus_stanza:presence(<<"available">>)];
+               presence -> [escalus_stanza:presence(<<"available">>)];
+               presence_and_carbons -> [escalus_stanza:presence(<<"available">>), escalus_stanza:carbons_enable()];
                false -> []
            end,
     escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session] ++ Pres),

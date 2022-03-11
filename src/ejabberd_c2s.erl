@@ -783,8 +783,9 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     Conn = get_conn_type(SD),
     SD2 = SD#state{sid = SID, conn = Conn},
 
-    Priority = predict_priority(HostType, JID, Queue),
-    SD3 = sm_open_session(replace, Priority, SD2),
+    PendingMessages = pending_messages(Queue),
+    Priority = predict_priority(HostType, JID, PendingMessages),
+    SD3 = sm_open_session(replace, Priority, SD2, PendingMessages),
 
     SD4 = SD3#state{pres_f = gb_sets:from_list(Fs1),
                     pres_t = gb_sets:from_list(Ts1),
@@ -3039,7 +3040,7 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
                 Stop;
             {next_state, session_established, NSD0, _} ->
                 Priority = get_priority_from_presence(NSD0#state.pres_last),
-                NSD = sm_open_session(no_replace, Priority, NSD0),
+                NSD = sm_open_session(no_replace, Priority, NSD0, undefined),
                 ok = mod_stream_management:register_smid(NSD#state.host_type, SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
@@ -3329,14 +3330,16 @@ open_session_with_queue(El, StateData, Queue) ->
         established ->  fsm_next_state_pack(session_established, NStateData)
     end.
 
-%% Use stanza pipelining to avoid an extra write to ejabberd_sm
 %% Queue is a queue from p1_fsm
-predict_priority(HostType, JID, Queue) ->
+pending_messages(Queue) ->
     {messages, Messages0} = erlang:process_info(self(), messages),
     Messages = queue:to_list(Queue) ++ Messages0,
-    Ps = [P ||
-          {'$gen_event', {xmlstreamelement, P = #xmlel{name = <<"presence">>}}}
-          <- Messages, is_stanza_to_bare(P, JID)],
+    [El || {'$gen_event', {xmlstreamelement, El}} <- Messages].
+
+%% Use stanza pipelining to avoid an extra write to ejabberd_sm
+predict_priority(HostType, JID, PendingMessages) ->
+    Ps = [P || P = #xmlel{name = <<"presence">>}
+               <- PendingMessages, is_stanza_to_bare(P, JID)],
     case Ps of
         [PresencePacket] ->
             mongoose_metrics:update(HostType, c2sPredictedPresencePriority, 1),
@@ -3368,6 +3371,10 @@ replace_pids(_, _, SD) -> SD.
 get_replaced_wait_timeout(HostType) ->
     mongoose_config:get_opt({replaced_wait_timeout, HostType}).
 
+get_initial_info(SD, PendingMessages) ->
+    mongoose_hooks:c2s_get_initial_info(SD#state.host_type,
+                                        get_initial_info(SD), PendingMessages).
+
 get_initial_info(#state{ip = IP, conn = Conn, auth_module = AM}) ->
     #{ip => IP, conn => Conn, auth_module => AM}.
 
@@ -3377,8 +3384,9 @@ get_initial_info(#state{ip = IP, conn = Conn, auth_module = AM}) ->
 sm_open_session(Replace, Priority,
                 SD = #state{host_type = HostType,
                             session_info = OldInfo,
-                            sid = SID, jid = JID}) ->
-    Info = maps:merge(OldInfo, get_initial_info(SD)),
+                            sid = SID, jid = JID},
+                PendingMessages) ->
+    Info = maps:merge(OldInfo, get_initial_info(SD, PendingMessages)),
     SD2 = SD#state{priority = Priority, session_info = Info},
     case needs_sm_update(SD, SD2) of
         true ->

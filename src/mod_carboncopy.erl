@@ -43,6 +43,7 @@
          user_receive_packet/5,
          iq_handler2/5,
          iq_handler1/5,
+         c2s_get_initial_info/3,
          remove_connection/5
         ]).
 
@@ -50,7 +51,8 @@
 -export([should_forward/3]).
 
 -ignore_xref([disco_local_features/1, is_carbon_copy/1, remove_connection/5,
-              should_forward/3, user_receive_packet/5, user_send_packet/4]).
+              should_forward/3, user_receive_packet/5, user_send_packet/4,
+              c2s_get_initial_info/3]).
 
 -define(CC_KEY, 'cc').
 
@@ -93,7 +95,8 @@ hooks(HostType) ->
     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {unset_presence_hook, HostType, ?MODULE, remove_connection, 10},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 89},
-     {user_receive_packet, HostType, ?MODULE, user_receive_packet, 89}].
+     {user_receive_packet, HostType, ?MODULE, user_receive_packet, 89},
+     {c2s_get_initial_info, HostType, ?MODULE, c2s_get_initial_info, 50}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
@@ -131,6 +134,22 @@ iq_handler(Acc, From, #iq{type = set,
 
 iq_handler(Acc, _From, IQ, _CC) ->
     {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request()]}}.
+
+%% Predicts a value of CC_KEY to avoid extra writes into the Session Table
+c2s_get_initial_info(Info, HostType, PendingMessages) ->
+    Ops = [{Op, proplists:get_value(<<"xmlns">>, Attrs2)}
+           || #xmlel{name = <<"iq">>, attrs = Attrs,
+                       children = [#xmlel{name = Op, attrs = Attrs2}]}
+                 <- PendingMessages,
+                 lists:member({<<"type">>, <<"set">>}, Attrs),
+                 is_valid_ns(proplists:get_value(<<"xmlns">>, Attrs2))],
+    case Ops of
+        [{<<"enable">>, NS}] ->
+            Ver = cc_ver_to_int(NS),
+            Info#{?CC_KEY => Ver};
+        [] ->
+            Info
+    end.
 
 user_send_packet(Acc, From, To, Packet) ->
     check_and_forward(Acc, From, To, Packet, sent),
@@ -381,6 +400,10 @@ cc_ver_to_int(?NS_CC_2) -> 2.
 
 cc_ver_from_int(1) -> ?NS_CC_1;
 cc_ver_from_int(2) -> ?NS_CC_2.
+
+is_valid_ns(?NS_CC_1) -> true;
+is_valid_ns(?NS_CC_2) -> true;
+is_valid_ns(_) -> false.
 
 %% Servers SHOULD include the element as a child
 %% of the forwarded message when using Message Carbons (XEP-0280)
