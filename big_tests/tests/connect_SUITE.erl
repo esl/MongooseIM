@@ -103,7 +103,8 @@ tls_groups()->
 auth_bind_pipelined_cases() ->
     [
      auth_bind_pipelined_session,
-     auth_bind_pipelined_auth_failure
+     auth_bind_pipelined_auth_failure,
+     auth_bind_pipelined_session_with_presence
     ].
 
 protocol_test_cases() ->
@@ -134,6 +135,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    mongoose_helper:inject_module(trace_helper),
     Config0 = escalus:init_per_suite([{escalus_user_db, {module, escalus_ejabberd, []}} | Config]),
     C2SPort = ct:get_config({hosts, mim, c2s_port}),
     [C2SListener] = mongoose_helper:get_listeners(mim(), #{port => C2SPort, module => ejabberd_c2s}),
@@ -526,7 +528,7 @@ auth_bind_pipelined_session(Config) ->
                 | escalus_fresh:create_fresh_user(Config, alice)],
 
     Username = proplists:get_value(username, UserSpec),
-    Conn = pipeline_connect(UserSpec),
+    Conn = pipeline_connect(UserSpec, false),
 
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
@@ -547,12 +549,57 @@ auth_bind_pipelined_session(Config) ->
     SessionResponse = escalus_connection:get_stanza(Conn, session_response),
     escalus:assert(is_iq_result, SessionResponse).
 
+auth_bind_pipelined_session_with_presence(Config) ->
+    {value, OldMetric} = metrics_helper:get_counter_value(c2sPredictedPresencePriority),
+    Backend = rpc(mim(), ejabberd_sm, sm_backend, []),
+    Pid = rpc(mim(), trace_helper, run, [self(), [{Backend, '_', '_'}, {ejabberd_sm, '_', '_'}]]),
+
+    UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
+                | escalus_fresh:create_fresh_user(Config, alice)],
+
+    {Username, Server, Resource} = get_usr(UserSpec),
+    Conn = pipeline_connect(UserSpec, true),
+
+    %% Stream start
+    StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, StreamResponse),
+    escalus_session:stream_features(Conn, []),
+
+    %% Auth response
+    escalus_auth:wait_for_success(Username, Conn),
+    AuthStreamResponse = escalus_connection:get_stanza(Conn, stream_response),
+    ?assertMatch(#xmlstreamstart{}, AuthStreamResponse),
+    escalus_session:stream_features(Conn, []),
+
+    %% Bind response
+    BindResponse = escalus_connection:get_stanza(Conn, bind_response),
+    escalus:assert(is_bind_result, BindResponse),
+
+    %% Session response
+    SessionResponse = escalus_connection:get_stanza(Conn, session_response),
+    escalus:assert(is_iq_result, SessionResponse),
+
+    C2sPid = rpc(mim(), ejabberd_sm, get_session_pid, [jid:make(Username, Server, Resource)]),
+    escalus:assert(is_presence, escalus_connection:get_stanza(Conn, initial_presence_response)),
+
+    trace_helper:stop(Pid),
+    Traces = trace_helper:flush(),
+    ct:log("Traces ~n~p", [Traces]),
+    Calls = [MFA || {trace, TracePid, call, MFA} <- Traces, TracePid =:= C2sPid],
+    JustWrites = [MFA || MFA = {_, create_session, _} <- Calls],
+    %% One write means that presence priority got predicted
+    %% Two calls, if not predicted
+    [_] = JustWrites,
+    {value, Metric} = metrics_helper:get_counter_value(c2sPredictedPresencePriority),
+    %% Metric updated
+    ?assert(Metric > OldMetric).
+
 auth_bind_pipelined_auth_failure(Config) ->
     UserSpec = [{password, <<"badpassword">>}, {ssl, true},
                 {parser_opts, [{start_tag, <<"stream:stream">>}]}
                 | escalus_fresh:freshen_spec(Config, alice)],
 
-    Conn = pipeline_connect(UserSpec),
+    Conn = pipeline_connect(UserSpec, false),
 
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
@@ -567,7 +614,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
     UserSpec = [{parser_opts, [{start_tag, <<"stream:stream">>}]}
                 | escalus_fresh:freshen_spec(Config, ?SECURE_USER)],
 
-    Conn = pipeline_connect(UserSpec),
+    Conn = pipeline_connect(UserSpec, false),
 
     %% Stream start
     StreamResponse = escalus_connection:get_stanza(Conn, stream_response),
@@ -837,9 +884,13 @@ default_context(To) ->
 children_specs_to_pids(Children) ->
     [Pid || {_, Pid, _, _} <- Children].
 
-pipeline_connect(UserSpec) ->
+get_usr(UserSpec) ->
     Server = proplists:get_value(server, UserSpec),
     Username = proplists:get_value(username, UserSpec),
+    {Username, Server, <<?MODULE_STRING "_resource">>}.
+
+pipeline_connect(UserSpec, SendPresence) ->
+    {Username, Server, Resource} = get_usr(UserSpec),
     Password = proplists:get_value(password, UserSpec),
     AuthPayload = <<0:8, Username/binary, 0:8, Password/binary>>,
 
@@ -848,10 +899,14 @@ pipeline_connect(UserSpec) ->
     Stream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
     Auth = escalus_stanza:auth(<<"PLAIN">>, [#xmlcdata{content = base64:encode(AuthPayload)}]),
     AuthStream = escalus_stanza:stream_start(Server, <<"jabber:client">>),
-    Bind = escalus_stanza:bind(<<?MODULE_STRING "_resource">>),
+    Bind = escalus_stanza:bind(Resource),
     Session = escalus_stanza:session(),
 
-    escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session]),
+    Pres = case SendPresence of
+               true -> [escalus_stanza:presence(<<"available">>)];
+               false -> []
+           end,
+    escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session] ++ Pres),
     Conn.
 
 send_proxy_header(Conn, UnusedFeatures) ->

@@ -76,7 +76,9 @@
                 hibernate_after = 0 :: non_neg_integer(),
                 replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}],
                 handlers = #{} :: #{ term() => {module(), atom(), term()} },
-                cred_opts :: mongoose_credentials:opts()
+                cred_opts :: mongoose_credentials:opts(),
+                priority :: undefined | closed | integer(),
+                session_info = #{} :: map()
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().

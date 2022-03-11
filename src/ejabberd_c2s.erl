@@ -62,6 +62,9 @@
          terminate/4,
          print_state/1]).
 
+%% p1_fsm_old callback
+-export([open_session_with_queue/3]).
+
 -ignore_xref([del_aux_field/2, get_info/1, print_state/1, resume_session/2,
              resume_session/3, send_text/2, session_established/2, session_established/3,
              socket_type/0, start_link/2, wait_for_feature_after_auth/2,
@@ -671,13 +674,8 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
                                             StateData0),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} ->
-            Acc = element_to_origin_accum(El, StateData0),
-            {Res, _Acc1, NStateData} = maybe_open_session(Acc, StateData),
-            case Res of
-                stop -> {stop, normal, NStateData};
-                wait -> fsm_next_state(wait_for_session_or_sm, NStateData);
-                established ->  fsm_next_state_pack(session_established, NStateData)
-            end;
+            %% Ask p1_fsm to call us back with internal queue as an argument
+            {call_with_queue, open_session_with_queue, El, StateData};
         _ ->
             maybe_do_compress(El, wait_for_session_or_sm, StateData)
     end;
@@ -735,12 +733,12 @@ check_compression_method(El, NextState, StateData) ->
             fsm_next_state(NextState, StateData)
     end.
 
--spec maybe_open_session(mongoose_acc:t(), state()) ->
+-spec maybe_open_session(mongoose_acc:t(), state(), queue:queue()) ->
     {wait | stop | established, mongoose_acc:t(), state()}.
-maybe_open_session(Acc, #state{jid = JID} = StateData) ->
+maybe_open_session(Acc, #state{jid = JID} = StateData, Queue) ->
     case user_allowed(JID, StateData) of
         true ->
-            do_open_session(Acc, JID, StateData);
+            do_open_session(Acc, JID, StateData, Queue);
         _ ->
             Acc1 = mongoose_hooks:forbidden_session_hook(StateData#state.host_type,
                                                          Acc, JID),
@@ -752,29 +750,29 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             {wait, Acc3, StateData}
     end.
 
--spec do_open_session(mongoose_acc:t(), jid:jid(), state()) ->
+-spec do_open_session(mongoose_acc:t(), jid:jid(), state(), queue:queue()) ->
     {stop | established, mongoose_acc:t(), state()}.
-do_open_session(Acc, JID, StateData) ->
+do_open_session(Acc, JID, StateData, Queue) ->
     ?LOG_INFO(#{what => c2s_opened_session, text => <<"Opened session">>,
                 acc => Acc, c2s_state => StateData}),
     Resp = jlib:make_result_iq_reply(mongoose_acc:element(Acc)),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
     case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
         {ok, Acc1, NStateData} ->
-            do_open_session_common(Acc1, JID, NStateData);
+            do_open_session_common(Acc1, JID, NStateData, Queue);
         {resume, Acc1, NStateData} ->
             case maybe_enter_resume_session(NStateData) of
                 {stop, normal, NextStateData} -> % error, resume not possible
                     c2s_stream_error(mongoose_xmpp_errors:stream_internal_server_error(), NextStateData),
                     {stop, Acc1, NStateData};
                 {_, _, NextStateData, _} ->
-                    do_open_session_common(Acc1, JID, NextStateData)
+                    do_open_session_common(Acc1, JID, NextStateData, Queue)
             end
     end.
 
 do_open_session_common(Acc, JID, #state{host_type = HostType,
-                                        jid = JID} = NewStateData0) ->
-    change_shaper(NewStateData0, JID),
+                                        jid = JID} = SD, Queue) ->
+    change_shaper(SD, JID),
     Acc1 = mongoose_hooks:roster_get_subscription_lists(HostType, Acc, JID),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
@@ -782,32 +780,17 @@ do_open_session_common(Acc, JID, #state{host_type = HostType,
     Ts1 = [LJID | Ts],
     PrivList = mongoose_hooks:privacy_get_user_list(HostType, JID),
     SID = ejabberd_sm:make_new_sid(),
-    Conn = get_conn_type(NewStateData0),
-    Info = #{ip => NewStateData0#state.ip, conn => Conn,
-             auth_module => NewStateData0#state.auth_module },
-    ReplacedPids = ejabberd_sm:open_session(HostType, SID, JID, Info),
+    Conn = get_conn_type(SD),
+    SD2 = SD#state{sid = SID, conn = Conn},
 
-    RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
-    case RefsAndPids of
-        [] ->
-            ok;
-        _ ->
-            Timeout = get_replaced_wait_timeout(HostType),
-            erlang:send_after(Timeout, self(), replaced_wait_timeout)
-    end,
+    Priority = predict_priority(HostType, JID, Queue),
+    SD3 = sm_open_session(replace, Priority, SD2),
 
-    NewStateData =
-    NewStateData0#state{sid = SID,
-                        conn = Conn,
-                        replaced_pids = RefsAndPids,
-                        pres_f = gb_sets:from_list(Fs1),
-                        pres_t = gb_sets:from_list(Ts1),
-                        pending_invitations = Pending,
-                        privacy_list = PrivList},
-    {established, Acc1, NewStateData}.
-
-get_replaced_wait_timeout(HostType) ->
-    mongoose_config:get_opt({replaced_wait_timeout, HostType}).
+    SD4 = SD3#state{pres_f = gb_sets:from_list(Fs1),
+                    pres_t = gb_sets:from_list(Ts1),
+                    pending_invitations = Pending,
+                    privacy_list = PrivList},
+    {established, Acc1, SD4}.
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
@@ -1105,11 +1088,10 @@ handle_info(check_buffer_full, StateName, StateData) ->
                            StateData#state{stream_mgmt_constraint_check_tref = undefined})
     end;
 handle_info({store_session_info, JID, Key, Value, _FromPid}, StateName, StateData) ->
-    ejabberd_sm:store_info(JID, Key, Value),
-    fsm_next_state(StateName, StateData);
+    fsm_next_state(StateName, sm_store_info(JID, Key, Value, StateData));
 handle_info({remove_session_info, JID, Key, _FromPid}, StateName, StateData) ->
-    ejabberd_sm:remove_info(JID, Key),
-    fsm_next_state(StateName, StateData);
+    SD2 = sm_remove_info(JID, Key, StateData),
+    fsm_next_state(StateName, SD2);
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
 
@@ -1530,15 +1512,9 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                             attrs = [{<<"type">>, <<"unavailable">>}],
                             children = [StatusEl]},
             Acc0 = element_to_origin_accum(Packet, StateData),
-            ejabberd_sm:close_session_unset_presence(
-              Acc,
-              StateData#state.sid,
-              StateData#state.jid,
-              <<"Replaced by new connection">>,
-              replaced),
-            Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
-            presence_broadcast(Acc1, StateData#state.pres_i, StateData),
-            reroute_unacked_messages(StateData, UnreadMessages);
+            {Acc1, SD} = sm_close_session_unset_presence(Acc0, StateData, <<"Replaced by new connection">>, replaced),
+            presence_broadcast_ai(Acc1, SD),
+            reroute_unacked_messages(SD, UnreadMessages);
         {_, resumed} ->
             StreamConflict = mongoose_xmpp_errors:stream_conflict(
                                StateData#state.lang, <<"Resumed by new connection">>),
@@ -1552,29 +1528,23 @@ terminate(_Reason, StateName, StateData, UnreadMessages) ->
                         state_name => StateName, c2s_state => StateData}),
 
             EmptySet = gb_sets:new(),
-            case StateData of
-                #state{pres_last = undefined,
-                       pres_a = EmptySet,
-                       pres_i = EmptySet,
-                       pres_invis = false} ->
-                    ejabberd_sm:close_session(Acc,
-                                              StateData#state.sid,
-                                              StateData#state.jid,
-                                              normal);
-                _ ->
-                    Packet = #xmlel{name = <<"presence">>,
-                                    attrs = [{<<"type">>, <<"unavailable">>}]},
-                    Acc0 = element_to_origin_accum(Packet, StateData),
-                    ejabberd_sm:close_session_unset_presence(
-                      Acc,
-                      StateData#state.sid,
-                      StateData#state.jid,
-                      <<"">>,
-                      normal),
-                    Acc1 = presence_broadcast(Acc0, StateData#state.pres_a, StateData),
-                    presence_broadcast(Acc1, StateData#state.pres_i, StateData)
-            end,
-            reroute_unacked_messages(StateData, UnreadMessages)
+            SD3 =
+                case StateData of
+                    #state{pres_last = undefined,
+                           pres_a = EmptySet,
+                           pres_i = EmptySet,
+                           pres_invis = false} ->
+                        {_Acc, SD2} = sm_close_session(Acc, StateData, normal),
+                        SD2;
+                    _ ->
+                        Packet = #xmlel{name = <<"presence">>,
+                                        attrs = [{<<"type">>, <<"unavailable">>}]},
+                        Acc0 = element_to_origin_accum(Packet, StateData),
+                        {Acc1, SD2} = sm_close_session_unset_presence(Acc0, StateData, <<>>, normal),
+                        presence_broadcast_ai(Acc1, SD2),
+                        SD2
+                end,
+            reroute_unacked_messages(SD3, UnreadMessages)
     end,
     (StateData#state.sockmod):close(StateData#state.socket),
     ok.
@@ -1880,40 +1850,28 @@ presence_update(Acc, From, StateData) ->
     case mongoose_acc:stanza_type(Acc) of
         <<"unavailable">> ->
             Status = exml_query:path(Packet, [{element, <<"status">>}, cdata], <<>>),
-            Info = #{ip => StateData#state.ip, conn => StateData#state.conn,
-                     auth_module => StateData#state.auth_module },
-            Acc1 = ejabberd_sm:unset_presence(Acc,
-                                              StateData#state.sid,
-                                              StateData#state.jid,
-                                              Status,
-                                              Info),
-            Acc2 = presence_broadcast(Acc1, StateData#state.pres_a, StateData),
-            Acc3 = presence_broadcast(Acc2, StateData#state.pres_i, StateData),
+            {Acc1, SD2} = sm_unset_presence(Acc, StateData, Status),
+            Acc2 = presence_broadcast_ai(Acc1, StateData),
             % and here we reach the end
-            {Acc3, StateData#state{pres_last = undefined,
-                                   pres_timestamp = undefined,
-                                   pres_a = gb_sets:new(),
-                                   pres_i = gb_sets:new(),
-                                   pres_invis = false}};
+            {Acc2, SD2#state{pres_last = undefined,
+                             pres_timestamp = undefined,
+                             pres_a = gb_sets:new(),
+                             pres_i = gb_sets:new(),
+                             pres_invis = false}};
         <<"invisible">> ->
             NewPriority = get_priority_from_presence(Packet),
-            Acc0 = update_priority(Acc, NewPriority, Packet, StateData),
+            {Acc0, SD2} = sm_update_priority(Acc, NewPriority, Packet, StateData),
             case StateData#state.pres_invis of
                 false ->
-                    Acc1 = presence_broadcast(Acc0,
-                                              StateData#state.pres_a,
-                                              StateData),
-                    Acc2 = presence_broadcast(Acc1,
-                                              StateData#state.pres_i,
-                                              StateData),
-                    S1 = StateData#state{pres_last = undefined,
-                                         pres_timestamp = undefined,
-                                         pres_a = gb_sets:new(),
-                                         pres_i = gb_sets:new(),
-                                         pres_invis = true},
-                    presence_broadcast_first(Acc2, From, S1, Packet);
+                    Acc1 = presence_broadcast_ai(Acc0, SD2),
+                    SD3 = SD2#state{pres_last = undefined,
+                                    pres_timestamp = undefined,
+                                    pres_a = gb_sets:new(),
+                                    pres_i = gb_sets:new(),
+                                    pres_invis = true},
+                    presence_broadcast_first(Acc1, From, SD3, Packet);
                 true ->
-                    {Acc0, StateData}
+                    {Acc0, SD2}
             end;
         <<"error">> ->
             {Acc, StateData};
@@ -1944,18 +1902,18 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                   end,
     NewPriority = get_priority_from_presence(Packet),
     Timestamp = erlang:system_time(second),
-    Acc1 = update_priority(Acc, NewPriority, Packet, StateData),
+    {Acc1, SD2} = sm_update_priority(Acc, NewPriority, Packet, StateData),
 
-    NewStateData = StateData#state{pres_last = Packet,
-                                   pres_invis = false,
-                                   pres_timestamp = Timestamp},
+    SD3 = SD2#state{pres_last = Packet,
+                    pres_invis = false,
+                    pres_timestamp = Timestamp},
 
     FromUnavail = (StateData#state.pres_last == undefined) or StateData#state.pres_invis,
     ?LOG_DEBUG(#{what => presence_update_to_available,
                  text => <<"Presence changes from unavailable to available">>,
                  from_unavail => FromUnavail, acc => Acc, c2s_state => StateData}),
     presence_update_to_available(FromUnavail, Acc1, OldPriority, NewPriority, From,
-                                 Packet, NewStateData).
+                                 Packet, SD3).
 
 %% @doc the first one is run when presence changes from unavailable to anything else
 -spec presence_update_to_available(FromUnavailable :: boolean(),
@@ -2119,6 +2077,10 @@ privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
                                           To,
                                           Dir).
 
+presence_broadcast_ai(Acc, SD) ->
+    Acc1 = presence_broadcast(Acc, SD#state.pres_a, SD),
+    presence_broadcast(Acc1, SD#state.pres_i, SD).
+
 -spec presence_broadcast(Acc :: mongoose_acc:t(),
                          JIDSet :: jid_set(),
                          State :: state()) -> mongoose_acc:t().
@@ -2246,20 +2208,6 @@ roster_change(Acc, IJID, ISubscription, StateData) ->
                     {Acc, StateData#state{pres_f = FSet, pres_t = TSet}}
             end
     end.
-
--spec update_priority(Acc :: mongoose_acc:t(),
-                      Priority :: integer(),
-                      Packet :: exml:element(),
-                      State :: state()) -> mongoose_acc:t().
-update_priority(Acc, Priority, Packet, StateData) ->
-    Info = #{ip => StateData#state.ip, conn => StateData#state.conn,
-             auth_module => StateData#state.auth_module },
-    ejabberd_sm:set_presence(Acc,
-                             StateData#state.sid,
-                             StateData#state.jid,
-                             Priority,
-                             Packet,
-                             Info).
 
 
 -spec get_priority_from_presence(Packet :: exml:element()) -> integer().
@@ -2520,8 +2468,9 @@ bounce_messages(UnreadMessages, StateData) ->
         {ok, {route, From, To, Acc}, RemainedUnreadMessages} ->
             reroute(From, To, Acc, StateData),
             bounce_messages(RemainedUnreadMessages, StateData);
-        {ok, {store_session_info, JID, Key, Value, _FromPid}, _} ->
-            ejabberd_sm:store_info(JID, Key, Value);
+        {ok, {store_session_info, JID, Key, Value, _FromPid}, RemainedUnreadMessages} ->
+            StateData2 = sm_store_info(JID, Key, Value, StateData),
+            bounce_messages(RemainedUnreadMessages, StateData2);
         {ok, _, RemainedUnreadMessages} ->
             % ignore this one, get the next message
             bounce_messages(RemainedUnreadMessages, StateData);
@@ -3088,11 +3037,9 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, StateData) ->
         case stream_mgmt_handle_ack(session_established, El, MergedState) of
             {stop, _, _} = Stop ->
                 Stop;
-            {next_state, session_established, NSD, _} ->
-                Priority = get_priority_from_presence(NSD#state.pres_last),
-                Info = #{ip => NSD#state.ip, conn => NSD#state.conn,
-                         auth_module => NSD#state.auth_module },
-                ejabberd_sm:open_session(NSD#state.host_type, SID, NSD#state.jid, Priority, Info),
+            {next_state, session_established, NSD0, _} ->
+                Priority = get_priority_from_presence(NSD0#state.pres_last),
+                NSD = sm_open_session(no_replace, Priority, NSD0),
                 ok = mod_stream_management:register_smid(NSD#state.host_type, SMID, SID),
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
@@ -3179,12 +3126,9 @@ stream_mgmt_resumed(SMID, Handled) ->
 handover_session(SD, From)->
     true = SD#state.stream_mgmt,
     Acc = new_acc(SD, #{location => ?LOCATION, element => undefined}),
-    ejabberd_sm:close_session(Acc,
-                              SD#state.sid,
-                              SD#state.jid,
-                              resumed),
+    SD2 = sm_close_session(Acc, SD, resumed),
     %the actual handover to be done on termination
-    {stop, {handover_session, From}, SD}.
+    {stop, {handover_session, From}, SD2}.
 
 do_handover_session(SD, UnreadMessages) ->
     Messages = flush_messages(UnreadMessages),
@@ -3374,3 +3318,136 @@ strip_c2s_fields(Acc) ->
 -spec new_acc(state(), mongoose_acc:new_acc_params()) -> mongoose_acc:t().
 new_acc(#state{host_type = HostType, server = LServer}, Params) ->
     mongoose_acc:new(Params#{host_type => HostType, lserver => LServer}).
+
+-spec open_session_with_queue(jlib:xmlel(), state(), queue:queue()) -> term().
+open_session_with_queue(El, StateData, Queue) ->
+    Acc = element_to_origin_accum(El, StateData),
+    {Res, _Acc1, NStateData} = maybe_open_session(Acc, StateData, Queue),
+    case Res of
+        stop -> {stop, normal, NStateData};
+        wait -> fsm_next_state(wait_for_session_or_sm, NStateData);
+        established ->  fsm_next_state_pack(session_established, NStateData)
+    end.
+
+%% Use stanza pipelining to avoid an extra write to ejabberd_sm
+%% Queue is a queue from p1_fsm
+predict_priority(HostType, JID, Queue) ->
+    {messages, Messages0} = erlang:process_info(self(), messages),
+    Messages = queue:to_list(Queue) ++ Messages0,
+    Ps = [P ||
+          {'$gen_event', {xmlstreamelement, P = #xmlel{name = <<"presence">>}}}
+          <- Messages, is_stanza_to_bare(P, JID)],
+    case Ps of
+        [PresencePacket] ->
+            mongoose_metrics:update(HostType, c2sPredictedPresencePriority, 1),
+            get_priority_from_presence(PresencePacket);
+        _ ->
+            undefined
+    end.
+
+is_stanza_to_bare(El, JID) ->
+    case exml_query:attr(El, <<"to">>) of
+        undefined ->
+            true;
+        To ->
+            case jid:from_binary(To) of
+                #jid{} = ToJID ->
+                    jid:are_equal(ToJID, jid:to_bare(JID));
+                _ -> %% Should not happen
+                    false
+            end
+    end.
+
+replace_pids(replace, [_|_] = ReplacedPids, SD = #state{host_type = HostType}) ->
+    RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
+    Timeout = get_replaced_wait_timeout(HostType),
+    erlang:send_after(Timeout, self(), replaced_wait_timeout),
+    SD#state{replaced_pids = RefsAndPids};
+replace_pids(_, _, SD) -> SD.
+
+get_replaced_wait_timeout(HostType) ->
+    mongoose_config:get_opt({replaced_wait_timeout, HostType}).
+
+get_initial_info(#state{ip = IP, conn = Conn, auth_module = AM}) ->
+    #{ip => IP, conn => Conn, auth_module => AM}.
+
+%% Session Manager calls
+%% We remember the previous call, so we don't call ejabberd_sm if not needed
+
+sm_open_session(Replace, Priority,
+                SD = #state{host_type = HostType,
+                            session_info = OldInfo,
+                            sid = SID, jid = JID}) ->
+    Info = maps:merge(OldInfo, get_initial_info(SD)),
+    SD2 = SD#state{priority = Priority, session_info = Info},
+    case needs_sm_update(SD, SD2) of
+        true ->
+            ReplacedPids = ejabberd_sm:open_session(HostType, SID, JID, Priority, Info),
+            replace_pids(Replace, ReplacedPids, SD2);
+        false ->
+            SD
+    end.
+
+sm_store_info(JID, Key, Value, SD = #state{session_info = OldInfo, jid = JID}) ->
+    Info = maps:put(Key, Value, OldInfo),
+    sm_replace_info(Info, SD).
+
+sm_remove_info(JID, Key, SD = #state{session_info = OldInfo, jid = JID}) ->
+    Info = maps:remove(Key, OldInfo),
+    sm_replace_info(Info, SD).
+
+sm_replace_info(_Info, SD = #state{priority = closed}) ->
+    %% Skip inserting into a session table once removed completely
+    SD;
+sm_replace_info(Info, SD = #state{jid = JID, sid = SID, priority = Priority}) ->
+    SD2 = SD#state{session_info = Info},
+    case needs_sm_update(SD, SD2) of
+        true ->
+            ejabberd_sm:update_session(SID, JID, Priority, Info);
+        false ->
+            ok
+    end,
+    SD2.
+
+-spec sm_update_priority(Acc :: mongoose_acc:t(),
+                      Priority :: integer(),
+                      Packet :: exml:element(),
+                      State :: state()) -> {mongoose_acc:t(), state()}.
+sm_update_priority(Acc, Priority, Packet,
+                   SD = #state{jid = JID, sid = SID, session_info = OldInfo}) ->
+    SD2 = SD#state{priority = Priority},
+    case needs_sm_update(SD, SD2) of
+        true ->
+            Acc2 = ejabberd_sm:set_presence(Acc, SID, JID, Priority, Packet, OldInfo),
+            {Acc2, SD2};
+        false ->
+            {Acc, SD}
+    end.
+
+sm_unset_presence(Acc, SD = #state{jid = JID, sid = SID, session_info = Info}, Status) ->
+    SD2 = SD#state{priority = undefined},
+    case needs_sm_update(SD, SD2) of
+        true ->
+            Acc2 = ejabberd_sm:unset_presence(Acc, SID, JID, Status, Info),
+            {Acc2, SD2};
+        false ->
+            {Acc, SD}
+    end.
+
+%% Deletes a session from SM table
+sm_close_session(Acc, SD = #state{jid = JID, sid = SID}, Why) ->
+    ejabberd_sm:close_session(Acc, SID, JID, Why),
+    {Acc, SD#state{priority = closed}}.
+
+sm_close_session_unset_presence(Acc, SD = #state{jid = JID, sid = SID}, Status, Why) ->
+    ejabberd_sm:close_session_unset_presence(Acc, SID, JID, Status, Why),
+    {Acc, SD#state{priority = closed}}.
+
+needs_sm_update(#state{priority = Priority, session_info = SessionInfo},
+                #state{priority = Priority, session_info = SessionInfo}) ->
+    false;
+needs_sm_update(#state{priority = Priority1, session_info = SessionInfo1},
+                #state{priority = Priority2, session_info = SessionInfo2}) ->
+    ?LOG_ERROR(#{what => needs_sm_update,  priority => {Priority1, Priority2},
+                 session_info1 => SessionInfo1, session_info2 => SessionInfo2}),
+    true.

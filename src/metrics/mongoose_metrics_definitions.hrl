@@ -1,4 +1,5 @@
 -define(GENERAL_SPIRALS, [
+    c2sPredictedPresencePriority,
     sessionSuccessfulLogins,
     sessionAuthFails,
     sessionLogouts,

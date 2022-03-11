@@ -139,6 +139,7 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 | `[HostType, xmppStanzaReceived]` | spiral | A stanza is sent to a client. |
 | `[HostType, xmppStanzaCount]` | spiral | A stanza is sent to a client. |
 | `[HostType, xmppStanzaDropped]` | spiral | A stanza is dropped due to an AMP rule or a `filter_packet` processing flow. |
+| `[HostType, c2sPredictedPresencePriority]` | spiral | An initial presence pipelined. |
 
 ### Extension-specific metrics
 

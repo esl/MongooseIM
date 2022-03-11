@@ -45,6 +45,7 @@
          disconnect_removed_user/3,
          get_user_resources/1,
          set_presence/6,
+         update_session/4,
          unset_presence/5,
          close_session_unset_presence/5,
          get_unique_sessions_number/0,
@@ -247,19 +248,11 @@ close_session(Acc, SID, JID, Reason) ->
 store_info(JID, Key, Value) ->
     case get_session(JID) of
         offline -> {error, offline};
-        #session{sid = SID, priority = SPriority, info = SInfo} ->
-            case SID of
-                {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update its own record
-                    update_session(SID, JID, SPriority,
-                                   maps:put(Key, Value, SInfo)),
-                    {ok, Key};
-                {_, Pid} ->
-                    %% Ask the process to update its record itself
-                    %% Async operation
-                    ejabberd_c2s:store_session_info(Pid, JID, Key, Value),
-                    {ok, Key}
-            end
+        #session{sid = {_, Pid}} ->
+            %% Ask the process to update its record itself
+            %% Async operation
+            ejabberd_c2s:store_session_info(Pid, JID, Key, Value),
+            {ok, Key}
     end.
 
 -spec get_info(jid:jid(), info_key()) ->
@@ -279,19 +272,11 @@ get_info(JID, Key) ->
 remove_info(JID, Key) ->
     case get_session(JID) of
         offline -> {error, offline};
-        #session{sid = SID, priority = SPriority, info = SInfo} ->
-            case SID of
-                {_, Pid} when self() =:= Pid ->
-                    %% It's safe to allow process update its own record
-                    update_session(SID, JID, SPriority,
-                                   maps:remove(Key, SInfo)),
-                    ok;
-                {_, Pid} ->
-                    %% Ask the process to update its record itself
-                    %% Async operation
-                    ejabberd_c2s:remove_session_info(Pid, JID, Key),
-                    ok
-            end
+        #session{sid = {_, Pid}} ->
+            %% Ask the process to update its record itself
+            %% Async operation
+            ejabberd_c2s:remove_session_info(Pid, JID, Key),
+            ok
     end.
 
 -spec check_in_subscription(Acc, ToJID, FromJID, Type, Reason) -> any() | {stop, false} when

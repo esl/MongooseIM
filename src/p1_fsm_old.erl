@@ -431,10 +431,10 @@ loop(Parent, Name, StateName, StateData, Mod, hibernate, Debug,
 %% First we test if we have reach a defined limit ...
 loop(Parent, Name, StateName, StateData, Mod, Time, Debug,
      Limits, Queue, QueueLen) ->
-    try
-        message_queue_len(Limits, QueueLen)
+    case message_queue_len(Limits, QueueLen) of
+        ok ->
+            ok;
         %% TODO: We can add more limit checking here...
-    catch
         {process_limit, Limit} ->
             Reason = {process_limit, Limit},
             Msg = {'EXIT', Parent, {error, {process_limit, Limit}}},
@@ -581,7 +581,7 @@ relay_messages(MRef, TRef, Clone) ->
             relay_messages(MRef, TRef, Clone)
     end.
 
-handle_msg(Msg, Parent, Name, StateName, StateData, Mod, _Time,
+handle_msg(Msg, Parent, Name, StateName, StateData, Mod, Time,
            Limits, Queue, QueueLen) -> %No debug here
     From = from(Msg),
     case catch dispatch(Msg, Mod, StateName, StateData) of
@@ -599,6 +599,10 @@ handle_msg(Msg, Parent, Name, StateName, StateData, Mod, _Time,
             reply(From, Reply),
             loop(Parent, Name, NStateName, NStateData, Mod, Time1, [],
                  Limits, Queue, QueueLen);
+        {call_with_queue, F, Arg, NStateData} ->
+            %% Call the module again, but providing Queue as an argument
+            handle_msg({'$call_with_queue', F, Arg, Queue}, Parent, Name,
+                       StateName, NStateData, Mod, Time, Limits, Queue, QueueLen);
         {migrate, NStateData, {Node, M, F, A}, Time1} ->
             Reason = case catch rpc:call(Node, M, F, A, 5000) of
                          {badrpc, _} = Err ->
@@ -696,6 +700,8 @@ dispatch({timeout, Ref, {'$gen_timer', Msg}}, Mod, StateName, StateData) ->
     Mod:StateName({timeout, Ref, Msg}, StateData);
 dispatch({timeout, _Ref, {'$gen_event', Event}}, Mod, StateName, StateData) ->
     Mod:StateName(Event, StateData);
+dispatch({'$call_with_queue', F, Arg, Queue}, Mod, _StateName, StateData) ->
+    Mod:F(Arg, StateData, Queue);
 dispatch(Info, Mod, StateName, StateData) ->
     Mod:handle_info(Info, StateName, StateData).
 
@@ -849,10 +855,9 @@ limit_options([_|Options], Limits) ->
 message_queue_len(#limits{max_queue = undefined}, _QueueLen) ->
     ok;
 message_queue_len(#limits{max_queue = MaxQueue}, QueueLen) ->
-    Pid = self(),
-    case process_info(Pid, message_queue_len) of
+    case process_info(self(), message_queue_len) of
         {message_queue_len, N} when N + QueueLen > MaxQueue ->
-            throw({process_limit, {max_queue, N + QueueLen}});
+            {process_limit, {max_queue, N + QueueLen}};
         _ ->
             ok
     end.
