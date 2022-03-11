@@ -16,4 +16,6 @@ execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
 execute(_Ctx, _Obj, <<"session">>, _Args) ->
     {ok, session};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
-    {ok, #{}}.
+    {ok, #{}};
+execute(_Ctx, _Obj, <<"roster">>, _Args) ->
+    {ok, roster}.

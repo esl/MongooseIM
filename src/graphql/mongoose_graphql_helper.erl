@@ -2,7 +2,7 @@
 
 -export([check_user/2]).
 
--export([format_result/2, make_error/2, make_error/3]).
+-export([format_result/2, make_error/2, make_error/3, null_to_default/2]).
 
 -include("jlib.hrl").
 -include("mongoose_graphql_types.hrl").
@@ -44,3 +44,8 @@ check_auth(HostType, Jid, true) ->
        false ->
            {error, #{what => unknown_user, jid => jid:to_binary(Jid)}}
     end.
+
+null_to_default(null, Default) ->
+    Default;
+null_to_default(Value, _Default) ->
+    Value.

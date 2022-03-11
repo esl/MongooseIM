@@ -17,6 +17,8 @@ execute(_Ctx, _Obj, <<"session">>, _Args) ->
     {ok, session};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
     {ok, #{}};
+execute(_Ctx, _Obj, <<"roster">>, _Args) ->
+    {ok, roster};
 execute(#{authorized := Authorized}, _Obj, <<"checkAuth">>, _Args) ->
     case Authorized of
         true ->

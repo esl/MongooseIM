@@ -137,6 +137,8 @@ admin_mapping_rules() ->
         'AccountAdminMutation' => mongoose_graphql_account_admin_mutation,
         'MUCLightAdminMutation' => mongoose_graphql_muc_light_admin_mutation,
         'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
+        'RosterAdminQuery' => mongoose_graphql_roster_admin_query,
+        'RosterAdminMutation' => mongoose_graphql_roster_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},
       interfaces => #{default => mongoose_graphql_default},
