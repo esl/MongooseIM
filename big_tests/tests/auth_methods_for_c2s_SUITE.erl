@@ -1,38 +1,50 @@
 -module(auth_methods_for_c2s_SUITE).
-
 -compile([export_all, nowarn_export_all]).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
 all() ->
-    [{group, two_methods_enabled}].
+    [
+     {group, two_methods_enabled},
+     {group, metrics}
+    ].
 
 groups() ->
-    [{two_methods_enabled, [parallel],
-      [can_login_with_allowed_method,
+    [
+     {two_methods_enabled, [parallel],
+      [
+       can_login_with_allowed_method,
        cannot_login_with_not_allowed_method,
-       can_login_to_another_listener]}].
+       can_login_to_another_listener
+      ]},
+     {metrics, [],
+      [
+       metrics_incremented_on_user_connect
+      ]}
+    ].
 
 init_per_suite(Config) ->
-    Config0 = escalus:init_per_suite(Config),
-    Config1 = ejabberd_node_utils:init(Config0),
-    ejabberd_node_utils:backup_config_file(Config1),
-    Config1.
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
-    ejabberd_node_utils:restore_config_file(Config),
-    ejabberd_node_utils:restart_application(mongooseim),
     escalus:end_per_suite(Config).
 
-init_per_group(_, Config) ->
-    modify_config_and_restart(Config),
-    escalus_cleaner:start(Config).
+init_per_group(metrics, Config) ->
+    Config;
+init_per_group(_, Config0) ->
+    Config1 = ejabberd_node_utils:init(Config0),
+    ejabberd_node_utils:backup_config_file(Config1),
+    modify_config_and_restart(Config1),
+    escalus_cleaner:start(Config1).
 
-end_per_group(_, _Config) ->
+end_per_group(metrics, _Config) ->
+    escalus_fresh:clean();
+end_per_group(_, Config) ->
+    ejabberd_node_utils:restore_config_file(Config),
+    ejabberd_node_utils:restart_application(mongooseim),
     escalus_fresh:clean().
 
 init_per_testcase(TC, Config) ->
@@ -66,8 +78,19 @@ can_login_to_another_listener(Config) ->
              {password, <<"wrong">>}|Spec],
     {ok, _, _} = escalus_connection:start(Spec2).
 
-%% Helpers
+metrics_incremented_on_user_connect(ConfigIn) ->
+    F = fun(Alice, Bob) ->
+                Body = <<"Hello Bob">>,
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, Body)),
+                escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Bob))
+        end,
+    HostType = domain_helper:host_type(),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
+    MongooseMetrics = [{[HostTypePrefix, backends, auth, authorize], changed}],
+    Config = [{mongoose_metrics, MongooseMetrics} | ConfigIn],
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+%% Helpers
 %% If dummy backend is enabled, it is not possible to create new users
 %% (we check if an user does exist before registering the user).
 register_internal_user(Spec) ->
