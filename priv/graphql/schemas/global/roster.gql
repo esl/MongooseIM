@@ -1,0 +1,74 @@
+"The contact input data"
+input ContactInput{
+  "The contact jid"
+  jid: JID!
+  "The contact name"
+  name: String!
+  "The contact groups"
+  groups: [String!]
+}
+
+"The contact or roster item"
+type Contact{
+  "The contact jid"
+  jid: JID!
+  "The contact name"
+  name: String
+  "The list of the groups the contact belongs"
+  groups: [String!]
+  "The type of the subscription"
+  subscription: ContactSub 
+  "The type of the subscription"
+  ask: ContactAsk
+}
+
+"The contact subscription types"
+enum ContactSub{
+  """
+  The user does not have a subscription to the contact's presence,
+  and the contact does not have a subscription to the user's presence
+  """
+  NONE
+  "The user and the contact have subscriptions to each other's presence"
+  BOTH
+  """
+  The contact has a subscription to the user's presence, but the user
+  does not have a subscription to the contact's presence
+  """
+  FROM
+  """
+  The user has a subscription to the contact's presence, but the contact
+  does not have a subscription to the user's presence
+  """
+  TO
+}
+
+"The contact ask types"
+enum ContactAsk{
+  SUBSCRIBE
+  UNSUBSCRIBE
+  IN
+  OUT
+  BOTH
+  NONE
+}
+
+"The subscription actions"
+enum SubAction{
+  "Send the subscription request to a user. Presence type: subscribe"
+  INVITE
+  "Accept the subscription request. Presence type: subscribed"
+  ACCEPT
+  "Decline the subscription's request. Presence type: unsubscribed"
+  DECLINE
+  "Cancel the user's subscription. Presence type: unsubscribe"
+  CANCEL
+}
+
+"The mutual subscription actions"
+enum MutualSubAction{
+  "Add users to contacts with a `both` subscription type"
+  CONNECT
+  "Delete contacts"
+  DISCONNECT
+}

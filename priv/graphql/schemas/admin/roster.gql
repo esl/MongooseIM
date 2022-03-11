@@ -1,0 +1,31 @@
+"""
+Allow admin to manage user rester/contacts.
+"""
+type RosterAdminMutation @protected{
+  "Add a new contact to a user's roster without subscription"
+  addContact(user: JID!, contact: JID!, name: String, groups: [String!]): String
+  "Add new contacts to a user's roster without subscription"
+  addContacts(user: JID!, contacts: [ContactInput!]!) : [String]!
+  "Manage the user's subscription to the contact"
+  subscription(user: JID!, contact: JID!, action: SubAction): String
+  "Delete user's contact"
+  deleteContact(user: JID!, contact: JID!): String
+  "Delete user's contacts"
+  deleteContacts(user: JID!, contacts: [JID!]!): [String]!
+  "Manage mutual subscription between given users"
+  setMutualSubscription(userA: JID!, userB: JID!, action: MutualSubAction!): String
+  "Set both subscritpion of user to users from contact list"
+  subscribeToAll(user: ContactInput!, contacts: [ContactInput!]!): [String]!
+  "Subscibe all users to all users from the given contacts list"
+  subscribeAllToAll(contacts: [ContactInput!]): [String]!
+}
+
+"""
+Allow admin to get information about user roster/contacts.
+"""
+type RosterAdminQuery @protected{
+  "Get the user's roster/contacts"
+  listContacts(user: JID!): [Contact!] 
+  "Get the user's contact"
+  getContact(user: JID!, contact: JID!): Contact
+}
