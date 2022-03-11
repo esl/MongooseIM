@@ -293,7 +293,19 @@ config_spec() ->
                  <<"sync_broadcast">> => #option{type = boolean}
                 },
        defaults = #{<<"iqdisc">> => one_queue,
-                    <<"host">> => default_host()},
+                    <<"host">> => default_host(),
+                    <<"backend">> => mnesia,
+                    <<"access_createnode">> => all,
+                    <<"max_items_node">> => ?MAXITEMS,
+                    <<"max_subscriptions_node">> => undefined,
+                    <<"nodetree">> => ?STDTREE,
+                    <<"ignore_pep_from_offline">> => true,
+                    <<"last_item_cache">> => false,
+                    <<"plugins">> => [?STDNODE],
+                    <<"pep_mapping">> => [],
+                    <<"default_node_config">> => [],
+                    <<"item_publisher">> => false,
+                    <<"sync_broadcast">> => false},
        format_items = map
       }.
 
@@ -424,14 +436,14 @@ init_backend(ServerHost, Opts) ->
     maybe_start_cache_module(ServerHost, Opts).
 
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
-    Access = gen_mod:get_opt(access_createnode, Opts, all),
-    PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts, true),
-    LastItemCache = gen_mod:get_opt(last_item_cache, Opts, false),
-    MaxItemsNode = gen_mod:get_opt(max_items_node, Opts, ?MAXITEMS),
-    MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts, undefined),
-    NodeCfg = gen_mod:get_opt(default_node_config, Opts, []),
+    Access = gen_mod:get_opt(access_createnode, Opts),
+    PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts),
+    LastItemCache = gen_mod:get_opt(last_item_cache, Opts),
+    MaxItemsNode = gen_mod:get_opt(max_items_node, Opts),
+    MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts),
+    NodeCfg = gen_mod:get_opt(default_node_config, Opts),
     DefaultNodeCfg = filter_node_options(NodeCfg),
-    ItemPublisher = gen_mod:get_opt(item_publisher, Opts, false),
+    ItemPublisher = gen_mod:get_opt(item_publisher, Opts),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {nodetree, NodeTree}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {plugins, Plugins}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {last_item_cache, LastItemCache}),
@@ -515,11 +527,11 @@ init_send_loop(ServerHost) ->
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
 init_plugins(Host, ServerHost, Opts) ->
-    TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts, ?STDTREE)),
+    TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts)),
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, Host, ServerHost, Opts),
-    Plugins = gen_mod:get_opt(plugins, Opts, [?STDNODE]),
-    PepMapping = gen_mod:get_opt(pep_mapping, Opts, []),
+    Plugins = gen_mod:get_opt(plugins, Opts),
+    PepMapping = gen_mod:get_opt(pep_mapping, Opts),
     ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
     {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
@@ -2313,7 +2325,7 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
 %%<li>The request does not match the node configuration.</li>
 %%</ul>
 -spec publish_item(
-        Host       :: mod_pubsub:host(),
+          Host       :: mod_pubsub:host(),
           ServerHost :: binary(),
           Node       :: mod_pubsub:nodeId(),
           Publisher  ::jid:jid(),
@@ -2327,7 +2339,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
 publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOptions) ->
     publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access, PublishOptions);
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
-    ItemPublisher = config(serverhost(Host), item_publisher, false),
+    ItemPublisher = config(serverhost(Host), item_publisher),
     Action =
         fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
                 Features = plugin_features(Type),
