@@ -844,7 +844,7 @@ send_presence_type(From, To, Type) ->
 -spec remove_domain(mongoose_hooks:simple_acc(),
                     mongooseim:host_type(), jid:lserver()) ->
     mongoose_hooks:simple_acc().
-remove_domain(Acc, HostType, Domain) -> 
+remove_domain(Acc, HostType, Domain) ->
     case backend_module:is_exported(mod_roster_backend, remove_domain_t, 2) of
          true ->
             F = fun() -> mod_roster_backend:remove_domain_t(HostType, Domain) end,
