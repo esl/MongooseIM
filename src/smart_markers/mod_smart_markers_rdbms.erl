@@ -13,6 +13,7 @@
 -export([init/2, update_chat_marker/2, get_chat_markers/4]).
 -export([get_conv_chat_marker/6]).
 -export([remove_domain/2, remove_user/2, remove_to/2, remove_to_for_user/3]).
+-export([encode_jid/1, encode_thread/1, encode_type/1, check_upsert_result/1]).
 
 %%--------------------------------------------------------------------
 %% API

@@ -99,8 +99,12 @@ start(HostType, #{iqdisc := IQDisc, keep_private := Private} = Opts) ->
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm),
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    case gen_mod:get_opt(backend, Opts) of
+        rdbms_async -> mod_smart_markers_rdbms_async:stop(HostType);
+        _ -> ok
+    end,
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm),
     ejabberd_hooks:delete(hooks(HostType, Opts)).
 
 -spec supported_features() -> [atom()].
@@ -111,13 +115,22 @@ supported_features() ->
 config_spec() ->
     #section{
        items = #{<<"keep_private">> => #option{type = boolean},
-                 <<"backend">> => #option{type = atom, validate = {enum, [rdbms]}},
+                 <<"backend">> => #option{type = atom, validate = {enum, [rdbms, rdbms_async]}},
+                 <<"async_writer">> => async_config_spec(),
                  <<"iqdisc">> => mongoose_config_spec:iqdisc()},
        defaults = #{<<"keep_private">> => false,
                     <<"backend">> => rdbms,
                     <<"iqdisc">> => no_queue},
        format_items = map
     }.
+
+async_config_spec() ->
+    #section{
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       format_items = map,
+       include = always
+      }.
 
 %% IQ handlers
 -spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
@@ -305,7 +318,7 @@ extract_chat_markers(Acc, From, To, Packet) ->
         ChatMarkers ->
             TS = mongoose_acc:timestamp(Acc),
             CM = #{from => From,
-                   to => To,
+                   to => jid:to_bare(To),
                    thread => get_thread(Packet),
                    timestamp => TS,
                    type => undefined,

@@ -2883,6 +2883,7 @@ mod_smart_markers(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_smart_markers">> => Opts}} end,
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
     ?cfgh(P ++ [keep_private], true, T(#{<<"keep_private">> => true})),
+    ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
     ?errh(T(#{<<"backend">> => <<"nodejs">>})),
     ?errh(T(#{<<"keep_private">> => 1})).
 

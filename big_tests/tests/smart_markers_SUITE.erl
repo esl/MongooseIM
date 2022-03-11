@@ -1,6 +1,7 @@
 -module(smart_markers_SUITE).
 -compile([export_all, nowarn_export_all]).
 
+-include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -10,7 +11,7 @@
 
 -import(distributed_helper, [mim/0, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0]).
--import(config_parser_helper, [default_mod_config/1, mod_config/2]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%% Suite configuration
 all() ->
@@ -22,9 +23,8 @@ all() ->
 
 all_cases() ->
     [
-     {group, one2one},
-     {group, muclight},
-     {group, keep_private}
+     {group, regular},
+     {group, async_pools}
     ].
 
 groups() ->
@@ -53,6 +53,18 @@ groups() ->
       [
        marker_is_not_routed_nor_fetchable,
        fetching_room_answers_only_own_marker
+      ]},
+     {regular, [],
+      [
+       {group, one2one},
+       {group, muclight},
+       {group, keep_private}
+      ]},
+     {async_pools, [],
+      [
+       {group, one2one},
+       {group, muclight},
+       {group, keep_private}
       ]}
     ].
 
@@ -65,17 +77,23 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_group(regular, Config) ->
+    [{merge_opts, #{backend => rdbms}} | Config];
+init_per_group(async_pools, Config) ->
+    [{merge_opts, #{backend => rdbms_async,
+                    async_writer => #{pool_size => 2}}} | Config];
 init_per_group(GroupName, Config) ->
-    ok = dynamic_modules:ensure_modules(host_type(), group_to_module(GroupName)),
+    AsyncType = ?config(merge_opts, Config),
+    ok = dynamic_modules:ensure_modules(host_type(), group_to_module(GroupName, AsyncType)),
     Config.
 
-group_to_module(one2one) ->
-    [{mod_smart_markers, default_mod_config(mod_smart_markers)}];
-group_to_module(keep_private) ->
-    [{mod_smart_markers, mod_config(mod_smart_markers, #{keep_private => true})},
+group_to_module(one2one, MergeOpts) ->
+    [{mod_smart_markers, mod_config(mod_smart_markers, MergeOpts)}];
+group_to_module(keep_private, MergeOpts) ->
+    [{mod_smart_markers, mod_config(mod_smart_markers, MergeOpts#{keep_private => true})},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}];
-group_to_module(muclight) ->
-    [{mod_smart_markers, default_mod_config(mod_smart_markers)},
+group_to_module(muclight, MergeOpts) ->
+    [{mod_smart_markers, mod_config(mod_smart_markers, MergeOpts)},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].
 
 end_per_group(muclight, Config) ->
@@ -169,8 +187,8 @@ fetching_room_answers_only_own_marker(Config) ->
                        <<"type">>, <<"groupchat">>),
         [ begin
               escalus:send(User, ChatMarker),
-              MUser = verify_marker_fetch(User, RoomBinJid),
-              ?assertEqual(1, length(MUser))
+              {ok, MarkersThatUserHasInRoom} = verify_marker_fetch(User, RoomBinJid),
+              ?assertEqual(1, length(MarkersThatUserHasInRoom))
           end || User <- [Alice, Bob] ]
     end).
 
@@ -273,7 +291,7 @@ markers_are_removed_when_room_is_removed(Config) ->
               Jid = jid:from_binary(escalus_client:full_jid(User)),
               mongoose_helper:wait_until(
                 fun() -> length(fetch_markers_for_users(Jid, RoomJid)) end, 0)
-          end || User <- Users]
+          end || User <- Users ]
     end).
 
 %%% helpers
@@ -300,23 +318,23 @@ delete_room(Owner, Users, RoomBinJid) ->
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)).
 
 one_marker_in_room(Users, RoomBinJid, Writer, Marker) ->
-        MsgId = escalus_stanza:id(),
-        StzId = send_msg_to_room(Users, RoomBinJid, Writer, MsgId),
-        mark_msg(Users, RoomBinJid, Marker, StzId).
+    MsgId = escalus_stanza:id(),
+    StanzaId = send_msg_to_room(Users, RoomBinJid, Writer, MsgId),
+    mark_msg(Users, RoomBinJid, Marker, StanzaId).
 
 send_msg_to_room(Users, RoomBinJid, Writer, MsgId) ->
-        Msg = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomBinJid, <<"Hello">>), MsgId),
-        escalus:send(Writer, Msg),
-        Msgs = [ escalus:wait_for_stanza(User) || User <- Users],
-        get_id(hd(Msgs), MsgId).
+    Msg = escalus_stanza:set_id(escalus_stanza:groupchat_to(RoomBinJid, <<"Hello">>), MsgId),
+    escalus:send(Writer, Msg),
+    Msgs = [ escalus:wait_for_stanza(User) || User <- Users ],
+    get_id(hd(Msgs), MsgId).
 
-mark_msg(Users, RoomBinJid, Marker, StzId) ->
-        ChatMarker = escalus_stanza:setattr(
-                       escalus_stanza:chat_marker(RoomBinJid, <<"displayed">>, StzId),
-                       <<"type">>, <<"groupchat">>),
-        escalus:send(Marker, ChatMarker),
-        [ escalus:wait_for_stanza(User) || User <- Users],
-        StzId.
+mark_msg(Users, RoomBinJid, Marker, StanzaId) ->
+    ChatMarker = escalus_stanza:setattr(
+                   escalus_stanza:chat_marker(RoomBinJid, <<"displayed">>, StanzaId),
+                   <<"type">>, <<"groupchat">>),
+    escalus:send(Marker, ChatMarker),
+    [ escalus:wait_for_stanza(User) || User <- Users ],
+    StanzaId.
 
 send_message_respond_marker(MsgWriter, MarkerAnswerer) ->
     send_message_respond_marker(MsgWriter, MarkerAnswerer, undefined).
@@ -352,18 +370,21 @@ verify_marker_fetch(MarkingUser, MarkedUser, Thread, After) ->
                           _ -> [{<<"after">>, After}]
                       end,
         Iq = iq_fetch_marker(MarkedUserBJid ++ MaybeThread ++ MaybeAfter),
-        escalus:send(MarkingUser, Iq),
-        Response = escalus:wait_for_stanza(MarkingUser),
-        escalus:assert(is_iq_result, [Iq], Response),
-        Markers = [Marker | _] = exml_query:paths(
-                                   Response, [{element_with_ns, <<"query">>, ?NS_ESL_SMART_MARKERS},
-                                              {element, <<"marker">>}]),
-        ?assertNotEqual(undefined, Marker),
-        ?assertNotEqual(undefined, exml_query:attr(Marker, <<"timestamp">>)),
-        ?assertEqual(<<"displayed">>, exml_query:attr(Marker, <<"type">>)),
-        ?assertEqual(Thread, exml_query:attr(Marker, <<"thread">>)),
-        ?assertNotEqual(undefined, exml_query:attr(Marker, <<"id">>)),
-        lists:sort(Markers).
+        mongoose_helper:wait_until(
+          fun() ->
+                  escalus:send(MarkingUser, Iq),
+                  Response = escalus:wait_for_stanza(MarkingUser),
+                  escalus:assert(is_iq_result, [Iq], Response),
+                  Markers = [Marker | _] = exml_query:paths(
+                                             Response, [{element_with_ns, <<"query">>, ?NS_ESL_SMART_MARKERS},
+                                                        {element, <<"marker">>}]),
+                  ?assertNotEqual(undefined, Marker),
+                  ?assertNotEqual(undefined, exml_query:attr(Marker, <<"timestamp">>)),
+                  ?assertEqual(<<"displayed">>, exml_query:attr(Marker, <<"type">>)),
+                  ?assertEqual(Thread, exml_query:attr(Marker, <<"thread">>)),
+                  ?assertNotEqual(undefined, exml_query:attr(Marker, <<"id">>)),
+                  lists:sort(Markers)
+          end, ok, #{name => fetch_marker, validator => fun(_) -> true end}).
 
 verify_marker_fetch_is_empty(MarkingUser, MarkedUser) ->
         MarkedUserBJid = escalus_utils:jid_to_lower(escalus_client:short_jid(MarkedUser)),
