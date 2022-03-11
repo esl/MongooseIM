@@ -1,8 +1,8 @@
 %%%----------------------------------------------------------------------------
-%%% @copyright (C) 2020, Erlang Solutions Ltd.
 %%% @doc
 %%%    RDBMS backend for mod_smart_markers
 %%% @end
+%%% @copyright (C) 2020-2022, Erlang Solutions Ltd.
 %%%----------------------------------------------------------------------------
 -module(mod_smart_markers_rdbms).
 -author("denysgonchar").
@@ -11,6 +11,7 @@
 -include("jlib.hrl").
 
 -export([init/2, update_chat_marker/2, get_chat_markers/4]).
+-export([get_conv_chat_marker/6]).
 -export([remove_domain/2, remove_user/2, remove_to/2, remove_to_for_user/3]).
 
 %%--------------------------------------------------------------------
@@ -23,6 +24,10 @@ init(HostType, _) ->
     InsertFields = KeyFields ++ UpdateFields,
     rdbms_queries:prepare_upsert(HostType, smart_markers_upsert, smart_markers,
                                  InsertFields, UpdateFields, KeyFields),
+    mongoose_rdbms:prepare(smart_markers_select_conv, smart_markers,
+        [lserver, luser, to_jid, thread, timestamp],
+        <<"SELECT lserver, luser, to_jid, thread, type, msg_id, timestamp FROM smart_markers "
+          "WHERE lserver = ? AND luser = ? AND to_jid = ? AND thread = ? AND timestamp >= ?">>),
     mongoose_rdbms:prepare(smart_markers_select, smart_markers,
         [to_jid, thread, timestamp],
         <<"SELECT lserver, luser, type, msg_id, timestamp FROM smart_markers "
@@ -58,6 +63,46 @@ update_chat_marker(HostType, #{from := #jid{luser = LU, lserver = LS},
     Res = rdbms_queries:execute_upsert(HostType, smart_markers_upsert,
                                        InsertValues, UpdateValues, KeyValues),
     ok = check_upsert_result(Res).
+
+-spec get_conv_chat_marker(HostType :: mongooseim:host_type(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
+                           Thread :: mod_smart_markers:maybe_thread(),
+                           Timestamp :: integer(),
+                           Private :: boolean()) -> [mod_smart_markers:chat_marker()].
+get_conv_chat_marker(HostType, From, To = #jid{lserver = ToLServer}, Thread, TS, Private) ->
+    % If To is a room, we'll want to check just the room
+    case mongoose_domain_api:get_subdomain_host_type(ToLServer) of
+        {error, not_found} ->
+            one2one_get_conv_chat_marker(HostType, From, To, Thread, TS, Private);
+        {ok, _} ->
+            groupchat_get_conv_chat_marker(HostType, From, To, Thread, TS, Private)
+    end.
+
+one2one_get_conv_chat_marker(HostType,
+                     From = #jid{luser = FromLUser, lserver = FromLServer},
+                     To = #jid{luser = ToLUser, lserver = ToLServer},
+                     Thread, TS, Private) ->
+    {selected, ChatMarkersFrom} = mongoose_rdbms:execute_successfully(
+                                HostType, smart_markers_select_conv,
+                                [FromLServer, FromLUser, encode_jid(To), encode_thread(Thread), TS]),
+    ChatMarkers = case Private of
+                      true -> ChatMarkersFrom;
+                      false ->
+                          {selected, ChatMarkersTo} = mongoose_rdbms:execute_successfully(
+                                                        HostType, smart_markers_select_conv,
+                                                        [ToLServer, ToLUser, encode_jid(From), encode_thread(Thread), TS]),
+                          ChatMarkersFrom ++ ChatMarkersTo
+                  end,
+    [ decode_chat_marker(Tuple) || Tuple <- ChatMarkers].
+
+groupchat_get_conv_chat_marker(HostType, _From, To, Thread, TS, false) ->
+    get_chat_markers(HostType, To, Thread, TS);
+groupchat_get_conv_chat_marker(HostType, #jid{luser = FromLUser, lserver = FromLServer}, To, Thread, TS, true) ->
+    {selected, ChatMarkers} = mongoose_rdbms:execute_successfully(
+                                HostType, smart_markers_select_conv,
+                                [FromLServer, FromLUser, encode_jid(To), encode_thread(Thread), TS]),
+    [ decode_chat_marker(Tuple) || Tuple <- ChatMarkers].
 
 %%% @doc
 %%% This function must return the latest chat markers sent to the
@@ -115,6 +160,19 @@ check_upsert_result({updated, 1}) -> ok;
 check_upsert_result({updated, 2}) -> ok;
 check_upsert_result(Result) ->
     {error, {bad_result, Result}}.
+
+decode_chat_marker({LS, LU, ToJid, MsgThread, Type, MsgId, MsgTS}) ->
+    #{from => jid:make_noprep(LU, LS, <<>>),
+      to => decode_jid(ToJid),
+      thread => decode_thread(MsgThread),
+      type => decode_type(Type),
+      timestamp => decode_timestamp(MsgTS),
+      id => MsgId}.
+
+decode_jid(EncodedJID) -> jid:from_binary(EncodedJID).
+
+decode_thread(<<>>) -> undefined;
+decode_thread(Thread) -> Thread.
 
 decode_type(<<"R">>) -> received;
 decode_type(<<"D">>) -> displayed;

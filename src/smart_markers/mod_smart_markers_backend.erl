@@ -4,6 +4,7 @@
 
 -export([init/2]).
 -export([update_chat_marker/2]).
+-export([get_conv_chat_marker/6]).
 -export([get_chat_markers/4]).
 -export([remove_domain/2]).
 -export([remove_user/2]).
@@ -23,6 +24,14 @@
 
 %%% This function must return the latest chat markers sent to the
 %%% user/room (with or w/o thread) later than provided timestamp.
+-callback get_conv_chat_marker(HostType :: mongooseim:host_type(),
+                               From :: jid:jid(),
+                               To :: jid:jid(),
+                               Thread :: mod_smart_markers:maybe_thread(),
+                               Timestamp :: integer(),
+                               Private :: boolean()) ->
+    [mod_smart_markers:chat_marker()].
+
 -callback get_chat_markers(HostType :: mongooseim:host_type(),
                            To :: jid:jid(),
                            Thread :: mod_smart_markers:maybe_thread(),
@@ -39,7 +48,7 @@
 
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
-    TrackedFuns = [get_chat_markers, update_chat_marker],
+    TrackedFuns = [get_chat_markers, get_conv_chat_marker, update_chat_marker],
     mongoose_backend:init(HostType, ?MAIN_MODULE, TrackedFuns, Opts),
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
@@ -48,6 +57,16 @@ init(HostType, Opts) ->
                          mod_smart_markers:chat_marker()) -> ok.
 update_chat_marker(HostType, ChatMarker) ->
     Args = [HostType, ChatMarker],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec get_conv_chat_marker(HostType :: mongooseim:host_type(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
+                           Thread :: mod_smart_markers:maybe_thread(),
+                           Timestamp :: integer(),
+                           Private :: boolean()) -> [mod_smart_markers:chat_marker()].
+get_conv_chat_marker(HostType, From, To, Thread, TS, Private) ->
+    Args = [HostType, From, To, Thread, TS, Private],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_chat_markers(HostType :: mongooseim:host_type(),
