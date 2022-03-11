@@ -218,7 +218,7 @@
           server_host,
           host,
           access,
-          pep_mapping             = [],
+          pep_mapping             = #{},
           ignore_pep_from_offline = true,
           last_item_cache         = false,
           max_items_node          = ?MAXITEMS,
@@ -233,7 +233,7 @@
            server_host             :: binary(),
            host                    :: mod_pubsub:hostPubsub(),
            access                  :: atom(),
-           pep_mapping             :: [{binary(), binary()}],
+           pep_mapping             :: map(),
            ignore_pep_from_offline :: boolean(),
            last_item_cache         :: mnesia | rdbms | false,
            max_items_node          :: non_neg_integer(),
@@ -287,7 +287,8 @@ config_spec() ->
                                                   validate = {enum, [mnesia, rdbms, false]}},
                  <<"plugins">> => #list{items = #option{type = binary,
                                                         validate = {module, node}}},
-                 <<"pep_mapping">> => #list{items = pep_mapping_config_spec()},
+                 <<"pep_mapping">> => #list{items = pep_mapping_config_spec(),
+                                            process = fun maps:from_list/1},
                  <<"default_node_config">> => default_node_config_spec(),
                  <<"item_publisher">> => #option{type = boolean},
                  <<"sync_broadcast">> => #option{type = boolean}
@@ -302,7 +303,7 @@ config_spec() ->
                     <<"ignore_pep_from_offline">> => true,
                     <<"last_item_cache">> => false,
                     <<"plugins">> => [?STDNODE],
-                    <<"pep_mapping">> => [],
+                    <<"pep_mapping">> => #{},
                     <<"default_node_config">> => [],
                     <<"item_publisher">> => false,
                     <<"sync_broadcast">> => false},
@@ -382,17 +383,7 @@ get_personal_data(Acc, _HostType, #jid{ luser = LUser, lserver = LServer }) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
--spec init(
-        [binary() | gen_mod:module_opts(), ...])
-        -> {'ok', state()}.
-
+-spec init([binary() | gen_mod:module_opts(), ...]) -> {'ok', state()}.
 init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     ?LOG_DEBUG(#{what => pubsub_init, server => ServerHost, opts => Opts}),
     Host = mongoose_subdomain_utils:get_fqdn(SubdomainPattern, ServerHost),
@@ -4204,7 +4195,7 @@ select_type(ServerHost, Host, Node, Type) ->
                        {_User, _Server, _Resource} ->
                            case config(ServerHost, pep_mapping) of
                                undefined -> ?PEPNODE;
-                               Mapping -> proplists:get_value(Node, Mapping, ?PEPNODE)
+                               Mapping -> maps:get(Node, Mapping, ?PEPNODE)
                            end;
                        _ ->
                            Type

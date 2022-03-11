@@ -2630,7 +2630,7 @@ mod_pubsub_pep_mapping(_Config) ->
     P = [modules, mod_pubsub, pep_mapping],
     RequiredOpts = #{<<"namespace">> => <<"urn:xmpp:microblog:0">>,
                      <<"node">> => <<"mb">>},
-    ?cfgh(P, [{<<"urn:xmpp:microblog:0">>, <<"mb">>}],
+    ?cfgh(P ++ [<<"urn:xmpp:microblog:0">>], <<"mb">>,
           T([RequiredOpts])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
     [?errh(T([RequiredOpts#{Key => <<>>}])) || Key <- maps:keys(RequiredOpts)].
