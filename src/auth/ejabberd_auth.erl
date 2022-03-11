@@ -295,8 +295,7 @@ get_passterm_with_authmodule(HostType, #jid{luser = LUser, lserver = LServer}) -
 -spec does_user_exist(JID :: jid:jid() | error) -> boolean().
 does_user_exist(#jid{luser = LUser, lserver = LServer}) ->
     F = fun(HostType, Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod) end,
-    case call_auth_modules_for_domain(LServer, F,
-                                      #{default => false, metric => does_user_exist}) of
+    case call_auth_modules_for_domain(LServer, F, #{default => false, metric => does_user_exist}) of
         {error, _Error} -> false;
         Result -> Result
     end;
@@ -314,10 +313,8 @@ does_user_exist(HostType, Jid, RequestType) ->
 does_user_exist(false, HostType, Jid, stored) ->
     true =:= does_stored_user_exist(HostType, Jid);
 does_user_exist(false, HostType, #jid{luser = LUser, lserver = LServer}, with_anonymous) ->
-    F = fun(Mod) ->
-                does_user_exist_in_module(HostType, LUser, LServer, Mod)
-        end,
-    call_auth_modules_for_host_type(HostType, F, #{default => false});
+    F = fun(Mod) -> does_user_exist_in_module(HostType, LUser, LServer, Mod) end,
+    call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist});
 does_user_exist(Status, _, _, _) ->
     Status.
 
@@ -329,7 +326,7 @@ does_stored_user_exist(HostType, #jid{luser = LUser, lserver = LServer}) ->
     F = fun(Mod) when Mod =/= ejabberd_auth_anonymous ->
                 does_user_exist_in_module(HostType, LUser, LServer, Mod)
         end,
-    call_auth_modules_for_host_type(HostType, F, #{default => false});
+    call_auth_modules_for_host_type(HostType, F, #{default => false, metric => does_user_exist});
 does_stored_user_exist(_HostType, error) ->
     false.
 
@@ -511,14 +508,31 @@ bind_host_type(HostType, F) when is_function(F, 2) ->
           mod_res() | [mod_res()].
 call_auth_modules_for_host_type(HostType, F, Opts) ->
     Modules = auth_modules_for_host_type(HostType),
-    call_auth_modules(Modules, F, Opts).
+    case maps:take(metric, Opts) of
+        {Metric, NewOpts} ->
+            {Time, Result} = timer:tc(fun call_auth_modules/3, [Modules, F, NewOpts]),
+            mongoose_metrics:update(HostType, ?METRIC(Metric), Time),
+            Result;
+        error ->
+            call_auth_modules(Modules, F, Opts)
+    end.
 
 -spec call_auth_modules_with_creds(mongoose_credentials:t(),
                                    mod_fun() | mod_fold_fun(), call_opts()) ->
           mod_res() | [mod_res()].
 call_auth_modules_with_creds(Creds, F, Opts) ->
     Modules = mongoose_credentials:auth_modules(Creds),
-    call_auth_modules(Modules, F, Opts).
+    case maps:take(metric, Opts) of
+        {Metric, NewOpts} ->
+            HostType = mongoose_credentials:host_type(Creds),
+            {Time, Result} = timer:tc(fun call_auth_modules/3,
+                                      [Modules, F, NewOpts]),
+            mongoose_metrics:update(HostType, ?METRIC(Metric), Time),
+            Result;
+        error ->
+            call_auth_modules(Modules, F, Opts)
+    end.
+
 
 %% @doc Perform a map or a fold operation with function F over the provided Modules
 -spec call_auth_modules([authmodule()], mod_fun() | mod_fold_fun(), call_opts()) ->
