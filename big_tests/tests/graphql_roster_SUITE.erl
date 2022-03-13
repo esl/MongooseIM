@@ -25,7 +25,17 @@ groups() ->
      {admin_roster, [], admin_roster_handler()}].
 
 user_roster_handler() ->
-    [mock].
+    [user_add_and_delete_contact,
+     user_try_add_nonexistent_contact,
+     user_add_contacts,
+     user_try_delete_nonexistent_contact,
+     user_delete_contacts,
+     user_invite_accept_and_cancel_subscription,
+     user_decline_subscription_ask,
+     user_list_contacts,
+     user_get_contact,
+     user_get_nonexistent_contact
+    ].
 
 admin_roster_handler() ->
     [admin_add_and_delete_contact,
@@ -315,7 +325,7 @@ admin_list_contacts_wrong_user(Config) ->
 
 admin_get_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
-                                    fun admin_list_contacts_story/3).
+                                    fun admin_get_contact_story/3).
 
 admin_get_contact_story(Config, Alice, Bob) ->
     BobBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
@@ -326,6 +336,8 @@ admin_get_contact_story(Config, Alice, Bob) ->
       <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS} =
         get_ok_value([data, roster, getContact], Res).
 
+%% User test cases
+
 admin_get_contact_wrong_user(Config) ->
     % User with a non-existent domain
     Res = execute_auth(admin_get_contact_body(?NONEXISTENT_DOMAIN_USER, ?NONEXISTENT_USER), Config),
@@ -334,10 +346,147 @@ admin_get_contact_wrong_user(Config) ->
     Res2 = execute_auth(admin_get_contact_body(?NONEXISTENT_USER, ?NONEXISTENT_USER), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not exist">>)).
 
-mock(Config) ->
-    ok.
+user_add_and_delete_contact(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_add_and_delete_contact_story/3).
+
+user_add_and_delete_contact_story(Config, Alice, Bob) ->
+    % Add a new contact
+    Res = execute_user(user_add_contact_body(Bob, null, null), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?ADD_CONTACT_PATH, Res),
+                                          <<"successfully">>)),
+    ?assertMatch(#roster{}, get_roster(Alice, Bob)),
+    % Delete a contact
+    Res2 = execute_user(user_delete_contact_body(Bob), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_CONTACT_PATH, Res2),
+                                          <<"successfully">>)),
+    ?assertMatch(does_not_exist, get_roster(Alice, Bob)).
+
+user_try_add_nonexistent_contact(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_try_add_nonexistent_contact/2).
+
+user_try_add_nonexistent_contact(Config, Alice) ->
+    Contact = ?NONEXISTENT_DOMAIN_USER,
+    Res = execute_user(user_add_contact_body(Contact, null, null), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), Contact)),
+    ?assertMatch(does_not_exist, get_roster(Alice, Contact)).
+
+user_add_contacts(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_add_contacts_story/3).
+
+user_add_contacts_story(Config, Alice, Bob) ->
+    Res = execute_user(user_add_contacts_body([Bob, ?NONEXISTENT_DOMAIN_USER]), Alice, Config),
+    [R1, null] = get_ok_value(?ADD_CONTACTS_PATH, Res),
+    ?assertNotEqual(nomatch, binary:match(R1, <<"successfully">>)),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
+
+user_try_delete_nonexistent_contact(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_try_delete_nonexistent_contact_story/3).
+
+user_try_delete_nonexistent_contact_story(Config, Alice, Bob) ->
+    Res = execute_user(user_delete_contact_body(Bob), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not exist">>)).
+
+user_delete_contacts(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_delete_contacts_story/3).
+
+user_delete_contacts_story(Config, Alice, Bob) ->
+    execute_user(user_add_contacts_body([Bob]), Alice, Config),
+    Res = execute_user(user_delete_contacts_body([Bob, ?NONEXISTENT_DOMAIN_USER]), Alice, Config),
+    [R1, null] = get_ok_value(?DELETE_CONTACTS_PATH, Res),
+    ?assertNotEqual(nomatch, binary:match(R1, <<"successfully">>)),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
+
+user_invite_accept_and_cancel_subscription(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_invite_accept_and_cancel_subscription_story/3).
+
+user_invite_accept_and_cancel_subscription_story(Config, Alice, Bob) ->
+    % Add contacts
+    execute_user(user_add_contact_body(Bob, <<"Bobek">>, null), Alice, Config),
+    execute_user(user_add_contact_body(Alice, <<"Ali">>, null), Bob, Config),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob, 1)),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice, 1)),
+    % Send invitation to subscribe 
+    execute_user(user_subscription_body(Bob, <<"INVITE">>), Alice, Config),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
+    escalus:assert(is_presence_with_type, [<<"subscribe">>],
+                           escalus:wait_for_stanza(Bob)),
+    ?assertMatch(#roster{ask = out, subscription = none}, get_roster(Alice, Bob)),
+    % Accept invitation 
+    execute_user(user_subscription_body(Alice, <<"ACCEPT">>), Bob, Config),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob)),
+    IsSub = fun(S) -> escalus_pred:is_presence_with_type(<<"subscribed">>, S) end,
+    escalus:assert_many([is_roster_set, IsSub, is_presence],
+                        escalus:wait_for_stanzas(Alice, 3)),
+    ?assertMatch(#roster{ask = none, subscription = from}, get_roster(Bob, Alice)),
+    % Cancel subscription
+    execute_user(user_subscription_body(Bob, <<"CANCEL">>), Alice, Config),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
+    ?assertMatch(#roster{ask = none, subscription = none}, get_roster(Alice, Bob)).
+
+user_decline_subscription_ask(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_decline_subscription_ask_story/3).
+
+user_decline_subscription_ask_story(Config, Alice, Bob) ->
+    % Add contacts
+    execute_user(user_add_contact_body(Bob, null, null), Alice, Config),
+    execute_user(user_add_contact_body(Alice, null, null), Bob, Config),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob, 1)),
+    escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice, 1)),
+    % Send invitation to subscribe 
+    execute_user(user_subscription_body(Alice, <<"INVITE">>), Bob, Config),
+    ?assertMatch(#roster{ask = in, subscription = none}, get_roster(Alice, Bob)),
+    ?assertMatch(#roster{ask = out, subscription = none}, get_roster(Bob, Alice)),
+    % Decline the invitation 
+    execute_user(user_subscription_body(Bob, <<"DECLINE">>), Alice, Config),
+    ?assertMatch(does_not_exist, get_roster(Alice, Bob)),
+    ?assertMatch(#roster{ask = none, subscription = none}, get_roster(Bob, Alice)).
+
+user_list_contacts(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_list_contacts_story/3).
+
+user_list_contacts_story(Config, Alice, Bob) ->
+    BobBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    Name = <<"Bobek">>,
+    execute_user(user_add_contact_body(Bob, Name, ?DEFAULT_GROUPS), Alice, Config),
+    Res = execute_user(user_list_contacts_body(), Alice, Config),
+    [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
+       <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS}] =
+        get_ok_value(?LIST_CONTACTS_PATH, Res).
+
+user_get_contact(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
+                                    fun user_get_contact_story/3).
+
+user_get_contact_story(Config, Alice, Bob) ->
+    BobBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+    Name = <<"Bobek">>,
+    execute_user(user_add_contact_body(Bob, Name, ?DEFAULT_GROUPS), Alice, Config),
+    Res = execute_user(user_get_contact_body(Bob), Alice, Config),
+    #{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
+      <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS} =
+        get_ok_value(?GET_CONTACT_PATH, Res).
+
+user_get_nonexistent_contact(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_get_nonexistent_contact_story/2).
+
+user_get_nonexistent_contact_story(Config, Alice) ->
+    Res = execute_user(user_get_contact_body(?NONEXISTENT_DOMAIN_USER), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
 
 % Helpers
+
+execute_user(Body, User, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Creds = make_creds(User),
+    execute(Ep, Body, Creds).
 
 check_contacts(ContactClients, User, Config) ->
     Res = execute_auth(admin_list_contacts_body(User), Config),
@@ -457,4 +606,52 @@ admin_get_contact_body(User, Contact) ->
               { jid subscription ask name groups} } }">>,
     OpName = <<"Q1">>,
     Vars = #{user => user_to_bin(User), contact => user_to_bin(Contact)},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_add_contact_body(Contact, Name, Groups) ->
+    Query = <<"mutation M1($contact: JID!, $name: String, $groups: [String!])
+              { roster { addContact(contact: $contact, name: $name, groups: $groups) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{contact => user_to_bin(Contact), name => Name, groups => Groups},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_add_contacts_body(Contacts) ->
+    Query = <<"mutation M1($contacts: [ContactInput!]!)
+              { roster { addContacts(contacts: $contacts) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{contacts => make_contact(Contacts)},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_delete_contact_body(Contact) ->
+    Query = <<"mutation M1($contact: JID!)
+              { roster { deleteContact(contact: $contact) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{contact => user_to_bin(Contact)},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_delete_contacts_body(Contacts) ->
+    Query = <<"mutation M1($contacts: [JID!]!)
+              { roster { deleteContacts(contacts: $contacts) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{contacts => [user_to_bin(C) || C <- Contacts]},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_subscription_body(Contact, Action) ->
+    Query = <<"mutation M1($contact: JID!, $action: SubAction!)
+              { roster { subscription(contact: $contact, action: $action) } }">>,
+    OpName = <<"M1">>,
+    Vars = #{contact => user_to_bin(Contact), action => Action},
+    #{query => Query, operationName => OpName, variables => Vars}.
+
+user_list_contacts_body() ->
+    Query = <<"query Q1 { roster { listContacts
+              { jid subscription ask name groups} } }">>,
+    #{query => Query, operationName => <<"Q1">>, variables => #{}}.
+
+user_get_contact_body(Contact) ->
+    Query = <<"query Q1($contact: JID!)
+              { roster { getContact(contact: $contact)
+              { jid subscription ask name groups} } }">>,
+    OpName = <<"Q1">>,
+    Vars = #{contact => user_to_bin(Contact)},
     #{query => Query, operationName => OpName, variables => Vars}.
