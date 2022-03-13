@@ -10,4 +10,6 @@ execute(_Ctx, _Obj, <<"account">>, _Args) ->
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
-    {ok, stanza}.
+    {ok, stanza};
+execute(_Ctx, _Obj, <<"roster">>, _Args) ->
+    {ok, roster}.
