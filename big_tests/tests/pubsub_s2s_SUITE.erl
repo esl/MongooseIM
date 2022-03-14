@@ -27,7 +27,8 @@
 -import(pubsub_tools, [
                        domain/0,
                        encode_group_name/2,
-                       decode_group_name/1]).
+                       decode_group_name/1,
+                       nodetree_to_mod/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -73,7 +74,7 @@ init_per_group(ComplexName, Config) ->
     s2s_helper:configure_s2s(both_plain, Config2).
 
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    #{nodetree => NodeTree,
+    #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)]}.
 
 plugin_by_nodetree(<<"dag">>) -> <<"dag">>;

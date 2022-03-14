@@ -393,14 +393,14 @@ unsubscribe_after_presence_unsubscription(Config) ->
 required_modules() ->
     [{mod_caps, []},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
-                                           nodetree => <<"dag">>,
+                                           nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@")})}].
 required_modules(cache_tests) ->
     [{mod_caps, []},
      {mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"pep">>],
-                                           nodetree => <<"dag">>,
+                                           nodetree => nodetree_dag,
                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                            pep_mapping => #{},
                                            host => subhost_pattern("pubsub.@HOST@"),

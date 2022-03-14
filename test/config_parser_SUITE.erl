@@ -2597,7 +2597,7 @@ mod_pubsub(_Config) ->
           T(#{<<"max_items_node">> => 20})),
     ?cfgh(P ++ [max_subscriptions_node], 30,
           T(#{<<"max_subscriptions_node">> => 30})),
-    ?cfgh(P ++ [nodetree], <<"tree">>,
+    ?cfgh(P ++ [nodetree], nodetree_tree,
           T(#{<<"nodetree">> => <<"tree">>})),
     ?cfgh(P ++ [ignore_pep_from_offline], false,
           T(#{<<"ignore_pep_from_offline">> => false})),

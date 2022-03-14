@@ -419,7 +419,7 @@ pubsub_required_modules(Plugins) ->
     HostPattern = subhost_pattern("pubsub.@HOST@"),
     [{mod_caps, []}, {mod_pubsub, mod_config(mod_pubsub, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
                                                            host => HostPattern,
-                                                           nodetree => <<"tree">>,
+                                                           nodetree => nodetree_tree,
                                                            plugins => Plugins})
                      }].
 

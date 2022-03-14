@@ -59,7 +59,7 @@
 -include("mongoose_config_spec.hrl").
 -include("session.hrl").
 
--define(STDTREE, <<"tree">>).
+-define(STDTREE, nodetree_tree).
 -define(STDNODE, <<"flat">>).
 -define(STDNODE_MODULE, node_flat).
 -define(PEPNODE, <<"pep">>).
@@ -224,7 +224,7 @@
           max_items_node          = ?MAXITEMS,
           max_subscriptions_node  = undefined,
           default_node_config     = [],
-          nodetree                = <<"nodetree_", (?STDTREE)/binary>>,
+          nodetree                = ?STDTREE,
           plugins                 = [?STDNODE]
         }).
 
@@ -239,7 +239,7 @@
            max_items_node          :: non_neg_integer(),
            max_subscriptions_node  :: non_neg_integer()|undefined,
            default_node_config     :: [{atom(), binary()|boolean()|integer()|atom()}],
-           nodetree                :: binary(),
+           nodetree                :: module(),
            plugins                 :: [binary(), ...]
           }
 
@@ -281,7 +281,8 @@ config_spec() ->
                  <<"max_subscriptions_node">> => #option{type = integer,
                                                          validate = non_negative},
                  <<"nodetree">> => #option{type = binary,
-                                           validate = {module, nodetree}},
+                                           validate = {module, nodetree},
+                                           process = fun tree_mod/1},
                  <<"ignore_pep_from_offline">> => #option{type = boolean},
                  <<"last_item_cache">> => #option{type = atom,
                                                   validate = {enum, [mnesia, rdbms, false]}},
@@ -391,9 +392,9 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     init_backend(ServerHost, Opts),
 
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
-    {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
+    {Plugins, PepMapping} = init_plugins(Host, ServerHost, Opts),
 
-    store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping),
+    store_config_in_ets(Host, ServerHost, Opts, Plugins, PepMapping),
     add_hooks(ServerHost, hooks()),
     case lists:member(?PEPNODE, Plugins) of
         true ->
@@ -426,7 +427,7 @@ init_backend(ServerHost, Opts) ->
     mod_pubsub_db_backend:start(),
     maybe_start_cache_module(ServerHost, Opts).
 
-store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
+store_config_in_ets(Host, ServerHost, Opts = #{nodetree := NodeTree}, Plugins, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts),
     LastItemCache = gen_mod:get_opt(last_item_cache, Opts),
@@ -485,7 +486,8 @@ delete_pep_iq_handlers(ServerHost) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
 
 init_send_loop(ServerHost) ->
-    NodeTree = config(ServerHost, nodetree),
+    HT = host_to_host_type(ServerHost),
+    NodeTree = tree(HT),
     Plugins = config(ServerHost, plugins),
     LastItemCache = config(ServerHost, last_item_cache),
     MaxItemsNode = config(ServerHost, max_items_node),
@@ -517,16 +519,15 @@ init_send_loop(ServerHost) ->
 %% <p>The modules are initialized in alphabetical order and the list is checked
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
-init_plugins(Host, ServerHost, Opts) ->
+init_plugins(Host, ServerHost, Opts = #{nodetree := TreePlugin}) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(ServerHost),
-    TreePlugin = tree(HostType),
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, HostType, Opts),
     Plugins = gen_mod:get_opt(plugins, Opts),
     PepMapping = gen_mod:get_opt(pep_mapping, Opts),
     ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
-    {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
+    {lists:reverse(PluginsOK), PepMapping}.
 
 init_plugin(Host, ServerHost, Opts, Name, Acc) ->
     Plugin = plugin(Name),
@@ -4166,8 +4167,7 @@ host_to_host_type(Host) ->
 
 -spec tree(HostType :: mongooseim:host_type()) -> module() | nodetree_virtual.
 tree(HostType) ->
-    Name = gen_mod:get_module_opt(HostType, ?MODULE, nodetree),
-    tree_mod(Name).
+    gen_mod:get_module_opt(HostType, ?MODULE, nodetree).
 
 tree_mod(<<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend

@@ -121,7 +121,8 @@
                        domain/0,
                        node_addr/0,
                        encode_group_name/2,
-                       decode_group_name/1]).
+                       decode_group_name/1,
+                       nodetree_to_mod/1]).
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              subhost_pattern/1,
@@ -296,20 +297,20 @@ init_per_group(ComplexName, Config) ->
 
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := pubsub_item_publisher_option }) ->
-    #{nodetree => NodeTree,
+    #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)],
       item_publisher => true};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := hometree_specific }) ->
-    #{nodetree => NodeTree,
+    #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [<<"hometree">>]};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := last_item_cache}) ->
-    #{nodetree => NodeTree,
+    #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)],
       last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()};
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    #{nodetree => NodeTree,
+    #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)]}.
 
 plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
