@@ -31,7 +31,7 @@
 
 -include("jlib.hrl").
 
--export([init/4, terminate/3, set_node/2, get_node/3, get_node/2,
+-export([init/3, terminate/3, set_node/2, get_node/3, get_node/2,
          get_nodes/3, get_parentnodes_tree/4,
          get_subnodes/4, create_node/7, delete_node/3]).
 
@@ -48,7 +48,7 @@
 %% Callbacks
 %% ---------------------------------------------------------------
 
--callback init(Host :: host(), ServerHost :: binary(), Opts :: [any()]) -> atom().
+-callback init(HostType :: mongooseim:host_type(), Opts :: [any()]) -> atom().
 
 -callback terminate(Host :: host(), ServerHost :: binary()) -> atom().
 
@@ -80,8 +80,8 @@
 %% API
 %% ---------------------------------------------------------------
 
-init(Mod, Host, ServerHost, Opts) ->
-    Mod:init(Host, ServerHost, Opts).
+init(Mod, HostType, Opts) ->
+    Mod:init(HostType, Opts).
 
 terminate(Mod, Host, ServerHost) ->
     Mod:terminate(Host, ServerHost).

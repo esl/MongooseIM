@@ -87,8 +87,8 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/1, plugins/1, plugin_call/3, config/3,
-         host/1, serverhost/1]).
+         tree/1, plugin/1, plugin_call/3, host/1, serverhost/1,
+         host_to_host_type/1]).
 
 %% API and gen_server callbacks
 -export([start_link/2, start/2, stop/1, deps/2, init/1,
@@ -118,7 +118,7 @@
     {?MOD_PUBSUB_DB_BACKEND, start, 0},
     {?MOD_PUBSUB_DB_BACKEND, set_subscription_opts, 4},
     {?MOD_PUBSUB_DB_BACKEND, stop, 0},
-    affiliation_to_string/1, caps_recognised/4, config/3, create_node/7, default_host/0,
+    affiliation_to_string/1, caps_recognised/4, create_node/7, default_host/0,
     delete_item/4, delete_node/3, disco_local_features/1, disco_sm_features/1,
     disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
     get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
@@ -126,7 +126,7 @@
     on_user_offline/5, out_subscription/4, plugin/2, plugin/1, presence_probe/4,
     publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
     string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
-    subscription_to_string/1, tree/2, tree_action/3, unsubscribe_node/5, plugins/1
+    subscription_to_string/1, tree_action/3, unsubscribe_node/5
 ]).
 
 -define(PROCNAME, ejabberd_mod_pubsub).
@@ -518,9 +518,10 @@ init_send_loop(ServerHost) ->
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
 init_plugins(Host, ServerHost, Opts) ->
-    TreePlugin = tree(Host, gen_mod:get_opt(nodetree, Opts)),
+    {ok, HostType} = mongoose_domain_api:get_host_type(ServerHost),
+    TreePlugin = tree(HostType),
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
-    gen_pubsub_nodetree:init(TreePlugin, Host, ServerHost, Opts),
+    gen_pubsub_nodetree:init(TreePlugin, HostType, Opts),
     Plugins = gen_mod:get_opt(plugins, Opts),
     PepMapping = gen_mod:get_opt(pep_mapping, Opts),
     ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
@@ -4141,9 +4142,11 @@ get_cached_item(Host, Nidx) ->
 
 %%%% plugin handling
 
+-spec host(ServerHost :: mongooseim:domain_name()) -> host().
 host(ServerHost) ->
     config(ServerHost, host, <<"pubsub.", ServerHost/binary>>).
 
+-spec serverhost(host()) -> host().
 serverhost({_U, Server, _R})->
     Server;
 serverhost(Host) ->
@@ -4155,20 +4158,27 @@ serverhost(Host) ->
             Host
     end.
 
-tree(Host) ->
-    case config(serverhost(Host), nodetree) of
-        undefined -> tree(Host, ?STDTREE);
-        Tree -> Tree
-    end.
+-spec host_to_host_type(mod_pubsub:host()) -> mongooseim:host_type().
+host_to_host_type(Host) ->
+    SH = serverhost(Host),
+    {ok, HT} = mongoose_domain_api:get_host_type(SH),
+    HT.
 
-tree(_Host, <<"virtual">>) ->
+-spec tree(HostType :: mongooseim:host_type()) -> module() | nodetree_virtual.
+tree(HostType) ->
+    Name = gen_mod:get_module_opt(HostType, ?MODULE, nodetree),
+    tree_mod(Name).
+
+tree_mod(<<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
-tree(_Host, Name) ->
+tree_mod(Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
+-spec plugin(Name :: binary()) -> module().
 plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
+-spec plugins(Host :: host()) -> list().
 plugins(Host) ->
     case config(serverhost(Host), plugins) of
         undefined -> [?STDNODE];
@@ -4257,9 +4267,10 @@ features(Host, Node) when is_binary(Node) ->
 tree_call({_User, Server, _Resource}, Function, Args) ->
     tree_call(Server, Function, Args);
 tree_call(Host, Function, Args) ->
+    HT = host_to_host_type(Host),
     ?LOG_DEBUG(#{what => pubsub_tree_call, sub_host => Host,
-        action_function => Function, args => Args}),
-    apply(tree(Host), Function, Args).
+        action_function => Function, args => Args, host_type => HT}),
+    apply(tree(HT), Function, Args).
 
 tree_action(Host, Function, Args) ->
     ?LOG_DEBUG(#{what => pubsub_tree_action, sub_host => Host,
@@ -4280,6 +4291,7 @@ node_call(Type, Function, Args) ->
     PluginModule = plugin(Type),
     plugin_call(PluginModule, Function, Args).
 
+-spec plugin_call(module(), atom(), [term()]) -> {result, any()} | {error, any()}.
 plugin_call(PluginModule, Function, Args) ->
     CallModule = maybe_default_node(PluginModule, Function, Args),
     case apply(CallModule, Function, Args) of
