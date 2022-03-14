@@ -60,6 +60,7 @@ nav:
   - 'Open XMPP Extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Inbox': 'open-extensions/inbox.md'
+      - 'Smart Markers': 'open-extensions/smart-markers.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
   - Configuration:
       - 'Configuration Files': 'configuration/configuration-files.md'
@@ -130,6 +131,7 @@ nav:
       - 'mod_register': 'modules/mod_register.md'
       - 'mod_roster': 'modules/mod_roster.md'
       - 'mod_shared_roster_ldap': 'modules/mod_shared_roster_ldap.md'
+      - 'mod_smart_markers': 'modules/mod_smart_markers.md'
       - 'mod_sic': 'modules/mod_sic.md'
       - 'mod_stream_management': 'modules/mod_stream_management.md'
       - 'mod_time': 'modules/mod_time.md'
