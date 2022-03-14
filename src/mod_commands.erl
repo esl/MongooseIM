@@ -319,16 +319,12 @@ do_send_packet(From, To, Packet) ->
     end.
 
 list_contacts(Caller) ->
-    CallerJID = #jid{lserver = LServer} = jid:from_binary(Caller),
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
-                               host_type => HostType,
-                               lserver => LServer,
-                               element => undefined }),
-    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
-    Acc2 = mongoose_hooks:roster_get(Acc1, CallerJID),
-    Res = mongoose_acc:get(roster, items, Acc2),
-    [roster_info(mod_roster:item_to_map(I)) || I <- Res].
+    case mod_roster_api:list_contacts(jid:from_binary(Caller)) of
+        {ok, Rosters} ->
+            [roster_info(mod_roster:item_to_map(R)) || R <- Rosters];
+        Error ->
+            skip_result_msg(Error)
+    end.
 
 roster_info(M) ->
     Jid = jid:to_binary(maps:get(jid, M)),
@@ -343,13 +339,9 @@ add_contact(Caller, JabberID, Name) ->
 
 add_contact(Caller, Other, Name, Groups) ->
     case mongoose_stanza_helper:parse_from_to(Caller, Other) of
-        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
-            case mongoose_domain_api:get_domain_host_type(LServer) of
-                {ok, HostType} ->
-                    mod_roster:set_roster_entry(HostType, CallerJid, OtherJid, Name, Groups);
-                {error, not_found} ->
-                    {error, unknown_domain}
-            end;
+        {ok, CallerJid, OtherJid} ->
+            Res = mod_roster_api:add_contact(CallerJid, OtherJid, Name, Groups),
+            skip_result_msg(Res);
         E ->
             E
     end.
@@ -362,19 +354,15 @@ maybe_delete_contacts(Caller, [H | T], NotDeleted) ->
     case delete_contact(Caller, H) of
         ok ->
             maybe_delete_contacts(Caller, T, NotDeleted);
-        {error, _Reason} ->
+        _Error ->
             maybe_delete_contacts(Caller, T, NotDeleted ++ [H])
     end.
 
 delete_contact(Caller, Other) ->
     case mongoose_stanza_helper:parse_from_to(Caller, Other) of
-        {ok, CallerJid = #jid{lserver = LServer}, OtherJid} ->
-            case mongoose_domain_api:get_domain_host_type(LServer) of
-                {ok, HostType} ->
-                    mod_roster:remove_from_roster(HostType, CallerJid, OtherJid);
-                {error, not_found} ->
-                    {error, unknown_domain}
-            end;
+        {ok, CallerJID, OtherJID} ->
+            Res = mod_roster_api:delete_contact(CallerJID, OtherJID),
+            skip_result_msg(Res);
         E ->
             E
     end.
@@ -443,8 +431,9 @@ subscription(Caller, Other, Action) ->
             {error, bad_request, <<"invalid action">>};
         Act ->
             case mongoose_stanza_helper:parse_from_to(Caller, Other) of
-                {ok, CallerJid, OtherJid} ->
-                    run_subscription(Act, CallerJid, OtherJid);
+                {ok, CallerJID, OtherJID} ->
+                    Res = mod_roster_api:subscription(CallerJID, OtherJID, Act),
+                    skip_result_msg(Res);
                 E ->
                     E
             end
@@ -454,46 +443,24 @@ decode_action(<<"subscribe">>) -> subscribe;
 decode_action(<<"subscribed">>) -> subscribed;
 decode_action(_) -> error.
 
--spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
-run_subscription(Type, CallerJid, OtherJid) ->
-    StanzaType = atom_to_binary(Type, latin1),
-    El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
-    LServer = CallerJid#jid.lserver,
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(LServer),
-    Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
-                               from_jid => CallerJid,
-                               to_jid => OtherJid,
-                               host_type => HostType,
-                               lserver => LServer,
-                               element => El }),
-    % set subscription to
-    Acc2 = mongoose_hooks:roster_out_subscription(Acc1, CallerJid, OtherJid, Type),
-    ejabberd_router:route(CallerJid, OtherJid, Acc2),
-    ok.
-
-
 set_subscription(Caller, Other, Action) ->
     case mongoose_stanza_helper:parse_from_to(Caller, Other) of
-        {ok, CallerJid, OtherJid} ->
-            case Action of
-                A when A == <<"connect">>; A == <<"disconnect">> ->
-                    do_set_subscription(CallerJid, OtherJid, Action);
-                _ ->
-                    {error, bad_request, <<"invalid action">>}
+        {ok, CallerJID, OtherJID} ->
+            case decode_both_sub_action(Action) of
+                error ->
+                    {error, bad_request, <<"invalid action">>};
+                ActionDecoded  ->
+                    Res = mod_roster_api:set_mutual_subscription(CallerJID, OtherJID,
+                                                                 ActionDecoded),
+                    skip_result_msg(Res)
             end;
         E ->
             E
     end.
 
-do_set_subscription(Caller, Other, <<"connect">>) ->
-    add_contact(Caller, Other),
-    add_contact(Other, Caller),
-    subscription(Caller, Other, <<"subscribe">>),
-    subscription(Other, Caller, <<"subscribe">>),
-    subscription(Other, Caller, <<"subscribed">>),
-    subscription(Caller, Other, <<"subscribed">>),
-    ok;
-do_set_subscription(Caller, Other, <<"disconnect">>) ->
-    delete_contact(Caller, Other),
-    delete_contact(Other, Caller),
-    ok.
+decode_both_sub_action(<<"connect">>) -> connect;
+decode_both_sub_action(<<"disconnect">>) -> disconnect;
+decode_both_sub_action(_) -> error.
+
+skip_result_msg({ok, _Msg}) -> ok;
+skip_result_msg({ErrCode, _Msg}) -> {error, ErrCode}.
