@@ -4,7 +4,7 @@
 
 -export([execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
 -export([init_admin_handler/1]).
--export([get_ok_value/2, get_err_msg/1, make_creds/1]).
+-export([get_ok_value/2, get_err_msg/1, get_err_msg/2, make_creds/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -64,11 +64,15 @@ get_listener_opts(EpName) ->
 
 -spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
 get_err_msg(Resp) ->
-    get_ok_value([errors, message], Resp).
+    get_ok_value([errors, 1, message], Resp).
+
+-spec get_err_msg(pos_integer(), #{errors := [#{message := binary()}]}) -> binary().
+get_err_msg(N, Resp) ->
+    get_ok_value([errors, N, message], Resp).
 
 -spec get_ok_value([atom()], {tuple(), map()}) -> binary().
-get_ok_value([errors | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := [Error]}}) ->
-    get_value(Path, Error);
+get_ok_value([errors, N | Path], {{<<"200">>, <<"OK">>}, #{<<"errors">> := Errors}}) ->
+    get_value(Path, lists:nth(N, Errors));
 get_ok_value(Path, {{<<"200">>, <<"OK">>}, Data}) ->
     get_value(Path, Data).
 
