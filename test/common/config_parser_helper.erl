@@ -894,6 +894,10 @@ default_mod_config(mod_shared_roster_ldap) ->
       group_cache_size => 1000, rfilter => <<"">>, gfilter => <<"">>, ufilter => <<"">>};
 default_mod_config(mod_sic) ->
     #{iqdisc => one_queue};
+default_mod_config(mod_smart_markers) ->
+    #{keep_private => false,
+      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+      backend => rdbms, iqdisc => no_queue};
 default_mod_config(mod_stream_management) ->
     #{backend => mnesia,
       buffer => true,
