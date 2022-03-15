@@ -115,4 +115,7 @@
 -define(NS_ESL_INBOX,      <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 
+%% Erlang Solutions custom extension - smart_markers feature
+-define(NS_ESL_SMART_MARKERS,      <<"esl:xmpp:smart-markers:0">>).
+
 -endif.

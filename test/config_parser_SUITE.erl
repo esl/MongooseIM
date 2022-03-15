@@ -244,6 +244,7 @@ groups() ->
                             mod_roster,
                             mod_shared_roster_ldap,
                             mod_sic,
+                            mod_smart_markers,
                             mod_stream_management,
                             mod_stream_management_stale_h,
                             mod_time,
@@ -2874,6 +2875,17 @@ mod_shared_roster_ldap(_Config) ->
 mod_sic(_Config) ->
     check_module_defaults(mod_sic),
     check_iqdisc_map(mod_sic).
+
+mod_smart_markers(_Config) ->
+    check_module_defaults(mod_smart_markers),
+    check_iqdisc_map(mod_smart_markers),
+    P = [modules, mod_smart_markers],
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_smart_markers">> => Opts}} end,
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [keep_private], true, T(#{<<"keep_private">> => true})),
+    ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
+    ?errh(T(#{<<"backend">> => <<"nodejs">>})),
+    ?errh(T(#{<<"keep_private">> => 1})).
 
 mod_stream_management(_Config) ->
     check_module_defaults(mod_stream_management),
