@@ -51,7 +51,7 @@
          remove_old_messages/3]).
 
 %% Internal exports
--export([start_link/3]).
+-export([start_link/3, remove_unused_backend_opts/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -105,14 +105,14 @@
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
 
-start(HostType, Opts) ->
-    AccessMaxOfflineMsgs = gen_mod:get_opt(access_max_user_messages, Opts,
-                                           max_user_offline_messages),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{access_max_user_messages := AccessMaxOfflineMsgs} = Opts) ->
     mod_offline_backend:init(HostType, Opts),
     start_worker(HostType, AccessMaxOfflineMsgs),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     stop_worker(Host),
@@ -121,19 +121,33 @@ stop(Host) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-       items = #{<<"access_max_user_messages">> => #option{type = atom,
-                                                           validate = access_rule},
-                 <<"backend">> => #option{type = atom,
-                                          validate = {module, mod_offline}},
-                 <<"riak">> => riak_config_spec()
-                }
-      }.
+        items = #{<<"access_max_user_messages">> => #option{type = atom,
+                                                            validate = access_rule},
+                  <<"backend">> => #option{type = atom,
+                                           validate = {module, mod_offline}},
+                  <<"store_groupchat_messages">> => #option{type = boolean},
+                  <<"riak">> => riak_config_spec()
+                 },
+        defaults = #{<<"access_max_user_messages">> => max_user_offline_messages,
+                     <<"store_groupchat_messages">> => false,
+                     <<"backend">> => mnesia
+                    },
+        format_items = map,
+        process = fun ?MODULE:remove_unused_backend_opts/1
+        }.
 
 riak_config_spec() ->
-    #section{items = #{<<"bucket_type">> => #option{type = binary,
-                                                     validate = non_empty}},
-             wrap = none
-            }.
+    #section{
+        items = #{<<"bucket_type">> => #option{type = binary,
+                                               validate = non_empty}},
+        defaults = #{<<"bucket_type">> => <<"offline">>},
+        format_items = map,
+        include = always
+        }.
+
+-spec remove_unused_backend_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
+remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
+remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
 
 supported_features() -> [dynamic_domains].
 

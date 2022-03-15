@@ -180,13 +180,20 @@ stop_pool() ->
 set_modules(Config0, Opts) ->
     Config = dynamic_modules:save_modules(host_type(), Config0),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(host_type()),
-    ModOffline = mongoose_helper:backend_for_module(mod_offline, Backend),
+    ModOffline = create_offline_config(Backend),
     ModOpts = [{backends,
                     [{http,
                         [{worker_timeout, 500},
                          {host, http_notifications_host()}] ++ Opts}]}],
     dynamic_modules:ensure_modules(host_type(), [{mod_event_pusher, ModOpts} | ModOffline]),
     Config.
+
+-spec create_offline_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
+create_offline_config(riak) ->
+    [{mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => riak,
+        riak => #{bucket_type => <<"offline">>}})}];
+create_offline_config(Backend) ->
+    [{mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})}].
 
 start_http_listener(simple_message, Prefix) ->
     http_helper:start(http_notifications_port(), Prefix, fun process_notification/1);
