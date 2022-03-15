@@ -399,7 +399,7 @@ all_modules() ->
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
-      mod_mam_cache_user => #{cache => default_config([modules, mod_mam_meta, cache]), muc => true, pm => true},
+      mod_mam_cache_user => (default_config([modules, mod_mam_meta, cache]))#{muc => true, pm => true},
       mod_offline =>
           [{access_max_user_messages, max_user_offline_messages},
            {backend, riak},

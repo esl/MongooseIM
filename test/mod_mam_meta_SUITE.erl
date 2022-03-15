@@ -76,7 +76,7 @@ produces_valid_configurations(_Config) ->
     check_equal_opts(mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch,
                                                         MUCArchOpts#{no_writer => true}), Deps),
     check_equal_opts(mod_mam_rdbms_user, #{pm => true, muc => true}, Deps),
-    check_equal_opts(mod_mam_cache_user, #{pm => true, muc => true, cache => Cache}, Deps),
+    check_equal_opts(mod_mam_cache_user, Cache#{pm => true, muc => true}, Deps),
     check_equal_opts(mod_mam_mnesia_prefs, #{muc => true}, Deps),
     check_equal_opts(mod_mam_rdbms_prefs, #{pm => true}, Deps),
     check_equal_opts(mod_mam_muc_rdbms_arch_async, AsyncOpts, Deps).
@@ -116,7 +116,7 @@ example_muc_only_no_pref_good_performance(_Config) ->
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{muc => true, pm => true}},
-       {mod_mam_cache_user, #{muc => true, cache => Cache}},
+       {mod_mam_cache_user, Cache#{muc => true}},
        {mod_mam_muc_rdbms_arch, mod_config(mod_mam_muc_rdbms_arch, #{no_writer => true})},
        {mod_mam_muc_rdbms_arch_async, AsyncOpts},
        {mod_mam_muc, mod_config(mod_mam_muc, mod_config(mod_mam_muc, MUCOpts))}
@@ -130,7 +130,7 @@ example_pm_only_good_performance(_Config) ->
 
     check_equal_deps(
       [{mod_mam_rdbms_user, #{pm => true}},
-       {mod_mam_cache_user, #{pm => true, cache => Cache}},
+       {mod_mam_cache_user, Cache#{pm => true}},
        {mod_mam_mnesia_prefs, #{pm => true}},
        {mod_mam_rdbms_arch, mod_config(mod_mam_rdbms_arch, #{no_writer => true})},
        {mod_mam_rdbms_arch_async, AsyncOpts},
