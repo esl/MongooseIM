@@ -72,14 +72,14 @@ init([]) ->
     #{id := mongoose_wpool:proc_name(),
       start := {mongoose_wpool_type_sup, start_link, [mongoose_wpool:pool_type()]},
       restart => transient,
-      shutdown => brutal_kill,
+      shutdown => infinity,
       type => supervisor,
       modules => [module()]}.
 child_spec(Type) ->
     #{id => mongoose_wpool_type_sup:name(Type),
       start => {mongoose_wpool_type_sup, start_link, [Type]},
       restart => transient,
-      shutdown => brutal_kill,
+      shutdown => infinity,
       type => supervisor,
       modules => [mongoose_wpool_type_sup]
      }.
