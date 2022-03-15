@@ -2577,22 +2577,24 @@ server_returns_item_not_found_for_before_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'before', id = NonexistentID},
     StanzaID = <<"before-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
 server_returns_item_not_found_for_after_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'after', id = NonexistentID},
     StanzaID = <<"after-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
-server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID) ->
+server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        rsm_send(Config, Alice,
-                 stanza_page_archive_request(P, StanzaID, RSM)),
+        IQ = stanza_page_archive_request(P, StanzaID, RSM),
+        rsm_send(Config, Alice, IQ),
         Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, Res),
-        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res),
+        escalus:assert(is_iq_error, [IQ], Res),
+        escalus:assert(is_error, Condition, Res),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
