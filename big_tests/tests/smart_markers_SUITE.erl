@@ -84,8 +84,10 @@ init_per_group(async_pools, Config) ->
                     async_writer => #{pool_size => 2}}} | Config];
 init_per_group(GroupName, Config) ->
     AsyncType = ?config(merge_opts, Config),
-    ok = dynamic_modules:ensure_modules(host_type(), group_to_module(GroupName, AsyncType)),
-    Config.
+    HostType = domain_helper:host_type(),
+    Config1 = dynamic_modules:save_modules(HostType, Config),
+    ok = dynamic_modules:ensure_modules(HostType, group_to_module(GroupName, AsyncType)),
+    Config1.
 
 group_to_module(one2one, MergeOpts) ->
     [{mod_smart_markers, mod_config(mod_smart_markers, MergeOpts)}];
