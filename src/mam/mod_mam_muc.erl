@@ -78,7 +78,6 @@
          result_set/4,
          result_query/2,
          result_prefs/4,
-         make_fin_message/5,
          make_fin_element/7,
          parse_prefs/1,
          borders_decode/1,
@@ -388,7 +387,23 @@ handle_set_message_form(HostType, #jid{} = From, #jid{} = ArcJID, IQ) ->
     ResLimit = mod_mam_params:max_result_limit(?MODULE, HostType),
     DefLimit = mod_mam_params:default_result_limit(?MODULE, HostType),
     ExtMod = mod_mam_params:extra_params_module(?MODULE, HostType),
-    Params0 = mam_iq:form_to_lookup_params(IQ, ResLimit, DefLimit, ExtMod),
+    try mam_iq:form_to_lookup_params(IQ, ResLimit, DefLimit, ExtMod) of
+        Params0 ->
+            do_handle_set_message_form(HostType, From, ArcID, ArcJID, IQ, Params0)
+    catch _C:R:S ->
+            report_issue({R, S}, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, R)
+    end.
+
+
+-spec do_handle_set_message_form(HostType :: mongooseim:host_type(),
+                                 From :: jid:jid(),
+                                 ArcId :: mod_mam:archive_id(),
+                                 ArcJID :: jid:jid(),
+                                 IQ :: jlib:iq(),
+                                 Params :: mam_iq:lookup_params()) ->
+    jlib:iq() | ignore | {error, term(), jlib:iq()}.
+do_handle_set_message_form(HostType, From, ArcID, ArcJID, IQ, Params0) ->
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
     Result = lookup_messages(HostType, Params),
     handle_lookup_result(Result, HostType, From, IQ, Params).
@@ -566,6 +581,9 @@ return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout in mod_mam_muc">>)]}};
+return_error_iq(IQ, invalid_stanza_id) ->
+    Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza id provided">>),
+    {error, invalid_stanza_id, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, item_not_found) ->
     {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
@@ -600,6 +618,8 @@ report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
 report_issue(Reason, Issue, ArcJID, IQ) ->
     report_issue(Reason, [], Issue, ArcJID, IQ).
 
+report_issue(invalid_stanza_id, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
 report_issue(item_not_found, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->

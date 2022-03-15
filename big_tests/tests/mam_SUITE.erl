@@ -81,6 +81,7 @@
          pagination_offset5_opt_count_all/1,
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
+         server_returns_item_not_found_for_after_filter_with_invalid_id/1,
          %% complete_flag_cases tests
          before_complete_false_last5/1,
          before_complete_false_before10/1,
@@ -500,7 +501,8 @@ rsm_cases() ->
        pagination_offset5_opt_count_all,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
-       server_returns_item_not_found_for_after_filter_with_nonexistent_id].
+       server_returns_item_not_found_for_after_filter_with_nonexistent_id,
+       server_returns_item_not_found_for_after_filter_with_invalid_id].
 
 complete_flag_cases() ->
     [before_complete_false_last5,
@@ -2577,22 +2579,31 @@ server_returns_item_not_found_for_before_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'before', id = NonexistentID},
     StanzaID = <<"before-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
 server_returns_item_not_found_for_after_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'after', id = NonexistentID},
     StanzaID = <<"after-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
-server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID) ->
+server_returns_item_not_found_for_after_filter_with_invalid_id(Config) ->
+    NonexistentID = <<"bef3a242-99ce-402a-9ffc-2f3c20da92d4">>,
+    RSM = #rsm_in{max = 5, direction = 'after', from_id = NonexistentID},
+    StanzaID = <<"AV25E9SCO50K">>,
+    Condition = [<<"modify">>, <<"not-acceptable">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
+
+server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        rsm_send(Config, Alice,
-                 stanza_page_archive_request(P, StanzaID, RSM)),
+        IQ = stanza_page_archive_request(P, StanzaID, RSM),
+        rsm_send(Config, Alice, IQ),
         Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, Res),
-        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res),
+        escalus:assert(is_iq_error, [IQ], Res),
+        escalus:assert(is_error, Condition, Res),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).

@@ -225,7 +225,9 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 %% @doc Decode a message ID received from the user.
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    binary_to_integer(BExtMessID, 32).
+    try binary_to_integer(BExtMessID, 32)
+    catch error:badarg -> throw(invalid_stanza_id)
+    end.
 
 %% -----------------------------------------------------------------------
 %% XML

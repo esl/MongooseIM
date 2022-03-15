@@ -106,7 +106,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
--include_lib("exml/include/exml.hrl").
 -include("mod_mam.hrl").
 
 %% ----------------------------------------------------------------------
@@ -432,13 +431,29 @@ handle_get_prefs_result({error, Reason}, IQ) ->
 -spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
                               IQ :: jlib:iq(), Acc :: mongoose_acc:t()) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
-handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
-                        #iq{xmlns=MamNs, sub_el = QueryEl} = IQ,
-                        Acc) ->
+handle_set_message_form(#jid{} = From, #jid{} = ArcJID, #iq{} = IQ, Acc) ->
     HostType = acc_to_host_type(Acc),
     ArcID = archive_id_int(HostType, ArcJID),
+    try iq_to_lookup_params(HostType, IQ) of
+        Params0 ->
+            do_handle_set_message_form(Params0, From, ArcID, ArcJID, IQ, HostType)
+    catch _C:R:S ->
+            report_issue({R, S}, mam_lookup_failed, ArcJID, IQ),
+            return_error_iq(IQ, R)
+    end.
+
+
+-spec do_handle_set_message_form(Params :: mam_iq:lookup_params(),
+                                 From :: jid:jid(),
+                                 ArcId :: archive_id(),
+                                 ArcJID :: jid:jid(),
+                                 IQ :: jlib:iq(),
+                                 HostType :: mongooseim:host_type()) ->
+    jlib:iq() | ignore | {error, term(), jlib:iq()}.
+do_handle_set_message_form(Params0, From, ArcID, ArcJID,
+                           #iq{xmlns=MamNs, sub_el = QueryEl} = IQ,
+                           HostType) ->
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = iq_to_lookup_params(HostType, IQ),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID, From),
     case lookup_messages(HostType, Params) of
         {error, Reason} ->
@@ -683,6 +698,9 @@ return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
 return_error_iq(IQ, timeout) ->
     E = mongoose_xmpp_errors:service_unavailable(<<"en">>, <<"Timeout">>),
     {error, timeout, IQ#iq{type = error, sub_el = [E]}};
+return_error_iq(IQ, invalid_stanza_id) ->
+    Text = mongoose_xmpp_errors:not_acceptable(<<"en">>, <<"Invalid stanza id provided">>),
+    {error, invalid_stanza_id, IQ#iq{type = error, sub_el = [Text]}};
 return_error_iq(IQ, item_not_found) ->
     {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
@@ -698,6 +716,8 @@ report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
 report_issue(Reason, Issue, ArcJID, IQ) ->
     report_issue(Reason, [], Issue, ArcJID, IQ).
 
+report_issue(invalid_stanza_id, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
 report_issue(item_not_found, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
