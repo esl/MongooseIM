@@ -796,15 +796,15 @@ no_push_notification_for_expired_device(Config) ->
 
 mongoose_push_unregistered_device_resp(Config) ->
     case ?config(api_v, Config) of
-        "v3" ->
+        <<"v3">> ->
             {410, jiffy:encode(#{<<"reason">> => <<"unregistered">>})};
-        "v2" ->
+        <<"v2">> ->
             {500, jiffy:encode(#{<<"details">> => <<"probably_unregistered">>})}
     end.
 
-maybe_check_if_push_node_was_disabled("v2", _, _) ->
+maybe_check_if_push_node_was_disabled(<<"v2">>, _, _) ->
     ok;
-maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
+maybe_check_if_push_node_was_disabled(<<"v3">>, User, PushNode) ->
     JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
     Host = escalus_utils:get_server(User),
     Fun = fun() ->
@@ -959,9 +959,9 @@ init_modules(G, Config) ->
     [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 
 mongoose_push_api_for_group(failure_cases_v2) ->
-    "v2";
+    <<"v2">>;
 mongoose_push_api_for_group(_) ->
-    "v3".
+    <<"v3">>.
 
 required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()},
@@ -1009,8 +1009,9 @@ required_modules(API, PubSubHost, PluginModule) ->
              end,
     PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
     [
-        {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-                                         {api_version, API}]},
+        {mod_push_service_mongoosepush, config_parser_helper:mod_config(mod_push_service_mongoosepush,
+                                                                        #{pool_name => mongoose_push_http,
+                                                                          api_version => API})},
         {mod_event_pusher, [{backends, [PushBackend]}]} |
         PubSub
     ].

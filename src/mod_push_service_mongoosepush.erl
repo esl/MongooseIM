@@ -29,22 +29,9 @@
 
 -export([http_notification/5]).
 
-%% Types
--export_type([]).
-
 -export([config_metrics/1]).
 
--ignore_xref([behaviour_info/1, http_notification/5, push_notifications/4]).
-
-%%--------------------------------------------------------------------
-%% Definitions
-%%--------------------------------------------------------------------
-
--define(DEFAULT_API_VERSION, "v3").
-
--callback init(term(), term()) -> ok.
-
-%% Types
+-ignore_xref([http_notification/5, push_notifications/4]).
 
 %%--------------------------------------------------------------------
 %% Module callbacks
@@ -63,8 +50,7 @@ start_pool(Host, Opts) ->
     {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service, pool_opts(Opts)).
 
 -spec pool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
-pool_opts(Opts) ->
-    MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
+pool_opts(#{max_http_connections := MaxHTTPConnections}) ->
     [{strategy, available_worker},
      {workers, MaxHTTPConnections}].
 
@@ -72,7 +58,6 @@ pool_opts(Opts) ->
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
     mongoose_wpool:stop(generic, Host, mongoosepush_service),
-
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -80,11 +65,15 @@ config_spec() ->
     #section{
        items = #{<<"pool_name">> => #option{type = atom,
                                             validate = pool_name},
-                 <<"api_version">> => #option{type = string,
-                                              validate = {enum, ["v2", "v3"]}},
+                 <<"api_version">> => #option{type = binary,
+                                              validate = {enum, [<<"v2">>, <<"v3">>]}},
                  <<"max_http_connections">> => #option{type = integer,
                                                        validate = non_negative}
-                }
+                },
+       defaults = #{<<"pool_name">> => undefined,
+                    <<"api_version">> => <<"v3">>,
+                    <<"max_http_connections">> => 100},
+       format_items = map
       }.
 
 %%--------------------------------------------------------------------
@@ -96,13 +85,11 @@ config_spec() ->
                          Notifications :: [#{binary() => binary()}],
                          Options :: #{binary() => binary()}) ->
     ok | {error, Reason :: term()}.
-push_notifications(AccIn, Host, Notifications, Options) ->
+push_notifications(AccIn, Host, Notifications, Options = #{<<"device_id">> := DeviceId}) ->
     ?LOG_DEBUG(#{what => push_notifications, notifications => Notifications,
                  opts => Options, acc => AccIn}),
 
-    DeviceId = maps:get(<<"device_id">>, Options),
-    ProtocolVersionOpt = gen_mod:get_module_opt(Host, ?MODULE, api_version, ?DEFAULT_API_VERSION),
-    {ok, ProtocolVersion} = parse_api_version(ProtocolVersionOpt),
+    ProtocolVersion = gen_mod:get_module_opt(Host, ?MODULE, api_version),
     Path = <<ProtocolVersion/binary, "/notification/", DeviceId/binary>>,
     Fun = fun(Notification) ->
             ReqHeaders = [{<<"content-type">>, <<"application/json">>}],
@@ -139,7 +126,7 @@ send_push_notifications([Notification | Notifications], Fun, Result) ->
                         binary(), proplists:proplist(), binary()) ->
     ok | {error, Reason :: term()}.
 http_notification(Host, Method, URL, ReqHeaders, Payload) ->
-    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, undefined),
+    PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name),
     case mongoose_http_client:Method(Host, PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
@@ -173,20 +160,13 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
-parse_api_version("v3") ->
-    {ok, <<"v3">>};
-parse_api_version("v2") ->
-    {ok, <<"v2">>};
-parse_api_version(_) ->
-    {error, not_supported}.
-
 %% Create notification for API v2 and v3
 make_notification(Notification, Options) ->
     RequiredParameters = #{service => maps:get(<<"service">>, Options)},
     %% The full list of supported optional parameters can be found here:
     %%    https://github.com/esl/MongoosePush/blob/master/README.md#request
     %%
-    %% Note that <<"tags">> parameter is explicitely excluded to avoid any
+    %% Note that <<"tags">> parameter is explicitly excluded to avoid any
     %% security issues. User should not be allowed to select pools other than
     %% prod and dev (see <<"mode">> parameter description).
     OptionalKeys = [<<"mode">>, <<"priority">>, <<"topic">>,
@@ -214,6 +194,6 @@ make_notification(Notification, Options) ->
 call(Host, M, F, A) ->
     mongoose_wpool:call(generic, Host, mongoosepush_service, {M, F, A}).
 
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(Host) ->
-    OptsToReport = [{api_version, ?DEFAULT_API_VERSION}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [api_version]).
