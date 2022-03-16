@@ -309,6 +309,8 @@ extra_options_by_group_name(#{ node_tree := NodeTree,
     #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)],
       last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()};
+extra_options_by_group_name(#{base_name := service_config}) ->
+    #{max_subscriptions_node => 1};
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
     #{nodetree => nodetree_to_mod(NodeTree),
       plugins => [plugin_by_nodetree(NodeTree)]}.
@@ -321,17 +323,9 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(notify_unavailable_user_test, _Config) ->
     {skip, "mod_offline does not store events"};
-init_per_testcase(max_subscriptions_test, Config) ->
-    MaxSubs = lookup_service_option(domain(), max_subscriptions_node),
-    set_service_option(domain(), max_subscriptions_node, 1),
-    init_per_testcase(generic, [{max_subscriptions_node, MaxSubs} | Config]);
 init_per_testcase(_TestName, Config) ->
     escalus:init_per_testcase(_TestName, Config).
 
-end_per_testcase(max_subscriptions_test, Config1) ->
-    {value, {_, OldMaxSubs}, Config2} = lists:keytake(max_subscriptions_node, 1, Config1),
-    set_service_option(domain(), max_subscriptions_node, OldMaxSubs),
-    end_per_testcase(generic, Config2);
 end_per_testcase(TestName, Config) ->
     escalus:end_per_testcase(TestName, Config).
 
@@ -1996,15 +1990,3 @@ is_not_allowed_and_closed(IQError) ->
     ?NS_PUBSUB_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
                                                   {element, <<"closed-node">>},
                                                   {attr, <<"xmlns">>}]).
-
-%% TODO: Functions below will most probably fail when mod_pubsub gets some nice refactoring!
-
-set_service_option(Host, Key, Val) ->
-    true = rpc(mim(), ets, insert, [service_tab_name(Host), {Key, Val}]).
-
-lookup_service_option(Host, Key) ->
-    [{_, Val}] = rpc(mim(), ets, lookup, [service_tab_name(Host), Key]),
-    Val.
-
-service_tab_name(Host) ->
-    rpc(mim(), gen_mod, get_module_proc, [Host, config]).
