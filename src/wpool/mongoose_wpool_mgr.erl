@@ -38,7 +38,6 @@
 
 -ignore_xref([start_link/1]).
 
--include("mongoose.hrl").
 -include("mongoose_logger.hrl").
 
 -record(state, {type, pools, monitors}).
