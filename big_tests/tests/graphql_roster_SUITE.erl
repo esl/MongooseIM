@@ -94,9 +94,11 @@ end_per_testcase(CaseName, Config) ->
 -define(GET_CONTACT_PATH, [data, roster, getContact]).
 -define(SUBSCRIBE_ALL_TO_ALL_PATH, [data, roster, subscribeAllToAll]).
 -define(SUBSCRIBE_TO_ALL_PATH, [data, roster, subscribeToAll]).
+-define(MUTUAL_SUBSCRIPTION_PATH, [data, roster, setMutualSubscription]).
 
 -define(NONEXISTENT_DOMAIN_USER, <<"abc@abc">>).
 -define(NONEXISTENT_USER, <<"abc@", (domain_helper:domain())/binary>>).
+-define(NONEXISTENT_USER2, <<"abc2@", (domain_helper:domain())/binary>>).
 -define(DEFAULT_GROUPS, [<<"Family">>]).
 
 %% Admin test cases
@@ -106,37 +108,36 @@ admin_add_and_delete_contact(Config) ->
                                     fun admin_add_and_delete_contact_story/3).
 
 admin_add_and_delete_contact_story(Config, Alice, Bob) ->
-    Res = execute_auth(admin_add_contact_body(Alice, Bob, null, null), Config),
-
+    Res = admin_add_contact(Alice, Bob, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?ADD_CONTACT_PATH, Res),
                                           <<"successfully">>)),
-    ?assertMatch(#roster{}, get_roster(Alice, Bob)),
+    check_contacts([Bob], Alice),
 
     Res2 = execute_auth(admin_delete_contact_body(Alice, Bob), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_CONTACT_PATH, Res2),
                                           <<"successfully">>)),
-    ?assertMatch(does_not_exist, get_roster(Alice, Bob)).
+    check_contacts([], Alice).
 
 admin_try_add_nonexistent_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun admin_try_add_nonexistent_contact/2).
 
 admin_try_add_nonexistent_contact(Config, Alice) ->
     Contact = ?NONEXISTENT_DOMAIN_USER,
-    Res = execute_auth(admin_add_contact_body(Alice, Contact, null, null), Config),
+    Res = admin_add_contact(Alice, Contact, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), Contact)),
-    ?assertMatch(does_not_exist, get_roster(Alice, Contact)).
+    check_contacts([], Alice).
 
 admin_try_add_contact_to_nonexistent_user(Config) ->
-    Domain = domain_helper:domain(),
-    User = <<"abc@", Domain/binary>>,
-    Contact = <<"abc2@", Domain/binary>>,
-    Res = execute_auth(admin_add_contact_body(User, Contact, null, null), Config),
+    User = ?NONEXISTENT_USER,
+    Contact = ?NONEXISTENT_USER2,
+    Res = admin_add_contact(User, Contact, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), User)),
-    ?assertMatch(does_not_exist, get_roster(User, Contact)).
+    check_contacts([], User).
 
 admin_try_add_contact_with_unknown_domain(Config) ->
     User = ?NONEXISTENT_DOMAIN_USER,
-    Res = execute_auth(admin_add_contact_body(User, User, null, null), Config),
+    Contact = ?NONEXISTENT_USER2,
+    Res = admin_add_contact(User, Contact, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 admin_try_delete_nonexistent_contact(Config) ->
@@ -179,8 +180,8 @@ admin_invite_accept_and_cancel_subscription(Config) ->
 
 admin_invite_accept_and_cancel_subscription_story(Config, Alice, Bob) ->
     % Add contacts
-    execute_auth(admin_add_contact_body(Alice, Bob, <<"Bobek">>, null), Config),
-    execute_auth(admin_add_contact_body(Bob, Alice, <<"Ali">>, null), Config),
+    admin_add_contact(Alice, Bob, Config),
+    admin_add_contact(Bob, Alice, Config),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob, 1)),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice, 1)),
     % Send invitation to subscribe 
@@ -230,11 +231,15 @@ admin_set_mutual_subscription(Config) ->
                                     fun admin_set_mutual_subscription_story/3).
 
 admin_set_mutual_subscription_story(Config, Alice, Bob) ->
-    execute_auth(admin_mutual_subscription_body(Alice, Bob, <<"CONNECT">>), Config),
+    Res = execute_auth(admin_mutual_subscription_body(Alice, Bob, <<"CONNECT">>), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?MUTUAL_SUBSCRIPTION_PATH, Res),
+                                          <<"successfully">>)),
     ?assertMatch(#roster{ask = none, subscription = both}, get_roster(Alice, Bob)),
     ?assertMatch(#roster{ask = none, subscription = both}, get_roster(Bob, Alice)),
 
-    execute_auth(admin_mutual_subscription_body(Alice, Bob, <<"DISCONNECT">>), Config),
+    Res2 = execute_auth(admin_mutual_subscription_body(Alice, Bob, <<"DISCONNECT">>), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?MUTUAL_SUBSCRIPTION_PATH, Res2),
+                                          <<"successfully">>)),
     ?assertMatch(does_not_exist, get_roster(Alice, Bob)),
     ?assertMatch(does_not_exist, get_roster(Bob, Alice)).
 
@@ -258,9 +263,9 @@ admin_subscribe_to_all_story(Config, Alice, Bob, Kate) ->
     Res = execute_auth(admin_subscribe_to_all_body(Alice, [Bob, Kate]), Config),
     check_if_created_succ(?SUBSCRIBE_TO_ALL_PATH, Res),
 
-    check_contacts([Bob, Kate], Alice, Config),
-    check_contacts([Alice], Bob, Config),
-    check_contacts([Alice], Kate, Config).
+    check_contacts([Bob, Kate], Alice),
+    check_contacts([Alice], Bob),
+    check_contacts([Alice], Kate).
 
 admin_subscribe_to_all_with_wrong_user(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -272,8 +277,8 @@ admin_subscribe_to_all_with_wrong_user_story(Config, Alice, Bob) ->
     check_if_created_succ(?SUBSCRIBE_TO_ALL_PATH, Res, [true, false]),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)),
 
-    check_contacts([Bob], Alice, Config),
-    check_contacts([Alice], Bob, Config).
+    check_contacts([Bob], Alice),
+    check_contacts([Alice], Bob).
 
 admin_subscribe_all_to_all(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}, {kate, 1}],
@@ -283,9 +288,9 @@ admin_subscribe_all_to_all_story(Config, Alice, Bob, Kate) ->
     Res = execute_auth(admin_subscribe_all_to_all_body([Alice, Bob, Kate]), Config),
     check_if_created_succ(?SUBSCRIBE_ALL_TO_ALL_PATH, Res),
 
-    check_contacts([Bob, Kate], Alice, Config),
-    check_contacts([Alice, Kate], Bob, Config),
-    check_contacts([Alice, Bob], Kate, Config).
+    check_contacts([Bob, Kate], Alice),
+    check_contacts([Alice, Kate], Bob),
+    check_contacts([Alice, Bob], Kate).
 
 admin_subscribe_all_to_all_with_wrong_user(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -298,8 +303,8 @@ admin_subscribe_all_to_all_with_wrong_user_story(Config, Alice, Bob) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(1, Res), <<"does not exist">>)),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(2, Res), <<"does not exist">>)),
 
-    check_contacts([Bob], Alice, Config),
-    check_contacts([Alice], Bob, Config).
+    check_contacts([Bob], Alice),
+    check_contacts([Alice], Bob).
 
 admin_list_contacts(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -307,11 +312,11 @@ admin_list_contacts(Config) ->
 
 admin_list_contacts_story(Config, Alice, Bob) ->
     BobBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-    Name = <<"Bobek">>,
-    execute_auth(admin_add_contact_body(Alice, Bob, Name, ?DEFAULT_GROUPS), Config),
+    BobName = escalus_client:username(Bob),
+    admin_add_contact(Alice, Bob, Config),
     Res = execute_auth(admin_list_contacts_body(Alice), Config),
     [#{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
-       <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS}] =
+       <<"name">> := BobName, <<"groups">> := ?DEFAULT_GROUPS}] =
         get_ok_value([data, roster, listContacts], Res).
 
 admin_list_contacts_wrong_user(Config) ->
@@ -328,14 +333,12 @@ admin_get_contact(Config) ->
 
 admin_get_contact_story(Config, Alice, Bob) ->
     BobBin = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
-    Name = <<"Bobek">>,
-    execute_auth(admin_add_contact_body(Alice, Bob, Name, ?DEFAULT_GROUPS), Config),
+    BobName = escalus_client:username(Bob),
+    admin_add_contact(Alice, Bob, Config),
     Res = execute_auth(admin_get_contact_body(Alice, Bob), Config),
     #{<<"subscription">> := <<"NONE">>, <<"ask">> := <<"NONE">>, <<"jid">> := BobBin,
-      <<"name">> := Name, <<"groups">> := ?DEFAULT_GROUPS} =
+      <<"name">> := BobName, <<"groups">> := ?DEFAULT_GROUPS} =
         get_ok_value([data, roster, getContact], Res).
-
-%% User test cases
 
 admin_get_contact_wrong_user(Config) ->
     % User with a non-existent domain
@@ -345,30 +348,32 @@ admin_get_contact_wrong_user(Config) ->
     Res2 = execute_auth(admin_get_contact_body(?NONEXISTENT_USER, ?NONEXISTENT_USER), Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res2), <<"does not exist">>)).
 
+%% User test cases
+
 user_add_and_delete_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun user_add_and_delete_contact_story/3).
 
 user_add_and_delete_contact_story(Config, Alice, Bob) ->
     % Add a new contact
-    Res = execute_user(user_add_contact_body(Bob, null, null), Alice, Config),
+    Res = user_add_contact(Alice, Bob, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?ADD_CONTACT_PATH, Res),
                                           <<"successfully">>)),
-    ?assertMatch(#roster{}, get_roster(Alice, Bob)),
+    check_contacts([Bob], Alice),
     % Delete a contact
     Res2 = execute_user(user_delete_contact_body(Bob), Alice, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?DELETE_CONTACT_PATH, Res2),
                                           <<"successfully">>)),
-    ?assertMatch(does_not_exist, get_roster(Alice, Bob)).
+    check_contacts([], Alice).
 
 user_try_add_nonexistent_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}], fun user_try_add_nonexistent_contact/2).
 
 user_try_add_nonexistent_contact(Config, Alice) ->
     Contact = ?NONEXISTENT_DOMAIN_USER,
-    Res = execute_user(user_add_contact_body(Contact, null, null), Alice, Config),
+    Res = user_add_contact(Alice, Contact, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), Contact)),
-    ?assertMatch(does_not_exist, get_roster(Alice, Contact)).
+    check_contacts([], Alice).
 
 user_add_contacts(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
@@ -393,7 +398,8 @@ user_delete_contacts(Config) ->
                                     fun user_delete_contacts_story/3).
 
 user_delete_contacts_story(Config, Alice, Bob) ->
-    execute_user(user_add_contacts_body([Bob]), Alice, Config),
+    user_add_contact(Alice, Bob, Config),
+
     Res = execute_user(user_delete_contacts_body([Bob, ?NONEXISTENT_DOMAIN_USER]), Alice, Config),
     [R1, null] = get_ok_value(?DELETE_CONTACTS_PATH, Res),
     ?assertNotEqual(nomatch, binary:match(R1, <<"successfully">>)),
@@ -405,8 +411,8 @@ user_invite_accept_and_cancel_subscription(Config) ->
 
 user_invite_accept_and_cancel_subscription_story(Config, Alice, Bob) ->
     % Add contacts
-    execute_user(user_add_contact_body(Bob, <<"Bobek">>, null), Alice, Config),
-    execute_user(user_add_contact_body(Alice, <<"Ali">>, null), Bob, Config),
+    user_add_contact(Alice, Bob, Config),
+    user_add_contact(Bob, Alice, Config),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob, 1)),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice, 1)),
     % Send invitation to subscribe 
@@ -432,8 +438,8 @@ user_decline_subscription_ask(Config) ->
 
 user_decline_subscription_ask_story(Config, Alice, Bob) ->
     % Add contacts
-    execute_user(user_add_contact_body(Bob, null, null), Alice, Config),
-    execute_user(user_add_contact_body(Alice, null, null), Bob, Config),
+    user_add_contact(Alice, Bob, Config),
+    user_add_contact(Bob, Alice, Config),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Bob, 1)),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice, 1)),
     % Send invitation to subscribe 
@@ -481,22 +487,29 @@ user_get_nonexistent_contact_story(Config, Alice) ->
 
 % Helpers
 
+admin_add_contact(User, Contact, Config) ->
+    Name = escalus_utils:get_username(Contact),
+    execute_auth(admin_add_contact_body(User, Contact, Name, ?DEFAULT_GROUPS), Config).
+
+user_add_contact(User, Contact, Config) ->
+    Name = escalus_utils:get_username(Contact),
+    execute_user(user_add_contact_body(Contact, Name, ?DEFAULT_GROUPS), User, Config).
+
 execute_user(Body, User, Config) ->
     Ep = ?config(schema_endpoint, Config),
     Creds = make_creds(User),
     execute(Ep, Body, Creds).
 
-check_contacts(ContactClients, User, Config) ->
-    Res = execute_auth(admin_list_contacts_body(User), Config),
+check_contacts(ContactClients, User) ->
     Expected = [escalus_utils:jid_to_lower(escalus_client:short_jid(Client))
                 || Client <- ContactClients],
     ExpectedNames = [escalus_client:username(Client) || Client <- ContactClients],
-    ActualContacts = get_ok_value(?LIST_CONTACTS_PATH, Res),
-    Actual = [ JID || #{<<"jid">> := JID} <- ActualContacts],
-    ActualNames = [ Name || #{<<"name">> := Name} <- ActualContacts],
+    ActualContacts = get_roster(User),
+    Actual = [ jid:to_binary(JID) || #roster{jid = JID} <- ActualContacts],
+    ActualNames = [ Name || #roster{name = Name} <- ActualContacts],
     ?assertEqual(lists:sort(Expected), lists:sort(Actual)),
     ?assertEqual(lists:sort(ExpectedNames), lists:sort(ActualNames)),
-    [?assertEqual(?DEFAULT_GROUPS, Groups) || #{<<"groups">> := Groups} <- ActualContacts].
+    [?assertEqual(?DEFAULT_GROUPS, Groups) || #roster{groups = Groups} <- ActualContacts].
 
 check_if_created_succ(Path, Res) ->
     check_if_created_succ(Path, Res, null).
@@ -512,6 +525,10 @@ check_if_created_succ(Path, Res, ExpectedOkValue) ->
               end,
     [?assertNotEqual(nomatch, binary:match(Msg, <<"created successfully">>))
      || {Msg, ShouldHaveValue} <- OkList2, ShouldHaveValue].
+
+get_roster(User) ->
+    {ok, Roster} = rpc(mim(), mod_roster_api, list_contacts, [user_to_jid(User)]),
+    Roster.
 
 get_roster(User, Contact) ->
     rpc(mim(), mod_roster, get_roster_entry,
