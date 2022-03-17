@@ -62,7 +62,7 @@ init([{Addr, Port}, Server]) ->
       ?GLOBAL_DISTRIB_OUTGOING_CLOSED(MetricServer), spiral),
     try
         {ok, RawSocket} = gen_tcp:connect(Addr, Port, [binary, {active, false}]),
-        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, [connect | opt(tls_opts)]),
+        {ok, Socket} = mod_global_distrib_transport:wrap(RawSocket, opt(connections), [connect]),
         GdStart = gd_start(Server, ConnID),
         ok = mod_global_distrib_transport:send(Socket, <<(byte_size(GdStart)):32, GdStart/binary>>),
         mod_global_distrib_transport:setopts(Socket, [{active, once}]),
@@ -128,7 +128,7 @@ terminate(Reason, State) ->
 
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
-    mod_global_distrib_utils:opt(mod_global_distrib_sender, Key).
+    mod_global_distrib_utils:opt(mod_global_distrib, Key).
 
 gd_start(Server, ConnID) ->
     Attrs = [{<<"server">>, Server}, {<<"conn_id">>, ConnID}],
