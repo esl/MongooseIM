@@ -2,6 +2,8 @@
 %% the backend modules (i.e. mod_inbox_rdbms).
 -module(mod_inbox_backend).
 
+-include("mod_inbox.hrl").
+
 -export([init/2,
          get_inbox/4,
          clear_inbox/3,
@@ -39,7 +41,7 @@
     mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: binary(),
+    Content :: content(),
     Count :: integer(),
     MsgId :: binary(),
     Timestamp :: integer().
@@ -52,7 +54,7 @@
     mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: binary(),
+    Content :: content(),
     MsgId :: binary(),
     Timestamp :: integer().
 
@@ -112,7 +114,7 @@ remove_domain(HostType, LServer) ->
     mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: binary(),
+    Content :: content(),
     Count :: integer(),
     MsgId :: binary(),
     Timestamp :: integer().
@@ -131,7 +133,7 @@ remove_inbox_row(HostType, InboxEntryKey) ->
     mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: binary(),
+    Content :: content(),
     MsgId :: binary(),
     Timestamp :: integer().
 set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
