@@ -80,6 +80,7 @@ groups() ->
         % other
         returns_valid_properties_form,
         properties_can_be_get,
+        properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
         max_queries_can_be_limited,
@@ -440,6 +441,17 @@ properties_can_be_get(Config) ->
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
+
+properties_full_entry_can_be_get(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
+        % Then Bob can just query the properties of this entry at will
+        query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}], full_entry)
+    end).
+
 properties_many_can_be_set(Config) ->
     properties_many_can_be_set(Config, undefined).
 properties_many_can_be_set_queryid(Config) ->
@@ -548,17 +560,32 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
-    Stanza = make_inbox_get_properties(To),
+    query_properties(From, To, Expected, none).
+
+-spec query_properties(escalus:client(), escalus:client(), proplists:proplist(), none | full_entry) ->
+    [exml:element()].
+query_properties(From, To, Expected, FullEntry) ->
+    Stanza = make_inbox_get_properties(To, FullEntry),
     escalus:send(From, Stanza),
     Result = escalus:wait_for_stanza(From),
     ?assert(escalus_pred:is_iq_result(Stanza, Result)),
     [Props] = exml_query:subelements(Result, <<"query">>),
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(Props, <<"xmlns">>)),
+    maybe_assert_full_entry(Props, FullEntry),
     lists:foreach(fun({Key, Val}) -> assert_property(Props, Key, Val) end, Expected).
 
--spec make_inbox_get_properties(escalus:client()) -> exml:element().
-make_inbox_get_properties(To) ->
+maybe_assert_full_entry(_, none) ->
+    ok;
+maybe_assert_full_entry(Props, full_entry) ->
+    ?assertNotEqual(undefined, exml_query:path(Props, [{element, <<"forwarded">>}])).
+
+-spec make_inbox_get_properties(escalus:client(), boolean()) -> exml:element().
+make_inbox_get_properties(To, none) ->
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), jid_attr(To), []),
+    escalus_stanza:iq(<<"get">>, [Query]);
+make_inbox_get_properties(To, full_entry) ->
+    Attrs = [{<<"complete">>, <<"true">>} | jid_attr(To)],
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), Attrs, []),
     escalus_stanza:iq(<<"get">>, [Query]).
 
 -spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist()) -> ok.

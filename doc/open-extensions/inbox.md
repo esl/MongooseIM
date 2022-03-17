@@ -200,6 +200,29 @@ To which the server will reply, just like before, with:
 </iq>
 ```
 
+If an entire entry wanted to be queried, and not only its attributes, a `complete='true'` can be provided:
+```xml
+<iq id='some_unique_id' type='get'>
+  <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost' complete='true'/>
+</iq>
+```
+To which the server will reply, just like before, with:
+```xml
+<iq id='some_unique_id' to='alice@localhost/res1' type='result'>
+  <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation'>
+    <forwarded xmlns="urn:xmpp:forward:0">
+      <delay xmlns="urn:xmpp:delay" stamp="2018-07-10T23:08:25.123456Z"/>
+      <message xml:lang="en" type="chat" to="bob@localhost/res1" from="alice@localhost/res1" id=”123”>
+        <body>Hello</body>
+      </message>
+    </forwarded>
+    <archive>false</archive>
+    <mute>0</mute>
+    <read>true</read>
+  </query>
+</iq>
+```
+
 
 ## Setting properties
 Setting properties is done using the standard XMPP pattern of `iq-query` and `iq-result`, as below:
@@ -217,7 +240,7 @@ where `Property` and `Value` are a list of key-value pairs as follows:
 - `mute`: number of _seconds_ to mute for. Choose `0` for unmuting.
 - `read` (adjective, not verb): `true` or `false`. Setting to true essentially sets the unread-count to `0`, `false` sets the unread-count to `1` (if it was equal to `0`, otherwise it lefts it unchanged). No other possibilities are offered, to reduce the risk of inconsistencies or problems induced by a faulty client.
 
-*Note* that resetting the inbox count will not be forwarded. While a chat marker will be forwarded to the interlocutor(s), (including the case of a big groupchat with thousands of participants), this reset stanza will not.  
+*Note* that resetting the inbox count will not be forwarded. While a chat marker will be forwarded to the interlocutor(s), (including the case of a big groupchat with thousands of participants), this reset stanza will not.
 
 If the query was successful, the server will answer with two stanzas, following the classic pattern of broadcasting state changes. First, it would send a message with a `<x>` children containing all new configuration, to the bare-jid of the user: this facilitates broadcasting to all online resources to successfully synchronise their interfaces.
 ```xml

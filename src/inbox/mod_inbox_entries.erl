@@ -9,6 +9,9 @@
 -export([should_be_stored_in_inbox/1]).
 -export([extensions_result/3]).
 
+-type get_entry_type() :: full_entry | only_properties.
+-export_type([get_entry_type/0]).
+
 -spec process_iq_conversation(Acc :: mongoose_acc:t(),
                               From :: jid:jid(),
                               To :: jid:jid(),
@@ -33,7 +36,15 @@ process_iq_conversation_get(Acc, IQ, From, SubEl) ->
             SubElWithForm = SubEl#xmlel{children = [Form]},
             {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
         EntryJID ->
-            get_properties_for_jid(Acc, IQ, From, EntryJID)
+            FullEntry = maybe_get_full_entry(SubEl),
+            get_properties_for_jid(Acc, IQ, From, EntryJID, FullEntry)
+    end.
+
+-spec maybe_get_full_entry(exml:element()) -> get_entry_type().
+maybe_get_full_entry(SubEl) ->
+    case exml_query:attr(SubEl, <<"complete">>) of
+        <<"true">> -> full_entry;
+        _ -> only_properties
     end.
 
 -spec build_inbox_entry_form() -> exml:element().
@@ -46,12 +57,17 @@ build_inbox_entry_form() ->
                        jlib:form_field({<<"read">>, <<"boolean">>, <<"false">>}),
                        jlib:form_field({<<"mute">>, <<"text-single">>, <<"0">>})]}.
 
--spec get_properties_for_jid(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid()) ->
+fetch_right_query(HostType, InboxEntryKey, only_properties) ->
+    mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey);
+fetch_right_query(HostType, InboxEntryKey, full_entry) ->
+    mod_inbox_backend:get_full_entry(HostType, InboxEntryKey).
+
+-spec get_properties_for_jid(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), get_entry_type()) ->
     {mongoose_acc:t(), jlib:iq()}.
-get_properties_for_jid(Acc, IQ, From, EntryJID) ->
+get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
     HostType = mongoose_acc:host_type(Acc),
     {_, _, BinEntryJID} = InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
-    case mod_inbox_backend:get_entry_properties(HostType, InboxEntryKey) of
+    case fetch_right_query(HostType, InboxEntryKey, QueryType) of
         [] -> return_error(Acc, IQ, <<"Entry not found">>);
         Result ->
             CurrentTS = mongoose_acc:timestamp(Acc),
@@ -143,13 +159,19 @@ process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec build_result(entry_properties(), integer()) -> [exml:element()].
-build_result(#{archive := Archived, unread_count := UnreadCount, muted_until := MutedUntil}, CurrentTS) ->
+-spec build_result(inbox_res() | entry_properties(), integer()) -> [exml:element()].
+build_result(Entry = #{archive := Archived, unread_count := UnreadCount, muted_until := MutedUntil}, CurrentTS) ->
+    maybe_full_entry(Entry) ++
     [
      kv_to_el(<<"archive">>, mod_inbox_utils:bool_to_binary(Archived)),
      kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
      kv_to_el(<<"mute">>, mod_inbox_utils:maybe_muted_until(MutedUntil, CurrentTS))
     ].
+
+maybe_full_entry(#{msg := Msg, timestamp := Timestamp}) ->
+    [ mod_inbox_utils:build_forward_el(Msg, Timestamp) ];
+maybe_full_entry(_) ->
+    [].
 
 -spec kv_to_el(binary(), binary()) -> exml:element().
 kv_to_el(Key, Value) ->
