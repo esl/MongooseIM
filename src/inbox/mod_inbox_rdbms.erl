@@ -21,6 +21,7 @@
          remove_domain/2,
          clear_inbox/3,
          get_inbox_unread/2,
+         get_full_entry/2,
          get_entry_properties/2,
          set_entry_properties/3]).
 -export([check_result/1]).
@@ -43,6 +44,11 @@
 %% TODO pools aren't multitenancy-ready yet
 init(HostType, _Options) ->
     RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
+    mongoose_rdbms:prepare(
+      inbox_select_entry, inbox,
+      [luser, lserver, remote_bare_jid],
+      <<"SELECT remote_bare_jid, content, unread_count, msg_id, timestamp, archive, muted_until ",
+        "FROM inbox ", RowCond/binary>>),
     mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
                            [luser, lserver, remote_bare_jid],
                            <<"SELECT unread_count FROM inbox ",
@@ -166,6 +172,17 @@ reset_unread(HostType, {LUser, LServer, LToBareJid}, MsgId) ->
 clear_inbox(HostType, LUser, LServer) ->
     Res = execute_delete(HostType, LUser, LServer),
     check_result(Res).
+
+-spec get_full_entry(HostType :: mongooseim:host_type(),
+                           InboxEntryKey :: mod_inbox:entry_key()) ->
+    inbox_res() | nil().
+get_full_entry(HostType, {LUser, LServer, RemBareJID}) ->
+    case execute_select_full_entry(HostType, LUser, LServer, RemBareJID) of
+        {selected, []} ->
+            [];
+        {selected, [Selected]} ->
+            decode_row(HostType, Selected)
+    end.
 
 -spec get_entry_properties(HostType :: mongooseim:host_type(),
                            InboxEntryKey :: mod_inbox:entry_key()) ->
@@ -376,6 +393,12 @@ update_sql_part(muted_until, Val) when is_integer(Val) ->
           mongoose_rdbms:query_result().
 execute_select_unread_count(HostType, LUser, LServer, RemBareJID) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_select_unread_count,
+                                        [LUser, LServer, RemBareJID]).
+
+-spec execute_select_full_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_full_entry(HostType, LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_select_entry,
                                         [LUser, LServer, RemBareJID]).
 
 -spec execute_select_properties(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->

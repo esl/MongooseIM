@@ -22,6 +22,7 @@
          clear_inbox/3,
          get_inbox/4,
          get_inbox_unread/2,
+         get_full_entry/2,
          get_entry_properties/2,
          set_entry_properties/3]).
 -export([stop/1]).
@@ -134,6 +135,11 @@ remove_domain(HostType, LServer) ->
     mod_inbox:write_res().
 clear_inbox(HostType, LUser, LServer) ->
     mod_inbox_rdbms:clear_inbox(HostType, LUser, LServer).
+
+-spec get_full_entry(mongooseim:host_type(), mod_inbox:entry_key()) ->
+    inbox_res() | nil().
+get_full_entry(HostType, Entry) ->
+    mod_inbox_rdbms:get_full_entry(HostType, Entry).
 
 -spec get_entry_properties(mongooseim:host_type(), mod_inbox:entry_key()) ->
     entry_properties() | nil().

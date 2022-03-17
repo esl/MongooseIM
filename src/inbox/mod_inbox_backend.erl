@@ -12,6 +12,7 @@
          remove_inbox_row/2,
          set_inbox_incr_unread/5,
          get_inbox_unread/2,
+         get_full_entry/2,
          get_entry_properties/2,
          set_entry_properties/3,
          reset_unread/3]).
@@ -66,6 +67,11 @@
 -callback get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
+
+-callback get_full_entry(HostType, InboxEntryKey) -> Ret when
+    HostType :: mongooseim:host_type(),
+    InboxEntryKey :: mod_inbox:entry_key(),
+    Ret :: inbox_res() | nil().
 
 -callback get_entry_properties(HostType, InboxEntryKey) -> Ret when
     HostType :: mongooseim:host_type(),
@@ -155,6 +161,14 @@ get_inbox_unread(HostType, InboxEntryKey) ->
     Args = [HostType, InboxEntryKey],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
+-spec get_full_entry(HostType, InboxEntryKey) -> Ret when
+    HostType :: mongooseim:host_type(),
+    InboxEntryKey :: mod_inbox:entry_key(),
+    Ret :: inbox_res() | nil().
+get_full_entry(HostType, InboxEntryKey) ->
+    Args = [HostType, InboxEntryKey],
+    mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
 -spec get_entry_properties(HostType, InboxEntryKey) -> Ret when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
@@ -175,4 +189,4 @@ set_entry_properties(HostType, InboxEntryKey, Params) ->
 callback_funs() ->
   [get_inbox, set_inbox, set_inbox_incr_unread,
    reset_unread, remove_inbox_row, clear_inbox, get_inbox_unread,
-   get_entry_properties, set_entry_properties, remove_domain].
+   get_full_entry, get_entry_properties, set_entry_properties, remove_domain].
