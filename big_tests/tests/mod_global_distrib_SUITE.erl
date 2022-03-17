@@ -123,10 +123,7 @@ init_per_suite(Config) ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
             enable_logging(),
-            % We have to pass [no_opts] because [] is treated as string and converted
-            % automatically to <<>>
-            escalus:init_per_suite([{add_advertised_endpoints, []},
-                                    {extra_config, #{}} | Config]);
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
             {skip, "GD Redis default pool not available"}
@@ -207,8 +204,7 @@ init_modules_per_node({NodeName, LocalHost, ReceiverPort}, Config0) ->
     Config1.
 
 module_opts(ExtraOpts) ->
-    lists:foldl(fun(Step, OptsIn) -> set_opts(Step, OptsIn) end,
-                ExtraOpts, [common, defaults, connections, redis, bounce]).
+    lists:foldl(fun set_opts/2, ExtraOpts, [common, defaults, connections, redis, bounce]).
 
 set_opts(common, Opts) ->
     maps:merge(#{global_host => <<"localhost">>,

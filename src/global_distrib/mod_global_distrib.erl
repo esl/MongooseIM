@@ -37,6 +37,10 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
+%% Note: while this module should be enabled for all hosts,
+%% it needs to be started only once - this is why deps/2 and start/2
+%% do nothing for hosts other than global_host
+
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(HostType, Opts = #{global_host := HostType, bounce := BounceOpts}) ->
     %% Start each required module with the same opts for simplicity
