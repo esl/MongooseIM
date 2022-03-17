@@ -9,7 +9,7 @@
 -type get_inbox_res() :: list(inbox_res()).
 
 -type inbox_res() :: #{remote_jid := binary(),
-                       msg := content(),
+                       msg := exml:element(),
                        unread_count := integer(),
                        msg_id := id(),
                        timestamp := integer(),

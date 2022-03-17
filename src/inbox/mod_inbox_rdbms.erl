@@ -421,13 +421,13 @@ execute_delete_domain(HostType, LServer) ->
 
 -spec decode_row(mongooseim:host_type(), db_return()) -> inbox_res().
 decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, MutedUntil}) ->
-    Data = mongoose_rdbms:unescape_binary(HostType, Content),
+    {ok, Parsed} = exml:parse(mongoose_rdbms:unescape_binary(HostType, Content)),
     BCount = mongoose_rdbms:result_to_integer(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
     BoolArchive = mongoose_rdbms:to_bool(Archive),
     NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
     #{remote_jid => Username,
-      msg => Data,
+      msg => Parsed,
       unread_count => BCount,
       msg_id => MsgId,
       timestamp => NumericTimestamp,

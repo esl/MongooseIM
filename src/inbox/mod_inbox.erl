@@ -313,7 +313,7 @@ build_inbox_message(#{msg := Content,
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
         children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS)]}.
 
--spec build_result_el(content(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
+-spec build_result_el(exml:element(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
 build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
     Forwarded = build_forward_el(Msg, Timestamp),
     Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
@@ -338,12 +338,11 @@ build_result_iq(List) ->
 build_result_el(Name, CountBin) ->
     #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
 
--spec build_forward_el(content(), integer()) -> exml:element().
+-spec build_forward_el(exml:element(), integer()) -> exml:element().
 build_forward_el(Content, Timestamp) ->
-    {ok, Parsed} = exml:parse(Content),
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-           children = [Delay, Parsed]}.
+           children = [Delay, Content]}.
 
 -spec build_delay_el(Timestamp :: integer()) -> exml:element().
 build_delay_el(Timestamp) ->
