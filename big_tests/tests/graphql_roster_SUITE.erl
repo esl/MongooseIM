@@ -99,11 +99,11 @@ end_per_testcase(CaseName, Config) ->
 -define(NONEXISTENT_USER, <<"abc@", (domain_helper:domain())/binary>>).
 -define(DEFAULT_GROUPS, [<<"Family">>]).
 
+%% Admin test cases
+
 admin_add_and_delete_contact(Config) ->
     escalus:fresh_story_with_config(Config, [{alice, 1}, {bob, 1}],
                                     fun admin_add_and_delete_contact_story/3).
-
-%% Admin test cases
 
 admin_add_and_delete_contact_story(Config, Alice, Bob) ->
     Res = execute_auth(admin_add_contact_body(Alice, Bob, null, null), Config),
@@ -186,8 +186,7 @@ admin_invite_accept_and_cancel_subscription_story(Config, Alice, Bob) ->
     % Send invitation to subscribe 
     execute_auth(admin_subscription_body(Alice, Bob, <<"INVITE">>), Config),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
-    escalus:assert(is_presence_with_type, [<<"subscribe">>],
-                           escalus:wait_for_stanza(Bob)),
+    escalus:assert(is_presence_with_type, [<<"subscribe">>], escalus:wait_for_stanza(Bob)),
     ?assertMatch(#roster{ask = out, subscription = none}, get_roster(Alice, Bob)),
     % Accept invitation 
     execute_auth(admin_subscription_body(Bob, Alice, <<"ACCEPT">>), Config),
@@ -413,8 +412,7 @@ user_invite_accept_and_cancel_subscription_story(Config, Alice, Bob) ->
     % Send invitation to subscribe 
     execute_user(user_subscription_body(Bob, <<"INVITE">>), Alice, Config),
     escalus:assert(is_roster_set, escalus:wait_for_stanza(Alice)),
-    escalus:assert(is_presence_with_type, [<<"subscribe">>],
-                           escalus:wait_for_stanza(Bob)),
+    escalus:assert(is_presence_with_type, [<<"subscribe">>], escalus:wait_for_stanza(Bob)),
     ?assertMatch(#roster{ask = out, subscription = none}, get_roster(Alice, Bob)),
     % Accept invitation 
     execute_user(user_subscription_body(Alice, <<"ACCEPT">>), Bob, Config),
@@ -513,7 +511,7 @@ check_if_created_succ(Path, Res, ExpectedOkValue) ->
                       lists:zip(OkList, ExpectedOkValue)
               end,
     [?assertNotEqual(nomatch, binary:match(Msg, <<"created successfully">>))
-     || {Msg, ShouldHasValue} <- OkList2, ShouldHasValue].
+     || {Msg, ShouldHaveValue} <- OkList2, ShouldHaveValue].
 
 get_roster(User, Contact) ->
     rpc(mim(), mod_roster, get_roster_entry,

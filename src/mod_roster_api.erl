@@ -140,7 +140,7 @@ subscribe_both({UserA, NameA, GroupsA}, {UserB, NameB, GroupsB}) ->
             {ok, io_lib:format("Subscription between users ~p and ~p created successfully",
                                [jid:to_binary(UserA), jid:to_binary(UserB)])};
         Error ->
-           Error
+            Error
     end.
 
 %% Internal

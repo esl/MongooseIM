@@ -14,9 +14,9 @@ type RosterAdminMutation @protected{
   deleteContacts(user: JID!, contacts: [JID!]!): [String]!
   "Manage mutual subscription between given users"
   setMutualSubscription(userA: JID!, userB: JID!, action: MutualSubAction!): String
-  "Set both subscritpion of user to users from contact list"
+  "Set mutual subscriptions between the user and each of the given contacts"
   subscribeToAll(user: ContactInput!, contacts: [ContactInput!]!): [String]!
-  "Subscibe all users to all users from the given contacts list"
+  "Set mutual subscriptions between all of the given contacts"
   subscribeAllToAll(contacts: [ContactInput!]): [String]!
 }
 

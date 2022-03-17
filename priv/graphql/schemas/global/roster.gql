@@ -14,11 +14,11 @@ type Contact{
   jid: JID!
   "The contact name"
   name: String
-  "The list of the groups the contact belongs"
+  "The list of the groups the contact belongs to"
   groups: [String!]
   "The type of the subscription"
   subscription: ContactSub 
-  "The type of the subscription"
+  "The type of the ask"
   ask: ContactAsk
 }
 
