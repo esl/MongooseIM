@@ -26,7 +26,7 @@
 -module(gen_mod).
 -author('alexey@process-one.net').
 
--export_type([opt_key/0, opt_value/0, module_opts/0]).
+-export_type([key_path/0, opt_key/0, opt_value/0, module_opts/0]).
 
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
