@@ -24,28 +24,26 @@
 
 -type t() :: #?MODULE{}.
 
--export([wrap/2, setopts/2, recv_data/2, close/1, send/2, peername/1]).
+-export([wrap/2, wrap/3, setopts/2, recv_data/2, close/1, send/2, peername/1]).
 -export_types([t/0]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec wrap(Socket :: gen_tcp:socket(), false | [connect | false] | proplists:proplist()) ->
-                  {ok, t()} | {error, any()}.
-wrap(Socket, [connect | false]) ->
-    wrap(Socket, false);
-wrap(Socket, false) ->
-    {ok, #?MODULE{transport = gen_tcp, socket = Socket}};
-wrap(Socket, Opts0) ->
-    Opts1 = case proplists:get_value(ciphers, Opts0) of
-                undefined -> [{ciphers, "TLSv1.2:TLSv1.3"} | Opts0];
-                _ -> Opts0
-            end,
-    case fast_tls:tcp_to_tls(Socket, Opts1) of
+-spec wrap(gen_tcp:socket(), ConnOpts :: map()) -> {ok, t()} | {error, any()}.
+wrap(Socket, ConnOpts) ->
+    wrap(Socket, ConnOpts, []).
+
+-spec wrap(gen_tcp:socket(), ConnOpts :: map(), ExtraOpts :: proplists:proplist()) ->
+          {ok, t()} | {error, any()}.
+wrap(Socket, #{tls := Opts}, ExtraOpts) ->
+    case fast_tls:tcp_to_tls(Socket, ExtraOpts ++ maps:to_list(Opts)) of
         {ok, TLSSocket} -> {ok, #?MODULE{transport = fast_tls, socket = TLSSocket}};
         Error -> Error
-    end.
+    end;
+wrap(Socket, #{}, _ExtraOpts) ->
+    {ok, #?MODULE{transport = gen_tcp, socket = Socket}}.
 
 -spec setopts(t(), Opts :: proplists:proplist()) -> ok | {error, term()}.
 setopts(#?MODULE{transport = gen_tcp, socket = Socket}, Opts) ->
