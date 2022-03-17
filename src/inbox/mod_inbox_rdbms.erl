@@ -153,7 +153,7 @@ set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Content, MsgId, Ti
                                        InsertParams, UpdateParams, UniqueKeyValues),
     check_result(Res).
 
--spec reset_unread(HosType :: mongooseim:host_type(),
+-spec reset_unread(HostType :: mongooseim:host_type(),
                    InboxEntryKey :: mod_inbox:entry_key(),
                    MsgId :: binary() | undefined) -> mod_inbox:write_res().
 reset_unread(HostType, {LUser, LServer, LToBareJid}, MsgId) ->
@@ -167,7 +167,7 @@ clear_inbox(HostType, LUser, LServer) ->
     Res = execute_delete(HostType, LUser, LServer),
     check_result(Res).
 
--spec get_entry_properties(HosType :: mongooseim:host_type(),
+-spec get_entry_properties(HostType :: mongooseim:host_type(),
                            InboxEntryKey :: mod_inbox:entry_key()) ->
     entry_properties() | nil().
 get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
@@ -175,7 +175,7 @@ get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
         {selected, []} ->
             [];
         {selected, [Selected]} ->
-            decode_entries(Selected)
+            decode_properties(Selected)
     end.
 
 -spec set_entry_properties(HostType :: mongooseim:host_type(),
@@ -191,16 +191,8 @@ set_entry_properties(HostType, {LUser, LServer, RemBareJID}, Properties) ->
         {updated, 0} ->
             {error, <<"item-not-found">>};
         {selected, [Result]} ->
-            decode_entries(Result)
+            decode_properties(Result)
     end.
-
-decode_entries({BArchive, BCount, BMutedUntil}) ->
-    Archive = mongoose_rdbms:to_bool(BArchive),
-    Count = mongoose_rdbms:result_to_integer(BCount),
-    MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
-    #{archive => Archive,
-      unread_count => Count,
-      muted_until => MutedUntil}.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -433,6 +425,14 @@ decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, Muted
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.
+
+decode_properties({BArchive, BCount, BMutedUntil}) ->
+    Archive = mongoose_rdbms:to_bool(BArchive),
+    Count = mongoose_rdbms:result_to_integer(BCount),
+    MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
+    #{archive => Archive,
+      unread_count => Count,
+      muted_until => MutedUntil}.
 
 -spec check_result_is_expected(_, list()) -> mod_inbox:write_res().
 check_result_is_expected({updated, Val}, ValList) when is_list(ValList) ->
