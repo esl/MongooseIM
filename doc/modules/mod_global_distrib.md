@@ -153,10 +153,10 @@ The endpoint list will be shared with other datacenters via the replicated backe
 
 #### `modules.mod_global_distrib.connections.advertised_endpoints`
 * **Syntax:** Array of TOML tables with the following keys: `host` and `port`, and the following values: {host = `string`, port = `non_negative_integer`}
-* **Default:** not set
+* **Default:** not set, the value of `endpoints` is used (without resolution).
 * **Example:** `advertised_endpoints = [{host = "172.16.0.2", port = 5555}]`
 
-A list of endpoints which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
+A list of endpoints which will be advertised in Redis and therefore used to establish connection with this node by other nodes. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
 
 #### `modules.mod_global_distrib.connections.connections_per_endpoint`
 * **Syntax:** non-negative integer
@@ -208,7 +208,7 @@ These options will be passed to the `fast_tls` driver.
 
 #### `modules.mod_global_distrib.connections.tls.ciphers`
 * **Syntax:** string
-* **Default:** not set
+* **Default:** `"TLSv1.2:TLSv1.3"`
 * **Example:** `ciphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"`
 
 Cipher suites to use with StartTLS or TLS. Please refer to the [OpenSSL documentation](https://www.openssl.org/docs/man1.0.2/man1/ciphers.html) for the cipher string format.
