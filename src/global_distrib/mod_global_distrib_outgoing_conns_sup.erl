@@ -84,4 +84,3 @@ ensure_server_started(Server) ->
 init(_) ->
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
     {ok, {SupFlags, []}}.
-
