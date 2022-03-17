@@ -11,6 +11,7 @@
 -type inbox_res() :: #{remote_jid := binary(),
                        msg := content(),
                        unread_count := integer(),
+                       msg_id := id(),
                        timestamp := integer(),
                        archive := boolean(),
                        muted_until := integer()}.
