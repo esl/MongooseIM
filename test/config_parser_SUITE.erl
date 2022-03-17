@@ -1741,38 +1741,37 @@ mod_inbox(_Config) ->
     ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
 mod_global_distrib(_Config) ->
+    P = [modules, mod_global_distrib],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_global_distrib">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_global_distrib, Cfg) end,
     RequiredOpts = global_distrib_required_opts(),
-    ExpectedCfg = global_distrib_expected_config(),
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{message_ttl, 42}]),
+    ExpectedCfg = mod_config(mod_global_distrib, global_distrib_expected_config()),
+    ?cfgh(P, ExpectedCfg, T(RequiredOpts)),
+    ?cfgh(P ++ [message_ttl], 42,
           T(RequiredOpts#{<<"message_ttl">> => 42})),
-    ?cfgh(M(ExpectedCfg ++ [{hosts_refresh_interval, 100}]),
+    ?cfgh(P ++ [hosts_refresh_interval], 100,
           T(RequiredOpts#{<<"hosts_refresh_interval">> => 100})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
-    ?errh(T(RequiredOpts#{<<"global_host">> => <<"">>})),
-    ?errh(T(RequiredOpts#{<<"local_host">> => <<"">>})),
+    ?errh(T(RequiredOpts#{<<"global_host">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"local_host">> => <<>>})),
+    ?errh(T(RequiredOpts#{<<"local_host">> => <<"nohost">>})), % passed to 'endpoints', not resolved
     ?errh(T(RequiredOpts#{<<"message_ttl">> => -1})),
     ?errh(T(RequiredOpts#{<<"hosts_refresh_interval">> => -1})).
 
 mod_global_distrib_connections(_Config) ->
     RequiredOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, connections],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredOpts#{<<"connections">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++ [{connections, Cfg}])
-        end,
-    ?cfgh(M([]), T(#{})),
-    ?cfgh(M([{connections_per_endpoint, 22}]),
+    ?cfgh(P, global_distrib_expected_connections(), T(#{})),
+    ?cfgh(P ++ [connections_per_endpoint], 22,
           T(#{<<"connections_per_endpoint">> => 22})),
-    ?cfgh(M([{endpoint_refresh_interval, 120}]),
+    ?cfgh(P ++ [endpoint_refresh_interval], 120,
           T(#{<<"endpoint_refresh_interval">> => 120})),
-    ?cfgh(M([{endpoint_refresh_interval_when_empty, 5}]),
+    ?cfgh(P ++ [endpoint_refresh_interval_when_empty], 5,
           T(#{<<"endpoint_refresh_interval_when_empty">> => 5})),
-    ?cfgh(M([{disabled_gc_interval, 60}]),
+    ?cfgh(P ++ [disabled_gc_interval], 60,
           T(#{<<"disabled_gc_interval">> => 60})),
     ?errh(T(#{<<"connections_per_endpoint">> => -1})),
     ?errh(T(#{<<"endpoint_refresh_interval">> => 0})),
@@ -1780,47 +1779,59 @@ mod_global_distrib_connections(_Config) ->
     ?errh(T(#{<<"disabled_gc_interval">> => 0})).
 
 mod_global_distrib_connections_endpoints(_Config) ->
-    check_mod_global_distrib_endpoints(<<"endpoints">>).
+    check_mod_global_distrib_endpoint_opts(<<"endpoints">>),
+    RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, connections],
+    T = fun(Opts) -> #{<<"modules">> =>
+                           #{<<"mod_global_distrib">> =>
+                                 RequiredModOpts#{<<"connections">> => #{<<"endpoints">> => Opts}}}}
+        end,
+
+    %% 'enpoints' propagate to 'advertised_endpoints' and 'resolved_endpoints'
+    ?cfgh([{P ++ [endpoints], [{"172.16.0.2", 5555}]},
+           {P ++ [advertised_endpoints], [{"172.16.0.2", 5555}]},
+           {P ++ [resolved_endpoints], [{{172, 16, 0, 2}, 5555}]}],
+          T([#{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5555}])),
+
+    ?cfgh([{P ++ [endpoints], [{"localhost", 15555}]},
+           {P ++ [advertised_endpoints], [{"localhost", 15555}]},
+           {P ++ [resolved_endpoints], [{{0, 0, 0, 0, 0, 0, 0, 1}, 15555},
+                                        {{127, 0, 0, 1}, 15555}]
+           }],
+          T([#{<<"host">> => <<"localhost">>, <<"port">> => 15555}])),
+    ?errh(T([#{<<"host">> => <<"172.16.0.299">>, <<"port">> => 5555}])),
+    ?errh(T([#{<<"host">> => <<"nohost">>, <<"port">> => 15555}])).
 
 mod_global_distrib_connections_advertised_endpoints(_Config) ->
-    check_mod_global_distrib_endpoints(<<"advertised_endpoints">>).
+    check_mod_global_distrib_endpoint_opts(<<"advertised_endpoints">>).
 
-check_mod_global_distrib_endpoints(OptKey) ->
-    CfgKey = binary_to_atom(OptKey, utf8),
+check_mod_global_distrib_endpoint_opts(OptKey) ->
     RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, connections, binary_to_atom(OptKey)],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"connections">> => #{OptKey => Opts}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++
-                                [{connections, [{CfgKey, Cfg}]}])
-        end,
-    RequiredOpts = #{<<"host">> => <<"172.16.0.2">>,
-                     <<"port">> => 5555},
-    ?cfgh(M([{"172.16.0.2", 5555}]), T([RequiredOpts])),
+    RequiredOpts = #{<<"host">> => <<"172.16.0.2">>, <<"port">> => 5678},
+    ?cfgh(P, [{"172.16.0.2", 5678}], T([RequiredOpts])),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     ?errh(T([RequiredOpts#{<<"host">> => <<>>}])),
     ?errh(T([RequiredOpts#{<<"port">> => -1}])).
 
 mod_global_distrib_connections_tls(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, connections, tls],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"connections">> => #{<<"tls">> => Opts}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++
-                                [{connections, [{tls_opts, Cfg}]}])
-        end,
     RequiredOpts = #{<<"certfile">> => <<"priv/cert.pem">>,
                      <<"cacertfile">> => <<"priv/ca.pem">>},
-    ExpectedCfg = [{certfile, "priv/cert.pem"},
-                   {cafile, "priv/ca.pem"}],
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{ciphers, "TLS_AES_256_GCM_SHA384"}]),
+    ExpectedCfg = config(P, #{certfile => "priv/cert.pem", cafile => "priv/ca.pem"}),
+    ?cfgh(P, ExpectedCfg, T(RequiredOpts)),
+    ?cfgh(P ++ [ciphers], "TLS_AES_256_GCM_SHA384",
           T(RequiredOpts#{<<"ciphers">> => <<"TLS_AES_256_GCM_SHA384">>})),
-    ?cfgh(M(ExpectedCfg ++ [{dhfile, "priv/cert.pem"}]),
+    ?cfgh(P ++ [dhfile], "priv/cert.pem",
           T(RequiredOpts#{<<"dhfile">> => <<"priv/cert.pem">>})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"certfile">> => <<"/this/does/not/exist">>})),
@@ -1830,42 +1841,31 @@ mod_global_distrib_connections_tls(_Config) ->
 
 mod_global_distrib_redis(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, redis],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"redis">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++ [{redis, Cfg}])
-        end,
-    ?cfgh(M([]), T(#{})),
-    ?cfgh(M([{pool, global_distrib}]),
-          T(#{<<"pool">> => <<"global_distrib">>})),
-    ?cfgh(M([{expire_after, 120}]),
-          T(#{<<"expire_after">> => 120})),
-    ?cfgh(M([{refresh_after, 60}]),
-          T(#{<<"refresh_after">> => 60})),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [pool], global_distrib, T(#{<<"pool">> => <<"global_distrib">>})),
+    ?cfgh(P ++ [expire_after], 120, T(#{<<"expire_after">> => 120})),
+    ?cfgh(P ++ [refresh_after], 60, T(#{<<"refresh_after">> => 60})),
     ?errh(T(#{<<"pool">> => <<"">>})),
     ?errh(T(#{<<"expire_after">> => 0})),
     ?errh(T(#{<<"refresh_after">> => -1})).
 
 mod_global_distrib_cache(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, cache],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"cache">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++ [{cache, Cfg}])
-        end,
-    ?cfgh(M([]), T(#{})),
-    ?cfgh(M([{cache_missed, false}]),
-          T(#{<<"cache_missed">> => false})),
-    ?cfgh(M([{domain_lifetime_seconds, 60}]),
-          T(#{<<"domain_lifetime_seconds">> => 60})),
-    ?cfgh(M([{jid_lifetime_seconds, 30}]),
-          T(#{<<"jid_lifetime_seconds">> => 30})),
-    ?cfgh(M([{max_jids, 9999}]),
-          T(#{<<"max_jids">> => 9999})),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [cache_missed], false, T(#{<<"cache_missed">> => false})),
+    ?cfgh(P ++ [domain_lifetime_seconds], 60, T(#{<<"domain_lifetime_seconds">> => 60})),
+    ?cfgh(P ++ [jid_lifetime_seconds], 30, T(#{<<"jid_lifetime_seconds">> => 30})),
+    ?cfgh(P ++ [max_jids], 9999, T(#{<<"max_jids">> => 9999})),
     ?errh(T(#{<<"cache_missed">> => <<"yes">>})),
     ?errh(T(#{<<"domain_lifetime_seconds">> => -1})),
     ?errh(T(#{<<"jid_lifetime_seconds">> => -1})),
@@ -1873,32 +1873,34 @@ mod_global_distrib_cache(_Config) ->
 
 mod_global_distrib_bounce(_Config) ->
     RequiredModOpts = global_distrib_required_opts(),
+    P = [modules, mod_global_distrib, bounce],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_global_distrib">> =>
                                  RequiredModOpts#{<<"bounce">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_global_distrib,
-                            global_distrib_expected_config() ++ [{bounce, Cfg}])
-        end,
-    ?cfgh(M(false),
-          T(#{<<"enabled">> => false})),
-    ?cfgh(M([]),
-          T(#{<<"enabled">> => true})),
-    ?cfgh(M([{resend_after_ms, 300}]),
-          T(#{<<"resend_after_ms">> => 300})),
-    ?cfgh(M([{max_retries, 3}]),
-          T(#{<<"max_retries">> => 3})),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [enabled], false, T(#{<<"enabled">> => false})),
+    ?cfgh(P ++ [resend_after_ms], 300, T(#{<<"resend_after_ms">> => 300})),
+    ?cfgh(P ++ [max_retries], 3, T(#{<<"max_retries">> => 3})),
     ?errh(T(#{<<"enabled">> => <<"">>})),
     ?errh(T(#{<<"resend_after_ms">> => -1})),
     ?errh(T(#{<<"max_retries">> => -1})).
 
 global_distrib_required_opts() ->
-    #{<<"global_host">> => <<"example.com">>,
-      <<"local_host">> => <<"datacenter1.example.com">>}.
+    #{<<"global_host">> => <<"global.example.com">>,
+      <<"local_host">> => <<"localhost">>}.
 
 global_distrib_expected_config() ->
-    [{global_host, "example.com"},
-     {local_host, "datacenter1.example.com"}].
+    #{global_host => <<"global.example.com">>,
+      local_host => <<"localhost">>,
+      connections => global_distrib_expected_connections()}.
+
+global_distrib_expected_connections() ->
+    config([modules, mod_global_distrib, connections],
+           #{endpoints => [{"localhost", 5555}],
+             advertised_endpoints => [{"localhost", 5555}],
+             resolved_endpoints => [{{0, 0, 0, 0, 0, 0, 0, 1}, 5555},
+                                    {{127, 0, 0, 1}, 5555}]}).
 
 mod_event_pusher_sns(_Config) ->
     RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,

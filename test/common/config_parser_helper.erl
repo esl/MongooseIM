@@ -460,16 +460,26 @@ all_modules() ->
              {provision_psk, {file, "priv/provision_psk"}}]},
            {ram_key_size, 1000}],
       mod_global_distrib =>
-          [{bounce, [{max_retries, 3}, {resend_after_ms, 300}]},
-           {cache, [{domain_lifetime_seconds, 60}]},
-           {connections,
-            [{advertised_endpoints, [{"172.16.0.2", 5555}]},
-             {connections_per_endpoint, 30},
-             {endpoints, [{"172.16.0.2", 5555}]},
-             {tls_opts, [{cafile, "priv/ca.pem"}, {certfile, "priv/dc1.pem"}]}]},
-           {global_host, "example.com"},
-           {local_host, "datacenter1.example.com"},
-           {redis, [{pool, global_distrib}]}],
+          mod_config(mod_global_distrib,
+                     #{global_host => <<"example.com">>,
+                       local_host => <<"datacenter1.example.com">>,
+                       bounce =>
+                           config([modules, mod_global_distrib, bounce],
+                                  #{max_retries => 3, resend_after_ms => 300}),
+                       cache =>
+                           config([modules, mod_global_distrib, cache],
+                                  #{domain_lifetime_seconds => 60}),
+                       connections =>
+                           config([modules, mod_global_distrib, connections],
+                                  #{endpoints => [{"172.16.0.2", 5555}],
+                                    advertised_endpoints => [{"172.16.0.2", 5555}],
+                                    resolved_endpoints => [{{172, 16, 0, 2}, 5555}],
+                                    connections_per_endpoint => 30,
+                                    tls => config([modules, mod_global_distrib, connections, tls],
+                                                  #{cafile => "priv/ca.pem",
+                                                    certfile => "priv/dc1.pem"})
+                                   })
+                      }),
       mod_pubsub =>
           [{access_createnode, pubsub_createnode},
            {backend, rdbms},
@@ -850,6 +860,13 @@ default_mod_config(mod_disco) ->
       users_can_see_hidden_services => true, iqdisc => one_queue};
 default_mod_config(mod_extdisco) ->
     #{iqdisc => no_queue, service => []};
+default_mod_config(mod_global_distrib) ->
+    #{message_ttl => 4,
+      hosts_refresh_interval => 3000,
+      connections => default_config([modules, mod_global_distrib, connections]),
+      redis => default_config([modules, mod_global_distrib, redis]),
+      cache => default_config([modules, mod_global_distrib, cache]),
+      bounce => default_config([modules, mod_global_distrib, bounce])};
 default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_inbox) ->
@@ -991,6 +1008,26 @@ default_room_opts() ->
 
 default_config([modules, M]) ->
     default_mod_config(M);
+default_config([modules, mod_global_distrib, connections]) ->
+    #{connections_per_endpoint => 1,
+      endpoint_refresh_interval => 60,
+      endpoint_refresh_interval_when_empty => 3,
+      disabled_gc_interval => 60};
+default_config([modules, mod_global_distrib, connections, tls]) ->
+    #{ciphers => "TLSv1.2:TLSv1.3"};
+default_config([modules, mod_global_distrib, redis]) ->
+    #{pool => global_distrib,
+      expire_after => 120,
+      refresh_after => 60};
+default_config([modules, mod_global_distrib, cache]) ->
+    #{cache_missed => true,
+      domain_lifetime_seconds => 600,
+      jid_lifetime_seconds => 5,
+      max_jids => 10000};
+default_config([modules, mod_global_distrib, bounce]) ->
+    #{enabled => true,
+      resend_after_ms => 200,
+      max_retries => 4};
 default_config([modules, mod_privacy, riak]) ->
     #{defaults_bucket_type => <<"privacy_defaults">>,
       names_bucket_type => <<"privacy_lists_names">>,
