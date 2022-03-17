@@ -87,7 +87,7 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, plugin/1, plugin_call/3, host/1, serverhost/1,
+         tree/1, plugin/1, plugin_call/3, host/2, serverhost/1,
          host_to_host_type/1]).
 
 %% API and gen_server callbacks
@@ -122,23 +122,12 @@
     delete_item/4, delete_node/3, disco_local_features/1, disco_sm_features/1,
     disco_sm_identity/1, disco_sm_items/1, extended_error/3, get_cached_item/2,
     get_item/3, get_items/2, get_personal_data/3, handle_pep_authorization_response/1,
-    handle_remote_hook/4, host/1, in_subscription/5, iq_sm/4, node_action/4, node_call/4,
+    handle_remote_hook/4, host/2, in_subscription/5, iq_sm/4, node_action/4, node_call/4,
     on_user_offline/5, out_subscription/4, plugin/2, plugin/1, presence_probe/4,
     publish_item/6, remove_user/3, send_items/7, serverhost/1, start_link/2,
     string_to_affiliation/1, string_to_subscription/1, subscribe_node/5,
     subscription_to_string/1, tree_action/3, unsubscribe_node/5
 ]).
-
--define(PROCNAME, ejabberd_mod_pubsub).
--define(LOOPNAME, ejabberd_mod_pubsub_loop).
-
-%%====================================================================
-%% API
-%%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
 
 -export_type([
               host/0,
@@ -245,7 +234,12 @@
 
         ).
 
+%%====================================================================
+%% API
+%%====================================================================
 
+%% @doc: Starts the server.
+-spec start_link(mongooseim:domain_name(), gen_mod:module_opts()) -> {ok, pid()} | ignore | {error, any()}.
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
@@ -275,7 +269,8 @@ config_spec() ->
                  <<"backend">> => #option{type = atom,
                                           validate = {module, mod_pubsub_db}},
                  <<"access_createnode">> => #option{type = atom,
-                                                    validate = access_rule},
+                                                    validate = access_rule,
+                                                    wrap = {kv, access}},
                  <<"max_items_node">> => #option{type = integer,
                                                  validate = non_negative},
                  <<"max_subscriptions_node">> => #option{type = integer,
@@ -390,11 +385,8 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     Host = mongoose_subdomain_utils:get_fqdn(SubdomainPattern, ServerHost),
 
     init_backend(ServerHost, Opts),
+    Plugins = init_plugins(Host, ServerHost, Opts),
 
-    ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
-    {Plugins, PepMapping} = init_plugins(Host, ServerHost, Opts),
-
-    store_config_in_ets(Host, ServerHost, Opts, Plugins, PepMapping),
     add_hooks(ServerHost, hooks()),
     case lists:member(?PEPNODE, Plugins) of
         true ->
@@ -403,7 +395,7 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
         false ->
             ok
     end,
-    {_, State} = init_send_loop(ServerHost),
+    {_, State} = init_send_loop(ServerHost, Opts, Plugins),
 
     %% Pass State as extra into ?MODULE:process_packet/5 function
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
@@ -426,27 +418,6 @@ init_backend(ServerHost, Opts) ->
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
     maybe_start_cache_module(ServerHost, Opts).
-
-store_config_in_ets(Host, ServerHost, Opts = #{nodetree := NodeTree}, Plugins, PepMapping) ->
-    Access = gen_mod:get_opt(access_createnode, Opts),
-    PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts),
-    LastItemCache = gen_mod:get_opt(last_item_cache, Opts),
-    MaxItemsNode = gen_mod:get_opt(max_items_node, Opts),
-    MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts),
-    NodeCfg = gen_mod:get_opt(default_node_config, Opts),
-    DefaultNodeCfg = filter_node_options(NodeCfg),
-    ItemPublisher = gen_mod:get_opt(item_publisher, Opts),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {nodetree, NodeTree}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {plugins, Plugins}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {last_item_cache, LastItemCache}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {max_items_node, MaxItemsNode}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {max_subscriptions_node, MaxSubsNode}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {default_node_config, DefaultNodeCfg}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {pep_mapping, PepMapping}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {ignore_pep_from_offline, PepOffline}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {host, Host}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {access, Access}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {item_publisher, ItemPublisher}).
 
 add_hooks(ServerHost, Hooks) ->
     [ ejabberd_hooks:add(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
@@ -486,15 +457,14 @@ delete_pep_iq_handlers(ServerHost) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
 
 init_send_loop(ServerHost) ->
-    HT = host_to_host_type(ServerHost),
-    NodeTree = tree(HT),
-    Plugins = config(ServerHost, plugins),
-    LastItemCache = config(ServerHost, last_item_cache),
-    MaxItemsNode = config(ServerHost, max_items_node),
-    PepMapping = config(ServerHost, pep_mapping),
-    PepOffline = config(ServerHost, ignore_pep_from_offline),
-    Host = config(ServerHost, host),
-    Access = config(ServerHost, access),
+    Plugins = gen_mod:get_module_opt(ServerHost, ?MODULE, plugins),
+    init_send_loop(ServerHost, gen_mod:get_module_opts(ServerHost, ?MODULE), Plugins).
+init_send_loop(ServerHost, #{last_item_cache := LastItemCache, max_items_node := MaxItemsNode,
+                             pep_mapping := PepMapping, ignore_pep_from_offline := PepOffline, access := Access},
+               Plugins) ->
+    HostType = host_to_host_type(ServerHost),
+    NodeTree = tree(HostType),
+    Host = host(HostType, ServerHost),
     State = #state{host = Host, server_host = ServerHost,
                    access = Access, pep_mapping = PepMapping,
                    ignore_pep_from_offline = PepOffline,
@@ -524,17 +494,15 @@ init_plugins(Host, ServerHost, Opts = #{nodetree := TreePlugin}) ->
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, HostType, Opts),
     Plugins = gen_mod:get_opt(plugins, Opts),
-    PepMapping = gen_mod:get_opt(pep_mapping, Opts),
-    ?LOG_DEBUG(#{what => pubsub_pep_mapping, pep_mapping => PepMapping}),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
-    {lists:reverse(PluginsOK), PepMapping}.
+    lists:reverse(PluginsOK).
 
 init_plugin(Host, ServerHost, Opts, Name, Acc) ->
     Plugin = plugin(Name),
     case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
-        {'EXIT', _Error} ->
+        {'EXIT', Error} ->
             ?LOG_ERROR(#{what => pubsub_plugin_init_failed, plugin => Plugin,
-                server => ServerHost, sub_host => Host, opts => Opts}),
+                server => ServerHost, sub_host => Host, opts => Opts, error => Error}),
             Acc;
         _ ->
             ?LOG_DEBUG(#{what => pubsub_init_plugin, plugin_name => Name}),
@@ -909,10 +877,9 @@ unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Host = host(LServer),
     lists:foreach(fun(PType) ->
                           remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
-                  end, plugins(Host)),
+                  end, plugins(LServer)),
     Acc.
 
 remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
@@ -1014,7 +981,7 @@ do_route(Acc, ServerHost, Access, Plugins, Host, From,
             #xmlel{attrs = QAttrs} = SubEl,
             Node = xml:get_attr_s(<<"node">>, QAttrs),
             InfoXML = mongoose_disco:get_info(ServerHost, ?MODULE, <<>>, <<>>),
-            Res = case iq_disco_info(Host, Node, From, Lang) of
+            Res = case iq_disco_info(ServerHost, Host, Node, From, Lang) of
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result,
                                                sub_el =
@@ -1150,19 +1117,19 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
         Other -> Other
     end.
 
-iq_disco_info(Host, SNode, From, Lang) ->
+iq_disco_info(ServerHost, Host, SNode, From, Lang) ->
     [Node | _] = case SNode of
                      <<>> -> [<<>>];
                      _ -> mongoose_bin:tokens(SNode, <<"!">>)
                  end,
     case Node of
         <<>> ->
-            Identities = identities(Host, Lang),
+            Identities = identities(ServerHost, Lang),
             Features = [?NS_DISCO_INFO,
                         ?NS_DISCO_ITEMS,
                         ?NS_PUBSUB,
                         ?NS_COMMANDS,
-                        ?NS_VCARD] ++ [feature(F) || F <- features(Host, Node)],
+                        ?NS_VCARD] ++ [feature(F) || F <- features(ServerHost, Node)],
             {result, mongoose_disco:identities_to_xml(Identities) ++
                  mongoose_disco:features_to_xml(Features)};
         ?NS_COMMANDS ->
@@ -3797,11 +3764,9 @@ get_option(Options, Var, Def) ->
     end.
 
 node_options(Host, Type) ->
-    case config(serverhost(Host), default_node_config) of
-        undefined -> node_plugin_options(Type);
-        [] -> node_plugin_options(Type);
-        Config -> Config
-    end.
+    ConfiguredOpts = lists:keysort(1, config(serverhost(Host), default_node_config)),
+    DefaultOpts = lists:keysort(1, node_plugin_options(Type)),
+    lists:keymerge(1, ConfiguredOpts, DefaultOpts).
 
 node_plugin_options(Type) ->
     Module = plugin(Type),
@@ -3812,14 +3777,6 @@ node_plugin_options(Type) ->
         Result ->
             Result
     end.
-
-filter_node_options([]) ->
-    [];
-filter_node_options(Options) ->
-    lists:foldl(fun({Key, Val}, Acc) ->
-                        DefaultValue = proplists:get_value(Key, Options, Val),
-                        [{Key, DefaultValue}|Acc]
-                end, [], node_flat:options()).
 
 %% @doc <p>Return the maximum number of items for a given node.</p>
 %% <p>Unlimited means that there is no limit in the number of items that can
@@ -4143,9 +4100,10 @@ get_cached_item(Host, Nidx) ->
 
 %%%% plugin handling
 
--spec host(ServerHost :: mongooseim:domain_name()) -> host().
-host(ServerHost) ->
-    config(ServerHost, host, <<"pubsub.", ServerHost/binary>>).
+-spec host(HostType :: mongooseim:host_type(), ServerHost :: mongooseim:domain_name()) -> host().
+host(HostType, ServerHost) ->
+    SubdomainPattern = config(HostType, host),
+    mongoose_subdomain_utils:get_fqdn(SubdomainPattern, ServerHost).
 
 -spec serverhost(host()) -> host().
 serverhost({_U, Server, _R})->
@@ -4165,9 +4123,14 @@ host_to_host_type(Host) ->
     {ok, HT} = mongoose_domain_api:get_host_type(SH),
     HT.
 
--spec tree(HostType :: mongooseim:host_type()) -> module() | nodetree_virtual.
+-spec tree(HostType :: mongooseim:host_type() | host()) -> module() | nodetree_virtual.
 tree(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, nodetree).
+    try gen_mod:get_module_opt(HostType, ?MODULE, nodetree)
+    catch error:badarg ->
+        %todo remove when pubsub supports dynamic domains
+        HT = host_to_host_type(HostType),
+        gen_mod:get_module_opt(HT, ?MODULE, nodetree)
+    end.
 
 tree_mod(<<"virtual">>) ->
     nodetree_virtual;   % special case, virtual does not use any backend
@@ -4178,21 +4141,15 @@ tree_mod(Name) ->
 plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
--spec plugins(Host :: host()) -> list().
-plugins(Host) ->
-    case config(serverhost(Host), plugins) of
-        undefined -> [?STDNODE];
-        [] -> [?STDNODE];
-        Plugins -> Plugins
-    end.
+-spec plugins(ServerHost :: mongooseim:domain_name()) -> list().
+plugins(ServerHost) ->
+    Proc = gen_mod:get_module_proc(ServerHost, ?PROCNAME),
+    gen_server:call(Proc, plugins).
 
 config(ServerHost, Key) ->
     config(ServerHost, Key, undefined).
 config(ServerHost, Key, Default) ->
-    case catch ets:lookup(gen_mod:get_module_proc(ServerHost, config), Key) of
-        [{Key, Value}] -> Value;
-        _ -> Default
-    end.
+    gen_mod:get_module_opt(ServerHost, ?MODULE, Key, Default).
 
 select_type(Host, Node) ->
     select_type(serverhost(Host), Host, Node).
@@ -4210,7 +4167,7 @@ select_type(ServerHost, Host, Node, Type) ->
                        _ ->
                            Type
                    end,
-    ConfiguredTypes = plugins(Host),
+    ConfiguredTypes = plugins(ServerHost),
     case lists:member(SelectedType, ConfiguredTypes) of
         true -> SelectedType;
         false -> hd(ConfiguredTypes)
@@ -4264,21 +4221,18 @@ features(Host, Node) when is_binary(Node) ->
     end.
 
 %% @doc <p>node tree plugin call.</p>
-tree_call({_User, Server, _Resource}, Function, Args) ->
-    tree_call(Server, Function, Args);
-tree_call(Host, Function, Args) ->
-    HT = host_to_host_type(Host),
-    ?LOG_DEBUG(#{what => pubsub_tree_call, sub_host => Host,
-        action_function => Function, args => Args, host_type => HT}),
-    apply(tree(HT), Function, Args).
+tree_call(HostType, Function, Args) ->
+    ?LOG_DEBUG(#{what => pubsub_tree_call, action_function => Function,
+                 args => Args, host_type => HostType}),
+    apply(tree(HostType), Function, Args).
 
-tree_action(Host, Function, Args) ->
-    ?LOG_DEBUG(#{what => pubsub_tree_action, sub_host => Host,
+tree_action(HostType, Function, Args) ->
+    ?LOG_DEBUG(#{what => pubsub_tree_action,
         action_function => Function, args => Args}),
-    Fun = fun () -> tree_call(Host, Function, Args) end,
+    Fun = fun () -> tree_call(HostType, Function, Args) end,
     ErrorDebug = #{
       action => tree_action,
-      pubsub_host => Host,
+      host_type => HostType,
       function => Function,
       args => Args
      },
@@ -4461,17 +4415,23 @@ extended_headers(Jids) ->
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
      || Jid <- Jids].
 
+-spec on_user_offline(Acc :: mongoose_acc:t(),
+                      SID :: 'undefined' | ejabberd_sm:sid(),
+                      JID :: jid:jid(),
+                      Info :: ejabberd_sm:info(),
+                      Reason :: ejabberd_sm:close_reason()) -> Result :: mongoose_acc:t().
 on_user_offline(Acc, _, JID, _, _) ->
+    HT = mongoose_acc:host_type(Acc),
     {User, Server, Resource} = jid:to_lower(JID),
     case user_resources(User, Server) of
-        [] -> purge_offline({User, Server, Resource});
+        [] -> purge_offline(HT, {User, Server, Resource});
         _ -> true
     end,
     Acc.
 
-purge_offline({_, LServer, _} = LJID) ->
-    Host = host(LServer),
-    Plugins = plugins(Host),
+purge_offline(HT, {_, LServer, _} = LJID) ->
+    Host = host(HT, LServer),
+    Plugins = plugins(LServer),
     Affs = lists:foldl(
              fun (PluginType, Acc) ->
                      check_plugin_features_and_acc_affs(Host, PluginType, LJID, Acc)
