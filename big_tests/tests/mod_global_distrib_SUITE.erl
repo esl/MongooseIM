@@ -66,7 +66,6 @@ groups() ->
            %% with node 2 disabled
            test_muc_conversation_on_one_host,
            test_global_disco
-           %% TODO: Add test case fo global_distrib_addr option
           ]},
          {hosts_refresher, [],
           [test_host_refreshing]},

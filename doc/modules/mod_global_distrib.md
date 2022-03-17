@@ -302,11 +302,6 @@ Number of times message delivery will be retried in case of errors.
 
 `mod_global_distrib` extension relies on [`mod_disco`](mod_disco.md)'s option `users_can_see_hidden_services`, when provided. If it is not configured, the default value is `true`. `mod_disco` does not have to be enabled for `mod_global_distrib` to work, as this parameter is used only for processing Disco requests by Global Distribution.
 
-## Overriding remote datacenter endpoints
-
-There may be cases when the endpoint list given via **endpoints** option does not accurately specify endpoints on which the node may be reached from other datacenters; e.g. in case the node is behind NAT, or in testing environment.
-The endpoints used for connection to a remote datacenter may be overridden by global option `{ {global_distrib_addr, Host}, [{IP, Port}] }`.
-
 ## Example configuration
 
 ### Configuring mod_global_distrib
@@ -324,12 +319,6 @@ The endpoints used for connection to a remote datacenter may be overridden by gl
   bounce.resend_after_ms = 300
   bounce.max_retries = 3
   redis.pool = "global_distrib"
-```
-
-### Overriding endpoints to a remote datacenter
-
-```erlang
-{ {global_distrib_addr, "datacenter2.example.com"}, [{"124.12.4.3", 5556}, {"182.172.23.55", 5555}] }.
 ```
 
 ### Configuring Dynomite
