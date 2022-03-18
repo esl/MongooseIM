@@ -62,7 +62,8 @@ supported_features() ->
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
 deps(_,_)->
-    [{mod_smart_markers, [], hard}].
+    [].  %% TODO: this need to be marked as required-to-be-configured
+    % [{mod_smart_markers, [], hard}].
 
 start(HostType, Opts) ->
     mod_offline_chatmarkers_backend:init(HostType, add_default_backend(Opts)),

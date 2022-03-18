@@ -16,12 +16,10 @@
          ).
 
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [mod_config/2]).
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
--define(CREATED, {<<"201">>, <<"Created">>}).
 -define(NOCONTENT, {<<"204">>, <<"No Content">>}).
--define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
 -define(UNAUTHORIZED, {<<"401">>, <<"Unauthorized">>}).
@@ -181,17 +179,16 @@ end_per_testcase(TC, C) ->
 %% TODO: include MAM configuration here
 
 required_modules(SuiteOrTC) ->
-    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(SuiteOrTC)}].
+    Opts = maps:merge(common_muc_light_opts(), muc_light_opts(SuiteOrTC)),
+    [{mod_muc_light, mod_config(mod_muc_light, Opts)}].
 
 muc_light_opts(config_can_be_changed_by_all) ->
-    [{all_can_configure, true}];
+    #{all_can_configure => true};
 muc_light_opts(suite) ->
-    [].
+    #{}.
 
 common_muc_light_opts() ->
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{host, MucPattern},
-     {rooms_in_rosters, true}].
+    #{rooms_in_rosters => true}.
 
 %% --------------------------------------------------------------------
 %% Test cases

@@ -19,6 +19,7 @@
 
 -import(domain_helper, [host_type/0]).
 -import(mongoose_helper, [wait_for_n_offline_messages/2]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -88,18 +89,16 @@ init_per_group(_, C) -> C.
 with_groupchat_modules() ->
     OfflineBackend = mongoose_helper:get_backend_name(host_type(), mod_offline),
     MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
     [{mod_offline, [{store_groupchat_messages, true},
                     {backend, OfflineBackend}]},
-     {mod_muc_light, [{backend, MucLightBackend},
-                      {host, MucPattern}]}].
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => MucLightBackend})}].
 
 chatmarkers_modules() ->
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{mod_offline, [{store_groupchat_messages, true},
+    [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)},
+     {mod_offline, [{store_groupchat_messages, true},
                     {backend, rdbms}]},
      {mod_offline_chatmarkers, [{store_groupchat_messages, true}]},
-     {mod_muc_light, [{backend, rdbms}, {host, MucPattern}]}].
+     {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].
 
 end_per_group(Group, C) when Group =:= chatmarkers;
                              Group =:= with_groupchat ->

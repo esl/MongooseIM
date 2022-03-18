@@ -122,7 +122,7 @@ last(_Config) ->
 stream_management(_Config) ->
     HostType = host_type(),
     {U, S, R, _JID, SID} = get_fake_session(),
-    mod_stream_management:start(HostType, []),
+    mod_stream_management:start(HostType, config_parser_helper:default_mod_config(mod_stream_management)),
     SMID = <<"123">>,
     mod_stream_management:register_smid(HostType, SMID, SID),
     {sid, SID} = mod_stream_management:get_sid(HostType, SMID),

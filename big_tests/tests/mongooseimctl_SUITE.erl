@@ -446,10 +446,20 @@ check_password_hash(Config) ->
 
 check_password(Config) ->
     {User, Domain, Pass} = get_user_data(alice, Config),
-
+    MetricName = [backends, auth, check_password],
+    OldValue = get_metric(MetricName),
     {_, 0} = mongooseimctl("check_password", [User, Domain, Pass], Config),
     {_, ErrCode} = mongooseimctl("check_password", [User, Domain, <<Pass/binary, "Bad">>], Config),
+    mongoose_helper:wait_until(
+      fun() -> get_metric(MetricName) end, true,
+      #{validator => fun(NewValue) -> OldValue =/= NewValue end, name => ?FUNCTION_NAME}),
     true = (ErrCode =/= 0). %% Must return code other than 0
+
+get_metric(MetricName) ->
+    HostType = domain_helper:host_type(mim),
+    HostTypePrefix = domain_helper:make_metrics_prefix(HostType),
+    {ok, Value} = rpc(mim(), mongoose_metrics, get_metric_value, [[HostTypePrefix | MetricName]]),
+    Value.
 
 check_account(Config) ->
     {User, Domain, _Pass} = get_user_data(alice, Config),

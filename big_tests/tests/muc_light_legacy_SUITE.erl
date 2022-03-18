@@ -61,6 +61,7 @@
                            default_config/1,
                            default_schema/0
                           ]).
+-import(config_parser_helper, [mod_config/2]).
 
 -define(ROOM, <<"testroom">>).
 -define(ROOM2, <<"testroom2">>).
@@ -198,25 +199,26 @@ required_modules(CaseName) ->
     [{mod_mam_meta, stopped} | common_required_modules(CaseName)].
 
 common_required_modules(CaseName) ->
-    [{mod_muc_light, common_muc_light_opts() ++ muc_light_opts(CaseName)}].
+    Opts = maps:merge(common_muc_light_opts(), muc_light_opts(CaseName)),
+    [{mod_muc_light, mod_config(mod_muc_light, Opts)}].
 
 muc_light_opts(disco_rooms_rsm) ->
-    [{rooms_per_page, 1}];
+    #{rooms_per_page => 1};
 muc_light_opts(all_can_configure) ->
-    [{all_can_configure, true}];
+    #{all_can_configure => true};
 muc_light_opts(create_room_with_equal_occupants) ->
-    [{equal_occupants, true}];
+    #{equal_occupants => true};
 muc_light_opts(block_user) ->
-    [{all_can_invite, true}];
+    #{all_can_invite => true};
 muc_light_opts(blocking_disabled) ->
-    [{blocking, false}];
+    #{blocking => false};
 muc_light_opts(_) ->
-    [].
+    #{}.
 
 common_muc_light_opts() ->
-    [{host, subhost_pattern(muc_helper:muc_host_pattern())},
-     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-     {legacy_mode, true}].
+    #{host => subhost_pattern(muc_helper:muc_host_pattern()),
+      backend => mongoose_helper:mnesia_or_rdbms_backend(),
+      legacy_mode => true}.
 
 %% ---------------------- Helpers ----------------------
 

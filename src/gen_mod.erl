@@ -26,12 +26,11 @@
 -module(gen_mod).
 -author('alexey@process-one.net').
 
--export_type([opt_key/0, opt_value/0, module_opts/0]).
+-export_type([key_path/0, opt_key/0, opt_value/0, module_opts/0]).
 
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
          start_module/3,
-         start_backend_module/2,
          start_backend_module/3,
          stop_module/2,
          does_module_support/2,
@@ -175,10 +174,7 @@ is_common_test_running() ->
         false
     end.
 
--spec start_backend_module(module(), list()) -> any().
-start_backend_module(Module, Opts) ->
-    start_backend_module(Module, Opts, []).
-
+%% @deprecated To be removed when mod_pubsub does not use it anymore
 start_backend_module(Module, Opts, TrackedFuncs) ->
     Backend = gen_mod:get_opt(backend, Opts, mnesia),
     backend_module:create(Module, Backend, TrackedFuncs).

@@ -34,12 +34,7 @@
          make_filter/3,
          get_state/2,
          case_insensitive_match/2,
-         get_mod_opt/4,
-         get_base/1,
-         get_deref_aliases/1,
          deref_aliases/1,
-         get_uids/2,
-         get_user_filter/2,
          process_user_filter/2,
          get_search_filter/1,
          decode_octet_string/3,
@@ -221,52 +216,10 @@ uids_domain_subst(Host, UIDs) ->
               end,
               UIDs).
 
-
--spec get_mod_opt(atom(), list(), fun(), any()) -> any().
-get_mod_opt(Key, Opts, F, Default) ->
-    case gen_mod:get_opt(Key, Opts, Default) of
-        Default ->
-            Default;
-        Val ->
-            prepare_opt_val(Key, Val, F, Default)
-    end.
-
--type check_fun() :: fun((any()) -> any()) | {module(), atom()}.
--spec prepare_opt_val(any(), any(), check_fun(), any()) -> any().
-prepare_opt_val(Opt, Val, F, Default) ->
-    Res = case F of
-              {Mod, Fun} ->
-                  catch Mod:Fun(Val);
-              _ ->
-                  catch F(Val)
-          end,
-    case Res of
-        {'EXIT', _} ->
-            ?LOG_ERROR(#{what => configuration_error, option => Opt,
-                         value => Val, default => Default}),
-            Default;
-        _ ->
-            Res
-    end.
-
-get_base(Opts) ->
-    get_mod_opt(ldap_base, Opts, fun iolist_to_binary/1, <<"">>).
-
-get_deref_aliases(Opts) ->
-    get_mod_opt(ldap_deref, Opts, fun deref_aliases/1, neverDerefAliases).
-
 deref_aliases(never) -> neverDerefAliases;
 deref_aliases(searching) -> derefInSearching;
 deref_aliases(finding) -> derefFindingBaseObj;
 deref_aliases(always) -> derefAlways.
-
-get_uids(Host, Opts) ->
-    UIDsTemp = get_mod_opt(ldap_uids, Opts, fun(V) -> V end, [{<<"uid">>, <<"%u">>}]),
-    uids_domain_subst(Host, UIDsTemp).
-
-get_user_filter(UIDs, Opts) ->
-    RawUserFilter = get_mod_opt(ldap_filter, Opts, fun(V) -> V end, <<>>),
-    process_user_filter(UIDs, RawUserFilter).
 
 process_user_filter(UIDs, RawUserFilter) ->
     SubFilter = generate_subfilter(UIDs),

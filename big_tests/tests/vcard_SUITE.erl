@@ -1189,11 +1189,15 @@ params_ldap_only(Config) ->
                 {<<"Organization Name">>, <<"ORGNAME">>},
                 {<<"Organization Unit">>, <<"ORGUNIT">>},
                 {<<"Photo">>, <<"PHOTO">>}],
-    add_backend_param(#{ldap_search_operator => 'or',
-                        ldap_binary_search_fields => [<<"PHOTO">>],
-                        ldap_search_reported => Reported},
+    add_backend_param(#{ldap => #{search_operator => 'or',
+                                  binary_search_fields => [<<"PHOTO">>],
+                                  search_reported => Reported}},
                       ?config(mod_vcard_opts, Config)).
 
+add_backend_param(Opts = #{ldap := LDAPOpts},
+                  CurrentVCardConfig = #{backend := ldap, ldap := CurrentLDAPOpts}) ->
+    NewLDAPOpts = maps:merge(CurrentLDAPOpts, LDAPOpts),
+    maps:merge(CurrentVCardConfig, Opts#{ldap => NewLDAPOpts});
 add_backend_param(Opts, CurrentVCardConfig) ->
     maps:merge(CurrentVCardConfig, Opts).
 

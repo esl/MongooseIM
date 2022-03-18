@@ -122,8 +122,7 @@
 -import(config_parser_helper, [config/2, mod_config/2]).
 
 config_opts(ExtraOpts) ->
-    lists:foldl(fun(Step, OptsIn) -> set_opts(Step, OptsIn) end,
-                ExtraOpts, [defaults, backend, pm, muc, async_writer]).
+    lists:foldl(fun set_opts/2, ExtraOpts, [defaults, backend, pm, muc, async_writer]).
 
 set_opts(defaults, Opts) ->
     mod_config(mod_mam_meta, Opts);
@@ -219,7 +218,7 @@ wait_for_complete_archive_response(P, Alice, ExpectedCompleteValue)
                         #{mam_props => P, parsed_iq => ParsedIQ}).
 
 make_iso_time(Micro) ->
-    calendar:system_time_to_rfc3339(erlang:convert_time_unit(Micro, microsecond, second), [{offset, "Z"}]).
+    calendar:system_time_to_rfc3339(Micro, [{offset, "Z"}, {unit, microsecond}]).
 
 generate_message_text(N) when is_integer(N) ->
     <<"Message #", (list_to_binary(integer_to_list(N)))/binary>>.

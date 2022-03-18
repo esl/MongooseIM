@@ -18,9 +18,9 @@
 %% API for `ejabberd_c2s'
 -export([make_smid/0,
          get_session_from_smid/2,
-         get_buffer_max/2,
-         get_ack_freq/2,
-         get_resume_timeout/2,
+         get_buffer_max/1,
+         get_ack_freq/1,
+         get_resume_timeout/1,
          register_smid/3]).
 
 %% API for inspection and tests
@@ -76,23 +76,30 @@ config_spec() ->
                                                   validate = positive},
                   <<"stale_h">> => stale_h_config_spec()
                  },
-        process = fun ?MODULE:process_buffer_and_ack/1
+        process = fun ?MODULE:process_buffer_and_ack/1,
+        format_items = map,
+        defaults = #{<<"backend">> => mnesia,
+                     <<"buffer">> => true,
+                     <<"buffer_max">> => 100,
+                     <<"ack">> => true,
+                     <<"ack_freq">> => 1,
+                     <<"resume_timeout">> => 600 % seconds
+        }
       }.
 
 supported_features() -> [dynamic_domains].
 
-process_buffer_and_ack(KVs) ->
-    {[Buffer, Ack], Opts} = proplists:split(KVs, [buffer, ack]),
+process_buffer_and_ack(Opts = #{buffer := Buffer, ack := Ack}) ->
     OptsWithBuffer = check_buffer(Buffer, Opts),
     check_ack(Ack, OptsWithBuffer).
 
-check_buffer([{buffer, false}], Opts) ->
-    lists:ukeysort(1, [{buffer_max, no_buffer}] ++ Opts);
+check_buffer(false, Opts) ->
+    Opts#{buffer_max => no_buffer};
 check_buffer(_, Opts) ->
     Opts.
 
-check_ack([{ack, false}], Opts) ->
-    lists:ukeysort(1, [{ack_freq, never}] ++ Opts);
+check_ack(false, Opts) ->
+    Opts#{ack_freq => never};
 check_ack(_, Opts) ->
     Opts.
 
@@ -100,11 +107,14 @@ stale_h_config_spec() ->
     #section{
         items = #{<<"enabled">> => #option{type = boolean},
                   <<"repeat_after">> => #option{type = integer,
-                                                validate = positive,
-                                                wrap = {kv, stale_h_repeat_after}},
+                                                validate = positive},
                   <<"geriatric">> => #option{type = integer,
-                                             validate = positive,
-                                             wrap = {kv, stale_h_geriatric}}
+                                             validate = positive}},
+        format_items = map,
+        include = always,
+        defaults = #{<<"enabled">> => false,
+                     <<"repeat_after">> => 1800, % seconds
+                     <<"geriatric">> => 3600 % seconds
         }
     }.
 
@@ -176,17 +186,17 @@ get_stale_h(HostType, SMID) ->
         true -> read_stale_h(HostType, SMID)
     end.
 
--spec get_buffer_max(mongooseim:host_type(), buffer_max()) -> buffer_max().
-get_buffer_max(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, buffer_max, Default).
+-spec get_buffer_max(mongooseim:host_type()) -> buffer_max().
+get_buffer_max(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, buffer_max).
 
--spec get_ack_freq(mongooseim:host_type(), ack_freq()) -> ack_freq().
-get_ack_freq(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, ack_freq, Default).
+-spec get_ack_freq(mongooseim:host_type()) -> ack_freq().
+get_ack_freq(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, ack_freq).
 
--spec get_resume_timeout(mongooseim:host_type(), pos_integer()) -> pos_integer().
-get_resume_timeout(HostType, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout, Default).
+-spec get_resume_timeout(mongooseim:host_type()) -> pos_integer().
+get_resume_timeout(HostType) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, resume_timeout).
 
 
 register_stale_smid_h(HostType, SMID, H) ->
@@ -202,8 +212,7 @@ remove_stale_smid_h(HostType, SMID) ->
     end.
 
 is_stale_h_enabled(HostType) ->
-    MaybeModOpts = gen_mod:get_module_opt(HostType, ?MODULE, stale_h, []),
-    proplists:get_value(enabled, MaybeModOpts, false).
+    gen_mod:get_module_opt(HostType, ?MODULE, [stale_h, enabled]).
 
 %% Backend operations
 

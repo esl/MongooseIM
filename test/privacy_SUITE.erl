@@ -42,7 +42,7 @@ init_per_suite(C) ->
 
 init_per_testcase(_, C) ->
     gen_hook:start_link(),
-    mod_privacy:start(<<"localhost">>, []),
+    mod_privacy:start(<<"localhost">>, config_parser_helper:default_mod_config(mod_privacy)),
     C.
 
 end_per_suite(_C) ->

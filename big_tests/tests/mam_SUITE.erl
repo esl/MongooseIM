@@ -81,6 +81,7 @@
          pagination_offset5_opt_count_all/1,
          server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
          server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
+         server_returns_item_not_found_for_after_filter_with_invalid_id/1,
          %% complete_flag_cases tests
          before_complete_false_last5/1,
          before_complete_false_before10/1,
@@ -216,9 +217,9 @@
 
 -import(domain_helper, [domain/0]).
 
+-import(config_parser_helper, [default_mod_config/1]).
+
 -include("mam_helper.hrl").
--include_lib("escalus/include/escalus.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
@@ -500,7 +501,8 @@ rsm_cases() ->
        pagination_offset5_opt_count_all,
        %% item_not_found response for nonexistent message ID in before/after filters
        server_returns_item_not_found_for_before_filter_with_nonexistent_id,
-       server_returns_item_not_found_for_after_filter_with_nonexistent_id].
+       server_returns_item_not_found_for_after_filter_with_nonexistent_id,
+       server_returns_item_not_found_for_after_filter_with_invalid_id].
 
 complete_flag_cases() ->
     [before_complete_false_last5,
@@ -654,7 +656,7 @@ required_modules_for_group(C, muc_light, Config) ->
     MUCHost = subhost_pattern(muc_light_helper:muc_host_pattern()),
     Opts = config_opts(Extra#{pm => #{}, muc => #{host => MUCHost}}),
     Config1 = maybe_set_wait(C, [muc, pm], [{mam_meta_opts, Opts} | Config]),
-    {[{mod_muc_light, [{host, MUCHost}]},
+    {[{mod_muc_light, default_mod_config(mod_muc_light)},
       {mod_mam_meta, Opts}], Config1};
 required_modules_for_group(C, BG, Config) when BG =:= muc_all;
                                                BG =:= muc_disabled_retraction ->
@@ -2577,22 +2579,31 @@ server_returns_item_not_found_for_before_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'before', id = NonexistentID},
     StanzaID = <<"before-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
 server_returns_item_not_found_for_after_filter_with_nonexistent_id(Config) ->
     NonexistentID = <<"AV25E9SCO50K">>,
     RSM = #rsm_in{max = 5, direction = 'after', id = NonexistentID},
     StanzaID = <<"after-nonexistent-id">>,
-    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+    Condition = [<<"cancel">>, <<"item-not-found">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
 
-server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID) ->
+server_returns_item_not_found_for_after_filter_with_invalid_id(Config) ->
+    NonexistentID = <<"bef3a242-99ce-402a-9ffc-2f3c20da92d4">>,
+    RSM = #rsm_in{max = 5, direction = 'after', from_id = NonexistentID},
+    StanzaID = <<"AV25E9SCO50K">>,
+    Condition = [<<"modify">>, <<"not-acceptable">>],
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition).
+
+server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID, Condition) ->
     P = ?config(props, Config),
     F = fun(Alice) ->
-        rsm_send(Config, Alice,
-                 stanza_page_archive_request(P, StanzaID, RSM)),
+        IQ = stanza_page_archive_request(P, StanzaID, RSM),
+        rsm_send(Config, Alice, IQ),
         Res = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_error, Res),
-        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res),
+        escalus:assert(is_iq_error, [IQ], Res),
+        escalus:assert(is_error, Condition, Res),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).

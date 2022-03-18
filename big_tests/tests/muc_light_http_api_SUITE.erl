@@ -29,6 +29,7 @@
 -import(muc_light_helper, [stanza_create_room/3]).
 -import(distributed_helper, [subhost_pattern/1]).
 -import(domain_helper, [host_type/0, domain/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -61,15 +62,13 @@ negative_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    dynamic_modules:start(host_type(), mod_muc_light,
-        [{host, subhost_pattern(muc_light_helper:muc_host_pattern())},
-         {rooms_in_rosters, true},
-         {backend, mongoose_helper:mnesia_or_rdbms_backend()}]),
-    escalus:init_per_suite(Config).
+    Config1 = dynamic_modules:save_modules(host_type(), Config),
+    dynamic_modules:ensure_modules(host_type(), required_modules()),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:stop(host_type(), mod_muc_light),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -84,6 +83,11 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+required_modules() ->
+    [{mod_muc_light,
+      mod_config(mod_muc_light, #{rooms_in_rosters => true,
+                                  backend => mongoose_helper:mnesia_or_rdbms_backend()})
+     }].
 
 %%--------------------------------------------------------------------
 %% Tests

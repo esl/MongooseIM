@@ -57,30 +57,28 @@
 
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
+-include("mongoose_config_spec.hrl").
 
--xep([{xep, 333}, {version, "0.3"}]).
+-xep([{xep, 333}, {version, "0.4"}]).
 -behaviour(gen_mod).
 
 %% gen_mod API
--export([start/2]).
--export([stop/1]).
--export([supported_features/0]).
+-export([start/2, stop/1, supported_features/0, config_spec/0]).
 
-%% gen_mod API
+%% Internal API
 -export([get_chat_markers/3]).
 
 %% Hook handlers
--export([user_send_packet/4, remove_user/3, remove_domain/3,
-         forget_room/4, room_new_affiliations/4]).
--ignore_xref([user_send_packet/4, remove_user/3, remove_domain/3,
-              forget_room/4, room_new_affiliations/4]).
+-export([process_iq/5, user_send_packet/4, filter_local_packet/1,
+         remove_user/3, remove_domain/3, forget_room/4, room_new_affiliations/4]).
+-ignore_xref([process_iq/5, user_send_packet/4, filter_local_packet/1,
+              remove_user/3, remove_domain/3, forget_room/4, room_new_affiliations/4]).
 
 %%--------------------------------------------------------------------
 %% Type declarations
 %%--------------------------------------------------------------------
 -type maybe_thread() :: undefined | binary().
 -type chat_type() :: one2one | groupchat.
-
 -type chat_marker() :: #{from := jid:jid(),
                          to := jid:jid(),
                          thread := maybe_thread(), % it is not optional!
@@ -90,33 +88,126 @@
 
 -export_type([chat_marker/0]).
 
-%%--------------------------------------------------------------------
 %% gen_mod API
-%%--------------------------------------------------------------------
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
-start(HostType, Opts) ->
+start(HostType, #{iqdisc := IQDisc, keep_private := Private} = Opts) ->
     mod_smart_markers_backend:init(HostType, Opts),
-    ejabberd_hooks:add(hooks(HostType)).
+    gen_iq_handler:add_iq_handler_for_domain(
+      HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm,
+      fun ?MODULE:process_iq/5, #{keep_private => Private}, IQDisc),
+    ejabberd_hooks:add(hooks(HostType, Opts)).
 
 -spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
-    ejabberd_hooks:delete(hooks(HostType)).
+    Opts = gen_mod:get_module_opts(HostType, ?MODULE),
+    case gen_mod:get_opt(backend, Opts) of
+        rdbms_async -> mod_smart_markers_rdbms_async:stop(HostType);
+        _ -> ok
+    end,
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_SMART_MARKERS, ejabberd_sm),
+    ejabberd_hooks:delete(hooks(HostType, Opts)).
 
 -spec supported_features() -> [atom()].
 supported_features() ->
     [dynamic_domains].
 
-%%--------------------------------------------------------------------
-%% Hook handlers
-%%--------------------------------------------------------------------
--spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
-hooks(HostType) ->
-    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90},
-     {remove_user, HostType, ?MODULE, remove_user, 60},
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+       items = #{<<"keep_private">> => #option{type = boolean},
+                 <<"backend">> => #option{type = atom, validate = {enum, [rdbms, rdbms_async]}},
+                 <<"async_writer">> => async_config_spec(),
+                 <<"iqdisc">> => mongoose_config_spec:iqdisc()},
+       defaults = #{<<"keep_private">> => false,
+                    <<"backend">> => rdbms,
+                    <<"iqdisc">> => no_queue},
+       format_items = map
+    }.
+
+async_config_spec() ->
+    #section{
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       format_items = map,
+       include = always
+      }.
+
+%% IQ handlers
+-spec process_iq(mongoose_acc:t(), jid:jid(), jid:jid(), jlib:iq(), map()) ->
+    {mongoose_acc:t(), jlib:iq()}.
+process_iq(Acc, _From, _To, #iq{type = set, sub_el = SubEl} = IQ, _Extra) ->
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
+process_iq(Acc, From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{keep_private := Private}) ->
+    Req = maps:from_list(SubEl#xmlel.attrs),
+    MaybePeer = jid:from_binary(maps:get(<<"peer">>, Req, undefined)),
+    MaybeAfter = parse_ts(maps:get(<<"after">>, Req, undefined)),
+    MaybeThread = maps:get(<<"thread">>, Req, undefined),
+    Res = fetch_markers(IQ, Acc, From, MaybePeer, MaybeThread, MaybeAfter, Private),
+    {Acc, Res}.
+
+-spec parse_ts(undefined | binary()) -> integer() | error.
+parse_ts(undefined) ->
+    0;
+parse_ts(BinTS) ->
+    try calendar:rfc3339_to_system_time(binary_to_list(BinTS))
+    catch error:_Error -> error
+    end.
+
+-spec fetch_markers(jlib:iq(),
+                    mongoose_acc:t(),
+                    From :: jid:jid(),
+                    MaybePeer :: error | jid:jid(),
+                    maybe_thread(),
+                    MaybeTS :: error | integer(),
+                    MaybePrivate :: boolean()) -> jlib:iq().
+fetch_markers(IQ, _, _, error, _, _, _) ->
+    IQ#iq{type = error,
+          sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, <<"invalid-peer">>)]};
+fetch_markers(IQ, _, _, _, _, error, _) ->
+    IQ#iq{type = error,
+          sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, <<"invalid-timestamp">>)]};
+fetch_markers(IQ, Acc, From, Peer, Thread, TS, Private) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Markers = mod_smart_markers_backend:get_conv_chat_marker(HostType, From, Peer, Thread, TS, Private),
+    SubEl = #xmlel{name = <<"query">>,
+                   attrs = [{<<"xmlns">>, ?NS_ESL_SMART_MARKERS},
+                            {<<"peer">>, jid:to_binary(jid:to_lus(Peer))}],
+                   children = build_result(Markers)},
+    IQ#iq{type = result, sub_el = SubEl}.
+
+build_result(Markers) ->
+    [ #xmlel{name = <<"marker">>,
+             attrs = [{<<"id">>, MsgId},
+                      {<<"from">>, jid:to_binary(From)},
+                      {<<"type">>, atom_to_binary(Type)},
+                      {<<"timestamp">>, ts_to_bin(MsgTS)}
+                      | maybe_thread(MsgThread) ]}
+      || #{from := From, thread := MsgThread, type := Type, timestamp := MsgTS, id := MsgId} <- Markers ].
+
+ts_to_bin(TS) ->
+    list_to_binary(calendar:system_time_to_rfc3339(TS, [{offset, "Z"}, {unit, microsecond}])).
+
+maybe_thread(undefined) ->
+    [];
+maybe_thread(Bin) ->
+    [{<<"thread">>, Bin}].
+
+%% HOOKS
+-spec hooks(mongooseim:host_type(), gen_mod:module_opts()) -> [ejabberd_hooks:hook()].
+hooks(HostType, #{keep_private := KeepPrivate}) ->
+    [{user_send_packet, HostType, ?MODULE, user_send_packet, 90} |
+    private_hooks(HostType, KeepPrivate) ++ removal_hooks(HostType)].
+
+private_hooks(_HostType, false) ->
+    [];
+private_hooks(HostType, true) ->
+    [{filter_local_packet, HostType, ?MODULE, filter_local_packet, 20}].
+
+removal_hooks(HostType) ->
+    [{remove_user, HostType, ?MODULE, remove_user, 60},
      {remove_domain, HostType, ?MODULE, remove_domain, 60},
      {forget_room, HostType, ?MODULE, forget_room, 85},
-     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}
-    ].
+     {room_new_affiliations, HostType, ?MODULE, room_new_affiliations, 60}].
 
 -spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
 	mongoose_acc:t().
@@ -124,10 +215,21 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     case has_valid_markers(Acc, From, To, Packet) of
         {true, HostType, Markers} ->
             update_chat_markers(Acc, HostType, Markers);
-        false -> Acc
+        _ ->
+            Acc
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
+
+-spec filter_local_packet(mongoose_hooks:filter_packet_acc() | drop) ->
+    mongoose_hooks:filter_packet_acc() | drop.
+filter_local_packet(Filter = {_From, _To, _Acc, Msg = #xmlel{name = <<"message">>}}) ->
+    case mongoose_chat_markers:has_chat_markers(Msg) of
+        false -> Filter;
+        true -> drop
+    end;
+filter_local_packet(Filter) ->
+    Filter.
 
 remove_user(Acc, User, Server) ->
     HostType = mongoose_acc:host_type(Acc),
@@ -216,7 +318,7 @@ extract_chat_markers(Acc, From, To, Packet) ->
         ChatMarkers ->
             TS = mongoose_acc:timestamp(Acc),
             CM = #{from => From,
-                   to => To,
+                   to => jid:to_bare(To),
                    thread => get_thread(Packet),
                    timestamp => TS,
                    type => undefined,

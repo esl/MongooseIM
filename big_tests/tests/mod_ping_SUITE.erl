@@ -71,18 +71,18 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(client_ping, Config) ->
-    start_mod_ping([]),
+    start_mod_ping(#{}),
     Config;
 init_per_group(server_ping, Config) ->
-    start_mod_ping([{send_pings, true},
-                    {ping_interval, ping_interval()},
-                    {ping_req_timeout, ping_req_timeout()}]),
+    start_mod_ping(#{send_pings => true,
+                     ping_interval => ping_interval(),
+                     ping_req_timeout => ping_req_timeout()}),
     Config;
 init_per_group(server_ping_kill, Config) ->
-    start_mod_ping([{send_pings, true},
-                    {ping_interval, ping_interval()},
-                    {ping_req_timeout, ping_req_timeout()},
-                    {timeout_action, kill}]),
+    start_mod_ping(#{send_pings => true,
+                     ping_interval => ping_interval(),
+                     ping_req_timeout => ping_req_timeout(),
+                     timeout_action => kill}),
     [{timeout_action, kill} | Config].
 
 end_per_group(_GroupName, Config) ->
@@ -104,7 +104,7 @@ end_per_testcase(CaseName, Config) ->
 
 start_mod_ping(Opts) ->
     HostType = domain_helper:host_type(mim),
-    dynamic_modules:start(HostType, mod_ping, Opts).
+    dynamic_modules:start(HostType, mod_ping, config_parser_helper:mod_config(mod_ping, Opts)).
 
 setup_pong_hook(Config) ->
     Pid = self(),

@@ -33,8 +33,10 @@ stop(HostType) ->
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    Sec = #section{items = Items} = mongoose_user_cache:config_spec(),
-    Sec#section{items = maps:remove(<<"module">>, Items)}.
+    #section{items = Items,
+             defaults = Defaults} = Sec = mongoose_user_cache:config_spec(),
+    Sec#section{items = maps:remove(<<"module">>, Items),
+                defaults = maps:remove(<<"module">>, Defaults)}.
 
 -spec supported_features() -> [atom()].
 supported_features() ->

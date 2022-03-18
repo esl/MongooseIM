@@ -243,14 +243,6 @@ can_access_identity(RoomJID, UserJID) ->
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 
-%%-----------------------------------------------------------------------
-%% Func: init/1
-%% Returns: {ok, StateName, StateData}          |
-%%          {ok, StateName, StateData, Timeout} |
-%%          ignore                              |
-%%          {stop, StopReason}
-%%-----------------------------------------------------------------------
-
 %% @doc A room is created. Depending on request type (MUC/groupchat 1.0) the
 %% next state is determined accordingly (a locked room for MUC or an instant
 %% one for groupchat).
@@ -268,31 +260,29 @@ init_new(#{init_type := start_new, host_type := HostType, muc_host := Host,
            def_opts := DefRoomOpts}) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
-    State = set_affiliation(Creator, owner,
-                            #state{host = Host, host_type = HostType,
-                                   server_host = ServerHost,
-                                   access = Access,
-                                   room = Room,
-                                   history = lqueue_new(HistorySize),
-                                   jid = jid:make(Room, Host, <<>>),
-                                   just_created = true,
-                                   room_shaper = Shaper,
-                                   http_auth_pool = HttpAuthPool,
-                                   hibernate_timeout = read_hibernate_timeout(HostType)
-                                  }),
+    State = #state{host = Host, host_type = HostType, server_host = ServerHost,
+                   access = Access,
+                   room = Room,
+                   history = lqueue_new(HistorySize),
+                   jid = jid:make(Room, Host, <<>>),
+                   just_created = true,
+                   room_shaper = Shaper,
+                   http_auth_pool = HttpAuthPool,
+                   hibernate_timeout = read_hibernate_timeout(HostType)},
     State1 = set_opts(DefRoomOpts, State),
+    State2 = set_affiliation(Creator, owner, State1),
     ?LOG_INFO(ls(#{what => muc_room_started,
                    creator_jid => jid:to_binary(Creator)}, State)),
-    add_to_log(room_existence, created, State1),
+    add_to_log(room_existence, created, State2),
     case proplists:get_value(instant, DefRoomOpts, false) of
         true ->
             %% Instant room -- groupchat 1.0 request
-            add_to_log(room_existence, started, State1),
-            save_persistent_room_state(State1),
-            {ok, normal_state, State1, State1#state.hibernate_timeout};
+            add_to_log(room_existence, started, State2),
+            save_persistent_room_state(State2),
+            {ok, normal_state, State2, State2#state.hibernate_timeout};
         false ->
             %% Locked room waiting for configuration -- MUC request
-            {ok, initial_state, State1}
+            {ok, initial_state, State2}
     end.
 
 %% @doc A room is restored
@@ -317,13 +307,6 @@ init_restored(#{init_type := start_restored,
     add_to_log(room_existence, started, State),
     mongoose_metrics:update(global, [mod_muc, process_recreations], 1),
     {ok, normal_state, State, State#state.hibernate_timeout}.
-
-%%----------------------------------------------------------------------
-%% Func: StateName/2
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%%----------------------------------------------------------------------
 
 %% @doc In the locked state StateData contains the same settings it previously
 %% held for the normal_state. The fsm awaits either a confirmation or a
@@ -482,8 +465,7 @@ normal_state({route, From, Nick, _Acc,
     % FIXME sessions do we need to route presences to all sessions
     Activity = get_user_activity(From, StateData),
     Now = os:system_time(microsecond),
-    MinPresenceInterval =
-    trunc(get_opt(StateData, min_presence_interval, 0) * 1000000),
+    MinPresenceInterval = trunc(get_opt(StateData, min_presence_interval) * 1000000),
     case (Now >= Activity#activity.presence_time + MinPresenceInterval) and
          (Activity#activity.presence == undefined) of
         true ->
@@ -558,12 +540,6 @@ normal_state(timeout, StateData) ->
 normal_state(_Event, StateData) ->
     next_normal_state(StateData).
 
-%%----------------------------------------------------------------------
-%% Func: handle_event/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%%----------------------------------------------------------------------
 handle_event({service_message, Msg}, _StateName, StateData) ->
     MessagePkt = #xmlel{name = <<"message">>,
                         attrs = [{<<"type">>, <<"groupchat">>}],
@@ -600,15 +576,6 @@ handle_event({set_affiliations, Affiliations},
 handle_event(_Event, StateName, #state{hibernate_timeout = Timeout} = StateData) ->
     {next_state, StateName, StateData, Timeout}.
 
-%%----------------------------------------------------------------------
-%% Func: handle_sync_event/4
-%% Returns: {next_state, NextStateName, NextStateData}            |
-%%          {next_state, NextStateName, NextStateData, Timeout}   |
-%%          {reply, Reply, NextStateName, NextStateData}          |
-%%          {reply, Reply, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}                          |
-%%          {stop, Reason, Reply, NewStateData}
-%%----------------------------------------------------------------------
 handle_sync_event({get_disco_item, JID, Lang}, _From, StateName, StateData) ->
     Reply = get_roomdesc_reply(JID, StateData,
                    get_roomdesc_tail(StateData, Lang)),
@@ -639,12 +606,6 @@ reply_with_timeout(Reply, StateName, #state{hibernate_timeout = Timeout} = State
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
 
-%%----------------------------------------------------------------------
-%% Func: handle_info/3
-%% Returns: {next_state, NextStateName, NextStateData}          |
-%%          {next_state, NextStateName, NextStateData, Timeout} |
-%%          {stop, Reason, NewStateData}
-%%----------------------------------------------------------------------
 maybe_prepare_room_queue(RoomQueue, StateData) ->
     StateData1 = StateData#state{room_queue = RoomQueue},
     case queue:is_empty(StateData#state.room_queue) of
@@ -1501,42 +1462,39 @@ get_max_users(StateData) ->
 
 -spec get_service_max_users(state()) -> integer() | none.
 get_service_max_users(StateData) ->
-    get_opt(StateData, max_users, ?MAX_USERS_DEFAULT).
+    get_opt(StateData, max_users).
 
 -spec get_max_users_admin_threshold(state()) -> integer().
 get_max_users_admin_threshold(StateData) ->
-    get_opt(StateData, max_users_admin_threshold, 5).
+    get_opt(StateData, max_users_admin_threshold).
 
 -spec get_user_activity(jid:simple_jid() | jid:jid(), state())
                         -> activity().
 get_user_activity(JID, StateData) ->
-    case treap:lookup(jid:to_lower(JID),
-              StateData#state.activity) of
+    case treap:lookup(jid:to_lower(JID), StateData#state.activity) of
     {ok, _P, A} -> A;
     error ->
-        MessageShaper =
-        shaper:new(get_opt(StateData, user_message_shaper, none)),
-        PresenceShaper =
-        shaper:new(get_opt(StateData, user_presence_shaper, none)),
+        MessageShaper = shaper:new(get_opt(StateData, user_message_shaper)),
+        PresenceShaper = shaper:new(get_opt(StateData, user_presence_shaper)),
         #activity{message_shaper = MessageShaper,
-              presence_shaper = PresenceShaper}
+                  presence_shaper = PresenceShaper}
     end.
 
 
 -spec store_user_activity(jid:simple_jid() | jid:jid(), activity(),
                          state()) -> state().
 store_user_activity(JID, UserActivity, StateData) ->
-    MinMessageInterval = get_opt(StateData, min_message_interval, 0),
-    MinPresenceInterval = get_opt(StateData, min_presence_interval, 0),
+    MinMessageInterval = get_opt(StateData, min_message_interval),
+    MinPresenceInterval = get_opt(StateData, min_presence_interval),
     Key = jid:to_lower(JID),
     Now = os:system_time(microsecond),
     Activity1 = clean_treap(StateData#state.activity, {1, -Now}),
     Activity =
     case treap:lookup(Key, Activity1) of
         {ok, _P, _A} ->
-        treap:delete(Key, Activity1);
+            treap:delete(Key, Activity1);
         error ->
-        Activity1
+            Activity1
     end,
     StateData1 =
     case (MinMessageInterval == 0) andalso
@@ -1777,7 +1735,7 @@ is_user_limit_reached(From, Affiliation, StateData) ->
     NUsers = count_users(StateData),
     ServiceAffiliation = get_service_affiliation(From, StateData),
     NConferences = tab_count_user(From),
-    MaxConferences = get_opt(StateData, max_user_conferences, 10),
+    MaxConferences = get_opt(StateData, max_user_conferences),
     (ServiceAffiliation == owner orelse
        MaxUsers == none orelse
        ((Affiliation == admin orelse Affiliation == owner) andalso
@@ -2977,167 +2935,83 @@ which_property_changed(Attrs, Lang) ->
 
 -spec can_change_ra(FAff :: mod_muc:affiliation(), FRole :: mod_muc:role(),
         TAff :: mod_muc:affiliation(), TRole :: mod_muc:role(),
-        RoleOrAff :: 'affiliation' | 'role', Value :: any(),
+        RoleOrAff :: affiliation | role, Value :: any(),
         ServiceAff :: mod_muc:affiliation())
-            -> 'cancel' | 'check_owner' | 'false' | 'nothing' | 'true'.
-can_change_ra(_FAffiliation, _FRole,
-          owner, _TRole,
-          affiliation, owner, owner) ->
-    %% A room owner tries to add as persistent owner a
-    %% participant that is already owner because he is MUC admin
-    true;
-can_change_ra(_FAffiliation, _FRole,
-              _TAffiliation, _TRole,
-              _RoleorAffiliation, _Value, owner) ->
-    %% Nobody can decrease MUC admin's role/affiliation
-    false;
-can_change_ra(_FAffiliation, _FRole,
-          TAffiliation, _TRole,
-          affiliation, Value, _ServiceAf)
-  when (TAffiliation == Value) ->
-    nothing;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, TRole,
-          role, Value, _ServiceAf)
-  when (TRole == Value) ->
-    nothing;
-can_change_ra(FAffiliation, _FRole,
-          outcast, _TRole,
-          affiliation, none, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          outcast, _TRole,
-          affiliation, member, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          outcast, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          outcast, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          none, _TRole,
-          affiliation, outcast, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          none, _TRole,
-          affiliation, member, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          none, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          none, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          member, _TRole,
-          affiliation, outcast, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          member, _TRole,
-          affiliation, none, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(owner, _FRole,
-          member, _TRole,
-          affiliation, admin, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          member, _TRole,
-          affiliation, owner, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          admin, _TRole,
-          affiliation, _Affiliation, _ServiceAf) ->
-    true;
-can_change_ra(owner, _FRole,
-          owner, _TRole,
-          affiliation, _Affiliation, _ServiceAf) ->
-    check_owner;
-can_change_ra(none, _FRole,
-              TAffiliation, _TRole,
-              affiliation, _Affiliation, _ServiceAf)
-    when (TAffiliation == admin orelse TAffiliation == owner) ->
-    cancel;
-can_change_ra(admin, _FRole,
-              owner, _TRole,
-              affiliation, _Value, _ServiceAf) ->
-    cancel;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, _TRole,
-          affiliation, _Value, _ServiceAf) ->
-    false;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, visitor,
-          role, none, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, visitor,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          _TAffiliation, visitor,
-          role, moderator, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, participant,
-          role, none, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, moderator,
-          _TAffiliation, participant,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(FAffiliation, _FRole,
-          _TAffiliation, participant,
-          role, moderator, _ServiceAf)
-  when (FAffiliation == owner) or (FAffiliation == admin) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          owner, moderator,
-          role, visitor, _ServiceAf) ->
-    false;
-can_change_ra(owner, _FRole,
-          _TAffiliation, moderator,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          admin, moderator,
-          role, visitor, _ServiceAf) ->
-    false;
-can_change_ra(admin, _FRole,
-          _TAffiliation, moderator,
-          role, visitor, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          owner, moderator,
-          role, participant, _ServiceAf) ->
-    false;
-can_change_ra(owner, _FRole,
-          _TAffiliation, moderator,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          admin, moderator,
-          role, participant, _ServiceAf) ->
-    false;
-can_change_ra(admin, _FRole,
-          _TAffiliation, moderator,
-          role, participant, _ServiceAf) ->
-    true;
-can_change_ra(_FAffiliation, _FRole,
-          _TAffiliation, _TRole,
-          role, _Value, _ServiceAf) ->
-    false.
+            -> cancel | check_owner | false | nothing | true.
+can_change_ra(FAff, _FRole, TAff, _TRole, affiliation, Value, ServiceAff) ->
+    can_change_aff(FAff, TAff, Value, ServiceAff);
+can_change_ra(FAff, FRole, TAff, TRole, role, Value, ServiceAff) ->
+    can_change_role(FAff, FRole, TAff, TRole, Value, ServiceAff).
+
+%% A room owner tries to add as persistent owner a
+%% participant that is already owner because he is MUC admin:
+can_change_aff(_FAff, owner, owner, owner) -> true;
+%% Nobody can decrease MUC admin's role/affiliation:
+can_change_aff(_FAff, _TAff, _Value, owner) -> false;
+can_change_aff(FAff, TAff, Value, _ServiceAf) ->
+    can_change_aff(FAff, TAff, Value).
+
+%% Nobody can decrease MUC admin's role/affiliation:
+can_change_role(_FAff, _FRole, _TAff, _TRole, _Value, owner) -> false;
+can_change_role(FAff, FRole, TAff, TRole, Value, _ServiceAf) ->
+    can_change_role(FAff, FRole, TAff, TRole, Value).
+
+%% Arguments:
+%% - Affiliation of the user making the request
+%% - Old affiliation
+%% - New affiliation
+can_change_aff(_FAff, Aff, Aff) -> nothing;
+can_change_aff(owner, outcast, none) -> true;
+can_change_aff(owner, outcast, member) -> true;
+can_change_aff(owner, outcast, admin) -> true;
+can_change_aff(owner, outcast, owner) -> true;
+can_change_aff(owner, none, outcast) -> true;
+can_change_aff(owner, none, member) -> true;
+can_change_aff(owner, none, admin) -> true;
+can_change_aff(owner, none, owner) -> true;
+can_change_aff(owner, member, outcast) -> true;
+can_change_aff(owner, member, none) -> true;
+can_change_aff(owner, member, admin) -> true;
+can_change_aff(owner, member, owner) -> true;
+can_change_aff(owner, admin, _Aff) -> true;
+can_change_aff(owner, owner, _Aff) -> check_owner;
+can_change_aff(admin, none, member) -> true;
+can_change_aff(admin, none, outcast) -> true;
+can_change_aff(admin, outcast, none) -> true;
+can_change_aff(admin, outcast, member) -> true;
+can_change_aff(admin, member, outcast) -> true;
+can_change_aff(admin, member, none) -> true;
+can_change_aff(none,  admin, _Aff) -> cancel;
+can_change_aff(none,  owner, _Aff) -> cancel;
+can_change_aff(admin, owner, _Aff) -> cancel;
+can_change_aff(_FAff, _TAff, _Aff) -> false.
+
+%% Arguments:
+%% - Affiliation of the user making the request
+%% - Role of the user making the request
+%% - Old affiliation
+%% - Old role
+%% - New role
+can_change_role(_FAff, _FRole, _TAff, Role, Role) -> nothing;
+can_change_role(_FAff, moderator, _TAff, visitor, none) -> true;
+can_change_role(_FAff, moderator, _TAff, visitor, participant) -> true;
+can_change_role(owner, _FRole, _TAff, visitor, moderator) -> true;
+can_change_role(admin, _FRole, _TAff, visitor, moderator) -> true;
+can_change_role(_FAff, moderator, _TAff, participant, none) -> true;
+can_change_role(_FAff, moderator, _TAff, participant, visitor) -> true;
+can_change_role(owner, _FRole, _TAff, participant, moderator) -> true;
+can_change_role(admin, _FRole, _TAff, participant, moderator) -> true;
+%% Owner/admin are always moderators:
+can_change_role(_FAff, _FRole, owner, moderator, visitor) -> false;
+can_change_role(_FAff, _FRole, admin, moderator, visitor) -> false;
+can_change_role(_FAff, _FRole, owner, moderator, participant) -> false;
+can_change_role(_FAff, _FRole, admin, moderator, participant) -> false;
+%% Non owner/admin could loose their moderator status:
+can_change_role(owner, _FRole, _TAff, moderator, visitor) -> true;
+can_change_role(admin, _FRole, _TAff, moderator, visitor) -> true;
+can_change_role(owner, _FRole, _TAff, moderator, participant) -> true;
+can_change_role(admin, _FRole, _TAff, moderator, participant) -> true;
+can_change_role(_FAff, _FRole, _TAff, _TRole, _NewRole) -> false.
 
 safe_send_kickban_presence(JID, Reason, Code, StateData) ->
     try
@@ -3332,7 +3206,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomname">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [N]}} ->
-        byte_size(N) =< get_opt(StateData, max_room_name, infinity);
+        byte_size(N) =< get_opt(StateData, max_room_name);
         _ ->
         true
     end,
@@ -3340,7 +3214,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
     case lists:keysearch(<<"muc#roomconfig_roomdesc">>, 1,
                  jlib:parse_xdata_submit(XEl)) of
         {value, {_, [D]}} ->
-        byte_size(D) =< get_opt(StateData, max_room_desc, infinity);
+        byte_size(D) =< get_opt(StateData, max_room_desc);
         _ ->
         true
     end,
@@ -3384,13 +3258,10 @@ is_password_settings_correct(XEl, StateData) ->
         true
     end.
 
-
 -spec get_default_room_maxusers(state()) -> any().
 get_default_room_maxusers(RoomState) ->
-    DefRoomOpts = get_opt(RoomState, default_room_options, []),
-    RoomState2 = set_opts(DefRoomOpts, RoomState),
-    (RoomState2#state.config)#config.max_users.
-
+    #{max_users := MaxUsers} = get_opt(RoomState, default_room),
+    MaxUsers.
 
 -spec get_config(ejabberd:lang(), state(), jid:jid())
             -> {'result', [exml:element(), ...], state()}.
@@ -4366,7 +4237,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
                               from = From, packet = Packet, lang = Lang}, StateData) ->
     Activity = get_user_activity(From, StateData),
     Now = os:system_time(microsecond),
-    MinMessageInterval = trunc(get_opt(StateData, min_message_interval, 0) * 1000000),
+    MinMessageInterval = trunc(get_opt(StateData, min_message_interval) * 1000000),
     Size = element_size(Packet),
     {MessageShaper, MessageShaperInterval} = shaper:update(Activity#activity.message_shaper, Size),
     case {Activity#activity.message /= undefined,
@@ -4725,17 +4596,16 @@ stringxfield(Label, Var, Val, Lang) ->
 privatexfield(Label, Var, Val, Lang) ->
     xfield(<<"text-private">>, Label, Var, Val, Lang).
 
-notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = State) ->
-    mod_muc_log:set_room_occupants(Host, self(), JID, maps:values(Users)),
+notify_users_modified(#state{host_type = HostType, jid = JID, users = Users} = State) ->
+    mod_muc_log:set_room_occupants(HostType, self(), JID, maps:values(Users)),
     State.
-
 
 ls(LogMap, State) ->
     maps:merge(LogMap, #{room => State#state.room,
                          sub_host => State#state.host}).
 
-get_opt(#state{host_type = HostType}, Opt, Def) ->
-    gen_mod:get_module_opt(HostType, mod_muc, Opt, Def).
+get_opt(#state{host_type = HostType}, Opt) ->
+    gen_mod:get_module_opt(HostType, mod_muc, Opt).
 
 read_hibernate_timeout(HostType) ->
-    gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout, timer:seconds(90)).
+    gen_mod:get_module_opt(HostType, mod_muc, hibernate_timeout).

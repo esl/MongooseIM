@@ -6,6 +6,7 @@
 -compile([export_all, nowarn_export_all]).
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4, subhost_pattern/1]).
 -import(domain_helper, [host_type/0, secondary_host_type/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 suite() ->
     require_rpc_nodes([mim]).
@@ -42,7 +43,7 @@ end_per_suite(Config) ->
 modules() ->
     MucHost = subhost_pattern(muc_helper:muc_host_pattern()),
     [{mod_domain_isolation, []},
-     {mod_muc_light, [{host, MucHost}]}].
+     {mod_muc_light, mod_config(mod_muc_light, #{host => MucHost})}].
 
 init_per_group(two_domains, Config) ->
     Config2 = dynamic_modules:save_modules(host_types(), Config),

@@ -10,23 +10,15 @@
 -author("bartek").
 
 -include_lib("eunit/include/eunit.hrl").
--include("ejabberd_c2s.hrl").
 -include("mongoose.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("mod_roster.hrl").
 -compile([export_all, nowarn_export_all]).
 
--define(_eq(E, I), ?_assertEqual(E, I)).
--define(eq(E, I), ?assertEqual(E, I)).
--define(am(E, I), ?assertMatch(E, I)).
--define(ne(E, I), ?assert(E =/= I)).
-
 -define(ACC_PARAMS, #{location => ?LOCATION,
                       lserver => domain(),
                       host_type => host_type(),
                       element => undefined}).
-
--define(HOST_TYPE, <<"test type">>).
 
 all() -> [
     roster_old,

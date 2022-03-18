@@ -1,11 +1,9 @@
 -module(push_SUITE).
 -compile([export_all, nowarn_export_all]).
--include_lib("escalus/include/escalus.hrl").
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
--include("push_helper.hrl").
 
 -import(muc_light_helper,
     [
@@ -14,6 +12,8 @@
     ]).
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [subhost_pattern/1]).
+-import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [mod_config/2]).
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
     disable_stanza/1, disable_stanza/2, become_unavailable/1
@@ -105,17 +105,17 @@ init_per_group(pubsub_ful, Config) ->
     [{pubsub_host, real} | Config];
 init_per_group(pubsub_less, Config) ->
     [{pubsub_host, virtual} | Config];
-init_per_group(muclight_msg_notifications, Config0) ->
-    HostType = domain_helper:host_type(),
-    Config = ensure_pusher_module_and_save_old_mods(Config0),
-    dynamic_modules:ensure_modules(HostType, [{mod_muc_light,
-                                           [{host, subhost_pattern(?MUCHOST)},
-                                            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                                            {rooms_in_rosters, true}]}]),
+init_per_group(muclight_msg_notifications = GroupName, Config0) ->
+    HostType = host_type(),
+    Config = dynamic_modules:save_modules(HostType, Config0),
+    dynamic_modules:ensure_modules(HostType, required_modules(GroupName)),
     muc_light_helper:clear_db(HostType),
     Config;
-init_per_group(_, Config) ->
-    ensure_pusher_module_and_save_old_mods(Config).
+init_per_group(GroupName, Config0) ->
+    HostType = host_type(),
+    Config = dynamic_modules:save_modules(HostType, Config0),
+    dynamic_modules:ensure_modules(HostType, required_modules(GroupName)),
+    Config.
 
 end_per_group(disco, Config) ->
     escalus:delete_users(Config),
@@ -124,11 +124,13 @@ end_per_group(ComplexGroup, Config) when ComplexGroup == pubsub_ful;
                                          ComplexGroup == pubsub_less ->
     Config;
 end_per_group(_, Config) ->
-    restore_modules(Config),
+    dynamic_modules:restore_modules(Config),
     Config.
 
 init_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config1) ->
-    Config2 = ensure_pusher_module_and_save_old_mods(Config1),
+    HostType = host_type(),
+    Config2 = dynamic_modules:save_modules(HostType, Config1),
+    dynamic_modules:ensure_modules(HostType, required_modules(CaseName)),
     escalus:init_per_testcase(CaseName, Config2);
 init_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:init_per_testcase(CaseName, Config);
@@ -146,7 +148,7 @@ init_per_testcase(CaseName, Config0) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName = push_notifications_listed_disco_when_available, Config) ->
-    restore_modules(Config),
+    dynamic_modules:restore_modules(Config),
     escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName = push_notifications_not_listed_disco_when_not_available, Config) ->
     escalus:end_per_testcase(CaseName, Config);
@@ -160,17 +162,21 @@ end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
 %% --------------------- Helpers ------------------------
-ensure_pusher_module_and_save_old_mods(Config) ->
+
+required_modules(muclight_msg_notifications) ->
+    [pusher_module(), muc_light_module()];
+required_modules(_) ->
+    [pusher_module()].
+
+pusher_module() ->
     PushOpts = [{virtual_pubsub_hosts, [subhost_pattern(?VIRTUAL_PUBSUB_DOMAIN)]},
                 {backend, mongoose_helper:mnesia_or_rdbms_backend()}],
-    HostType = domain_helper:host_type(),
-    Config1 = dynamic_modules:save_modules(HostType, Config),
-    PusherMod = {mod_event_pusher, [{backends, [{push, PushOpts}]}]},
-    dynamic_modules:ensure_modules(HostType, [PusherMod]),
-    [{push_opts, PushOpts} | Config1].
+    {mod_event_pusher, [{backends, [{push, PushOpts}]}]}.
 
-restore_modules(Config) ->
-    dynamic_modules:restore_modules(Config).
+muc_light_module() ->
+    {mod_muc_light,
+     mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                 rooms_in_rosters => true})}.
 
 %%--------------------------------------------------------------------
 %% GROUP disco

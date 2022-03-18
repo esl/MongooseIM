@@ -244,7 +244,7 @@ add_rdbms_deps(user_cache, Type, #{cache_users := true, cache := CacheOpts}, Dep
                 internal -> Deps;
                 mod_cache_users -> add_dep(mod_cache_users, Deps)
             end,
-    add_dep(mod_mam_cache_user, #{Type => true, cache => CacheOpts}, Deps1);
+    add_dep(mod_mam_cache_user, CacheOpts#{Type => true}, Deps1);
 add_rdbms_deps(async_writer, Type, #{async_writer := AsyncOpts = #{enabled := true}}, Deps) ->
     Deps1 = add_dep(rdbms_arch_module(Type), #{no_writer => true}, Deps),
     add_dep(rdbms_async_arch_module(Type), AsyncOpts, Deps1);

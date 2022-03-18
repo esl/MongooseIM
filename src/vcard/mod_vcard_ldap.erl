@@ -23,15 +23,12 @@
 %%%
 %%%----------------------------------------------------------------------
 
-%%TODO gen_server is created only to store the state
-%%     and create/destroy pool, should it be replaced ?
-
 -module(mod_vcard_ldap).
 -author('alexey@process-one.net').
 
 -behaviour(mod_vcard_backend).
 
-%% mod_vcards callbacks
+%% mod_vcard_backend callbacks
 -export([init/2,
          tear_down/1,
          remove_user/3,
@@ -119,31 +116,34 @@
 
 
 %%--------------------------------------------------------------------
-%% mod_vcards callbacks
+%% mod_vcard_backend callbacks
 %%--------------------------------------------------------------------
-
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     ok.
 
-tear_down(_HostType) ->
+-spec tear_down(mongooseim:host_type()) -> ok.
+tear_down(HostType) ->
+    clear_persistent_term(HostType),
     ok.
 
+-spec remove_user(mongooseim:host_type(), jid:luser(), jid:lserver()) -> ok.
 remove_user(_HostType, _LUser, _LServer) ->
     %% no need to handle this - in ldap
     %% removing user = delete all user info
     ok.
 
+-spec get_vcard(mongooseim:host_type(), jid:luser(), jid:lserver()) -> {ok, [exml:element()]}.
 get_vcard(HostType, LUser, LServer) ->
     State = get_state(HostType, LServer),
-    LServer = State#state.serverhost,
     JID = jid:make(LUser, LServer, <<>>),
     case ejabberd_auth:does_user_exist(JID) of
         true ->
-            VCardMap = State#state.vcard_map,
             case find_ldap_user(LUser, State) of
                 #eldap_entry{attributes = Attributes} ->
-                    Vcard = ldap_attributes_to_vcard(Attributes, VCardMap, {LUser, LServer}),
-                    {ok, Vcard};
+                    VCardMap = State#state.vcard_map,
+                    VCard = ldap_attributes_to_vcard(Attributes, VCardMap, {LUser, LServer}),
+                    {ok, VCard};
                 _ ->
                     {ok, []}
             end;
@@ -151,17 +151,22 @@ get_vcard(HostType, LUser, LServer) ->
             {ok, []}
     end.
 
+-spec set_vcard(mongooseim:host_type(), jid:luser(), jid:lserver(), exml:element(), mod_vcard:vcard_search()) ->
+    {error, exml:element()}.
 set_vcard(_HostType, _User, _LServer, _VCard, _VCardSearch) ->
     {error, mongoose_xmpp_errors:not_allowed()}.
 
+-spec search(mongooseim:host_type(), jid:lserver(), [{binary(), [binary()]}]) -> [eldap:eldap_entry()].
 search(HostType, LServer, Data) ->
     State = get_state(HostType, LServer),
     search_internal(State, Data).
 
+-spec search_fields(mongooseim:host_type(), jid:lserver()) -> [{binary(), binary()}].
 search_fields(HostType, LServer) ->
     State = get_state(HostType, LServer),
     State#state.search_fields.
 
+-spec search_reported_fields(mongooseim:host_type(), jid:lserver(), binary()) -> exml:element().
 search_reported_fields(HostType, LServer, Lang) ->
     State = get_state(HostType, LServer),
     SearchReported = State#state.search_reported,
@@ -417,44 +422,41 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
                         [{<<"%s">>, V, 1} || V <- AttrValues]).
 
 get_state(HostType, LServer) ->
+    Key = config_key(HostType, LServer),
+    case persistent_term:get(Key, undefined) of
+        undefined ->
+            State = create_state(HostType, LServer),
+            persistent_term:put(Key, State),
+            State;
+        State ->
+            State
+    end.
+
+create_state(HostType, LServer) ->
     Opts = gen_mod:get_loaded_module_opts(HostType, mod_vcard),
-    Val = gen_mod:get_opt(host, Opts),
-    MyHost = mongoose_subdomain_utils:get_fqdn(Val, LServer),
     Matches = gen_mod:get_opt(matches, Opts),
-    EldapID = gen_mod:get_opt(ldap_pool_tag, Opts),
-    Base = eldap_utils:get_base(Opts),
-    DerefAliases = eldap_utils:get_deref_aliases(Opts),
-    UIDs = eldap_utils:get_uids(LServer, Opts),
-    UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
-    {ok, SearchFilter} =
-        eldap_filter:parse(eldap_utils:get_search_filter(UserFilter)),
-    VCardMap = eldap_utils:get_mod_opt(ldap_vcard_map, Opts,
-                               fun(Ls) ->
-                                       lists:map(
-                                         fun({S, P, L}) ->
-                                                 {iolist_to_binary(S),
-                                                  iolist_to_binary(P),
-                                                  [iolist_to_binary(E)
-                                                   || E <- L]}
-                                         end, Ls)
-                               end, ?VCARD_MAP),
-    SearchFields = eldap_utils:get_mod_opt(ldap_search_fields, Opts,
-                                   fun(Ls) ->
-                                           [{iolist_to_binary(S),
-                                             iolist_to_binary(P)}
-                                            || {S, P} <- Ls]
-                                   end, ?SEARCH_FIELDS),
-    SearchReported = eldap_utils:get_mod_opt(ldap_search_reported, Opts,
-                                     fun(Ls) ->
-                                             [{iolist_to_binary(S),
-                                               iolist_to_binary(P)}
-                                              || {S, P} <- Ls]
-                                     end, ?SEARCH_REPORTED),
+    Host = gen_mod:get_opt(host, Opts),
+    LDAPOpts = gen_mod:get_opt(ldap, Opts),
+    #{pool_tag := PoolTag,
+      base := Base,
+      deref := Deref,
+      uids := RawUIDs,
+      filter := RawUserFilter,
+      vcard_map := VCardMap,
+      search_fields := SearchFields,
+      search_reported := SearchReported,
+      search_operator := SearchOperator,
+      binary_search_fields := BinaryFields} = LDAPOpts,
+    MyHost = mongoose_subdomain_utils:get_fqdn(Host, LServer),
+    DerefAliases = eldap_utils:deref_aliases(Deref),
+    UIDs = eldap_utils:uids_domain_subst(LServer, RawUIDs),
+    UserFilter = eldap_utils:process_user_filter(UIDs, RawUserFilter),
+    {ok, SearchFilter} = eldap_filter:parse(eldap_utils:get_search_filter(UserFilter)),
+
     UIDAttrs = lists:map(fun({UID, _}) -> UID;
                             ({UID}) -> UID end, UIDs),
-    VCardMapAttrs = lists:usort(lists:append([A
-                                              || {_, _, A} <- VCardMap])
-                                  ++ UIDAttrs),
+    VCardMapAttrs = lists:usort(lists:append([A || {_, _, A} <- VCardMap])
+                                ++ UIDAttrs),
     SearchReportedAttrs = lists:usort(lists:flatmap(
                                         fun ({_, N}) ->
                                           case lists:keysearch(N, 1, VCardMap) of
@@ -464,11 +466,9 @@ get_state(HostType, LServer) ->
                                           end
                                         end,
                                         SearchReported) ++ UIDAttrs),
-    SearchOperator = gen_mod:get_opt(ldap_search_operator, Opts),
-    BinaryFields = gen_mod:get_opt(ldap_binary_search_fields, Opts),
     #state{serverhost = LServer,
            myhost = MyHost,
-           eldap_id = {HostType, EldapID},
+           eldap_id = {HostType, PoolTag},
            base = Base,
            deref = DerefAliases,
            uids = UIDs, vcard_map = VCardMap,
@@ -480,3 +480,16 @@ get_state(HostType, LServer) ->
            search_reported_attrs = SearchReportedAttrs,
            search_operator = SearchOperator,
            matches = Matches}.
+
+clear_persistent_term(HostType) ->
+    Terms = persistent_term:get(),
+    States = lists:filter(fun({K, _V}) -> is_host_type_config_key(HostType, K) end, Terms),
+    [persistent_term:erase(Key) || {Key, _V} <- States].
+
+is_host_type_config_key(HostType, {?MODULE, HostType, _LServer}) ->
+    true;
+is_host_type_config_key(_HT, _K) ->
+    false.
+
+config_key(HostType, LServer) ->
+    {?MODULE, HostType, LServer}.

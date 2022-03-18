@@ -35,43 +35,13 @@
          session_opened/5, session_closed/5]).
 -export([endpoints/1, hosts/0]).
 
--define(MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, mod_global_distrib_mapping_backend).
 -ignore_xref([
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domains, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_domain, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, delete_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_endpoints, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_domain, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_hosts, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, get_public_domains, 0},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_domain, 2},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, put_session, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, start, 1},
-    {?MOD_GLOBAL_DISTRIB_MAPPING_BACKEND, stop, 0},
-    behaviour_info/1, delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
+    delete_for_domain/1, delete_for_jid/1, insert_for_domain/1,
     insert_for_domain/2, insert_for_domain/3, insert_for_jid/1, packet_to_component/3,
     register_subhost/3, session_closed/5, session_opened/5, unregister_subhost/2
 ]).
 
 -type endpoint() :: mod_global_distrib_utils:endpoint().
-
-%%--------------------------------------------------------------------
-%% Callbacks
-%%--------------------------------------------------------------------
-
--callback start(Opts :: proplists:proplist()) -> any().
--callback stop() -> any().
--callback put_session(JID :: binary()) -> ok | error.
--callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_session(JID :: binary()) -> ok | error.
--callback put_domain(Domain :: binary(), IsHidden :: boolean()) -> ok | error.
--callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
--callback delete_domain(Domain :: binary()) -> ok | error.
--callback get_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_public_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_endpoints(Host :: binary()) -> {ok, [endpoint()]}.
--callback get_hosts() -> [Host :: jid:lserver()].
 
 %%--------------------------------------------------------------------
 %% API
@@ -143,15 +113,15 @@ delete_for_jid({_, _, _} = Jid) ->
       end,
       normalize_jid(Jid)).
 
--spec all_domains() -> {ok, [jid:lserver()]}.
+-spec all_domains() -> [jid:lserver()].
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec public_domains() -> {ok, [jid:lserver()]}.
+-spec public_domains() -> [jid:lserver()].
 public_domains() ->
     mod_global_distrib_mapping_backend:get_public_domains().
 
--spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
+-spec endpoints(Host :: jid:lserver()) -> [endpoint()].
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -163,20 +133,38 @@ hosts() ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    AdvEndpoints = get_advertised_endpoints(Opts0),
-    Opts = [{advertised_endpoints, AdvEndpoints}, {backend, redis}, {redis, [no_opts]}, {cache_missed, true},
-            {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts = #{cache := CacheOpts}) ->
+    mod_global_distrib_mapping_backend:start(Opts#{backend => redis}),
 
--spec stop(Host :: jid:lserver()) -> any().
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, spiral),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, spiral),
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(Host, Opts) ->
-    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
+    #{cache_missed := CacheMissed,
+      domain_lifetime_seconds := DomainLifetimeSec,
+      jid_lifetime_seconds := JidLifeTimeSec,
+      max_jids := MaxJids} = CacheOpts,
+    DomainLifetime = timer:seconds(DomainLifetimeSec),
+    JidLifetime = timer:seconds(JidLifeTimeSec),
+
+    ejabberd_hooks:add(hooks(HostType)),
+
+    ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
+    ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
+                             {max_size, MaxJids}]).
+
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    ets_cache:delete(?JID_TAB),
+    ets_cache:delete(?DOMAIN_TAB),
+    ejabberd_hooks:delete(hooks(HostType)),
+    mod_global_distrib_mapping_backend:stop().
+
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, Opts) ->
+    [{mod_global_distrib_utils, Opts, hard},
+     {mod_global_distrib_receiver, Opts, hard}].
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -229,50 +217,12 @@ unregister_subhost(_, SubHost) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec deps(proplists:proplist()) -> gen_mod_deps:deps().
-deps(_Opts) ->
-    [{mod_global_distrib_receiver, [], hard}].
-
--spec start() -> any().
-start() ->
-    Host = opt(global_host),
-    Backend = opt(backend),
-    gen_mod:start_backend_module(?MODULE, [{backend, Backend}]),
-    mod_global_distrib_mapping_backend:start(opt(Backend)),
-
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, spiral),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, spiral),
-
-    CacheMissed = opt(cache_missed),
-    DomainLifetime = opt(domain_lifetime_seconds) * 1000,
-    JidLifetime = opt(jid_lifetime_seconds) * 1000,
-    MaxJids = opt(max_jids),
-
-    ejabberd_hooks:add(register_subhost, global, ?MODULE, register_subhost, 90),
-    ejabberd_hooks:add(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
-    ejabberd_hooks:add(packet_to_component, global, ?MODULE, packet_to_component, 90),
-    ejabberd_hooks:add(sm_register_connection_hook, Host, ?MODULE, session_opened, 90),
-    ejabberd_hooks:add(sm_remove_connection_hook, Host, ?MODULE, session_closed, 90),
-
-    ets_cache:new(?DOMAIN_TAB, [{cache_missed, CacheMissed}, {life_time, DomainLifetime}]),
-    ets_cache:new(?JID_TAB, [{cache_missed, CacheMissed}, {life_time, JidLifetime},
-                             {max_size, MaxJids}]).
-
--spec stop() -> any().
-stop() ->
-    Host = opt(global_host),
-
-    ets_cache:delete(?JID_TAB),
-    ets_cache:delete(?DOMAIN_TAB),
-
-    ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, session_closed, 90),
-    ejabberd_hooks:delete(sm_register_connection_hook, Host, ?MODULE, session_opened, 90),
-    ejabberd_hooks:delete(packet_to_component, global, ?MODULE, packet_to_component, 90),
-    ejabberd_hooks:delete(unregister_subhost, global, ?MODULE, unregister_subhost, 90),
-    ejabberd_hooks:delete(register_subhost, global, ?MODULE, register_subhost, 90),
-
-    mod_global_distrib_mapping_backend:stop().
+hooks(HostType) ->
+    [{register_subhost, global, ?MODULE, register_subhost, 90},
+     {unregister_subhost, global, ?MODULE, unregister_subhost, 90},
+     {packet_to_component, global, ?MODULE, packet_to_component, 90},
+     {sm_register_connection_hook, HostType, ?MODULE, session_opened, 90},
+     {sm_remove_connection_hook, HostType, ?MODULE, session_closed, 90}].
 
 -spec normalize_jid(jid:ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->
@@ -341,8 +291,3 @@ do_lookup_jid({_, _, _} = Jid) ->
                 BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
             end
     end.
-
--spec get_advertised_endpoints(Opts :: list()) -> [endpoint()].
-get_advertised_endpoints(Opts) ->
-    Conns = proplists:get_value(connections, Opts, []),
-    proplists:get_value(advertised_endpoints, Conns, false).

@@ -19,7 +19,7 @@
 -export([get_personal_data/3]).
 
 %% gen_mod
--export([start/2, stop/1, deps/2, config_spec/0, supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 -export([process_iq/5,
          user_send_packet/4,
@@ -83,10 +83,6 @@ process_entry(#{remote_jid := RemJID,
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec deps(jid:lserver(), list()) -> gen_mod_deps:deps().
-deps(_Host, Opts) ->
-    Groupchats = gen_mod:get_opt(groupchat, Opts),
-    muclight_dep(Groupchats) ++ muc_dep(Groupchats).
 
 -spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
@@ -102,7 +98,7 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
     mod_inbox_muc:stop(HostType),
-    case mongoose_config:get_opt([{modules, HostType}, mod_inbox, backend]) of
+    case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of
         rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
         _ -> ok
     end,
@@ -317,7 +313,7 @@ build_inbox_message(#{msg := Content,
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
         children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS)]}.
 
--spec build_result_el(content(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
+-spec build_result_el(exml:element(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
 build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
     Forwarded = build_forward_el(Msg, Timestamp),
     Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
@@ -342,12 +338,11 @@ build_result_iq(List) ->
 build_result_el(Name, CountBin) ->
     #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
 
--spec build_forward_el(content(), integer()) -> exml:element().
+-spec build_forward_el(exml:element(), integer()) -> exml:element().
 build_forward_el(Content, Timestamp) ->
-    {ok, Parsed} = exml:parse(Content),
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-           children = [Delay, Parsed]}.
+           children = [Delay, Content]}.
 
 -spec build_delay_el(Timestamp :: integer()) -> exml:element().
 build_delay_el(Timestamp) ->
@@ -541,23 +536,11 @@ hooks(HostType) ->
     ].
 
 get_groupchat_types(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, groupchat, [muclight]).
+    gen_mod:get_module_opt(HostType, ?MODULE, groupchat).
 
 config_metrics(HostType) ->
     OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
     mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
-
-muclight_dep(List) ->
-    case lists:member(muclight, List) of
-        true -> [{mod_muc_light, [], hard}];
-        false -> []
-    end.
-
-muc_dep(List) ->
-    case lists:member(muc, List) of
-        true -> [{mod_muc, [], hard}];
-        false -> []
-    end.
 
 -spec muclight_enabled(HostType :: mongooseim:host_type()) -> boolean().
 muclight_enabled(HostType) ->

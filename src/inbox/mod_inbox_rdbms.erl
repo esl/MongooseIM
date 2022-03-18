@@ -31,6 +31,7 @@
 -type db_return() :: {jid:luser(),
                       msg_content(),
                       count_bin(),
+                      binary(),
                       non_neg_integer() | binary(),
                       archived(),
                       muted_until()}.
@@ -260,7 +261,7 @@ lookup_query(#{order := Order} = Params) ->
     Conditions = [lookup_sql_condition(Key, maps:get(Key, Params, undefined)) ||
                      Key <- [start, 'end', hidden_read, archive]],
     ["SELECT ", MSLimitSQL,
-     " remote_bare_jid, content, unread_count, timestamp, archive, muted_until "
+     " remote_bare_jid, content, unread_count, msg_id, timestamp, archive, muted_until "
      " FROM inbox WHERE luser = ? AND lserver = ?", Conditions,
      " ORDER BY timestamp ", OrderSQL, " ", LimitSQL].
 
@@ -419,15 +420,16 @@ execute_delete_domain(HostType, LServer) ->
 %% Result processing
 
 -spec decode_row(mongooseim:host_type(), db_return()) -> inbox_res().
-decode_row(HostType, {Username, Content, Count, Timestamp, Archive, MutedUntil}) ->
-    Data = mongoose_rdbms:unescape_binary(HostType, Content),
+decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, MutedUntil}) ->
+    {ok, Parsed} = exml:parse(mongoose_rdbms:unescape_binary(HostType, Content)),
     BCount = mongoose_rdbms:result_to_integer(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
     BoolArchive = mongoose_rdbms:to_bool(Archive),
     NumericMutedUntil = mongoose_rdbms:result_to_integer(MutedUntil),
     #{remote_jid => Username,
-      msg => Data,
+      msg => Parsed,
       unread_count => BCount,
+      msg_id => MsgId,
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.

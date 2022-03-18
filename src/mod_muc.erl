@@ -76,13 +76,13 @@
 -ignore_xref([
     can_access_identity/4, can_access_room/4, acc_room_affiliations/2, create_instant_room/6,
     disco_local_items/1, hibernated_rooms_number/0, is_muc_room_owner/4, remove_domain/3,
-    online_rooms_number/0, register_room/4, restore_room/3, start_link/2
-]).
+    online_rooms_number/0, register_room/4, restore_room/3, start_link/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include("mongoose_config_spec.hrl").
+-include("mod_muc_room.hrl").
 
 -export_type([access/0,
              room/0,
@@ -133,18 +133,17 @@
        }.
 -export_type([room_event_data/0]).
 
--record(state, {host_type         :: jid:literal_jid(),
-                subdomain_pattern   :: mongoose_subdomain_utils:subdomain_pattern(),
-                access,
-                history_size        :: integer(),
-                default_room_opts   :: list(),
-                room_shaper         :: shaper:shaper(),
-                http_auth_pool      :: mongoose_http_client:pool(),
-                hibernated_room_check_interval :: timeout(),
-                hibernated_room_timeout :: timeout()
-              }).
+-record(muc_state, {host_type           :: host_type(),
+                    subdomain_pattern   :: mongoose_subdomain_utils:subdomain_pattern(),
+                    access,
+                    history_size        :: integer(),
+                    default_room_opts   :: list(),
+                    room_shaper         :: shaper:shaper(),
+                    http_auth_pool      :: mongoose_http_client:pool(),
+                    hibernated_room_check_interval :: timeout(),
+                    hibernated_room_timeout :: timeout() }).
 
--type state() :: #state{}.
+-type state() :: #muc_state{}.
 
 -export_type([muc_room/0, muc_registered/0]).
 
@@ -158,14 +157,14 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(host_type(), list())
+-spec start_link(host_type(), map())
             -> ignore | {error, _} | {ok, pid()}.
 start_link(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
-    gen_server:start_link({local, Proc}, ?MODULE, [HostType, Opts], []).
+    gen_server:start_link({local, Proc}, ?MODULE, {HostType, Opts}, []).
 
 -spec start(host_type(), _) -> ok.
-start(HostType, Opts) ->
+start(HostType, Opts) when is_map(Opts) ->
     ensure_metrics(HostType),
     start_supervisor(HostType),
     start_server(HostType, Opts),
@@ -199,6 +198,7 @@ assert_server_running(HostType) ->
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
+       format_items = map,
        items = #{<<"backend">> => #option{type = atom,
                                           validate = {module, mod_muc}},
                  <<"host">> => #option{type = string,
@@ -246,11 +246,42 @@ config_spec() ->
                  <<"hibernated_room_timeout">> => #option{type = int_or_infinity,
                                                           validate = non_negative},
                  <<"default_room">> => default_room_config_spec()
-                }
+                },
+       defaults = defaults()
       }.
+
+defaults() ->
+    #{<<"backend">> => mnesia,
+      <<"host">> => default_host(),
+      <<"access">> => all,
+      <<"access_create">> => all,
+      <<"access_admin">> => none,
+      <<"access_persistent">> => all,
+      <<"history_size">> => 20,
+      <<"room_shaper">> => none,
+      <<"max_room_id">> => infinity,
+      <<"max_room_name">> => infinity,
+      <<"max_room_desc">> => infinity,
+      <<"min_message_interval">> => 0,
+      <<"min_presence_interval">> => 0,
+      <<"max_users">> => ?MAX_USERS_DEFAULT,
+      <<"max_users_admin_threshold">> => 5,
+      <<"user_message_shaper">> => none,
+      <<"user_presence_shaper">> => none,
+      <<"max_user_conferences">> => 10,
+      <<"http_auth_pool">> => none,
+      <<"load_permanent_rooms_at_startup">> => false,
+      <<"hibernate_timeout">> => timer:seconds(90),
+      <<"hibernated_room_check_interval">> => infinity,
+      <<"hibernated_room_timeout">> => infinity,
+      <<"default_room">> => keys_as_atoms(default_room_opts())}.
+
+keys_as_atoms(Map) ->
+    maps:from_list([{binary_to_atom(K), V} || {K, V} <- maps:to_list(Map)]).
 
 default_room_config_spec() ->
     #section{
+       format_items = map,
        items = #{<<"title">> => #option{type = binary},
                  <<"description">> => #option{type = binary},
                  <<"allow_change_subj">> => #option{type = boolean},
@@ -278,8 +309,35 @@ default_room_config_spec() ->
                  <<"subject">> => #option{type = binary},
                  <<"subject_author">> => #option{type = binary}
                 },
-       wrap = {kv, default_room_options}
+       defaults = default_room_opts()
       }.
+
+default_room_opts() ->
+    X = #config{},
+    #{<<"title">> => X#config.title,
+      <<"description">> => X#config.description,
+      <<"allow_change_subj">> => X#config.allow_change_subj,
+      <<"allow_query_users">> => X#config.allow_query_users,
+      <<"allow_private_messages">> => X#config.allow_private_messages,
+      <<"allow_visitor_status">> => X#config.allow_visitor_status,
+      <<"allow_visitor_nickchange">> => X#config.allow_visitor_nickchange,
+      <<"public">> => X#config.public,
+      <<"public_list">> => X#config.public_list,
+      <<"persistent">> => X#config.persistent,
+      <<"moderated">> => X#config.moderated,
+      <<"members_by_default">> => X#config.members_by_default,
+      <<"members_only">> => X#config.members_only,
+      <<"allow_user_invites">> => X#config.allow_user_invites,
+      <<"allow_multiple_sessions">> => X#config.allow_multiple_sessions,
+      <<"password_protected">> => X#config.password_protected,
+      <<"password">> => X#config.password,
+      <<"anonymous">> => X#config.anonymous,
+      <<"max_users">> => X#config.max_users,
+      <<"logging">> => X#config.logging,
+      <<"maygetmemberlist">> => X#config.maygetmemberlist,
+      <<"affiliations">> => [],
+      <<"subject">> => <<>>,
+      <<"subject_author">> => <<>>}.
 
 default_room_affiliations_spec() ->
     #section{
@@ -391,8 +449,8 @@ get_nick(HostType, MucHost, From) ->
 %% gen_server callbacks
 %%====================================================================
 
--spec init([host_type() | list(), ...]) -> {'ok', state()}.
-init([HostType, Opts]) ->
+-spec init({host_type(), map()}) -> {ok, state()}.
+init({HostType, Opts}) ->
     mod_muc_backend:init(HostType, Opts),
     mnesia:create_table(muc_online_room,
                         [{ram_copies, [node()]},
@@ -401,26 +459,27 @@ init([HostType, Opts]) ->
     catch ets:new(muc_online_users, [bag, named_table, public, {keypos, 2}]),
     clean_table_from_bad_node(node(), HostType),
     mnesia:subscribe(system),
-    Access = gen_mod:get_opt(access, Opts, all),
-    AccessCreate = gen_mod:get_opt(access_create, Opts, all),
-    AccessAdmin = gen_mod:get_opt(access_admin, Opts, none),
-    AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
-    HttpAuthPool = gen_mod:get_opt(http_auth_pool, Opts, none),
-    HistorySize = gen_mod:get_opt(history_size, Opts, 20),
-    DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
-    RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
-    CheckInterval = gen_mod:get_opt(hibernated_room_check_interval, Opts, infinity),
-    HibernatedTimeout = gen_mod:get_opt(hibernated_room_timeout, Opts, infinity),
-    SubdomainPattern = gen_mod:get_opt(host, Opts, default_host()),
-    State = #state{host_type = HostType,
-                   subdomain_pattern = SubdomainPattern,
-                   access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
-                   default_room_opts = DefRoomOpts,
-                   history_size = HistorySize,
-                   room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool,
-                   hibernated_room_check_interval = CheckInterval,
-                   hibernated_room_timeout = HibernatedTimeout},
+    #{access := Access,
+      access_create := AccessCreate,
+      access_admin := AccessAdmin,
+      access_persistent := AccessPersistent,
+      http_auth_pool := HttpAuthPool,
+      history_size := HistorySize,
+      default_room := DefRoomOpts,
+      room_shaper := RoomShaper,
+      hibernated_room_check_interval := CheckInterval,
+      hibernated_room_timeout := HibernatedTimeout,
+      host := SubdomainPattern,
+      load_permanent_rooms_at_startup := LoadPermRoomsAtStartup} = Opts,
+    State = #muc_state{host_type = HostType,
+                       subdomain_pattern = SubdomainPattern,
+                       access = {Access, AccessCreate, AccessAdmin, AccessPersistent},
+                       default_room_opts = maps:to_list(DefRoomOpts),
+                       history_size = HistorySize,
+                       room_shaper = RoomShaper,
+                       http_auth_pool = HttpAuthPool,
+                       hibernated_room_check_interval = CheckInterval,
+                       hibernated_room_timeout = HibernatedTimeout},
     %% Hooks
     ejabberd_hooks:add(hooks(HostType)),
     %% Handler
@@ -435,7 +494,7 @@ init([HostType, Opts]) ->
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
     register_for_global_distrib(HostType),
     %% Loading
-    case gen_mod:get_module_opt(HostType, mod_muc, load_permanent_rooms_at_startup, false) of
+    case LoadPermRoomsAtStartup of
         false ->
             ?LOG_INFO(#{what => load_permanent_rooms_at_startup, skip => true,
                         text => <<"Skip loading permanent rooms at startup. "
@@ -448,22 +507,22 @@ init([HostType, Opts]) ->
     set_persistent_rooms_timer(State),
     {ok, State}.
 
-set_persistent_rooms_timer(#state{hibernated_room_check_interval = infinity}) ->
+set_persistent_rooms_timer(#muc_state{hibernated_room_check_interval = infinity}) ->
     ok;
-set_persistent_rooms_timer(#state{hibernated_room_check_interval = Timeout}) ->
+set_persistent_rooms_timer(#muc_state{hibernated_room_check_interval = Timeout}) ->
     timer:send_after(Timeout, stop_hibernated_persistent_rooms).
 
 handle_call(stop, _From, State) ->
-    ejabberd_hooks:delete(hooks(State#state.host_type)),
+    ejabberd_hooks:delete(hooks(State#muc_state.host_type)),
     {stop, normal, ok, State};
 handle_call({create_instant, ServerHost, MucHost, Room, From, Nick, Opts},
             _From,
-            #state{host_type = HostType,
-                   access = Access,
-                   default_room_opts = DefOpts,
-                   history_size = HistorySize,
-                   room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool} = State) ->
+            #muc_state{host_type = HostType,
+                       access = Access,
+                       default_room_opts = DefOpts,
+                       history_size = HistorySize,
+                       room_shaper = RoomShaper,
+                       http_auth_pool = HttpAuthPool} = State) ->
     ?LOG_DEBUG(#{what => muc_create_instant, room => Room, sub_host => MucHost}),
     NewOpts = case Opts of
                   default -> DefOpts;
@@ -494,8 +553,9 @@ handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
     clean_table_from_bad_node(Node),
     {noreply, State};
 handle_info(stop_hibernated_persistent_rooms,
-            #state{host_type = HostType,
-                   hibernated_room_timeout = Timeout} = State) when is_integer(Timeout) ->
+            #muc_state{host_type = HostType,
+                       hibernated_room_timeout = Timeout} = State)
+  when is_integer(Timeout) ->
     handle_stop_hibernated_persistent_rooms(HostType, Timeout),
     set_persistent_rooms_timer(State),
     {noreply, State};
@@ -539,8 +599,8 @@ stop_if_hibernated_for_specified_time(Pid, Now, Timeout, {hibernated, LastHibern
             ok
     end.
 
-terminate(_Reason, #state{host_type = HostType,
-                          subdomain_pattern = SubdomainPattern}) ->
+terminate(_Reason, #muc_state{host_type = HostType,
+                              subdomain_pattern = SubdomainPattern}) ->
     mongoose_domain_api:unregister_subdomain(HostType, SubdomainPattern),
     unregister_for_global_distrib(HostType),
     ok.
@@ -579,9 +639,9 @@ stop_supervisor(HostType) ->
                      El :: exml:element(),
                      #{state := state()}) -> mongoose_acc:t().
 process_packet(Acc, From, To, El, #{state := State}) ->
-    {AccessRoute, _, _, _} = State#state.access,
+    {AccessRoute, _, _, _} = State#muc_state.access,
     ServerHost = make_server_host(To, State),
-    HostType = State#state.host_type,
+    HostType = State#muc_state.host_type,
     case acl:match_rule(HostType, ServerHost, AccessRoute, From) of
         allow ->
             {Room, MucHost, _} = jid:to_lower(To),
@@ -600,7 +660,7 @@ process_packet(Acc, From, To, El, #{state := State}) ->
 route_to_room(_MucHost, <<>>, {_, To, _Acc, _} = Routed, State) ->
     {_, _, Nick} = jid:to_lower(To),
     route_by_nick(Nick, Routed, State);
-route_to_room(MucHost, Room, Routed, #state{} = State) ->
+route_to_room(MucHost, Room, Routed, #muc_state{} = State) ->
     case mnesia:dirty_read(muc_online_room, {Room, MucHost}) of
         [] ->
             case get_registered_room_or_route_error(MucHost, Room, Routed, State) of
@@ -630,17 +690,16 @@ get_registered_room_or_route_error(MucHost, Room, {From, To, Acc, Packet}, State
             get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Packet, State)
     end.
 
-get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, Packet,
-                                   #state{host_type = HostType,
-                                          access = Access} = State) ->
+get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc,
+        Packet, #muc_state{host_type = HostType, access = Access} = State) ->
     {_, AccessCreate, _, _} = Access,
     ServerHost = make_server_host(To, State),
     case check_user_can_create_room(HostType, ServerHost, AccessCreate, From, Room) of
         ok ->
-            #state{history_size = HistorySize,
-                   room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool,
-                   default_room_opts = DefRoomOpts} = State,
+            #muc_state{history_size = HistorySize,
+                       room_shaper = RoomShaper,
+                       http_auth_pool = HttpAuthPool,
+                       default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
             ServerHost = make_server_host(To, State),
             Result = start_new_room(HostType, ServerHost, MucHost, Access, Room,
@@ -678,8 +737,8 @@ get_registered_room_or_route_error_from_presence(MucHost, Room, From, To, Acc, P
     end.
 
 get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Packet,
-                                 #state{host_type = HostType,
-                                        access = Access} = State) ->
+                                 #muc_state{host_type = HostType,
+                                            access = Access} = State) ->
     ServerHost = make_server_host(To, State),
     case restore_room(HostType, MucHost, Room) of
         {error, room_not_found} ->
@@ -701,9 +760,9 @@ get_registered_room_or_route_error_from_packet(MucHost, Room, From, To, Acc, Pac
             {route_error, ErrText};
         {ok, Opts} ->
             ?LOG_DEBUG(#{what => muc_restore_room, room => Room, room_opts => Opts}),
-            #state{history_size = HistorySize,
-                   room_shaper = RoomShaper,
-                   http_auth_pool = HttpAuthPool} = State,
+            #muc_state{history_size = HistorySize,
+                       room_shaper = RoomShaper,
+                       http_auth_pool = HttpAuthPool} = State,
             {ok, Pid} = mod_muc_room:start_restored(HostType,
                                            MucHost, ServerHost, Access,
                                            Room, HistorySize,
@@ -727,9 +786,9 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
             ejabberd_router:route(To, From, Acc1, Err)
     end.
 
--spec route_by_type(binary(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
-    HostType = State#state.host_type,
+-spec route_by_type(binary(), from_to_packet(), state()) -> ok | pid().
+route_by_type(<<"iq">>, {From, To, Acc, Packet}, #muc_state{} = State) ->
+    HostType = State#muc_state.host_type,
     MucHost = To#jid.lserver,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
@@ -788,8 +847,8 @@ route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{} = State) ->
             ok
     end;
 route_by_type(<<"message">>, {From, To, Acc, Packet},
-              #state{host_type = HostType,
-                     access = {_, _, AccessAdmin, _}} = State) ->
+              #muc_state{host_type = HostType,
+                         access = {_, _, AccessAdmin, _}} = State) ->
     MucHost = To#jid.lserver,
     ServerHost = make_server_host(To, State),
     #xmlel{attrs = Attrs} = Packet,
@@ -817,8 +876,7 @@ route_by_type(<<"presence">>, _Routed, _State) ->
 check_user_can_create_room(HostType, ServerHost, AccessCreate, From, RoomID) ->
     case acl:match_rule(HostType, ServerHost, AccessCreate, From) of
         allow ->
-            MaxLen = gen_mod:get_module_opt(HostType, mod_muc,
-                                            max_room_id, infinity),
+            MaxLen = gen_mod:get_module_opt(HostType, mod_muc, max_room_id),
             case (size(RoomID) =< MaxLen) of
                 true -> ok;
                 false -> {error, room_id_too_long}
@@ -927,7 +985,6 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
      case catch gen_fsm_compat:sync_send_all_state_event(
                   Pid, {get_disco_item, From, Lang}, 100) of
          {item, Desc} ->
-             flush(),
              {true,
               #xmlel{name = <<"item">>,
                      attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
@@ -935,7 +992,7 @@ room_to_item({{Name, _}, Pid}, MucHost, From, Lang) when is_pid(Pid) ->
          _ ->
              false
      end;
- room_to_item({{ Name, _ }, _}, MucHost, _, _) ->
+room_to_item({{ Name, _ }, _}, MucHost, _, _) ->
      {true,
      #xmlel{name = <<"item">>,
             attrs = [{<<"jid">>, jid:to_binary({Name, MucHost, <<>>})},
@@ -1006,17 +1063,6 @@ get_room_pos({{NameHost, _}, _}, [{{NameHost, _}, _} | _], HeadPosition) ->
     HeadPosition;
 get_room_pos(Desired, [_ | Rooms], HeadPosition) ->
     get_room_pos(Desired, Rooms, HeadPosition + 1).
-
-
--spec flush() -> 'ok'.
-flush() ->
-    receive
-        _ ->
-            flush()
-    after 0 ->
-            ok
-    end.
-
 
 -spec xfield(Type :: binary(), Label :: binary(), Var :: binary(),
              Val :: binary(), ejabberd:lang()) -> exml:element().
@@ -1337,7 +1383,7 @@ hooks(HostType) ->
      {disco_local_items, HostType, ?MODULE, disco_local_items, 250}].
 
 subdomain_pattern(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, host, default_host()).
+    gen_mod:get_module_opt(HostType, ?MODULE, host).
 
 server_host_to_muc_host(HostType, ServerHost) ->
     mongoose_subdomain_utils:get_fqdn(subdomain_pattern(HostType), ServerHost).
@@ -1352,8 +1398,8 @@ disco_local_items(Acc = #{host_type := HostType,
 disco_local_items(Acc) ->
     Acc.
 
-make_server_host(To, #state{host_type = HostType,
-                            subdomain_pattern = SubdomainPattern}) ->
+make_server_host(To, #muc_state{host_type = HostType,
+                                subdomain_pattern = SubdomainPattern}) ->
     case SubdomainPattern of
         {prefix, _} ->
             mod_muc_light_utils:room_jid_to_server_host(To);

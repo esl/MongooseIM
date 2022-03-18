@@ -20,9 +20,15 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
+-behaviour(gen_mod).
+
+%% gen_mod callbacks
+-export([start/2, stop/1]).
+
 -export([
-         start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
-         create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
+         opt/2, host_type/0, create_ets/1, create_ets/2,
+         cast_or_call/2, cast_or_call/3, cast_or_call/4,
+         any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
          parse_address/1
@@ -59,50 +65,22 @@ ensure_metric(Metric, Type) ->
 any_binary_to_atom(Binary) ->
     binary_to_atom(base64:encode(Binary), latin1).
 
--spec start(module(), Host :: jid:lserver(), Opts :: proplists:proplist(),
-            StartFun :: fun(() -> any())) -> any().
-start(Module, Host, Opts, StartFun) ->
-    check_host(global_host, Opts),
-    check_host(local_host, Opts),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, #{global_host := GlobalHost, local_host := LocalHost}) ->
+    check_host(LocalHost),
+    check_host(GlobalHost),
+    persistent_term:put({mod_global_distrib, host_type}, HostType).
 
-    {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
-    case unicode:characters_to_binary(GlobalHostList) of
-        Host ->
-            create_ets(Module),
-            populate_opts_ets(Module, Opts),
-            StartFun();
-        _ ->
-            ok
-    end.
+-spec stop(mongooseim:host_type()) -> any().
+stop(_HostType) ->
+    persistent_term:erase({mod_global_distrib, host_type}).
 
--spec stop(module(), Host :: jid:lserver(), StopFun :: fun(() -> any())) ->
-                  any().
-stop(Module, Host, StopFun) ->
-    case catch opt(Module, global_host) of
-        Host ->
-            StopFun(),
-            ets:delete(Module);
-        _ ->
-            ok
-    end.
-
--spec deps(module(), Host :: jid:lserver(), Opts :: proplists:proplist(),
-           DepsFun :: fun((proplists:proplist()) -> gen_mod_deps:deps())) ->
-                           gen_mod_deps:deps().
-deps(_Module, Host, Opts, DepsFun) ->
-    {global_host, GlobalHostList} = lists:keyfind(global_host, 1, Opts),
-    case unicode:characters_to_binary(GlobalHostList) of
-        Host -> DepsFun(Opts);
-        _ -> []
-    end.
-
--spec opt(module(), Key :: atom()) -> Value :: term().
+-spec opt(module(), gen_mod:opt_key() | gen_mod:key_path()) -> gen_mod:opt_value().
 opt(Module, Key) ->
-    try ets:lookup_element(Module, Key, 2)
-    catch
-        error:badarg ->
-            error(atom_to_list(Module) ++ " required option unset: " ++ atom_to_list(Key))
-    end.
+    gen_mod:get_module_opt(host_type(), Module, Key).
+
+host_type() ->
+    persistent_term:get({mod_global_distrib, host_type}).
 
 -spec cast_or_call(Target :: pid() | atom(), Message :: term()) -> any().
 cast_or_call(Target, Message) ->
@@ -142,8 +120,7 @@ create_ets(Name, Type) ->
 
     ets:new(Name, [named_table, public, Type, {read_concurrency, true}, Heir]).
 
--spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
-                               [endpoint()].
+-spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) -> [endpoint()].
 resolve_endpoints(Endpoints) when is_list(Endpoints) ->
     lists:flatmap(fun resolve_endpoint/1, Endpoints).
 
@@ -230,26 +207,18 @@ ensure_domain_inserted(Acc, Domain) ->
             ok
     end.
 
--spec check_host(local_host | global_host, Opts :: proplists:proplist()) -> true.
-check_host(Key, Opts) ->
-    {Key, HostList} = lists:keyfind(Key, 1, Opts),
-    Host = unicode:characters_to_binary(HostList),
-    lists:member(Host, ?MYHOSTS) orelse error(HostList ++ " is not a member of the host list").
-
--spec populate_opts_ets(module(), Opts :: proplists:proplist()) -> any().
-populate_opts_ets(Module, Opts) ->
-    [ets:insert(Module, {Key, translate_opt(Value)}) || {Key, Value} <- Opts].
-
--spec translate_opt(term()) -> term().
-translate_opt([Elem | _] = Opt) when is_list(Elem) ->
-    [translate_opt(E) || E <- Opt];
-translate_opt(Opt) when is_list(Opt) ->
-    case catch unicode:characters_to_binary(Opt) of
-        Bin when is_binary(Bin) -> Bin;
-        _ -> Opt
-    end;
-translate_opt(Opt) ->
-    Opt.
+%% @doc Check that the host is hosted by the server
+-spec check_host(jid:lserver()) -> ok.
+check_host(Domain) ->
+    %% There is no clause for a dynamic domain as this module can't be started with dynamic domains
+    case mongoose_domain_api:get_domain_host_type(Domain) of
+        {error, not_found} ->
+            error(#{what => check_host_failed,
+                    msg => <<"Domain is not hosted by the server">>,
+                    domain => Domain});
+        {ok, Domain} ->
+            ok
+    end.
 
 -spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
                          {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
@@ -294,6 +263,8 @@ is_domain(DomainOrIp) ->
 local_host() ->
     opt(mod_global_distrib, local_host).
 
-%% For mocking in tests
 getaddrs(Addr, Type) ->
-    inet:getaddrs(Addr, Type).
+    case inet:getaddrs(Addr, Type) of
+        {ok, Addrs} -> {ok, lists:usort(Addrs)};
+        {error, Reason} -> {error, Reason}
+    end.

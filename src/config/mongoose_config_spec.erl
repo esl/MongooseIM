@@ -625,8 +625,8 @@ outgoing_pool_connection(<<"ldap">>) ->
     #section{
        items = #{<<"port">> => #option{type = integer,
                                        validate = port},
-                 <<"rootdn">> => #option{type = string},
-                 <<"password">> => #option{type = string},
+                 <<"rootdn">> => #option{type = binary},
+                 <<"password">> => #option{type = binary},
                  <<"encrypt">> => #option{type = atom,
                                           validate = {enum, [none, tls]}},
                  <<"servers">> => #list{items = #option{type = string}},
@@ -638,8 +638,8 @@ outgoing_pool_connection(<<"ldap">>) ->
                 },
        format_items = map,
        include = always,
-       defaults = #{<<"rootdn">> => "",
-                    <<"password">> => "",
+       defaults = #{<<"rootdn">> => <<>>,
+                    <<"password">> => <<>>,
                     <<"encrypt">> => none,
                     <<"servers">> => ["localhost"],
                     <<"connect_interval">> => 10000}
@@ -806,6 +806,7 @@ modules() ->
 configurable_modules() ->
     [mod_adhoc,
      mod_auth_token,
+     mod_blocking,
      mod_bosh,
      mod_cache_users,
      mod_caps,
@@ -833,6 +834,7 @@ configurable_modules() ->
      mod_register,
      mod_roster,
      mod_shared_roster_ldap,
+     mod_smart_markers,
      mod_sic,
      mod_stream_management,
      mod_time,

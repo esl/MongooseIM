@@ -27,6 +27,7 @@
 -define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
 
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [config/2, mod_config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -45,11 +46,11 @@ all() ->
     ].
 
 groups() ->
-    G = [{mod_global_distrib, [],
+    [{mod_global_distrib, [],
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
-           test_component_disconnect,
+           test_component_disconnect ,
            test_component_on_one_host,
            test_components_in_different_regions,
            test_hidden_component_disco_in_different_region,
@@ -65,7 +66,6 @@ groups() ->
            %% with node 2 disabled
            test_muc_conversation_on_one_host,
            test_global_disco
-           %% TODO: Add test case fo global_distrib_addr option
           ]},
          {hosts_refresher, [],
           [test_host_refreshing]},
@@ -103,8 +103,7 @@ groups() ->
            test_advertised_endpoints_override_endpoints,
            test_pm_between_users_at_different_locations
           ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    ].
 
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
@@ -124,10 +123,7 @@ init_per_suite(Config) ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
             enable_logging(),
-            % We have to pass [no_opts] because [] is treated as string and converted
-            % automatically to <<>>
-            escalus:init_per_suite([{add_advertised_endpoints, []},
-                                    {extra_config, []}, {redis_extra_config, [no_opts]} | Config]);
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {extra_config, #{}} | Config]);
         Result ->
             ct:pal("Redis check result: ~p", [Result]),
             {skip, "GD Redis default pool not available"}
@@ -140,12 +136,16 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(start_checks, Config) ->
-    Config;
+    NodeName = europe_node1,
+    NodeSpec = node_spec(NodeName),
+    Config1 = dynamic_modules:save_modules(NodeSpec, [domain()], Config),
+    dynamic_modules:ensure_modules(NodeSpec, domain(), [{mod_global_distrib, stopped}]),
+    Config1;
 init_per_group(multi_connection, Config) ->
-    ExtraConfig = [{resend_after_ms, 20000},
-                   %% Disable unused feature to avoid interferance
-                   {disabled_gc_interval, 10000},
-                   {connections_per_endpoint, 100}],
+    ExtraConfig = #{bounce => #{resend_after_ms => 20000},
+                    connections => #{%% Disable unused feature to avoid interference
+                                     connections_per_endpoint => 100,
+                                     disabled_gc_interval => 10000}},
     init_per_group_generic([{extra_config, ExtraConfig} | Config]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
@@ -154,12 +154,11 @@ init_per_group(invalidation, Config) ->
 init_per_group(rebalancing, Config) ->
     %% We need to prevent automatic refreshes, because they may interfere with tests
     %% and we need early disabled garbage collection to check its validity
-    ExtraConfig = [{endpoint_refresh_interval, 3600},
-                   {endpoint_refresh_interval_when_empty, 3600},
-                   {disabled_gc_interval, 1}],
-    RedisExtraConfig = [{refresh_after, 3600}],
-    init_per_group_generic([{extra_config, ExtraConfig},
-                            {redis_extra_config, RedisExtraConfig} | Config]);
+    ExtraConfig = #{connections => #{endpoint_refresh_interval => 3600,
+                                     endpoint_refresh_interval_when_empty => 3600,
+                                     disabled_gc_interval => 1},
+                    redis => #{refresh_after => 3600}},
+    init_per_group_generic([{extra_config, ExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
     lists:foreach(fun({NodeName, _, _}) ->
                           Node = ct:get_config(NodeName),
@@ -171,51 +170,59 @@ init_per_group(advertised_endpoints, Config) ->
                  [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(mod_global_distrib, Config) ->
     %% Disable mod_global_distrib_mapping_redis refresher
-    RedisExtraConfig = [{refresh_after, 3600}],
-    init_per_group_generic([{redis_extra_config, RedisExtraConfig} | Config]);
+    ExtraConfig = #{redis => #{refresh_after => 3600}},
+    init_per_group_generic([{extra_config, ExtraConfig} | Config]);
 init_per_group(_, Config) ->
     init_per_group_generic(Config).
 
 init_per_group_generic(Config0) ->
-    Config2 =
-        lists:foldl(
-          fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts0 = (?config(extra_config, Config1) ++
-                           [{local_host, LocalHost},
-                            {hosts_refresh_interval, ?HOSTS_REFRESH_INTERVAL},
-                            {global_host, "localhost"},
-                            {endpoints, [listen_endpoint(ReceiverPort)]},
-                            {tls_opts, [
-                                        {certfile, "priv/ssl/fake_server.pem"},
-                                        {cafile, "priv/ssl/ca/cacert.pem"}
-                                       ]},
-                            {redis, ?config(redis_extra_config, Config1)},
-                            {resend_after_ms, 500}]),
-                  Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
-
-                  VirtHosts = virtual_hosts(NodeName),
-                  Node = node_spec(NodeName),
-                  Config2 = dynamic_modules:save_modules(Node, VirtHosts, Config1),
-
-                  %% To reduce load when sending many messages
-                  ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last,
-                                   mod_stream_management],
-                  [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) ||
-                      VirtHost <- VirtHosts],
-
-                  dynamic_modules:ensure_modules(Node, domain(),
-                                                 [{mod_global_distrib, Opts},
-                                                  {mod_stream_management, [{resume_timeout, 1}]}]),
-                  Config2
-          end,
-          Config0,
-          get_hosts()),
-
+    Config2 = lists:foldl(fun init_modules_per_node/2, Config0, get_hosts()),
     wait_for_listeners_to_appear(),
-
     {SomeNode, _, _} = hd(get_hosts()),
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
+
+init_modules_per_node({NodeName, LocalHost, ReceiverPort}, Config0) ->
+    Extra0 = module_opts(?config(extra_config, Config0)),
+    EndpointOpts = endpoint_opts(NodeName, ReceiverPort, Config0),
+    ConnExtra = maps:merge(EndpointOpts, maps:get(connections, Extra0, #{})),
+    Extra = Extra0#{local_host => LocalHost, connections => ConnExtra},
+    Opts = module_opts(Extra),
+
+    VirtHosts = virtual_hosts(NodeName),
+    Node = node_spec(NodeName),
+    Config1 = dynamic_modules:save_modules(Node, VirtHosts, Config0),
+
+    %% To reduce load when sending many messages
+    ModulesToStop = [mod_offline, mod_blocking, mod_privacy, mod_roster, mod_last,
+                     mod_stream_management],
+    [dynamic_modules:ensure_stopped(Node, VirtHost, ModulesToStop) || VirtHost <- VirtHosts],
+
+    SMOpts = config_parser_helper:mod_config(mod_stream_management, #{resume_timeout => 1}),
+    dynamic_modules:ensure_modules(Node, domain(), [{mod_global_distrib, Opts},
+                                                    {mod_stream_management, SMOpts}]),
+    Config1.
+
+module_opts(ExtraOpts) ->
+    lists:foldl(fun set_opts/2, ExtraOpts, [common, defaults, connections, redis, bounce]).
+
+set_opts(common, Opts) ->
+    maps:merge(#{global_host => <<"localhost">>,
+                 hosts_refresh_interval => ?HOSTS_REFRESH_INTERVAL}, Opts);
+set_opts(defaults, Opts) ->
+    mod_config(mod_global_distrib, Opts);
+set_opts(connections, #{connections := ConnExtra} = Opts) ->
+    TLSOpts = config([modules, mod_global_distrib, connections, tls],
+                     #{certfile => "priv/ssl/fake_server.pem",
+                       cafile => "priv/ssl/ca/cacert.pem"}),
+    Opts#{connections := config([modules, mod_global_distrib, connections],
+                                maps:merge(#{tls => TLSOpts}, ConnExtra))};
+set_opts(redis, #{redis := RedisExtra} = Opts) ->
+    Opts#{redis := config([modules, mod_global_distrib, redis], RedisExtra)};
+set_opts(bounce, #{bounce := BounceExtra} = Opts) ->
+    Opts#{bounce := config([modules, mod_global_distrib, bounce], BounceExtra)};
+set_opts(_, Opts) ->
+    Opts.
 
 end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
@@ -233,7 +240,7 @@ end_per_group(_, Config) ->
     end_per_group_generic(Config).
 
 end_per_group_generic(Config) ->
-    dynamic_modules:restore_modules(#{timeout => timer:seconds(30)},  Config).
+    dynamic_modules:restore_modules(#{timeout => timer:seconds(30)}, Config).
 
 init_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
@@ -245,7 +252,7 @@ init_per_testcase(CaseName, Config)
     %% There would be no new connections to europe_node2, but there can be some old ones.
     %% We need to disconnect previous connections.
     {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-    trigger_rebalance(asia_node, list_to_binary(EuropeHost)),
+    trigger_rebalance(asia_node, EuropeHost),
     %% Load muc on mim node
     muc_helper:load_muc(),
     RegNode = ct:get_config({hosts, reg, node}),
@@ -363,12 +370,11 @@ unpause_refresher(NodeName, _) ->
 %% Reads Redis to confirm that endpoints (in Redis) are overwritten
 %% with `advertised_endpoints` option value
 test_advertised_endpoints_override_endpoints(_Config) ->
-    Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
-                                 get_endpoints,
-                                 [<<"reg1">>]),
-    true = lists:all(fun({ok, E}) ->
-                             lists:sort(iptuples_to_string(E)) =:=
-                                 lists:sort(advertised_endpoints()) end, Endps).
+    Endps = execute_on_each_node(mod_global_distrib_mapping_redis, get_endpoints, [<<"reg1">>]),
+    true = lists:all(
+             fun(E) ->
+                     lists:sort(E) =:= lists:sort(advertised_endpoints())
+             end, Endps).
 
 %% @doc Verifies that hosts refresher will restart the outgoing connection pool if
 %% it goes down for some reason (crash or domain unavailability).
@@ -379,7 +385,7 @@ test_host_refreshing(_Config) ->
                                #{name => trees_for_connections_present}),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
+    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill), % it's ok to kill temporary process
     mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true,
@@ -784,10 +790,11 @@ test_component_unregister(_Config) ->
                             [<<"test_service.localhost">>])).
 
 test_error_on_wrong_hosts(_Config) ->
-    Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
-    ?assertException(error, {badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}},
-                     dynamic_modules:start(node_spec(europe_node1), <<"localhost">>,
-                                           mod_global_distrib, Opts)).
+    Opts = module_opts(#{local_host => <<"no_such_host">>}),
+    ?assertException(error, {badrpc, {'EXIT', {#{what := check_host_failed,
+                                                 domain := <<"no_such_host">>}, _}}},
+                     dynamic_modules:ensure_modules(node_spec(europe_node1), <<"localhost">>,
+                                                    [{mod_global_distrib, Opts}])).
 
 refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
@@ -917,7 +924,7 @@ test_update_senders_host_by_ejd_service(Config) ->
 
               hide_node(europe_node1, Config),
               {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-              trigger_rebalance(asia_node, list_to_binary(EuropeHost)),
+              trigger_rebalance(asia_node, EuropeHost),
 
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),
@@ -934,7 +941,8 @@ enable_new_endpoint_on_refresh(Config) ->
     {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     ExtraPort = get_port(reg, gd_extra_endpoint_port),
-    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
+    NewEndpoint = resolved_endpoint(ExtraPort),
+    enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
@@ -946,6 +954,7 @@ enable_new_endpoint_on_refresh(Config) ->
 
 disable_endpoint_on_refresh(Config) ->
     ExtraPort = get_port(reg, gd_extra_endpoint_port),
+    NewEndpoint = resolved_endpoint(ExtraPort),
     enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     get_connection(europe_node1, <<"reg1">>),
@@ -1007,7 +1016,7 @@ closed_connection_is_removed_from_disabled(_Config) ->
     {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     % Will drop connections and prevent them from reconnecting
-    restart_receiver(asia_node, [listen_endpoint(get_port(reg, gd_supplementary_endpoint_port))]),
+    restart_receiver(asia_node, [get_port(reg, gd_supplementary_endpoint_port)]),
 
     mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
                                {[], [], []},
@@ -1028,16 +1037,23 @@ get_port(Host, Param) ->
 
 get_hosts() ->
     [
-     {europe_node1, "localhost.bis", get_port(mim, gd_endpoint_port)},
-     {europe_node2, "localhost.bis", get_port(mim2, gd_endpoint_port)},
-     {asia_node, "reg1", get_port(reg, gd_endpoint_port)}
+     {europe_node1, <<"localhost.bis">>, get_port(mim, gd_endpoint_port)},
+     {europe_node2, <<"localhost.bis">>, get_port(mim2, gd_endpoint_port)},
+     {asia_node, <<"reg1">>, get_port(reg, gd_endpoint_port)}
     ].
 
-listen_endpoint(NodeName) when is_atom(NodeName) ->
+listen_endpoint(NodeName) ->
+    endpoint(listen_port(NodeName)).
+
+listen_port(NodeName) ->
     {_, _, Port} = lists:keyfind(NodeName, 1, get_hosts()),
-    listen_endpoint(Port);
-listen_endpoint(Port) when is_integer(Port) ->
+    Port.
+
+resolved_endpoint(Port) when is_integer(Port) ->
     {{127, 0, 0, 1}, Port}.
+
+endpoint(Port) when is_integer(Port) ->
+    {"127.0.0.1", Port}.
 
 %% For dynamic_modules
 node_spec(NodeName) ->
@@ -1137,19 +1153,13 @@ iptuples_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
 iptuples_to_string([E | Endps]) ->
     [E | iptuples_to_string(Endps)].
 
-maybe_add_advertised_endpoints(NodeName, Opts, Config) ->
-    Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
-    case Endpoints of
-        [] ->
-            Opts;
-        E ->
-            Connections = case lists:keyfind(connections, 1, Opts) of
-                              false -> [];
-                              C -> C
-                          end,
-            NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
-            [NewConnections | Opts]
-    end.
+endpoint_opts(NodeName, ReceiverPort, Config) ->
+    Endpoints = [endpoint(ReceiverPort)],
+    AdvertisedEndpoints =
+        proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), Endpoints),
+    #{endpoints => Endpoints,
+      resolved_endpoints => [resolved_endpoint(ReceiverPort)],
+      advertised_endpoints => AdvertisedEndpoints}.
 
 mock_inet_on_each_node() ->
     Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),
@@ -1193,22 +1203,18 @@ spawn_connection_getter(SenderNode) ->
           end).
 
 enable_extra_endpoint(ListenNode, SenderNode, Port, _Config) ->
-    OriginalEndpoint = listen_endpoint(ListenNode),
-    NewEndpoint = {{127, 0, 0, 1}, Port},
-
-    restart_receiver(ListenNode, [NewEndpoint, OriginalEndpoint]),
-    refresh_mappings(ListenNode, "by_enable_extra_endpoint,port=" ++ integer_to_list(Port)),
-    trigger_rebalance(SenderNode, <<"reg1">>),
-
-    NewEndpoint.
+    restart_receiver(ListenNode, [Port, listen_port(ListenNode)]),
+    set_endpoints(ListenNode, [Port, listen_port(ListenNode)]),
+    trigger_rebalance(SenderNode, <<"reg1">>).
 
 get_connection(SenderNode, ToDomain) ->
     rpc(SenderNode, mod_global_distrib_outgoing_conns_sup, get_connection, [ToDomain]).
 
 hide_extra_endpoint(ListenNode) ->
-    set_endpoints(ListenNode, [listen_endpoint(ListenNode)]).
+    set_endpoints(ListenNode, [listen_port(ListenNode)]).
 
-set_endpoints(ListenNode, Endpoints) ->
+set_endpoints(ListenNode, Ports) ->
+    Endpoints = [endpoint(Port) || Port <- Ports],
     {ok, _} = rpc(ListenNode, mod_global_distrib_mapping_redis, set_endpoints, [Endpoints]).
 
 get_outgoing_connections(NodeName, DestinationDomain) ->
@@ -1223,12 +1229,14 @@ get_outgoing_connections(NodeName, DestinationDomain) ->
     {Enabled, Disabled, Pools}.
 
 restart_receiver(NodeName) ->
-    restart_receiver(NodeName, [listen_endpoint(NodeName)]).
+    restart_receiver(NodeName, [listen_port(NodeName)]).
 
-restart_receiver(NodeName, NewEndpoints) ->
-    OldOpts = rpc(NodeName, gen_mod, get_module_opts,
-                  [<<"localhost">>, mod_global_distrib_receiver]),
-    NewOpts = lists:keyreplace(endpoints, 1, OldOpts, {endpoints, NewEndpoints}),
+restart_receiver(NodeName, NewPorts) ->
+    OldOpts = #{connections := OldConnOpts} = rpc(NodeName, gen_mod, get_module_opts,
+                                                  [<<"localhost">>, mod_global_distrib_receiver]),
+    NewConnOpts = OldConnOpts#{endpoints := [endpoint(Port) || Port <- NewPorts],
+                               resolved_endpoints := [resolved_endpoint(Port) || Port <- NewPorts]},
+    NewOpts = OldOpts#{connections := NewConnOpts},
     Node = node_spec(NodeName),
     dynamic_modules:restart(Node, <<"localhost">>, mod_global_distrib_receiver, NewOpts).
 
@@ -1294,8 +1302,8 @@ service_port() ->
 
 wait_for_domain(Node, Domain) ->
     F = fun() ->
-        {ok, Domains} = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
-        lists:member(Domain, Domains)
+                Domains = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
+                lists:member(Domain, Domains)
         end,
     mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
 

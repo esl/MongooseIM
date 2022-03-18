@@ -1,13 +1,11 @@
 -module(push_integration_SUITE).
 -compile([export_all, nowarn_export_all]).
--include_lib("escalus/include/escalus.hrl").
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
 
--define(MUCLIGHTHOST, <<"muclight.localhost">>).
 -define(RPC_SPEC, distributed_helper:mim()).
 -define(SESSION_KEY, publish_service).
 
@@ -25,8 +23,8 @@
          become_available/2
         ]).
 -import(distributed_helper, [rpc/4, subhost_pattern/1]).
-
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [mod_config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -798,15 +796,15 @@ no_push_notification_for_expired_device(Config) ->
 
 mongoose_push_unregistered_device_resp(Config) ->
     case ?config(api_v, Config) of
-        "v3" ->
+        <<"v3">> ->
             {410, jiffy:encode(#{<<"reason">> => <<"unregistered">>})};
-        "v2" ->
+        <<"v2">> ->
             {500, jiffy:encode(#{<<"details">> => <<"probably_unregistered">>})}
     end.
 
-maybe_check_if_push_node_was_disabled("v2", _, _) ->
+maybe_check_if_push_node_was_disabled(<<"v2">>, _, _) ->
     ok;
-maybe_check_if_push_node_was_disabled("v3", User, PushNode) ->
+maybe_check_if_push_node_was_disabled(<<"v3">>, User, PushNode) ->
     JID = rpc(?RPC_SPEC, jid, binary_to_bare, [escalus_utils:get_jid(User)]),
     Host = escalus_utils:get_server(User),
     Fun = fun() ->
@@ -961,9 +959,9 @@ init_modules(G, Config) ->
     [{api_v, MongoosePushAPI}, {required_modules, Modules} | C].
 
 mongoose_push_api_for_group(failure_cases_v2) ->
-    "v2";
+    <<"v2">>;
 mongoose_push_api_for_group(_) ->
-    "v3".
+    <<"v3">>.
 
 required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()},
@@ -976,12 +974,12 @@ required_modules_for_group(muclight_msg_notifications, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()} | required_modules(API, PubSubHost)];
 required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubHost) ->
     [{mod_muc_light, muc_light_opts()},
-     {mod_stream_management, [{ack_freq, never},
-                              {resume_timeout,1}]},
+     {mod_stream_management, config_parser_helper:mod_config(mod_stream_management,
+                                                             #{ack_freq => never, resume_timeout => 1})},
      {mod_offline, []} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
-    [{mod_stream_management, [{ack_freq, never}]} |
+    [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})} |
      required_modules(API, PubSubHost, mod_event_pusher_push_plugin_enhanced)];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
@@ -1011,17 +1009,16 @@ required_modules(API, PubSubHost, PluginModule) ->
              end,
     PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
     [
-        {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
-                                         {api_version, API}]},
+        {mod_push_service_mongoosepush, config_parser_helper:mod_config(mod_push_service_mongoosepush,
+                                                                        #{pool_name => mongoose_push_http,
+                                                                          api_version => API})},
         {mod_event_pusher, [{backends, [PushBackend]}]} |
         PubSub
     ].
 
 muc_light_opts() ->
-    [
-     {host, subhost_pattern(?MUCLIGHTHOST)},
-     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-     {rooms_in_rosters, true}
-    ].
+    mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                rooms_in_rosters => true}).
+
 inbox_opts() ->
     (inbox_helper:inbox_opts())#{aff_changes := false}.

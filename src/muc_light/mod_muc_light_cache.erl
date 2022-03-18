@@ -1,10 +1,12 @@
 -module(mod_muc_light_cache).
 
+-include("mongoose_config_spec.hrl").
+
 -behaviour(gen_mod).
 -define(FRONTEND, mod_muc_light).
 
 %% gen_mod callbacks
--export([start/2, stop/1, supported_features/0]).
+-export([start/2, stop/1, config_spec/0, supported_features/0]).
 
 %% Hook handlers
 -export([pre_acc_room_affiliations/2, post_acc_room_affiliations/2,
@@ -23,11 +25,16 @@ start(HostType, Opts) ->
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
--spec stop(HostType :: mongooseim:host_type()) -> ok.
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     stop_cache(HostType),
     ok.
+
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    Section = #section{defaults = Defaults} = mongoose_user_cache:config_spec(),
+    Section#section{defaults = Defaults#{<<"time_to_live">> := 2}}.
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -123,15 +130,7 @@ force_clear(HostType) ->
 %%====================================================================
 -spec start_cache(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_cache(HostType, Opts) ->
-    FinalOpts = maps:to_list(maps:merge(defaults(), maps:from_list(Opts))),
-    mongoose_user_cache:start_new_cache(HostType, ?MODULE, FinalOpts).
-
-defaults() ->
-    #{module => internal,
-      strategy => fifo,
-      time_to_live => 2,
-      number_of_segments => 3
-     }.
+    mongoose_user_cache:start_new_cache(HostType, ?MODULE, Opts).
 
 -spec stop_cache(mongooseim:host_type()) -> any().
 stop_cache(HostType) ->

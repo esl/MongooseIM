@@ -221,38 +221,39 @@ config_spec() ->
                                           validate = {module, mod_vcard}},
                  <<"matches">> => #option{type = int_or_infinity,
                                           validate = non_negative},
-                 <<"ldap_pool_tag">> => #option{type = atom,
-                                                validate = pool_name},
-                 <<"ldap_base">> => #option{type = string},
-                 <<"ldap_uids">> => #list{items = mongoose_ldap_config:uids()},
-                 <<"ldap_filter">> => #option{type = binary},
-                 <<"ldap_deref">> => #option{type = atom,
-                                             validate = {enum, [never, always, finding, searching]}},
-                 <<"ldap_vcard_map">> => #list{items = ldap_vcard_map_spec()},
-                 <<"ldap_search_fields">> => #list{items = ldap_search_fields_spec()},
-                 <<"ldap_search_reported">> => #list{items = ldap_search_reported_spec()},
-                 <<"ldap_search_operator">> => #option{type = atom,
-                                                       validate = {enum, ['or', 'and']}},
-                 <<"ldap_binary_search_fields">> => #list{items = #option{type = binary,
-                                                                          validate = non_empty}},
+                 <<"ldap">> => ldap_section(),
                  <<"riak">> => riak_config_spec()
                 },
        defaults = #{<<"iqdisc">> => parallel,
                     <<"host">> => mongoose_subdomain_utils:make_subdomain_pattern("vjud.@HOST@"),
                     <<"search">> => true,
                     <<"backend">> => mnesia,
-                    <<"matches">> => 30,
-                    <<"ldap_pool_tag">> => default,
-                    <<"ldap_uids">> => [{<<"uid">>, <<"%u">>}],
-                    <<"ldap_vcard_map">> => mod_vcard_ldap:default_vcard_map(),
-                    <<"ldap_search_fields">> => mod_vcard_ldap:default_search_fields(),
-                    <<"ldap_search_reported">> => mod_vcard_ldap:default_search_reported(),
-                    <<"ldap_search_operator">> => 'and',
-                    <<"ldap_binary_search_fields">> => []
+                    <<"matches">> => 30
        },
        format_items = map,
        process = fun remove_unused_backend_opts/1
       }.
+
+ldap_section() ->
+    CommonLDAPSpec = mongoose_ldap_config:spec(),
+    Items = #{
+        <<"uids">> => #list{items = mongoose_ldap_config:uids()},
+        <<"vcard_map">> => #list{items = ldap_vcard_map_spec()},
+        <<"search_fields">> => #list{items = ldap_search_fields_spec()},
+        <<"search_reported">> => #list{items = ldap_search_reported_spec()},
+        <<"search_operator">> => #option{type = atom,
+                                         validate = {enum, ['or', 'and']}},
+        <<"binary_search_fields">> => #list{items = #option{type = binary,
+                                                            validate = non_empty}}},
+    Defaults = #{<<"uids">> => [{<<"uid">>, <<"%u">>}],
+                 <<"vcard_map">> => mod_vcard_ldap:default_vcard_map(),
+                 <<"search_fields">> => mod_vcard_ldap:default_search_fields(),
+                 <<"search_reported">> => mod_vcard_ldap:default_search_reported(),
+                 <<"search_operator">> => 'and',
+                 <<"binary_search_fields">> => []},
+    CommonLDAPSpec#section{items = maps:merge(CommonLDAPSpec#section.items, Items),
+                           defaults = maps:merge(CommonLDAPSpec#section.defaults, Defaults),
+                           include = always}.
 
 ldap_vcard_map_spec() ->
     #section{
@@ -317,8 +318,11 @@ process_search_reported_spec(KVs) ->
         proplists:split(KVs, [search_field, vcard_field]),
     {SF, VF}.
 
-remove_unused_backend_opts(Opts = #{backend := riak}) -> Opts;
-remove_unused_backend_opts(Opts) -> maps:remove(riak, Opts).
+remove_unused_backend_opts(Opts = #{backend := riak}) -> maps:remove(ldap, Opts);
+remove_unused_backend_opts(Opts = #{backend := ldap}) -> maps:remove(riak, Opts);
+remove_unused_backend_opts(Opts) ->
+    M = maps:remove(riak, Opts),
+    maps:remove(ldap, M).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks for search

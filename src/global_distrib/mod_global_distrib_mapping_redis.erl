@@ -17,7 +17,7 @@
 -module(mod_global_distrib_mapping_redis).
 -author('konrad.zemek@erlang-solutions.com').
 
--behaviour(mod_global_distrib_mapping).
+-behaviour(mod_global_distrib_mapping_backend).
 
 -include("mongoose.hrl").
 
@@ -43,15 +43,9 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(proplists:proplist()) -> any().
-start(Opts) ->
-    RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
-
-    mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
-    ExpireAfter = proplists:get_value(expire_after, Opts, 120),
-    ets:insert(?MODULE, {expire_after, ExpireAfter}),
-    PoolTag = proplists:get_value(pool, Opts, global_distrib),
-    ets:insert(?MODULE, {pool, PoolTag}),
+-spec start(gen_mod:module_opts()) -> any().
+start(#{redis := #{refresh_after := RefreshAfter}}) ->
+    mod_global_distrib_utils:create_ets([?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
 
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
@@ -59,30 +53,28 @@ start(Opts) ->
     ejabberd_sup:start_child(Refresher),
     ok.
 
--spec stop() -> any().
+-spec stop() -> ok.
 stop() ->
-    lists:foreach(
-     fun(Id) ->
-             ejabberd_sup:stop_child(Id)
-     end,
-      [?MODULE, mod_global_distrib_redis_refresher]),
-    [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]].
+    lists:foreach(fun(Id) -> ejabberd_sup:stop_child(Id) end,
+                  [?MODULE, mod_global_distrib_redis_refresher]),
+    [ets:delete(Tab) || Tab <- [?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]],
+    ok.
 
--spec put_session(Jid :: binary()) -> ok.
+-spec put_session(jid:literal_jid()) -> ok.
 put_session(Jid) ->
     ets:insert(?JIDS_ETS, {Jid}),
     do_put(Jid, opt(local_host)).
 
--spec get_session(Jid :: binary()) -> {ok, Host :: binary()} | error.
+-spec get_session(jid:literal_jid()) -> {ok, jid:lserver()} | error.
 get_session(Jid) ->
     do_get(Jid).
 
--spec delete_session(Jid :: binary()) -> ok.
+-spec delete_session(jid:literal_jid()) -> ok.
 delete_session(Jid) ->
     ets:delete(?JIDS_ETS, Jid),
     do_delete(Jid).
 
--spec put_domain(Domain :: binary(), IsHidden :: boolean()) -> ok.
+-spec put_domain(jid:lserver(), IsHidden :: boolean()) -> ok.
 put_domain(Domain, IsHidden) ->
     ets:insert(?DOMAINS_ETS, {Domain}),
     {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
@@ -96,11 +88,11 @@ put_domain(Domain, IsHidden) ->
             ok
     end.
 
--spec get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
+-spec get_domain(jid:lserver()) -> {ok, jid:lserver()} | error.
 get_domain(Domain) ->
     do_get(Domain).
 
--spec delete_domain(Domain :: binary()) -> ok.
+-spec delete_domain(jid:lserver()) -> ok.
 delete_domain(Domain) ->
     ets:delete(?DOMAINS_ETS, Domain),
     ets:delete(?PUBLIC_DOMAINS_ETS, Domain),
@@ -108,25 +100,25 @@ delete_domain(Domain) ->
     {ok, _} = q([<<"SREM">>, domains_key(), Domain]),
     ok.
 
--spec get_domains() -> {ok, [Domain :: binary()]}.
+-spec get_domains() -> [jid:lserver()].
 get_domains() ->
     get_domains(fun domains_key/2).
 
--spec get_public_domains() -> {ok, [Domain :: binary()]}.
+-spec get_public_domains() -> [jid:lserver()].
 get_public_domains() ->
     get_domains(fun public_domains_key/2).
 
--spec get_endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec get_endpoints(Host :: jid:lserver()) -> [mod_global_distrib_utils:endpoint()].
 get_endpoints(Host) ->
     Nodes = get_nodes(Host),
     get_endpoints_for_nodes(Host, Nodes).
 
 get_endpoints_for_nodes(_Host, []) ->
-    {ok, []};
+    [];
 get_endpoints_for_nodes(Host, Nodes) ->
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
-    {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
+    lists:map(fun binary_to_endpoint/1, BinEndpoints).
 
 %%--------------------------------------------------------------------
 %% gen_server API
@@ -224,17 +216,17 @@ key(Type) ->
 key(Host, Node, Type) ->
     <<Host/binary, "#", Node/binary, "#{", Type/binary, "}">>.
 
--spec opt(Key :: atom()) -> term().
+-spec opt(gen_mod:opt_key() | gen_mod:key_path()) -> gen_mod:opt_value().
 opt(Key) ->
     mod_global_distrib_utils:opt(mod_global_distrib_mapping, Key).
 
 -spec expire_after() -> pos_integer().
 expire_after() ->
-    ets:lookup_element(?MODULE, expire_after, 2).
+    opt([redis, expire_after]).
 
 -spec pool() -> atom().
 pool() ->
-    ets:lookup_element(?MODULE, pool, 2).
+    opt([redis, pool]).
 
 -spec do_put(Key :: binary(), Host :: binary()) -> ok.
 do_put(Key, Host) ->
@@ -258,12 +250,13 @@ do_delete(Key) ->
     ok.
 
 -spec get_domains(KeyFun :: fun((Host :: binary(), Node :: binary()) -> Key :: binary())) ->
-    {ok, Domains :: [binary()]}.
+          [jid:lserver()].
 get_domains(KeyFun) ->
     Hosts = get_hosts(),
     Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
     Keys = [KeyFun(Host, Node) || {Host, Node} <- Nodes],
-    {ok, _Domains} = q([<<"SUNION">> | Keys]).
+    {ok, Domains} = q([<<"SUNION">> | Keys]),
+    Domains.
 
 -spec refresh_hosts() -> any().
 refresh_hosts() ->
@@ -317,13 +310,7 @@ refresh_jid(Jid) ->
 
 -spec refresh_endpoints() -> any().
 refresh_endpoints() ->
-    AdvertisedEndpoints = opt(advertised_endpoints),
-    LocalEndpoints = mod_global_distrib_receiver:endpoints(),
-    FinalEndpoints = case AdvertisedEndpoints of
-                         false -> LocalEndpoints;
-                         Endpoints -> Endpoints
-                     end,
-    set_endpoints(FinalEndpoints).
+    set_endpoints(opt([connections, advertised_endpoints])).
 
 -spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().
 set_endpoints(Endpoints) ->
