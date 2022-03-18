@@ -58,17 +58,18 @@ push_event(Acc, Host, Event) ->
 -spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
 deps(_Host, Opts) ->
     Backends = get_backends(Opts),
-    BackendDeps = [{B, DepOpts, hard} || {B, DepOpts} <- Backends],
-    [{mod_event_pusher_hook_translator, [], hard} | BackendDeps].
+    [{B, DepOpts, hard} || {B, DepOpts} <- Backends].
 
 -spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->
     create_ets(Host),
     Backends = get_backends(Opts),
-    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}).
+    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
+    mod_event_pusher_hook_translator:add_hooks(Host).
 
 -spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
+    mod_event_pusher_hook_translator:delete_hooks(Host),
     ets:delete(ets_name(Host)).
 
 -spec config_spec() -> mongoose_config_spec:config_section().

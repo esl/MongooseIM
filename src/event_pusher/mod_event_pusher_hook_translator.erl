@@ -17,13 +17,11 @@
 -module(mod_event_pusher_hook_translator).
 -author('konrad.zemek@erlang-solutions.com').
 
--behaviour(gen_mod).
--behaviour(mongoose_module_metrics).
-
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 
--export([start/2, stop/1]).
+-export([add_hooks/1, delete_hooks/1]).
+
 -export([user_send_packet/4,
          filter_local_packet/1,
          user_present/2,
@@ -37,13 +35,13 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
-start(Host, _Opts) ->
-    ejabberd_hooks:add(hooks(Host)).
+-spec add_hooks(mongooseim:host_type()) -> ok.
+add_hooks(HostType) ->
+    ejabberd_hooks:add(hooks(HostType)).
 
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(hooks(Host)).
+-spec delete_hooks(mongooseim:host_type()) -> ok.
+delete_hooks(HostType) ->
+    ejabberd_hooks:delete(hooks(HostType)).
 
 %%--------------------------------------------------------------------
 %% Hook callbacks
@@ -117,13 +115,13 @@ merge_acc(Acc, EventPusherAcc) ->
     NS = mongoose_acc:get(event_pusher, EventPusherAcc),
     mongoose_acc:set_permanent(event_pusher, NS, Acc).
 
--spec hooks(Host :: jid:server()) -> [ejabberd_hooks:hook()].
-hooks(Host) ->
+-spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
+hooks(HostType) ->
     [
-        {filter_local_packet, Host, ?MODULE, filter_local_packet, 90},
-        {unset_presence_hook, Host, ?MODULE, user_not_present, 90},
-        {user_available_hook, Host, ?MODULE, user_present, 90},
-        {user_send_packet, Host, ?MODULE, user_send_packet, 90},
-        {rest_user_send_packet, Host, ?MODULE, user_send_packet, 90},
-        {unacknowledged_message, Host, ?MODULE, unacknowledged_message, 90}
+        {filter_local_packet, HostType, ?MODULE, filter_local_packet, 90},
+        {unset_presence_hook, HostType, ?MODULE, user_not_present, 90},
+        {user_available_hook, HostType, ?MODULE, user_present, 90},
+        {user_send_packet, HostType, ?MODULE, user_send_packet, 90},
+        {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 90},
+        {unacknowledged_message, HostType, ?MODULE, unacknowledged_message, 90}
     ].
