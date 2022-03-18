@@ -43,7 +43,7 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([init/3, terminate/2, set_node/1,
+-export([init/2, terminate/2, set_node/1,
          get_node/2, get_node/1, get_nodes/2,
          get_parentnodes_tree/3,
          get_subnodes/3, create_node/6,
@@ -59,7 +59,7 @@
     {?MOD_PUBSUB_DB_BACKEND, find_node_by_id, 1}
 ]).
 
-init(_Host, _ServerHost, _Options) ->
+init(_HostType, _Options) ->
     ok.
 
 terminate(_Host, _ServerHost) ->

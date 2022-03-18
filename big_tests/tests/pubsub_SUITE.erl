@@ -121,7 +121,8 @@
                        domain/0,
                        node_addr/0,
                        encode_group_name/2,
-                       decode_group_name/1]).
+                       decode_group_name/1,
+                       nodetree_to_mod/1]).
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              subhost_pattern/1,
@@ -296,21 +297,23 @@ init_per_group(ComplexName, Config) ->
 
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := pubsub_item_publisher_option }) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]},
-     {item_publisher, true}];
+    #{nodetree => nodetree_to_mod(NodeTree),
+      plugins => [plugin_by_nodetree(NodeTree)],
+      item_publisher => true};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := hometree_specific }) ->
-    [{nodetree, NodeTree},
-     {plugins, [<<"hometree">>]}];
+    #{nodetree => nodetree_to_mod(NodeTree),
+      plugins => [<<"hometree">>]};
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := last_item_cache}) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]},
-     {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}];
+    #{nodetree => nodetree_to_mod(NodeTree),
+      plugins => [plugin_by_nodetree(NodeTree)],
+      last_item_cache => mongoose_helper:mnesia_or_rdbms_backend()};
+extra_options_by_group_name(#{base_name := service_config}) ->
+    #{max_subscriptions_node => 1};
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    [{nodetree, NodeTree},
-     {plugins, [plugin_by_nodetree(NodeTree)]}].
+    #{nodetree => nodetree_to_mod(NodeTree),
+      plugins => [plugin_by_nodetree(NodeTree)]}.
 
 plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
 plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
@@ -320,17 +323,9 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(notify_unavailable_user_test, _Config) ->
     {skip, "mod_offline does not store events"};
-init_per_testcase(max_subscriptions_test, Config) ->
-    MaxSubs = lookup_service_option(domain(), max_subscriptions_node),
-    set_service_option(domain(), max_subscriptions_node, 1),
-    init_per_testcase(generic, [{max_subscriptions_node, MaxSubs} | Config]);
 init_per_testcase(_TestName, Config) ->
     escalus:init_per_testcase(_TestName, Config).
 
-end_per_testcase(max_subscriptions_test, Config1) ->
-    {value, {_, OldMaxSubs}, Config2} = lists:keytake(max_subscriptions_node, 1, Config1),
-    set_service_option(domain(), max_subscriptions_node, OldMaxSubs),
-    end_per_testcase(generic, Config2);
 end_per_testcase(TestName, Config) ->
     escalus:end_per_testcase(TestName, Config).
 
@@ -1873,11 +1868,10 @@ path_node_and_parent(Client, {NodeAddr, NodeName}) ->
     {{NodeAddr, Prefix}, {NodeAddr, <<Prefix/binary, "/", NodeName/binary>>}}.
 
 required_modules(ExtraOpts) ->
-    [{mod_pubsub, [
-                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                   {host, subhost_pattern("pubsub.@HOST@")}
-                   | ExtraOpts
-                  ]}].
+    Opts = maps:merge(#{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                        host => subhost_pattern("pubsub.@HOST@")},
+                      ExtraOpts),
+    [{mod_pubsub, config_parser_helper:mod_config(mod_pubsub, Opts)}].
 
 verify_config_fields(NodeConfig) ->
     ValidFields = [
@@ -1996,15 +1990,3 @@ is_not_allowed_and_closed(IQError) ->
     ?NS_PUBSUB_ERRORS = exml_query:path(IQError, [{element, <<"error">>},
                                                   {element, <<"closed-node">>},
                                                   {attr, <<"xmlns">>}]).
-
-%% TODO: Functions below will most probably fail when mod_pubsub gets some nice refactoring!
-
-set_service_option(Host, Key, Val) ->
-    true = rpc(mim(), ets, insert, [service_tab_name(Host), {Key, Val}]).
-
-lookup_service_option(Host, Key) ->
-    [{_, Val}] = rpc(mim(), ets, lookup, [service_tab_name(Host), Key]),
-    Val.
-
-service_tab_name(Host) ->
-    rpc(mim(), gen_mod, get_module_proc, [Host, config]).

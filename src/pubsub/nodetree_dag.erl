@@ -28,7 +28,7 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([init/3, terminate/2, set_node/1,
+-export([init/2, terminate/2, set_node/1,
          get_node/2, get_node/1, get_nodes/2,
          get_parentnodes_tree/3,
          get_subnodes/3, create_node/6,
@@ -40,8 +40,8 @@
 -define(DEFAULT_PARENTS, []).
 -define(DEFAULT_CHILDREN, []).
 
-init(Host, ServerHost, Opts) ->
-    nodetree_tree:init(Host, ServerHost, Opts).
+init(HostType, Opts) ->
+    nodetree_tree:init(HostType, Opts).
 
 terminate(Host, ServerHost) ->
     nodetree_tree:terminate(Host, ServerHost).

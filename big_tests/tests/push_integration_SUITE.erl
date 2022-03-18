@@ -1002,10 +1002,10 @@ required_modules(API, PubSubHost, PluginModule) ->
                  virtual -> [];
                  _ ->
                      HostPattern = subhost_pattern("pubsub.@HOST@"),
-                     [{mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
-                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-                                    {nodetree, <<"dag">>},
-                                    {host, HostPattern}]}]
+                     [{mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"push">>],
+                                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                                            nodetree => nodetree_dag,
+                                                            host => HostPattern})}]
              end,
     PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
     [
