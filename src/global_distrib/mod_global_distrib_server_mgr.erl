@@ -58,7 +58,8 @@
           %% Listeners are notified only once and then this list is cleared.
           pending_endpoints_listeners = [] :: [pid()],
           %% Containts last result of get_endpoints
-          last_endpoints :: [endpoint()] | undefined
+          last_endpoints :: [endpoint()] | undefined,
+          conn_opts :: map()
          }).
 
 -type state() :: #state{}.
@@ -119,11 +120,12 @@ get_disabled_endpoints(Server) ->
 init([Server, Supervisor]) ->
     process_flag(trap_exit, true),
 
-    RefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
-                                                   endpoint_refresh_interval),
-    DisRefreshInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender,
-                                                      endpoint_refresh_interval_when_empty),
-    GCInterval = mod_global_distrib_utils:opt(mod_global_distrib_sender, disabled_gc_interval),
+    HostType = mod_global_distrib_utils:host_type(),
+    ConnOpts = gen_mod:get_module_opt(HostType, mod_global_distrib_hosts_refresher, connections),
+    #{endpoint_refresh_interval := RefreshInterval,
+      endpoint_refresh_interval_when_empty := DisRefreshInterval,
+      disabled_gc_interval := GCInterval} = ConnOpts,
+
     State = #state{
                server = Server,
                supervisor = Supervisor,
@@ -133,7 +135,8 @@ init([Server, Supervisor]) ->
                pending_gets = queue:new(),
                refresh_interval = RefreshInterval,
                refresh_interval_when_disconnected = DisRefreshInterval,
-               gc_interval = GCInterval
+               gc_interval = GCInterval,
+               conn_opts = ConnOpts
               },
 
     State2 = refresh_connections(State),
@@ -405,11 +408,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 
 -spec get_endpoints(Server :: jid:lserver()) -> [mod_global_distrib_utils:endpoint()].
 get_endpoints(Server) ->
-    EndpointsToResolve =
-        case mongoose_config:lookup_opt({global_distrib_addr, Server}) of
-            {error, not_found} -> mod_global_distrib_mapping:endpoints(Server);
-            {ok, Endpoints} -> Endpoints
-        end,
+    EndpointsToResolve = mod_global_distrib_mapping:endpoints(Server),
     mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve).
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
@@ -437,10 +436,11 @@ log_endpoints_changes(Server, EndpointsChanges, State) ->
 
 -spec enable(Endpoint :: endpoint(), State :: state()) -> {ok, state()} | {error, any()}.
 enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
-                         enabled = Enabled, server = Server } = State) ->
+                         enabled = Enabled, server = Server, conn_opts = ConnOpts } = State) ->
     case lists:keytake(Endpoint, #endpoint_info.endpoint, Disabled) of
         false ->
-            case catch mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint, Server) of
+            case catch mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint,
+                                                                Server, ConnOpts) of
                 {ok, ConnPoolRef, ConnPoolPid} ->
                     MonitorRef = monitor(process, ConnPoolPid),
                     EndpointInfo = #endpoint_info{

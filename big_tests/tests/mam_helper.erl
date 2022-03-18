@@ -122,8 +122,7 @@
 -import(config_parser_helper, [config/2, mod_config/2]).
 
 config_opts(ExtraOpts) ->
-    lists:foldl(fun(Step, OptsIn) -> set_opts(Step, OptsIn) end,
-                ExtraOpts, [defaults, backend, pm, muc, async_writer]).
+    lists:foldl(fun set_opts/2, ExtraOpts, [defaults, backend, pm, muc, async_writer]).
 
 set_opts(defaults, Opts) ->
     mod_config(mod_mam_meta, Opts);

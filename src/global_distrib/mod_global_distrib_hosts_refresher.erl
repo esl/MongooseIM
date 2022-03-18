@@ -38,18 +38,17 @@
 
 -ignore_xref([pause/0, start_link/1, unpause/0]).
 
--record(state, {
-          refresh_interval :: pos_integer(),
-          tref :: reference() | undefined
-         }).
+-record(state, {local_host :: binary(),
+                refresh_interval :: pos_integer(),
+                tref :: reference() | undefined}).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(Milliseconds :: non_neg_integer()) -> pid() | term().
-start_link(RefreshInterval) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [RefreshInterval], []).
+-spec start_link(gen_mod:module_opts()) -> pid() | term().
+start_link(Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
 
 -spec pause() -> ok.
 pause() ->
@@ -63,26 +62,37 @@ unpause() ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    Opts = [{hosts_refresh_interval, default_refresh_interval()} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(_HostType, Opts) ->
+    start_outgoing_conns_sup(),
+    Child = #{
+      id => ?MODULE,
+      start => {?MODULE, start_link, [Opts]},
+      restart => transient,
+      shutdown => 5000,
+      modules => [?MODULE]
+    },
+    {ok, _} = supervisor:start_child(mod_global_distrib_outgoing_conns_sup, Child),
+    ok.
 
--spec stop(Host :: jid:lserver()) -> any().
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+-spec stop(mongooseim:host_type()) -> any().
+stop(_HostType) ->
+    stop_outgoing_conns_sup(),
+    ok.
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(Host, Opts) ->
-    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, Opts) ->
+    [{mod_global_distrib_utils, Opts, hard},
+     {mod_global_distrib_mapping, Opts, hard}].
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
 %%--------------------------------------------------------------------
 
-init([RefreshInterval]) ->
+init(#{local_host := LocalHost, hosts_refresh_interval := RefreshInterval}) ->
     ?LOG_DEBUG(#{what => gd_refresher_started, refresh_interval => RefreshInterval}),
-    NState = schedule_refresh(#state{ refresh_interval = RefreshInterval }),
+    NState = schedule_refresh(#state{local_host = LocalHost,
+                                     refresh_interval = RefreshInterval}),
     {ok, NState}.
 
 handle_call(pause, _From, State = #state{tref = undefined}) ->
@@ -105,8 +115,8 @@ handle_cast(Request, State) ->
     ?UNEXPECTED_CAST(Request),
     {noreply, State}.
 
-handle_info({timeout, TRef, refresh}, #state{ tref = TRef } = State) ->
-    refresh(),
+handle_info({timeout, TRef, refresh}, #state{local_host = LocalHost, tref = TRef} = State) ->
+    refresh(LocalHost),
     NState = schedule_refresh(State),
     {noreply, NState, hibernate};
 handle_info({timeout, _, refresh}, State) ->
@@ -126,33 +136,8 @@ code_change(_, State, _) -> {ok, State}.
 %% Helper functions
 %%--------------------------------------------------------------------
 
-
--spec deps(Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(Opts) ->
-    [{mod_global_distrib_mapping, Opts, hard}].
-
--spec start() -> any().
-start() ->
-    start_outgoing_conns_sup(),
-    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval),
-    Child = #{
-      id => ?MODULE,
-      start => {?MODULE, start_link, [Interval]},
-      restart => transient,
-      shutdown => 5000,
-      modules => [?MODULE]
-    },
-    {ok, _} = supervisor:start_child(mod_global_distrib_outgoing_conns_sup, Child),
-    ok.
-
--spec stop() -> any().
-stop() ->
-    stop_outgoing_conns_sup(),
-    ok.
-
-refresh() ->
+refresh(LocalHost) ->
     Hosts = mod_global_distrib_mapping:hosts(),
-    LocalHost = local_host(),
     ?LOG_DEBUG(#{what => gd_refresher_fetched_hosts,
                  hosts => Hosts, local_host => LocalHost}),
     lists:foreach(fun mod_global_distrib_outgoing_conns_sup:ensure_server_started/1,
@@ -161,12 +146,6 @@ refresh() ->
 schedule_refresh(#state{ refresh_interval = Interval } = State) ->
     TRef = erlang:start_timer(Interval, self(), refresh),
     State#state{ tref = TRef }.
-
-default_refresh_interval() ->
-    3000.
-
-local_host() ->
-    mod_global_distrib_utils:opt(?MODULE, local_host).
 
 start_outgoing_conns_sup() ->
     ConnsSup = mod_global_distrib_outgoing_conns_sup,
@@ -179,7 +158,6 @@ start_outgoing_conns_sup() ->
       modules => [ConnsSup]
      },
     ejabberd_sup:start_child(ChildSpec).
-
 
 stop_outgoing_conns_sup() ->
     ConnsSup = mod_global_distrib_outgoing_conns_sup,

@@ -18,10 +18,11 @@
 -compile([export_all, nowarn_export_all]).
 -author('piotr.nosek@erlang-solutions.com').
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include("mongoose.hrl").
 -include("jlib.hrl").
+
+-import(config_parser_helper, [mod_config/2, config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -50,6 +51,7 @@ suite() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(jid),
+    {ok, _} = application:ensure_all_started(cache_tab),
     Config.
 
 end_per_suite(Config) ->
@@ -62,16 +64,43 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(_CaseName, Config) ->
-    mongoose_config:set_opt(hosts, [global_host(), local_host()]),
     set_meck(),
-    fake_start(),
+    [mongoose_config:set_opt(Key, Value) || {Key, Value} <- opts()],
+    mongoose_domain_api:init(),
+    mim_ct_sup:start_link(ejabberd_sup),
+    gen_hook:start_link(),
+    mongoose_modules:start(),
     Config.
 
 end_per_testcase(_CaseName, Config) ->
-    fake_stop(),
+    mongoose_modules:stop(),
+    mongoose_domain_api:stop(),
+    [mongoose_config:unset_opt(Key) || {Key, _Value} <- opts()],
     unset_meck(),
-    mongoose_config:unset_opt(hosts),
     Config.
+
+opts() ->
+    [{hosts, hosts()},
+     {host_types, []},
+     {all_metrics_are_global, false} |
+     [{{modules, HostType}, modules(HostType)} || HostType <- hosts()]].
+
+hosts() ->
+    [global_host(), local_host()].
+
+modules(HostType) ->
+    gen_mod_deps:resolve_deps(HostType, #{mod_global_distrib => module_opts()}).
+
+module_opts() ->
+    mod_config(mod_global_distrib, #{global_host => global_host(),
+                                     local_host => local_host(),
+                                     connections => connection_opts()}).
+
+connection_opts() ->
+    config([modules, mod_global_distrib, connections],
+           #{endpoints => [],
+             resolved_endpoints => [],
+             advertised_endpoints => []}).
 
 %%--------------------------------------------------------------------
 %% Hook handlers tests
@@ -88,7 +117,7 @@ missing_struct_in_message_from_user(_Config) ->
     {Acc, To} = fake_acc_to_component(From),
     % The handler must not crash and return unchanged Acc
     Acc = mod_global_distrib_mapping:packet_to_component(Acc, From, To).
-        
+
 %% Update logic has two separate paths: when a packet is sent by a user or by another
 %% component. This test covers the latter.
 missing_struct_in_message_from_component(_Config) ->
@@ -127,50 +156,16 @@ fake_acc_to_component(From) ->
                          element => Packet }), To}.
 
 %%--------------------------------------------------------------------
-%% Meck & fake zone
+%% Meck
 %%--------------------------------------------------------------------
 
 set_meck() ->
-    meck:new(mongoose_metrics, []),
-    meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),
-
-    meck:new(mod_global_distrib_mapping_backend, [non_strict]),
+    meck:new(mongoose_metrics, [stub_all]),
+    meck:new(mod_global_distrib_mapping_backend, [stub_all]),
     %% Simulate missing entries and inserts into Redis
     meck:expect(mod_global_distrib_mapping_backend, get_session, fun(_) -> error end),
-    meck:expect(mod_global_distrib_mapping_backend, put_session, fun(_) -> ok end),
-    meck:expect(mod_global_distrib_mapping_backend, get_domain, fun(_) -> error end),
-    meck:expect(mod_global_distrib_mapping_backend, put_domain, fun(_) -> ok end).
+    meck:expect(mod_global_distrib_mapping_backend, get_domain, fun(_) -> error end).
 
 unset_meck() ->
     meck:unload(mod_global_distrib_mapping_backend),
     meck:unload(mongoose_metrics).
-
-%% These functions fake modules startup in order to populate ETS with options.
-%% It is impossible to meck 'ets' modules and mecking mod_global_distrib_utils:opt/2
-%% does not fully work as well because maybe_update_mapping/2 function does local call
-%% to opt/2, bypassing meck.
-fake_start() ->
-    lists:foreach(
-      fun(Mod) ->
-              mod_global_distrib_utils:start(Mod, global_host(),
-                                             common_fake_opts(), fun() -> ok end)
-      end, fake_start_stop_list()).
-
-fake_stop() ->
-    lists:foreach(
-      fun(Mod) ->
-              mod_global_distrib_utils:stop(Mod, global_host(), fun() -> ok end)
-      end, fake_start_stop_list()).
-
-fake_start_stop_list() ->
-    [mod_global_distrib, mod_global_distrib_mapping].
-
-common_fake_opts() ->
-    [
-     {global_host, global_host()},
-     {local_host, local_host()}
-    ].
-
-fake_tabs_info() ->
-    [ ets:info(T) || T <- fake_start_stop_list() ].
-

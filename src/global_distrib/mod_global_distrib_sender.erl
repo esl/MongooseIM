@@ -16,19 +16,15 @@
 -module(mod_global_distrib_sender).
 -author('konrad.zemek@erlang-solutions.com').
 
--behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
--include("global_distrib_metrics.hrl").
 
--export([start/2, stop/1, send/2, get_process_for/1]).
+-export([send/2, get_process_for/1]).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-
 
 -spec send(jid:lserver() | pid(), {jid:jid(), jid:jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
 send(Server, {_,_, Acc, _} = Packet) when is_binary(Server) ->
@@ -48,33 +44,8 @@ send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->
     ok = mod_global_distrib_utils:cast_or_call(Worker, {data, Stamp, Data}).
 
 %%--------------------------------------------------------------------
-%% gen_mod API
-%%--------------------------------------------------------------------
-
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    Opts = [{listen_port, 5555},
-            {connections_per_endpoint, 1},
-            {endpoint_refresh_interval_when_empty, 3},
-            {endpoint_refresh_interval, 60},
-            {disabled_gc_interval, 60} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
-
--spec stop(Host :: jid:lserver()) -> any().
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
-
-%%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
-
--spec start() -> any().
-start() ->
-    opt(tls_opts). %% Check for required tls_opts
-
--spec stop() -> any().
-stop() ->
-    ok.
 
 -spec get_process_for(jid:lserver()) -> pid().
 get_process_for(Server) ->
@@ -82,4 +53,4 @@ get_process_for(Server) ->
 
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
-    mod_global_distrib_utils:opt(?MODULE, Key).
+    mod_global_distrib_utils:opt(mod_global_distrib, Key).

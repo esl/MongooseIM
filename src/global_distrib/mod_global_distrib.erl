@@ -29,34 +29,56 @@
 -export([deps/2, start/2, stop/1, config_spec/0]).
 -export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
 -export([maybe_reroute/1]).
--export([process_endpoints/1, process_bounce/1]).
+-export([process_opts/1, process_endpoint/1]).
 
 -ignore_xref([maybe_reroute/1, remove_metadata/2]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
-%% See "gen_mod logic" block below in this file
 %%--------------------------------------------------------------------
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(Host, Opts) ->
-    mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
+%% Note: while this module should be enabled for all hosts,
+%% it needs to be started only once - this is why deps/2 and start/2
+%% do nothing for hosts other than global_host
 
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    Opts = [{message_ttl, 4} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(HostType, Opts = #{global_host := HostType, bounce := BounceOpts}) ->
+    %% Start each required module with the same opts for simplicity
+    [{Mod, Opts, hard} || Mod <- dep_modules() ++ bounce_modules(BounceOpts)];
+deps(_HostType, #{}) ->
+    [].
 
--spec stop(Host :: jid:lserver()) -> any().
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+dep_modules() ->
+    [mod_global_distrib_utils, mod_global_distrib_mapping, mod_global_distrib_disco,
+     mod_global_distrib_receiver, mod_global_distrib_hosts_refresher].
+
+bounce_modules(#{enabled := true}) -> [mod_global_distrib_bounce];
+bounce_modules(#{enabled := false}) -> [].
+
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, #{global_host := HostType}) ->
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, histogram),
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, spiral),
+    ejabberd_hooks:add(hooks());
+start(_HostType, #{}) ->
+    ok.
+
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    case gen_mod:get_module_opt(HostType, ?MODULE, global_host) of
+        HostType -> ejabberd_hooks:delete(hooks());
+        _ -> ok
+    end.
+
+hooks() ->
+    [{filter_packet, global, ?MODULE, maybe_reroute, 99}].
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{
-        items = #{<<"global_host">> => #option{type = string,
+        items = #{<<"global_host">> => #option{type = binary,
                                                validate = domain},
-                  <<"local_host">> => #option{type = string,
+                  <<"local_host">> => #option{type = binary,
                                               validate = domain},
                   <<"message_ttl">> => #option{type = integer,
                                                validate = non_negative},
@@ -67,13 +89,17 @@ config_spec() ->
                   <<"cache">> => cache_spec(),
                   <<"bounce">> => bounce_spec()
         },
-        required = [<<"global_host">>, <<"local_host">>]
+        required = [<<"global_host">>, <<"local_host">>],
+        defaults = #{<<"message_ttl">> => 4,
+                     <<"hosts_refresh_interval">> => 3000},
+        format_items = map,
+        process = fun ?MODULE:process_opts/1
     }.
 
 connections_spec() ->
     #section{
-        items = #{<<"endpoints">> => #list{items = endpoints_spec()},
-                  <<"advertised_endpoints">> => #list{items = endpoints_spec()},
+        items = #{<<"endpoints">> => #list{items = endpoint_spec()},
+                  <<"advertised_endpoints">> => #list{items = endpoint_spec()},
                   <<"connections_per_endpoint">> => #option{type = integer,
                                                             validate = non_negative},
                   <<"endpoint_refresh_interval">> => #option{type = integer,
@@ -83,10 +109,16 @@ connections_spec() ->
                   <<"disabled_gc_interval">> => #option{type = integer,
                                                         validate = positive},
                   <<"tls">> => tls_spec()
-        }
+                 },
+        defaults = #{<<"connections_per_endpoint">> => 1,
+                     <<"endpoint_refresh_interval">> => 60,
+                     <<"endpoint_refresh_interval_when_empty">> => 3,
+                     <<"disabled_gc_interval">> => 60},
+        format_items = map,
+        include = always
     }.
 
-endpoints_spec() ->
+endpoint_spec() ->
     #section{
         items = #{<<"host">> => #option{type = string,
                                         validate = network_address},
@@ -94,7 +126,8 @@ endpoints_spec() ->
                                         validate = port}
         },
         required = all,
-        process = fun ?MODULE:process_endpoints/1
+        format_items = map,
+        process = fun ?MODULE:process_endpoint/1
     }.
 
 tls_spec() ->
@@ -109,7 +142,8 @@ tls_spec() ->
                                           validate = filename}
         },
         required = [<<"certfile">>, <<"cacertfile">>],
-        wrap = {kv, tls_opts}
+        defaults = #{<<"ciphers">> => "TLSv1.2:TLSv1.3"},
+        format_items = map
     }.
 
 redis_spec() ->
@@ -120,7 +154,12 @@ redis_spec() ->
                                                 validate = positive},
                   <<"refresh_after">> => #option{type = integer,
                                                  validate = non_negative}
-        }
+                 },
+        defaults = #{<<"pool">> => global_distrib,
+                     <<"expire_after">> => 120,
+                     <<"refresh_after">> => 60},
+        format_items = map,
+        include = always
     }.
 
 cache_spec() ->
@@ -132,7 +171,14 @@ cache_spec() ->
                                                         validate = non_negative},
                   <<"max_jids">> => #option{type = integer,
                                             validate = non_negative}
-        }
+                 },
+        defaults = #{<<"cache_missed">> => true,
+                     <<"domain_lifetime_seconds">> => 600,
+                     <<"jid_lifetime_seconds">> => 5,
+                     <<"max_jids">> => 10000
+                    },
+        format_items = map,
+        include = always
     }.
 
 bounce_spec() ->
@@ -142,20 +188,29 @@ bounce_spec() ->
                                                    validate = non_negative},
                   <<"max_retries">> => #option{type = integer,
                                                validate = non_negative}
-        },
-        process = fun ?MODULE:process_bounce/1
+                 },
+        defaults = #{<<"enabled">> => true,
+                     <<"resend_after_ms">> => 200,
+                     <<"max_retries">> => 4},
+        format_items = map,
+        include = always
     }.
 
-process_endpoints(KV) ->
-    {[[{host, Host}], [{port, Port}]], []} = proplists:split(KV, [host, port]),
+-spec process_opts(gen_mod:module_opts()) -> gen_mod:module_opts().
+process_opts(Opts = #{local_host := LocalHost, connections := Connections}) ->
+    Opts#{connections := process_connections(LocalHost, Connections)}.
+
+process_connections(_LocalHost, Opts = #{advertised_endpoints := _,
+                                         endpoints := Endpoints}) ->
+    Opts#{resolved_endpoints => mod_global_distrib_utils:resolve_endpoints(Endpoints)};
+process_connections(LocalHost, Opts = #{endpoints := Endpoints}) ->
+    process_connections(LocalHost, Opts#{advertised_endpoints => Endpoints});
+process_connections(LocalHost, Opts) ->
+    process_connections(LocalHost, Opts#{endpoints => [{binary_to_list(LocalHost), 5555}]}).
+
+-spec process_endpoint(map()) -> mod_global_distrib_utils:endpoint().
+process_endpoint(#{host := Host, port := Port}) ->
     {Host, Port}.
-
-process_bounce(KVs) ->
-    {[EnabledOpts], Opts} = proplists:split(KVs, [enabled]),
-    bounce_value(EnabledOpts, Opts).
-
-bounce_value([{enabled, false}], _) -> false;
-bounce_value(_, Opts) -> Opts.
 
 %%--------------------------------------------------------------------
 %% public functions
@@ -301,42 +356,6 @@ get_bound_connection(Server, GDID, Pid) when is_pid(Pid) ->
                          server => Server, gd_id => GDID, gd_pid => Pid}),
             Pid
     end.
-
-%%--------------------------------------------------------------------
-%% gen_mod logic
-%%--------------------------------------------------------------------
-
--spec deps(Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(Opts) ->
-    ConnectionsOpts =
-        lists:ukeysort(1, proplists:get_value(connections, Opts, []) ++ default_conn_opts()),
-    CacheOpts = proplists:get_value(cache, Opts, []),
-    BounceOpts = proplists:get_value(bounce, Opts, []),
-
-    Deps0 = [{mod_global_distrib_mapping, CacheOpts ++ Opts, hard},
-             {mod_global_distrib_disco, Opts, hard},
-             {mod_global_distrib_receiver, ConnectionsOpts ++ Opts, hard},
-             {mod_global_distrib_sender, ConnectionsOpts ++ Opts, hard},
-             {mod_global_distrib_hosts_refresher, Opts, hard}],
-    case BounceOpts of
-        false -> Deps0;
-        _ -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
-    end.
-
-default_conn_opts() ->
-    [{tls_opts, false}].
-
--spec start() -> any().
-start() ->
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, histogram),
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, spiral),
-    ejabberd_hooks:add(filter_packet, global, ?MODULE, maybe_reroute, 99).
-
--spec stop() -> any().
-stop() ->
-    ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
-
-%%--------------------------------------------------------------------
 
 -spec lookup_recipients_host(TargetHost :: binary() | undefined,
                              To :: jid:jid(),

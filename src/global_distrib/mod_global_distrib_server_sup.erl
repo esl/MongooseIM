@@ -22,7 +22,7 @@
 
 -export([start_link/1, init/1]).
 -export([get_connection/1, is_available/1]).
--export([start_pool/3, stop_pool/2]).
+-export([start_pool/4, stop_pool/2]).
 
 -ignore_xref([start_link/1]).
 
@@ -65,15 +65,15 @@ is_available(Server) ->
 
 -spec start_pool(Supervisor :: pid(),
                  Endpoint :: mod_global_distrib_utils:endpoint(),
-                 Server :: jid:lserver()) ->
+                 Server :: jid:lserver(),
+                 ConnOpts :: map()) ->
     {ok, atom(), pid()} | {error, any()}.
-start_pool(Supervisor, Endpoint, Server) ->
+start_pool(Supervisor, Endpoint, Server, #{connections_per_endpoint := PoolSize}) ->
     PoolRef = endpoint_to_atom(Endpoint),
     PoolParams = [
                   PoolRef,
                   {mod_global_distrib_connection, start_link, [Endpoint, Server]},
-                  [{pool_size, mod_global_distrib_utils:opt(mod_global_distrib_sender,
-                                                            connections_per_endpoint)}]
+                  [{pool_size, PoolSize}]
                  ],
     PoolSpec = #{
       id => Endpoint,

@@ -28,7 +28,7 @@
 -define(MESSAGE_STORE, mod_global_distrib_bounce_message_store).
 -define(MS_BY_TARGET, mod_global_distrib_bounce_message_store_by_target).
 
--export([start_link/0, start/2, stop/1]).
+-export([start_link/0, start/2, stop/1, deps/2]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
 -export([maybe_store_message/1, reroute_messages/4]).
 -export([bounce_queue_size/0]).
@@ -39,16 +39,31 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    ResendAfterMs = proplists:get_value(resend_after_ms, Opts0, 200),
-    ResendAfter = erlang:convert_time_unit(ResendAfterMs, millisecond, native),
-    Opts = [{resend_after, ResendAfter}, {max_retries, 4} | Opts0],
-    mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, _Opts) ->
+    mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
+    mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
+    EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}], [value]},
+    QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
+    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
+    ejabberd_hooks:add(hooks(HostType)),
+    ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
+    ejabberd_sup:start_child(ChildSpec).
 
--spec stop(Host :: jid:lserver()) -> any().
-stop(Host) ->
-    mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    ejabberd_sup:stop_child(?MODULE),
+    ejabberd_hooks:delete(hooks(HostType)),
+    ets:delete(?MS_BY_TARGET),
+    ets:delete(?MESSAGE_STORE).
+
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, Opts) ->
+    [{mod_global_distrib_utils, Opts, hard}].
+
+hooks(HostType) ->
+    [{mod_global_distrib_unknown_recipient, HostType, ?MODULE, maybe_store_message, 80},
+     {mod_global_distrib_known_recipient, HostType, ?MODULE, reroute_messages, 80}].
 
 -spec start_link() -> {ok, pid()} | {error, any()}.
 start_link() ->
@@ -91,7 +106,8 @@ maybe_store_message(drop) -> drop;
 maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     LocalHost = opt(local_host),
     {ok, ID} = mod_global_distrib:find_metadata(Acc0, id),
-    case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
+    case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost},
+                                         opt([bounce, max_retries])) of
         0 ->
             ?LOG_DEBUG(#{what => gd_skip_store_message,
                          text => <<"Not storing global message">>,
@@ -102,12 +118,14 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
             FPacket;
         OldTTL ->
+            ResendAfterMs = opt([bounce, resend_after_ms]),
             ?LOG_DEBUG(#{what => gd_store_message,
                          text => <<"Storing global message">>,
                          gd_id => ID, acc => Acc0, bounce_ttl => OldTTL,
-                         resend_after_ms => erlang:convert_time_unit(opt(resend_after), native, millisecond)}),
+                         resend_after_ms => ResendAfterMs}),
             Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),
-            ResendAt = erlang:monotonic_time() + opt(resend_after),
+            ResendAfter = erlang:convert_time_unit(ResendAfterMs, millisecond, native),
+            ResendAt = erlang:monotonic_time() + ResendAfter,
             do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
             drop
     end.
@@ -156,28 +174,6 @@ reroute_message(TargetHost, {From, To, Acc0, Packet}) ->
     Acc = mod_global_distrib:put_metadata(Acc0, target_host_override, TargetHost),
     ejabberd_router:route(From, To, Acc, Packet).
 
--spec start() -> any().
-start() ->
-    Host = opt(global_host),
-    mod_global_distrib_utils:create_ets(?MESSAGE_STORE, ordered_set),
-    mod_global_distrib_utils:create_ets(?MS_BY_TARGET, bag),
-    EvalDef = {[{l, [{t, [value, {v, 'Value'}]}]}],[value]},
-    QueueSizeDef = {function, ?MODULE, bounce_queue_size, [], eval, EvalDef},
-    mongoose_metrics:ensure_metric(global, ?GLOBAL_DISTRIB_BOUNCE_QUEUE_SIZE, QueueSizeDef),
-    ejabberd_hooks:add(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
-    ejabberd_hooks:add(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
-    ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
-
--spec stop() -> any().
-stop() ->
-    Host = opt(global_host),
-    ejabberd_sup:stop_child(?MODULE),
-    ejabberd_hooks:delete(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
-    ejabberd_hooks:delete(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
-    ets:delete(?MS_BY_TARGET),
-    ets:delete(?MESSAGE_STORE).
-
 add_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
     Key = get_index_key(From, To),
     ets:insert(?MS_BY_TARGET, {Key, {ResendAt, FPacket}}).
@@ -189,7 +185,8 @@ delete_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
 get_index_key(From, To) ->
     {jid:to_lower(From), jid:to_lower(To)}.
 
--spec do_insert_in_store(ResendAt :: integer(), {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) -> any().
+-spec do_insert_in_store(ResendAt :: integer(),
+                         {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) -> any().
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
         true -> add_index(ResendAt, FPacket);
@@ -204,7 +201,8 @@ resend_messages(Now) ->
                 [{Key, {From, To, _Acc, _Packet} = FPacket}] ->
                     delete_index(Key, FPacket),
                     mod_global_distrib_mapping:clear_cache(To),
-                    WorkerKey = mod_global_distrib_utils:recipient_to_worker_key(From, opt(global_host)),
+                    WorkerKey = mod_global_distrib_utils:recipient_to_worker_key(
+                                  From, opt(global_host)),
                     Worker = mod_global_distrib_worker_sup:get_worker(WorkerKey),
                     gen_server:cast(Worker, {route, FPacket});
                 _ ->
@@ -215,6 +213,6 @@ resend_messages(Now) ->
             ok
     end.
 
--spec opt(Key :: atom()) -> term().
+-spec opt(gen_mod:opt_key() | gen_mod:key_path()) -> gen_mod:opt_value().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
