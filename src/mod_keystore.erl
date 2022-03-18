@@ -12,11 +12,8 @@
 %% Hook handlers
 -export([get_key/2]).
 
-%% Tests only!
--export([validate_opts/1]).
-
 -export([config_metrics/1]).
--export([process_keys/1]).
+-export([process_key/1]).
 
 %% Public types
 -export_type([key/0,
@@ -25,9 +22,7 @@
               key_name/0,
               raw_key/0]).
 
--ignore_xref([
-    behaviour_info/1, get_key/2, validate_opts/1
-]).
+-ignore_xref([get_key/2]).
 
 -include("mod_keystore.hrl").
 -include("mongoose.hrl").
@@ -54,9 +49,8 @@
 %% gen_mod callbacks
 %%
 
--spec start(mongooseim:host_type(), list()) -> ok.
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    validate_opts(Opts),
     create_keystore_ets(),
     mod_keystore_backend:init(HostType, Opts),
     init_keys(HostType, Opts),
@@ -84,7 +78,11 @@ config_spec() ->
         items = #{<<"ram_key_size">> => #option{type = integer,
                                                 validate = non_negative},
                   <<"keys">> => #list{items = keys_spec()}
-        }
+        },
+        defaults = #{<<"ram_key_size">> => ?DEFAULT_RAM_KEY_SIZE,
+                     <<"keys">> => []},
+        format_items = map,
+        process = fun validate_key_ids/1
     }.
 
 keys_spec() ->
@@ -97,15 +95,14 @@ keys_spec() ->
                                         validate = filename}
         },
         required = [<<"name">>, <<"type">>],
-        process = fun ?MODULE:process_keys/1
+        format_items = map,
+        process = fun ?MODULE:process_key/1
     }.
 
-process_keys(KVs) ->
-    {[[{name, Name}], [{type, Type}]], PathOpts} = proplists:split(KVs, [name, type]),
-    process_key_opts(Name, Type, PathOpts).
-
-process_key_opts(Name, ram, []) -> {Name, ram};
-process_key_opts(Name, file, [{path, Path}]) -> {Name, {file, Path}}.
+process_key(#{name := Name, type := file, path := Path}) ->
+    {Name, {file, Path}};
+process_key(#{name := Name, type := ram}) ->
+    {Name, ram}.
 
 %%
 %% Hook handlers
@@ -165,16 +162,16 @@ clear_keystore_ets(HostType) ->
 does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
-init_keys(HostType, Opts) ->
-    [ init_key(K, HostType, Opts) || K <- proplists:get_value(keys, Opts, []) ].
+init_keys(HostType, Opts = #{keys := Keys}) ->
+    [ init_key(K, HostType, Opts) || K <- Keys ].
 
--spec init_key({key_name(), key_type()}, mongooseim:host_type(), list()) -> ok.
+-spec init_key({key_name(), key_type()}, mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init_key({KeyName, {file, Path}}, HostType, _Opts) ->
     {ok, Data} = file:read_file(Path),
     true = ets_store_key({KeyName, HostType}, Data),
     ok;
-init_key({KeyName, ram}, HostType, Opts) ->
-    ProposedKey = crypto:strong_rand_bytes(get_key_size(Opts)),
+init_key({KeyName, ram}, HostType, #{ram_key_size := KeySize}) ->
+    ProposedKey = crypto:strong_rand_bytes(KeySize),
     KeyRecord = #key{id = {KeyName, HostType},
                      key = ProposedKey},
     {ok, _ActualKey} = mod_keystore_backend:init_ram_key(HostType, KeyRecord),
@@ -187,23 +184,13 @@ ets_get_key(KeyID) ->
 ets_store_key(KeyID, RawKey) ->
     ets:insert(keystore, {KeyID, RawKey}).
 
-get_key_size(Opts) ->
-    case lists:keyfind(ram_key_size, 1, Opts) of
-        false -> ?DEFAULT_RAM_KEY_SIZE;
-        {ram_key_size, KeySize} -> KeySize
-    end.
-
-validate_opts(Opts) ->
-    validate_key_ids(proplists:get_value(keys, Opts, [])).
-
-validate_key_ids(KeySpecs) ->
+validate_key_ids(Opts = #{keys := KeySpecs}) ->
     KeyIDs = [ KeyID || {KeyID, _} <- KeySpecs ],
     SortedAndUniqueKeyIDs = lists:usort(KeyIDs),
     case KeyIDs -- SortedAndUniqueKeyIDs of
-        [] -> ok;
+        [] -> Opts;
         [_|_] -> error(non_unique_key_ids, KeySpecs)
     end.
 
 config_metrics(Host) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).

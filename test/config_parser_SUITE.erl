@@ -2101,9 +2101,10 @@ mod_jingle_sip(_Config) ->
     ?errh(T(#{<<"sdp_origin">> => <<"abc">>})).
 
 mod_keystore(_Config) ->
+    check_module_defaults(mod_keystore),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_keystore, Cfg) end,
-    ?cfgh(M([{ram_key_size, 1024}]),
+    P = [modules, mod_keystore],
+    ?cfgh(P ++ [ram_key_size], 1024,
           T(#{<<"ram_key_size">> => 1024})),
     ?errh(T(#{<<"ram_key_size">> => -1})).
 
@@ -2111,12 +2112,12 @@ mod_keystore_keys(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_keystore">> =>
                                               #{<<"keys">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_keystore, [{keys, Cfg}]) end,
+    P = [modules, mod_keystore, keys],
     RequiredOpts = #{<<"name">> => <<"access_secret">>,
                      <<"type">> => <<"ram">>},
-    ?cfgh(M([{access_secret, ram}]),
+    ?cfgh(P, [{access_secret, ram}],
           T([RequiredOpts])),
-    ?cfgh(M([{access_secret, {file, "priv/access_psk"}}]),
+    ?cfgh(P, [{access_secret, {file, "priv/access_psk"}}],
           T([RequiredOpts#{<<"type">> => <<"file">>,
                            <<"path">> => <<"priv/access_psk">>}])),
     [?errh(T([maps:remove(Key, RequiredOpts)])) || Key <- maps:keys(RequiredOpts)],
@@ -2124,7 +2125,13 @@ mod_keystore_keys(_Config) ->
     ?errh(T([RequiredOpts#{<<"type">> => <<"rampampam">>}])),
     ?errh(T([RequiredOpts#{<<"type">> => <<"file">>}])),
     ?errh(T([RequiredOpts#{<<"type">> => <<"file">>,
-                           <<"path">> => <<"does/not/exists">>}])).
+                           <<"path">> => <<"does/not/exists">>}])),
+    ?errh([#{reason := non_unique_key_ids}],
+          T([#{<<"name">> => <<"same_name_twice">>,
+               <<"type">> => <<"ram">>},
+             #{<<"name">> => <<"same_name_twice">>,
+               <<"type">> => <<"file">>,
+               <<"path">> => <<"priv/access_psk">>}])).
 
 mod_last(_Config) ->
     check_iqdisc_map(mod_last),
