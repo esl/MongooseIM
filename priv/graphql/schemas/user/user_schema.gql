@@ -18,6 +18,8 @@ type UserQuery{
   session: SessionUserQuery
   "Stanza management"
   stanza: StanzaUserQuery
+  "Roster/Contacts management"
+  roster: RosterUserQuery
 }
 
 """
@@ -31,4 +33,6 @@ type UserMutation @protected{
   muc_light: MUCLightUserMutation
   "Stanza management"
   stanza: StanzaUserMutation
+  "Roster/Contacts management"
+  roster: RosterUserMutation
 }

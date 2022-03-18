@@ -242,7 +242,7 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
 unsubscribe(LocalJID, RemoteJID) ->
     ItemEl = build_roster_item(RemoteJID, remove),
     QueryEl = #xmlel{ name = <<"query">>,
-              attrs = [{<<"xmlns">>, <<"jabber:iq:roster">>}],
+              attrs = [{<<"xmlns">>, ?NS_ROSTER}],
               children = [ItemEl]},
     {ok, HostType} = mongoose_domain_api:get_domain_host_type(LocalJID#jid.lserver),
     mod_roster:set_items(HostType, LocalJID, QueryEl).

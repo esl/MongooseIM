@@ -20,6 +20,8 @@ type AdminQuery{
   stanza: StanzaAdminQuery
   "MUC Light room management"
   muc_light: MUCLightAdminQuery 
+  "Roster/Contacts management"
+  roster: RosterAdminQuery 
 }
 
 """
@@ -37,4 +39,6 @@ type AdminMutation @protected{
   stanza: StanzaAdminMutation
   "MUC Light room management"
   muc_light: MUCLightAdminMutation
+  "Roster/Contacts management"
+  roster: RosterAdminMutation
 }

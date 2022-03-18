@@ -14,4 +14,6 @@ execute(_Ctx, _Obj, <<"session">>, _Args) ->
 execute(_Ctx, _Obj, <<"checkAuth">>, _Args) ->
     {ok, user};
 execute(_Ctx, _Obj, <<"stanza">>, _Args) ->
-    {ok, stanza}.
+    {ok, stanza};
+execute(_Ctx, _Obj, <<"roster">>, _Args) ->
+    {ok, roster}.
