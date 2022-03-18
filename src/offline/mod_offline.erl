@@ -583,5 +583,4 @@ fallback_timestamp(HowManyDays, TS_MicroSeconds) ->
     TS_MicroSeconds - HowManyMicroSeconds.
 
 config_metrics(HostType) ->
-    OptsToReport = [{backend, mnesia}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

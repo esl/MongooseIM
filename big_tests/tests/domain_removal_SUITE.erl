@@ -102,7 +102,7 @@ group_to_modules(private_removal) ->
 group_to_modules(roster_removal) ->
     [{mod_roster, mod_config(mod_roster, #{backend => rdbms})}];
 group_to_modules(offline_removal) ->
-    [{mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => rdbms})}];
+    [{mod_offline, mod_config(mod_offline, #{backend => rdbms})}];
 group_to_modules(markers_removal) ->
     [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)}];
 group_to_modules(vcard_removal) ->

@@ -68,10 +68,10 @@ init_per_suite(Config0) ->
 
 -spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
 create_config(riak) ->
-    [{mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => riak,
+    [{mod_offline, mod_config(mod_offline, #{backend => riak,
         riak => #{bucket_type => <<"offline">>}})}];
 create_config(Backend) ->
-    [{mod_offline, config_parser_helper:mod_config(mod_offline, #{backend => Backend})}].
+    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
