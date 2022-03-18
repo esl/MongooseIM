@@ -398,7 +398,7 @@ all_modules() ->
                                               #{enabled => false}),
                        host => {fqdn, <<"muc.example.com">>},
                        no_stanzaid_element => true}),
-      mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
+      mod_caps => default_mod_config(mod_caps),
       mod_mam_cache_user => (default_config([modules, mod_mam_meta, cache]))#{muc => true, pm => true},
       mod_offline =>
            mod_config(mod_offline, #{backend => riak,
@@ -854,6 +854,9 @@ default_mod_config(mod_bosh) ->
       server_acks => false, max_pause => 120};
 default_mod_config(mod_cache_users) ->
     #{strategy => fifo, time_to_live => 480, number_of_segments => 3};
+default_mod_config(mod_caps) ->
+    #{cache_size => 1000,
+      cache_life_time => timer:hours(24) div 1000};
 default_mod_config(mod_disco) ->
     #{extra_domains => [], server_info => [],
       users_can_see_hidden_services => true, iqdisc => one_queue};
