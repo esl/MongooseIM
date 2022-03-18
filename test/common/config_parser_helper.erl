@@ -39,7 +39,7 @@ options("host_types") ->
       auth_with_methods(#{external => #{instances => 1,
                                         program => "/usr/bin/bash"},
                           http => #{}})},
-     {{modules, <<"another host type">>}, #{mod_offline => []}},
+     {{modules, <<"another host type">>}, #{mod_offline => default_mod_config(mod_offline)}},
      {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
@@ -401,9 +401,8 @@ all_modules() ->
       mod_caps => [{cache_life_time, 86}, {cache_size, 1000}],
       mod_mam_cache_user => (default_config([modules, mod_mam_meta, cache]))#{muc => true, pm => true},
       mod_offline =>
-          [{access_max_user_messages, max_user_offline_messages},
-           {backend, riak},
-           {bucket_type, <<"offline">>}],
+           mod_config(mod_offline, #{backend => riak,
+                                     riak => #{bucket_type => <<"offline">>}}),
       mod_ping =>
           mod_config(mod_ping, #{ping_interval => 60000,
                                  ping_req_timeout => 32000,
@@ -682,7 +681,7 @@ pgsql_modules() ->
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => [], mod_muc_light_commands => [],
-      mod_offline => [{backend, rdbms}],
+      mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>
@@ -897,6 +896,10 @@ default_mod_config(mod_ping) ->
       timeout_action => none,
       ping_req_timeout => 32*1000,
       iqdisc => no_queue};
+default_mod_config(mod_offline) ->
+    #{backend => mnesia,
+      access_max_user_messages => max_user_offline_messages,
+      store_groupchat_messages => false};
 default_mod_config(mod_privacy) ->
     #{backend => mnesia};
 default_mod_config(mod_private) ->

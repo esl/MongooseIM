@@ -167,7 +167,7 @@ extract_permanent_fields(MD) ->
 
 -spec bucket_type(mongooseim:host_type(), jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(HostType, LServer) ->
-    {gen_mod:get_module_opt(LServer, mod_offline, bucket_type, <<"offline">>), HostType}.
+    {gen_mod:get_module_opt(LServer, mod_offline, [riak, bucket_type]), HostType}.
 
 -spec key(binary(), integer()) -> binary().
 key(LUser, TimestampInt) ->

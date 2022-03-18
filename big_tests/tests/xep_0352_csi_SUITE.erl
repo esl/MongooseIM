@@ -35,7 +35,8 @@ suite() ->
 init_per_suite(Config) ->
     NewConfig = dynamic_modules:save_modules(host_type(), Config),
     dynamic_modules:ensure_modules(
-      host_type(), [{mod_offline, []}, {mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]}]),
+      host_type(), [{mod_offline, config_parser_helper:mod_config(mod_offline, #{})},
+                    {mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(NewConfig)].
 
 end_per_suite(Config) ->

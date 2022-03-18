@@ -186,7 +186,7 @@ required_modules(Scope, Name) ->
                    ExtraOpts -> maps:merge(common_sm_opts(), ExtraOpts)
                end,
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, SMConfig)},
-     {mod_offline, []}].
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{})}].
 
 required_sm_opts(group, parallel) ->
     #{ack_freq => never};

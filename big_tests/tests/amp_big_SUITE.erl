@@ -994,7 +994,8 @@ mam_modules(off) ->
     [{mod_mam_meta, stopped}].
 
 offline_modules(on) ->
-    [{mod_offline, [{access_max_user_messages, max_user_offline_messages}]}];
+    [{mod_offline, config_parser_helper:mod_config(mod_offline,
+        #{access_max_user_messages => max_user_offline_messages})}];
 offline_modules(off) ->
     [{mod_offline, stopped},
      {mod_offline_stub, []}].

@@ -2512,14 +2512,15 @@ mod_muc_light_config_schema(_Config) ->
                     <<"internal_key">> => <<>>}])).
 
 mod_offline(_Config) ->
+    check_module_defaults(mod_offline),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_offline, Cfg) end,
-    ?cfgh(M([{access_max_user_messages, max_user_offline_messages}]),
-          T(#{<<"access_max_user_messages">> => <<"max_user_offline_messages">>})),
-    ?cfgh(M([{backend, rdbms}]),
+    P = [modules, mod_offline],
+    ?cfgh(P ++ [access_max_user_messages], custom_max_user_offline_messages,
+          T(#{<<"access_max_user_messages">> => <<"custom_max_user_offline_messages">>})),
+    ?cfgh(P ++ [backend], rdbms,
           T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{bucket_type, <<"test">>}]),
-          T(#{<<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
+    ?cfgh(P ++ [riak, bucket_type], <<"test">>,
+          T(#{<<"backend">> => <<"riak">>, <<"riak">> => #{<<"bucket_type">> => <<"test">>}})),
     ?errh(T(#{<<"access_max_user_messages">> => 1})),
     ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})),
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),

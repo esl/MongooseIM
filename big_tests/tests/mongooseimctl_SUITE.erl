@@ -218,7 +218,8 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(basic, Config) ->
-    dynamic_modules:ensure_modules(domain_helper:host_type(), [{mod_offline, []}]),
+    dynamic_modules:ensure_modules(domain_helper:host_type(),
+        [{mod_offline, config_parser_helper:default_mod_config(mod_offline)}]),
     Config;
 init_per_group(private, Config) ->
     dynamic_modules:ensure_modules(domain_helper:host_type(),

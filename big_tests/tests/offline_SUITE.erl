@@ -61,10 +61,17 @@ init_per_suite(Config0) ->
     HostType = domain_helper:host_type(),
     Config1 = dynamic_modules:save_modules(HostType, Config0),
     Backend = mongoose_helper:get_backend_mnesia_rdbms_riak(HostType),
-    ModConfig = mongoose_helper:backend_for_module(mod_offline, Backend),
+    ModConfig = create_config(Backend),
     dynamic_modules:ensure_modules(HostType, ModConfig),
     [{backend, Backend} |
      escalus:init_per_suite(Config1)].
+
+-spec create_config(atom()) -> [{mod_offline, gen_mod:module_opts()}].
+create_config(riak) ->
+    [{mod_offline, mod_config(mod_offline, #{backend => riak,
+        riak => #{bucket_type => <<"offline">>}})}];
+create_config(Backend) ->
+    [{mod_offline, mod_config(mod_offline, #{backend => Backend})}].
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -89,14 +96,19 @@ init_per_group(_, C) -> C.
 with_groupchat_modules() ->
     OfflineBackend = mongoose_helper:get_backend_name(host_type(), mod_offline),
     MucLightBackend = mongoose_helper:mnesia_or_rdbms_backend(),
-    [{mod_offline, [{store_groupchat_messages, true},
-                    {backend, OfflineBackend}]},
+    [{mod_offline, config_with_groupchat_modules(OfflineBackend)},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => MucLightBackend})}].
+
+config_with_groupchat_modules(riak) ->
+    mod_config(mod_offline, #{store_groupchat_messages => true,
+        backend => riak, riak => #{bucket_type => <<"offline">>}});
+config_with_groupchat_modules(Backend) ->
+    mod_config(mod_offline, #{store_groupchat_messages => true,
+        backend => Backend}).
 
 chatmarkers_modules() ->
     [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)},
-     {mod_offline, [{store_groupchat_messages, true},
-                    {backend, rdbms}]},
+     {mod_offline, config_with_groupchat_modules(rdbms)},
      {mod_offline_chatmarkers, [{store_groupchat_messages, true}]},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].
 

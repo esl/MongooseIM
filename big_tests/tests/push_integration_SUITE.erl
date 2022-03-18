@@ -965,7 +965,7 @@ mongoose_push_api_for_group(_) ->
 
 required_modules_for_group(pm_notifications_with_inbox, API, PubSubHost) ->
     [{mod_inbox, inbox_opts()},
-     {mod_offline, []} |
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{})} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(groupchat_notifications_with_inbox, API, PubSubHost)->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}
@@ -976,7 +976,7 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
     [{mod_muc_light, muc_light_opts()},
      {mod_stream_management, config_parser_helper:mod_config(mod_stream_management,
                                                              #{ack_freq => never, resume_timeout => 1})},
-     {mod_offline, []} |
+     {mod_offline, config_parser_helper:mod_config(mod_offline, #{})} |
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})} |

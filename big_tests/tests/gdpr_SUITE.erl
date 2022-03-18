@@ -411,7 +411,12 @@ vcard_backend_opts(Backend) ->
     #{backend => Backend}.
 
 offline_required_modules() ->
-    [{mod_offline, [{backend, pick_enabled_backend()}]}].
+    [{mod_offline, mod_offline_config(pick_enabled_backend())}].
+
+mod_offline_config(riak) ->
+    config_parser_helper:mod_config(mod_offline, #{backend => riak, riak => #{bucket_type => <<"offline">>}});
+mod_offline_config(Backend) ->
+    config_parser_helper:mod_config(mod_offline, #{backend => Backend}).
 
 pubsub_required_modules() ->
     pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
