@@ -7,6 +7,8 @@
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
                          make_creds/1]).
 
+-import(config_parser_helper, [mod_config/2]).
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("jid/include/jid.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -95,12 +97,8 @@ init_modules(Config) ->
     Config2.
 
 required_modules(_) ->
-    [{mod_muc_light, common_muc_light_opts()}].
-
-common_muc_light_opts() ->
-    MucPattern = distributed_helper:subhost_pattern(muc_light_helper:muc_host_pattern()),
-    [{host, MucPattern},
-     {rooms_in_rosters, true}].
+    MucLightOpts = mod_config(mod_muc_light, #{rooms_in_rosters => true}),
+    [{mod_muc_light, MucLightOpts}].
 
 init_per_group(admin_muc_light, Config) ->
     graphql_helper:init_admin_handler(Config);
