@@ -953,8 +953,8 @@ default_mod_config(mod_private) ->
     #{iqdisc => one_queue, backend => rdbms};
 default_mod_config(mod_pubsub) ->
     #{iqdisc => one_queue, host => {prefix, <<"pubsub.">>}, backend => mnesia, access => all,
-      max_items_node => 10, max_subscriptions_node => undefined, nodetree => nodetree_tree,
-      ignore_pep_from_offline => true, last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
+      max_items_node => 10, nodetree => nodetree_tree, ignore_pep_from_offline => true,
+      last_item_cache => false, plugins => [<<"flat">>], pep_mapping => #{},
       default_node_config => [], item_publisher => false, sync_broadcast => false};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};

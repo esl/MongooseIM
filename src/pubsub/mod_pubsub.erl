@@ -284,7 +284,7 @@ config_spec() ->
                  <<"plugins">> => #list{items = #option{type = binary,
                                                         validate = {module, node}}},
                  <<"pep_mapping">> => #list{items = pep_mapping_config_spec(),
-                                            process = fun maps:from_list/1},
+                                            format_items = map},
                  <<"default_node_config">> => default_node_config_spec(),
                  <<"item_publisher">> => #option{type = boolean},
                  <<"sync_broadcast">> => #option{type = boolean}
@@ -294,7 +294,6 @@ config_spec() ->
                     <<"backend">> => mnesia,
                     <<"access_createnode">> => all,
                     <<"max_items_node">> => ?MAXITEMS,
-                    <<"max_subscriptions_node">> => undefined,
                     <<"nodetree">> => ?STDTREE,
                     <<"ignore_pep_from_offline">> => true,
                     <<"last_item_cache">> => false,
@@ -313,6 +312,7 @@ pep_mapping_config_spec() ->
                  <<"node">> => #option{type = binary,
                                        validate = non_empty}},
        required = all,
+       format_items = map,
        process = fun ?MODULE:process_pep_mapping/1
       }.
 
@@ -346,8 +346,7 @@ default_node_config_spec() ->
                 }
       }.
 
-process_pep_mapping(KVs) ->
-    {[[{namespace, NameSpace}], [{node, Node}]], []} = proplists:split(KVs, [namespace, node]),
+process_pep_mapping(#{namespace := NameSpace, node := Node}) ->
     {NameSpace, Node}.
 
 -spec default_host() -> mongoose_subdomain_utils:subdomain_pattern().
@@ -4043,7 +4042,7 @@ set_xoption(Host, [_ | Opts], NewOpts) ->
 get_max_items_node({_, ServerHost, _}) ->
     get_max_items_node(ServerHost);
 get_max_items_node(Host) ->
-    config(serverhost(Host), max_items_node, undefined).
+    config(serverhost(Host), max_items_node).
 
 get_max_subscriptions_node({_, ServerHost, _}) ->
     get_max_subscriptions_node(ServerHost);

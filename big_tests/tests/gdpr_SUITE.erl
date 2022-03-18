@@ -417,11 +417,11 @@ pubsub_required_modules() ->
     pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
 pubsub_required_modules(Plugins) ->
     HostPattern = subhost_pattern("pubsub.@HOST@"),
-    [{mod_caps, []}, {mod_pubsub, mod_config(mod_pubsub, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
-                                                           host => HostPattern,
-                                                           nodetree => nodetree_tree,
-                                                           plugins => Plugins})
-                     }].
+    PubsubConfig = mod_config(mod_pubsub, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                            host => HostPattern,
+                                            nodetree => nodetree_tree,
+                                            plugins => Plugins}),
+    [{mod_caps, []}, {mod_pubsub, PubsubConfig}].
 
 is_mim2_started() ->
     #{node := Node} = distributed_helper:mim2(),
