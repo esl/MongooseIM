@@ -21,6 +21,7 @@
          remove_domain/2,
          clear_inbox/3,
          get_inbox_unread/2,
+         get_full_entry/2,
          get_entry_properties/2,
          set_entry_properties/3]).
 -export([check_result/1]).
@@ -43,6 +44,11 @@
 %% TODO pools aren't multitenancy-ready yet
 init(HostType, _Options) ->
     RowCond = <<"WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>,
+    mongoose_rdbms:prepare(
+      inbox_select_entry, inbox,
+      [luser, lserver, remote_bare_jid],
+      <<"SELECT remote_bare_jid, content, unread_count, msg_id, timestamp, archive, muted_until ",
+        "FROM inbox ", RowCond/binary>>),
     mongoose_rdbms:prepare(inbox_select_unread_count, inbox,
                            [luser, lserver, remote_bare_jid],
                            <<"SELECT unread_count FROM inbox ",
@@ -153,7 +159,7 @@ set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Content, MsgId, Ti
                                        InsertParams, UpdateParams, UniqueKeyValues),
     check_result(Res).
 
--spec reset_unread(HosType :: mongooseim:host_type(),
+-spec reset_unread(HostType :: mongooseim:host_type(),
                    InboxEntryKey :: mod_inbox:entry_key(),
                    MsgId :: binary() | undefined) -> mod_inbox:write_res().
 reset_unread(HostType, {LUser, LServer, LToBareJid}, MsgId) ->
@@ -167,7 +173,18 @@ clear_inbox(HostType, LUser, LServer) ->
     Res = execute_delete(HostType, LUser, LServer),
     check_result(Res).
 
--spec get_entry_properties(HosType :: mongooseim:host_type(),
+-spec get_full_entry(HostType :: mongooseim:host_type(),
+                           InboxEntryKey :: mod_inbox:entry_key()) ->
+    inbox_res() | nil().
+get_full_entry(HostType, {LUser, LServer, RemBareJID}) ->
+    case execute_select_full_entry(HostType, LUser, LServer, RemBareJID) of
+        {selected, []} ->
+            [];
+        {selected, [Selected]} ->
+            decode_row(HostType, Selected)
+    end.
+
+-spec get_entry_properties(HostType :: mongooseim:host_type(),
                            InboxEntryKey :: mod_inbox:entry_key()) ->
     entry_properties() | nil().
 get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
@@ -175,7 +192,7 @@ get_entry_properties(HostType, {LUser, LServer, RemBareJID}) ->
         {selected, []} ->
             [];
         {selected, [Selected]} ->
-            decode_entries(Selected)
+            decode_properties(Selected)
     end.
 
 -spec set_entry_properties(HostType :: mongooseim:host_type(),
@@ -191,16 +208,8 @@ set_entry_properties(HostType, {LUser, LServer, RemBareJID}, Properties) ->
         {updated, 0} ->
             {error, <<"item-not-found">>};
         {selected, [Result]} ->
-            decode_entries(Result)
+            decode_properties(Result)
     end.
-
-decode_entries({BArchive, BCount, BMutedUntil}) ->
-    Archive = mongoose_rdbms:to_bool(BArchive),
-    Count = mongoose_rdbms:result_to_integer(BCount),
-    MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
-    #{archive => Archive,
-      unread_count => Count,
-      muted_until => MutedUntil}.
 
 %% ----------------------------------------------------------------------
 %% Internal functions
@@ -386,6 +395,12 @@ execute_select_unread_count(HostType, LUser, LServer, RemBareJID) ->
     mongoose_rdbms:execute_successfully(HostType, inbox_select_unread_count,
                                         [LUser, LServer, RemBareJID]).
 
+-spec execute_select_full_entry(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
+          mongoose_rdbms:query_result().
+execute_select_full_entry(HostType, LUser, LServer, RemBareJID) ->
+    mongoose_rdbms:execute_successfully(HostType, inbox_select_entry,
+                                        [LUser, LServer, RemBareJID]).
+
 -spec execute_select_properties(mongooseim:host_type(), jid:luser(), jid:lserver(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
 execute_select_properties(HostType, LUser, LServer, RemBareJID) ->
@@ -433,6 +448,14 @@ decode_row(HostType, {Username, Content, Count, MsgId, Timestamp, Archive, Muted
       timestamp => NumericTimestamp,
       archive => BoolArchive,
       muted_until => NumericMutedUntil}.
+
+decode_properties({BArchive, BCount, BMutedUntil}) ->
+    Archive = mongoose_rdbms:to_bool(BArchive),
+    Count = mongoose_rdbms:result_to_integer(BCount),
+    MutedUntil = mongoose_rdbms:result_to_integer(BMutedUntil),
+    #{archive => Archive,
+      unread_count => Count,
+      muted_until => MutedUntil}.
 
 -spec check_result_is_expected(_, list()) -> mod_inbox:write_res().
 check_result_is_expected({updated, Val}, ValList) when is_list(ValList) ->

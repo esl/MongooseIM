@@ -1,4 +1,5 @@
 -module(inbox_extensions_SUITE).
+-compile([export_all, nowarn_export_all]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -22,62 +23,6 @@
          end_per_group/2,
          init_per_testcase/2,
          end_per_testcase/2]).
-
-%% ERRORS
--export([
-         % General
-         returns_error_when_no_jid_provided/1,
-         returns_error_when_invalid_jid_provided/1,
-         returns_error_when_valid_jid_but_no_property/1,
-         % Set-unread errors
-         returns_error_when_read_invalid_value/1,
-         returns_error_when_read_valid_request_but_not_in_inbox/1,
-         % Archiving errors
-         returns_error_when_archive_invalid_value/1,
-         returns_error_when_archive_valid_request_but_not_in_inbox/1,
-         % Muting errors
-         returns_error_when_mute_invalid_value/1,
-         returns_error_when_mute_invalid_seconds/1,
-         returns_error_when_mute_valid_request_but_not_in_inbox/1,
-         % Form errors
-         returns_error_when_archive_field_is_invalid/1,
-         returns_error_when_max_is_not_a_number/1
-        ]).
-%% SUCCESSES
--export([
-         % read
-         read_unread_entry_set_to_read/1,
-         read_unread_entry_set_to_read_iq_id_as_fallback/1,
-         read_unread_entry_set_to_read_queryid/1,
-         read_read_entry_set_to_unread/1,
-         read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two/1,
-         % archive
-         archive_active_entry_gets_archived/1,
-         archive_archived_entry_gets_active_on_request/1,
-         archive_archived_entry_gets_active_for_the_sender_on_new_message/1,
-         archive_archived_entry_gets_active_for_the_receiver_on_new_message/1,
-         archive_active_unread_entry_gets_archived_and_still_unread/1,
-         archive_full_archive_can_be_fetched/1,
-         archive_full_archive_can_be_fetched_queryid/1,
-         % mute
-         mute_unmuted_entry_gets_muted/1,
-         mute_muted_entry_gets_unmuted/1,
-         mute_after_timestamp_gets_unmuted/1,
-         mute_muted_conv_restarts_timestamp/1,
-         % other
-         returns_valid_properties_form/1,
-         properties_can_be_get/1,
-         properties_many_can_be_set/1,
-         properties_many_can_be_set_queryid/1,
-         max_queries_can_be_limited/1,
-         max_queries_can_fetch_ahead/1,
-         timestamp_is_not_reset_with_setting_properties/1
-        ]).
-%% Groupchats
--export([
-         groupchat_setunread_stanza_sets_inbox/1 % muclight
-        ]).
-
 
 all() ->
     inbox_helper:skip_or_run_inbox_tests(tests()).
@@ -135,6 +80,7 @@ groups() ->
         % other
         returns_valid_properties_form,
         properties_can_be_get,
+        properties_full_entry_can_be_get,
         properties_many_can_be_set,
         properties_many_can_be_set_queryid,
         max_queries_can_be_limited,
@@ -495,6 +441,17 @@ properties_can_be_get(Config) ->
         % Then Bob can just query the properties of this entry at will
         query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}])
     end).
+
+properties_full_entry_can_be_get(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
+        % Then Bob can just query the properties of this entry at will
+        query_properties(Bob, Alice, [{archive, false}, {read, true}, {mute, 0}], full_entry)
+    end).
+
 properties_many_can_be_set(Config) ->
     properties_many_can_be_set(Config, undefined).
 properties_many_can_be_set_queryid(Config) ->
@@ -603,17 +560,32 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
-    Stanza = make_inbox_get_properties(To),
+    query_properties(From, To, Expected, none).
+
+-spec query_properties(escalus:client(), escalus:client(), proplists:proplist(), none | full_entry) ->
+    [exml:element()].
+query_properties(From, To, Expected, FullEntry) ->
+    Stanza = make_inbox_get_properties(To, FullEntry),
     escalus:send(From, Stanza),
     Result = escalus:wait_for_stanza(From),
     ?assert(escalus_pred:is_iq_result(Stanza, Result)),
     [Props] = exml_query:subelements(Result, <<"query">>),
     ?assertEqual(inbox_helper:inbox_ns_conversation(), exml_query:attr(Props, <<"xmlns">>)),
+    maybe_assert_full_entry(Props, FullEntry),
     lists:foreach(fun({Key, Val}) -> assert_property(Props, Key, Val) end, Expected).
 
--spec make_inbox_get_properties(escalus:client()) -> exml:element().
-make_inbox_get_properties(To) ->
+maybe_assert_full_entry(_, none) ->
+    ok;
+maybe_assert_full_entry(Props, full_entry) ->
+    ?assertNotEqual(undefined, exml_query:path(Props, [{element, <<"forwarded">>}])).
+
+-spec make_inbox_get_properties(escalus:client(), boolean()) -> exml:element().
+make_inbox_get_properties(To, none) ->
     Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), jid_attr(To), []),
+    escalus_stanza:iq(<<"get">>, [Query]);
+make_inbox_get_properties(To, full_entry) ->
+    Attrs = [{<<"complete">>, <<"true">>} | jid_attr(To)],
+    Query = escalus_stanza:query_el(inbox_helper:inbox_ns_conversation(), Attrs, []),
     escalus_stanza:iq(<<"get">>, [Query]).
 
 -spec set_inbox_properties(escalus:client(), escalus:client(), proplists:proplist()) -> ok.

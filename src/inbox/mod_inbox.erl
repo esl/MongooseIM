@@ -315,7 +315,7 @@ build_inbox_message(#{msg := Content,
 
 -spec build_result_el(exml:element(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
 build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
-    Forwarded = build_forward_el(Msg, Timestamp),
+    Forwarded = mod_inbox_utils:build_forward_el(Msg, Timestamp),
     Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
@@ -337,17 +337,6 @@ build_result_iq(List) ->
 -spec build_result_el(name_bin(), count_bin()) -> exml:element().
 build_result_el(Name, CountBin) ->
     #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
-
--spec build_forward_el(exml:element(), integer()) -> exml:element().
-build_forward_el(Content, Timestamp) ->
-    Delay = build_delay_el(Timestamp),
-    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-           children = [Delay, Content]}.
-
--spec build_delay_el(Timestamp :: integer()) -> exml:element().
-build_delay_el(Timestamp) ->
-    TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
-    jlib:timestamp_to_xml(TS, undefined, undefined).
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-get

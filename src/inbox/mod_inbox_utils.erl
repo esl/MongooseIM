@@ -36,7 +36,8 @@
          maybe_muted_until/2,
          binary_to_bool/1,
          bool_to_binary/1,
-         build_inbox_entry_key/2
+         build_inbox_entry_key/2,
+         build_forward_el/2
         ]).
 
 -ignore_xref([
@@ -221,3 +222,14 @@ build_inbox_entry_key(FromJid, ToJid) ->
     {LUser, LServer} = jid:to_lus(FromJid),
     ToBareJid = jid:nameprep(jid:to_binary(jid:to_lus(ToJid))),
     {LUser, LServer, ToBareJid}.
+
+-spec build_forward_el(exml:element(), integer()) -> exml:element().
+build_forward_el(Content, Timestamp) ->
+    Delay = build_delay_el(Timestamp),
+    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+           children = [Delay, Content]}.
+
+-spec build_delay_el(Timestamp :: integer()) -> exml:element().
+build_delay_el(Timestamp) ->
+    TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
+    jlib:timestamp_to_xml(TS, undefined, undefined).
