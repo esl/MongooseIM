@@ -1629,10 +1629,11 @@ mod_bosh(_Config) ->
     ?errh(T(<<"maxpause">>, 0)).
 
 mod_caps(_Config) ->
+    check_module_defaults(mod_caps),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_caps">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_caps, [{K, V}]) end,
-    ?cfgh(M(cache_size, 10), T(<<"cache_size">>, 10)),
-    ?cfgh(M(cache_life_time, 10), T(<<"cache_life_time">>, 10)),
+    P = [modules, mod_caps],
+    ?cfgh(P ++ [cache_size], 10, T(<<"cache_size">>, 10)),
+    ?cfgh(P ++ [cache_life_time], 10, T(<<"cache_life_time">>, 10)),
     ?errh(T(<<"cache_size">>, 0)),
     ?errh(T(<<"cache_size">>, <<"infinity">>)),
     ?errh(T(<<"cache_life_time">>, 0)),

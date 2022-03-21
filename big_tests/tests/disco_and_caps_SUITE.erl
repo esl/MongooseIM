@@ -193,7 +193,7 @@ user_can_query_server_info(Config) ->
 %% Helpers
 
 required_modules(disco_with_caps) ->
-    [{mod_caps, []},
+    [{mod_caps, config_parser_helper:default_mod_config(mod_caps)},
      {mod_disco, default_mod_config(mod_disco)}];
 required_modules(disco_with_extra_features) ->
     [{mod_disco, mod_config(mod_disco, extra_disco_opts())}].
