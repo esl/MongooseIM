@@ -293,7 +293,7 @@ registration_timeout(Config) ->
     escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Stanza),
 
     %% After timeout, the user should be registered successfully
-    wait_for_user(Config, Alice, erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)).
+    wait_for_user(Config, Bob, erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)).
 
 registration_failure_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT + 1)),
