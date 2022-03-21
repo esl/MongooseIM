@@ -95,14 +95,17 @@ config_spec() ->
                   <<"local_host">> => #option{type = string,
                                               validate = network_address},
                   <<"sdp_origin">> => #option{type = string,
-                                              validate = ip_address}
+                                              validate = ip_address},
+                  <<"transport">> => #option{type = string,
+                                             validate = {enum, ["udp", "tcp"]}}
         },
         format_items = map,
         defaults = #{<<"proxy_host">> => "localhost",
                      <<"proxy_port">> => 5060,
                      <<"listen_port">> => 5600,
                      <<"local_host">> => "localhost",
-                     <<"sdp_origin">> => "127.0.0.1"}
+                     <<"sdp_origin">> => "127.0.0.1",
+                     <<"transport">> => "udp"}
     }.
 hooks(Host) ->
     [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
@@ -364,7 +367,7 @@ make_user_header({User, _} = US) ->
 get_proxy_uri(Server) ->
     ProxyHost = gen_mod:get_module_opt(Server, ?MODULE, proxy_host),
     ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port),
-    Transport = gen_mod:get_module_opt(Server, ?MODULE, transport, "udp"),
+    Transport = gen_mod:get_module_opt(Server, ?MODULE, transport),
     PortStr = integer_to_list(ProxyPort),
     [ProxyHost, ":", PortStr, ";transport=", Transport].
 

@@ -137,6 +137,13 @@ The value used to create SIP URIs (including VIA headers).
 
 The value of the `c=` SDP attribute.
 
+### `modules.mod_jingle_sip.transport`
+* **Syntax:** string
+* **Default:** `"udp"`
+* **Example:** `transport = "tcp"`
+
+The SIP transport parameter used when calling the proxy.
+
 The simplest configuration is the following:
 
 ```toml

@@ -2095,6 +2095,8 @@ mod_jingle_sip(_Config) ->
           T(#{<<"local_host">> => <<"localhost">>})),
     ?cfgh(P ++ [sdp_origin], "127.0.0.1",
           T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
+    ?cfgh(P ++ [transport], "tcp",
+          T(#{<<"transport">> => <<"tcp">>})),
     ?errh(T(#{<<"proxy_host">> => 1})),
     ?errh(T(#{<<"proxy_port">> => 1000000})),
     ?errh(T(#{<<"listen_port">> => -1})),
