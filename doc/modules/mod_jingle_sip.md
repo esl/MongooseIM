@@ -111,8 +111,8 @@ The name or IP address of the SIP Proxy to which MongooseIM will send SIP messag
 
 ### `modules.mod_jingle_sip.proxy_port`
 * **Syntax:** non-negative integer
-* **Default:** `5600`
-* **Example:** `proxy_port = 5600`
+* **Default:** `5060`
+* **Example:** `proxy_port = 5060`
 
 The port of the SIP Proxy.
 
@@ -125,7 +125,7 @@ The port on which MongooseIM will listen for incoming SIP messages.
 
 ### `modules.mod_jingle_sip.local_host`
 * **Syntax:** string
-* **Default:** `"127.0.0.1"`
+* **Default:** `"localhost"`
 * **Example:** `local_host = "localhost"`
 
 The value used to create SIP URIs (including VIA headers).

@@ -40,10 +40,7 @@
 -ignore_xref([content_to_nksip_media/1, intercept_jingle_stanza/2]).
 
 %% this is because nksip has wrong type specs
--dialyzer({nowarn_function, [translate_to_sip/3,
-                             get_proxy_uri/1,
-                             prepare_initial_sdp/2,
-                             jingle_content_to_media/1,
+-dialyzer({nowarn_function, [jingle_content_to_media/1,
                              content_to_nksip_media/1]}).
 
 %%--------------------------------------------------------------------
@@ -51,16 +48,15 @@
 %%--------------------------------------------------------------------
 %%
 
--spec start(jid:server(), list()) -> ok.
+-spec start(jid:server(), gen_mod:module_opts()) -> ok.
 start(Host, Opts) ->
     start_nksip_service_or_error(Opts),
     mod_jingle_sip_backend:init(Host, Opts),
     ejabberd_hooks:add(hooks(Host)),
     ok.
 
-start_nksip_service_or_error(Opts) ->
+start_nksip_service_or_error(Opts = #{listen_port := ListenPort}) ->
     {ok, _} = application:ensure_all_started(nksip),
-    ListenPort = gen_mod:get_opt(listen_port, Opts, 5600),
     NkSipBasicOpts = #{sip_listen => "sip:all:" ++ integer_to_list(ListenPort),
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
@@ -100,7 +96,13 @@ config_spec() ->
                                               validate = network_address},
                   <<"sdp_origin">> => #option{type = string,
                                               validate = ip_address}
-        }
+        },
+        format_items = map,
+        defaults = #{<<"proxy_host">> => "localhost",
+                     <<"proxy_port">> => 5060,
+                     <<"listen_port">> => 5600,
+                     <<"local_host">> => "localhost",
+                     <<"sdp_origin">> => "127.0.0.1"}
     }.
 hooks(Host) ->
     [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
@@ -223,7 +225,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     ProxyURI = get_proxy_uri(LServer),
     RequestURI = list_to_binary(["sip:", ToUser, "@", ProxyURI]),
     ToHeader = <<ToUser/binary, " <sip:",To/binary, ">">>,
-    LocalHost = gen_mod:get_module_opt(LServer, ?MODULE, local_host, "localhost"),
+    LocalHost = gen_mod:get_module_opt(LServer, ?MODULE, local_host),
 
     {async, Handle} = nksip_uac:invite(?SERVICE, RequestURI,
                                        [%% Request options
@@ -328,7 +330,7 @@ try_to_terminate_the_session(FromLUS, ToLUS, Session) ->
 
 try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     SDP = prepare_initial_sdp(Server, Jingle),
-    LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host, "localhost"),
+    LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host),
     case nksip_request_reply({ok, [{body, SDP}, {local_host, LocalHost}]}, ReqID) of
         ok ->
            ok = mod_jingle_sip_backend:set_incoming_accepted(SID),
@@ -360,8 +362,8 @@ make_user_header({User, _} = US) ->
 
 
 get_proxy_uri(Server) ->
-    ProxyHost = gen_mod:get_module_opt(Server, ?MODULE, proxy_host, "localhost"),
-    ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port, 5060),
+    ProxyHost = gen_mod:get_module_opt(Server, ?MODULE, proxy_host),
+    ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port),
     Transport = gen_mod:get_module_opt(Server, ?MODULE, transport, "udp"),
     PortStr = integer_to_list(ProxyPort),
     [ProxyHost, ":", PortStr, ";transport=", Transport].
@@ -415,7 +417,7 @@ prepare_initial_sdp(Server, Jingle) ->
 
     GroupingAttrs = add_group_attr_from_jingle(Jingle, []),
 
-    OriginAddress = gen_mod:get_module_opt(Server, ?MODULE, sdp_origin, "127.0.0.1"),
+    OriginAddress = gen_mod:get_module_opt(Server, ?MODULE, sdp_origin),
     SDP = nksip_sdp:new(OriginAddress, []),
     SDP#sdp{medias = Medias,
             attributes = GroupingAttrs}.

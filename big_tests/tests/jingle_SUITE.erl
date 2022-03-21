@@ -72,8 +72,8 @@ init_per_suite(Config) ->
     end.
 
 start_nksip_in_mim_nodes() ->
-    Pid1 = start_nskip_in_parallel(mim(), []),
-    Pid2 = start_nskip_in_parallel(mim2(), [{listen_port, 12346}]),
+    Pid1 = start_nskip_in_parallel(mim(), #{}),
+    Pid2 = start_nskip_in_parallel(mim2(), #{listen_port => 12346}),
     wait_for_process_to_stop(Pid1),
     wait_for_process_to_stop(Pid2).
 
@@ -87,12 +87,12 @@ wait_for_process_to_stop(Pid) ->
 
 start_nskip_in_parallel(NodeSpec, ExtraOpts) ->
     Domain = domain(),
-    Opts = [{proxy_host, "localhost"},
-            {proxy_port, 12345},
-            {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}
-           | ExtraOpts],
+    Opts = #{proxy_host => <<"localhost">>,
+             proxy_port => 12345},
+    OptsWithExtra = maps:merge(Opts, ExtraOpts),
+    AllOpts = config_parser_helper:mod_config(mod_jingle_sip, OptsWithExtra),
     RPCSpec = NodeSpec#{timeout => timer:seconds(60)},
-    proc_lib:spawn_link(dynamic_modules, start, [RPCSpec, Domain, mod_jingle_sip, Opts]).
+    proc_lib:spawn_link(dynamic_modules, start, [RPCSpec, Domain, mod_jingle_sip, AllOpts]).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
