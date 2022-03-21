@@ -128,13 +128,13 @@ key_at(Path, Data) ->
     {ok, Path}.
 
 key_from_file(KeyFile) ->
-    mod_config(mod_keystore, #{keys => [{key_from_file, {file, KeyFile}}]}).
+    mod_config(mod_keystore, #{keys => #{key_from_file => {file, KeyFile}}}).
 
 ram_key() ->
-    mod_config(mod_keystore, #{keys => [{ram_key, ram}]}).
+    mod_config(mod_keystore, #{keys => #{ram_key => ram}}).
 
 sized_ram_key(Size) ->
-    mod_config(mod_keystore, #{keys => [{ram_key, ram}],
+    mod_config(mod_keystore, #{keys => #{ram_key => ram},
                                ram_key_size => Size}).
 
 mock_mongoose_metrics() ->

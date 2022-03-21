@@ -77,12 +77,12 @@ config_spec() ->
     #section{
         items = #{<<"ram_key_size">> => #option{type = integer,
                                                 validate = non_negative},
-                  <<"keys">> => #list{items = keys_spec()}
+                  <<"keys">> => #list{items = keys_spec(),
+                                      format_items = map}
         },
         defaults = #{<<"ram_key_size">> => ?DEFAULT_RAM_KEY_SIZE,
-                     <<"keys">> => []},
-        format_items = map,
-        process = fun validate_key_ids/1
+                     <<"keys">> => #{}},
+        format_items = map
     }.
 
 keys_spec() ->
@@ -163,7 +163,7 @@ does_table_exist(NameOrTID) ->
     ets:info(NameOrTID, name) /= undefined.
 
 init_keys(HostType, Opts = #{keys := Keys}) ->
-    [ init_key(K, HostType, Opts) || K <- Keys ].
+    maps:map(fun(KeyName, KeyType) -> init_key({KeyName, KeyType}, HostType, Opts) end, Keys).
 
 -spec init_key({key_name(), key_type()}, mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init_key({KeyName, {file, Path}}, HostType, _Opts) ->
@@ -183,14 +183,6 @@ ets_get_key(KeyID) ->
 
 ets_store_key(KeyID, RawKey) ->
     ets:insert(keystore, {KeyID, RawKey}).
-
-validate_key_ids(Opts = #{keys := KeySpecs}) ->
-    KeyIDs = [ KeyID || {KeyID, _} <- KeySpecs ],
-    SortedAndUniqueKeyIDs = lists:usort(KeyIDs),
-    case KeyIDs -- SortedAndUniqueKeyIDs of
-        [] -> Opts;
-        [_|_] -> error(non_unique_key_ids, KeySpecs)
-    end.
 
 config_metrics(Host) ->
     mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).

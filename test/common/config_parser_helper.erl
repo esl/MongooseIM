@@ -453,9 +453,9 @@ all_modules() ->
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
       mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
       mod_keystore =>
-          mod_config(mod_keystore, #{keys => [{access_secret, ram},
-                                              {access_psk, {file, "priv/access_psk"}},
-                                              {provision_psk, {file, "priv/provision_psk"}}],
+          mod_config(mod_keystore, #{keys => #{access_secret => ram,
+                                               access_psk => {file, "priv/access_psk"},
+                                               provision_psk => {file, "priv/provision_psk"}},
                                      ram_key_size => 1000}),
       mod_global_distrib =>
           mod_config(mod_global_distrib,
@@ -874,7 +874,7 @@ default_mod_config(mod_inbox) ->
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
 default_mod_config(mod_keystore) ->
-    #{ram_key_size => 2048, keys => []};
+    #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
     #{iqdisc => one_queue, backend => mnesia};
 default_mod_config(mod_mam) ->

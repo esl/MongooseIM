@@ -461,13 +461,13 @@ to_lower(B) when is_binary(B) ->
     list_to_binary(string:to_lower(binary_to_list(B))).
 
 required_modules() ->
-    KeyOpts = #{keys => [{token_secret, ram},
+    KeyOpts = #{keys => #{token_secret => ram,
                          %% This is a hack for tests! As the name implies,
                          %% a pre-shared key should be read from a file stored
                          %% on disk. This way it can be shared with trusted 3rd
                          %% parties who can use it to sign tokens for users
                          %% to authenticate with and MongooseIM to verify.
-                         {provision_pre_shared, ram}]},
+                         provision_pre_shared => ram}},
     KeyStoreOpts = config_parser_helper:mod_config(mod_keystore, KeyOpts),
     [{mod_last, stopped},
      {mod_keystore, KeyStoreOpts},
