@@ -2083,6 +2083,7 @@ http_upload_s3_expected_cfg() ->
      {secret_access_key, "ILOVEU"}].
 
 mod_jingle_sip(_Config) ->
+    check_module_defaults(mod_jingle_sip),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
     P = [modules, mod_jingle_sip],
     ?cfgh(P ++ [proxy_host], "proxxxy.com",
@@ -2097,6 +2098,9 @@ mod_jingle_sip(_Config) ->
           T(#{<<"sdp_origin">> => <<"127.0.0.1">>})),
     ?cfgh(P ++ [transport], "tcp",
           T(#{<<"transport">> => <<"tcp">>})),
+    ?cfgh(P ++ [username_to_phone], [{<<"2000006168">>, <<"+919177074440">>}],
+          T(#{<<"username_to_phone">> => [#{<<"username">> => <<"2000006168">>,
+                                            <<"phone">> => <<"+919177074440">>}]})),
     ?errh(T(#{<<"proxy_host">> => 1})),
     ?errh(T(#{<<"proxy_port">> => 1000000})),
     ?errh(T(#{<<"listen_port">> => -1})),

@@ -97,7 +97,8 @@ config_spec() ->
                   <<"sdp_origin">> => #option{type = string,
                                               validate = ip_address},
                   <<"transport">> => #option{type = string,
-                                             validate = {enum, ["udp", "tcp"]}}
+                                             validate = {enum, ["udp", "tcp"]}},
+                  <<"username_to_phone">> => #list{items = username_to_phone_spec()}
         },
         format_items = map,
         defaults = #{<<"proxy_host">> => "localhost",
@@ -105,8 +106,22 @@ config_spec() ->
                      <<"listen_port">> => 5600,
                      <<"local_host">> => "localhost",
                      <<"sdp_origin">> => "127.0.0.1",
-                     <<"transport">> => "udp"}
+                     <<"transport">> => "udp",
+                     <<"username_to_phone">> => []}
     }.
+
+username_to_phone_spec() ->
+    #section{
+        items = #{<<"username">> => #option{type = binary},
+                  <<"phone">> => #option{type = binary}},
+        required = all,
+        format_items = map,
+        process = fun process_u2p/1
+    }.
+
+process_u2p(#{username := U, phone := P}) ->
+    {U, P}.
+
 hooks(Host) ->
     [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
 

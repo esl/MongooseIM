@@ -144,6 +144,13 @@ The value of the `c=` SDP attribute.
 
 The SIP transport parameter used when calling the proxy.
 
+### `modules.mod_jingle_sip.username_to_phone`
+* **Syntax:** Array of TOML tables with the following keys: `username` and `phone`, and string values
+* **Default:** `[]`
+* **Example:** `username_to_phone = [{username = "2000006168", phone = +919177074440}]`
+
+Allows mapping JIDs to phone numbers and vice versa.
+
 The simplest configuration is the following:
 
 ```toml

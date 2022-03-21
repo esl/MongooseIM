@@ -877,8 +877,8 @@ default_mod_config(mod_inbox) ->
       reset_markers => [<<"displayed">>],
       iqdisc => no_queue};
 default_mod_config(mod_jingle_sip) ->
-    #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600,
-      local_host => "localhost", sdp_origin => "127.0.0.1", transport => "udp"};
+    #{proxy_host => "localhost", proxy_port => 5060, listen_port => 5600, local_host => "localhost",
+      sdp_origin => "127.0.0.1", transport => "udp", username_to_phone => []};
 default_mod_config(mod_keystore) ->
     #{ram_key_size => 2048, keys => #{}};
 default_mod_config(mod_last) ->
