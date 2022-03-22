@@ -54,7 +54,7 @@
 -type write_res() :: ok | {error, any()}.
 
 -export_type([entry_key/0, get_inbox_params/0]).
--export_type([count_res/0, write_res/0]).
+-export_type([count_res/0, write_res/0, inbox_res/0]).
 
 %%--------------------------------------------------------------------
 %% gdpr callbacks
@@ -153,7 +153,7 @@ process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
     Form = build_inbox_form(),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
-process_iq(Acc, From, _To, #iq{type = set, id = IqId, sub_el = QueryEl} = IQ, _Extra) ->
+process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
@@ -162,20 +162,18 @@ process_iq(Acc, From, _To, #iq{type = set, id = IqId, sub_el = QueryEl} = IQ, _E
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
         Params ->
             List = mod_inbox_backend:get_inbox(HostType, LUser, LServer, Params),
-            QueryId = exml_query:attr(QueryEl, <<"queryid">>, IqId),
-            forward_messages(Acc, List, QueryId, From),
+            forward_messages(Acc, List, IQ, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
 
 -spec forward_messages(Acc :: mongoose_acc:t(),
-                       List :: list(inbox_res()),
-                       QueryId :: id(),
+                       List :: [inbox_res()],
+                       QueryId :: jlib:iq(),
                        To :: jid:jid()) -> list(mongoose_acc:t()).
-forward_messages(Acc, List, QueryId, To) when is_list(List) ->
-    AccTS = mongoose_acc:timestamp(Acc),
-    Msgs = [build_inbox_message(El, QueryId, AccTS) || El <- List],
-    [send_message(Acc, To, Msg) || Msg <- Msgs].
+forward_messages(Acc, List, QueryEl, To) when is_list(List) ->
+    Msgs = [ build_inbox_message(Acc, El, QueryEl) || El <- List],
+    [ send_message(Acc, To, Msg) || Msg <- Msgs].
 
 -spec send_message(mongoose_acc:t(), jid:jid(), exml:element()) -> mongoose_acc:t().
 send_message(Acc, To = #jid{lserver = LServer}, Msg) ->
@@ -304,39 +302,39 @@ process_message(HostType, From, To, Message, _TS, Dir, Type) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
--spec build_inbox_message(inbox_res(), id(), integer()) -> exml:element().
-build_inbox_message(#{msg := Content,
-                      unread_count := Count,
-                      timestamp := Timestamp,
-                      archive := Archive,
-                      muted_until := MutedUntil}, QueryId, AccTS) ->
+-spec build_inbox_message(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
+build_inbox_message(Acc, InboxRes, IQ) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
-        children = [build_result_el(Content, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS)]}.
+           children = [build_result_el(Acc, InboxRes, IQ)]}.
 
--spec build_result_el(exml:element(), id(), integer(), integer(), boolean(), integer(), integer()) -> exml:element().
-build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
+-spec build_result_el(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
+build_result_el(Acc, #{msg := Msg,
+                       unread_count := Count,
+                       timestamp := Timestamp,
+                       archive := Archive,
+                       muted_until := MutedUntil} = InboxRes, #iq{id = IqId, sub_el = QueryEl} = IQ) ->
+    QueryId = exml_query:attr(QueryEl, <<"queryid">>, IqId),
+    AccTS = mongoose_acc:timestamp(Acc),
+    Extensions = mongoose_hooks:extend_inbox_message(Acc, InboxRes, IQ),
     Forwarded = mod_inbox_utils:build_forward_el(Msg, Timestamp),
     Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
                     {<<"unread">>, integer_to_binary(Count)} | QueryAttr],
-           children = [Forwarded | Properties]}.
+           children = [Forwarded | Properties] ++ Extensions}.
 
--spec build_result_iq(get_inbox_res()) -> exml:element().
+-spec build_result_iq([inbox_res()]) -> exml:element().
 build_result_iq(List) ->
     AllUnread = [ N || #{unread_count := N} <- List, N =/= 0],
     Result = #{<<"count">> => length(List),
                <<"unread-messages">> => lists:sum(AllUnread),
                <<"active-conversations">> => length(AllUnread)},
     ResultBinary = maps:map(fun(K, V) ->
-                        build_result_el(K, integer_to_binary(V))  end, Result),
+                                    #xmlel{name = K, children = [#xmlcdata{content = integer_to_binary(V)}]}
+                            end, Result),
     #xmlel{name = <<"fin">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
            children = maps:values(ResultBinary)}.
-
--spec build_result_el(name_bin(), count_bin()) -> exml:element().
-build_result_el(Name, CountBin) ->
-    #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-get

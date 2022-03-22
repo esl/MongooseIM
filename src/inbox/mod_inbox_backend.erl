@@ -23,7 +23,7 @@
     HostType :: mongooseim:host_type(),
     Opts :: gen_mod:module_opts().
 
--callback get_inbox(HostType, LUser, LServer, Params) -> mod_inbox:get_inbox_res() when
+-callback get_inbox(HostType, LUser, LServer, Params) -> [mod_inbox:inbox_res()] when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
@@ -92,7 +92,7 @@ init(HostType, Opts) ->
     Args = [HostType, Opts],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec get_inbox(HostType, LUser, LServer, Params) -> mod_inbox:get_inbox_res() when
+-spec get_inbox(HostType, LUser, LServer, Params) -> [mod_inbox:inbox_res()] when
     HostType :: mongooseim:host_type(),
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
