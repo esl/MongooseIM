@@ -174,7 +174,7 @@ clear_inbox(HostType, LUser, LServer) ->
     check_result(Res).
 
 -spec get_full_entry(HostType :: mongooseim:host_type(),
-                           InboxEntryKey :: mod_inbox:entry_key()) ->
+                     InboxEntryKey :: mod_inbox:entry_key()) ->
     inbox_res() | nil().
 get_full_entry(HostType, {LUser, LServer, RemBareJID}) ->
     case execute_select_full_entry(HostType, LUser, LServer, RemBareJID) of

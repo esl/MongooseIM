@@ -169,7 +169,7 @@ process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
 
 -spec forward_messages(Acc :: mongoose_acc:t(),
                        List :: [inbox_res()],
-                       QueryId :: jlib:iq(),
+                       QueryEl :: jlib:iq(),
                        To :: jid:jid()) -> list(mongoose_acc:t()).
 forward_messages(Acc, List, QueryEl, To) when is_list(List) ->
     Msgs = [ build_inbox_message(Acc, El, QueryEl) || El <- List],
