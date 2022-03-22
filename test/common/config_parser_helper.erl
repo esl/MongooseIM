@@ -491,7 +491,7 @@ all_modules() ->
                           validity_period => #{access => #{unit => minutes, value => 13},
                                                refresh => #{unit => days, value => 13}},
                           iqdisc => one_queue},
-      mod_carboncopy => [{iqdisc, no_queue}],
+      mod_carboncopy => #{iqdisc => no_queue},
       mod_mam =>
           mod_config(mod_mam,
                      #{archive_chat_markers => true,
@@ -675,7 +675,7 @@ pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
       mod_amp => [], mod_blocking => default_mod_config(mod_blocking),
       mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => [], mod_commands => [],
+      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => [],
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
       mod_muc_commands => [], mod_muc_light_commands => [],
@@ -857,6 +857,8 @@ default_mod_config(mod_caps) ->
       cache_life_time => timer:hours(24) div 1000};
 default_mod_config(mod_csi) ->
     #{buffer_max => 20};
+default_mod_config(mod_carboncopy) ->
+    #{iqdisc => no_queue};
 default_mod_config(mod_disco) ->
     #{extra_domains => [], server_info => [],
       users_can_see_hidden_services => true, iqdisc => one_queue};

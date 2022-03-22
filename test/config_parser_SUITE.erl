@@ -1653,7 +1653,7 @@ mod_cache_users(_Config) ->
     ?errh(T(<<"number_of_segments">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
-    check_iqdisc(mod_carboncopy).
+    check_iqdisc_map(mod_carboncopy).
 
 mod_csi(_Config) ->
     check_module_defaults(mod_csi),
