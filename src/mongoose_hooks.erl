@@ -19,6 +19,7 @@
          filter_local_packet/1,
          filter_packet/1,
          inbox_unread_count/3,
+         extend_inbox_message/3,
          get_key/2,
          packet_to_component/3,
          presence_probe_hook/5,
@@ -284,6 +285,13 @@ filter_packet(Acc) ->
     Result :: mongoose_acc:t().
 inbox_unread_count(LServer, Acc, User) ->
     run_hook_for_host_type(inbox_unread_count, LServer, Acc, [User]).
+
+-spec extend_inbox_message(mongoose_acc:t(), mod_inbox:inbox_res(), jlib:iq()) ->
+    [exml:element()].
+extend_inbox_message(MongooseAcc, InboxRes, IQ) ->
+    HostType = mongoose_acc:host_type(MongooseAcc),
+    HookParams = #{mongoose_acc => MongooseAcc, inbox_res => InboxRes, iq => IQ},
+    run_fold(extend_inbox_message, HostType, [], HookParams).
 
 %%% @doc The `get_key' hook is called to extract a key from `mod_keystore'.
 -spec get_key(HostType, KeyName) -> Result when

@@ -70,8 +70,7 @@ get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
     case fetch_right_query(HostType, InboxEntryKey, QueryType) of
         [] -> return_error(Acc, IQ, <<"Entry not found">>);
         Result ->
-            CurrentTS = mongoose_acc:timestamp(Acc),
-            Properties = build_result(Result, CurrentTS),
+            Properties = build_result(Acc, Result, IQ),
             X = [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
                                  {<<"jid">>, BinEntryJID}],
@@ -98,25 +97,25 @@ extract_requests(Acc, IQ, From, EntryJID, Requests, QueryId) ->
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Params ->
-            process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params, QueryId)
+            process_requests(Acc, IQ, From, EntryJID, Params, QueryId)
     end.
 
--spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), integer(), map(), binary() | undefined) ->
+-spec process_requests(mongoose_acc:t(), jlib:iq(), jid:jid(), jid:jid(), map(), binary() | undefined) ->
     {mongoose_acc:t(), jlib:iq()}.
-process_requests(Acc, IQ, From, EntryJID, CurrentTS, Params, QueryId) ->
+process_requests(Acc, IQ, From, EntryJID, Params, QueryId) ->
     HostType = mongoose_acc:host_type(Acc),
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
     case mod_inbox_backend:set_entry_properties(HostType, InboxEntryKey, Params) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
         Result ->
-            forward_result(Acc, IQ, From, InboxEntryKey, Result, CurrentTS, QueryId)
+            forward_result(Acc, IQ, From, InboxEntryKey, Result, QueryId)
     end.
 
--spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties(), integer(), binary() | undefined) ->
+-spec forward_result(mongoose_acc:t(), jlib:iq(), jid:jid(), mod_inbox:entry_key(), entry_properties(), binary() | undefined) ->
     {mongoose_acc:t(), jlib:iq()}.
-forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, CurrentTS, QueryId) ->
-    Properties = build_result(Result, CurrentTS),
+forward_result(Acc, IQ, From, {_, _, ToBareJidBin}, Result, QueryId) ->
+    Properties = build_result(Acc, Result, IQ),
     Children = prepare_children(ToBareJidBin, Properties, QueryId),
     Msg = #xmlel{name = <<"message">>,
                  attrs = [{<<"id">>, IQ#iq.id}],
@@ -159,18 +158,22 @@ process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec build_result(inbox_res() | entry_properties(), integer()) -> [exml:element()].
-build_result(Entry = #{archive := Archived, unread_count := UnreadCount, muted_until := MutedUntil}, CurrentTS) ->
-    maybe_full_entry(Entry) ++
+-spec build_result(mongoose_acc:t(), inbox_res() | entry_properties(), jlib:iq()) -> [exml:element()].
+build_result(Acc, Entry = #{archive := Archived,
+                            unread_count := UnreadCount,
+                            muted_until := MutedUntil}, IQ) ->
+    CurrentTS = mongoose_acc:timestamp(Acc),
+    maybe_full_entry(Acc, Entry, IQ) ++
     [
      kv_to_el(<<"archive">>, mod_inbox_utils:bool_to_binary(Archived)),
      kv_to_el(<<"read">>, mod_inbox_utils:bool_to_binary(0 =:= UnreadCount)),
      kv_to_el(<<"mute">>, mod_inbox_utils:maybe_muted_until(MutedUntil, CurrentTS))
     ].
 
-maybe_full_entry(#{msg := Msg, timestamp := Timestamp}) ->
-    [ mod_inbox_utils:build_forward_el(Msg, Timestamp) ];
-maybe_full_entry(_) ->
+maybe_full_entry(Acc, Entry = #{msg := Msg, timestamp := Timestamp}, IQ) ->
+    Extensions = mongoose_hooks:extend_inbox_message(Acc, Entry, IQ),
+    [ mod_inbox_utils:build_forward_el(Msg, Timestamp) | Extensions];
+maybe_full_entry(_, _, _) ->
     [].
 
 -spec kv_to_el(binary(), binary()) -> exml:element().
