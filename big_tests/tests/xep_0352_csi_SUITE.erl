@@ -6,6 +6,7 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(domain_helper, [host_type/0]).
+-import(config_parser_helper, [default_mod_config/1, mod_config/2]).
 
 -define(CSI_BUFFER_MAX, 10).
 
@@ -35,8 +36,8 @@ suite() ->
 init_per_suite(Config) ->
     NewConfig = dynamic_modules:save_modules(host_type(), Config),
     dynamic_modules:ensure_modules(
-      host_type(), [{mod_offline, config_parser_helper:mod_config(mod_offline, #{})},
-                    {mod_csi, [{buffer_max, ?CSI_BUFFER_MAX}]}]),
+      host_type(), [{mod_offline, default_mod_config(mod_offline)},
+                    {mod_csi, mod_config(mod_csi, #{buffer_max => ?CSI_BUFFER_MAX})}]),
     [{escalus_user_db, {module, escalus_ejabberd}} | escalus:init_per_suite(NewConfig)].
 
 end_per_suite(Config) ->
