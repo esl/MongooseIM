@@ -138,27 +138,16 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
 -spec get_iq_callback_in_cluster(id(), mongoose_acc:t()) ->
         {ok, callback()} | {error, term()}.
 get_iq_callback_in_cluster(ID, Acc) ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
-    BinNodeId = integer_to_binary(NodeId),
-    case binary:split(ID, <<"_">>, []) of
-        [BinNodeId, _Rest] ->
+    %% We store information from which node the request is originating in the ID
+    case parse_iq_id(ID) of
+        local_node ->
             get_iq_callback(ID);
-        [OtherBinNodeId, _Rest] ->
-            OtherNodeId = binary_to_integer(OtherBinNodeId),
-            case ejabberd_node_id:node_id_to_name(OtherNodeId) of
-                {ok, Name} ->
-                    rpc:call(Name, ?MODULE, get_iq_callback, [ID]);
-                {error, Reason} ->
-                    ?LOG_ERROR(#{what => process_iq_reply_failed,
-                                 text => <<"Unknown node_id">>,
-                                 reason => Reason, acc => Acc}),
-                    {error, unknown_node_id}
-            end;
-        _ ->
-            ?LOG_ERROR(#{what => process_iq_reply_failed,
-                         text => <<"Bad IQ ID format">>,
-                         acc => Acc}),
-            {error, bad_iq_format}
+        {remote_node, NodeName} ->
+            rpc:call(NodeName, ?MODULE, get_iq_callback, [ID]);
+        {error, Reason} ->
+            ?LOG_ERROR(#{what => parse_iq_id_failed,
+                         reason => Reason, acc => Acc}),
+            {error, Reason}
     end.
 
 -spec process_packet(Acc :: mongoose_acc:t(),
@@ -204,12 +193,6 @@ route_iq(From, To, Acc, #iq{type = Type} = IQ, Callback, Timeout)
                      jlib:iq_to_xml(IQ)
              end,
     ejabberd_router:route(From, To, Acc, Packet).
-
-make_iq_id() ->
-    %% Attach NodeId, so we know to which node to forward the response
-    {ok, NodeId} = ejabberd_node_id:node_id(),
-    Rand = mongoose_bin:gen_from_crypto(),
-    <<(integer_to_binary(NodeId))/binary, "_", Rand/binary>>.
 
 -spec register_iq_response_handler(
            ID :: id(),
@@ -434,3 +417,31 @@ do_register_host(Host) ->
 
 do_unregister_host(Host) ->
     mongoose_router:unregister_route(Host).
+
+make_iq_id() ->
+    %% Attach NodeId, so we know to which node to forward the response
+    {ok, NodeId} = ejabberd_node_id:node_id(),
+    Rand = mongoose_bin:gen_from_crypto(),
+    <<(integer_to_binary(NodeId))/binary, "_", Rand/binary>>.
+
+%% Parses ID, made by make_iq_id function
+-spec parse_iq_id(ID :: binary()) ->
+    local_node | {remote_node, node()}
+    | {error, {unknown_node_id, term()} | bad_iq_format}.
+parse_iq_id(ID) ->
+    {ok, NodeId} = ejabberd_node_id:node_id(),
+    BinNodeId = integer_to_binary(NodeId),
+    case binary:split(ID, <<"_">>) of
+        [BinNodeId, _Rest] ->
+            local_node;
+        [OtherBinNodeId, _Rest] ->
+            OtherNodeId = binary_to_integer(OtherBinNodeId),
+            case ejabberd_node_id:node_id_to_name(OtherNodeId) of
+                {ok, NodeName} ->
+                    {remote_node, NodeName};
+                {error, Reason} ->
+                    {error, {unknown_node_id, Reason}}
+            end;
+        _ ->
+            {error, bad_iq_format}
+    end.
