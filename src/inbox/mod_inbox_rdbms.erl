@@ -90,7 +90,7 @@ init(HostType, _Options) ->
 -spec get_inbox(HostType :: mongooseim:host_type(),
                 LUser :: jid:luser(),
                 LServer :: jid:lserver(),
-                Params :: mod_inbox:get_inbox_params()) -> get_inbox_res().
+                Params :: mod_inbox:get_inbox_params()) -> [mod_inbox:inbox_res()].
 get_inbox(HostType, LUser, LServer, Params) ->
     case get_inbox_rdbms(HostType, LUser, LServer, Params) of
         {selected, []} ->

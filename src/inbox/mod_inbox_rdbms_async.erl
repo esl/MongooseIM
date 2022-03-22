@@ -118,7 +118,7 @@ remove_inbox_row(HostType, Entry) ->
 
 %% synchronous callbacks
 -spec get_inbox(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->
-    get_inbox_res().
+    [mod_inbox:inbox_res()].
 get_inbox(HostType, LUser, LServer, Params) ->
     mod_inbox_rdbms:get_inbox(HostType, LUser, LServer, Params).
 

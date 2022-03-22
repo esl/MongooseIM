@@ -54,7 +54,7 @@
 -type write_res() :: ok | {error, any()}.
 
 -export_type([entry_key/0, get_inbox_params/0]).
--export_type([count_res/0, write_res/0]).
+-export_type([count_res/0, write_res/0, inbox_res/0]).
 
 %%--------------------------------------------------------------------
 %% gdpr callbacks
@@ -169,7 +169,7 @@ process_iq(Acc, From, _To, #iq{type = set, id = IqId, sub_el = QueryEl} = IQ, _E
     end.
 
 -spec forward_messages(Acc :: mongoose_acc:t(),
-                       List :: list(inbox_res()),
+                       List :: [inbox_res()],
                        QueryId :: id(),
                        To :: jid:jid()) -> list(mongoose_acc:t()).
 forward_messages(Acc, List, QueryId, To) when is_list(List) ->
@@ -323,7 +323,7 @@ build_result_el(Msg, QueryId, Count, Timestamp, Archive, MutedUntil, AccTS) ->
                     {<<"unread">>, integer_to_binary(Count)} | QueryAttr],
            children = [Forwarded | Properties]}.
 
--spec build_result_iq(get_inbox_res()) -> exml:element().
+-spec build_result_iq([inbox_res()]) -> exml:element().
 build_result_iq(List) ->
     AllUnread = [ N || #{unread_count := N} <- List, N =/= 0],
     Result = #{<<"count">> => length(List),
