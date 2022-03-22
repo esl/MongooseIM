@@ -80,11 +80,9 @@ required_modules() ->
     [{mod_register, mod_register_options()}].
 
 mod_register_options() ->
-    [{welcome_message, {"", ""}},
-     {ip_access, [{allow, "127.0.0.0/8"},
-     {deny, "0.0.0.0/0"}]},
-     {access, register},
-     {registration_watchers, []}].
+    config_parser_helper:mod_config(mod_register, #{ip_access => [{allow, "127.0.0.0/8"},
+                                                                  {deny, "0.0.0.0/0"}],
+                                                    access => register}).
 
 init_per_group(bad_cancelation, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
@@ -140,7 +138,7 @@ init_per_testcase(admin_notify, Config) ->
     escalus:init_per_testcase(admin_notify, Config);
 init_per_testcase(not_allowed_registration_cancelation, Config) ->
     %% Use a configuration that will not allow inband cancelation (and registration).
-    reload_mod_register_option(Config, access, {access, none}),
+    reload_mod_register_option(Config, access, none),
     escalus:init_per_testcase(not_allowed_registration_cancelation, Config);
 init_per_testcase(registration_failure_timeout, Config) ->
     Config1 = deny_everyone_registration(Config),
@@ -433,7 +431,7 @@ user_exists(Name, Config) ->
 reload_mod_register_option(Config, Key, Value) ->
     Host = host_type(),
     Args = proplists:get_value(mod_register_options, Config),
-    Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
+    Args1 = maps:put(Key, Value, Args),
     dynamic_modules:restart(Host, mod_register, Args1).
 
 restore_mod_register_options(Config) ->

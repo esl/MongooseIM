@@ -614,11 +614,10 @@ all_modules() ->
                              full_text_search => false,
                              same_mam_id_for_peers => false,
                              user_prefs_store => rdbms}}),
-      mod_register =>
-          [{access, all},
-           {password_strength, 32},
-           {registration_watchers, [<<"JID1">>, <<"JID2">>]},
-           {welcome_message, {"Subject", "Body"}}],
+      mod_register => mod_config(mod_register, #{access => all,
+                                                 password_strength => 32,
+                                                 registration_watchers => [<<"JID1">>, <<"JID2">>],
+                                                 welcome_message => {"Subject", "Body"}}),
       mod_mam_rdbms_arch =>
           mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
       mod_event_pusher_rabbit =>
@@ -684,9 +683,9 @@ pgsql_modules() ->
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
       mod_register =>
-          [{access, register},
-           {ip_access, [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}]},
-           {welcome_message, {"Hello", "I am MongooseIM"}}],
+          mod_config(mod_register, #{access => register,
+                                     ip_access => [{allow, "127.0.0.0/8"}, {deny, "0.0.0.0/0"}],
+                                     welcome_message => {"Hello", "I am MongooseIM"}}),
       mod_roster => mod_config(mod_roster, #{backend => rdbms}),
       mod_sic => default_mod_config(mod_sic),
       mod_stream_management => default_mod_config(mod_stream_management),
@@ -965,6 +964,9 @@ default_mod_config(mod_pubsub) ->
       default_node_config => [], item_publisher => false, sync_broadcast => false};
 default_mod_config(mod_push_service_mongoosepush) ->
     #{pool_name => undefined, api_version => <<"v3">>, max_http_connections => 100};
+default_mod_config(mod_register) ->
+    #{iqdisc => one_queue, access => all, registration_watchers => [],
+      password_strength => 0, ip_access => []};
 default_mod_config(mod_roster) ->
     #{iqdisc => one_queue, versioning => false, store_current_id => false, backend => mnesia};
 default_mod_config(mod_shared_roster_ldap) ->

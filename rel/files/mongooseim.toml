@@ -262,7 +262,6 @@
 {{{mod_private}}}
 {{/mod_private}}
 [modules.mod_register]
-  welcome_message = {body = "", subject = ""}
   ip_access = [
     {address = "127.0.0.0/8", policy = "allow"},
     {address = "0.0.0.0/0", policy = "deny"}
