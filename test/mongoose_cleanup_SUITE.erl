@@ -10,7 +10,6 @@
 -export([auth_anonymous/1,
          last/1,
          stream_management/1,
-         local/1,
          s2s/1,
          bosh/1
         ]).
@@ -28,7 +27,6 @@ all() ->
      auth_anonymous,
      last,
      stream_management,
-     local,
      s2s,
      bosh
     ].
@@ -64,7 +62,6 @@ end_per_testcase(T, Config) ->
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket];
 meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin];
-meck_mods(local) -> [exometer];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local].
 
 %% -----------------------------------------------------
@@ -128,24 +125,6 @@ stream_management(_Config) ->
     {sid, SID} = mod_stream_management:get_sid(HostType, SMID),
     mongoose_hooks:session_cleanup(S, new_acc(S), U, R, SID),
     {error, smid_not_found} = mod_stream_management:get_sid(HostType, SMID).
-
-local(_Config) ->
-    ejabberd_local:start_link(),
-    Self = self(),
-    SelfNotify = fun(_, _, _, Arg) -> Self ! Arg end,
-    ID = <<"abc123">>,
-
-    ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 50),
-    receive
-        timeout -> ok
-    after
-        2000 -> ct:fail({timeout, valid_iq_timeout})
-    end,
-
-    ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 2000),
-    {ok, undefined, _F} = ejabberd_local:get_iq_callback(ID),
-    mongoose_hooks:node_cleanup(node()),
-    error = ejabberd_local:get_iq_callback(ID).
 
 s2s(_Config) ->
     ejabberd_s2s:start_link(),
