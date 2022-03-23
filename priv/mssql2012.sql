@@ -504,8 +504,8 @@ CREATE TABLE dbo.inbox(
     content VARBINARY(max) NOT NULL,
     unread_count INT NOT NULL,
     msg_id NVARCHAR(250) NOT NULL,
+    box NVARCHAR(64) DEFAULT 'inbox',
     timestamp BIGINT NOT NULL,
-    archive TINYINT DEFAULT 0,
     muted_until BIGINT DEFAULT 0,
     CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
         lserver ASC,

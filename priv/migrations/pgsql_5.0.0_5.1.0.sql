@@ -1,0 +1,10 @@
+-- MOD_INBOX
+ALTER TABLE inbox ALTER COLUMN archive DROP DEFAULT;
+
+ALTER TABLE inbox
+  ALTER COLUMN archive TYPE VARCHAR(64) USING CASE WHEN archive THEN 'archive' ELSE 'inbox' END;
+
+ALTER TABLE inbox
+  RENAME archive TO box;
+
+ALTER TABLE inbox ALTER COLUMN box SET DEFAULT 'inbox';
