@@ -425,9 +425,10 @@ returns_valid_properties_form(Config) ->
         InboxConversationNS = inbox_helper:inbox_ns_conversation(),
         escalus:send(Alice, escalus_stanza:iq_get(InboxConversationNS, [])),
         ResIQ = escalus:wait_for_stanza(Alice),
-        #{field_count := 4} = Form = inbox_helper:parse_form_iq(ResIQ),
+        #{field_count := 5} = Form = inbox_helper:parse_form_iq(ResIQ),
         #{<<"FORM_TYPE">> := #{type := <<"hidden">>, value := InboxConversationNS}} = Form,
         #{<<"archive">> := #{type := <<"boolean">>, value := <<"false">>}} = Form,
+        #{<<"box">> := #{type := <<"list-single">>, value := <<"all">>}} = Form,
         #{<<"read">> := #{type := <<"boolean">>, value := <<"false">>}} = Form,
         #{<<"mute">> := #{type := <<"text-single">>, value := <<"0">>}} = Form
       end).

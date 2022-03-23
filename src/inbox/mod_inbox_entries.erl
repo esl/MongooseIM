@@ -24,7 +24,9 @@ process_iq_conversation(Acc, From, _To, #iq{type = set,
                                             sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ,
                        _Extra) ->
     maybe_process_reset_stanza(Acc, From, IQ, ResetStanza);
-process_iq_conversation(Acc, From, _To, #iq{type = set, sub_el = Query} = IQ, _Extra) ->
+process_iq_conversation(Acc, From, _To, #iq{type = set,
+                                            sub_el = #xmlel{name = <<"query">>} = Query} = IQ,
+                       _Extra) ->
     process_iq_conversation_set(Acc, IQ, From, Query).
 
 -spec process_iq_conversation_get(mongoose_acc:t(), jlib:iq(), jid:jid(), exml:element()) ->
@@ -53,6 +55,7 @@ build_inbox_entry_form() ->
            attrs = [{<<"xmlns">>, ?NS_XDATA},
                     {<<"type">>, <<"form">>}],
            children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX_CONVERSATION}),
+                       jlib:form_field({<<"box">>, <<"list-single">>, <<"all">>}),
                        jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>}),
                        jlib:form_field({<<"read">>, <<"boolean">>, <<"false">>}),
                        jlib:form_field({<<"mute">>, <<"text-single">>, <<"0">>})]}.
@@ -81,7 +84,7 @@ get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
 -spec process_iq_conversation_set(mongoose_acc:t(), jlib:iq(), jid:jid(), exml:element()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_iq_conversation_set(
-  Acc, #iq{id = IqId} = IQ, From, #xmlel{name = <<"query">>, children = Requests} = Query) ->
+  Acc, #iq{id = IqId} = IQ, From, #xmlel{children = Requests} = Query) ->
     case mod_inbox_utils:extract_attr_jid(Query) of
         {error, Msg} ->
             return_error(Acc, IQ, Msg);
