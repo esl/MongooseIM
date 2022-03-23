@@ -513,8 +513,8 @@ fields_to_params(HostType, [{<<"box">>, [Value]} | RFields], Acc) ->
 fields_to_params(HostType, [{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(HostType, RFields, Acc);
 fields_to_params(_, [{Invalid, [InvalidFieldVal]} | _], _) ->
-    ?LOG_INFO(#{what => inbox_invalid_form_field, reason => unknown_field,
-                field => Invalid, value => InvalidFieldVal}),
+    ?LOG_WARNING(#{what => inbox_invalid_form_field, reason => unknown_field,
+                   field => Invalid, value => InvalidFieldVal}),
     {error, bad_request, <<"Unknown inbox form field=", Invalid/binary, ", value=", InvalidFieldVal/binary>>}.
 
 -spec binary_to_order(binary()) -> asc | desc | error.
