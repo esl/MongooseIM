@@ -57,16 +57,16 @@ request(Task, _Extra = #{host_type := HostType}) ->
     request_one(HostType, Task).
 
 request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp}) ->
-    InsertParams = [LUser, LServer, LToBareJid, Content, Count, MsgId, Timestamp],
-    UpdateParams = [Content, Count, MsgId, Timestamp, 0],
-    UniqueKeyValues  = [LUser, LServer, LToBareJid],
-    rdbms_queries:request_upsert(HostType, inbox_upsert, InsertParams, UpdateParams, UniqueKeyValues);
+    Unique = [LUser, LServer, LToBareJid],
+    Update = [MsgId, Content, Timestamp, Count],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Timestamp, Count],
+    rdbms_queries:request_upsert(HostType, inbox_upsert, Insert, Update, Unique);
 
 request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs}) ->
-    InsertParams = [LUser, LServer, LToBareJid, Content, Incrs, MsgId, Timestamp],
-    UpdateParams = [Content, MsgId, Timestamp, 0, Incrs],
-    UniqueKeyValues  = [LUser, LServer, LToBareJid],
-    rdbms_queries:request_upsert(HostType, inbox_upsert_incr_unread, InsertParams, UpdateParams, UniqueKeyValues);
+    Unique = [LUser, LServer, LToBareJid],
+    Update = [MsgId, Content, Timestamp, Incrs],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Timestamp, Incrs],
+    rdbms_queries:request_upsert(HostType, inbox_upsert_incr_unread, Insert, Update, Unique);
 
 request_one(HostType, {remove_inbox_row, {LUser, LServer, LToBareJid}}) ->
     mongoose_rdbms:execute_request(HostType, inbox_delete_row, [LUser, LServer, LToBareJid]);
