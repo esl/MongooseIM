@@ -39,6 +39,7 @@ List of JIDs, which should receive a `<message>` notification about every succes
 
 Specifies minimal entropy of allowed password.
 Entropy is measured with `ejabberd_auth:entropy/1`.
+When set to `0`, the password strength is not checked.
 Recommended minimum is 32.
 The entropy calculation algorithm is described in a section below.
 

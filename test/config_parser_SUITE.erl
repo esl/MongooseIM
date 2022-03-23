@@ -2715,46 +2715,41 @@ mod_push_service_mongoosepush(_Config) ->
     ?errh(T(#{<<"max_http_connections">> => -1})).
 
 mod_register(_Config) ->
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"0.0.0.0"}]}
-                                ]),
+    check_module_defaults(mod_register),
+    check_iqdisc_map(mod_register),
+    P = [modules, mod_register],
+    ?cfgh(P ++ [access], register,
+          ip_access_register(<<"127.0.0.1">>)),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "0.0.0.0"}],
           ip_access_register(<<"0.0.0.0">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"0.0.0.4"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "0.0.0.4"}],
           ip_access_register(<<"0.0.0.4">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"::1"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "::1"}],
           ip_access_register(<<"::1">>)),
-    ?cfgh(modopts(mod_register, [{access,register},
-                                 {ip_access, [{allow,"127.0.0.0/8"},
-                                              {deny,"::1/128"}]}
-                                ]),
+    ?cfgh(P ++ [ip_access], [{allow, "127.0.0.0/8"},
+                             {deny, "::1/128"}],
           ip_access_register(<<"::1/128">>)),
     ?errh(invalid_ip_access_register()),
     ?errh(invalid_ip_access_register_ipv6()),
     ?errh(ip_access_register(<<"hello">>)),
     ?errh(ip_access_register(<<"0.d">>)),
-    ?cfgh(modopts(mod_register, [{welcome_message, {"Subject", "Body"}}]),
+    ?cfgh(P ++ [welcome_message], {"Subject", "Body"},
           welcome_message()),
     %% List of jids
-    ?cfgh(modopts(mod_register, [{registration_watchers,
-                                  [<<"alice@bob">>, <<"ilovemongoose@help">>]}]),
+    ?cfgh(P ++ [registration_watchers], [<<"alice@bob">>, <<"ilovemongoose@help">>],
           registration_watchers([<<"alice@bob">>, <<"ilovemongoose@help">>])),
     ?errh(registration_watchers([<<"alice@bob">>, <<"jids@have@no@feelings!">>])),
     %% non-negative integer
-    ?cfgh(modopts(mod_register, [{password_strength, 42}]),
+    ?cfgh(P ++ [password_strength], 42,
           password_strength_register(42)),
     ?errh(password_strength_register(<<"42">>)),
     ?errh(password_strength_register(<<"strong">>)),
     ?errh(password_strength_register(-150)),
     ?errh(welcome_message(<<"Subject">>, 1)),
-    ?errh(welcome_message(1, <<"Body">>)),
-    check_iqdisc(mod_register).
+    ?errh(welcome_message(1, <<"Body">>)).
 
 welcome_message() ->
     welcome_message(<<"Subject">>, <<"Body">>).
