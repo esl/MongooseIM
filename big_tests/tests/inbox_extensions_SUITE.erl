@@ -268,8 +268,9 @@ archive_active_entry_gets_archived(Config) ->
         % Then Bob decides to archive it
         set_inbox_properties(Bob, Alice, [{archive, true}]),
         % Then the conversation is in the archive and not in the active box
-        inbox_helper:check_inbox(Bob, [], #{box => active}),
-        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}], #{box => archive})
+        inbox_helper:check_inbox(Bob, [], #{archive => false}),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
+                                 #{archive => true})
     end).
 
 archive_archived_entry_gets_active_on_request(Config) ->
@@ -282,8 +283,9 @@ archive_archived_entry_gets_active_on_request(Config) ->
         % Then bob decides to recover the conversation
         set_inbox_properties(Bob, Alice, [{archive, false}]),
         % Then the conversation is in the active and not in the archive box
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}], #{box => active}),
-        inbox_helper:check_inbox(Bob, [], #{box => archive})
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{archive => false}),
+        inbox_helper:check_inbox(Bob, [], #{archive => true})
     end).
 
 archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
@@ -296,8 +298,9 @@ archive_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
         % But then Alice keeps writing:
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
-        inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}], #{box => active}),
-        inbox_helper:check_inbox(Bob, [], #{box => archive})
+        inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
+                                 #{archive => false}),
+        inbox_helper:check_inbox(Bob, [], #{archive => true})
     end).
 
 archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
@@ -310,8 +313,9 @@ archive_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
         % But then Alice keeps writing
         inbox_helper:send_msg(Alice, Bob, Body),
         % Then the conversation is automatically in the active and not in the archive box
-        inbox_helper:check_inbox(Alice, [], #{box => archive}),
-        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}], #{box => active})
+        inbox_helper:check_inbox(Alice, [], #{archive => true}),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
+                                 #{archive => false})
     end).
 
 archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
@@ -321,9 +325,10 @@ archive_active_unread_entry_gets_archived_and_still_unread(Config) ->
         inbox_helper:send_msg(Alice, Bob, Body),
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
         set_inbox_properties(Bob, Alice, [{archive, true}]),
-        inbox_helper:check_inbox(Bob, [], #{box => active}),
+        inbox_helper:check_inbox(Bob, [], #{archive => false}),
         % Then Bob queries his archive and the conversation is there still unread
-        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}], #{box => archive})
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{archive => true})
     end).
 
 archive_full_archive_can_be_fetched(Config) ->
@@ -334,15 +339,15 @@ archive_full_archive_can_be_fetched_queryid(Config) ->
 archive_full_archive_can_be_fetched(Config, QueryId) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
         % Several people write to Alice, and Alice reads and archives all of them
-        inbox_helper:check_inbox(Alice, [], #{box => archive}),
+        inbox_helper:check_inbox(Alice, [], #{archive => true}),
         #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
         inbox_helper:check_inbox(Alice, AliceConvs),
         set_inbox_properties(Alice, Bob, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
         set_inbox_properties(Alice, Kate, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
         set_inbox_properties(Alice, Mike, [{archive, true}], inbox_helper:maybe_make_queryid(QueryId)),
         % Then Alice queries her archive and the conversations are there and not in the active box
-        inbox_helper:check_inbox(Alice, [], #{box => active}),
-        inbox_helper:check_inbox(Alice, AliceConvs, #{box => archive})
+        inbox_helper:check_inbox(Alice, [], #{archive => false}),
+        inbox_helper:check_inbox(Alice, AliceConvs, #{archive => true})
     end).
 
 % mute
