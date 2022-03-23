@@ -231,4 +231,12 @@ extensions_result(Archive, MutedUntil, AccTS) ->
     [#xmlel{name = <<"archive">>,
             children = [#xmlcdata{content = mod_inbox_utils:bool_to_binary(Archive)}]},
      #xmlel{name = <<"mute">>,
-            children = [#xmlcdata{content = mod_inbox_utils:maybe_muted_until(MutedUntil, AccTS)}]}].
+            children = [#xmlcdata{content = maybe_muted_until(MutedUntil, AccTS)}]}].
+
+-spec maybe_muted_until(integer(), integer()) -> binary().
+maybe_muted_until(0, _) -> <<"0">>;
+maybe_muted_until(MutedUntil, CurrentTS) ->
+    case CurrentTS =< MutedUntil of
+        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
+        false -> <<"0">>
+    end.
