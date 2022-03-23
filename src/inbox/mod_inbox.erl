@@ -316,20 +316,15 @@ build_inbox_message(Acc, InboxRes, IQ) ->
            children = [build_result_el(Acc, InboxRes, IQ)]}.
 
 -spec build_result_el(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
-build_result_el(Acc, #{msg := Msg,
-                       unread_count := Count,
-                       timestamp := Timestamp,
-                       archive := Archive,
-                       muted_until := MutedUntil} = InboxRes, #iq{id = IqId, sub_el = QueryEl} = IQ) ->
-    QueryId = exml_query:attr(QueryEl, <<"queryid">>, IqId),
+build_result_el(Acc, InboxRes = #{unread_count := Count}, IQ = #iq{id = IqId, sub_el = QueryEl}) ->
     AccTS = mongoose_acc:timestamp(Acc),
+    Forwarded = mod_inbox_utils:build_forward_el(InboxRes),
+    Properties = mod_inbox_entries:extensions_result(InboxRes, AccTS),
     Extensions = mongoose_hooks:extend_inbox_message(Acc, InboxRes, IQ),
-    Forwarded = mod_inbox_utils:build_forward_el(Msg, Timestamp),
-    Properties = mod_inbox_entries:extensions_result(Archive, MutedUntil, AccTS),
-    QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>,
            attrs = [{<<"xmlns">>, ?NS_ESL_INBOX},
-                    {<<"unread">>, integer_to_binary(Count)} | QueryAttr],
+                    {<<"unread">>, integer_to_binary(Count)},
+                    {<<"queryid">>, exml_query:attr(QueryEl, <<"queryid">>, IqId)}],
            children = [Forwarded | Properties] ++ Extensions}.
 
 -spec build_result_iq([inbox_res()]) -> exml:element().

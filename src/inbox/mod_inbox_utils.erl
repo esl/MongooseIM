@@ -34,7 +34,7 @@
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
-         build_forward_el/2
+         build_forward_el/1
         ]).
 
 -ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
@@ -208,8 +208,8 @@ build_inbox_entry_key(FromJid, ToJid) ->
     ToBareJid = jid:nameprep(jid:to_binary(jid:to_lus(ToJid))),
     {LUser, LServer, ToBareJid}.
 
--spec build_forward_el(exml:element(), integer()) -> exml:element().
-build_forward_el(Content, Timestamp) ->
+-spec build_forward_el(inbox_res()) -> exml:element().
+build_forward_el(#{msg := Content, timestamp := Timestamp}) ->
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
            children = [Delay, Content]}.
