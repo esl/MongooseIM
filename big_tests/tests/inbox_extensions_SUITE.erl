@@ -46,6 +46,9 @@ groups() ->
         % Set-unread errors
         returns_error_when_read_invalid_value,
         returns_error_when_read_valid_request_but_not_in_inbox,
+        % Boxes errors
+        returns_error_when_box_invalid_value,
+        returns_error_when_box_valid_request_but_not_in_inbox,
         % Archiving errors
         returns_error_when_archive_invalid_value,
         returns_error_when_archive_valid_request_but_not_in_inbox,
@@ -64,6 +67,17 @@ groups() ->
         read_unread_entry_set_to_read_queryid,
         read_read_entry_set_to_unread,
         read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_two,
+        % box
+        box_move_to_other_works_successfully,
+        box_active_entry_gets_archived,
+        box_archived_entry_gets_active_on_request,
+        box_archived_entry_gets_active_for_the_sender_on_new_message,
+        box_archived_entry_gets_active_for_the_receiver_on_new_message,
+        box_active_unread_entry_gets_archived_and_still_unread,
+        box_full_archive_can_be_fetched,
+        box_full_archive_can_be_fetched_queryid,
+        box_and_archive_box_has_preference,
+        box_other_does_get_fetched,
         % archive
         archive_active_entry_gets_archived,
         archive_archived_entry_gets_active_on_request,
@@ -171,6 +185,15 @@ returns_error_when_read_valid_request_but_not_in_inbox(Config) ->
     Stanza = make_inbox_iq_request(?VALID_JID, read, true),
     returns_error(Config, Stanza, <<"item-not-found">>).
 
+% Boxes errors
+returns_error_when_box_invalid_value(Config) ->
+    Stanza = make_inbox_iq_request(?VALID_JID, box, ?INVALID_VALUE),
+    returns_error(Config, Stanza, <<"invalid-box">>).
+
+returns_error_when_box_valid_request_but_not_in_inbox(Config) ->
+    Stanza = make_inbox_iq_request(?VALID_JID, box, <<"archive">>),
+    returns_error(Config, Stanza, <<"item-not-found">>).
+
 % Archiving errors
 returns_error_when_archive_invalid_value(Config) ->
     Stanza = make_inbox_iq_request(?VALID_JID, archive, ?INVALID_VALUE),
@@ -256,6 +279,142 @@ read_unread_entry_with_two_messages_when_set_unread_then_unread_count_stays_in_t
         set_inbox_properties(Bob, Alice, [{read, false}]),
         % And the count didn't really change, to prevent losing higher counts
         inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}])
+    end).
+
+% box
+box_move_to_other_works_successfully(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
+        % Then Bob decides to move it to other
+        set_inbox_properties(Bob, Alice, [{box, other}]),
+        % Then the conversation is in the right box
+        inbox_helper:check_inbox(Bob, [], #{box => archive}),
+        inbox_helper:check_inbox(Bob, [], #{box => inbox}),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
+                                 #{box => other})
+    end).
+
+box_active_entry_gets_archived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_and_mark_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
+        % Then Bob decides to archive it
+        set_inbox_properties(Bob, Alice, [{box, archive}]),
+        % Then the conversation is in the archive and not in the inbox box
+        inbox_helper:check_inbox(Bob, [], #{box => inbox}),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
+                                 #{box => archive})
+    end).
+
+box_archived_entry_gets_active_on_request(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and Bob archives it immediately
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Bob, Alice, [{box, archive}]),
+        % Then bob decides to recover the conversation
+        set_inbox_properties(Bob, Alice, [{box, inbox}]),
+        % Then the conversation is in the inbox and not in the archive box
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{box => inbox}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive})
+    end).
+
+box_archived_entry_gets_active_for_the_receiver_on_new_message(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and Bob archives it immediately
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Bob, Alice, [{box, archive}]),
+        % But then Alice keeps writing:
+        inbox_helper:send_msg(Alice, Bob, Body),
+        % Then the conversation is automatically in the inbox and not in the archive box
+        inbox_helper:check_inbox(Bob, [#conv{unread = 2, from = Alice, to = Bob, content = Body}],
+                                 #{box => inbox}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive})
+    end).
+
+box_archived_entry_gets_active_for_the_sender_on_new_message(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and then she archives the conversation
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Alice, Bob, [{box, archive}]),
+        % But then Alice keeps writing
+        inbox_helper:send_msg(Alice, Bob, Body),
+        % Then the conversation is automatically in the inbox and not in the archive box
+        inbox_helper:check_inbox(Alice, [], #{box => archive}),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
+                                 #{box => inbox})
+    end).
+
+box_active_unread_entry_gets_archived_and_still_unread(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob, but Bob archives it without reading it
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Bob, Alice, [{box, archive}]),
+        inbox_helper:check_inbox(Bob, [], #{box => inbox}),
+        % Then Bob queries his archive and the conversation is there still unread
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{box => archive})
+    end).
+
+box_full_archive_can_be_fetched(Config) ->
+    box_full_archive_can_be_fetched(Config, undefined).
+box_full_archive_can_be_fetched_queryid(Config) ->
+    box_full_archive_can_be_fetched(Config, queryid).
+
+box_full_archive_can_be_fetched(Config, QueryId) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}], fun(Alice, Bob, Kate, Mike) ->
+        % Several people write to Alice, and Alice reads and archives all of them
+        inbox_helper:check_inbox(Alice, [], #{box => archive}),
+        #{Alice := AliceConvs} = inbox_helper:given_conversations_between(Alice, [Bob, Kate, Mike]),
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        set_inbox_properties(Alice, Bob, [{box, archive}], inbox_helper:maybe_make_queryid(QueryId)),
+        set_inbox_properties(Alice, Kate, [{box, archive}], inbox_helper:maybe_make_queryid(QueryId)),
+        set_inbox_properties(Alice, Mike, [{box, archive}], inbox_helper:maybe_make_queryid(QueryId)),
+        % Then Alice queries her archive and the conversations are there and not in the inbox box
+        inbox_helper:check_inbox(Alice, [], #{box => inbox}),
+        inbox_helper:check_inbox(Alice, AliceConvs, #{box => archive})
+    end).
+
+box_and_archive_box_has_preference(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        % Then fetching with archive and box ignores the archive value
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{box => inbox, archive => true}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive, archive => false})
+    end).
+
+box_other_does_get_fetched(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and Bob throws in into 'other'
+        Body = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}]),
+        set_inbox_properties(Bob, Alice, [{box, other}]),
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{box => other}),
+        % Then bob decides to recover the conversation
+        set_inbox_properties(Bob, Alice, [{box, inbox}]),
+        % Then the conversation is in the inbox and not in the archive box
+        inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
+                                 #{box => inbox}),
+        inbox_helper:check_inbox(Bob, [], #{box => archive})
     end).
 
 % archive
@@ -472,7 +631,7 @@ properties_many_can_be_set(Config, QueryId) ->
         set_inbox_properties(Bob, Alice, [{archive, true}, {read, true}, {mute, 24*?HOUR}],
                              inbox_helper:maybe_make_queryid(QueryId)),
         % Then Bob queries his boxes and everything is as expected
-        inbox_helper:check_inbox(Bob, [], #{box => active}),
+        inbox_helper:check_inbox(Bob, [], #{box => inbox}),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body,
                                        verify = fun(_, _, Outer) -> muted_status(23*?HOUR, Outer)
                                                 end}], #{box => archive})
@@ -489,10 +648,10 @@ max_queries_can_be_limited(Config) ->
         % Then Alice queries her inbox setting a limit to only one conversation,
         % and she gets the newest one
         ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => active}),
+        inbox_helper:check_inbox(Alice, [ConvWithMike], #{limit => 1, box => inbox}),
         % And a limit to two also works fine
         ConvWithKate = lists:keyfind(Kate, #conv.to, AliceConvs),
-        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => active})
+        inbox_helper:check_inbox(Alice, [ConvWithMike, ConvWithKate], #{limit => 2, box => inbox})
     end).
 
 max_queries_can_fetch_ahead(Config) ->
@@ -505,7 +664,7 @@ max_queries_can_fetch_ahead(Config) ->
         % ConvWithMike = lists:keyfind(Mike, #conv.to, AliceConvs),
         TimeAfterKate = ConvWithKate#conv.time_after,
         inbox_helper:check_inbox(Alice, [ConvWithKate, ConvWithBob],
-                  #{limit => 2, 'end' => TimeAfterKate, box => active})
+                  #{limit => 2, 'end' => TimeAfterKate, box => inbox})
     end).
 
 timestamp_is_not_reset_with_setting_properties(Config) ->
@@ -562,7 +721,6 @@ groupchat_setunread_stanza_sets_inbox(Config) ->
 %%--------------------------------------------------------------------
 
 -type maybe_client() :: undefined | escalus:client().
--type box() :: both | active | archive.
 
 -spec query_properties(escalus:client(), escalus:client(), proplists:proplist()) -> [exml:element()].
 query_properties(From, To, Expected) ->
@@ -665,6 +823,8 @@ props_to_children([{Key, Value} | Rest], Acc) ->
 
 assert_property(X, read, Val) ->
     ?assertEqual(to_bin(Val), exml_query:path(X, [{element, <<"read">>}, cdata]));
+assert_property(X, box, Val) ->
+    ?assertEqual(to_bin(Val), exml_query:path(X, [{element, <<"box">>}, cdata]));
 assert_property(X, archive, Val) ->
     ?assertEqual(to_bin(Val), exml_query:path(X, [{element, <<"archive">>}, cdata]));
 assert_property(X, mute, 0) ->
