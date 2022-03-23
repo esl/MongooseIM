@@ -389,12 +389,12 @@ CREATE TABLE inbox (
     luser VARCHAR(250)               NOT NULL,
     lserver VARCHAR(250)             NOT NULL,
     remote_bare_jid VARCHAR(250)     NOT NULL,
-    content blob                     NOT NULL,
-    unread_count int                 NOT NULL,
-    msg_id varchar(250),
+    msg_id VARCHAR(250),
     box VARCHAR(64)                  NOT NULL DEFAULT 'inbox',
+    content BLOB                     NOT NULL,
     timestamp BIGINT UNSIGNED        NOT NULL,
     muted_until BIGINT               DEFAULT 0,
+    unread_count INT                 NOT NULL,
     PRIMARY KEY(lserver, luser, remote_bare_jid));
 
 CREATE INDEX i_inbox USING BTREE ON inbox(lserver, luser, timestamp);
