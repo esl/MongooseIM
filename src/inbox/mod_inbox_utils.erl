@@ -27,7 +27,6 @@
          get_reset_markers/1,
          if_chat_marker_get_id/2,
          has_chat_marker/1,
-         wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
          extract_attr_jid/1,
@@ -164,10 +163,6 @@ fill_from_attr(Msg = #xmlel{attrs = Attrs}, From) ->
         _ ->
             Msg
     end.
-
--spec wrapper_id() -> id().
-wrapper_id() ->
-    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
 -spec get_option_write_aff_changes(HostType :: mongooseim:host_type()) -> boolean().
 get_option_write_aff_changes(HostType) ->

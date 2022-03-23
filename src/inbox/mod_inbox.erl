@@ -312,7 +312,7 @@ process_message(HostType, From, To, Message, _TS, Dir, Type) ->
 %% Stanza builders
 -spec build_inbox_message(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
 build_inbox_message(Acc, InboxRes, IQ) ->
-    #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
+    #xmlel{name = <<"message">>, attrs = [{<<"id">>, mongoose_bin:gen_from_timestamp()}],
            children = [build_result_el(Acc, InboxRes, IQ)]}.
 
 -spec build_result_el(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
