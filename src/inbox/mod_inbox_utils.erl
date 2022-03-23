@@ -27,7 +27,6 @@
          get_reset_markers/1,
          if_chat_marker_get_id/2,
          has_chat_marker/1,
-         fill_from_attr/2,
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
@@ -40,9 +39,7 @@
          build_forward_el/2
         ]).
 
--ignore_xref([
-    fill_from_attr/2, get_reset_markers/1, if_chat_marker_get_id/2
-]).
+-ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
 
 -spec maybe_reset_unread_count(HostType :: mongooseim:host_type(),
                                User :: jid:jid(),
