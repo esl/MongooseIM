@@ -380,9 +380,8 @@ make_user_header({User, _} = US) ->
 
 
 get_proxy_uri(Server) ->
-    ProxyHost = gen_mod:get_module_opt(Server, ?MODULE, proxy_host),
-    ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port),
-    Transport = gen_mod:get_module_opt(Server, ?MODULE, transport),
+    Opts = gen_mod:get_module_opts(Server, ?MODULE),
+    #{proxy_host := ProxyHost, proxy_port := ProxyPort, transport := Transport} = Opts,
     PortStr = integer_to_list(ProxyPort),
     [ProxyHost, ":", PortStr, ";transport=", Transport].
 
