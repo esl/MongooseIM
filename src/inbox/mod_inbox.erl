@@ -157,8 +157,8 @@ process_inbox_boxes(Config = #{boxes := Boxes}) ->
                  To :: jid:jid(),
                  IQ :: jlib:iq(),
                  Extra :: map()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
-process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, _Extra) ->
-    Form = build_inbox_form(),
+process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{host_type := HostType}) ->
+    Form = build_inbox_form(HostType),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
 process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
@@ -346,8 +346,9 @@ build_result_iq(List) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-get
--spec build_inbox_form() -> exml:element().
-build_inbox_form() ->
+-spec build_inbox_form(mongooseim:host_type()) -> exml:element().
+build_inbox_form(HostType) ->
+    AllBoxes = all_valid_boxes_for_query(HostType),
     OrderOptions = [
                     {<<"Ascending by timestamp">>, <<"asc">>},
                     {<<"Descending by timestamp">>, <<"desc">>}
@@ -358,6 +359,7 @@ build_inbox_form() ->
                   text_single_form_field(<<"end">>),
                   list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
                   text_single_form_field(<<"hidden_read">>, <<"false">>),
+                  list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
                   jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
                  ],
     #xmlel{name = <<"x">>,
@@ -375,23 +377,26 @@ text_single_form_field(Var, DefaultValue) ->
 
 -spec list_single_form_field(Var :: binary(),
                              Default :: binary(),
-                             Options :: [{Label :: binary(), Value :: binary()}]) ->
-    exml:element().
+                             Options :: [ Option | {Label, Value}]) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
 list_single_form_field(Var, Default, Options) ->
     Value = form_field_value(Default),
     #xmlel{
        name = <<"field">>,
        attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
-       children = [Value | [ form_field_option(Label, OptValue) || {Label, OptValue} <- Options ]]
+       children = [Value | [ form_field_option(Option) || Option <- Options ]]
       }.
 
--spec form_field_option(Label :: binary(), Value :: binary()) -> exml:element().
-form_field_option(Label, Value) ->
+-spec form_field_option(Option | {Label, Value}) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
+form_field_option({Label, Value}) ->
     #xmlel{
        name = <<"option">>,
        attrs = [{<<"label">>, Label}],
        children = [form_field_value(Value)]
-      }.
+      };
+form_field_option(Option) ->
+    form_field_option({Option, Option}).
 
 -spec form_field_value(Value :: binary()) -> exml:element().
 form_field_value(Value) ->
