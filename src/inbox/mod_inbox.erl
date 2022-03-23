@@ -35,6 +35,7 @@
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 
+-export([process_inbox_boxes/1]).
 -export([config_metrics/1]).
 
 -type message_type() :: one2one | groupchat.
@@ -120,17 +121,20 @@ config_spec() ->
                                                                validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
                                                            validate = {enum, [muc, muclight]}}},
+                  <<"boxes">> => #list{items = #option{type = binary, validate = non_empty}},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
         },
         defaults = #{<<"backend">> => rdbms,
                      <<"groupchat">> => [muclight],
+                     <<"boxes">> => [],
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
                      <<"reset_markers">> => [<<"displayed">>],
                      <<"iqdisc">> => no_queue
                     },
+        process = fun ?MODULE:process_inbox_boxes/1,
         format_items = map
     }.
 
@@ -141,6 +145,10 @@ async_config_spec() ->
        format_items = map,
        include = always
       }.
+
+process_inbox_boxes(Config = #{boxes := Boxes}) ->
+    AllBoxes = [<<"inbox">>, <<"archive">> | Boxes ],
+    Config#{boxes := AllBoxes}.
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ

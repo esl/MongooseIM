@@ -1733,12 +1733,16 @@ mod_inbox(_Config) ->
     ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
     ?cfgh(P ++ [reset_markers], ChatMarkers, T(#{<<"reset_markers">> => ChatMarkers})),
     ?cfgh(P ++ [groupchat], [muc, muclight], T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
+    ?cfgh(P ++ [boxes],
+          [<<"inbox">>, <<"archive">>, <<"favourites">>, <<"spam">>],
+          T(#{<<"boxes">> => [<<"favourites">>, <<"spam">>]})),
     ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
     ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),
     ?errh(T(#{<<"backend">> => <<"nodejs">>})),
     ?errh(T(#{<<"reset_markers">> => 1})),
     ?errh(T(#{<<"reset_markers">> => [<<"destroyed">>]})),
     ?errh(T(#{<<"groupchat">> => [<<"test">>]})),
+    ?errh(T(#{<<"boxes">> => <<"test">>})),
     ?errh(T(#{<<"aff_changes">> => 1})),
     ?errh(T(#{<<"remove_on_kicked">> => 1})).
 
