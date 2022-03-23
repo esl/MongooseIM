@@ -71,7 +71,7 @@ get_properties_for_jid(Acc, IQ, From, EntryJID, QueryType) ->
     HostType = mongoose_acc:host_type(Acc),
     {_, _, BinEntryJID} = InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
     case fetch_right_query(HostType, InboxEntryKey, QueryType) of
-        [] -> return_error(Acc, IQ, <<"Entry not found">>);
+        [] -> return_error(Acc, IQ, item_not_found, <<"Entry not found">>);
         Result ->
             Properties = build_result(Acc, Result, IQ),
             X = [#xmlel{name = <<"query">>,
@@ -87,7 +87,7 @@ process_iq_conversation_set(
   Acc, #iq{id = IqId} = IQ, From, #xmlel{children = Requests} = Query) ->
     case mod_inbox_utils:extract_attr_jid(Query) of
         {error, Msg} ->
-            return_error(Acc, IQ, Msg);
+            return_error(Acc, IQ, bad_request, Msg);
         EntryJID ->
             extract_requests(Acc, IQ, From, EntryJID, Requests, exml_query:attr(Query, <<"queryid">>, IqId))
     end.
@@ -98,7 +98,7 @@ extract_requests(Acc, IQ, From, EntryJID, Requests, QueryId) ->
     CurrentTS = mongoose_acc:timestamp(Acc),
     case form_to_query(CurrentTS, Requests, #{}) of
         {error, Msg} ->
-            return_error(Acc, IQ, Msg);
+            return_error(Acc, IQ, bad_request, Msg);
         Params ->
             process_requests(Acc, IQ, From, EntryJID, Params, QueryId)
     end.
@@ -110,7 +110,7 @@ process_requests(Acc, IQ, From, EntryJID, Params, QueryId) ->
     InboxEntryKey = mod_inbox_utils:build_inbox_entry_key(From, EntryJID),
     case mod_inbox_backend:set_entry_properties(HostType, InboxEntryKey, Params) of
         {error, Msg} ->
-            return_error(Acc, IQ, Msg);
+            return_error(Acc, IQ, bad_request, Msg);
         Result ->
             forward_result(Acc, IQ, From, InboxEntryKey, Result, QueryId)
     end.
@@ -143,7 +143,7 @@ prepare_children(Jid, Properties, QueryId) ->
 maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     case mod_inbox_utils:extract_attr_jid(ResetStanza) of
         {error, Msg} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+            return_error(Acc, IQ, bad_request, Msg);
         InterlocutorJID ->
             process_reset_stanza(Acc, From, IQ, ResetStanza, InterlocutorJID)
     end.
@@ -183,10 +183,10 @@ maybe_full_entry(_, _, _) ->
 kv_to_el(Key, Value) ->
     #xmlel{name = Key, children = [#xmlcdata{content = Value}]}.
 
--spec return_error(mongoose_acc:t(), jlib:iq(), any()) ->
+-spec return_error(mongoose_acc:t(), jlib:iq(), bad_request | item_not_found, binary()) ->
     {mongoose_acc:t(), jlib:iq()}.
-return_error(Acc, IQ, Msg) when is_binary(Msg) ->
-    {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}}.
+return_error(Acc, IQ, Type, Msg) when is_binary(Msg) ->
+    {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:Type(<<"en">>, Msg)]}}.
 
 -spec form_to_query(integer(), [exml:element()], map()) -> map() | {error, binary()}.
 form_to_query(_, [], Acc) when map_size(Acc) == 0 ->
