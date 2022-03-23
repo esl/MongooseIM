@@ -51,8 +51,10 @@ ensure_metrics(HostType) ->
 config_spec() ->
     #section{
        items = #{<<"buffer_max">> => #option{type = int_or_infinity,
-                                             validate = non_negative}}
-      }.
+                                             validate = non_negative}},
+       format_items = map,
+       defaults = #{<<"buffer_max">> => 20}
+    }.
 
 -spec supported_features() -> [atom()].
 supported_features() ->

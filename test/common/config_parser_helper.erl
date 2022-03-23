@@ -538,7 +538,7 @@ all_modules() ->
                           port => 2222, transport => <<"tcp">>, type => stun,
                           username => <<"username">>},
                         #{host => <<"192.168.0.1">>, type => turn}]},
-      mod_csi => [{buffer_max, 40}],
+      mod_csi => mod_config(mod_csi, #{buffer_max => 40}),
       mod_muc_log =>
           mod_config(mod_muc_log,
                      #{access_log => muc,
@@ -855,6 +855,8 @@ default_mod_config(mod_cache_users) ->
 default_mod_config(mod_caps) ->
     #{cache_size => 1000,
       cache_life_time => timer:hours(24) div 1000};
+default_mod_config(mod_csi) ->
+    #{buffer_max => 20};
 default_mod_config(mod_disco) ->
     #{extra_domains => [], server_info => [],
       users_can_see_hidden_services => true, iqdisc => one_queue};

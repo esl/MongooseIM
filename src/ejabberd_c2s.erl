@@ -2740,8 +2740,7 @@ maybe_csi_inactive_optimisation(Acc, {From,To,El}, #state{csi_buffer = Buffer} =
     {ok, Acc, NewState}.
 
 flush_or_buffer_packets(State) ->
-    MaxBuffSize = gen_mod:get_module_opt(State#state.host_type, mod_csi,
-                                         buffer_max, 20),
+    MaxBuffSize = gen_mod:get_module_opt(State#state.host_type, mod_csi, buffer_max),
     case length(State#state.csi_buffer) > MaxBuffSize of
         true ->
             flush_csi_buffer(State);

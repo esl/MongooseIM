@@ -1656,10 +1656,11 @@ mod_carboncopy(_Config) ->
     check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
+    check_module_defaults(mod_csi),
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_csi">> => #{K => V}}} end,
-    M = fun(K, V) -> modopts(mod_csi, [{K, V}]) end,
-    ?cfgh(M(buffer_max, 10), T(<<"buffer_max">>, 10)),
-    ?cfgh(M(buffer_max, infinity), T(<<"buffer_max">>, <<"infinity">>)),
+    P = [modules, mod_csi],
+    ?cfgh(P ++ [buffer_max], 10, T(<<"buffer_max">>, 10)),
+    ?cfgh(P ++ [buffer_max], infinity, T(<<"buffer_max">>, <<"infinity">>)),
     ?errh(T(<<"buffer_max">>, -1)).
 
 mod_disco(_Config) ->
