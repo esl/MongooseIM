@@ -10,7 +10,7 @@ It is personal to a given user and represents the current status of the conversa
 It is a specific conversation, that the user can identify by the recipient jid, that is, the user jid in case of a one-to-one chat, or the room jid in case of a group-chat.
 
 ### Box (also referred to as "folder")
-A category where entries can be classified. The default box is the active box, simply called _inbox_. There is a second box, called _archive_, where entries can be thrown into and not displayed by default. No more boxes are expected.
+A category where entries can be classified. The default box is the active box, simply called _inbox_. There is a second box, called _archive_, where entries can be thrown into and not displayed by default. More boxes can be created through [configuration][inbox boxes].
 
 
 ## Entity Use Cases
@@ -55,6 +55,11 @@ The inbox is fetched using regular XMPP [Data Forms]. To request the supported f
         <option label='Descending by timestamp'><value>desc</value></option>
       </field>
       <field var='hidden_read' type='text-single' value='false'/>
+      <field var='box' type='list-simple' value='all'>
+        <option label='all'><value>all</value></option>
+        <option label='inbox'><value>inbox</value></option>
+        <option label='archive'><value>archive</value></option>
+      </field>
       <field var='archive' type='boolean'/>
     </x>
   </query>
@@ -78,6 +83,7 @@ Then the client should receive:
         <body>Hello</body>
       </message>
     </forwarded>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>0</mute>
   </result>
@@ -114,7 +120,8 @@ A client may specify the following parameters:
 * variable `end`: End date for the result set (value: ISO timestamp)
 * variable `order`: Order by timestamp (values: `asc`, `desc`)
 * variable `hidden_read`: Show only conversations with unread messages (values: `true`, `false`)
-* variable `archive`: whether to query the archive inbox. `true` means querying only the archive box, `false` means querying only the active box. If the flag is not set, it is assumed all entries are requested.
+* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, and `archive`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes)
+* variable `archive` [deprecated, prefer `box`]: whether to query the archive inbox. `true` means querying only the archive box, `false` means querying only the active box. If the flag is not set, it is assumed all entries are requested. This is kept for backwards compatibility reasons, use the `box` flag instead.
 
 They are encoded inside a standard XMPP [Data Forms] format.
 Dates must be formatted according to [XMPP Date and Time Profiles](https://xmpp.org/extensions/xep-0082.html).
@@ -130,7 +137,7 @@ It can happen that the amount of inbox entries is too big for a given user, even
       <field type='hidden' var='FORM_TYPE'><value>erlang-solutions.com:xmpp:inbox:0</value></field>
       <field type='list-single' var='order'><value>asc</value></field>
       <field type='text-single' var='hidden_read'><value>true</value></field>
-      <field type='boolean' var='archive'><value>false</value></field>
+      <field type='list-single' var='box'><value>inbox</value></field>
     </x>
     <set xmlns='http://jabber.org/protocol/rsm'>
       <max>Max</max>
@@ -144,10 +151,12 @@ where `Max` is a non-negative integer.
 ## Properties of an entry
 Given an entry, certain properties are defined for such an entry:
 
-### Archived
+### Box
 Clients usually have two different boxes for the inbox: the regular one, simply called the inbox (or the active inbox), and an archive box, where clients can manually throw conversations they don't want displayed in the default UI.
 
 It is expected that entries will reside in the archive until they're either manually moved back to the active box, or they receive a new message: in such case the entry should jump back to the active box automatically.
+
+More boxes can be implemented, see [mod_inbox#boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). Movement between boxes can be achieved through the right XMPP IQ, no automatic movements are developed as in the case of inbox-archive.
 
 ### Read
 Entries keep a count of unread messages that is incremented automatically upon receiving a new message, and (in the current implementation) set to zero upon receiving either a message by one-self, or an appropriate chat marker as defined in [XEP-0333](https://xmpp.org/extensions/xep-0333.html) (which markers reset the count is a matter of configuration, see [doc](../modules/mod_inbox.md#modulesmod_inboxreset_markers)).
@@ -193,6 +202,7 @@ To which the server will reply, just like before, with:
 ```xml
 <iq id='some_unique_id' to='alice@localhost/res1' type='result'>
   <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation'>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>0</mute>
     <read>true</read>
@@ -236,6 +246,7 @@ Setting properties is done using the standard XMPP pattern of `iq-query` and `iq
 ```
 where `Property` and `Value` are a list of key-value pairs as follows:
 
+- `box`: `inbox`, `archive`, or a custom value if this has been extended.
 - `archive`: `true` or `false`
 - `mute`: number of _seconds_ to mute for. Choose `0` for unmuting.
 - `read` (adjective, not verb): `true` or `false`. Setting to true essentially sets the unread-count to `0`, `false` sets the unread-count to `1` (if it was equal to `0`, otherwise it lefts it unchanged). No other possibilities are offered, to reduce the risk of inconsistencies or problems induced by a faulty client.
@@ -246,6 +257,7 @@ If the query was successful, the server will answer with two stanzas, following 
 ```xml
 <message from='alice@localhost' to='alice@localhost' id='some_unique_id'>
   <x xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>0</mute>
     <read>true</read>
@@ -273,11 +285,11 @@ This final syntax for the protocol has been chosen as it allows for better pipel
 
 
 ### Examples: archiving an entry
-To archive an entry, the client can send:
+To put an entry into the archived box, the client can send:
 ```xml
 <iq id='some_unique_id' type='set'>
   <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
-    <archive>true</archive>
+    <box>archive</box>
   </query>
 </iq>
 ```
@@ -285,6 +297,7 @@ On success, the server would return (considering the entry has no unread message
 ```xml
 <iq id='some_unique_id' to='alice@localhost/res1' type='result'>
   <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
+    <box>archive</box>
     <archive>true</archive>
     <mute>0</mute>
     <read>true</read>
@@ -313,6 +326,7 @@ On success, the server would return (considering the server receives the timesta
 ```xml
 <iq id='some_unique_id' to='alice@localhost/res1' type='result'>
   <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>2021-02-27T09:11:05.634232Z</mute>
     <read>true</read>
@@ -350,6 +364,7 @@ On success, the server would return (considering the entry is not archived and n
 ```xml
 <iq id='some_unique_id' to='alice@localhost/res1' type='result'>
   <query xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='bob@localhost'>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>0</mute>
     <read>true</read>
@@ -420,6 +435,7 @@ stanza nor anything given within will be stored; the only change is the inbox
         <body>Hello</body>
       </message>
     </forwarded>
+    <box>inbox</box>
     <archive>false</archive>
     <mute>0</mute>
   </result>
@@ -461,3 +477,4 @@ stanza nor anything given within will be stored; the only change is the inbox
 
 [mod_inbox]: ../modules/mod_inbox.md
 [Data Forms]: https://xmpp.org/extensions/xep-0004.html
+[inbox boxes]: ../modules/mod_inbox.md#modulesmod_inboxboxes
