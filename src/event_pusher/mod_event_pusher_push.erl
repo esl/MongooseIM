@@ -31,7 +31,7 @@
 -export([start/2, stop/1, config_spec/0]).
 
 %% mod_event_pusher behaviour
--export([push_event/3]).
+-export([push_event/2]).
 
 %% Hooks and IQ handlers
 -export([iq_handler/4,
@@ -58,64 +58,71 @@
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
--spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> any().
-start(Host, Opts) ->
-    ?LOG_INFO(#{what => event_pusher_starting, server => Host}),
-    start_pool(Host, Opts),
-    mod_event_pusher_push_backend:init(Host, Opts),
-    mod_event_pusher_push_plugin:init(Host),
-    init_iq_handlers(Host, Opts),
-    ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 90),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, Opts) ->
+    ?LOG_INFO(#{what => event_pusher_starting, host_type => HostType}),
+    start_pool(HostType, Opts),
+    mod_event_pusher_push_backend:init(HostType, Opts),
+    mod_event_pusher_push_plugin:init(HostType, Opts),
+    init_iq_handlers(HostType, Opts),
+    ejabberd_hooks:add(remove_user, HostType, ?MODULE, remove_user, 90),
     ok.
 
-start_pool(Host, Opts) ->
-    WpoolOpts = wpool_opts(Opts),
-    {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts).
+start_pool(HostType, #{wpool := WpoolOpts}) ->
+    {ok, _} = mongoose_wpool:start(generic, HostType, pusher_push, maps:to_list(WpoolOpts)).
 
--spec wpool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
-wpool_opts(Opts) ->
-    [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])].
-
-init_iq_handlers(Host, Opts) ->
+init_iq_handlers(HostType, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-    gen_iq_handler:add_iq_handler(ejabberd_local, Host, ?NS_PUSH, ?MODULE,
+    gen_iq_handler:add_iq_handler(ejabberd_local, HostType, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PUSH, ?MODULE,
+    gen_iq_handler:add_iq_handler(ejabberd_sm, HostType, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc).
 
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 90),
+-spec stop(mongooseim:host_type()) -> ok.
+stop(HostType) ->
+    ejabberd_hooks:delete(remove_user, HostType, ?MODULE, remove_user, 90),
 
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PUSH),
-    gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, HostType, ?NS_PUSH),
+    gen_iq_handler:remove_iq_handler(ejabberd_local, HostType, ?NS_PUSH),
 
-    mongoose_wpool:stop(generic, Host, pusher_push),
+    mongoose_wpool:stop(generic, HostType, pusher_push),
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     VirtPubSubHost = #option{type = string, validate = subdomain_template,
                              process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
-    #section{items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
-                       <<"wpool">> => #section{items = mongoose_config_spec:wpool_items()},
-                       <<"plugin_module">> => #option{type = atom, validate = module},
-                       <<"virtual_pubsub_hosts">> => #list{items = VirtPubSubHost}}}.
+    #section{
+        items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
+                  <<"wpool">> => wpool_spec(),
+                  <<"plugin_module">> => #option{type = atom, validate = module},
+                  <<"virtual_pubsub_hosts">> => #list{items = VirtPubSubHost}},
+        defaults = #{<<"backend">> => mnesia,
+                     <<"plugin_module">> => mod_event_pusher_push_plugin:default_plugin_module(),
+                     <<"virtual_pubsub_hosts">> => []},
+        format_items = map
+    }.
+
+wpool_spec() ->
+    WpoolDefaults = mongoose_config_spec:wpool_defaults(),
+    #section{items = mongoose_config_spec:wpool_items(),
+             defaults = WpoolDefaults#{<<"strategy">> := available_worker},
+             format_items = map,
+             include = always}.
 
 %%--------------------------------------------------------------------
 %% mod_event_pusher callbacks
 %%--------------------------------------------------------------------
--spec push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(),
-                 Event :: mod_event_pusher:event()) -> mongoose_acc:t().
-push_event(Acc, Host, Event = #chat_event{direction = out, to = To,
-                                          type = Type}) when Type =:= groupchat;
-                                                             Type =:= chat ->
+-spec push_event(mongoose_acc:t(),  mod_event_pusher:event()) -> mongoose_acc:t().
+push_event(Acc, Event = #chat_event{direction = out, to = To, type = Type})
+  when Type =:= groupchat;
+       Type =:= chat ->
     BareRecipient = jid:to_bare(To),
-    do_push_event(Acc, Host, Event, BareRecipient);
-push_event(Acc, Host, Event = #unack_msg_event{to = To}) ->
+    do_push_event(Acc, Event, BareRecipient);
+push_event(Acc, Event = #unack_msg_event{to = To}) ->
     BareRecipient = jid:to_bare(To),
-    do_push_event(Acc, Host, Event, BareRecipient);
-push_event(Acc, _, _) ->
+    do_push_event(Acc, Event, BareRecipient);
+push_event(Acc, _) ->
     Acc.
 
 %%--------------------------------------------------------------------
@@ -134,14 +141,14 @@ remove_user(Acc, LUser, LServer) ->
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
-    Host = mongoose_acc:lserver(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     Res = case parse_request(Request) of
               {enable, BarePubSubJID, Node, FormFields} ->
-                  ok = enable_node(Host, From, BarePubSubJID, Node, FormFields),
+                  ok = enable_node(HostType, From, BarePubSubJID, Node, FormFields),
                   store_session_info(From, {BarePubSubJID, Node, FormFields}),
                   IQ#iq{type = result, sub_el = []};
               {disable, BarePubsubJID, Node} ->
-                  ok = disable_node(Host, From, BarePubsubJID, Node),
+                  ok = disable_node(HostType, From, BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
                   IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
@@ -151,22 +158,22 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
 %%--------------------------------------------------------------------
 %% Plugin utils API
 %%--------------------------------------------------------------------
--spec disable_node(Host :: jid:lserver(), UserJID :: jid:jid(), BarePubSubJID :: jid:jid(),
+-spec disable_node(mongooseim:host_type(), UserJID :: jid:jid(), BarePubSubJID :: jid:jid(),
                    Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
-disable_node(Host, UserJID, BarePubSubJID, Node) ->
+disable_node(HostType, UserJID, BarePubSubJID, Node) ->
     BareUserJID = jid:to_bare(UserJID),
     maybe_remove_push_node_from_sessions_info(BareUserJID, BarePubSubJID, Node),
-    mod_event_pusher_push_backend:disable(Host, BareUserJID, BarePubSubJID, Node).
+    mod_event_pusher_push_backend:disable(HostType, BareUserJID, BarePubSubJID, Node).
 
--spec cast(Host :: jid:server(), F :: function(), A :: [any()]) -> any().
-cast(Host, F, A) ->
-    mongoose_wpool:cast(generic, Host, pusher_push, {erlang, apply, [F,A]}).
+-spec cast(mongooseim:host_type(), F :: function(), A :: [any()]) -> any().
+cast(HostType, F, A) ->
+    mongoose_wpool:cast(generic, HostType, pusher_push, {erlang, apply, [F, A]}).
 
 -spec is_virtual_pubsub_host(HostType :: mongooseim:host_type(), %% recipient host type
                              RecipientDomain :: mongooseim:domain(),
                              VirtPubsubDomain :: mongooseim:domain()) -> boolean().
 is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
-    Templates = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts, []),
+    Templates = gen_mod:get_module_opt(HostType, ?MODULE, virtual_pubsub_hosts),
     PredFn = fun(Template) ->
                  mongoose_subdomain_utils:is_subdomain(Template,
                                                        RecipientDomain,
@@ -177,17 +184,16 @@ is_virtual_pubsub_host(HostType, RecipientDomain, VirtPubsubDomain) ->
 %%--------------------------------------------------------------------
 %% local functions
 %%--------------------------------------------------------------------
--spec do_push_event(mongoose_acc:t(), jid:server(), mod_event_pusher:event(), jid:jid()) ->
-    mongoose_acc:t().
-do_push_event(Acc, Host, Event, BareRecipient) ->
-    case mod_event_pusher_push_plugin:prepare_notification(Host, Acc, Event) of
+-spec do_push_event(mongoose_acc:t(), mod_event_pusher:event(), jid:jid()) -> mongoose_acc:t().
+do_push_event(Acc, Event, BareRecipient) ->
+    case mod_event_pusher_push_plugin:prepare_notification(Acc, Event) of
         skip -> Acc;
         Payload ->
-            {ok, Services} = mod_event_pusher_push_backend:get_publish_services(Host, BareRecipient),
-            FilteredService = mod_event_pusher_push_plugin:should_publish(Host, Acc, Event,
-                                                                          Services),
-            mod_event_pusher_push_plugin:publish_notification(Host, Acc, Event,
-                                                              Payload, FilteredService)
+            HostType = mongoose_acc:host_type(Acc),
+            {ok, Services} = mod_event_pusher_push_backend:get_publish_services(HostType,
+                                                                                BareRecipient),
+            FilteredService = mod_event_pusher_push_plugin:should_publish(Acc, Event, Services),
+            mod_event_pusher_push_plugin:publish_notification(Acc, Event, Payload, FilteredService)
     end.
 
 -spec parse_request(Request :: exml:element()) ->
@@ -244,10 +250,11 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec enable_node(jid:lserver(), jid:jid(), jid:jid(), pubsub_node(), form()) ->
+-spec enable_node(mongooseim:host_type(), jid:jid(), jid:jid(), pubsub_node(), form()) ->
     ok | {error, Reason :: term()}.
-enable_node(Host, From, BarePubSubJID, Node, FormFields) ->
-    mod_event_pusher_push_backend:enable(Host, jid:to_bare(From), BarePubSubJID, Node, FormFields).
+enable_node(HostType, From, BarePubSubJID, Node, FormFields) ->
+    mod_event_pusher_push_backend:enable(HostType, jid:to_bare(From), BarePubSubJID, Node,
+                                         FormFields).
 
 -spec store_session_info(jid:jid(), publish_service()) -> any().
 store_session_info(Jid, Service) ->
