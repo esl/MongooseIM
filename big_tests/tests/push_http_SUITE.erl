@@ -10,8 +10,8 @@
 -define(ETS_TABLE, push_http).
 
 -import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
-
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [mod_event_pusher_http_handler/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -67,40 +67,20 @@ end_per_testcase(CaseName, Config) ->
     clear_events_collection(),
     escalus:end_per_testcase(CaseName, Config).
 
-required_modules(single) ->
-    [{mod_event_pusher,
-        [{backends,
-            [{http,
-                [{path, "/push"},
-                    {pool_name, http_pool}]
-                }]
-        }]
-    }];
-required_modules(customised) ->
-    [{mod_event_pusher,
-        [{backends,
-            [{http,
-                [{path, "/push"},
-                    {callback_module, mod_event_pusher_http_custom},
-                    {pool_name, http_pool}]
-                }]
-        }]
-    }];
-required_modules(multiple) ->
-    [{mod_event_pusher,
-        [{backends,
-            [{http,
-                [{path, "/push"},
-                 {callback_module, mod_event_pusher_http_custom},
-                 {pool_name, http_pool}]
-             },
-             {http,
-                [{path, "/push2"},
-                 {callback_module, mod_event_pusher_http_custom_2},
-                 {pool_name, http_pool}]
-            }]
-        }]
-     }].
+required_modules(GroupName) ->
+    [{mod_event_pusher, #{http => #{handlers => push_http_handler_opts(GroupName)}}}].
+
+push_http_handler_opts(GroupName) ->
+    BasicOpts = mod_event_pusher_http_handler(),
+    [maps:merge(BasicOpts, ExtraOpts) || ExtraOpts <- push_http_handler_extra_opts(GroupName)].
+
+push_http_handler_extra_opts(single) ->
+    [#{path => <<"push">>}];
+push_http_handler_extra_opts(customised) ->
+    [#{path => <<"push">>, callback_module => mod_event_pusher_http_custom}];
+push_http_handler_extra_opts(multiple) ->
+    [#{path => <<"push">>, callback_module => mod_event_pusher_http_custom},
+     #{path => <<"push2">>, callback_module => mod_event_pusher_http_custom_2}].
 
 %%--------------------------------------------------------------------
 %% Tests
