@@ -24,7 +24,7 @@
         ]).
 -import(distributed_helper, [rpc/4, subhost_pattern/1]).
 -import(domain_helper, [domain/0]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [mod_config/2, config/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -980,41 +980,43 @@ required_modules_for_group(integration_with_sm_and_offline_storage, API, PubSubH
      required_modules(API, PubSubHost)];
 required_modules_for_group(enhanced_integration_with_sm, API, PubSubHost) ->
     [{mod_stream_management, config_parser_helper:mod_config(mod_stream_management, #{ack_freq => never})} |
-     required_modules(API, PubSubHost, mod_event_pusher_push_plugin_enhanced)];
+     required_modules(API, PubSubHost, enhanced_plugin_module_opts())];
 required_modules_for_group(_, API, PubSubHost) ->
     required_modules(API, PubSubHost).
 
 required_modules(API, PubSubHost)->
-    required_modules(API, PubSubHost, undefined).
+    required_modules(API, PubSubHost, #{}).
 
-required_modules(API, PubSubHost, PluginModule) ->
-    VirtualHostOpt = case PubSubHost of
-                         virtual ->
-                             VirtHostPattern = subhost_pattern("virtual.@HOST@"),
-                             [{virtual_pubsub_hosts, [VirtHostPattern]}];
-                         _ -> []
-                     end,
-    PushOpts = case PluginModule of
-                   undefined -> VirtualHostOpt;
-                   _ -> [{plugin_module, PluginModule} | VirtualHostOpt]
-               end,
-    PubSub = case PubSubHost of
-                 virtual -> [];
-                 _ ->
-                     HostPattern = subhost_pattern("pubsub.@HOST@"),
-                     [{mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"push">>],
-                                                            backend => mongoose_helper:mnesia_or_rdbms_backend(),
-                                                            nodetree => nodetree_dag,
-                                                            host => HostPattern})}]
-             end,
-    PushBackend = {push, [{backend, mongoose_helper:mnesia_or_rdbms_backend()} | PushOpts]},
-    [
-        {mod_push_service_mongoosepush, config_parser_helper:mod_config(mod_push_service_mongoosepush,
-                                                                        #{pool_name => mongoose_push_http,
-                                                                          api_version => API})},
-        {mod_event_pusher, [{backends, [PushBackend]}]} |
-        PubSub
-    ].
+required_modules(API, PubSubHost, ExtraPushOpts) ->
+    PubSubHostOpts = virtual_pubsub_hosts_opts(PubSubHost),
+    PushOpts = maps:merge(ExtraPushOpts, PubSubHostOpts),
+    pubsub_modules(PubSubHost) ++ event_pusher_modules(API, PushOpts).
+
+pubsub_modules(virtual) ->
+    [];
+pubsub_modules(real) ->
+    [{mod_pubsub, mod_config(mod_pubsub, #{plugins => [<<"dag">>, <<"push">>],
+                                           backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                                           nodetree => nodetree_dag,
+                                           host => subhost_pattern("pubsub.@HOST@")})}].
+
+event_pusher_modules(API, PushOpts) ->
+    [{mod_push_service_mongoosepush, mod_config(mod_push_service_mongoosepush,
+                                                #{pool_name => mongoose_push_http,
+                                                  api_version => API})},
+     {mod_event_pusher, #{push => push_opts(PushOpts)}}].
+
+virtual_pubsub_hosts_opts(virtual) ->
+    #{virtual_pubsub_hosts => [subhost_pattern("virtual.@HOST@")]};
+virtual_pubsub_hosts_opts(real) ->
+    #{}.
+
+push_opts(ExtraOpts) ->
+    config([modules, mod_event_pusher, push],
+           ExtraOpts#{backend => mongoose_helper:mnesia_or_rdbms_backend()}).
+
+enhanced_plugin_module_opts() ->
+    #{plugin_module => mod_event_pusher_push_plugin_enhanced}.
 
 muc_light_opts() ->
     mod_config(mod_muc_light, #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
