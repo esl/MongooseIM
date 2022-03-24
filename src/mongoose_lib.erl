@@ -10,7 +10,7 @@
 -export([wait_until/2, wait_until/3]).
 -export([parse_ip_netmask/1]).
 
--export([get_message_type/1, does_local_user_exist/3]).
+-export([get_message_type/1, does_local_user_exist/3, is_to_room/1]).
 
 %% Private, just for warning
 -export([deprecated_logging/1]).
