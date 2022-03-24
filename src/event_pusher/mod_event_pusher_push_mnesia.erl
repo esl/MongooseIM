@@ -18,10 +18,10 @@
 %%--------------------------------------------------------------------
 
 -export([init/2]).
--export([enable/4,
-         disable/1,
-         disable/3,
-         get_publish_services/1]).
+-export([enable/5,
+         disable/2,
+         disable/4,
+         get_publish_services/2]).
 
 %%--------------------------------------------------------------------
 %% Definitions
@@ -41,8 +41,8 @@
 %% Backend callbacks
 %%--------------------------------------------------------------------
 
--spec init(Host :: jid:server(), Opts :: list()) -> ok.
-init(_Host, _Opts) ->
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     mnesia:create_table(push_subscription,
                         [{disc_copies, [node()]},
                          {type, bag},
@@ -50,23 +50,22 @@ init(_Host, _Opts) ->
     mnesia:add_table_copy(push_subscription, node(), disc_copies),
     ok.
 
-
--spec enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
+-spec enable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
              Node :: mod_event_pusher_push:pubsub_node(), Form :: mod_event_pusher_push:form()) ->
                     ok | {error, Reason :: term()}.
-enable(User, PubSub, Node, Forms) ->
-    disable(User, PubSub, Node),
+enable(HostType, User, PubSub, Node, Forms) ->
+    disable(HostType, User, PubSub, Node),
     write(make_record(User, PubSub, Node, Forms)).
 
 
--spec disable(UserJID :: jid:jid()) -> ok | {error, Reason :: term()}.
-disable(User) ->
+-spec disable(mongooseim:host_type(), UserJID :: jid:jid()) -> ok | {error, Reason :: term()}.
+disable(_HostType, User) ->
     delete(key(User)).
 
--spec disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
+-spec disable(mongooseim:host_type(), UserJID :: jid:jid(), PubsubJID :: jid:jid(),
               Node :: mod_event_pusher_push:pubsub_node() | undefined) ->
           ok | {error, Reason :: term()}.
-disable(User, PubsubJID, Node) ->
+disable(_HostType, User, PubsubJID, Node) ->
     Result =
     exec(
           fun() ->
@@ -88,12 +87,12 @@ disable(User, PubsubJID, Node) ->
     end.
 
 
--spec get_publish_services(User :: jid:jid()) ->
+-spec get_publish_services(mongooseim:host_type(), User :: jid:jid()) ->
                                   {ok, [{PubSub :: jid:jid(),
                                          Node :: mod_event_pusher_push:pubsub_node(),
                                          Form :: mod_event_pusher_push:form()}]} |
                                                  {error, Reason :: term()}.
-get_publish_services(User) ->
+get_publish_services(_HostType, User) ->
     case safe_read(key(User)) of
         {ok, Records} ->
             {ok, [{PubsubJID, Node, Forms} ||

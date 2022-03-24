@@ -9,69 +9,68 @@
 -module(mod_event_pusher_push_rdbms).
 -behavior(mod_event_pusher_push_backend).
 
--include("mongoose.hrl").
--include_lib("jid/include/jid.hrl").
 %%--------------------------------------------------------------------
 %% Exports
 %%--------------------------------------------------------------------
 
 -export([init/2]).
--export([enable/4,
-         disable/1,
-         disable/3,
-         get_publish_services/1]).
+-export([enable/5,
+         disable/2,
+         disable/4,
+         get_publish_services/2]).
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
 %%--------------------------------------------------------------------
 
--spec init(Host :: jid:server(), Opts :: list()) -> ok.
-init(_Host, _Opts) ->
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+init(_HostType, _Opts) ->
     prepare_queries().
 
--spec enable(User, PubSub, Node, Form) -> Result when
+-spec enable(HostType, User, PubSub, Node, Form) -> Result when
+      HostType :: mongooseim:host_type(),
       User :: jid:jid(),
       PubSub :: jid:jid(),
       Node :: mod_event_pusher_push:pubsub_node(),
       Form :: mod_event_pusher_push:form(),
       Result :: ok | {error, term()}.
-enable(#jid{lserver = LServer} = User, PubSub, Node, Forms) ->
+enable(HostType, User, PubSub, Node, Forms) ->
     ExtUser = jid:to_binary(jid:to_lus(User)),
     ExtPubSub = jid:to_binary(PubSub),
     ExtForms = encode_form(Forms),
-    execute_delete(LServer, ExtUser, Node, ExtPubSub),
+    execute_delete(HostType, ExtUser, Node, ExtPubSub),
     CreatedAt = os:system_time(microsecond),
-    case execute_insert(LServer, ExtUser, Node, ExtPubSub, ExtForms, CreatedAt) of
+    case execute_insert(HostType, ExtUser, Node, ExtPubSub, ExtForms, CreatedAt) of
         {updated, 1} -> ok;
         Other -> Other
     end.
 
--spec disable(User :: jid:jid()) -> ok.
-disable(#jid{lserver = LServer} = User) ->
+-spec disable(mongooseim:host_type(), User :: jid:jid()) -> ok.
+disable(HostType, User) ->
     ExtUser = jid:to_binary(jid:to_lus(User)),
-    execute_delete(LServer, ExtUser),
+    execute_delete(HostType, ExtUser),
     ok.
 
--spec disable(User :: jid:jid(), PubSub :: jid:jid(),
+-spec disable(mongooseim:host_type(), User :: jid:jid(), PubSub :: jid:jid(),
               Node :: mod_event_pusher_push:pubsub_node() | undefined) -> ok.
-disable(#jid{lserver = LServer} = User, PubSub, undefined) ->
+disable(HostType, User, PubSub, undefined) ->
     ExtUser = jid:to_binary(jid:to_lus(User)),
     ExtPubSub = jid:to_binary(PubSub),
-    execute_delete(LServer, ExtUser, ExtPubSub),
+    execute_delete(HostType, ExtUser, ExtPubSub),
     ok;
-disable(#jid{lserver = LServer} = User, PubSub, Node) ->
+disable(HostType, User, PubSub, Node) ->
     ExtUser = jid:to_binary(jid:to_lus(User)),
     ExtPubSub = jid:to_binary(PubSub),
-    execute_delete(LServer, ExtUser, Node, ExtPubSub),
+    execute_delete(HostType, ExtUser, Node, ExtPubSub),
     ok.
 
--spec get_publish_services(User :: jid:jid()) ->
+-spec get_publish_services(mongooseim:host_type(), User :: jid:jid()) ->
     {ok, [{PubSub :: jid:jid(),
            Node :: mod_event_pusher_push:pubsub_node(),
            Form :: mod_event_pusher_push:form()}]}.
-get_publish_services(#jid{lserver = LServer} = User) ->
+get_publish_services(HostType, User) ->
     ExtUser = jid:to_binary(jid:to_lus(User)),
-    {selected, Rows} = execute_select(LServer, ExtUser),
+    {selected, Rows} = execute_select(HostType, ExtUser),
     {ok, decode_rows(Rows)}.
 
 decode_rows(Rows) ->
@@ -114,30 +113,30 @@ prepare_queries() ->
                              "WHERE owner_jid = ? AND node = ? AND pubsub_jid = ?">>),
     ok.
 
--spec execute_insert(jid:lserver(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
+-spec execute_insert(mongooseim:host_type(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
                      jid:literal_jid(), iodata(), non_neg_integer()) ->
           mongoose_rdbms:query_result().
-execute_insert(LServer, OwnerJid, Node, PubSubJid, Form, CreatedAt) ->
-    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_insert,
+execute_insert(HostType, OwnerJid, Node, PubSubJid, Form, CreatedAt) ->
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_insert,
                                         [OwnerJid, Node, PubSubJid, Form, CreatedAt]).
 
--spec execute_select(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
-execute_select(LServer, OwnerJid) ->
-    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_select, [OwnerJid]).
+-spec execute_select(mongooseim:host_type(), jid:literal_jid()) -> mongoose_rdbms:query_result().
+execute_select(HostType, OwnerJid) ->
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_select, [OwnerJid]).
 
--spec execute_delete(jid:lserver(), jid:literal_jid()) -> mongoose_rdbms:query_result().
-execute_delete(LServer, OwnerJid) ->
-    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete, [OwnerJid]).
+-spec execute_delete(mongooseim:host_type(), jid:literal_jid()) -> mongoose_rdbms:query_result().
+execute_delete(HostType, OwnerJid) ->
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_delete, [OwnerJid]).
 
--spec execute_delete(jid:lserver(), jid:literal_jid(), jid:literal_jid()) ->
+-spec execute_delete(mongooseim:host_type(), jid:literal_jid(), jid:literal_jid()) ->
           mongoose_rdbms:query_result().
-execute_delete(LServer, OwnerJid, PubSubJid) ->
-    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete_pubsub_jid,
+execute_delete(HostType, OwnerJid, PubSubJid) ->
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_delete_pubsub_jid,
                                         [OwnerJid, PubSubJid]).
 
--spec execute_delete(jid:lserver(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
+-spec execute_delete(mongooseim:host_type(), jid:literal_jid(), mod_event_pusher_push:pubsub_node(),
                      jid:literal_jid()) ->
           mongoose_rdbms:query_result().
-execute_delete(LServer, OwnerJid, Node, PubSubJid) ->
-    mongoose_rdbms:execute_successfully(LServer, event_pusher_push_delete_node,
+execute_delete(HostType, OwnerJid, Node, PubSubJid) ->
+    mongoose_rdbms:execute_successfully(HostType, event_pusher_push_delete_node,
                                         [OwnerJid, Node, PubSubJid]).
