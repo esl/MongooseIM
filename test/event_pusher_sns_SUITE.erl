@@ -1,4 +1,4 @@
--module(mod_aws_sns_SUITE).
+-module(event_pusher_sns_SUITE).
 
 -compile([export_all, nowarn_export_all]).
 
@@ -134,7 +134,7 @@ end_per_suite(_) ->
 
 init_per_testcase(_, Config) ->
     meck:new([gen_mod, erlcloud_sns, mongoose_wpool], [non_strict, passthrough]),
-    meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
+    meck:expect(erlcloud_sns, new, fun(_, _, _) -> event_pusher_sns_SUITE_erlcloud_sns_new end),
     set_sns_config(#{}),
     meck:expect(mongoose_wpool, cast, fun(_, _, _, {M, F, A}) -> erlang:apply(M, F, A) end),
     [{sender, jid:from_binary(<<"sender@localhost">>)},
@@ -169,7 +169,7 @@ user_not_present_callback(Config) ->
 %% Helpers
 
 custom_callback_module(UserId, Attributes) ->
-    Module = mod_aws_sns_SUITE_mockcb,
+    Module = event_pusher_sns_SUITE_mockcb,
     set_sns_config(#{plugin_module => Module}),
     meck:new(Module, [non_strict]),
     meck:expect(Module, user_guid, fun(_) -> UserId end),

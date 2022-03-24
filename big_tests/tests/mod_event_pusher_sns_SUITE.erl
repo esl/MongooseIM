@@ -1,4 +1,4 @@
--module(mod_aws_sns_SUITE).
+-module(mod_event_pusher_sns_SUITE).
 -compile([export_all, nowarn_export_all]).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -87,8 +87,11 @@ init_per_group(_, Config0) ->
     Domain = domain(),
     Config1 = dynamic_modules:save_modules(Domain, Config0),
     Config = [{sns_config, ?SNS_OPTS} | Config1],
-    dynamic_modules:ensure_modules(Domain, [{mod_aws_sns, ?SNS_OPTS}]),
+    dynamic_modules:ensure_modules(Domain, required_modules()),
     Config.
+
+required_modules() ->
+    [{mod_event_pusher, [{backends, [{sns, ?SNS_OPTS}]}]}].
 
 end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config),
