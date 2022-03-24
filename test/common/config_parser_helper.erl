@@ -390,7 +390,6 @@ options("s2s_only") ->
 
 all_modules() ->
     #{mod_mam_rdbms_user => #{muc => true, pm => true},
-      mod_event_pusher_hook_translator => [],
       mod_mam_muc =>
           mod_config(mod_mam_muc,
                      #{archive_chat_markers => true,
@@ -409,47 +408,14 @@ all_modules() ->
                                  send_pings => true,
                                  timeout_action => none}),
       mod_event_pusher =>
-          [{backends,
-            [{http,
-              [{callback_module, mod_event_pusher_http_defaults},
-               {path, "/notifications"},
-               {pool_name, http_pool}]},
-             {push,
-              [{backend, mnesia},
-               {plugin_module, mod_event_pusher_push_plugin_defaults},
-               {virtual_pubsub_hosts,
-                [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
-               {wpool, [{workers, 200}]}]},
-             {rabbit,
-              [{chat_msg_exchange,
-                [{name, <<"chat_msg">>},
-                 {recv_topic, <<"chat_msg_recv">>},
-                 {sent_topic, <<"chat_msg_sent">>}]},
-               {groupchat_msg_exchange,
-                [{name, <<"groupchat_msg">>},
-                 {recv_topic, <<"groupchat_msg_recv">>},
-                 {sent_topic, <<"groupchat_msg_sent">>}]},
-               {presence_exchange,
-                [{name, <<"presence">>}, {type, <<"topic">>}]}]},
-             {sns,
-              [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-               {account_id, "123456789012"},
-               {muc_messages_topic, "user_messagegroup_sent"},
-               {plugin_module, mod_event_pusher_sns_defaults},
-               {pm_messages_topic, "user_message_sent"},
-               {pool_size, 100},
-               {presence_updates_topic, "user_presence_updated"},
-               {publish_retry_count, 2},
-               {publish_retry_time_ms, 50},
-               {region, "eu-west-1"},
-               {secret_access_key,
-                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-               {sns_host, "sns.eu-west-1.amazonaws.com"}]}]}],
-      mod_event_pusher_push =>
-          [{backend, mnesia},
-           {plugin_module, mod_event_pusher_push_plugin_defaults},
-           {virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]},
-           {wpool, [{workers, 200}]}],
+          #{http => custom_mod_event_pusher_http(),
+            push => custom_mod_event_pusher_push(),
+            rabbit => custom_mod_event_pusher_rabbit(),
+            sns => custom_mod_event_pusher_sns()},
+      mod_event_pusher_http => custom_mod_event_pusher_http(),
+      mod_event_pusher_push => custom_mod_event_pusher_push(),
+      mod_event_pusher_rabbit => custom_mod_event_pusher_rabbit(),
+      mod_event_pusher_sns => custom_mod_event_pusher_sns(),
       mod_adhoc => #{iqdisc => one_queue, report_commands_node => true},
       mod_mam_rdbms_arch_async => default_config([modules, mod_mam_meta, async_writer]),
       mod_keystore =>
@@ -572,25 +538,7 @@ all_modules() ->
           #{api_version => <<"v3">>,
             max_http_connections => 100,
             pool_name => mongoose_push_http},
-      mod_event_pusher_sns =>
-          [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-           {account_id, "123456789012"},
-           {muc_messages_topic, "user_messagegroup_sent"},
-           {plugin_module, mod_event_pusher_sns_defaults},
-           {pm_messages_topic, "user_message_sent"},
-           {pool_size, 100},
-           {presence_updates_topic, "user_presence_updated"},
-           {publish_retry_count, 2},
-           {publish_retry_time_ms, 50},
-           {region, "eu-west-1"},
-           {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
-           {sns_host, "sns.eu-west-1.amazonaws.com"}],
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
-      mod_event_pusher_http =>
-          [{configs,
-            [[{callback_module, mod_event_pusher_http_defaults},
-              {path, "/notifications"},
-              {pool_name, http_pool}]]}],
       mod_inbox =>
           #{backend => rdbms,
             async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
@@ -620,16 +568,6 @@ all_modules() ->
                                                  welcome_message => {"Subject", "Body"}}),
       mod_mam_rdbms_arch =>
           mod_config(mod_mam_rdbms_arch, #{no_writer => true}),
-      mod_event_pusher_rabbit =>
-          [{chat_msg_exchange,
-            [{name, <<"chat_msg">>},
-             {recv_topic, <<"chat_msg_recv">>},
-             {sent_topic, <<"chat_msg_sent">>}]},
-           {groupchat_msg_exchange,
-            [{name, <<"groupchat_msg">>},
-             {recv_topic, <<"groupchat_msg_recv">>},
-             {sent_topic, <<"groupchat_msg_sent">>}]},
-           {presence_exchange, [{name, <<"presence">>}, {type, <<"topic">>}]}],
       mod_bosh =>
           #{backend => mnesia, inactivity => 20, max_wait => infinity,
             server_acks => true, max_pause => 120},
@@ -670,6 +608,47 @@ all_modules() ->
                                                            geriatric => 3600,
                                                            repeat_after => 1800}})
     }.
+
+custom_mod_event_pusher_http() ->
+    #{handlers =>
+          [#{callback_module => mod_event_pusher_http_defaults,
+             path => <<"notifications">>,
+             pool_name => http_pool}]}.
+
+custom_mod_event_pusher_push() ->
+    #{backend => mnesia,
+      plugin_module => mod_event_pusher_push_plugin_defaults,
+      virtual_pubsub_hosts =>
+          [{fqdn,<<"host1">>},{fqdn,<<"host2">>}],
+      wpool => #{strategy => available_worker,
+                 workers => 200,
+                 call_timeout => 5000}}.
+
+custom_mod_event_pusher_rabbit() ->
+    #{chat_msg_exchange => #{name => <<"chat_msg">>,
+                             recv_topic => <<"chat_msg_recv">>,
+                             sent_topic => <<"chat_msg_sent">>,
+                             type => <<"topic">>},
+      groupchat_msg_exchange => #{name => <<"groupchat_msg">>,
+                                  recv_topic => <<"groupchat_msg_recv">>,
+                                  sent_topic => <<"groupchat_msg_sent">>,
+                                  type => <<"topic">>},
+      presence_exchange => #{name => <<"presence">>,
+                             type => <<"topic">>}}.
+
+custom_mod_event_pusher_sns() ->
+    #{access_key_id => "AKIAIOSFODNN7EXAMPLE",
+      account_id => "123456789012",
+      muc_messages_topic => "user_messagegroup_sent",
+      plugin_module => mod_event_pusher_sns_defaults,
+      pm_messages_topic => "user_message_sent",
+      pool_size => 100,
+      presence_updates_topic => "user_presence_updated",
+      publish_retry_count => 2,
+      publish_retry_time_ms => 50,
+      region => "eu-west-1",
+      secret_access_key => "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      sns_host => "eu-west-1.amazonaws.com"}.
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
@@ -805,7 +784,10 @@ default_pool_wpool_opts(rdbms) ->
       strategy => best_worker,
       call_timeout => 60000};
 default_pool_wpool_opts(_) ->
-    #{workers => 10,
+    default_wpool_opts().
+
+default_wpool_opts() ->
+     #{workers => 10,
       strategy => best_worker,
       call_timeout => 5000}.
 
@@ -1002,7 +984,9 @@ default_mod_config(mod_vcard) ->
       backend => mnesia,
       matches => 30};
 default_mod_config(mod_version) ->
-    #{iqdisc => no_queue, os_info => false}.
+    #{iqdisc => no_queue, os_info => false};
+default_mod_config(_) ->
+    #{}.
 
 default_room_opts() ->
     #{title => <<>>,
@@ -1032,6 +1016,32 @@ default_room_opts() ->
 
 default_config([modules, M]) ->
     default_mod_config(M);
+default_config([modules, mod_event_pusher, http]) ->
+    #{handlers => []};
+default_config([modules, mod_event_pusher, push]) ->
+    #{backend => mnesia,
+      wpool => default_config([modules, mod_event_pusher, push, wpool]),
+      plugin_module => mod_event_pusher_push_plugin_defaults,
+      virtual_pubsub_hosts => []};
+default_config([modules, mod_event_pusher, push, wpool]) ->
+    (default_wpool_opts())#{strategy := available_worker};
+default_config([modules, mod_event_pusher, rabbit] = P) ->
+    #{presence_exchange => default_config(P ++ [presence_exchange]),
+      chat_msg_exchange => default_config(P ++ [chat_msg_exchange]),
+      groupchat_msg_exchange => default_config(P ++ [groupchat_msg_exchange])};
+default_config([modules, mod_event_pusher, rabbit, presence_exchange]) ->
+    #{name => <<"presence">>, type => <<"topic">>};
+default_config([modules, mod_event_pusher, rabbit, chat_msg_exchange]) ->
+    #{name => <<"chat_msg">>, type => <<"topic">>,
+      sent_topic => <<"chat_msg_sent">>, recv_topic => <<"chat_msg_recv">>};
+default_config([modules, mod_event_pusher, rabbit, groupchat_msg_exchange]) ->
+    #{name => <<"groupchat_msg">>, type => <<"topic">>,
+      sent_topic => <<"groupchat_msg_sent">>, recv_topic => <<"groupchat_msg_recv">>};
+default_config([modules, mod_event_pusher, sns]) ->
+    #{plugin_module => mod_event_pusher_sns_defaults,
+      pool_size => 100,
+      publish_retry_count => 2,
+      publish_retry_time_ms => 50};
 default_config([modules, mod_global_distrib, connections]) ->
     #{connections_per_endpoint => 1,
       endpoint_refresh_interval => 60,
@@ -1137,6 +1147,11 @@ common_mam_config() ->
       default_result_limit => 50,
       max_result_limit => 50,
       async_writer => default_config([modules, mod_mam_meta, async_writer])}.
+
+mod_event_pusher_http_handler() ->
+    #{pool_name => http_pool,
+      path => <<>>,
+      callback_module => mod_event_pusher_http_defaults}.
 
 config(Path, Opts) ->
     maps:merge(default_config(Path), Opts).
