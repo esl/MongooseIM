@@ -35,16 +35,8 @@
 
 -define(POOL_TAG, event_pusher).
 
--define(DEFAULT_PRESENCE_EXCHANGE, <<"presence">>).
--define(DEFAULT_PRESENCE_EXCHANGE_TYPE, <<"topic">>).
--define(DEFAULT_CHAT_MSG_EXCHANGE, <<"chat_msg">>).
--define(DEFAULT_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
--define(DEFAULT_CHAT_MSG_SENT_TOPIC, <<"chat_msg_sent">>).
--define(DEFAULT_CHAT_MSG_RECV_TOPIC, <<"chat_msg_recv">>).
--define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE, <<"groupchat_msg">>).
--define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
--define(DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC, <<"groupchat_msg_sent">>).
--define(DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC, <<"groupchat_msg_recv">>).
+-type exchange_opts() :: #{name := binary(), type := binary(),
+                           sent_topic => binary(), recv_topic => binary()}.
 
 %%%===================================================================
 %%% Exports
@@ -54,166 +46,142 @@
 -export([start/2, stop/1, config_spec/0]).
 
 %% API
--export([push_event/3]).
+-export([push_event/2]).
 
 %%%===================================================================
 %%% Callbacks
 %%%===================================================================
 
--spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> ok.
-start(Host, _Opts) ->
-    initialize_metrics(Host),
-    create_exchanges(Host),
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, _Opts) ->
+    initialize_metrics(HostType),
+    create_exchanges(HostType),
     ok.
 
--spec stop(Host :: jid:server()) -> ok.
-stop(_Host) ->
+-spec stop(mongooseim:host_type()) -> ok.
+stop(_HostType) ->
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{
-       items = #{<<"presence_exchange">> => #section{items = exch_items()},
-                 <<"chat_msg_exchange">> => #section{items = msg_exch_items()},
-                 <<"groupchat_msg_exchange">> => #section{items = msg_exch_items()}
-                }
-      }.
+    #section{items = #{<<"presence_exchange">> => exchange_spec(<<"presence">>),
+                       <<"chat_msg_exchange">> => msg_exchange_spec(<<"chat_msg">>),
+                       <<"groupchat_msg_exchange">> => msg_exchange_spec(<<"groupchat_msg">>)},
+             format_items = map}.
 
-msg_exch_items() ->
-    ExchItems = exch_items(),
-    ExchItems#{<<"sent_topic">> => #option{type = binary,
-                                           validate = non_empty},
-               <<"recv_topic">> => #option{type = binary,
-                                           validate = non_empty}}.
+msg_exchange_spec(Name) ->
+    Spec = #section{items = Items, defaults = Defaults} = exchange_spec(Name),
+    Spec#section{items = Items#{<<"sent_topic">> => #option{type = binary,
+                                                            validate = non_empty},
+                                <<"recv_topic">> => #option{type = binary,
+                                                            validate = non_empty}},
+                 defaults = Defaults#{<<"sent_topic">> => <<Name/binary, "_sent">>,
+                                      <<"recv_topic">> => <<Name/binary, "_recv">>},
+                 format_items = map,
+                 include = always
+                }.
 
-exch_items() ->
-    #{<<"name">> => #option{type = binary,
-                            validate = non_empty},
-      <<"type">> => #option{type = binary,
-                            validate = non_empty}}.
+exchange_spec(Name) ->
+    #section{items = #{<<"name">> => #option{type = binary,
+                                             validate = non_empty},
+                       <<"type">> => #option{type = binary,
+                                             validate = non_empty}},
+             defaults = #{<<"name">> => Name,
+                          <<"type">> => <<"topic">>},
+             format_items = map,
+             include = always}.
 
-push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
-    handle_user_presence_change(UserJID, Status),
+push_event(Acc, #user_status_event{jid = UserJID, status = Status}) ->
+    handle_user_presence_change(mongoose_acc:host_type(Acc), UserJID, Status),
     Acc;
-push_event(Acc, _, ChatEvent = #chat_event{}) ->
-    handle_user_chat_event(ChatEvent),
+push_event(Acc, ChatEvent = #chat_event{}) ->
+    handle_user_chat_event(mongoose_acc:host_type(Acc), ChatEvent),
     Acc;
-push_event(Acc, _, _) ->
+push_event(Acc, _) ->
     Acc.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
--spec initialize_metrics(Host :: jid:server()) -> [ok | {ok | error, term()}].
-initialize_metrics(Host) ->
-    [mongoose_metrics:ensure_metric(Host, Name, Type)
+-spec initialize_metrics(mongooseim:host_type()) -> [ok | {ok | error, term()}].
+initialize_metrics(HostType) ->
+    [mongoose_metrics:ensure_metric(HostType, Name, Type)
      || {Name, Type} <- mongoose_rabbit_worker:list_metrics(?POOL_TAG)].
 
--spec create_exchanges(Host :: jid:server()) -> ok.
-create_exchanges(Host) ->
-    Exchanges = exchanges(Host),
-    Res =
-        [call_rabbit_worker(Host, {amqp_call,
-                                   mongoose_amqp:exchange_declare(ExName, Type)})
-         || {ExName, Type} <- Exchanges],
+-spec create_exchanges(mongooseim:host_type()) -> ok.
+create_exchanges(HostType) ->
+    Exchanges = exchanges(HostType),
+    Res = [call_rabbit_worker(HostType, {amqp_call,
+                                         mongoose_amqp:exchange_declare(ExName, Type)})
+           || #{name := ExName, type := Type} <- Exchanges],
     verify_exchanges_were_created_or_crash(Res, Exchanges).
 
--spec handle_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
-handle_user_presence_change(JID = #jid{lserver = Host}, Status) ->
-    Exchange = exchange_opt(Host, presence_exchange, name,
-                            ?DEFAULT_PRESENCE_EXCHANGE),
+-spec handle_user_presence_change(mongooseim:host_type(), JID :: jid:jid(), Status :: atom()) -> ok.
+handle_user_presence_change(HostType, JID, Status) ->
+    #{name := ExchangeName} = exchange_opts(HostType, presence_exchange),
     RoutingKey = presence_routing_key(JID),
     Message = presence_msg(JID, Status),
-    PublishMethod = mongoose_amqp:basic_publish(Exchange, RoutingKey),
+    PublishMethod = mongoose_amqp:basic_publish(ExchangeName, RoutingKey),
     AMQPMessage = mongoose_amqp:message(Message),
-    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage}).
+    cast_rabbit_worker(HostType, {amqp_publish, PublishMethod, AMQPMessage}).
 
--spec handle_user_chat_event(#chat_event{}) -> ok.
-handle_user_chat_event(#chat_event{from = From, to = To, packet = Packet,
-                                   type = Type, direction = Direction}) when
+-spec handle_user_chat_event(mongooseim:host_type(), #chat_event{}) -> ok.
+handle_user_chat_event(HostType, #chat_event{from = From, to = To, packet = Packet,
+                                             type = Type, direction = Direction}) when
       Type == chat orelse Type == groupchat ->
-    Host = get_host(From, To, Direction),
     UserMessage = extract_message(Packet),
     Message = chat_msg(From, To, UserMessage),
-    Exchange = get_chat_exchange(Type, Host),
-    RoutingKey = chat_event_routing_key(Type, Direction, From, To, Host),
-    PublishMethod = mongoose_amqp:basic_publish(Exchange, RoutingKey),
+    #{name := ExchangeName} = ExchangeOpts = exchange_opts(HostType, msg_type_to_key(Type)),
+    RoutingKey = chat_event_routing_key(ExchangeOpts, Direction, From, To),
+    PublishMethod = mongoose_amqp:basic_publish(ExchangeName, RoutingKey),
     AMQPMessage = mongoose_amqp:message(Message),
-    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage});
-handle_user_chat_event(_) -> ok.
+    cast_rabbit_worker(HostType, {amqp_publish, PublishMethod, AMQPMessage});
+handle_user_chat_event(_HostType, _) -> ok.
 
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
 
--spec call_rabbit_worker(Host :: binary(), Msg :: term()) -> term().
-call_rabbit_worker(Host, Msg) ->
-    mongoose_wpool:call(rabbit, Host, ?POOL_TAG, Msg).
+-spec call_rabbit_worker(mongooseim:host_type(), Msg :: term()) -> term().
+call_rabbit_worker(HostType, Msg) ->
+    mongoose_wpool:call(rabbit, HostType, ?POOL_TAG, Msg).
 
--spec cast_rabbit_worker(Host :: binary(), Msg :: term()) -> ok.
-cast_rabbit_worker(Host, Msg) ->
-    mongoose_wpool:cast(rabbit, Host, ?POOL_TAG, Msg).
+-spec cast_rabbit_worker(mongooseim:host_type(), Msg :: term()) -> ok.
+cast_rabbit_worker(HostType, Msg) ->
+    mongoose_wpool:cast(rabbit, HostType, ?POOL_TAG, Msg).
 
--spec exchanges(Host :: jid:server()) -> [{binary(), binary()}].
-exchanges(Host) ->
-    [{
-      exchange_opt(Host, ExKey, name, DefName),
-      exchange_opt(Host, ExKey, type, DefType)
-     } || {ExKey, DefName, DefType} <-
-              [
-               {presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE,
-                ?DEFAULT_PRESENCE_EXCHANGE_TYPE},
-               {chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE,
-                ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE},
-               {groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE,
-                ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE}
-              ]].
+-spec exchanges(mongooseim:host_type()) -> [exchange_opts()].
+exchanges(HostType) ->
+    [exchange_opts(HostType, ExKey) || ExKey <- exchange_keys()].
 
--spec get_chat_exchange(chat | groupchat, Host :: binary()) -> binary().
-get_chat_exchange(chat, Host) ->
-    exchange_opt(Host, chat_msg_exchange, name, ?DEFAULT_CHAT_MSG_EXCHANGE);
-get_chat_exchange(groupchat, Host) ->
-    exchange_opt(Host, groupchat_msg_exchange, name,
-                 ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE).
-
--spec get_host(jid:jid(), jid:jid(), in | out) -> binary().
-get_host(#jid{lserver = Host}, _To, in) -> Host;
-get_host(_From, #jid{lserver = Host}, out) -> Host.
+exchange_keys() ->
+    [presence_exchange, chat_msg_exchange, groupchat_msg_exchange].
 
 -spec extract_message(Packet :: exml:element()) -> binary().
 extract_message(Packet) ->
     Body = exml_query:subelement(Packet, <<"body">>),
     exml_query:cdata(Body).
 
--spec presence_routing_key(JID :: jid:jid()) -> binary().
+-spec presence_routing_key(JID :: jid:jid()) -> jid:literal_jid().
 presence_routing_key(JID) ->
-    {User, Host, _} = jid:to_lower(JID),
-    jid:to_binary({User, Host}).
+    {LUser, LServer, _} = jid:to_lower(JID),
+    jid:to_binary({LUser, LServer}).
 
--spec chat_event_routing_key(chat | groupchat, in | out, From :: jid:jid(),
-                             To :: jid:jid(), Host :: binary()) -> binary().
-chat_event_routing_key(chat, in, From, _To, Host) ->
-    Topic = exchange_opt(Host, chat_msg_exchange, sent_topic,
-                         ?DEFAULT_CHAT_MSG_SENT_TOPIC),
+-spec chat_event_routing_key(exchange_opts(), in | out, From :: jid:jid(),
+                             To :: jid:jid()) -> binary().
+chat_event_routing_key(#{sent_topic := Topic}, in, From, _To) ->
     user_topic_routing_key(From, Topic);
-chat_event_routing_key(chat, out, _From, To, Host) ->
-    Topic = exchange_opt(Host, chat_msg_exchange, recv_topic,
-                         ?DEFAULT_CHAT_MSG_RECV_TOPIC),
-    user_topic_routing_key(To, Topic);
-chat_event_routing_key(groupchat, in, From, _To, Host) ->
-    Topic = exchange_opt(Host, groupchat_msg_exchange, sent_topic,
-                         ?DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC),
-    user_topic_routing_key(From, Topic);
-chat_event_routing_key(groupchat, out, _From, To, Host) ->
-    Topic = exchange_opt(Host, groupchat_msg_exchange, recv_topic,
-                         ?DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC),
+chat_event_routing_key(#{recv_topic := Topic}, out, _From, To) ->
     user_topic_routing_key(To, Topic).
+
+msg_type_to_key(chat) -> chat_msg_exchange;
+msg_type_to_key(groupchat) -> groupchat_msg_exchange.
 
 -spec user_topic_routing_key(JID :: jid:jid(), Topic :: binary()) -> binary().
 user_topic_routing_key(JID, Topic) ->
-    {User, Host, _Res} = jid:to_lower(JID),
-    BinJID = jid:to_binary({User, Host}),
+    {LUser, LServer, _Res} = jid:to_lower(JID),
+    BinJID = jid:to_binary({LUser, LServer}),
     <<BinJID/binary, ".", Topic/binary>>.
 
 -spec presence_msg(JID :: jid:jid(), Status :: atom()) -> binary().
@@ -233,19 +201,11 @@ chat_msg(From, To, UserMsg) ->
 is_user_online(online) -> true;
 is_user_online(offline) -> false.
 
--spec exchange_opt(Host :: jid:lserver(), ExchangeKey :: atom(),
-                   Option :: atom(), Default :: term()) -> term().
-exchange_opt(Host, ExchangeKey, Option, Default) ->
-    ExchangeOptions = opt(Host, ExchangeKey, []),
-    proplists:get_value(Option, ExchangeOptions, Default).
+-spec exchange_opts(mongooseim:host_type(), gen_mod:opt_key()) -> exchange_opts().
+exchange_opts(HostType, ExchangeKey) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, ExchangeKey).
 
--spec opt(Host :: jid:lserver(), Option :: atom(), Default :: term()) ->
-     Value :: term().
-opt(Host, Option, Default) ->
-    gen_mod:get_module_opt(Host, ?MODULE, Option, Default).
-
--spec verify_exchanges_were_created_or_crash(Res :: list(),
-                                             Exchanges :: [{binary(), binary()}])
+-spec verify_exchanges_were_created_or_crash(Res :: list(), [exchange_opts()])
     -> ok | no_return().
 verify_exchanges_were_created_or_crash(Res, Exchanges) ->
     case lists:all(fun(E) ->
