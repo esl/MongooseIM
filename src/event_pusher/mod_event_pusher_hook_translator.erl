@@ -118,7 +118,7 @@ merge_acc(Acc, EventPusherAcc) ->
 -spec hooks(mongooseim:host_type()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
     [
-        {filter_local_packet, HostType, ?MODULE, filter_local_packet, 90},
+        {filter_local_packet, HostType, ?MODULE, filter_local_packet, 80},
         {unset_presence_hook, HostType, ?MODULE, user_not_present, 90},
         {user_available_hook, HostType, ?MODULE, user_present, 90},
         {user_send_packet, HostType, ?MODULE, user_send_packet, 90},
