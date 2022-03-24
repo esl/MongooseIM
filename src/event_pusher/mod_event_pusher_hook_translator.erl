@@ -51,13 +51,13 @@ delete_hooks(HostType) ->
                          (routing_data()) -> routing_data().
 filter_local_packet(drop) ->
     drop;
-filter_local_packet({From, To = #jid{lserver = Host}, Acc0, Packet}) ->
+filter_local_packet({From, To, Acc0, Packet}) ->
     Acc = case chat_type(Acc0) of
               false -> Acc0;
               Type ->
                   Event = #chat_event{type = Type, direction = out,
                                       from = From, to = To, packet = Packet},
-                  NewAcc = mod_event_pusher:push_event(Acc0, Host, Event),
+                  NewAcc = mod_event_pusher:push_event(Acc0, Event),
                   merge_acc(Acc0, NewAcc)
           end,
     {From, To, Acc, Packet}.
@@ -70,7 +70,7 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
         Type ->
             Event = #chat_event{type = Type, direction = in,
                                 from = From, to = To, packet = Packet},
-            NewAcc = mod_event_pusher:push_event(Acc, From#jid.lserver, Event),
+            NewAcc = mod_event_pusher:push_event(Acc, Event),
             merge_acc(Acc, NewAcc)
     end;
 user_send_packet(Acc, _From, _To, _Packet) ->
@@ -79,20 +79,20 @@ user_send_packet(Acc, _From, _To, _Packet) ->
 -spec user_present(mongoose_acc:t(), UserJID :: jid:jid()) -> mongoose_acc:t().
 user_present(Acc, #jid{} = UserJID) ->
     Event = #user_status_event{jid = UserJID, status = online},
-    NewAcc = mod_event_pusher:push_event(Acc, UserJID#jid.lserver, Event),
+    NewAcc = mod_event_pusher:push_event(Acc, Event),
     merge_acc(Acc, NewAcc).
 
 -spec user_not_present(mongoose_acc:t(), User :: jid:luser(), Server :: jid:lserver(),
                        Resource :: jid:lresource(), Status :: any()) -> mongoose_acc:t().
-user_not_present(Acc, LUser, LHost, LResource, _Status) ->
-    UserJID = jid:make_noprep(LUser, LHost, LResource),
+user_not_present(Acc, LUser, LServer, LResource, _Status) ->
+    UserJID = jid:make_noprep(LUser, LServer, LResource),
     Event = #user_status_event{jid = UserJID, status = offline},
-    NewAcc = mod_event_pusher:push_event(Acc, LHost, Event),
+    NewAcc = mod_event_pusher:push_event(Acc, Event),
     merge_acc(Acc, NewAcc).
 
-unacknowledged_message(Acc, #jid{lserver = Server} = Jid) ->
+unacknowledged_message(Acc, Jid) ->
     Event = #unack_msg_event{to = Jid},
-    NewAcc = mod_event_pusher:push_event(Acc, Server, Event),
+    NewAcc = mod_event_pusher:push_event(Acc, Event),
     merge_acc(Acc, NewAcc).
 
 %%--------------------------------------------------------------------
