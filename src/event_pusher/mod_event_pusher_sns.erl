@@ -5,7 +5,6 @@
 
 -include("mod_event_pusher_events.hrl").
 -include("mongoose.hrl").
--include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 -include("mongoose_config_spec.hrl").
 
@@ -37,24 +36,24 @@
 -export([start/2, stop/1, config_spec/0]).
 
 %% API
--export([try_publish/5, push_event/3]).
+-export([try_publish/5, push_event/2]).
 
 -ignore_xref([behaviour_info/1, try_publish/5]).
 
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
 
--spec start(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
-start(Host, Opts) ->
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
+start(HostType, Opts) ->
     application:ensure_all_started(erlcloud),
     application:ensure_all_started(worker_pool),
-    start_pool(Host, Opts),
+    start_pool(HostType, Opts),
     ok.
 
--spec start_pool(Host :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) ->
+-spec start_pool(mongooseim:host_type(), gen_mod:module_opts()) ->
     term().
-start_pool(Host, Opts) ->
-    {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns, pool_opts(Opts)).
+start_pool(HostType, Opts) ->
+    {ok, _} = mongoose_wpool:start(generic, HostType, pusher_sns, pool_opts(Opts)).
 
 -spec pool_opts(gen_mod:module_opts()) -> mongoose_wpool:pool_opts().
 pool_opts(Opts) ->
@@ -63,11 +62,11 @@ pool_opts(Opts) ->
 
 -spec get_worker_num(gen_mod:module_opts()) -> pos_integer().
 get_worker_num(Opts) ->
-    gen_mod:get_opt(pool_size, Opts, 100).
+    gen_mod:get_opt(pool_size, Opts).
 
--spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    mongoose_wpool:stop(generic, Host, pusher_sns),
+-spec stop(HostType :: jid:server()) -> ok.
+stop(HostType) ->
+    mongoose_wpool:stop(generic, HostType, pusher_sns),
     ok.
 
 -spec config_spec() -> mongoose_config_spec:config_section().
@@ -90,92 +89,99 @@ config_spec() ->
                  <<"publish_retry_time_ms">> => #option{type = integer,
                                                         validate = non_negative}
                 },
-       required = [<<"access_key_id">>, <<"secret_access_key">>,
-                   <<"region">>, <<"account_id">>, <<"sns_host">>]
-      }.
+       required = [<<"sns_host">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>,
+                   <<"account_id">>],
+       defaults = #{<<"plugin_module">> => mod_event_pusher_sns_defaults,
+                    <<"pool_size">> => 100,
+                    <<"publish_retry_count">> => 2,
+                    <<"publish_retry_time_ms">> => 50
+                   },
+       format_items = map
+    }.
 
-push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
-    user_presence_changed(UserJID, Status == online),
+push_event(Acc, #user_status_event{jid = UserJID, status = Status}) ->
+    user_presence_changed(mongoose_acc:host_type(Acc), UserJID, Status == online),
     Acc;
-push_event(Acc, _, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
-    handle_packet(From, To, Packet),
+push_event(Acc, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
+    handle_packet(mongoose_acc:host_type(Acc), From, To, Packet),
     Acc;
-push_event(Acc, _, _) ->
+push_event(Acc, _) ->
     Acc.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
--spec user_presence_changed(UserJID :: jid:jid(), IsOnline :: boolean()) -> ok.
-user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
-    Topic = opt(Host, presence_updates_topic),
+-spec user_presence_changed(mongooseim:host_type(), UserJID :: jid:jid(),
+                            IsOnline :: boolean()) -> ok.
+user_presence_changed(HostType, UserJID, IsOnline) ->
+    Topic = opt(HostType, presence_updates_topic),
     case Topic of
         undefined ->
             skip;
         Topic ->
-            UserGUID = user_guid(Host, UserJID),
+            UserGUID = user_guid(HostType, UserJID),
             Content = #{user_id => UserGUID, present => IsOnline},
-            TopicARN = make_topic_arn(Host, Topic),
-            Attributes = message_attributes(Host, TopicARN, UserJID, IsOnline),
-            async_publish(Host, TopicARN, Content, Attributes)
+            TopicARN = make_topic_arn(HostType, Topic),
+            Attributes = message_attributes(HostType, TopicARN, UserJID, IsOnline),
+            async_publish(HostType, TopicARN, Content, Attributes)
     end,
     ok.
 
 %% @doc Handles packet and if needed publishes SNS notification
--spec handle_packet(From :: jid:jid(), To :: jid:jid(),
+-spec handle_packet(mongooseim:host_type(), From :: jid:jid(), To :: jid:jid(),
                     Packet :: exml:element()) -> ok | skip.
-handle_packet(From = #jid{lserver = Host}, To, Packet) ->
+handle_packet(HostType, From, To, Packet) ->
     ?LOG_DEBUG(#{what => sns_handle_packet,
                  from => From, to => To, packet => exml_Packet}),
 
-    case {get_topic(Host, Packet), exml_query:subelement(Packet, <<"body">>)} of
+    case {get_topic(HostType, Packet), exml_query:subelement(Packet, <<"body">>)} of
         {undefined, _} -> %% Skip if there is no topic set in configuration for the packet type
             skip;
         {_, undefined} -> %% Skip if there is no message body in the packet
             skip;
         {Topic, BodyTag} ->
-            FromGUID = user_guid(Host, From),
-            ToGUID = user_guid(Host, To),
+            FromGUID = user_guid(HostType, From),
+            ToGUID = user_guid(HostType, To),
             MessageBody = exml_query:cdata(BodyTag),
             Content = #{from_user_id => FromGUID,
                         to_user_id => ToGUID,
                         message => MessageBody},
 
-            TopicARN = make_topic_arn(Host, Topic),
-            Attributes = message_attributes(Host, TopicARN, From, To, message_type(Packet), Packet),
+            TopicARN = make_topic_arn(HostType, Topic),
+            Attributes = message_attributes(HostType, TopicARN, From, To, message_type(Packet), Packet),
 
-            async_publish(Host, TopicARN, Content, Attributes)
+            async_publish(HostType, TopicARN, Content, Attributes)
     end.
 
 %% @doc Start publish process notification to AWS SNS service. Content should be valid JSON term
--spec async_publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
+-spec async_publish(mongooseim:host_type(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> ok.
-async_publish(Host, TopicARN, Content, Attributes) ->
-    Retry = opt(Host, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
-    mongoose_wpool:cast(generic, Host, pusher_sns,
-                        {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]}).
+async_publish(HostType, TopicARN, Content, Attributes) ->
+    Retry = opt(HostType, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
+    mongoose_wpool:cast(generic, HostType, pusher_sns,
+                        {?MODULE, try_publish, [HostType, TopicARN, Content, Attributes, Retry]}).
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
--spec try_publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
+-spec try_publish(mongooseim:host_type(), topic_arn(), Content :: jiffy:json_value(),
               attributes(), TryCount :: integer()) -> MessageId :: string() | dropped | scheduled.
-try_publish(Host, TopicARN, Content, Attributes, Retry) when Retry < 0 ->
+try_publish(HostType, TopicARN, Content, Attributes, Retry) when Retry < 0 ->
     ?LOG_WARNING(#{what => sns_notification_dropped,
-                   server => Host, topic_arn => TopicARN,
+                   server => HostType, topic_arn => TopicARN,
                    attributes => Attributes, content => Content}),
     dropped;
-try_publish(Host, TopicARN, Content, Attributes, Retry) ->
-    try publish(Host, TopicARN, Content, Attributes)
+try_publish(HostType, TopicARN, Content, Attributes, Retry) ->
+    try publish(HostType, TopicARN, Content, Attributes)
     catch
         Type:Error:StackTrace ->
-            BackoffTime = calc_backoff_time(Host, Retry),
+            BackoffTime = calc_backoff_time(HostType, Retry),
             timer:apply_after(BackoffTime, mongoose_wpool, cast,
-                              [generic, Host, pusher_sns,
+                              [generic, HostType, pusher_sns,
                                {?MODULE, try_publish,
-                                [Host, TopicARN, Content, Attributes, Retry - 1]}]),
+                                [HostType, TopicARN, Content, Attributes, Retry - 1]}]),
             ?LOG_WARNING(#{what => sns_notification_retry,
                            text => <<"Retrying SNS notification after {backoff_time} ms">>,
-                           server => Host, topic_arn => TopicARN,
+                           host_type => HostType, topic_arn => TopicARN,
                            attributes => Attributes, content => Content,
                            backoff_time => BackoffTime,
                            class => Type, reason => Error, stacktrace => StackTrace}),
@@ -183,39 +189,38 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     end.
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
--spec publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
+-spec publish(mongooseim:host_type(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> MessageId :: string().
-publish(Host, TopicARN, Content, Attributes) ->
+publish(HostType, TopicARN, Content, Attributes) ->
     erlcloud_sns:publish(topic, TopicARN, maps:to_list(Content),
-                         undefined, maps:to_list(Attributes), aws_handle(Host)).
+                         undefined, maps:to_list(Attributes), aws_handle(HostType)).
 
 %% @doc Returns AWS SNS handle base on configured AWS credentials
--spec aws_handle(Host :: jid:lserver()) -> aws_config().
-aws_handle(Host) ->
-    AccessKeyId = opt(Host, access_key_id),
-    SecretKey = opt(Host, secret_access_key),
-    SNSHost = opt(Host, sns_host),
+-spec aws_handle(mongooseim:host_type()) -> aws_config().
+aws_handle(HostType) ->
+    AccessKeyId = opt(HostType, access_key_id),
+    SecretKey = opt(HostType, secret_access_key),
+    SNSHost = opt(HostType, sns_host),
 
     erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost).
 
 %% @doc Returns notification topic based on packet type and module configuration
--spec get_topic(Host :: jid:lserver(), Packet :: exml:element()) -> topic() | undefined.
-get_topic(Host, Packet) ->
+-spec get_topic(mongooseim:host_type(), Packet :: exml:element()) -> topic() | undefined.
+get_topic(HostType, Packet) ->
     case message_type(Packet) of
         pm ->
-            opt(Host, pm_messages_topic);
+            opt(HostType, pm_messages_topic);
         muc ->
-            opt(Host, muc_messages_topic);
+            opt(HostType, muc_messages_topic);
         _ ->
             undefined
     end.
 
-
 %% @doc Constructs SNS TopicArn from given topic suffix
--spec make_topic_arn(Host :: jid:lserver(), Topic :: topic()) -> topic_arn().
-make_topic_arn(Host, Topic) ->
-    AWSRegion = opt(Host, region),
-    AWSAccountId = opt(Host, account_id),
+-spec make_topic_arn(mongooseim:host_type(), topic()) -> topic_arn().
+make_topic_arn(HostType, Topic) ->
+    AWSRegion = opt(HostType, region),
+    AWSAccountId = opt(HostType, account_id),
 
     string:join(?TOPIC_BASE ++ [AWSRegion, AWSAccountId, Topic], ":").
 
@@ -229,42 +234,42 @@ message_type(Packet) ->
     end.
 
 %% Getter for module options
--spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term() | undefined.
-opt(Host, Option) ->
-    opt(Host, Option, undefined).
+-spec opt(mongooseim:host_type(), gen_mod:opt_key()) -> gen_mod:opt_value() | undefined.
+opt(HostType, Option) ->
+    opt(HostType, Option, undefined).
 
 %% Getter for module options with default value
--spec opt(Host :: jid:lserver(), Option :: atom(), Default :: term()) ->
-    Value :: term().
-opt(Host, Option, Default) ->
-    gen_mod:get_module_opt(Host, ?MODULE, Option, Default).
+-spec opt(mongooseim:host_type(), gen_mod:opt_key(), Default :: gen_mod:opt_value()) ->
+          gen_mod:opt_value().
+opt(HostType, Option, Default) ->
+    gen_mod:get_module_opt(HostType, ?MODULE, Option, Default).
 
 %% ----------------------------------------------------------------------
 %% Callbacks
 
--spec user_guid(Host :: jid:lserver(), UserJID :: jid:jid()) -> user_guid().
-user_guid(Host, UserJID) ->
-    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
+-spec user_guid(mongooseim:host_type(), UserJID :: jid:jid()) -> user_guid().
+user_guid(HostType, UserJID) ->
+    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:user_guid(UserJID).
 
--spec message_attributes(Host :: jid:lserver(), TopicARN :: topic_arn(),
+-spec message_attributes(mongooseim:host_type(), TopicARN :: topic_arn(),
                          UserJID :: jid:jid(), IsOnline :: boolean()) ->
                                 attributes().
-message_attributes(Host, TopicARN, UserJID, IsOnline) ->
-    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
+message_attributes(HostType, TopicARN, UserJID, IsOnline) ->
+    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, UserJID, IsOnline).
 
--spec message_attributes(Host :: jid:lserver(), TopicARN :: topic_arn(),
+-spec message_attributes(mongooseim:host_type(), TopicARN :: topic_arn(),
                          From :: jid:jid(), To :: jid:jid(), MessageType :: pm | muc,
                          Packet :: exml:element()) -> attributes().
-message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
-    PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
+message_attributes(HostType, TopicARN, From, To, MessageType, Packet) ->
+    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
 
--spec calc_backoff_time(Host :: jid:lserver(), integer()) -> integer().
-calc_backoff_time(Host, Retry) ->
-    MaxRetry = opt(Host, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
-    BaseTime = opt(Host, publish_retry_time_ms, 50),
+-spec calc_backoff_time(mongooseim:host_type(), integer()) -> integer().
+calc_backoff_time(HostType, Retry) ->
+    MaxRetry = opt(HostType, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
+    BaseTime = opt(HostType, publish_retry_time_ms, 50),
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
     Random = rand:uniform(BaseTime),
     BackoffMaxTime - Random.
