@@ -60,14 +60,15 @@ prepare_notification(Acc, _) ->
                               mongooseim_acc:t().
 publish_notification(Acc, _, Payload, Services) ->
     To = mongoose_acc:to_jid(Acc),
-    #jid{lserver = Host} = To,
+    HostType = mongoose_acc:host_type(Acc),
     lists:foreach(fun({PubsubJID, _Node, _Form} = Service) ->
-                      case mod_event_pusher_push:is_virtual_pubsub_host(Host, Host,
+                      case mod_event_pusher_push:is_virtual_pubsub_host(HostType,
+                                                                        To#jid.lserver,
                                                                         PubsubJID#jid.lserver) of
                           true ->
-                              publish_via_hook(Acc, Host, To, Service, Payload);
+                              publish_via_hook(Acc, HostType, To, Service, Payload);
                           false ->
-                              publish_via_pubsub(Host, To, Service, Payload)
+                              publish_via_pubsub(HostType, To, Service, Payload)
                       end
                   end, Services),
 
@@ -116,65 +117,62 @@ push_content_fields(SenderId, BodyCData, MessageCount) ->
     ].
 
 -spec publish_via_hook(Acc :: mongooseim_acc:t(),
-                       Host :: jid:server(),
+                       HostType :: mongooseim:host_type(),
                        To :: jid:jid(),
                        Service :: mod_event_pusher_push:publish_service(),
                        PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
                           any().
-publish_via_hook(Acc0, Host, To, {PubsubJID, Node, Form}, PushPayload) ->
+publish_via_hook(Acc0, HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
     OptionMap = maps:from_list(Form),
     %% Acc is ignored by mod_push_service_mongoosepush, added here only for
     %% traceability purposes and push_SUITE code unification
     Acc = mongoose_acc:set(push_notifications, pubsub_jid, PubsubJID, Acc0),
-    case mongoose_hooks:push_notifications(Host, Acc, [maps:from_list(PushPayload)], OptionMap) of
+    case mongoose_hooks:push_notifications(HostType, Acc, [maps:from_list(PushPayload)], OptionMap) of
         {error, device_not_registered} ->
             %% We disable the push node in case the error type is device_not_registered
-            mod_event_pusher_push:disable_node(Host, To, PubsubJID, Node);
+            mod_event_pusher_push:disable_node(HostType, To, PubsubJID, Node);
         _ -> ok
     end.
 
--spec publish_via_pubsub(Host :: jid:server(),
-                         To :: jid:jid(),
+-spec publish_via_pubsub(mongooseim:host_type(), To :: jid:jid(),
                          Service :: mod_event_pusher_push:publish_service(),
                          PushPayload :: mod_event_pusher_push_plugin:push_payload()) ->
                             any().
-publish_via_pubsub(Host, To, {PubsubJID, Node, Form}, PushPayload) ->
+publish_via_pubsub(HostType, To, {PubsubJID, Node, Form}, PushPayload) ->
     Stanza = push_notification_iq(Node, Form, PushPayload),
-    %% TODO host type should be provided to this function
-    {ok, HostType} = mongoose_domain_api:get_domain_host_type(Host),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               host_type => HostType,
-                              lserver => Host,
+                              lserver => To#jid.lserver,
                               element => jlib:iq_to_xml(Stanza),
                               from_jid => To,
                               to_jid => PubsubJID }),
 
     ResponseHandler =
     fun(_From, _To, FAcc, Response) ->
-            mod_event_pusher_push:cast(Host, fun handle_publish_response/5,
-                                       [Host, To, PubsubJID, Node, Response]),
+            mod_event_pusher_push:cast(HostType, fun handle_publish_response/5,
+                                       [HostType, To, PubsubJID, Node, Response]),
             FAcc
     end,
     %% The IQ is routed from the recipient's server JID to pubsub JID
     %% This is recommended in the XEP and also helps process replies to this IQ
-    NotificationFrom = jid:make(<<>>, Host, <<>>),
-    mod_event_pusher_push:cast(Host, fun ejabberd_local:route_iq/5,
+    NotificationFrom = jid:make(<<>>, To#jid.lserver, <<>>),
+    mod_event_pusher_push:cast(HostType, fun ejabberd_local:route_iq/5,
                                [NotificationFrom, PubsubJID, Acc, Stanza, ResponseHandler]).
 
--spec handle_publish_response(Host :: jid:server(),
+-spec handle_publish_response(mongooseim:host_type(),
                               Recipient :: jid:jid(), PubsubJID :: jid:jid(),
                               Node :: mod_event_pusher_push:pubsub_node(),
                               Result :: timeout | jlib:iq()) -> ok.
-handle_publish_response(_Host, _Recipient, _PubsubJID, _Node, timeout) ->
+handle_publish_response(_HostType, _Recipient, _PubsubJID, _Node, timeout) ->
     ok;
-handle_publish_response(_Host, _Recipient, _PubsubJID, _Node, #iq{type = result}) ->
+handle_publish_response(_HostType, _Recipient, _PubsubJID, _Node, #iq{type = result}) ->
     ok;
-handle_publish_response(Host, Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
+handle_publish_response(HostType, Recipient, PubsubJID, Node, #iq{type = error, sub_el = Els}) ->
     [Error | _ ] = [Err || #xmlel{name = <<"error">>} = Err <- Els],
     case exml_query:attr(Error, <<"type">>) of
         <<"cancel">> ->
             %% We disable the push node in case the error type is cancel
-            mod_event_pusher_push:disable_node(Host, Recipient, PubsubJID, Node);
+            mod_event_pusher_push:disable_node(HostType, Recipient, PubsubJID, Node);
         _ ->
             ok
     end.
