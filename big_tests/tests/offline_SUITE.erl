@@ -109,7 +109,9 @@ config_with_groupchat_modules(Backend) ->
 chatmarkers_modules() ->
     [{mod_smart_markers, config_parser_helper:default_mod_config(mod_smart_markers)},
      {mod_offline, config_with_groupchat_modules(rdbms)},
-     {mod_offline_chatmarkers, [{store_groupchat_messages, true}]},
+     {mod_offline_chatmarkers,
+      mod_config(mod_offline_chatmarkers,
+                 #{store_groupchat_messages => true})},
      {mod_muc_light, mod_config(mod_muc_light, #{backend => rdbms})}].
 
 end_per_group(Group, C) when Group =:= chatmarkers;
