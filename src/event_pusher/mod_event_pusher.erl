@@ -20,14 +20,14 @@
 -behaviour(gen_mod).
 -behaviour(mongoose_module_metrics).
 
--include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 -include("mongoose_config_spec.hrl").
 
+-type backend() :: http | push | rabbit | sns.
 -type event() :: #user_status_event{} | #chat_event{} | #unack_msg_event{}.
 -export_type([event/0]).
 
--export([deps/2, start/2, stop/1, config_spec/0, push_event/3]).
+-export([deps/2, start/2, stop/1, config_spec/0, push_event/2]).
 
 -export([config_metrics/1]).
 
@@ -37,127 +37,64 @@
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> mongoose_acc:t().
+-callback push_event(mongoose_acc:t(), event()) -> mongoose_acc:t().
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 %% @doc Pushes the event to each backend registered with the event_pusher.
--spec push_event(mongoose_acc:t(), Host :: jid:server(), Event :: event()) -> mongoose_acc:t().
-push_event(Acc, Host, Event) ->
-    lists:foldl(fun(B, Acc0) ->
-                        B:push_event(Acc0, Host, Event) end,
-                Acc,
-                ets:lookup_element(ets_name(Host), backends, 2)).
+-spec push_event(mongoose_acc:t(), event()) -> mongoose_acc:t().
+push_event(Acc, Event) ->
+    HostType = mongoose_acc:host_type(Acc),
+    Backends = maps:keys(gen_mod:get_loaded_module_opts(HostType, ?MODULE)),
+    lists:foldl(fun(B, Acc0) -> (backend_module(B)):push_event(Acc0, Event) end, Acc, Backends).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod_deps:deps().
-deps(_Host, Opts) ->
-    Backends = get_backends(Opts),
-    [{B, DepOpts, hard} || {B, DepOpts} <- Backends].
+-spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
+deps(_HostType, Opts) ->
+    [{backend_module(Backend), BackendOpts, hard} || {Backend, BackendOpts} <- maps:to_list(Opts)].
 
--spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts) ->
-    create_ets(Host),
-    Backends = get_backends(Opts),
-    ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
-    mod_event_pusher_hook_translator:add_hooks(Host).
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
+start(HostType, _Opts) ->
+    mod_event_pusher_hook_translator:add_hooks(HostType).
 
--spec stop(Host :: jid:server()) -> any().
-stop(Host) ->
-    mod_event_pusher_hook_translator:delete_hooks(Host),
-    ets:delete(ets_name(Host)).
+-spec stop(mongooseim:host_type()) -> any().
+stop(HostType) ->
+    mod_event_pusher_hook_translator:delete_hooks(HostType).
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     BackendItems = [{atom_to_binary(B, utf8),
-                     (translate_backend(B)):config_spec()} || B <- all_backends()],
-    #section{
-       items = #{<<"backend">> => #section{items = maps:from_list(BackendItems),
-                                           wrap = {kv, backends}}
-                }
-      }.
+                     (backend_module(B)):config_spec()} || B <- all_backends()],
+    #section{items = maps:from_list(BackendItems),
+             format_items = map}.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec get_backends(Opts :: proplists:proplist()) -> [{module(), proplists:proplist()}].
-get_backends(Opts) ->
-    {backends, Backends0} = lists:keyfind(backends, 1, Opts),
-    lists:foldr(fun add_backend/2, [], Backends0).
+-spec backend_module(backend()) -> module().
+backend_module(http) -> mod_event_pusher_http;
+backend_module(push) -> mod_event_pusher_push;
+backend_module(rabbit) -> mod_event_pusher_rabbit;
+backend_module(sns) -> mod_event_pusher_sns.
 
-add_backend({http, Opts}, BackendList) ->
-    % http backend is treated somewhat differently - we allow configuration settings as if there
-    % were many modules, while here we put together a single list of settings for the http event
-    % pusher module. Thus, you can configure event pusher like:
-    %{mod_event_pusher,
-    %   [{backends,
-    %       [{http,
-    %           [{path, "/push_here"},
-    %            {callback_module, mod_event_pusher_http_one},
-    %            {pool_name, http_pool}]
-    %       },
-    %        {http,
-    %           [{path, "/push_there"},
-    %            {callback_module, mod_event_pusher_http_two},
-    %            {pool_name, http_pool}]
-    %        }
-    %      ]
-    %   }]
-    HttpModName = translate_backend(http),
-    case lists:keyfind(HttpModName, 1, BackendList) of
-        false ->
-            [{HttpModName, [{configs, [Opts]}]} | BackendList];
-        {HttpModName, [{configs, O}]} ->
-            lists:keyreplace(HttpModName, 1, BackendList,
-                {HttpModName, [{configs, [Opts | O]}]})
-    end;
-add_backend({Mod, Opts}, BackendList) ->
-    [{translate_backend(Mod), Opts} | BackendList].
-
--spec translate_backend(Backend :: atom()) -> module().
-translate_backend(Backend) ->
-    list_to_atom(?MODULE_STRING ++ "_" ++ atom_to_list(Backend)).
-
--spec ets_name(Host :: jid:server()) -> atom().
-ets_name(Host) ->
-    gen_mod:get_module_proc(Host, ?MODULE).
-
--spec create_ets(Host :: jid:server()) -> any().
-create_ets(Host) ->
-    Self = self(),
-    Heir = case whereis(ejabberd_sup) of
-               undefined -> none;
-               Self -> none;
-               Pid -> Pid
-           end,
-    ets:new(ets_name(Host), [public, named_table, {read_concurrency, true}, {heir, Heir, testing}]).
-
-config_metrics(Host) ->
-    try
-        Opts = gen_mod:get_module_opts(Host, ?MODULE),
-        BackendsWithOpts = proplists:get_value(backends, Opts, none),
-        Backends = proplists:get_keys(BackendsWithOpts),
-        ReturnList = lists:map(pa:bind(fun get_backend/2, BackendsWithOpts), Backends),
-        lists:flatten(ReturnList)
-    catch
-        _:_ -> [{none, none}]
+config_metrics(HostType) ->
+    case gen_mod:get_module_opts(HostType, ?MODULE) of
+        Empty when Empty =:= #{} ->
+            [{none, none}];
+        Opts ->
+            lists:flatmap(fun get_backend/1, maps:to_list(Opts))
     end.
 
-get_backend(BackendsWithOpts, Backend) ->
-    case Backend of
-        push ->
-            PushOptions = proplists:get_value(push, BackendsWithOpts),
-            PushBackend = atom_to_list(proplists:get_value(backend, PushOptions, mnesia)),
-            [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
-        Backend ->
-            {backend, Backend}
-    end.
+get_backend({push, #{backend := PushBackend}}) ->
+    [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
+get_backend({Backend, _}) ->
+    [{backend, Backend}].
 
 all_backends() ->
-    [sns, push, http, rabbit].
+    [http, push, rabbit, sns].
