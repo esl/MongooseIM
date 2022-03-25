@@ -27,22 +27,17 @@
          get_reset_markers/1,
          if_chat_marker_get_id/2,
          has_chat_marker/1,
-         fill_from_attr/2,
-         wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
          extract_attr_jid/1,
          maybe_binary_to_positive_integer/1,
-         maybe_muted_until/2,
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
-         build_forward_el/2
+         build_forward_el/1
         ]).
 
--ignore_xref([
-    fill_from_attr/2, get_reset_markers/1, if_chat_marker_get_id/2
-]).
+-ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
 
 -spec maybe_reset_unread_count(HostType :: mongooseim:host_type(),
                                User :: jid:jid(),
@@ -168,10 +163,6 @@ fill_from_attr(Msg = #xmlel{attrs = Attrs}, From) ->
             Msg
     end.
 
--spec wrapper_id() -> id().
-wrapper_id() ->
-    uuid:uuid_to_string(uuid:get_v4(), binary_standard).
-
 -spec get_option_write_aff_changes(HostType :: mongooseim:host_type()) -> boolean().
 get_option_write_aff_changes(HostType) ->
     gen_mod:get_module_opt(HostType, mod_inbox, aff_changes).
@@ -200,20 +191,14 @@ maybe_binary_to_positive_integer(Bin) ->
     catch error:badarg -> {error, 'NaN'}
     end.
 
--spec maybe_muted_until(integer(), integer()) -> binary().
-maybe_muted_until(0, _) -> <<"0">>;
-maybe_muted_until(MutedUntil, CurrentTS) ->
-    case CurrentTS =< MutedUntil of
-        true -> list_to_binary(calendar:system_time_to_rfc3339(MutedUntil, [{offset, "Z"}, {unit, microsecond}]));
-        false -> <<"0">>
-    end.
-
 -spec binary_to_bool(binary()) -> true | false | error.
 binary_to_bool(<<"true">>) -> true;
 binary_to_bool(<<"false">>) -> false;
 binary_to_bool(_) -> error.
 
--spec bool_to_binary(boolean()) -> binary() | error.
+-spec bool_to_binary(integer() | boolean()) -> binary() | error.
+bool_to_binary(1) -> <<"true">>;
+bool_to_binary(0) -> <<"false">>;
 bool_to_binary(true) -> <<"true">>;
 bool_to_binary(false) -> <<"false">>;
 bool_to_binary(_) -> error.
@@ -223,8 +208,8 @@ build_inbox_entry_key(FromJid, ToJid) ->
     ToBareJid = jid:nameprep(jid:to_binary(jid:to_lus(ToJid))),
     {LUser, LServer, ToBareJid}.
 
--spec build_forward_el(exml:element(), integer()) -> exml:element().
-build_forward_el(Content, Timestamp) ->
+-spec build_forward_el(inbox_res()) -> exml:element().
+build_forward_el(#{msg := Content, timestamp := Timestamp}) ->
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
            children = [Delay, Content]}.

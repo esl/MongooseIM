@@ -20,6 +20,16 @@ Only RDBMS storage is supported, but `rdbms` means flushes to inbox are synchron
 
 Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
 
+### `modules.mod_inbox.boxes`
+* **Syntax:** array of strings.
+* **Default:** `[]`
+* **Example:** `["classified", "spam"]`
+
+A list of supported inbox boxes by the server. This can be used by clients to classify their inbox entries in any way that fits the end-user. The strings provided here will be used verbatim in the IQ query as described in [Inbox – Filtering and Ordering](../open-extensions/inbox.md#filtering-and-ordering).
+
+!!! note
+    `inbox` and `archive` are always enabled, and therefore don't need to be specified here.
+
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`
