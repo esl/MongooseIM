@@ -1742,6 +1742,8 @@ mod_inbox(_Config) ->
     ?errh(T(#{<<"reset_markers">> => 1})),
     ?errh(T(#{<<"reset_markers">> => [<<"destroyed">>]})),
     ?errh(T(#{<<"groupchat">> => [<<"test">>]})),
+    ?errh(T(#{<<"boxes">> => [<<"archive">>]})),
+    ?errh(T(#{<<"boxes">> => [<<"duplicate">>, <<"duplicate">>]})),
     ?errh(T(#{<<"boxes">> => <<"test">>})),
     ?errh(T(#{<<"aff_changes">> => 1})),
     ?errh(T(#{<<"remove_on_kicked">> => 1})).

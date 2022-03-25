@@ -121,7 +121,8 @@ config_spec() ->
                                                                validate = {enum, Markers}}},
                   <<"groupchat">> => #list{items = #option{type = atom,
                                                            validate = {enum, [muc, muclight]}}},
-                  <<"boxes">> => #list{items = #option{type = binary, validate = non_empty}},
+                  <<"boxes">> => #list{items = #option{type = binary, validate = non_empty},
+                                       validate = unique},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
@@ -147,6 +148,7 @@ async_config_spec() ->
       }.
 
 process_inbox_boxes(Config = #{boxes := Boxes}) ->
+    false = lists:any(fun(Name) -> Name =:= <<"inbox">> orelse Name =:= <<"archive">> end, Boxes),
     AllBoxes = [<<"inbox">>, <<"archive">> | Boxes ],
     Config#{boxes := AllBoxes}.
 
