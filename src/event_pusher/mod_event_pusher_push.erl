@@ -30,6 +30,9 @@
 %% gen_mod behaviour
 -export([start/2, stop/1, config_spec/0]).
 
+%% mongoose_module_metrics behaviour
+-export([config_metrics/1]).
+
 %% mod_event_pusher behaviour
 -export([push_event/2]).
 
@@ -292,3 +295,7 @@ my_push_node(RawSession, PubSubJid, Node) ->
             true;
         _ -> false
     end.
+
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

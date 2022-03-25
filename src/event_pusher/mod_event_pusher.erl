@@ -73,6 +73,16 @@ config_spec() ->
     #section{items = maps:from_list(BackendItems),
              format_items = map}.
 
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
+config_metrics(HostType) ->
+    case gen_mod:get_module_opts(HostType, ?MODULE) of
+        Empty when Empty =:= #{};
+                   Empty =:= [] -> % TODO remove when get_module_opts does not return [] anymore
+            [{none, none}];
+        Opts ->
+            [{backend, Backend} || Backend <- maps:keys(Opts)]
+    end.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -82,19 +92,6 @@ backend_module(http) -> mod_event_pusher_http;
 backend_module(push) -> mod_event_pusher_push;
 backend_module(rabbit) -> mod_event_pusher_rabbit;
 backend_module(sns) -> mod_event_pusher_sns.
-
-config_metrics(HostType) ->
-    case gen_mod:get_module_opts(HostType, ?MODULE) of
-        Empty when Empty =:= #{} ->
-            [{none, none}];
-        Opts ->
-            lists:flatmap(fun get_backend/1, maps:to_list(Opts))
-    end.
-
-get_backend({push, #{backend := PushBackend}}) ->
-    [{backend, push}, {backend, list_to_atom("push_" ++ PushBackend)}];
-get_backend({Backend, _}) ->
-    [{backend, Backend}].
 
 all_backends() ->
     [http, push, rabbit, sns].
