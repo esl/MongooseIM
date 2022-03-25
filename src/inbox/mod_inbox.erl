@@ -501,7 +501,7 @@ fields_to_params(HostType, [{<<"archive">>, [Value]} | RFields], Acc) ->
     end;
 
 fields_to_params(HostType, [{<<"box">>, [Value]} | RFields], Acc) ->
-    case validate_boxes(HostType, Value) of
+    case validate_box(HostType, Value) of
         false ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
                            field => archive, value => Value}),
@@ -522,7 +522,7 @@ binary_to_order(<<"desc">>) -> desc;
 binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
 
-validate_boxes(HostType, Box) ->
+validate_box(HostType, Box) ->
     AllBoxes = all_valid_boxes_for_query(HostType),
     lists:member(Box, AllBoxes).
 
