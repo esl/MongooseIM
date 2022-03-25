@@ -1966,9 +1966,7 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                                    Packet :: exml:element(),
                                    StateData :: state()) -> {mongoose_acc:t(), state()}.
 presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData) ->
-    Acc2 = mongoose_hooks:user_available_hook(StateData#state.host_type,
-                                              Acc,
-                                              StateData#state.jid),
+    Acc2 = mongoose_hooks:user_available_hook(Acc, StateData#state.jid),
     Res = case NewPriority >= 0 of
               true ->
                   Acc3 = mongoose_hooks:roster_get_subscription_lists(
@@ -3026,14 +3024,14 @@ notify_unacknowledged_msg_if_in_resume_state(Acc,
 notify_unacknowledged_msg_if_in_resume_state(Acc, _) ->
     Acc.
 
-maybe_notify_unacknowledged_msg(Acc, #state{jid = Jid, host_type = HostType}) ->
+maybe_notify_unacknowledged_msg(Acc, #state{jid = Jid}) ->
     case mongoose_acc:stanza_name(Acc) of
-        <<"message">> -> notify_unacknowledged_msg(HostType, Acc, Jid);
+        <<"message">> -> notify_unacknowledged_msg(Acc, Jid);
         _ -> Acc
     end.
 
-notify_unacknowledged_msg(HostType, Acc, Jid) ->
-    NewAcc = mongoose_hooks:unacknowledged_message(HostType, Acc, Jid),
+notify_unacknowledged_msg(Acc, Jid) ->
+    NewAcc = mongoose_hooks:unacknowledged_message(Acc, Jid),
     mongoose_acc:strip(NewAcc).
 
 finish_state(ok, StateName, StateData) ->

@@ -5,6 +5,7 @@
 
 %% spec parts used by modules and services
 -export([wpool_items/0,
+         wpool_defaults/0,
          iqdisc/0]).
 
 %% callbacks for the 'process' step

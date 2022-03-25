@@ -35,6 +35,7 @@
 
 -import(mongoose_config_parser_toml, [extract_errors/1]).
 -import(config_parser_helper, [merge_with_default_pool_config/1, default_s2s/0,
+                               mod_event_pusher_http_handler/0,
                                mod_config/2, default_mod_config/1,
                                config/2, default_config/1]).
 
@@ -1906,36 +1907,34 @@ global_distrib_expected_connections() ->
                                     {{127, 0, 0, 1}, 5555}]}).
 
 mod_event_pusher_sns(_Config) ->
-    RequiredOpts = #{<<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
-                     <<"secret_access_key">> => <<"KEY">>,
+    RequiredOpts = #{<<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>,
                      <<"region">> => <<"eu-west-1">>,
-                     <<"account_id">> => <<"123456789012">>,
-                     <<"sns_host">> => <<"sns.eu-west-1.amazonaws.com">>},
-    ExpectedCfg = [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-                   {secret_access_key, "KEY"},
-                   {region, "eu-west-1"},
-                   {account_id, "123456789012"},
-                   {sns_host, "sns.eu-west-1.amazonaws.com"}],
+                     <<"access_key_id">> => <<"AKIAIOSFODNN7EXAMPLE">>,
+                     <<"secret_access_key">> => <<"KEY">>,
+                     <<"account_id">> => <<"123456789012">>},
+    ExpectedCfg = #{sns_host => "sns.eu-west-1.amazonaws.com",
+                    region => "eu-west-1",
+                    access_key_id => "AKIAIOSFODNN7EXAMPLE",
+                    secret_access_key => "KEY",
+                    account_id => "123456789012"},
+    P = [modules, mod_event_pusher, sns],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"sns">> => Opts}}}}
+                           #{<<"mod_event_pusher">> => #{<<"sns">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{sns, Cfg}]}]) end,
-    ?cfgh(M(ExpectedCfg),
-          T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{presence_updates_topic, "pres"}]),
+    ?cfgh(P, config(P, ExpectedCfg), T(RequiredOpts)),
+    ?cfgh(P ++ [presence_updates_topic], "pres",
           T(RequiredOpts#{<<"presence_updates_topic">> => <<"pres">>})),
-    ?cfgh(M(ExpectedCfg ++ [{pm_messages_topic, "pm"}]),
+    ?cfgh(P ++ [pm_messages_topic], "pm",
           T(RequiredOpts#{<<"pm_messages_topic">> => <<"pm">>})),
-    ?cfgh(M(ExpectedCfg ++ [{muc_messages_topic, "muc"}]),
+    ?cfgh(P ++ [muc_messages_topic], "muc",
           T(RequiredOpts#{<<"muc_messages_topic">> => <<"muc">>})),
-    ?cfgh(M(ExpectedCfg ++ [{plugin_module, mod_event_pusher_sns_defaults}]),
+    ?cfgh(P ++ [plugin_module], mod_event_pusher_sns_defaults,
           T(RequiredOpts#{<<"plugin_module">> => <<"mod_event_pusher_sns_defaults">>})),
-    ?cfgh(M(ExpectedCfg ++ [{pool_size, 10}]),
+    ?cfgh(P ++ [pool_size], 10,
           T(RequiredOpts#{<<"pool_size">> => 10})),
-    ?cfgh(M(ExpectedCfg ++ [{publish_retry_count, 1}]),
+    ?cfgh(P ++ [publish_retry_count], 1,
           T(RequiredOpts#{<<"publish_retry_count">> => 1})),
-    ?cfgh(M(ExpectedCfg ++ [{publish_retry_time_ms, 100}]),
+    ?cfgh(P ++ [publish_retry_time_ms], 100,
           T(RequiredOpts#{<<"publish_retry_time_ms">> => 100})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     [?errh(T(RequiredOpts#{Key => 1})) || Key <- maps:keys(RequiredOpts)],
@@ -1948,83 +1947,85 @@ mod_event_pusher_sns(_Config) ->
     ?errh(T(RequiredOpts#{<<"publish_retry_time_ms">> => -1})).
 
 mod_event_pusher_push(_Config) ->
+    P = [modules, mod_event_pusher, push],
     T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"push">> => Opts}}}}
+                           #{<<"mod_event_pusher">> => #{<<"push">> => Opts}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{push, Cfg}]}]) end,
-    ?cfgh(M([{backend, rdbms}]),
-          T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(M([{wpool, [{workers, 200}]}]),
-          T(#{<<"wpool">> => #{<<"workers">> => 200}})),
-    ?cfgh(M([{plugin_module, mod_event_pusher_push_plugin_defaults}]),
-          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_defaults">>})),
-    ?cfgh(M([{virtual_pubsub_hosts, [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}]}]),
+    ?cfgh(P, default_config(P), T(#{})),
+    test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
+    ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [plugin_module], mod_event_pusher_push_plugin_enhanced,
+          T(#{<<"plugin_module">> => <<"mod_event_pusher_push_plugin_enhanced">>})),
+    ?cfgh(P ++ [virtual_pubsub_hosts], [{fqdn, <<"host1">>}, {fqdn, <<"host2">>}],
           T(#{<<"virtual_pubsub_hosts">> => [<<"host1">>, <<"host2">>]})),
-    ?cfgh(M([{virtual_pubsub_hosts, [{prefix, <<"pubsub.">>}, {prefix, <<"pub-sub.">>}]}]),
+    ?cfgh(P ++ [virtual_pubsub_hosts], [{prefix, <<"pubsub.">>}, {prefix, <<"pub-sub.">>}],
           T(#{<<"virtual_pubsub_hosts">> => [<<"pubsub.@HOST@">>, <<"pub-sub.@HOST@">>]})),
     ?errh(T(#{<<"backend">> => <<"redis">>})),
     ?errh(T(#{<<"wpool">> => true})),
-    ?errh(T(#{<<"wpool">> => #{<<"workers">> => <<"500">>}})),
     ?errh(T(#{<<"plugin_module">> => <<"wow_cool_but_missing">>})),
     ?errh(T(#{<<"plugin_module">> => 1})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"host with whitespace">>]})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(#{<<"virtual_pubsub_hosts">> => [<<"invalid.sub.@HOST@.as.well">>]})).
 
+test_wpool(P, T) ->
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [workers], 200, T(#{<<"workers">> => 200})),
+    ?cfgh(P ++ [strategy], random_worker, T(#{<<"strategy">> => <<"random_worker">>})),
+    ?cfgh(P ++ [call_timeout], 1000, T(#{<<"call_timeout">> => 1000})),
+    ?errh(T(#{<<"workers">> => 0})),
+    ?errh(T(#{<<"strategy">> => <<"worst_worker">>})),
+    ?errh(T(#{<<"workers">> => 0})).
+
 mod_event_pusher_http(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> =>
+    P = [modules, mod_event_pusher, http, handlers],
+    T = fun(Handlers) -> #{<<"modules">> =>
                            #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"http">> => Opts}}}}
+                                 #{<<"http">> => #{<<"handlers">> => Handlers}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{http, Cfg}]}]) end,
-    ?cfgh(M([{pool_name, http_pool}]),
-          T(#{<<"pool_name">> => <<"http_pool">>})),
-    ?cfgh(M([{path, "/notifications"}]),
-          T(#{<<"path">> => <<"/notifications">>})),
-    ?cfgh(M([{callback_module, mod_event_pusher_http_defaults}]),
-          T(#{<<"callback_module">> => <<"mod_event_pusher_http_defaults">>})),
-    ?errh(T(#{<<"pool_name">> => <<>>})),
-    ?errh(T(#{<<"path">> => true})),
-    ?errh(T(#{<<"callback_module">> => <<"wow_cool_but_missing">>})),
-    ?errh(T(#{<<"callback_module">> => 1})).
+    DefaultHandler = mod_event_pusher_http_handler(),
+    ?cfgh(P, [DefaultHandler], T([#{}])),
+    ?cfgh(P, [DefaultHandler#{pool_name => my_pool}],
+          T([#{<<"pool_name">> => <<"my_pool">>}])),
+    ?cfgh(P, [DefaultHandler#{path => <<"notifications">>}],
+          T([#{<<"path">> => <<"/notifications">>}])),
+    ?cfgh(P, [DefaultHandler#{callback_module => mod_event_pusher_http}], % existing module
+          T([#{<<"callback_module">> => <<"mod_event_pusher_http">>}])),
+    ?cfgh(P, [DefaultHandler, DefaultHandler#{pool_name => my_pool}], % two handlers
+          T([#{}, #{<<"pool_name">> => <<"my_pool">>}])),
+    ?errh(T([#{<<"pool_name">> => <<>>}])),
+    ?errh(T([#{<<"path">> => true}])),
+    ?errh(T([#{<<"callback_module">> => <<"wow_cool_but_missing">>}])),
+    ?errh(T([#{<<"callback_module">> => 1}])),
+    ?errh(T([#{}, #{}])). % handlers have to be unique
 
 mod_event_pusher_rabbit(_Config) ->
-    T = fun(Opts) -> #{<<"modules">> =>
-                           #{<<"mod_event_pusher">> =>
-                                 #{<<"backend">> => #{<<"rabbit">> => Opts}}}}
+    P = [modules, mod_event_pusher, rabbit],
+    T = fun(Key, Opts) -> #{<<"modules">> =>
+                                #{<<"mod_event_pusher">> =>
+                                      #{<<"rabbit">> => #{Key => Opts}}}}
         end,
-    M = fun(Cfg) -> modopts(mod_event_pusher, [{backends, [{rabbit, Cfg}]}]) end,
-    ?cfgh(M([{presence_exchange, [{name, <<"pres">>}]}]),
-          T(#{<<"presence_exchange">> => #{<<"name">> => <<"pres">>}})),
-    ?cfgh(M([{presence_exchange, [{type, <<"topic">>}]}]),
-          T(#{<<"presence_exchange">> => #{<<"type">> => <<"topic">>}})),
+    test_event_pusher_rabbit_exchange(P ++ [presence_exchange],
+                                      fun(Opts) -> T(<<"presence_exchange">>, Opts) end),
+    test_event_pusher_rabbit_msg_exchange(P ++ [chat_msg_exchange],
+                                          fun(Opts) -> T(<<"chat_msg_exchange">>, Opts) end),
+    test_event_pusher_rabbit_msg_exchange(P ++ [groupchat_msg_exchange],
+                                          fun(Opts) -> T(<<"groupchat_msg_exchange">>, Opts) end).
 
-    %% first two keys are the same as before, test them together
-    ?cfgh(M([{chat_msg_exchange, [{name, <<"pres1">>},
-                                  {type, <<"topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"name">> => <<"pres1">>,
-                                           <<"type">> => <<"topic1">>}})),
-    ?cfgh(M([{chat_msg_exchange, [{sent_topic, <<"sent_topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"sent_topic">> => <<"sent_topic1">>}})),
-    ?cfgh(M([{chat_msg_exchange, [{recv_topic, <<"recv_topic1">>}]}]),
-          T(#{<<"chat_msg_exchange">> => #{<<"recv_topic">> => <<"recv_topic1">>}})),
+test_event_pusher_rabbit_msg_exchange(P, T) ->
+    test_event_pusher_rabbit_exchange(P, T),
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [sent_topic], <<"outgoing">>, T(#{<<"sent_topic">> => <<"outgoing">>})),
+    ?cfgh(P ++ [recv_topic], <<"incoming">>, T(#{<<"recv_topic">> => <<"incoming">>})),
+    ?errh(T(#{<<"sent_topic">> => <<>>})),
+    ?errh(T(#{<<"recv_topic">> => <<>>})).
 
-    %% all keys are the same as before, test them together
-    ?cfgh(M([{groupchat_msg_exchange, [{name, <<"pres2">>},
-                                       {type, <<"topic2">>},
-                                       {sent_topic, <<"sent_topic2">>},
-                                       {recv_topic, <<"recv_topic2">>}]}]),
-          T(#{<<"groupchat_msg_exchange">> => #{<<"name">> => <<"pres2">>,
-                                                <<"type">> => <<"topic2">>,
-                                                <<"sent_topic">> => <<"sent_topic2">>,
-                                                <<"recv_topic">> => <<"recv_topic2">>}})),
-
-    Exchanges = [<<"presence_exchange">>, <<"chat_msg_exchange">>, <<"groupchat_msg_exchange">>],
-    Keys = [<<"name">>, <<"topic">>, <<"sent_topic">>, <<"recv_topic">>],
-    [?errh(T(#{Exch => #{Key => <<>>}})) || Exch <- Exchanges, Key <- Keys],
-    [?errh(T(#{Exch => #{<<"badkey">> => <<"goodvalue">>}})) || Exch <- Exchanges],
-    ?errh(T(#{<<"money_exchange">> => #{<<"name">> => <<"kantor">>}})).
+test_event_pusher_rabbit_exchange(P, T) ->
+    ?cfgh(P, default_config(P), T(#{})),
+    ?cfgh(P ++ [name], <<"notifications">>, T(#{<<"name">> => <<"notifications">>})),
+    ?cfgh(P ++ [type], <<"direct">>, T(#{<<"type">> => <<"direct">>})),
+    ?errh(T(#{<<"name">> => <<>>})),
+    ?errh(T(#{<<"type">> => <<>>})).
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,

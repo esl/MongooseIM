@@ -13,7 +13,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [subhost_pattern/1]).
 -import(domain_helper, [host_type/0]).
--import(config_parser_helper, [mod_config/2]).
+-import(config_parser_helper, [mod_config/2, config/2]).
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
     disable_stanza/1, disable_stanza/2, become_unavailable/1
@@ -169,9 +169,9 @@ required_modules(_) ->
     [pusher_module()].
 
 pusher_module() ->
-    PushOpts = [{virtual_pubsub_hosts, [subhost_pattern(?VIRTUAL_PUBSUB_DOMAIN)]},
-                {backend, mongoose_helper:mnesia_or_rdbms_backend()}],
-    {mod_event_pusher, [{backends, [{push, PushOpts}]}]}.
+    PushOpts = #{backend => mongoose_helper:mnesia_or_rdbms_backend(),
+                 virtual_pubsub_hosts => [subhost_pattern(?VIRTUAL_PUBSUB_DOMAIN)]},
+    {mod_event_pusher, #{push => config([modules, mod_event_pusher, push], PushOpts)}}.
 
 muc_light_module() ->
     {mod_muc_light,
@@ -709,7 +709,7 @@ stop_route_listener(Config) ->
     Domain = pubsub_domain(Config),
     rpc(mongoose_router, unregister_route, [Domain]).
 
-process_packet(_Acc, _From, To, El, #{state := State}) ->
+process_packet(Acc, _From, To, El, #{state := State}) ->
     #{ pid := TestCasePid, pub_options_ns := PubOptionsNS, push_form_ns := PushFormNS } = State,
     PublishXML = exml_query:path(El, [{element, <<"pubsub">>},
                                       {element, <<"publish-options">>},
@@ -733,7 +733,8 @@ process_packet(_Acc, _From, To, El, #{state := State}) ->
             TestCasePid ! #{ error => invalid_namespace,
                              publish_options0 => PublishOptions,
                              payload0 => Payload }
-    end.
+    end,
+    Acc.
 
 parse_form(undefined) ->
     undefined;

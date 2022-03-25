@@ -9,22 +9,10 @@
 -include("assert_received_match.hrl").
 
 -import(domain_helper, [domain/0]).
+-import(config_parser_helper, [config/2]).
 
 -define(NS_HTTP_UPLOAD, <<"urn:xmpp:http:upload">>).
 -define(S3_HOSTNAME, "http://bucket.s3-eu-east-25.example.com").
--define(SNS_OPTS,
-    [
-        {access_key_id, "AKIAIH54ALYGMZTESTID"},
-        {secret_access_key, "buRqHOxXCFUQkiuYgdUAy+XoGKt0Ec6DTESTKEY+"},
-        {region, "eu-west-1"},
-        {account_id, "123456789012"},
-        {sns_host, "sns.eu-west-1.amazonaws.com"},
-        {plugin_module, mod_event_pusher_sns_defaults},
-        {presence_updates_topic, "user_presence_updated-dev-1"},
-        {pm_messages_topic, "user_message_sent-dev-1"},
-        {muc_messages_topic, "user_messagegroup_sent-dev-1"},
-        {muc_host, "muc.@HOST@"}
-    ]).
 
 -record(publish, {
     topic_arn,
@@ -85,13 +73,22 @@ end_per_suite(Config) ->
 
 init_per_group(_, Config0) ->
     Domain = domain(),
-    Config1 = dynamic_modules:save_modules(Domain, Config0),
-    Config = [{sns_config, ?SNS_OPTS} | Config1],
+    Config = dynamic_modules:save_modules(Domain, Config0),
     dynamic_modules:ensure_modules(Domain, required_modules()),
     Config.
 
 required_modules() ->
-    [{mod_event_pusher, [{backends, [{sns, ?SNS_OPTS}]}]}].
+    [{mod_event_pusher, #{sns => config([modules, mod_event_pusher, sns], sns_opts())}}].
+
+sns_opts() ->
+    #{presence_updates_topic => "user_presence_updated-dev-1",
+      pm_messages_topic => "user_message_sent-dev-1",
+      muc_messages_topic => "user_messagegroup_sent-dev-1",
+      sns_host => "sns.eu-west-1.amazonaws.com",
+      region => "eu-west-1",
+      access_key_id => "AKIAIH54ALYGMZTESTID",
+      secret_access_key => "buRqHOxXCFUQkiuYgdUAy+XoGKt0Ec6DTESTKEY+",
+      account_id => "123456789012"}.
 
 end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Config),
@@ -127,7 +124,7 @@ connected_user_changes_status(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            Topic = make_topic_arn(Config, presence_updates_topic),
+            Topic = make_topic_arn(presence_updates_topic),
             BobJID = nick_to_jid(bob, Config),
             AliceJID = nick_to_jid(alice, Config),
 
@@ -187,7 +184,7 @@ pm_messages(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            Topic = make_topic_arn(Config, pm_messages_topic),
+            Topic = make_topic_arn(pm_messages_topic),
             BobJID = nick_to_jid(bob, Config),
             AliceJID = nick_to_jid(alice, Config),
 
@@ -225,7 +222,7 @@ muc_messages(Config) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
-            Topic = make_topic_arn(Config, muc_messages_topic),
+            Topic = make_topic_arn(muc_messages_topic),
             Room = ?config(room, Config),
             RoomAddr = room_address(Room),
             BobJID = nick_to_jid(bob, Config),
@@ -280,12 +277,9 @@ rpc(M, F, A) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
-make_topic_arn(Config, TopicVar) ->
-    SNSConfig = proplists:get_value(sns_config, Config),
-    string:join(["arn", "aws", "sns",
-                proplists:get_value(region, SNSConfig),
-                proplists:get_value(account_id, SNSConfig),
-                proplists:get_value(TopicVar, SNSConfig)], ":").
+make_topic_arn(TopicVar) ->
+    #{region := Region, account_id := AccountId, TopicVar := Topic} = sns_opts(),
+    string:join(["arn", "aws", "sns", Region, AccountId, Topic], ":").
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
