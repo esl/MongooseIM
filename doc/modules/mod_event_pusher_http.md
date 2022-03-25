@@ -12,47 +12,41 @@ When the hook is triggered, the module:
 * runs a callback module's `prepare_body/7`
 * sends a POST request composed of `{Host::binary(), Sender::binary(), Receiver::binary(), Message::binary()}` to the http notification server
 
-You can make multiple configuration entries for this backend to handle more complicated pushing scenarios (e.g. sending various types of messages to different backends).
-
-### Callback module
-
-
-To find out what and how to send MongooseIM calls the following callback module's functions:
-`Mod:should_make_req(Acc::mongoose_acc:t(), Dir::in|out, Packet::xmlel(), From::jid(), To::jid(), Opts :: [{atom(), term()}])`.
-
-`Mod:prepare_headers(Acc::mongoose_acc:t(), Dir::in|out, Host::jid:lserver(), Message::binary(), Sender::jid:luser(), Receiver::luser(), Opts :: [{atom(), term()}])`.
-
-`Mod:prepare_body(Acc::mongoose_acc:t(), Dir::in|out, Host::jid:lserver(), Message::binary(), Sender::jid:luser(), Receiver::luser(), Opts :: [{atom(), term()}])`.
-
-By default it uses the function in `mod_event_pusher_http` itself, which ships all non-empty chat messages.
+You can configure multiple handlers e.g. for sending various types of messages to different HTTP servers.
 
 ## Prerequisites
 
-This module uses a connection pool created by mongoose_http_client.
+This module uses a connection pool created by `mongoose_http_client`.
 It must be defined in the [`outgoing_pools` settings](../configuration/outgoing-connections.md#http-options).
 
 ## Options
 
-### `modules.mod_event_pusher_http.pool_name`
+### `modules.mod_event_pusher.http.handlers`
+* **Syntax:** array of TOML tables with the keys described below
+* **Default:** empty list
+
+A list of handler definitions. All handlers are applied for each event.
+
+#### `modules.mod_event_pusher.http.handlers.pool_name`
 * **Syntax:** non-empty string
 * **Default:** `"http_pool"`
 * **Example:** `pool_name = "http_pool"`
 
-Name of the pool to use (as defined in outgoing_pools).
+Name of the pool to use to connect to the HTTP server (as defined in `outgoing_pools`).
 
-### `modules.mod_event_pusher_http.path`
+#### `modules.mod_event_pusher.http.handlers.path`
 * **Syntax:** string
 * **Default:** `""`
 * **Example:** `path = "/notifications"`
 
 Path part of an URL to which a request should be sent (will be appended to the pool's prefix path).
 
-### `modules.mod_event_pusher_http.callback_module`
+#### `modules.mod_event_pusher.http.handlers.callback_module`
 * **Syntax:** string
 * **Default:** `"mod_event_pusher_http_defaults"`
 * **Example:** `callback_module = "mod_event_pusher_http_notifications"`
 
-Name of a module which should be used to check whether a notification should be sent.
+Name of a module which should be used to check whether a notification should be sent. The default callback module, `mod_event_pusher_http_defaults`, sends notifications for all non-empty chat messages. You can use this module as a starting point for developing a custom one.
 
 ## Example configuration
 
@@ -62,24 +56,32 @@ Name of a module which should be used to check whether a notification should be 
   workers = 50
 
   [outgoing_pools.http.http_pool.connection]
-    host = "https://localhost:8000"
+    host = "http://localhost:8000"
     path_prefix = "/webservice"
     request_timeout = 2000
 
-[modules.mod_event_pusher.backend.http]
+[modules.mod_event_pusher.http]
+  handlers = [{pool_name = "http_pool", path = "/notifications"}]
+```
+
+Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
+TOML also allows to specify the handler in its own subsection.
+
+```toml
+[[modules.mod_event_pusher.http.handlers]]
   pool_name = "http_pool"
   path = "/notifications"
 ```
 
-Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
+This alternative syntax is useful for specifying multiple handlers with options:
 
 ```toml
-[[modules.mod_event_pusher.backend.http]]
+[[modules.mod_event_pusher.http.handlers]]
   pool_name = "http_pool"
   path = "/notifications"
   callback_module = "mod_event_pusher_http_notifications"
 
-[[modules.mod_event_pusher.backend.http]]
+[[modules.mod_event_pusher.http.handlers]]
   pool_name = "http_pool"
   path = "/alerts"
   callback_module = "mod_event_pusher_http_alerts"
@@ -90,9 +92,9 @@ Here, some notifications will be POSTed to `http://localhost:8000/webservice/not
 ## Default payload format
 The default HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
 
-* `author`: username of the user who authored the message
+* `author`: name of the user who authored the message
 * `server`: name of the server from where the message originates
-* `receiver`: username of the user who the message is for
+* `receiver`: name of the user who the message is for
 * `message`: content of `<body>` element of the message
 
 The contents of the author, server and receiver fields are processed by `stringprep`.

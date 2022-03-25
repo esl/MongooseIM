@@ -51,10 +51,10 @@ node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush]
 [modules.mod_pubsub]
   plugins = ["push"] # mandatory minimal config
 
-[modules.mod_event_pusher]
-  backend.push.backend = "mnesia" # optional
-  backend.push.wpool.workers = 200 # optional
-  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
+[modules.mod_event_pusher.push]
+  backend = "mnesia" # optional, default
+  wpool.workers = 200 # optional
+  plugin_module = "mod_event_pusher_push_plugin_defaults" # optional, default
 ```
 
 ### Advantages
@@ -80,11 +80,11 @@ A direct connection to a push service (e.g. MongoosePush) must be configured on 
 node. Check out [this][WithMongoosePush] tutorial on how to setup [MongoosePush][].
 
 ```toml
-[modules.mod_event_pusher]
-  backend.push.backend = "mnesia" # optional
-  backend.push.wpool.workers = 200 # optional
-  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
-  backend.push.virtual_pubsub_hosts = ["pubsub.@HOST@"]
+[modules.mod_event_pusher.push]
+  backend = "mnesia" # optional, default
+  wpool.workers = 200 # optional
+  plugin_module = "mod_event_pusher_push_plugin_defaults" # optional, default
+  virtual_pubsub_hosts = ["pubsub.@HOST@"]
 ```
 
 ### Advantages

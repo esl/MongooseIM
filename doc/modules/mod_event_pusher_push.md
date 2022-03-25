@@ -16,30 +16,29 @@ This module is very easy to enable, just paste the following to your MongooseIM 
 
 ```toml
 [modules.mod_event_pusher]
-  backend.push.wpool.workers = 100
+  push.wpool.workers = 100
 ```
 
 And that's basically it. You have just enabled the push notification support
 with 100 asynchronous workers that will handle all push notification related work.
 
-
 ## Options
 
-### `modules.mod_event_pusher_push.backend`
+### `modules.mod_event_pusher.push.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`
 * **Example:** `backend = "rdbms"`
 
 Backend to use for storing the registrations.
 
-### `modules.mod_event_pusher_push.wpool`
+### `modules.mod_event_pusher.push.wpool`
 * **Syntax:** TOML table with worker pool options
-* **Default:** `{}`
+* **Default:** see description
 * **Example:** `wpool.workers = 200`
 
-Array of options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../configuration/outgoing-connections.md#worker-pool-options).
+Pool options that will be passed to the `worker_pool` library that handles all the requests. The options allowed here are the same as for the [outgoing connection pools](../configuration/outgoing-connections.md#worker-pool-options). The only difference is that the default `strategy` is `"available_worker"`.
 
-### `modules.mod_event_pusher_push.plugin_module`
+### `modules.mod_event_pusher.push.plugin_module`
 * **Syntax:** non-empty string
 * **Default:** `"mod_event_pusher_push_plugin_defaults"`
 * **Example:** `plugin_module = "mod_event_pusher_push_plugin_defaults"`
@@ -47,7 +46,7 @@ Array of options that will be passed to the `worker_pool` library that handles a
 The module implementing `mod_event_pusher_push_plugin` behaviour, used for dynamic configuration of push notifications.
 See the [relevant section](#plugin-module) for more details.
 
-### `modules.mod_event_pusher_push.virtual_pubsub_hosts`
+### `modules.mod_event_pusher.push.virtual_pubsub_hosts`
 * **Syntax:** array of strings
 * **Default:** `[]`
 * **Example:** `virtual_pubsub_hosts = ["host1", "host2"]`
@@ -61,7 +60,7 @@ See the [relevant section](#virtual-pubsub-hosts) for more details.
 If a notification is published to one of the configured domains, the internal push notification hook
 is executed in MongooseIM instead of the XEP-0357 typical behaviour. If an existing PubSub domain
 is added to this list, it will be shadowed in the push notifications context. To ensure complete
-shadowing of all the PubSub subdomains we must use the `@HOST@` pattern, otherwise only the
+shadowing of all the PubSub subdomains you must use the `@HOST@` pattern, otherwise only the
 subdomain of the user is shadowed. It enables easy migration from PubSub-full deployments to
 PubSub-less variants.
 
@@ -76,11 +75,11 @@ option. `"pubsub.@HOST@"` is the default domain for `mod_pubsub`.
 [modules.mod_pubsub]
   plugins = ["push"] # mandatory minimal config
 
-[modules.mod_event_pusher]
-  backend.push.backend = "mnesia" # optional
-  backend.push.wpool.workers = 200 # optional
-  backend.push.plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
-  backend.push.virtual_pubsub_hosts = ["pubsub.@HOST@"]
+[modules.mod_event_pusher.push]
+  backend = "mnesia" # optional
+  wpool.workers = 200 # optional
+  plugin_module = "mod_event_pusher_push_plugin_defaults" # optional
+  virtual_pubsub_hosts = ["pubsub.@HOST@"]
 ```
 
 #### Advantages
