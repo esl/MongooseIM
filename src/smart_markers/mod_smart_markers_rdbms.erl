@@ -24,7 +24,7 @@ init(HostType, _) ->
     UpdateFields = [<<"msg_id">>, <<"timestamp">>],
     InsertFields = KeyFields ++ UpdateFields,
     rdbms_queries:prepare_upsert(HostType, smart_markers_upsert, smart_markers,
-                                 InsertFields, UpdateFields, KeyFields),
+                                 InsertFields, UpdateFields, KeyFields, <<"timestamp">>),
     mongoose_rdbms:prepare(smart_markers_select_conv, smart_markers,
         [lserver, luser, to_jid, thread, timestamp],
         <<"SELECT lserver, luser, to_jid, thread, type, msg_id, timestamp FROM smart_markers "
