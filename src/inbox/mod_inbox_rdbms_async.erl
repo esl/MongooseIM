@@ -58,14 +58,14 @@ request(Task, _Extra = #{host_type := HostType}) ->
 
 request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp}) ->
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Timestamp, Count],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Timestamp, Count],
+    Update = [MsgId, Content, Count, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Count, Timestamp],
     rdbms_queries:request_upsert(HostType, inbox_upsert, Insert, Update, Unique);
 
 request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs}) ->
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Timestamp, Incrs],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Timestamp, Incrs],
+    Update = [MsgId, Content, Incrs, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Incrs, Timestamp],
     rdbms_queries:request_upsert(HostType, inbox_upsert_incr_unread, Insert, Update, Unique);
 
 request_one(HostType, {remove_inbox_row, {LUser, LServer, LToBareJid}}) ->

@@ -113,4 +113,3 @@ verify(Answer, Marker, _Extra) ->
                            marker => Marker});
         _ -> ok
     end.
-
