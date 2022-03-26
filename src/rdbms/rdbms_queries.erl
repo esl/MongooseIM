@@ -46,8 +46,7 @@
          request_upsert/5]).
 
 -ignore_xref([
-    request_upsert/5, count_records_where/3,
-    get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
+    count_records_where/3, get_db_specific_limits/1, get_db_specific_offset/2, get_db_type/0
 ]).
 
 %% We have only two compile time options for db queries:
@@ -55,7 +54,6 @@
 %%-define(mssql, true).
 -ifndef(mssql).
 -undef(generic).
--define(generic, true).
 -endif.
 
 -define(RDBMS_TYPE, (mongoose_rdbms:db_type())).
