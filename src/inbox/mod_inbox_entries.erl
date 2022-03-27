@@ -144,8 +144,7 @@ maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     end.
 
 process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ok = mod_inbox_utils:reset_unread_count_to_zero(HostType, From, InterlocutorJID),
+    ok = mod_inbox_utils:reset_unread_count_to_zero(Acc, From, InterlocutorJID),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],

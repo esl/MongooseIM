@@ -18,7 +18,7 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
--export([maybe_reset_unread_count/4,
+-export([maybe_reset_unread_count/5,
          reset_unread_count_to_zero/3,
          maybe_write_to_inbox/6,
          write_to_sender_inbox/5,
@@ -42,28 +42,33 @@
 -spec maybe_reset_unread_count(HostType :: mongooseim:host_type(),
                                User :: jid:jid(),
                                Remote :: jid:jid(),
-                               Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(HostType, User, Remote, Packet) ->
+                               Packet :: exml:element(),
+                               Acc :: mongoose_acc:t()) -> ok.
+maybe_reset_unread_count(HostType, User, Remote, Packet, Acc) ->
     ResetMarkers = get_reset_markers(HostType),
     case if_chat_marker_get_id(Packet, ResetMarkers) of
         undefined ->
             ok;
         Id ->
-            reset_unread_count(HostType, User, Remote, Id)
+            TS = mongoose_acc:timestamp(Acc),
+            reset_unread_count(HostType, User, Remote, Id, TS)
     end.
 
--spec reset_unread_count_to_zero(mongooseim:host_type(), jid:jid(), jid:jid()) -> ok.
-reset_unread_count_to_zero(HostType, From, Remote) ->
+-spec reset_unread_count_to_zero(mongoose_acc:t(), jid:jid(), jid:jid()) -> ok.
+reset_unread_count_to_zero(Acc, From, Remote) ->
+    TS = mongoose_acc:timestamp(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     InboxEntryKey = build_inbox_entry_key(From, Remote),
-    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined).
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined, TS).
 
 -spec reset_unread_count(HostType ::mongooseim:host_type(),
                          From :: jid:jid(),
                          Remote :: jid:jid(),
-                         MsgId :: id()) -> ok.
-reset_unread_count(HostType, From, Remote, MsgId) ->
+                         MsgId :: id(),
+                         TS :: integer()) -> ok.
+reset_unread_count(HostType, From, Remote, MsgId, TS) ->
     InboxEntryKey = build_inbox_entry_key(From, Remote),
-    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId).
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId, TS).
 
 -spec write_to_sender_inbox(HostType :: mongooseim:host_type(),
                             Sender :: jid:jid(),

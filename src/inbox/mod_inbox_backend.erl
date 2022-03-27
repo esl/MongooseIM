@@ -15,7 +15,7 @@
          get_full_entry/2,
          get_entry_properties/2,
          set_entry_properties/3,
-         reset_unread/3]).
+         reset_unread/4]).
 
 -define(MAIN_MODULE, mod_inbox).
 
@@ -59,10 +59,11 @@
     MsgId :: binary(),
     Timestamp :: integer().
 
--callback reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:write_res() when
+-callback reset_unread(HostType, InboxEntryKey, MsgId, TS) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    MsgId :: binary().
+    MsgId :: binary() | undefined,
+    TS :: integer().
 
 -callback get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
     HostType :: mongooseim:host_type(),
@@ -146,12 +147,13 @@ set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     Args = [HostType, InboxEntryKey, Content, MsgId, Timestamp],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
--spec reset_unread(HostType, InboxEntryKey, MsgId) -> mod_inbox:write_res() when
+-spec reset_unread(HostType, InboxEntryKey, MsgId, TS) -> mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    MsgId :: binary() | undefined.
-reset_unread(HostType, InboxEntryKey, MsgId) ->
-    Args = [HostType, InboxEntryKey, MsgId],
+    MsgId :: binary() | undefined,
+    TS :: integer().
+reset_unread(HostType, InboxEntryKey, MsgId, TS) ->
+    Args = [HostType, InboxEntryKey, MsgId, TS],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec get_inbox_unread(HostType, InboxEntryKey) -> {ok, integer()} when
