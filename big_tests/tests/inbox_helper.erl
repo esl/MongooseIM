@@ -689,7 +689,8 @@ create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
     OwnerRoomJid = <<RoomJid/binary,"/", OwnerJid/binary>>,
     %% Owner sent the message so he has unread set to 0
     check_inbox(Owner, [#conv{unread = 0, from = OwnerRoomJid, to = OwnerJid, content = Msg}]),
-    foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg).
+    foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg),
+    RoomJid.
 
 verify_is_owner_aff_change(Client, Msg) ->
     verify_muc_light_aff_msg(Msg, [{Client,  owner}]).
