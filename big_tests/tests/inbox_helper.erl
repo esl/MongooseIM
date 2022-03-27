@@ -127,7 +127,7 @@ inbox_opts(regular) ->
     (inbox_opts())#{boxes => [<<"inbox">>, <<"archive">>, <<"other">>]};
 inbox_opts(async_pools) ->
     (inbox_opts())#{backend => rdbms_async,
-                    async_writer => #{pool_size => 4},
+                    async_writer => #{pool_size => 2},
                     boxes => [<<"inbox">>, <<"archive">>, <<"other">>]}.
 
 skip_or_run_inbox_tests(TestCases) ->
