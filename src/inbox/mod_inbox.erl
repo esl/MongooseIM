@@ -501,7 +501,7 @@ fields_to_params(HostType, [{<<"box">>, [Value]} | RFields], Acc) ->
     case validate_box(HostType, Value) of
         false ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
-                           field => archive, value => Value}),
+                           field => box, value => Value}),
             {error, bad_request, invalid_field_value(<<"box">>, Value)};
         true ->
             fields_to_params(HostType, RFields, Acc#{ box => Value })
