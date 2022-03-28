@@ -153,6 +153,8 @@ user_mapping_rules() ->
         'UserMutation' => mongoose_graphql_user_mutation,
         'AccountUserQuery' => mongoose_graphql_account_user_query,
         'AccountUserMutation' => mongoose_graphql_account_user_mutation,
+        'MUCUserMutation' => mongoose_graphql_muc_user_mutation,
+        'MUCUserQuery' => mongoose_graphql_muc_user_query,
         'MUCLightUserMutation' => mongoose_graphql_muc_light_user_mutation,
         'MUCLightUserQuery' => mongoose_graphql_muc_light_user_query,
         'RosterUserQuery' => mongoose_graphql_roster_user_query,
