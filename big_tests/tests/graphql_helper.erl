@@ -2,9 +2,10 @@
 
 -import(distributed_helper, [mim/0, rpc/4]).
 
--export([execute/3, execute_auth/2, get_listener_port/1, get_listener_config/1]).
+-export([execute/3, execute_auth/2, execute_user/3, get_listener_port/1, get_listener_config/1]).
 -export([init_admin_handler/1]).
--export([get_ok_value/2, get_err_msg/1, get_err_msg/2, make_creds/1]).
+-export([get_ok_value/2, get_err_msg/1, get_err_msg/2, make_creds/1,
+         user_to_bin/1, user_to_jid/1, user_to_full_bin/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("escalus/include/escalus.hrl").
@@ -28,6 +29,11 @@ execute_auth(Body, Config) ->
     User = proplists:get_value(username, Opts),
     Password = proplists:get_value(password, Opts),
     execute(Ep, Body, {User, Password}).
+
+execute_user(Body, User, Config) ->
+    Ep = ?config(schema_endpoint, Config),
+    Creds = make_creds(User),
+    execute(Ep, Body, Creds).
 
 -spec get_listener_port(binary()) -> integer().
 get_listener_port(EpName) ->
@@ -80,6 +86,15 @@ make_creds(#client{props = Props} = Client) ->
     JID = escalus_utils:jid_to_lower(escalus_client:short_jid(Client)),
     Password = proplists:get_value(password, Props),
     {JID, Password}.
+
+user_to_full_bin(#client{} = Client) -> escalus_client:full_jid(Client);
+user_to_full_bin(Bin) when is_binary(Bin) -> Bin.
+
+user_to_bin(#client{} = Client) -> escalus_client:short_jid(Client);
+user_to_bin(Bin) when is_binary(Bin) -> Bin.
+
+user_to_jid(#client{jid = JID}) -> jid:to_bare(jid:from_binary(JID));
+user_to_jid(Bin) when is_binary(Bin) -> jid:from_binary(Bin).
 
 %% Internal
 

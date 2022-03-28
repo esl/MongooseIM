@@ -3,9 +3,9 @@
 -compile([export_all, nowarn_export_all]).
 
 -import(distributed_helper, [mim/0, require_rpc_nodes/1, rpc/4]).
--import(graphql_helper, [execute/3, execute_auth/2, get_listener_port/1,
+-import(graphql_helper, [execute_user/3, execute_auth/2, get_listener_port/1,
                          get_listener_config/1, get_ok_value/2, get_err_msg/1,
-                         get_err_msg/2, make_creds/1]).
+                         get_err_msg/2, make_creds/1, user_to_jid/1, user_to_bin/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -495,11 +495,6 @@ user_add_contact(User, Contact, Config) ->
     Name = escalus_utils:get_username(Contact),
     execute_user(user_add_contact_body(Contact, Name, ?DEFAULT_GROUPS), User, Config).
 
-execute_user(Body, User, Config) ->
-    Ep = ?config(schema_endpoint, Config),
-    Creds = make_creds(User),
-    execute(Ep, Body, Creds).
-
 check_contacts(ContactClients, User) ->
     Expected = [escalus_utils:jid_to_lower(escalus_client:short_jid(Client))
                 || Client <- ContactClients],
@@ -536,12 +531,6 @@ get_roster(User, Contact) ->
          user_to_jid(User),
          jid:to_lower(user_to_jid(Contact)),
          full]).
-
-user_to_bin(#client{jid = JID} = Client) -> escalus_client:short_jid(Client);
-user_to_bin(Bin) when is_binary(Bin) -> Bin.
-
-user_to_jid(#client{jid = JID}) -> jid:to_bare(jid:from_binary(JID));
-user_to_jid(Bin) when is_binary(Bin) -> jid:from_binary(Bin).
 
 make_contact(Users) when is_list(Users) ->
     [make_contact(U) || U <- Users];
