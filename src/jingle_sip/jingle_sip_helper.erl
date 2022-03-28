@@ -45,9 +45,9 @@ jingle_iq(ToBinary, FromBinary, JingleEl) ->
 
 -spec maybe_rewrite_to_phone(mongoose_acc:t()) -> jid:jid().
 maybe_rewrite_to_phone(Acc) ->
-    HT = mongoose_acc:host_type(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     #jid{luser = ToUser} = JID = mongoose_acc:to_jid(Acc),
-    ToRewrite = gen_mod:get_module_opt(HT, mod_jingle_sip, username_to_phone),
+    ToRewrite = gen_mod:get_module_opt(HostType, mod_jingle_sip, username_to_phone),
     case lists:keyfind(ToUser, 1, ToRewrite) of
         {ToUser, PhoneNumber} ->
             JID#jid{user = PhoneNumber, luser = PhoneNumber};
@@ -65,8 +65,8 @@ maybe_rewrite_from_phone(_, Username) ->
 
 try_to_rewrite_from_phone(Server, PhoneNumber) ->
     case mongoose_domain_api:get_host_type(Server) of
-        {ok, HT} ->
-            ToRewrite = gen_mod:get_module_opt(HT, mod_jingle_sip, username_to_phone),
+        {ok, HostType} ->
+            ToRewrite = gen_mod:get_module_opt(HostType, mod_jingle_sip, username_to_phone),
             case lists:keyfind(PhoneNumber, 2, ToRewrite) of
                 {ToUser, PhoneNumber} ->
                     ToUser;
