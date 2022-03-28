@@ -135,6 +135,8 @@ admin_mapping_rules() ->
         'StanzaAdminQuery' => mongoose_graphql_stanza_admin_query,
         'AccountAdminQuery' => mongoose_graphql_account_admin_query,
         'AccountAdminMutation' => mongoose_graphql_account_admin_mutation,
+        'MUCAdminMutation' => mongoose_graphql_muc_admin_mutation,
+        'MUCAdminQuery' => mongoose_graphql_muc_admin_query,
         'MUCLightAdminMutation' => mongoose_graphql_muc_light_admin_mutation,
         'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
         'RosterAdminQuery' => mongoose_graphql_roster_admin_query,
