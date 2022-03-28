@@ -1,39 +1,75 @@
-enum Affiliation{
-  OWNER
-  MEMBER
+enum MUCRoomRole{
   NONE
+  VISITOR
+  PARTICIPANT
+  MODERATOR
 }
 
-input BlockingInput{
-  entityType: BlockedEntityType!
-  action: BlockingAction!
-  entity: JID!
+type MUCRoomUser{
+  jid: JID
+  nick: String!
+  role: MUCRoomRole!
 }
 
-type BlockingItem{
-  entityType: BlockedEntityType!
-  action: BlockingAction!
-  entity: JID!
-}
-
-enum BlockingAction{
-  ALLOW,
-  DENY
-}
-
-enum BlockedEntityType{
-  USER,
-  ROOM
-}
-
-type Room{
+type MUCRoomDesc{
   jid: JID!
-  name: String!
-  subject: String!
-  participants: [RoomUser!]!
+  title: String!
+  private: Boolean
+  usersNumber: Int
 }
 
-type RoomUser{
-  jid: JID!
-  affiliation: Affiliation!
+type MUCRoomConfig{
+  title: String!,
+  description: String!,
+  allowChangeSubject: Bool!,
+  allowQueryUsers: Bool!,
+  allowPrivateMessages: Bool!,
+  allowVisitorStatus: Bool!,
+  allowVisitorNickchange: Bool!,
+  public: Bool!,
+  publicList: Bool!,
+  persistent: Bool!,
+  moderated: Bool!,
+  membersByDefault: Bool!,
+  membersOnly: Bool!,
+  allowUserInvites: Bool!,
+  allowMultipleSession: Bool!,
+  passwordProtected: Bool!,
+  password: String!,
+  anonymous: Bool!,
+  mayGetMemberList: [String!]!
+  maxUsers: Int,
+  logging: Bool!,
+}
+
+input MUCRoomConfigInput{
+  title: String,
+  description: String,
+  allowChangeSubject: Bool,
+  allowQueryUsers: Bool,
+  allowPrivateMessages: Bool,
+  allowVisitorStatus: Bool,
+  allowVisitorNickchange: Bool,
+  public: Bool,
+  publicList: Bool,
+  persistent: Bool,
+  moderated: Bool,
+  membersByDefault: Bool,
+  membersOnly: Bool,
+  allowUserInvites: Bool,
+  allowMultipleSession: Bool,
+  passwordProtected: Bool,
+  password: String,
+  anonymous: Bool,
+  mayGetMemberList: [String!],
+  maxUsers: Int
+  logging: Bool,
+}
+
+type MUCRoomsPayload{
+  rooms: [MUCRoomDesc!]
+  count: Int
+  index: Int
+  first: String
+  last: String
 }
