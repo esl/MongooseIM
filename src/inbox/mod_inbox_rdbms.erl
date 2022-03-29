@@ -100,15 +100,16 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
     %% so we have to add +1
     {ok, Val + 1}.
 
--spec set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
+-spec set_inbox(HostType, InboxEntryKey, Packet, Count, MsgId, Timestamp) ->
     mod_inbox:write_res() when
       HostType :: mongooseim:host_type(),
       InboxEntryKey :: mod_inbox:entry_key(),
-      Content :: binary(),
+      Packet :: exml:element(),
       Count :: integer(),
       MsgId :: binary(),
       Timestamp :: integer().
-set_inbox(HostType, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp) ->
+set_inbox(HostType, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp) ->
+    Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, Content, Count, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, Content, Count, Timestamp],
@@ -130,18 +131,19 @@ remove_domain(HostType, LServer) ->
     ok.
 
 -spec set_inbox_incr_unread(
-        mongooseim:host_type(), mod_inbox:entry_key(), binary(), binary(), integer()) ->
+        mongooseim:host_type(), mod_inbox:entry_key(), exml:element(), binary(), integer()) ->
     mod_inbox:count_res().
-set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
-    set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp, 1).
+set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp) ->
+    set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp, 1).
 
 -spec set_inbox_incr_unread(HostType :: mongooseim:host_type(),
                             InboxEntryKey :: mod_inbox:entry_key(),
-                            Content :: binary(),
+                            Packet :: exml:element(),
                             MsgId :: binary(),
                             Timestamp :: integer(),
                             Incrs :: pos_integer()) -> mod_inbox:count_res().
-set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs) ->
+set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs) ->
+    Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, Content, Incrs, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, Content, Incrs, Timestamp],

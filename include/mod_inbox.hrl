@@ -1,5 +1,3 @@
--type content() :: binary().
-
 -type id() :: binary().
 
 -type marker() :: binary().

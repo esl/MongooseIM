@@ -7,8 +7,8 @@
 -behaviour(mongoose_aggregator_worker).
 
 -type task() ::
-    {set_inbox, mod_inbox:entry_key(), content(), pos_integer(), id(), integer()} |
-    {set_inbox_incr_unread, mod_inbox:entry_key(), content(), id(), integer(), Incrs :: pos_integer()} |
+    {set_inbox, mod_inbox:entry_key(), exml:element(), pos_integer(), id(), integer()} |
+    {set_inbox_incr_unread, mod_inbox:entry_key(), exml:element(), id(), integer(), Incrs :: pos_integer()} |
     {remove_inbox_row, mod_inbox:entry_key()} |
     {reset_unread, mod_inbox:entry_key(), id()}.
 
@@ -56,13 +56,15 @@ start_pool(HostType, Opts) ->
 request(Task, _Extra = #{host_type := HostType}) ->
     request_one(HostType, Task).
 
-request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Content, Count, MsgId, Timestamp}) ->
+request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp}) ->
+    Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, Content, Count, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, Content, Count, Timestamp],
     rdbms_queries:request_upsert(HostType, inbox_upsert, Insert, Update, Unique);
 
-request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Content, MsgId, Timestamp, Incrs}) ->
+request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs}) ->
+    Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
     Update = [MsgId, Content, Incrs, Timestamp],
     Insert = [LUser, LServer, LToBareJid, MsgId, Content, Incrs, Timestamp],
@@ -92,17 +94,17 @@ verify(Answer, InboxTask, _Extra) ->
 
 %% async callbacks
 -spec set_inbox(mongooseim:host_type(), mod_inbox:entry_key(),
-                content(), Count :: integer(), id(), Timestamp :: integer()) ->
+                exml:element(), Count :: integer(), id(), Timestamp :: integer()) ->
     mod_inbox:write_res().
-set_inbox(HostType, Entry, Content, Count, MsgId, Timestamp) ->
-    Params = {set_inbox, Entry, Content, Count, MsgId, Timestamp},
+set_inbox(HostType, Entry, Packet, Count, MsgId, Timestamp) ->
+    Params = {set_inbox, Entry, Packet, Count, MsgId, Timestamp},
     mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
 -spec set_inbox_incr_unread(mongooseim:host_type(), mod_inbox:entry_key(),
-                            Content :: binary(), MsgId :: binary(), Timestamp :: integer()) ->
+                            exml:element(), MsgId :: binary(), Timestamp :: integer()) ->
     mod_inbox:count_res().
-set_inbox_incr_unread(HostType, Entry, Content, MsgId, Timestamp) ->
-    Params = {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, 1},
+set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp) ->
+    Params = {set_inbox_incr_unread, Entry, Packet, MsgId, Timestamp, 1},
     mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
 -spec reset_unread(mongooseim:host_type(), mod_inbox:entry_key(), binary() | undefined) ->
