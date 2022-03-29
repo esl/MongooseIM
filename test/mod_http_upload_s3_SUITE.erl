@@ -4,27 +4,13 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(TOKEN, <<"TOKEN">>).
--define(FILENAME, <<"filename.jpg">>).
--define(CONTENT_TYPE, <<"image/jpeg">>).
--define(SIZE, 1234).
--define(TIMESTAMP, {{1234, 5, 6}, {7, 8, 9}}).
--define(OPTS,
-        [
-         {s3, [
-               {bucket_url, "http://bucket.s3-eu-east-25.example.com"},
-               {region, "eu-east-25"},
-               {access_key_id, "AKIAIAOAONIULXQGMOUA"},
-               {secret_access_key, "CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8"}
-              ]}
-        ]).
+-import(config_parser_helper, [config/2]).
 
 all() -> [
           creates_slot_with_given_timestamp,
           cretes_slot_with_aws_v4_auth_queries,
           signs_url_with_expected_size,
-          creates_slot_with_given_expiration_time,
-          signs_url_with_expected_content_type_if_given,
+          creates_slot_with_given_expiration_time, signs_url_with_expected_content_type_if_given,
           provides_and_signs_acl,
           does_not_provide_acl_when_disabled,
           parses_bucket_url_with_custom_port,
@@ -62,11 +48,20 @@ cretes_slot_with_aws_v4_auth_queries(_Config) ->
                  lists:keyfind(<<"X-Amz-Algorithm">>, 1, Queries)).
 
 creates_slot_with_given_expiration_time(_Config) ->
-    Opts = [{expiration_time, 1234} | ?OPTS],
+    Opts = config([modules, mod_http_upload], #{expiration_time => 1234,
+         s3 => config([modules, mod_http_upload, s3], required_opts())}),
     {PutUrl, _} = create_slot(#{opts => Opts}),
     Queries = parse_url(PutUrl, queries),
     {_, BinExpires} = lists:keyfind(<<"X-Amz-Expires">>, 1, Queries),
     ?assertEqual(1234, binary_to_integer(BinExpires)).
+
+required_opts() ->
+    #{
+        bucket_url => <<"http://bucket.s3-eu-east-25.example.com">>,
+        region => <<"eu-east-25">>,
+        access_key_id => <<"AKIAIAOAONIULXQGMOUA">>,
+        secret_access_key => <<"CG5fGqG0/n6NCPJ10FylpdgRnuV52j8IZvU7BSj8">>
+    }.
 
 signs_url_with_expected_size(_Config) ->
     meck:new(aws_signature_v4, [passthrough]),
@@ -174,21 +169,19 @@ creates_get_url_to_the_resource(_Config) ->
     ?assertEqual([], parse_url(GetUrl, queries)).
 
 %% Helpers
-
 create_slot(Args) ->
     {PutUrl, GetUrl, #{}} = mod_http_upload_s3:create_slot(
-                              maps:get(timestamp, Args, ?TIMESTAMP),
-                              maps:get(token, Args, ?TOKEN),
-                              maps:get(filename, Args, ?FILENAME),
-                              maps:get(content_type, Args, ?CONTENT_TYPE),
-                              maps:get(size, Args, ?SIZE),
-                              maps:get(opts, Args, ?OPTS)),
+                              maps:get(timestamp, Args, {{1234, 5, 6}, {7, 8, 9}}),
+                              maps:get(token, Args, <<"TOKEN">>),
+                              maps:get(filename, Args, <<"filename.jpg">>),
+                              maps:get(content_type, Args, <<"image/jpeg">>),
+                              maps:get(size, Args, 1234),
+                              maps:get(opts, Args, with_s3_opts(#{}))),
     {PutUrl, GetUrl}.
 
 with_s3_opts(Opts) ->
-    [{s3, S3Opts}] = ?OPTS,
-    NewS3Opts = maps:to_list(maps:merge(maps:from_list(S3Opts), Opts)),
-    [{s3, NewS3Opts}].
+    config([modules, mod_http_upload],
+        #{s3 => config([modules, mod_http_upload, s3], maps:merge(required_opts(), Opts))}).
 
 parse_url(URL) ->
     {ok, {Scheme, _, HostList, Port, PathList, QuerySList}} = http_uri:parse(binary_to_list(URL)),
