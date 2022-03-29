@@ -2030,7 +2030,9 @@ mod_http_upload(_Config) ->
     RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
     S3Cfg = http_upload_s3_expected_cfg(),
     ?cfgh(P, mod_config(mod_http_upload,
-        #{s3 => config_parser_helper:config([modules, mod_http_upload, s3], S3Cfg)}),
+        #{host => <<"upload.@HOST@">>,
+          s3 => config_parser_helper:config([modules, mod_http_upload, s3], S3Cfg)
+         }),
         T(RequiredOpts)),
     ?cfgh(P ++ [s3], S3Cfg#{add_acl => false}, T(RequiredOpts)),
     ?cfgh(P ++ [host], {prefix, <<"upload.">>},
