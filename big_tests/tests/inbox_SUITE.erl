@@ -273,7 +273,7 @@ returns_valid_form(Config) ->
                              value := <<"desc">>,
                              options := OrderOptions } } = Form,
         [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
-        [<<"all">>, <<"archive">>, <<"inbox">>, <<"other">>] = lists:sort(BoxOptions),
+        [<<"all">>, <<"archive">>, <<"bin">>, <<"inbox">>, <<"other">>] = lists:sort(BoxOptions),
         #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
       end).
 
@@ -800,6 +800,7 @@ leave_and_remove_conversation(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         RoomName = pubsub_tools:pubsub_node_name(),
         AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
         %% Alice creates a room and send msg
         Msg = <<"Hi all">>,
@@ -812,7 +813,9 @@ leave_and_remove_conversation(Config) ->
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
         %% Bob doesn't have conversation in his inbox
-        check_inbox(Bob, [], #{box => inbox})
+        check_inbox(Bob, [], #{box => inbox}),
+        if_async_check_bin(Config, Bob, [#conv{unread = 2, from = RoomJid, to = BobJid,
+                                               verify = fun inbox_helper:verify_is_none_aff_change/2}])
       end).
 
 %% this test combines options:
@@ -848,6 +851,7 @@ leave_and_store_conversation(Config) ->
 no_aff_stored_and_remove_on_kicked(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = room_bin_jid(?ROOM3),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
@@ -864,7 +868,8 @@ no_aff_stored_and_remove_on_kicked(Config) ->
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
         %% Bob doesnt have a conversation in inbox
-        check_inbox(Bob, [], #{box => inbox})
+        check_inbox(Bob, [], #{box => inbox}),
+        if_async_check_bin(Config, Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}])
       end).
 
 %% this test combines options:
@@ -1280,6 +1285,12 @@ get_with_end_timestamp(Config) ->
     end).
 
 
+if_async_check_bin(Config, Bob, Convs) ->
+    case maps:get(backend, ?config(inbox_opts, Config), rdbms) of
+        rdbms -> ok;
+        rdbms_async ->
+            check_inbox(Bob, Convs, #{box => bin})
+    end.
 
 start_hook_listener() ->
     TestCasePid = self(),
