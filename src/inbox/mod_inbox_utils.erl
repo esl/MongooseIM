@@ -34,7 +34,9 @@
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
-         build_forward_el/1
+         build_forward_el/1,
+         all_valid_boxes_for_query/1,
+         list_single_form_field/3
         ]).
 
 -ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
@@ -221,3 +223,33 @@ build_forward_el(#{msg := Content, timestamp := Timestamp}) ->
 build_delay_el(Timestamp) ->
     TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, undefined, undefined).
+
+all_valid_boxes_for_query(HostType) ->
+    [<<"all">> | gen_mod:get_module_opt(HostType, mod_inbox, boxes)].
+
+-spec list_single_form_field(Var :: binary(),
+                             Default :: binary(),
+                             Options :: [ Option | {Label, Value}]) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
+list_single_form_field(Var, Default, Options) ->
+    Value = form_field_value(Default),
+    #xmlel{
+       name = <<"field">>,
+       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
+       children = [Value | [ form_field_option(Option) || Option <- Options ]]
+      }.
+
+-spec form_field_option(Option | {Label, Value}) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
+form_field_option({Label, Value}) ->
+    #xmlel{
+       name = <<"option">>,
+       attrs = [{<<"label">>, Label}],
+       children = [form_field_value(Value)]
+      };
+form_field_option(Option) ->
+    form_field_option({Option, Option}).
+
+-spec form_field_value(Value :: binary()) -> exml:element().
+form_field_value(Value) ->
+    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
