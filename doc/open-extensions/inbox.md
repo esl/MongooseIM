@@ -59,6 +59,7 @@ The inbox is fetched using regular XMPP [Data Forms]. To request the supported f
         <option label='all'><value>all</value></option>
         <option label='inbox'><value>inbox</value></option>
         <option label='archive'><value>archive</value></option>
+        <option label='bin'><value>bin</value></option>
       </field>
       <field var='archive' type='boolean'/>
     </x>
@@ -187,6 +188,12 @@ The server would respond with:
       <field var='archive' type='boolean' value='false'/>
       <field var='read' type='boolean' value='false'/>
       <field var='mute' type='text-single' value='0'/>
+      <field var='box' type='list-simple' value='all'>
+        <option label='all'><value>all</value></option>
+        <option label='inbox'><value>inbox</value></option>
+        <option label='archive'><value>archive</value></option>
+        <option label='bin'><value>bin</value></option>
+      </field>
     </x>
   </query>
 </iq>

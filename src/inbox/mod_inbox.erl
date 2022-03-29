@@ -349,7 +349,7 @@ build_result_iq(List) ->
 %% iq-get
 -spec build_inbox_form(mongooseim:host_type()) -> exml:element().
 build_inbox_form(HostType) ->
-    AllBoxes = all_valid_boxes_for_query(HostType),
+    AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
     OrderOptions = [
                     {<<"Ascending by timestamp">>, <<"asc">>},
                     {<<"Descending by timestamp">>, <<"desc">>}
@@ -358,9 +358,9 @@ build_inbox_form(HostType) ->
                   jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
                   text_single_form_field(<<"start">>),
                   text_single_form_field(<<"end">>),
-                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
                   text_single_form_field(<<"hidden_read">>, <<"false">>),
-                  list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
+                  mod_inbox_utils:list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
+                  mod_inbox_utils:list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
                   jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
                  ],
     #xmlel{name = <<"x">>,
@@ -375,33 +375,6 @@ text_single_form_field(Var) ->
 text_single_form_field(Var, DefaultValue) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
-
--spec list_single_form_field(Var :: binary(),
-                             Default :: binary(),
-                             Options :: [ Option | {Label, Value}]) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-list_single_form_field(Var, Default, Options) ->
-    Value = form_field_value(Default),
-    #xmlel{
-       name = <<"field">>,
-       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
-       children = [Value | [ form_field_option(Option) || Option <- Options ]]
-      }.
-
--spec form_field_option(Option | {Label, Value}) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-form_field_option({Label, Value}) ->
-    #xmlel{
-       name = <<"option">>,
-       attrs = [{<<"label">>, Label}],
-       children = [form_field_value(Value)]
-      };
-form_field_option(Option) ->
-    form_field_option({Option, Option}).
-
--spec form_field_value(Value :: binary()) -> exml:element().
-form_field_value(Value) ->
-    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
@@ -524,7 +497,7 @@ binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
 
 validate_box(HostType, Box) ->
-    AllBoxes = all_valid_boxes_for_query(HostType),
+    AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
     lists:member(Box, AllBoxes).
 
 invalid_field_value(Field, Value) ->
@@ -586,6 +559,3 @@ inbox_owner_exists(Acc, _, To, incoming, MessageType) -> % filter_local_packet
 inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, From, stored).
-
-all_valid_boxes_for_query(HostType) ->
-    [<<"all">> | gen_mod:get_module_opt(HostType, ?MODULE, boxes)].
