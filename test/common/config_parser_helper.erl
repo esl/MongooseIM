@@ -873,7 +873,7 @@ default_mod_config(mod_global_distrib) ->
       bounce => default_config([modules, mod_global_distrib, bounce])};
 default_mod_config(mod_http_upload) ->
     #{iqdisc => one_queue,
-      host => <<"upload.@HOST@">>,
+      host => {prefix, <<"upload.">>},
       backend => s3,
       expiration_time => 60,
       token_bytes => 32,

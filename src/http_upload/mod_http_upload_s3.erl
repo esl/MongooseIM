@@ -30,13 +30,9 @@
                          {PUTURL :: binary(), GETURL :: binary(),
                           Headers :: #{binary() => binary()}}.
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
-    S3Opts = gen_mod:get_opt(s3, Opts),
-    AddACL = gen_mod:get_opt(add_acl, S3Opts),
-    Region = gen_mod:get_opt(region, S3Opts),
-    AccessKeyId = gen_mod:get_opt(access_key_id, S3Opts),
-    SecretAccessKey = gen_mod:get_opt(secret_access_key, S3Opts),
-    ExpirationTime = gen_mod:get_opt(expiration_time, Opts),
-    BucketURL = gen_mod:get_opt(bucket_url, S3Opts),
+    #{s3 := #{add_acl := AddACL, region := Region, access_key_id := AccessKeyId,
+              secret_access_key := SecretAccessKey, bucket_url := BucketURL},
+      expiration_time := ExpirationTime} = Opts,
 
     {Scheme, Host, Port, Path} = extract_uri_params(BucketURL, Token, Filename),
 

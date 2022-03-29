@@ -118,7 +118,6 @@ create_opts(Host, AddAcl) ->
     config_parser_helper:mod_config(mod_http_upload,
     #{
         max_file_size => 1234,
-        host => {prefix, <<"upload.">>},
         s3 => #{
             bucket_url => Host,
             add_acl => AddAcl,

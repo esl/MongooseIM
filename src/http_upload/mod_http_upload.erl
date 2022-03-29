@@ -207,7 +207,7 @@ get_urls(HostType, Filename, Size, ContentType, Timeout) ->
     UTCDateTime = calendar:universal_time(),
     Token = generate_token(HostType),
     Opts = module_opts(HostType),
-    NewOpts = lists:keystore(expiration_time, 1, Opts, {expiration_time, Timeout}),
+    NewOpts = Opts#{expiration_time := Timeout},
     mod_http_upload_backend:create_slot(HostType, UTCDateTime, Token, Filename,
                                         ContentType, Size, NewOpts).
 
