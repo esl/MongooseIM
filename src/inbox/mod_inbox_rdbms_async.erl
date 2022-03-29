@@ -6,9 +6,10 @@
 -behaviour(mod_inbox_backend).
 -behaviour(mongoose_aggregator_worker).
 
+-type box() :: binary().
 -type task() ::
-    {set_inbox, mod_inbox:entry_key(), exml:element(), pos_integer(), id(), integer()} |
-    {set_inbox_incr_unread, mod_inbox:entry_key(), exml:element(), id(), integer(), Incrs :: pos_integer()} |
+    {set_inbox, mod_inbox:entry_key(), exml:element(), pos_integer(), id(), integer(), box()} |
+    {set_inbox_incr_unread, mod_inbox:entry_key(), exml:element(), id(), integer(), pos_integer(), box()} |
     {remove_inbox_row, mod_inbox:entry_key()} |
     {reset_unread, mod_inbox:entry_key(), id(), integer()}.
 
@@ -35,6 +36,7 @@
 init(HostType, Opts) ->
     AsyncOpts = prepare_pool_opts(Opts),
     mod_inbox_rdbms:init(HostType, Opts),
+    prepare_deletes(HostType, Opts),
     start_pool(HostType, AsyncOpts),
     ok.
 
@@ -47,6 +49,13 @@ prepare_pool_opts(#{async_writer := AsyncOpts}) ->
                aggregate_callback => fun ?MODULE:aggregate/3,
                verify_callback => fun ?MODULE:verify/3}.
 
+prepare_deletes(_HostType, _Opts) ->
+    mongoose_rdbms:prepare(inbox_move_conversation_to_bin, inbox,
+                           [luser, lserver, remote_bare_jid],
+                           <<"UPDATE inbox SET box='bin'",
+                             " WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
+    ok.
+
 -spec start_pool(mongooseim:host_type(), mongoose_async_pools:pool_opts()) -> term().
 start_pool(HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, inbox, Opts).
@@ -56,24 +65,24 @@ start_pool(HostType, Opts) ->
 request(Task, _Extra = #{host_type := HostType}) ->
     request_one(HostType, Task).
 
-request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp}) ->
+request_one(HostType, {set_inbox, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp, Box}) ->
     Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Count, Timestamp],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Count, Timestamp],
+    Update = [MsgId, Box, Content, Count, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Box, Content, Count, Timestamp],
     rdbms_queries:request_upsert(HostType, inbox_upsert, Insert, Update, Unique);
-request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs}) ->
+request_one(HostType, {set_inbox_incr_unread, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs, Box}) ->
     Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Incrs, Timestamp],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Incrs, Timestamp],
+    Update = [MsgId, Box, Content, Incrs, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, Box, Content, Incrs, Timestamp],
     rdbms_queries:request_upsert(HostType, inbox_upsert_incr_unread, Insert, Update, Unique);
-request_one(HostType, {remove_inbox_row, {LUser, LServer, LToBareJid}}) ->
-    mongoose_rdbms:execute_request(HostType, inbox_delete_row, [LUser, LServer, LToBareJid]);
 request_one(HostType, {reset_unread, {LUser, LServer, LToBareJid}, undefined, TS}) ->
     mongoose_rdbms:execute_request(HostType, inbox_reset_unread, [LUser, LServer, LToBareJid, TS]);
 request_one(HostType, {reset_unread, {LUser, LServer, LToBareJid}, MsgId, TS}) ->
-    mongoose_rdbms:execute_request(HostType, inbox_reset_unread_msg, [LUser, LServer, LToBareJid, MsgId, TS]).
+    mongoose_rdbms:execute_request(HostType, inbox_reset_unread_msg, [LUser, LServer, LToBareJid, MsgId, TS]);
+request_one(HostType, {remove_inbox_row, {LUser, LServer, LToBareJid}}) ->
+    mongoose_rdbms:execute_request(HostType, inbox_move_conversation_to_bin, [LUser, LServer, LToBareJid]).
 
 -spec aggregate(task(), task(), mongoose_async_pools:pool_extra()) -> {ok, task()}.
 aggregate(Current, NewTask, _Extra) ->
@@ -94,14 +103,14 @@ verify(Answer, InboxTask, _Extra) ->
                 exml:element(), Count :: integer(), id(), Timestamp :: integer()) ->
     mod_inbox:write_res().
 set_inbox(HostType, Entry, Packet, Count, MsgId, Timestamp) ->
-    Params = {set_inbox, Entry, Packet, Count, MsgId, Timestamp},
+    Params = {set_inbox, Entry, Packet, Count, MsgId, Timestamp, <<"inbox">>},
     mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
 -spec set_inbox_incr_unread(mongooseim:host_type(), mod_inbox:entry_key(),
                             exml:element(), MsgId :: binary(), Timestamp :: integer()) ->
     mod_inbox:count_res().
 set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp) ->
-    Params = {set_inbox_incr_unread, Entry, Packet, MsgId, Timestamp, 1},
+    Params = {set_inbox_incr_unread, Entry, Packet, MsgId, Timestamp, 1, <<"inbox">>},
     mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
 
 -spec reset_unread(mongooseim:host_type(), mod_inbox:entry_key(), binary() | undefined, integer()) ->
@@ -155,17 +164,29 @@ set_entry_properties(HostType, Entry, Properties) ->
 aggregate(undefined, Task) ->
     Task;
 
-%%% if new task is remove_inbox, ignore all previous requests and just remove
-aggregate(_, {remove_inbox_row, Entry}) ->
-    {remove_inbox_row, Entry};
+%%% if new task is remove_row, do the previous with an updated box
+    % {reset_unread, mod_inbox:entry_key(), id(), integer()}.
+aggregate({reset_unread, _, _, _},
+          {remove_inbox_row, _} = OldTask) ->
+    OldTask;
+aggregate({set_inbox, Entry, Content, Count, MsgId, Timestamp, _},
+          {remove_inbox_row, _}) ->
+    {set_inbox, Entry, Content, Count, MsgId, Timestamp, <<"bin">>};
+aggregate({set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, _},
+          {remove_inbox_row, _}) ->
+    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, <<"bin">>};
+aggregate(_, {remove_inbox_row, _} = OldTask) ->
+    OldTask;
 
 %%% if the last task was remove_row, this task should now only be an insert
 aggregate({remove_inbox_row, _} = OldTask, {reset_unread, _, _, _}) ->
     OldTask;
-aggregate({remove_inbox_row, _}, {set_inbox, _, _, _, _, _} = NewTask) ->
-    NewTask;
-aggregate({remove_inbox_row, _}, {set_inbox_incr_unread, _, _, _, _, _} = NewTask) ->
-    NewTask;
+aggregate({remove_inbox_row, _},
+          {set_inbox, Entry, Content, Count, MsgId, Timestamp, _}) ->
+    {set_inbox, Entry, Content, Count, MsgId, Timestamp, <<"bin">>};
+aggregate({remove_inbox_row, _},
+          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, _}) ->
+    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, <<"bin">>};
 
 %%% If the last task was a reset_unread,
 %   we prefer explicit resets,
@@ -180,38 +201,45 @@ aggregate({reset_unread, _, undefined, _} = OldTask, {reset_unread, _, _, _}) ->
 %% both are adhoc, we prefer the newer
 aggregate({reset_unread, _, _, _}, {reset_unread, _, _, _} = NewTask) ->
     NewTask;
-aggregate({reset_unread, _, _, _}, {set_inbox, _, _, _, _, _} = NewTask) ->
+aggregate({reset_unread, _, _, _}, {set_inbox, _, _, _, _, _, _} = NewTask) ->
     NewTask;
 %% Here `Count` becomes an absolute value instead of an increment
-aggregate({reset_unread, _, _, _}, {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs}) ->
-    {set_inbox, Entry, Content, Incrs, MsgId, Timestamp};
+aggregate({reset_unread, _, _, _},
+          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, Box}) ->
+    {set_inbox, Entry, Content, Incrs, MsgId, Timestamp, Box};
 
 %%% If the last task was a set_inbox
 %% Reset is an explicit reset-to-zero, so do reset the counter
-aggregate({set_inbox, Entry, Content, _, MsgId, Timestamp}, {reset_unread, _, undefined, _}) ->
-    {set_inbox, Entry, Content, 0, MsgId, Timestamp};
+aggregate({set_inbox, Entry, Content, _, MsgId, Timestamp, Box},
+          {reset_unread, _, undefined, _}) ->
+    {set_inbox, Entry, Content, 0, MsgId, Timestamp, Box};
 %% Reset refers to that same set_inbox
-aggregate({set_inbox, Entry, Content, _, MsgId, Timestamp}, {reset_unread, _, MsgId, _}) ->
-    {set_inbox, Entry, Content, 0, MsgId, Timestamp};
+aggregate({set_inbox, Entry, Content, _, MsgId, Timestamp, Box},
+          {reset_unread, _, MsgId, _}) ->
+    {set_inbox, Entry, Content, 0, MsgId, Timestamp, Box};
 %% Reset refers to some other set_inbox
-aggregate({set_inbox, _, _, _, _, _} = OldTask, {reset_unread, _, _, _}) ->
+aggregate({set_inbox, _, _, _, _, _, _} = OldTask,
+          {reset_unread, _, _, _}) ->
     OldTask;
-aggregate({set_inbox, _, _, Count, _, _, _},
-          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs}) ->
-    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Count + Incrs};
+aggregate({set_inbox, _, _, Count, _, _, _, _},
+          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, Box}) ->
+    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Count + Incrs, Box};
 
 %%% If the last task was a set_inbox_incr_unread
 % we're resetting on this message:
-aggregate({set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, _}, {reset_unread, _, MsgId, _}) ->
-    {set_inbox, Entry, Content, 0, MsgId, Timestamp};
-aggregate({set_inbox_incr_unread, _, _, _, _, _} = OldTask, {reset_unread, _, _, _}) ->
+aggregate({set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, _, Box},
+          {reset_unread, _, MsgId, _}) ->
+    {set_inbox, Entry, Content, 0, MsgId, Timestamp, Box};
+aggregate({set_inbox_incr_unread, _, _, _, _, _, _} = OldTask,
+          {reset_unread, _, _, _}) ->
     OldTask;
 % prefer newest row, but accumulate increment
-aggregate({set_inbox_incr_unread, _, _, _, _, Incrs2},
-          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs1}) ->
-    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs1 + Incrs2};
+aggregate({set_inbox_incr_unread, _, _, _, _, Incrs2, _},
+          {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs1, Box}) ->
+    {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs1 + Incrs2, Box};
 
-aggregate({set_inbox_incr_unread, _, _, MsgId, _, _}, {set_inbox, _, _, _, MsgId, _} = NewTask) ->
+aggregate({set_inbox_incr_unread, _, _, MsgId, _, _, _},
+          {set_inbox, _, _, _, MsgId, _, _} = NewTask) ->
     NewTask;
 
 aggregate(_OldTask, NewTask) ->

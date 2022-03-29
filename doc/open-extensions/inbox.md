@@ -120,7 +120,7 @@ A client may specify the following parameters:
 * variable `end`: End date for the result set (value: ISO timestamp)
 * variable `order`: Order by timestamp (values: `asc`, `desc`)
 * variable `hidden_read`: Show only conversations with unread messages (values: `true`, `false`)
-* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, and `archive`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes)
+* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, `archive` and `bin`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes)
 * variable `archive` [deprecated, prefer `box`]: whether to query the archive inbox. `true` means querying only the archive box, `false` means querying only the active box. If the flag is not set, it is assumed all entries are requested. This is kept for backwards compatibility reasons, use the `box` flag instead.
 
 They are encoded inside a standard XMPP [Data Forms] format.
@@ -152,11 +152,11 @@ where `Max` is a non-negative integer.
 Given an entry, certain properties are defined for such an entry:
 
 ### Box
-Clients usually have two different boxes for the inbox: the regular one, simply called the inbox (or the active inbox), and an archive box, where clients can manually throw conversations they don't want displayed in the default UI.
+Clients usually have two different boxes for the inbox: the regular one, simply called the inbox (or the active inbox), and an archive box, where clients can manually throw conversations they don't want displayed in the default UI. A third box is the trash bin, where deleted entries go and are cleaned up in regular intervals.
 
 It is expected that entries will reside in the archive until they're either manually moved back to the active box, or they receive a new message: in such case the entry should jump back to the active box automatically.
 
-More boxes can be implemented, see [mod_inbox#boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). Movement between boxes can be achieved through the right XMPP IQ, no automatic movements are developed as in the case of inbox-archive.
+More boxes can be implemented, see [mod_inbox#boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). Movement between boxes can be achieved through the right XMPP IQ, no more automatic movements are developed as in the case of inbox-archive.
 
 ### Read
 Entries keep a count of unread messages that is incremented automatically upon receiving a new message, and (in the current implementation) set to zero upon receiving either a message by one-self, or an appropriate chat marker as defined in [XEP-0333](https://xmpp.org/extensions/xep-0333.html) (which markers reset the count is a matter of configuration, see [doc](../modules/mod_inbox.md#modulesmod_inboxreset_markers)).

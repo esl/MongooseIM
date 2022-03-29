@@ -124,11 +124,13 @@ inbox_opts() ->
     config_parser_helper:default_mod_config(mod_inbox).
 
 inbox_opts(regular) ->
-    (inbox_opts())#{boxes => [<<"inbox">>, <<"archive">>, <<"other">>]};
+    DefOps = #{boxes := Boxes} = inbox_opts(),
+    DefOps#{boxes := Boxes ++ [<<"other">>]};
 inbox_opts(async_pools) ->
-    (inbox_opts())#{backend => rdbms_async,
-                    async_writer => #{pool_size => 2},
-                    boxes => [<<"inbox">>, <<"archive">>, <<"other">>]}.
+    DefOps = #{boxes := Boxes} = inbox_opts(),
+    DefOps#{backend => rdbms_async,
+            async_writer => #{pool_size => 1},
+            boxes => Boxes ++ [<<"other">>]}.
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())

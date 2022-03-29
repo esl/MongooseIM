@@ -148,8 +148,12 @@ async_config_spec() ->
       }.
 
 process_inbox_boxes(Config = #{boxes := Boxes}) ->
-    false = lists:any(fun(Name) -> Name =:= <<"inbox">> orelse Name =:= <<"archive">> end, Boxes),
-    AllBoxes = [<<"inbox">>, <<"archive">> | Boxes ],
+    false = lists:any(fun(<<"inbox">>) -> true;
+                         (<<"archive">>) -> true;
+                         (<<"bin">>) -> true;
+                         (_) -> false
+                      end, Boxes),
+    AllBoxes = [<<"inbox">>, <<"archive">>, <<"bin">> | Boxes ],
     Config#{boxes := AllBoxes}.
 
 %%%%%%%%%%%%%%%%%%%
