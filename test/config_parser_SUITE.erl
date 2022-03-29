@@ -1736,7 +1736,7 @@ mod_inbox(_Config) ->
     ?cfgh(P ++ [reset_markers], ChatMarkers, T(#{<<"reset_markers">> => ChatMarkers})),
     ?cfgh(P ++ [groupchat], [muc, muclight], T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
     ?cfgh(P ++ [boxes],
-          [<<"inbox">>, <<"archive">>, <<"favourites">>, <<"spam">>],
+          [<<"inbox">>, <<"archive">>, <<"bin">>, <<"favourites">>, <<"spam">>],
           T(#{<<"boxes">> => [<<"favourites">>, <<"spam">>]})),
     ?cfgh(P ++ [aff_changes], true, T(#{<<"aff_changes">> => true})),
     ?cfgh(P ++ [remove_on_kicked], false, T(#{<<"remove_on_kicked">> => false})),

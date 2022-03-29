@@ -61,11 +61,11 @@ init(HostType, _Options) ->
                            [lserver], <<"DELETE FROM inbox WHERE lserver = ?">>),
     % upserts
     UniqueKeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
-    InsertFields = UniqueKeyFields ++ [<<"msg_id">>, <<"content">>, <<"unread_count">>, <<"timestamp">>],
+    InsertFields = UniqueKeyFields ++ [<<"msg_id">>, <<"box">>, <<"content">>, <<"unread_count">>, <<"timestamp">>],
     rdbms_queries:prepare_upsert(HostType, inbox_upsert, inbox,
                                  InsertFields,
                                  [<<"msg_id">>,
-                                  {assignment, <<"box">>, <<"CASE WHEN inbox.box='archive' THEN 'inbox' ELSE inbox.box END">>},
+                                  {expression, <<"box">>, <<"CASE WHEN inbox.box='archive' THEN ? ELSE inbox.box END">>},
                                   <<"content">>,
                                   <<"unread_count">>,
                                   <<"timestamp">>],
@@ -73,7 +73,7 @@ init(HostType, _Options) ->
     rdbms_queries:prepare_upsert(HostType, inbox_upsert_incr_unread, inbox,
                                  InsertFields,
                                  [<<"msg_id">>,
-                                  {assignment, <<"box">>, <<"CASE WHEN inbox.box='archive' THEN 'inbox' ELSE inbox.box END">>},
+                                  {expression, <<"box">>, <<"CASE WHEN inbox.box='archive' THEN ? ELSE inbox.box END">>},
                                   <<"content">>,
                                   {expression, <<"unread_count">>, <<"inbox.unread_count + ?">>},
                                   <<"timestamp">>],
@@ -112,8 +112,8 @@ get_inbox_unread(HostType, {LUser, LServer, RemBareJID}) ->
 set_inbox(HostType, {LUser, LServer, LToBareJid}, Packet, Count, MsgId, Timestamp) ->
     Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Count, Timestamp],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Count, Timestamp],
+    Update = [MsgId, <<"inbox">>, Content, Count, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, <<"inbox">>, Content, Count, Timestamp],
     Res = rdbms_queries:execute_upsert(HostType, inbox_upsert, Insert, Update, Unique),
     %% MySQL returns 1 when an upsert is an insert
     %% and 2, when an upsert acts as update
@@ -146,15 +146,15 @@ set_inbox_incr_unread(HostType, Entry, Packet, MsgId, Timestamp) ->
 set_inbox_incr_unread(HostType, {LUser, LServer, LToBareJid}, Packet, MsgId, Timestamp, Incrs) ->
     Content = exml:to_binary(Packet),
     Unique = [LUser, LServer, LToBareJid],
-    Update = [MsgId, Content, Incrs, Timestamp],
-    Insert = [LUser, LServer, LToBareJid, MsgId, Content, Incrs, Timestamp],
+    Update = [MsgId, <<"inbox">>, Content, Incrs, Timestamp],
+    Insert = [LUser, LServer, LToBareJid, MsgId, <<"inbox">>, Content, Incrs, Timestamp],
     Res = rdbms_queries:execute_upsert(HostType, inbox_upsert_incr_unread, Insert, Update, Unique),
     check_result(Res).
 
 -spec reset_unread(HostType :: mongooseim:host_type(),
                    InboxEntryKey :: mod_inbox:entry_key(),
                    MsgId :: binary() | undefined,
-                  TS :: integer()) -> mod_inbox:write_res().
+                   TS :: integer()) -> mod_inbox:write_res().
 reset_unread(HostType, {LUser, LServer, LToBareJid}, MsgId, TS) ->
     Res = execute_reset_unread(HostType, LUser, LServer, LToBareJid, MsgId, TS),
     check_result(Res).

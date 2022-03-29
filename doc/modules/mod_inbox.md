@@ -30,7 +30,7 @@ Number of workers in the pool. More than the number of available schedulers is r
 A list of supported inbox boxes by the server. This can be used by clients to classify their inbox entries in any way that fits the end-user. The strings provided here will be used verbatim in the IQ query as described in [Inbox – Filtering and Ordering](../open-extensions/inbox.md#filtering-and-ordering).
 
 !!! note
-    `inbox` and `archive` are always enabled, and therefore don't need to be specified here.
+    `inbox`, `archive`, and `bin` are reserved box names and are always enabled, therefore they don't need to –and must not– be specified in this section.
 
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
