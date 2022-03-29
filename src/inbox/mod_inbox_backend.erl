@@ -42,7 +42,7 @@
     mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: content(),
+    Content :: exml:element(),
     Count :: integer(),
     MsgId :: binary(),
     Timestamp :: integer().
@@ -55,7 +55,7 @@
     mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: content(),
+    Content :: exml:element(),
     MsgId :: binary(),
     Timestamp :: integer().
 
@@ -120,7 +120,7 @@ remove_domain(HostType, LServer) ->
     mod_inbox:write_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: content(),
+    Content :: exml:element(),
     Count :: integer(),
     MsgId :: binary(),
     Timestamp :: integer().
@@ -139,7 +139,7 @@ remove_inbox_row(HostType, InboxEntryKey) ->
     mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key(),
-    Content :: content(),
+    Content :: exml:element(),
     MsgId :: binary(),
     Timestamp :: integer().
 set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
