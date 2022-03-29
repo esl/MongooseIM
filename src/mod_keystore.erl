@@ -12,7 +12,6 @@
 %% Hook handlers
 -export([get_key/2]).
 
--export([config_metrics/1]).
 -export([process_key/1]).
 
 %% Public types
@@ -183,6 +182,3 @@ ets_get_key(KeyID) ->
 
 ets_store_key(KeyID, RawKey) ->
     ets:insert(keystore, {KeyID, RawKey}).
-
-config_metrics(Host) ->
-    mongoose_module_metrics:opts_for_module(Host, ?MODULE, [backend]).
