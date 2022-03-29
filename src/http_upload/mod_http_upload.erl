@@ -30,13 +30,13 @@
 -define(DEFAULT_SUBHOST, <<"upload.@HOST@">>).
 
 %% gen_mod callbacks
--export([start/2, 
-         stop/1, 
-         config_spec/0, 
+-export([start/2,
+         stop/1,
+         config_spec/0,
          supported_features/0]).
 
 %% IQ and hooks handlers
--export([process_iq/5, 
+-export([process_iq/5,
          process_disco_iq/5,
          disco_local_items/1]).
 
@@ -53,16 +53,15 @@
 %%--------------------------------------------------------------------
 
 -spec start(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
-start(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+start(HostType, Opts = #{iqdisc := IQDisc}) ->
     SubdomainPattern = subdomain_pattern(HostType),
     PacketHandler = mongoose_packet_handler:new(ejabberd_local),
 
     mongoose_domain_api:register_subdomain(HostType, SubdomainPattern, PacketHandler),
-    [gen_iq_handler:add_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, 
+    [gen_iq_handler:add_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace,
                                                  Component, Fn, #{}, IQDisc) ||
         {Component, Namespace, Fn} <- iq_handlers()],
-    mod_http_upload_backend:init(HostType, with_default_backend(Opts)),
+    mod_http_upload_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
@@ -71,7 +70,7 @@ stop(HostType) ->
     SubdomainPattern = subdomain_pattern(HostType),
 
     ejabberd_hooks:delete(hooks(HostType)),
-    [gen_iq_handler:remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace, 
+    [gen_iq_handler:remove_iq_handler_for_subdomain(HostType, SubdomainPattern, Namespace,
                                                     Component) ||
         {Component, Namespace, _Fn} <- iq_handlers()],
 
@@ -93,7 +92,7 @@ hooks(HostType) ->
 config_spec() ->
     #section{
         items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
-                  <<"host">> => #option{type = string,
+                  <<"host">> => #option{type = binary,
                                         validate = subdomain_template,
                                         process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
                   <<"backend">> => #option{type = atom,
@@ -106,19 +105,29 @@ config_spec() ->
                                                  validate = positive},
                   <<"s3">> => s3_spec()
         },
-        required = [<<"s3">>]
+        defaults = #{<<"iqdisc">> => one_queue,
+                     <<"host">> => <<"upload.@HOST@">>,
+                     <<"backend">> => s3,
+                     <<"expiration_time">> => 60,
+                     <<"token_bytes">> => 32,
+                     <<"max_file_size">> => ?DEFAULT_MAX_FILE_SIZE
+        },
+        required = [<<"s3">>],
+        format_items = map
     }.
 
 s3_spec() ->
     #section{
-        items = #{<<"bucket_url">> => #option{type = string,
+        items = #{<<"bucket_url">> => #option{type = binary,
                                               validate = url},
                   <<"add_acl">> => #option{type = boolean},
-                  <<"region">> => #option{type = string},
-                  <<"access_key_id">> => #option{type = string},
-                  <<"secret_access_key">> => #option{type = string}
+                  <<"region">> => #option{type = binary},
+                  <<"access_key_id">> => #option{type = binary},
+                  <<"secret_access_key">> => #option{type = binary}
         },
-        required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>]
+        defaults = #{<<"add_acl">> => false},
+        required = [<<"bucket_url">>, <<"region">>, <<"access_key_id">>, <<"secret_access_key">>],
+        format_items = map
     }.
 
 -spec supported_features() -> [atom()].
@@ -128,8 +137,8 @@ supported_features() ->
 %%--------------------------------------------------------------------
 %% IQ and hook handlers
 %%--------------------------------------------------------------------
- 
--spec process_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(), 
+
+-spec process_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                  IQ :: jlib:iq(), map()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
 process_iq(Acc, _From, _To, IQ = #iq{type = set, lang = Lang, sub_el = SubEl}, _Extra) ->
@@ -140,7 +149,7 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
     Res = case parse_request(Request) of
         {Filename, Size, ContentType} ->
             MaxFileSize = max_file_size(HostType),
-            case MaxFileSize =:= undefined orelse Size =< MaxFileSize of
+            case Size =< MaxFileSize of
                 true ->
                     UTCDateTime = calendar:universal_time(),
                     Token = generate_token(HostType),
@@ -161,7 +170,7 @@ process_iq(Acc,  _From, _To, IQ = #iq{type = get, sub_el = Request}, _Extra) ->
     end,
     {Acc, Res}.
 
--spec process_disco_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(), 
+-spec process_disco_iq(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                        IQ :: jlib:iq(), map()) ->
           {mongoose_acc:t(), jlib:iq()}.
 process_disco_iq(Acc, _From, _To, #iq{type = set, lang = Lang, sub_el = SubEl} = IQ, _Extra) ->
@@ -214,13 +223,9 @@ disco_identity(Lang) ->
 
 -spec disco_info(mongooseim:host_type()) -> [exml:element()].
 disco_info(HostType) ->
-    case max_file_size(HostType) of
-        undefined ->
-            [];
-        MaxFileSize ->
-            MaxFileSizeBin = integer_to_binary(MaxFileSize),
-            [get_disco_info_form(MaxFileSizeBin)]
-    end.
+    MaxFileSize = max_file_size(HostType),
+    MaxFileSizeBin = integer_to_binary(MaxFileSize),
+    [get_disco_info_form(MaxFileSizeBin)].
 
 -spec subdomain(mongooseim:host_type(), mongooseim:domain_name()) -> mongooseim:domain_name().
 subdomain(HostType, Domain) ->
@@ -230,9 +235,7 @@ subdomain(HostType, Domain) ->
 -spec subdomain_pattern(mongooseim:host_type()) ->
     mongoose_subdomain_utils:subdomain_pattern().
 subdomain_pattern(HostType) ->
-    DefaultSubdomainPattern =
-        mongoose_subdomain_utils:make_subdomain_pattern(?DEFAULT_SUBHOST),
-    gen_mod:get_module_opt(HostType, ?MODULE, host, DefaultSubdomainPattern).
+    gen_mod:get_module_opt(HostType, ?MODULE, host).
 
 -spec my_disco_name(ejabberd:lang()) -> binary().
 my_disco_name(Lang) ->
@@ -255,21 +258,12 @@ compose_iq_reply(IQ, PutUrl, GetUrl, Headers) ->
 
 -spec token_bytes(mongooseim:host_type()) -> pos_integer().
 token_bytes(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, token_bytes, ?DEFAULT_TOKEN_BYTES).
+    gen_mod:get_module_opt(HostType, ?MODULE, token_bytes).
 
 
 -spec max_file_size(mongooseim:host_type()) -> pos_integer() | undefined.
 max_file_size(HostType) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, max_file_size, ?DEFAULT_MAX_FILE_SIZE).
-
-
--spec with_default_backend(Opts :: proplists:proplist()) -> proplists:proplist().
-with_default_backend(Opts) ->
-    case lists:keyfind(backend, 1, Opts) of
-        false -> [{backend, s3} | Opts];
-        _ -> Opts
-    end.
-
+    gen_mod:get_module_opt(HostType, ?MODULE, max_file_size).
 
 -spec module_opts(mongooseim:host_type())-> proplists:proplist().
 module_opts(HostType) ->
@@ -337,5 +331,4 @@ is_positive_integer(X) when is_integer(X) -> X > 0;
 is_positive_integer(_) -> false.
 
 config_metrics(HostType) ->
-    OptsToReport = [{backend, s3}], % list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).

@@ -2026,21 +2026,24 @@ mod_event_pusher_rabbit(_Config) ->
 
 mod_http_upload(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> => Opts}} end,
-    M = fun(Cfg) -> modopts(mod_http_upload, Cfg) end,
+    P = [modules, mod_http_upload],
     RequiredOpts = #{<<"s3">> => http_upload_s3_required_opts()},
-    ExpectedCfg = [{s3, http_upload_s3_expected_cfg()}],
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{host, {prefix, <<"upload.">>}}]),
+    S3Cfg = http_upload_s3_expected_cfg(),
+    ?cfgh(P, mod_config(mod_http_upload,
+        #{s3 => config_parser_helper:config([modules, mod_http_upload, s3], S3Cfg)}),
+        T(RequiredOpts)),
+    ?cfgh(P ++ [s3], S3Cfg#{add_acl => false}, T(RequiredOpts)),
+    ?cfgh(P ++ [host], {prefix, <<"upload.">>},
           T(RequiredOpts#{<<"host">> => <<"upload.@HOST@">>})),
-    ?cfgh(M(ExpectedCfg ++ [{host, {fqdn, <<"upload.test">>}}]),
+    ?cfgh(P ++ [host], {fqdn, <<"upload.test">>},
           T(RequiredOpts#{<<"host">> => <<"upload.test">>})),
-    ?cfgh(M(ExpectedCfg ++ [{backend, s3}]),
+    ?cfgh(P ++ [backend], s3,
           T(RequiredOpts#{<<"backend">> => <<"s3">>})),
-    ?cfgh(M(ExpectedCfg ++ [{expiration_time, 666}]),
+    ?cfgh(P ++ [expiration_time], 666,
           T(RequiredOpts#{<<"expiration_time">> => 666})),
-    ?cfgh(M(ExpectedCfg ++ [{token_bytes, 32}]),
+    ?cfgh(P ++ [token_bytes], 32,
           T(RequiredOpts#{<<"token_bytes">> => 32})),
-    ?cfgh(M(ExpectedCfg ++ [{max_file_size, 42}]),
+    ?cfgh(P ++ [max_file_size], 42,
           T(RequiredOpts#{<<"max_file_size">> => 42})),
     ?errh(T(#{})), %% missing 's3'
     ?errh(T(RequiredOpts#{<<"backend">> => <<"">>})),
@@ -2051,16 +2054,16 @@ mod_http_upload(_Config) ->
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"not.supported.any.more.@HOSTS@">>]})),
-    check_iqdisc(mod_http_upload, ExpectedCfg, RequiredOpts).
+    check_iqdisc_map(mod_http_upload, RequiredOpts).
 
 mod_http_upload_s3(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
                                               #{<<"s3">> => Opts}}} end,
-    M = fun(Cfg) -> modopts(mod_http_upload, [{s3, Cfg}]) end,
     RequiredOpts = http_upload_s3_required_opts(),
     ExpectedCfg = http_upload_s3_expected_cfg(),
-    ?cfgh(M(ExpectedCfg), T(RequiredOpts)),
-    ?cfgh(M(ExpectedCfg ++ [{add_acl, true}]),
+    P = [modules, mod_http_upload, s3],
+    ?cfgh(P, ExpectedCfg#{add_acl => false}, T(RequiredOpts)),
+    ?cfgh(P ++ [add_acl], true,
           T(RequiredOpts#{<<"add_acl">> => true})),
     [?errh(T(maps:remove(Key, RequiredOpts))) || Key <- maps:keys(RequiredOpts)],
     ?errh(T(RequiredOpts#{<<"bucket_url">> => <<>>})),
@@ -2076,10 +2079,10 @@ http_upload_s3_required_opts() ->
       <<"secret_access_key">> => <<"ILOVEU">>}.
 
 http_upload_s3_expected_cfg() ->
-    [{access_key_id, "PLEASE"},
-     {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-     {region, "antarctica-1"},
-     {secret_access_key, "ILOVEU"}].
+    #{access_key_id => <<"PLEASE">>,
+      bucket_url => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+      region => <<"antarctica-1">>,
+      secret_access_key => <<"ILOVEU">>}.
 
 mod_jingle_sip(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_jingle_sip">> => Opts}} end,
