@@ -234,6 +234,7 @@ groups() ->
                             mod_muc_light,
                             mod_muc_light_config_schema,
                             mod_offline,
+                            mod_offline_chatmarkers,
                             mod_ping,
                             mod_privacy,
                             mod_private,
@@ -2547,6 +2548,17 @@ mod_offline(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})),
     ?errh(T(#{<<"riak">> => #{<<"bucket">> => <<"leaky">>}})).
 
+mod_offline_chatmarkers(_Config) ->
+    check_module_defaults(mod_offline_chatmarkers),
+    T = fun(Opts) -> #{<<"modules">> => #{<<"mod_offline_chatmarkers">> => Opts}} end,
+    P = [modules, mod_offline_chatmarkers],
+    ?cfgh(P ++ [backend], rdbms,
+          T(#{<<"backend">> => <<"rdbms">>})),
+    ?cfgh(P ++ [store_groupchat_messages], true,
+          T(#{<<"store_groupchat_messages">> => true})),
+    ?errh(T(#{<<"store_groupchat_messages">> => 1})),
+    ?errh(T(#{<<"backend">> => <<"riak_is_the_best">>})).
+
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
     P = [modules, mod_ping],
@@ -3395,10 +3407,10 @@ handle_module_options(V1, V2) ->
     ?eq(V1, V2).
 
 %% Generic assertions, use the 'F' handler for any custom cases
-compare_unordered_lists(L1, L2) ->
+compare_unordered_lists(L1, L2) when is_list(L1), is_list(L2) ->
     compare_unordered_lists(L1, L2, fun(V1, V2) -> ?eq(V1, V2) end).
 
-compare_unordered_lists(L1, L2, F) ->
+compare_unordered_lists(L1, L2, F) when is_list(L1), is_list(L2) ->
     SL1 = lists:sort(L1),
     SL2 = lists:sort(L2),
     compare_ordered_lists(SL1, SL2, F).

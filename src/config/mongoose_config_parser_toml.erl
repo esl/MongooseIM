@@ -110,7 +110,7 @@ get_spec_for_key(Key, Items) ->
         false ->
             case maps:find(default, Items) of
                 {ok, Spec} -> Spec;
-                error -> error(#{what => unexpected_key, key => Key})
+                error -> error(#{what => unexpected_key, key => Key, items => Items})
             end
     end.
 

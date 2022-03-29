@@ -944,6 +944,9 @@ default_mod_config(mod_offline) ->
     #{backend => mnesia,
       access_max_user_messages => max_user_offline_messages,
       store_groupchat_messages => false};
+default_mod_config(mod_offline_chatmarkers) ->
+    #{backend => rdbms,
+      store_groupchat_messages => false};
 default_mod_config(mod_privacy) ->
     #{backend => mnesia};
 default_mod_config(mod_private) ->

@@ -822,6 +822,7 @@ configurable_modules() ->
      mod_muc_light,
      mod_muc_log,
      mod_offline,
+     mod_offline_chatmarkers,
      mod_ping,
      mod_privacy,
      mod_private,

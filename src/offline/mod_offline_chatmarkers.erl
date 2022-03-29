@@ -40,6 +40,7 @@
 -export([stop/1]).
 -export([deps/2]).
 -export([supported_features/0]).
+-export([config_spec/0]).
 
 %% Hook handlers
 -export([inspect_packet/4,
@@ -52,6 +53,7 @@
 
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose_config_spec.hrl").
 
 %% gen_mod callbacks
 %% ------------------------------------------------------------------
@@ -61,15 +63,17 @@ supported_features() ->
     [dynamic_domains].
 
 -spec deps(mongooseim:host_type(), gen_mod:module_opts()) -> gen_mod_deps:deps().
-deps(_,_)->
+deps(_, _)->
     [].  %% TODO: this need to be marked as required-to-be-configured
     % [{mod_smart_markers, [], hard}].
 
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mod_offline_chatmarkers_backend:init(HostType, add_default_backend(Opts)),
+    mod_offline_chatmarkers_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     ok.
@@ -80,7 +84,7 @@ hooks(HostType) ->
         {resend_offline_messages_hook, HostType, ?MODULE, pop_offline_messages, 60},
         {remove_user, HostType, ?MODULE, remove_user, 50}
     ],
-    case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages) of
         true ->
             GroupChatHook = {offline_groupchat_message_hook,
                              HostType, ?MODULE, inspect_packet, 40},
@@ -88,9 +92,22 @@ hooks(HostType) ->
         _ -> DefaultHooks
     end.
 
+-spec config_spec() -> mongoose_config_spec:config_section().
+config_spec() ->
+    #section{
+        items = #{<<"backend">> => #option{type = atom,
+                                           validate = {module, ?MODULE}},
+                  <<"store_groupchat_messages">> => #option{type = boolean}
+                 },
+        defaults = #{<<"store_groupchat_messages">> => false,
+                     <<"backend">> => rdbms
+                    },
+        format_items = map
+        }.
+
 remove_user(Acc, User, Server) ->
     HostType = mongoose_acc:host_type(Acc),
-    mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<"">>)),
+    mod_offline_chatmarkers_backend:remove_user(HostType, jid:make(User, Server, <<>>)),
     Acc.
 
 pop_offline_messages(Acc, JID) ->
@@ -177,11 +194,3 @@ thread(undefined) -> [];
 thread(Thread) ->
     [#xmlel{name     = <<"thread">>, attrs = [],
             children = [#xmlcdata{content = Thread}]}].
-
-add_default_backend(Opts) ->
-    case lists:keyfind(backend, 2, Opts) of
-        false ->
-            [{backend, rdbms} | Opts];
-        _ ->
-            Opts
-    end.
