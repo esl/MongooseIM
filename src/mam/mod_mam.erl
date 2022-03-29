@@ -62,8 +62,6 @@
 -export([lookup_messages/2]).
 -export([archive_id_int/2]).
 
--export([config_metrics/1]).
-
 -ignore_xref([archive_message_from_ct/1,
               archive_size/2, archive_size_with_host_type/3, delete_archive/2,
               determine_amp_strategy/5, disco_local_features/1, filter_packet/1,
@@ -735,10 +733,6 @@ is_archivable_message(HostType, Dir, Packet) ->
     M = mod_mam_params:is_archivable_message_module(?MODULE, HostType),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, HostType),
     erlang:apply(M, is_archivable_message, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
-
-config_metrics(HostType) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, default_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
 
 -spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
 hooks(HostType) ->
