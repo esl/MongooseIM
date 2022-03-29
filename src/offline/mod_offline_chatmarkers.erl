@@ -67,11 +67,13 @@ deps(_, _)->
     [].  %% TODO: this need to be marked as required-to-be-configured
     % [{mod_smart_markers, [], hard}].
 
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
-    mod_offline_chatmarkers_backend:init(HostType, add_default_backend(Opts)),
+    mod_offline_chatmarkers_backend:init(HostType, Opts),
     ejabberd_hooks:add(hooks(HostType)),
     ok.
 
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     ejabberd_hooks:delete(hooks(HostType)),
     ok.
@@ -192,11 +194,3 @@ thread(undefined) -> [];
 thread(Thread) ->
     [#xmlel{name     = <<"thread">>, attrs = [],
             children = [#xmlcdata{content = Thread}]}].
-
-add_default_backend(Opts) ->
-    case lists:keyfind(backend, 2, Opts) of
-        false ->
-            [{backend, rdbms} | Opts];
-        _ ->
-            Opts
-    end.
