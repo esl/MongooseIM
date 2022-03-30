@@ -434,7 +434,7 @@ http_handler(Key) ->
     ExtraItems = http_handler_items(Key),
     RequiredKeys = case http_handler_required(Key) of
                        all -> all;
-                       [] -> [<<"host">>, <<"path">>]
+                       Keys -> Keys ++ [<<"host">>, <<"path">>]
                    end,
     #section{
        items = ExtraItems#{<<"host">> => #option{type = string,
@@ -474,7 +474,7 @@ http_handler_items(_) ->
     #{}.
 
 http_handler_required(<<"lasse_handler">>) -> all;
-http_handler_required(<<"cowboy_static">>) -> all;
+http_handler_required(<<"cowboy_static">>) -> [<<"type">>, <<"content_path">>];
 http_handler_required(<<"mongoose_api">>) -> all;
 http_handler_required(_) -> [].
 
@@ -1151,9 +1151,12 @@ process_http_handler([item, Type | _], KVs) ->
 process_http_handler_opts(<<"lasse_handler">>, [{module, Module}]) ->
     [Module];
 process_http_handler_opts(<<"cowboy_static">>, Opts) ->
-    {[[{type, Type}], [{app, App}], [{content_path, Path}]], []} =
-        proplists:split(Opts, [type, app, content_path]),
-    {Type, App, Path, [{mimetypes, cow_mimetypes, all}]};
+    case proplists:split(Opts, [type, app, content_path]) of
+        {[[{type, Type}], [{app, App}], [{content_path, Path}]], []} ->
+            {Type, App, Path, [{mimetypes, cow_mimetypes, all}]};
+        {[[{type, Type}], [], [{content_path, Path}]], []} ->
+            {Type, Path, [{mimetypes, cow_mimetypes, all}]}
+    end;
 process_http_handler_opts(<<"mongoose_api_admin">>, Opts) ->
     {[UserOpts, PassOpts], []} = proplists:split(Opts, [username, password]),
     case {UserOpts, PassOpts} of
