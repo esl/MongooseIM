@@ -26,17 +26,13 @@
 
 -spec create_slot(UTCDateTime :: calendar:datetime(), Token :: binary(),
                   Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
-                  Size :: pos_integer(), Opts :: proplists:proplist()) ->
+                  Size :: pos_integer(), Opts :: gen_mod:module_opts()) ->
                          {PUTURL :: binary(), GETURL :: binary(),
                           Headers :: #{binary() => binary()}}.
 create_slot(UTCDateTime, Token, Filename, ContentType, Size, Opts) ->
-    S3Opts = gen_mod:get_opt(s3, Opts),
-    ExpirationTime = gen_mod:get_opt(expiration_time, Opts, 60),
-    AddACL = proplists:get_value(add_acl, S3Opts, false),
-    BucketURL = unicode:characters_to_binary(gen_mod:get_opt(bucket_url, S3Opts)),
-    Region = list_to_binary(gen_mod:get_opt(region, S3Opts)),
-    AccessKeyId = list_to_binary(gen_mod:get_opt(access_key_id, S3Opts)),
-    SecretAccessKey = list_to_binary(gen_mod:get_opt(secret_access_key, S3Opts)),
+    #{s3 := #{add_acl := AddACL, region := Region, access_key_id := AccessKeyId,
+              secret_access_key := SecretAccessKey, bucket_url := BucketURL},
+      expiration_time := ExpirationTime} = Opts,
 
     {Scheme, Host, Port, Path} = extract_uri_params(BucketURL, Token, Filename),
 

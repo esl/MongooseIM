@@ -512,14 +512,19 @@ all_modules() ->
                        outdir => "www/muc",
                        top_link => {"/", "Home"}}),
       mod_http_upload =>
-          [{backend, s3},
-           {expiration_time, 120},
-           {host, {prefix, <<"upload.">>}},
-           {s3, [{access_key_id, "AKIAIOSFODNN7EXAMPLE"},
-                {add_acl, true},
-                {bucket_url, "https://s3-eu-west-1.amazonaws.com/mybucket"},
-                {region, "eu-west-1"},
-                {secret_access_key, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}]}],
+          mod_config(
+            mod_http_upload,
+            #{backend => s3,
+              expiration_time => 120,
+              host => {prefix, <<"upload.">>},
+              s3 => config([modules, mod_http_upload, s3],
+                           #{access_key_id => <<"AKIAIOSFODNN7EXAMPLE">>,
+                             add_acl => true,
+                             bucket_url => <<"https://s3-eu-west-1.amazonaws.com/mybucket">>,
+                             region => <<"eu-west-1">>,
+                             secret_access_key => <<"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY">>
+                            })
+             }),
       mod_muc_light =>
           mod_config(mod_muc_light, #{all_can_configure => true,
                                       all_can_invite => true,
@@ -854,6 +859,14 @@ default_mod_config(mod_global_distrib) ->
       redis => default_config([modules, mod_global_distrib, redis]),
       cache => default_config([modules, mod_global_distrib, cache]),
       bounce => default_config([modules, mod_global_distrib, bounce])};
+default_mod_config(mod_http_upload) ->
+    #{iqdisc => one_queue,
+      host => {prefix, <<"upload.">>},
+      backend => s3,
+      expiration_time => 60,
+      token_bytes => 32,
+      max_file_size => 1024 * 1024 * 10,
+      s3 => default_config([modules, mod_http_upload, s3])};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
@@ -1070,6 +1083,8 @@ default_config([modules, mod_global_distrib, bounce]) ->
     #{enabled => true,
       resend_after_ms => 200,
       max_retries => 4};
+default_config([modules, mod_http_upload, s3]) ->
+    #{add_acl => false};
 default_config([modules, mod_privacy, riak]) ->
     #{defaults_bucket_type => <<"privacy_defaults">>,
       names_bucket_type => <<"privacy_lists_names">>,

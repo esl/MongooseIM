@@ -24,6 +24,7 @@
 validate(V, binary, domain) -> validate_binary_domain(V);
 validate(V, binary, url) -> validate_non_empty_binary(V);
 validate(V, binary, non_empty) -> validate_non_empty_binary(V);
+validate(V, binary, subdomain_template) -> validate_subdomain_template(V);
 validate(V, binary, {module, Prefix}) ->
     validate_module(list_to_atom(atom_to_list(Prefix) ++ "_" ++ binary_to_list(V)));
 validate(V, binary, jid) -> validate_jid(V);
