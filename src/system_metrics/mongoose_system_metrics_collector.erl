@@ -128,9 +128,9 @@ get_api() ->
 filter_unknown_api(ApiList) ->
     AllowedToReport = [ mongoose_api, mongoose_client_api_rooms_messages,
                         mongoose_client_api_rooms_users, mongoose_client_api_rooms_config,
-                        mongoose_client_api_rooms ,mongoose_client_api_contacts,
+                        mongoose_client_api_rooms, mongoose_client_api_contacts,
                         mongoose_client_api_messages, lasse_handler, mongoose_api_admin,
-                        mod_bosh, mod_websockets, mod_revproxy],
+                        mod_bosh, mod_websockets],
     [Api || Api <- ApiList, lists:member(Api, AllowedToReport)].
 
 get_transport_mechanisms() ->
