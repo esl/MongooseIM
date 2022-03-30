@@ -12,9 +12,13 @@ Strategy to handle incoming IQ requests. For details, please refer to
 [IQ processing policies](../configuration/Modules.md#iq-processing-policies).
 
 ### `modules.mod_smart_markers.backend`
-* **Syntax:** string, only `"rdbms"` is supported at the moment.
+* **Syntax:** string, one of `"rdbms"`, `"rdbms_async"`
 * **Default:** `"rdbms"`
-* **Example:** `backend = "rdbms"`
+* **Example:** `backend = "rdbms_async"`
+
+Only RDBMS storage is supported, but `rdbms` means flushes to DB are synchronous with each message, while `rdbms_async` is instead asynchronous.
+
+Regular `rdbms` has worse performance characteristics, but it has better consistency properties, as events aren't lost nor reordered. `rdbms_async` processes events asynchronously and potentially unloading a lot of aggregation from the DB. Like the case of the asynchronous workers for MAM, it is the preferred method, with the risk messages being lost on an ungraceful shutdown.
 
 ### `modules.mod_smart_markers.keep_private`
 * **Syntax:** boolean
