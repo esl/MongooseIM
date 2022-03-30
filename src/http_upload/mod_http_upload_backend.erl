@@ -11,7 +11,7 @@
 
 -callback create_slot(UTCDateTime :: calendar:datetime(), UUID :: binary(),
                       Filename :: unicode:unicode_binary(), ContentType :: binary() | undefined,
-                      Size :: pos_integer(), Opts :: proplists:proplist()) ->
+                      Size :: pos_integer(), gen_mod:module_opts()) ->
     {PUTURL :: binary(), GETURL :: binary(), Headers :: #{binary() => binary()}}.
 
 -spec init(HostType :: mongooseim:host_type(), Opts :: gen_mod:module_opts()) -> ok.
@@ -24,7 +24,7 @@ init(HostType, Opts) ->
                   Filename :: unicode:unicode_binary(),
                   ContentType :: binary() | undefined,
                   Size :: pos_integer(),
-                  Opts :: proplists:proplist()) ->
+                  Opts :: gen_mod:module_opts()) ->
     {PUTURL :: binary(), GETURL :: binary(), Headers :: #{binary() => binary()}}.
 create_slot(HostType, UTCDateTime, UUID, Filename, ContentType, Size, Opts) ->
     Args  = [UTCDateTime, UUID, Filename, ContentType, Size, Opts],

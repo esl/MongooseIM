@@ -265,7 +265,7 @@ token_bytes(HostType) ->
 max_file_size(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, max_file_size).
 
--spec module_opts(mongooseim:host_type())-> proplists:proplist().
+-spec module_opts(mongooseim:host_type())-> gen_mod:module_opts().
 module_opts(HostType) ->
     gen_mod:get_module_opts(HostType, ?MODULE).
 
