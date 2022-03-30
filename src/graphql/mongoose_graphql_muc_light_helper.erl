@@ -1,8 +1,7 @@
 -module(mongoose_graphql_muc_light_helper).
 
 -export([make_room/1, make_ok_user/1, blocking_item_to_map/1,
-         null_to_undefined/1, prepare_blocking_items/1,
-         page_size_or_max_limit/2]).
+         prepare_blocking_items/1, page_size_or_max_limit/2]).
 
 -spec page_size_or_max_limit(null | integer(), integer()) -> integer().
 page_size_or_max_limit(null, MaxLimit) ->
@@ -27,6 +26,3 @@ prepare_blocking_items(Items) ->
 
 blocking_item_to_map({What, Action, Who}) ->
     {ok, #{<<"entityType">> => What, <<"action">> => Action, <<"entity">> => Who}}.
-
-null_to_undefined(null) -> undefined;
-null_to_undefined(V) -> V.
