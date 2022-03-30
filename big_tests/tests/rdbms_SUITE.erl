@@ -67,6 +67,7 @@ rdbms_queries_cases() ->
      insert_batch_with_null_case,
      test_cast_insert,
      test_request_insert,
+     test_incremental_upsert,
      arguments_from_two_tables].
 
 suite() ->
@@ -85,9 +86,15 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
+init_per_testcase(test_incremental_upsert, Config) ->
+    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    escalus:init_per_testcase(test_incremental_upsert, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(test_incremental_upsert, Config) ->
+    sql_query(Config, <<"TRUNCATE TABLE inbox">>),
+    escalus:end_per_testcase(test_incremental_upsert, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -367,6 +374,28 @@ test_request_insert(Config) ->
                            selected_to_sorted(SelectResult))
       end, ok, #{name => request_queries}).
 
+test_incremental_upsert(Config) ->
+    case is_odbc() of
+        true ->
+            ok;
+        false ->
+            do_test_incremental_upsert(Config)
+    end.
+
+do_test_incremental_upsert(Config) ->
+    KeyFields = [<<"luser">>, <<"lserver">>, <<"remote_bare_jid">>],
+    InsertFields = KeyFields ++ [<<"msg_id">>, <<"content">>, <<"unread_count">>, <<"timestamp">>],
+
+    Key = [<<"alice">>, <<"localhost">>, <<"bob@localhost">>],
+    Insert = [<<"alice">>, <<"localhost">>, <<"bob@localhost">>, <<"msg_id">>, <<"content">>, 1],
+    sql_prepare_upsert(Config, upsert_incr, inbox,
+                       InsertFields, [<<"timestamp">>], KeyFields, <<"timestamp">>),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [42], [42], Key),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [43], [43], Key),
+    sql_execute_upsert(Config, upsert_incr, Insert ++ [0], [0], Key),
+    SelectResult = sql_query(Config, <<"SELECT timestamp FROM inbox">>),
+    ?assertEqual({selected, [{<<"43">>}]}, selected_to_binary(SelectResult)).
+
 %%--------------------------------------------------------------------
 %% Text searching
 %%--------------------------------------------------------------------
@@ -388,6 +417,9 @@ sql_query(_Config, Query) ->
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
+sql_prepare_upsert(_Config, Name, Table, Insert, Update, Unique, Incr) ->
+    escalus_ejabberd:rpc(rdbms_queries, prepare_upsert, [host_type(), Name, Table, Insert, Update, Unique, Incr]).
+
 sql_execute(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute, [host_type(), Name, Parameters]).
 
@@ -399,6 +431,9 @@ sql_query_cast(_Config, Query) ->
 
 sql_execute_request(_Config, Name, Parameters) ->
     slow_rpc(mongoose_rdbms, execute_request, [host_type(), Name, Parameters]).
+
+sql_execute_upsert(_Config, Name, Insert, Update, Unique) ->
+    slow_rpc(rdbms_queries, execute_upsert, [host_type(), Name, Insert, Update, Unique]).
 
 sql_query_request(_Config, Query) ->
     slow_rpc(mongoose_rdbms, sql_query_request, [host_type(), Query]).
