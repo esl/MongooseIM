@@ -163,7 +163,8 @@ insert_parallels(Gs) ->
 
 inbox_modules(Backend) ->
     [
-     {mod_inbox, inbox_opts(Backend)}
+     {mod_inbox, inbox_opts(Backend)},
+     {mod_inbox_commands, #{}}
     ].
 
 muclight_modules() ->

@@ -36,7 +36,8 @@
          build_inbox_entry_key/2,
          build_forward_el/1,
          all_valid_boxes_for_query/1,
-         list_single_form_field/3
+         list_single_form_field/3,
+         calculate_ts_from/2
         ]).
 
 -ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
@@ -253,3 +254,8 @@ form_field_option(Option) ->
 -spec form_field_value(Value :: binary()) -> exml:element().
 form_field_value(Value) ->
     #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
+
+-spec calculate_ts_from(integer(), non_neg_integer()) -> integer().
+calculate_ts_from(Now, Days) ->
+    DaysInMicroSeconds = 86400000000 * Days, % 8.64e+10 microseconds in a day
+    Now - DaysInMicroSeconds.

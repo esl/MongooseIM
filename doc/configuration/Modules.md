@@ -106,6 +106,9 @@ Implements [XEP-0363: HTTP File Upload](https://xmpp.org/extensions/xep-0363.htm
 ### [mod_inbox](../modules/mod_inbox.md)
 Implements custom inbox XEP
 
+### [mod_inbox_commands](../modules/mod_inbox_commands.md)
+Exposes administrative commands for the [inbox](../modules/mod_inbox.md)
+
 ### [mod_global_distrib](../modules/mod_global_distrib.md)
 Enables sharing a single XMPP domain between distinct datacenters (**experimental**).
 

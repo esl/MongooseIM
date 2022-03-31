@@ -153,6 +153,13 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
       Req :: cowboy_req:req(),
       State :: http_api_state(),
       Return :: {any(), cowboy_req:req(), http_api_state()}.
+handle_result(<<"DELETE">>, ok, Req, State) ->
+    Req2 = cowboy_req:reply(204, Req),
+    {stop, Req2, State};
+handle_result(<<"DELETE">>, {ok, Res}, Req, State) ->
+    Req2 = cowboy_req:set_resp_body(jiffy:encode(Res), Req),
+    Req3 = cowboy_req:reply(200, Req2),
+    {jiffy:encode(Res), Req3, State};
 handle_result(Verb, ok, Req, State) ->
     handle_result(Verb, {ok, nocontent}, Req, State);
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
@@ -165,10 +172,6 @@ handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Res, Req),
     Req3 = maybe_add_location_header(Res, binary_to_list(Path), Req2),
     {stop, Req3, State};
-%% Ignore the returned value from a command for DELETE methods
-handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
-    Req2 = cowboy_req:reply(204, Req),
-    {stop, Req2, State};
 handle_result(<<"PUT">>, {ok, nocontent}, Req, State) ->
     Req2 = cowboy_req:reply(204, Req),
     {stop, Req2, State};

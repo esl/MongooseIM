@@ -11,6 +11,7 @@
          set_inbox/6,
          remove_inbox_row/2,
          empty_user_bin/4,
+         empty_global_bin/2,
          set_inbox_incr_unread/5,
          get_inbox_unread/2,
          get_full_entry/2,
@@ -56,6 +57,10 @@
     HostType :: mongooseim:host_type(),
     LServer :: jid:lserver(),
     LUser :: jid:luser(),
+    TS :: integer().
+
+-callback empty_global_bin(HostType, TS) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
     TS :: integer().
 
 -callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
@@ -150,6 +155,13 @@ remove_inbox_row(HostType, InboxEntryKey) ->
     TS :: integer().
 empty_user_bin(HostType, LServer, LUser, TS) ->
     Args = [HostType, LServer, LUser, TS],
+    mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec empty_global_bin(HostType, TS) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
+    TS :: integer().
+empty_global_bin(HostType, TS) ->
+    Args = [HostType, TS],
     mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
 
 -spec set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
