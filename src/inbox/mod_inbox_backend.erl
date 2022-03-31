@@ -10,6 +10,7 @@
          remove_domain/2,
          set_inbox/6,
          remove_inbox_row/2,
+         empty_user_bin/3,
          set_inbox_incr_unread/5,
          get_inbox_unread/2,
          get_full_entry/2,
@@ -51,6 +52,11 @@
     HostType :: mongooseim:host_type(),
     InboxEntryKey :: mod_inbox:entry_key().
 
+-callback empty_user_bin(HostType, LServer, LUser) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
+    LUser :: jid:luser().
+
 -callback set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     mod_inbox:count_res() when
     HostType :: mongooseim:host_type(),
@@ -84,6 +90,8 @@
     InboxEntryKey :: mod_inbox:entry_key(),
     Params :: mod_inbox:entry_properties(),
     Ret :: mod_inbox:entry_properties() | {error, binary()}.
+
+-optional_callbacks([empty_user_bin/3]).
 
 -spec init(HostType, Opts) -> ok when
     HostType :: mongooseim:host_type(),
@@ -135,6 +143,18 @@ set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp) ->
 remove_inbox_row(HostType, InboxEntryKey) ->
     Args = [HostType, InboxEntryKey],
     mongoose_backend:call_tracked(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args).
+
+-spec empty_user_bin(HostType, LServer, LUser) -> non_neg_integer() when
+    HostType :: mongooseim:host_type(),
+    LServer :: jid:lserver(),
+    LUser :: jid:luser().
+empty_user_bin(HostType, LServer, LUser) ->
+    case mongoose_backend:is_exported(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, 3) of
+        false -> 0;
+        true ->
+            Args = [HostType, LServer, LUser],
+            mongoose_backend:call(HostType, ?MAIN_MODULE, ?FUNCTION_NAME, Args)
+    end.
 
 -spec set_inbox_incr_unread(HostType, InboxEntryKey, Content, MsgId, Timestamp) ->
     mod_inbox:count_res() when

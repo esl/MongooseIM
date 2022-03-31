@@ -320,6 +320,23 @@ If the client had sent an invalid number (negative, or NaN), the server would an
 </iq>
 ```
 
+### Examples: emptying the trash bin
+A user can empty his trash bin, through the following request:
+```xml
+<iq id='some_unique_id' type='set'>
+  <empty-bin xmlns='erlang-solutions.com:xmpp:inbox:0'/>
+</iq>
+```
+On success, the server would return how many entries where dropped as in:
+```xml
+<iq id='some_unique_id' to='alice@localhost/res1' type='result'>
+  <empty-bin xmlns='erlang-solutions.com:xmpp:inbox:0'>
+    <num>2</num>
+  </empty-bin>
+</iq>
+```
+The server might answer with a corresponding error message, might anything go wrong.
+
 ### Examples: muting an entry
 To mute an entry for a full day (86400 seconds in a day, 604800 in a week, for example), a client can send:
 ```xml

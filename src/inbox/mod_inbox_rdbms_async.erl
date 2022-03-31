@@ -19,6 +19,7 @@
          set_inbox_incr_unread/5,
          reset_unread/4,
          remove_inbox_row/2,
+         empty_user_bin/3,
          remove_domain/2,
          clear_inbox/3,
          get_inbox/4,
@@ -54,6 +55,11 @@ prepare_deletes(_HostType, _Opts) ->
                            [luser, lserver, remote_bare_jid],
                            <<"UPDATE inbox SET box='bin'",
                              " WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
+    mongoose_rdbms:prepare(inbox_clean_user_bin, inbox,
+                           [lserver, luser, timestamp],
+                           <<"DELETE FROM inbox WHERE",
+                             " lserver = ? AND luser = ? AND",
+                             " box='bin' AND timestamp < ?">>),
     ok.
 
 -spec start_pool(mongooseim:host_type(), mongoose_async_pools:pool_opts()) -> term().
@@ -123,6 +129,17 @@ reset_unread(HostType, Entry, MsgId, TS) ->
 remove_inbox_row(HostType, Entry) ->
     Params = {remove_inbox_row, Entry},
     mongoose_async_pools:put_task(HostType, inbox, Entry, Params).
+
+-spec empty_user_bin(HostType :: mongooseim:host_type(),
+                     LServer :: jid:lserver(),
+                     LUser :: jid:luser()) -> non_neg_integer().
+empty_user_bin(HostType, LServer, LUser) ->
+    Now = erlang:system_time(microsecond),
+    do_clean_user_bin(HostType, LServer, LUser, Now).
+
+do_clean_user_bin(HostType, LS, LU, TS) ->
+    {updated, BinN} = mongoose_rdbms:execute_successfully(HostType, inbox_clean_user_bin, [LS, LU, TS]),
+    mongoose_rdbms:result_to_integer(BinN).
 
 %% synchronous callbacks
 -spec get_inbox(mongooseim:host_type(), jid:luser(), jid:lserver(), mod_inbox:get_inbox_params()) ->
