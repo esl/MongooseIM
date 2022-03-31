@@ -127,9 +127,9 @@ inbox_opts(regular) ->
     DefOps = #{boxes := Boxes} = inbox_opts(),
     DefOps#{boxes := Boxes ++ [<<"other">>]};
 inbox_opts(async_pools) ->
-    DefOps = #{boxes := Boxes} = inbox_opts(),
+    DefOps = #{boxes := Boxes, async_writer := Async} = inbox_opts(),
     DefOps#{backend => rdbms_async,
-            async_writer => #{pool_size => 1},
+            async_writer => Async#{pool_size => 1},
             boxes => Boxes ++ [<<"other">>]}.
 
 skip_or_run_inbox_tests(TestCases) ->

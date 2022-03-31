@@ -541,7 +541,9 @@ all_modules() ->
       mod_roster => mod_config(mod_roster, #{store_current_id => true, versioning => true}),
       mod_inbox =>
           #{backend => rdbms,
-            async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+            async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online),
+                              bin_ttl => 30,
+                              bin_clean_after => timer:hours(1)},
             boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
             iqdisc => no_queue,
             aff_changes => true,
@@ -856,7 +858,9 @@ default_mod_config(mod_global_distrib) ->
       bounce => default_config([modules, mod_global_distrib, bounce])};
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
-      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
+      async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online),
+                        bin_ttl => 30,
+                        bin_clean_after => timer:hours(1)},
       boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
       groupchat => [muclight],
       aff_changes => true,

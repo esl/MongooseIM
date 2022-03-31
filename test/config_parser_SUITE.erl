@@ -1730,9 +1730,9 @@ mod_inbox(_Config) ->
     check_iqdisc_map(mod_inbox),
     P = [modules, mod_inbox],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
+    test_inbox_async_writer(T, P),
     ChatMarkers = [<<"displayed">>, <<"received">>, <<"acknowledged">>],
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
-    ?cfgh(P ++ [async_writer], #{pool_size => 8}, T(#{<<"async_writer">> => #{<<"pool_size">> => 8}})),
     ?cfgh(P ++ [reset_markers], ChatMarkers, T(#{<<"reset_markers">> => ChatMarkers})),
     ?cfgh(P ++ [groupchat], [muc, muclight], T(#{<<"groupchat">> => [<<"muc">>, <<"muclight">>]})),
     ?cfgh(P ++ [boxes],
@@ -1749,6 +1749,16 @@ mod_inbox(_Config) ->
     ?errh(T(#{<<"boxes">> => <<"test">>})),
     ?errh(T(#{<<"aff_changes">> => 1})),
     ?errh(T(#{<<"remove_on_kicked">> => 1})).
+
+test_inbox_async_writer(ParentT, ParentP) ->
+    P = ParentP ++ [async_writer],
+    T = fun(Opts) -> ParentT(#{<<"async_writer">> => Opts}) end,
+    ?cfgh(P ++ [pool_size], 1500, T(#{<<"pool_size">> => 1500})),
+    ?cfgh(P ++ [bin_ttl], 30, T(#{<<"bin_ttl">> => 30})),
+    ?cfgh(P ++ [bin_clean_after], 43200000, T(#{<<"bin_clean_after">> => 12})),
+    ?errh(T(#{<<"pool_size">> => -1})),
+    ?errh(T(#{<<"bin_ttl">> => true})),
+    ?errh(T(#{<<"bin_clean_after">> => -1})).
 
 mod_global_distrib(_Config) ->
     P = [modules, mod_global_distrib],

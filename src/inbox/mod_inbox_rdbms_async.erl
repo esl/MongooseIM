@@ -3,6 +3,7 @@
 -include("mod_inbox.hrl").
 -include("mongoose_logger.hrl").
 
+-behaviour(gen_server).
 -behaviour(mod_inbox_backend).
 -behaviour(mongoose_aggregator_worker).
 
@@ -32,9 +33,10 @@
 %% Worker callbacks
 -export([request/2, aggregate/3, verify/3]).
 
-%% Cleaner callbacks
+%% Cleaner gen_server callbacks
 -export([flush_user_bin/3, flush_global_bin/2]).
--ignore_xref([flush_user_bin/3, flush_global_bin/2]).
+-export([start_link/2, init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-ignore_xref([flush_user_bin/3, flush_global_bin/2, start_link/2]).
 
 %% Initialisation
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
@@ -44,11 +46,13 @@ init(HostType, Opts) ->
     prepare_deletes(HostType, Opts),
     mongoose_commands:register(commands()),
     start_pool(HostType, AsyncOpts),
+    start_cleaner(HostType, Opts),
     ok.
 
 stop(HostType) ->
     mongoose_commands:unregister(commands()),
-    mongoose_async_pools:stop_pool(HostType, inbox).
+    mongoose_async_pools:stop_pool(HostType, inbox),
+    stop_cleaner(HostType).
 
 prepare_pool_opts(#{async_writer := AsyncOpts}) ->
     AsyncOpts#{pool_type => aggregate,
@@ -314,3 +318,42 @@ aggregate({set_inbox_incr_unread, _, _, MsgId, _, _, _},
 
 aggregate(_OldTask, NewTask) ->
     NewTask.
+
+
+%% Cleaner gen_server callbacks
+start_cleaner(HostType, #{async_writer := Opts}) ->
+    MFA = {?MODULE, start_link, [HostType, Opts]},
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
+    ejabberd_sup:start_child(ChildSpec).
+
+stop_cleaner(HostType) ->
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    ejabberd_sup:stop_child(Name).
+
+start_link(HostType, Opts) ->
+    gen_server:start_link(?MODULE, {HostType, Opts}, []).
+
+init({HostType, #{bin_ttl := TTL, bin_clean_after := Timeout}}) ->
+    State = #{host_type => HostType, bin_ttl => TTL,
+              bin_clean_after => Timeout, timer_ref => undefined},
+    {ok, schedule_check(State)}.
+
+handle_call(Msg, From, State) ->
+    ?UNEXPECTED_CALL(Msg, From),
+    {reply, ok, State}.
+
+handle_cast(Msg, State) ->
+    ?UNEXPECTED_CAST(Msg),
+    {noreply, State}.
+
+handle_info({timeout, Ref, empty_bin},
+            #{timer_ref := Ref, host_type := HostType, bin_ttl := TTL} = State) ->
+    flush_global_bin(HostType, TTL),
+    {noreply, schedule_check(State)};
+handle_info(Info, State) ->
+    ?UNEXPECTED_INFO(Info),
+    {noreply, State}.
+
+schedule_check(State = #{bin_clean_after := Timeout}) ->
+    State#{timer_ref := erlang:start_timer(Timeout, self(), empty_bin)}.

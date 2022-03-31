@@ -126,6 +126,7 @@ groups() ->
 
 bin_flushes() ->
     [
+     timeout_cleaner_flush_all,
      rest_api_bin_flush_all,
      rest_api_bin_flush_user,
      xmpp_bin_flush
@@ -195,6 +196,11 @@ end_per_group(muc, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(timeout_cleaner_flush_all, Config) ->
+    clear_inbox_all(),
+    AsyncOpts = #{pool_size => 2, bin_ttl => 0, bin_clean_after => 10},
+    inbox_helper:reload_inbox_option(Config, async_writer, AsyncOpts),
+    escalus:init_per_testcase(timeout_cleaner_flush_all, Config);
 init_per_testcase(TS, Config)
   when TS =:= create_groupchat_no_affiliation_stored;
        TS =:= system_message_is_correctly_avoided ->
@@ -220,6 +226,9 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(timeout_cleaner_flush_all, Config) ->
+    inbox_helper:restore_inbox_option(Config),
+    escalus:end_per_testcase(timeout_cleaner_flush_all, Config);
 end_per_testcase(TS, Config)
   when TS =:= create_groupchat_no_affiliation_stored;
        TS =:= system_message_is_correctly_avoided ->
@@ -1314,6 +1323,14 @@ rest_api_bin_flush_all(Config) ->
         Path = <<"/inbox/", HostTypePath/binary, "/0/bin">>,
         {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
         ?assertEqual(2, NumOfRows),
+        check_inbox(Bob, [], #{box => bin}),
+        check_inbox(Kate, [], #{box => bin})
+    end).
+
+timeout_cleaner_flush_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is eventually not in any bin thanks to the periodic cleanouts
         check_inbox(Bob, [], #{box => bin}),
         check_inbox(Kate, [], #{box => bin})
     end).

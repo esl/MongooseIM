@@ -141,8 +141,13 @@ config_spec() ->
 
 async_config_spec() ->
     #section{
-       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative}},
-       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online)},
+       items = #{<<"pool_size">> => #option{type = integer, validate = non_negative},
+                 <<"bin_ttl">> => #option{type = integer, validate = non_negative},
+                 <<"bin_clean_after">> => #option{type = integer, validate = non_negative,
+                                                  process = fun timer:hours/1}},
+       defaults = #{<<"pool_size">> => 2 * erlang:system_info(schedulers_online),
+                    <<"bin_ttl">> => 30, % 30 days
+                    <<"bin_clean_after">> => timer:hours(1)},
        format_items = map,
        include = always
       }.

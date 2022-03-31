@@ -22,6 +22,20 @@ Regular `rdbms` has worse performance characteristics, but it has better consist
 
 Number of workers in the pool. More than the number of available schedulers is recommended, to minimise lock contention on the message queues, and more than the number of DB workers, to fully utilise the DB capacity. How much more than these two parameters is then a good fine-tuning for specific deployments.
 
+#### `modules.mod_inbox.async_writer.bin_ttl`
+* **Syntax:** non-negative integer, expressed in days.
+* **Default:** `30`
+* **Example:** `modules.mod_inbox.async_writer.bin_ttl = 7`
+
+How old entries in the bin can be before the automatic bin cleaner collects them. A value of `7` would mean that entries that have been in the bin for more than 7 days will be cleaned on the next bin collection.
+
+#### `modules.mod_inbox.async_writer.bin_clean_after`
+* **Syntax:** non-negative integer, expressed in hours
+* **Default:** `1`
+* **Example:** `modules.mod_inbox.async_writer.bin_clean_after = 24`
+
+How often the automatic garbage collection runs over the bin.
+
 ### `modules.mod_inbox.boxes`
 * **Syntax:** array of strings.
 * **Default:** `[]`
