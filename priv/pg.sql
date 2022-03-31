@@ -357,9 +357,9 @@ CREATE TABLE inbox (
     unread_count INT                 NOT NULL,
     PRIMARY KEY(lserver, luser, remote_bare_jid));
 
-CREATE INDEX i_inbox_timestamp
-    ON inbox
-    USING BTREE(lserver, luser, timestamp);
+CREATE INDEX i_inbox_timestamp ON inbox USING BTREE(lserver, luser, timestamp);
+CREATE INDEX i_inbox_us_box ON inbox USING BTREE(lserver, luser, box);
+CREATE INDEX i_inbox_box ON inbox (box) WHERE (box = 'bin');
 
 CREATE TABLE pubsub_nodes (
     nidx               BIGSERIAL PRIMARY KEY,
