@@ -32,7 +32,7 @@ A list of supported inbox boxes by the server. This can be used by clients to cl
 !!! note
     `inbox`, `archive`, and `bin` are reserved box names and are always enabled, therefore they don't need to –and must not– be specified in this section.
 
-    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin).
+    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), or through an [admin API endpoint](#admin-endpoint).
 
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
@@ -90,6 +90,45 @@ room in each sender's and recipient's inboxes and private messages. Currently it
 configure it to store system messages like [subject](https://xmpp.org/extensions/xep-0045.html#enter-subject) 
 or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
+## Admin endpoint
+
+### Bin flush for a user
+If the async backend is being used, the bin will require periodic flushes. To do so for a given user, the following admin API request can be triggered:
+
+```http
+DELETE /api/inbox/<domain>/<user>/<days>/bin,
+```
+where `<domain>` and `<user>` are the domain and name parts of the user's jid, respectively, and `<days>` is the required number of days for an entry to be considered old enough to be removed, zero allowed (which clears all).
+
+The result would be a `200` with the number of rows that were removed as the body, or a corresponding error. For example, if only one entry was cleaned:
+```http
+HTTP/1.1 200 OK
+server: Cowboy,
+date: Wed, 30 Mar 2022 14:06:20 GMT,
+content-type: application/json,
+content-length: 1
+
+1
+```
+
+### Global bin flush
+If all the bins were desired to be cleared, the following API can be used instead:
+
+```http
+DELETE /api/inbox/<host_type>/<days>/bin,
+```
+where as before, `<days>` is the required number of days for an entry to be considered old enough to be removed, and `<host_type>` is the host type where inbox is configured.
+
+The result would look analogously:
+```http
+HTTP/1.1 200 OK
+server: Cowboy,
+date: Wed, 30 Mar 2022 14:06:20 GMT,
+content-type: application/json,
+content-length: 1
+
+42
+```
 
 ## Example configuration
 

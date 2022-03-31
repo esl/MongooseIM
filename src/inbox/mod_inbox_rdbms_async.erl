@@ -32,16 +32,22 @@
 %% Worker callbacks
 -export([request/2, aggregate/3, verify/3]).
 
+%% Cleaner callbacks
+-export([flush_user_bin/3, flush_global_bin/2]).
+-ignore_xref([flush_user_bin/3, flush_global_bin/2]).
+
 %% Initialisation
 -spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(HostType, Opts) ->
     AsyncOpts = prepare_pool_opts(Opts),
     mod_inbox_rdbms:init(HostType, Opts),
     prepare_deletes(HostType, Opts),
+    mongoose_commands:register(commands()),
     start_pool(HostType, AsyncOpts),
     ok.
 
 stop(HostType) ->
+    mongoose_commands:unregister(commands()),
     mongoose_async_pools:stop_pool(HostType, inbox).
 
 prepare_pool_opts(#{async_writer := AsyncOpts}) ->
@@ -55,6 +61,8 @@ prepare_deletes(_HostType, _Opts) ->
                            [luser, lserver, remote_bare_jid],
                            <<"UPDATE inbox SET box='bin'",
                              " WHERE luser = ? AND lserver = ? AND remote_bare_jid = ?">>),
+    mongoose_rdbms:prepare(inbox_clean_global_bin, inbox, [timestamp],
+                           <<"DELETE FROM inbox WHERE box='bin' AND timestamp < ?">>),
     mongoose_rdbms:prepare(inbox_clean_user_bin, inbox,
                            [lserver, luser, timestamp],
                            <<"DELETE FROM inbox WHERE",
@@ -65,6 +73,51 @@ prepare_deletes(_HostType, _Opts) ->
 -spec start_pool(mongooseim:host_type(), mongoose_async_pools:pool_opts()) -> term().
 start_pool(HostType, Opts) ->
     mongoose_async_pools:start_pool(HostType, inbox, Opts).
+
+%% Clean commands
+commands() ->
+    [
+     [{name, inbox_flush_user_bin},
+      {category, <<"inbox">>},
+      {subcategory, <<"bin">>},
+      {desc, <<"Empty the bin for a user">>},
+      {module, ?MODULE},
+      {function, flush_user_bin},
+      {action, delete},
+      {identifiers, [domain, name, since]},
+      {args, [{domain, binary},
+              {name, binary},
+              {since, integer}]},
+      {result, {num, integer}}],
+     [{name, inbox_flush_global_bin},
+      {category, <<"inbox">>},
+      {subcategory, <<"bin">>},
+      {desc, <<"Empty the inbox bin globally">>},
+      {module, ?MODULE},
+      {function, flush_global_bin},
+      {action, delete},
+      {identifiers, [host_type, since]},
+      {args, [{host_type, binary},
+              {since, integer}]},
+      {result, {num, integer}}]
+    ].
+
+flush_user_bin(Domain, Name, Days) ->
+    {LU, LS} = jid:to_lus(jid:make_bare(Name, Domain)),
+    {ok, HostType} = mongoose_domain_api:get_host_type(LS),
+    Now = erlang:system_time(microsecond),
+    MicrosecondsInDay = erlang:convert_time_unit(86400, second, microsecond),
+    DaysInMicroSeconds = MicrosecondsInDay * Days,
+    TS = Now - DaysInMicroSeconds,
+    do_clean_user_bin(HostType, LS, LU, TS).
+
+flush_global_bin(HostType, Days) ->
+    Now = erlang:system_time(microsecond),
+    MicrosecondsInDay = erlang:convert_time_unit(86400, second, microsecond),
+    DaysInMicroSeconds = MicrosecondsInDay * Days,
+    TS = Now - DaysInMicroSeconds,
+    {updated, BinN} = mongoose_rdbms:execute_successfully(HostType, inbox_clean_global_bin, [TS]),
+    mongoose_rdbms:result_to_integer(BinN).
 
 %% Worker callbacks
 -spec request(task(), mongoose_async_pools:pool_extra()) -> reference().

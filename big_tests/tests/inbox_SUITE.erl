@@ -126,6 +126,8 @@ groups() ->
 
 bin_flushes() ->
     [
+     rest_api_bin_flush_all,
+     rest_api_bin_flush_user,
      xmpp_bin_flush
     ].
 
@@ -1292,6 +1294,30 @@ get_with_end_timestamp(Config) ->
 
 
 %% Bin flushes tests
+rest_api_bin_flush_user(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is not in his bin anymore after triggering a bin flush
+        BobName = escalus_utils:get_username(Bob),
+        BobDomain = escalus_utils:get_server(Bob),
+        Path = <<"/inbox", "/", (BobDomain)/binary, "/", (BobName)/binary, "/0/bin">>,
+        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
+        ?assertEqual(1, NumOfRows),
+        check_inbox(Bob, [], #{box => bin})
+    end).
+
+rest_api_bin_flush_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is not in any bin anymore after triggering a bin flush
+        HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
+        Path = <<"/inbox/", HostTypePath/binary, "/0/bin">>,
+        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
+        ?assertEqual(2, NumOfRows),
+        check_inbox(Bob, [], #{box => bin}),
+        check_inbox(Kate, [], #{box => bin})
+    end).
+
 xmpp_bin_flush(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
