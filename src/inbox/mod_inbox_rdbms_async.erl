@@ -19,6 +19,7 @@
          set_inbox_incr_unread/5,
          reset_unread/4,
          remove_inbox_row/2,
+         empty_user_bin/4,
          remove_domain/2,
          clear_inbox/3,
          get_inbox/4,
@@ -158,6 +159,13 @@ get_entry_properties(HostType, Entry) ->
     entry_properties() | {error, binary()}.
 set_entry_properties(HostType, Entry, Properties) ->
     mod_inbox_rdbms:set_entry_properties(HostType, Entry, Properties).
+
+-spec empty_user_bin(HostType :: mongooseim:host_type(),
+                     LServer :: jid:lserver(),
+                     LUser :: jid:luser(),
+                     TS :: integer()) -> non_neg_integer().
+empty_user_bin(HostType, LServer, LUser, TS) ->
+    mod_inbox_rdbms:empty_user_bin(HostType, LServer, LUser, TS).
 
 -spec aggregate(CurrentlyAccumulatedTask :: task(), NewTask :: task()) -> FinalTask :: task().
 %%% First task being processed, just take that one

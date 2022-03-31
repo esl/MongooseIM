@@ -167,6 +167,12 @@ process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{host_type :=
     Form = build_inbox_form(HostType),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
+process_iq(Acc, #jid{luser = LUser, lserver = LServer},
+           _To, #iq{type = set, sub_el = #xmlel{name = <<"empty-bin">>}} = IQ,
+           #{host_type := HostType}) ->
+    TS = mongoose_acc:timestamp(Acc),
+    NumRemRows = mod_inbox_backend:empty_user_bin(HostType, LServer, LUser, TS),
+    {Acc, IQ#iq{type = result, sub_el = [build_empty_bin(NumRemRows)]}};
 process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     LUser = From#jid.luser,
@@ -316,6 +322,12 @@ process_message(HostType, From, To, Message, _TS, Dir, Type) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
+build_empty_bin(Num) ->
+    #xmlel{name = <<"empty-bin">>,
+           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+           children = [#xmlel{name = <<"num">>,
+                              children = [#xmlcdata{content = integer_to_binary(Num)}]}]}.
+
 -spec build_inbox_message(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
 build_inbox_message(Acc, InboxRes, IQ) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mongoose_bin:gen_from_timestamp()}],

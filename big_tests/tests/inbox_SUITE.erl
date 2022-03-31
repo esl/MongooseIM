@@ -119,8 +119,12 @@ groups() ->
        get_with_start_timestamp,
        get_with_end_timestamp
       ]},
+     {bin_flushes, [],
+      [
+       xmpp_bin_flush
+      ]},
      {regular, [], test_groups()},
-     {async_pools, [], test_groups()}
+     {async_pools, [], [{group, bin_flushes} | test_groups()]}
     ],
     inbox_helper:maybe_run_in_parallel(Gs).
 
@@ -1284,6 +1288,36 @@ get_with_end_timestamp(Config) ->
         check_inbox(Alice, [ConvWithBob], #{ 'end' => TimeAfterBob }, #{})
     end).
 
+
+%% Bin flushes tests
+xmpp_bin_flush(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is eventually not in any bin thanks to the periodic cleanouts
+        %% Bob requests flush through xmpp
+        Iq = escalus_stanza:iq(<<"set">>,
+                               [#xmlel{name = <<"empty-bin">>,
+                                       attrs = [{<<"xmlns">>, inbox_helper:inbox_ns()}],
+                                       children = []}]),
+        escalus:send(Bob, Iq),
+        escalus:assert(is_iq_result, [Iq], escalus:wait_for_stanza(Bob)),
+        check_inbox(Bob, [], #{box => bin})
+    end).
+
+
+%% helpers
+create_room_and_make_users_leave(Alice, Bob, Kate) ->
+    Msg = <<"Hi all">>,
+    RoomName = pubsub_tools:pubsub_node_name(),
+    inbox_helper:create_room_send_msg_check_inbox(
+      Alice, [Bob, Kate], RoomName, Msg, <<"leave-id">>),
+    %% Bob leaves the room
+    muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
+    muc_light_helper:user_leave(RoomName, Kate, [{Alice, owner}]),
+    %% Bob doesn't have conversation in his inbox, nor Kate
+    check_inbox(Bob, [], #{box => inbox}),
+    check_inbox(Kate, [], #{box => inbox}),
+    RoomName.
 
 if_async_check_bin(Config, Bob, Convs) ->
     case maps:get(backend, ?config(inbox_opts, Config), rdbms) of

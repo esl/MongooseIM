@@ -150,6 +150,8 @@ maybe_run_in_parallel(Gs) ->
 insert_parallels(Gs) ->
     Fun = fun({muclight_config, Conf, Tests}) ->
                   {muclight_config, Conf, Tests};
+             ({bin_flushes, Conf, Tests}) ->
+                  {bin_flushes, Conf, Tests};
              ({regular, Conf, Tests}) ->
                   {regular, Conf, Tests};
              ({async_pools, Conf, Tests}) ->
