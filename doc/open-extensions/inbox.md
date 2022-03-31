@@ -395,7 +395,7 @@ And similarly, to set a conversation as unread:
 </iq>
 ```
 
-### Deprecated entry stanza:
+### Deprecated reset entry stanza:
 You can reset the inbox with the following stanza:
 ```xml
 <iq type='set'>

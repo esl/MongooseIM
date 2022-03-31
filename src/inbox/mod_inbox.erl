@@ -31,7 +31,7 @@
         ]).
 
 -ignore_xref([
-    behaviour_info/1, disco_local_features/1, filter_local_packet/1, get_personal_data/3,
+    disco_local_features/1, filter_local_packet/1, get_personal_data/3,
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 
@@ -98,14 +98,14 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
+    ejabberd_hooks:delete(hooks(HostType)),
     mod_inbox_muc:stop(HostType),
     case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of
         rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
         _ -> ok
-    end,
-    ejabberd_hooks:delete(hooks(HostType)),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm).
+    end.
 
 -spec supported_features() -> [atom()].
 supported_features() ->
