@@ -93,6 +93,7 @@ or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
 ```toml
 [modules.mod_inbox]
+  backend = "rdbms_async"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true

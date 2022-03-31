@@ -31,7 +31,7 @@
         ]).
 
 -ignore_xref([
-    behaviour_info/1, disco_local_features/1, filter_local_packet/1, get_personal_data/3,
+    disco_local_features/1, filter_local_packet/1, get_personal_data/3,
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 

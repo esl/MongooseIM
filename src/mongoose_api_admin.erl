@@ -32,8 +32,7 @@
 -include("mongoose_api.hrl").
 -include("mongoose.hrl").
 
--import(mongoose_api_common, [error_response/3,
-                              error_response/4,
+-import(mongoose_api_common, [error_response/4,
                               action_to_method/1,
                               method_to_action/1,
                               error_code/1,
