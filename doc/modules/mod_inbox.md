@@ -34,6 +34,20 @@ A list of supported inbox boxes by the server. This can be used by clients to cl
 
     If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), or through an [admin API endpoint](../mod_inbox_commands#admin-endpoint).
 
+#### `modules.mod_inbox.bin_ttl`
+* **Syntax:** non-negative integer, expressed in days.
+* **Default:** `30`
+* **Example:** `modules.mod_inbox.bin_ttl = 7`
+
+How old entries in the bin can be before the automatic bin cleaner collects them. A value of `7` would mean that entries that have been in the bin for more than 7 days will be cleaned on the next bin collection.
+
+#### `modules.mod_inbox.bin_clean_after`
+* **Syntax:** non-negative integer, expressed in hours
+* **Default:** `1`
+* **Example:** `modules.mod_inbox.bin_clean_after = 24`
+
+How often the automatic garbage collection runs over the bin.
+
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
 * **Default:** `["displayed"]`

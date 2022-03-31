@@ -170,7 +170,8 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_h;
                                   CN =:= gc_repeat_after_never_means_no_cleaning;
                                   CN =:= gc_repeat_after_timeout_does_clean ->
-    rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
+    Name = rpc(mim(), gen_mod, get_module_proc, [host_type(), stream_management_stale_h]),
+    rpc(mim(), ejabberd_sup, stop_child, [Name]),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     unregister_handler(),

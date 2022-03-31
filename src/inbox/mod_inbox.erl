@@ -94,6 +94,7 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
                                              fun mod_inbox_entries:process_iq_conversation/5, #{}, IQDisc),
+    start_cleaner(HostType, Opts),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
@@ -101,6 +102,7 @@ stop(HostType) ->
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
     gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
     ejabberd_hooks:delete(hooks(HostType)),
+    stop_cleaner(HostType),
     mod_inbox_muc:stop(HostType),
     case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of
         rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
@@ -123,6 +125,9 @@ config_spec() ->
                                                            validate = {enum, [muc, muclight]}}},
                   <<"boxes">> => #list{items = #option{type = binary, validate = non_empty},
                                        validate = unique},
+                  <<"bin_ttl">> => #option{type = integer, validate = non_negative},
+                  <<"bin_clean_after">> => #option{type = integer, validate = non_negative,
+                                                   process = fun timer:hours/1},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
@@ -130,6 +135,8 @@ config_spec() ->
         defaults = #{<<"backend">> => rdbms,
                      <<"groupchat">> => [muclight],
                      <<"boxes">> => [],
+                     <<"bin_ttl">> => 30, % 30 days
+                     <<"bin_clean_after">> => timer:hours(1),
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
                      <<"reset_markers">> => [<<"displayed">>],
@@ -155,6 +162,19 @@ process_inbox_boxes(Config = #{boxes := Boxes}) ->
                       end, Boxes),
     AllBoxes = [<<"inbox">>, <<"archive">>, <<"bin">> | Boxes ],
     Config#{boxes := AllBoxes}.
+
+%% Cleaner gen_server callbacks
+start_cleaner(HostType, #{bin_ttl := TTL, bin_clean_after := Interval}) ->
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    WOpts = #{host_type => HostType, action => fun mod_inbox_commands:flush_global_bin/2,
+              opts => TTL, interval => Interval},
+    MFA = {mongoose_collector, start_link, [Name, WOpts]},
+    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
+    ejabberd_sup:start_child(ChildSpec).
+
+stop_cleaner(HostType) ->
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    ejabberd_sup:stop_child(Name).
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
