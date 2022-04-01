@@ -779,7 +779,9 @@ services() ->
                 || Service <- configurable_services()],
     #section{
        items = maps:from_list(Services),
-       wrap = global_config
+       format_items = map,
+       wrap = global_config,
+       include = always
       }.
 
 configurable_services() ->
