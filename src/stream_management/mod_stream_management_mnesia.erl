@@ -1,9 +1,7 @@
 -module(mod_stream_management_mnesia).
 -behaviour(mod_stream_management_backend).
--behaviour(gen_server).
 
 -include("mongoose.hrl").
--include("jlib.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
 -export([init/2,
@@ -16,16 +14,7 @@
          delete_stale_h/2]).
 
 %% Internal exports
--export([start_link/1]).
-
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
-
--ignore_xref([start_link/1]).
-
--record(smgc_state,
-        {gc_repeat_after :: non_neg_integer(),
-         gc_geriatric :: non_neg_integer() }).
+-export([clear_table/2]).
 
 -record(stream_mgmt_stale_h,
         {smid :: mod_stream_management:smid(),
@@ -36,22 +25,22 @@
         {smid :: mod_stream_management:smid(),
          sid :: ejabberd_sm:sid() }).
 
-init(_HostType, #{stale_h := StaleOpts}) ->
+init(HostType, #{stale_h := StaleOpts}) ->
     mnesia:create_table(sm_session, [{ram_copies, [node()]},
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
     mnesia:add_table_copy(sm_session, node(), ram_copies),
-    maybe_init_stale_h(StaleOpts),
+    maybe_init_stale_h(HostType, StaleOpts),
     ok.
 
-maybe_init_stale_h(StaleOpts = #{enabled := true}) ->
+maybe_init_stale_h(HostType, StaleOpts = #{enabled := true}) ->
     ?LOG_INFO(#{what => stream_mgmt_stale_h_start}),
     mnesia:create_table(stream_mgmt_stale_h,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, stream_mgmt_stale_h)}]),
     mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
-    start_cleaner(StaleOpts);
-maybe_init_stale_h(_) -> ok.
+    start_cleaner(HostType, StaleOpts);
+maybe_init_stale_h(_, _) -> ok.
 
 -spec register_smid(HostType, SMID, SID) ->
     ok | {error, term()} when
@@ -126,41 +115,16 @@ delete_stale_h(_HostType, SMID) ->
 
 %% stale_h cleaning logic
 
-start_cleaner(Opts) ->
-    MFA = {?MODULE, start_link, [Opts]},
-    ChildSpec = {stream_management_stale_h, MFA, permanent, 5000, worker, [?MODULE]},
+start_cleaner(HostType, #{repeat_after := Interval, geriatric := TTL}) ->
+    Name = gen_mod:get_module_proc(HostType, stream_management_stale_h),
+    WOpts = #{host_type => HostType, action => fun ?MODULE:clear_table/2,
+              opts => TTL, interval => Interval},
+    MFA = {mongoose_collector, start_link, [Name, WOpts]},
+    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
     %% TODO cleaner should be a service
     ejabberd_sup:start_child(ChildSpec).
 
-start_link(Opts) ->
-    gen_server:start_link({local, stream_management_stale_h}, ?MODULE, Opts, []).
-
-init(#{repeat_after := RepeatAfter, geriatric := GeriatricAge}) ->
-    State = #smgc_state{gc_repeat_after = RepeatAfter,
-                        gc_geriatric = GeriatricAge},
-    schedule_check(State),
-    {ok, State}.
-
-handle_call(Msg, From, State) ->
-    ?UNEXPECTED_CALL(Msg, From),
-    {reply, ok, State}.
-
-handle_cast(Msg, State) ->
-    ?UNEXPECTED_CAST(Msg),
-    {noreply, State}.
-
-handle_info(check, #smgc_state{gc_geriatric = GeriatricAge} = State) ->
-    clear_table(GeriatricAge),
-    schedule_check(State),
-    {noreply, State};
-handle_info(Info, State) ->
-    ?UNEXPECTED_INFO(Info),
-    {noreply, State}.
-
-schedule_check(#smgc_state{gc_repeat_after = RepeatAfter}) ->
-    erlang:send_after(timer:seconds(RepeatAfter), self(), check).
-
-clear_table(GeriatricAge) ->
+clear_table(_HostType, GeriatricAge) ->
     TimeToDie = erlang:monotonic_time(second) - GeriatricAge,
     MS = ets:fun2ms(fun(#stream_mgmt_stale_h{stamp = S}) when S < TimeToDie -> true end),
     ets:select_delete(stream_mgmt_stale_h, MS).

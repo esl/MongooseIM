@@ -24,8 +24,8 @@
                               Packet :: exml:element(),
                               Acc :: mongoose_acc:t()) ->
     mod_inbox:count_res().
-handle_outgoing_message(HostType, User, Room, Packet, _TS) ->
-    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
+handle_outgoing_message(HostType, User, Room, Packet, Acc) ->
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet, Acc).
 
 -spec handle_incoming_message(HostType :: mongooseim:host_type(),
                               RoomUser :: jid:jid(),

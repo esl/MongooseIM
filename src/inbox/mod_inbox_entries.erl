@@ -38,7 +38,8 @@ process_iq_conversation(Acc, From, _To, #iq{type = set,
 process_iq_conversation_get(Acc, IQ, From, SubEl) ->
     case mod_inbox_utils:extract_attr_jid(SubEl) of
         {error, _} ->
-            Form = build_inbox_entry_form(),
+            HostType = mongoose_acc:host_type(Acc),
+            Form = build_inbox_entry_form(HostType),
             SubElWithForm = SubEl#xmlel{children = [Form]},
             {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
         EntryJID ->
@@ -53,13 +54,14 @@ maybe_get_full_entry(SubEl) ->
         _ -> only_properties
     end.
 
--spec build_inbox_entry_form() -> exml:element().
-build_inbox_entry_form() ->
+-spec build_inbox_entry_form(mongooseim:host_type()) -> exml:element().
+build_inbox_entry_form(HostType) ->
+    AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_XDATA},
                     {<<"type">>, <<"form">>}],
            children = [jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX_CONVERSATION}),
-                       jlib:form_field({<<"box">>, <<"list-single">>, <<"all">>}),
+                       mod_inbox_utils:list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
                        jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>}),
                        jlib:form_field({<<"read">>, <<"boolean">>, <<"false">>}),
                        jlib:form_field({<<"mute">>, <<"text-single">>, <<"0">>})]}.
@@ -144,8 +146,7 @@ maybe_process_reset_stanza(Acc, From, IQ, ResetStanza) ->
     end.
 
 process_reset_stanza(Acc, From, IQ, _ResetStanza, InterlocutorJID) ->
-    HostType = mongoose_acc:host_type(Acc),
-    ok = mod_inbox_utils:reset_unread_count_to_zero(HostType, From, InterlocutorJID),
+    ok = mod_inbox_utils:reset_unread_count_to_zero(Acc, From, InterlocutorJID),
     Res = IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],

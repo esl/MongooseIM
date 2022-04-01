@@ -398,6 +398,8 @@ CREATE TABLE inbox (
     PRIMARY KEY(lserver, luser, remote_bare_jid));
 
 CREATE INDEX i_inbox USING BTREE ON inbox(lserver, luser, timestamp);
+CREATE INDEX i_inbox_us_box USING BTREE ON inbox(lserver, luser, box);
+CREATE INDEX i_inbox_box USING BTREE ON inbox(box);
 
 CREATE TABLE pubsub_nodes (
     nidx BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

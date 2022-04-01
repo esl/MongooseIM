@@ -97,8 +97,8 @@ direction(From, To) ->
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 handle_outgoing_message(HostType, Room, To, Packet) ->
-    maybe_reset_unread_count(HostType, To, Room, Packet),
     Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => To#jid.lserver, host_type => HostType}),
+    maybe_reset_unread_count(HostType, To, Room, Packet, Acc),
     maybe_write_to_inbox(HostType, To, Room, Packet, Acc, fun write_to_sender_inbox/5).
 
 -spec handle_incoming_message(HostType, Room, To, Packet) -> term() when
@@ -110,8 +110,8 @@ handle_incoming_message(HostType, Room, To, Packet) ->
     Acc = mongoose_acc:new(#{location => ?LOCATION, lserver => To#jid.lserver, host_type => HostType}),
     maybe_write_to_inbox(HostType, Room, To, Packet, Acc, fun write_to_receiver_inbox/5).
 
-maybe_reset_unread_count(HostType, User, Room, Packet) ->
-    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet).
+maybe_reset_unread_count(HostType, User, Room, Packet, Acc) ->
+    mod_inbox_utils:maybe_reset_unread_count(HostType, User, Room, Packet, Acc).
 
 maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF) ->
     mod_inbox_utils:maybe_write_to_inbox(HostType, User, Remote, Packet, Acc, WriteF).

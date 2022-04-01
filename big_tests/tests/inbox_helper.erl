@@ -124,11 +124,13 @@ inbox_opts() ->
     config_parser_helper:default_mod_config(mod_inbox).
 
 inbox_opts(regular) ->
-    (inbox_opts())#{boxes => [<<"inbox">>, <<"archive">>, <<"other">>]};
+    DefOps = #{boxes := Boxes} = inbox_opts(),
+    DefOps#{boxes := Boxes ++ [<<"other">>]};
 inbox_opts(async_pools) ->
-    (inbox_opts())#{backend => rdbms_async,
-                    async_writer => #{pool_size => 4},
-                    boxes => [<<"inbox">>, <<"archive">>, <<"other">>]}.
+    DefOps = #{boxes := Boxes} = inbox_opts(),
+    DefOps#{backend => rdbms_async,
+            async_writer => #{pool_size => 1},
+            boxes => Boxes ++ [<<"other">>]}.
 
 skip_or_run_inbox_tests(TestCases) ->
     case (not ct_helper:is_ct_running())
@@ -148,6 +150,8 @@ maybe_run_in_parallel(Gs) ->
 insert_parallels(Gs) ->
     Fun = fun({muclight_config, Conf, Tests}) ->
                   {muclight_config, Conf, Tests};
+             ({bin, Conf, Tests}) ->
+                  {bin, Conf, Tests};
              ({regular, Conf, Tests}) ->
                   {regular, Conf, Tests};
              ({async_pools, Conf, Tests}) ->
@@ -159,7 +163,8 @@ insert_parallels(Gs) ->
 
 inbox_modules(Backend) ->
     [
-     {mod_inbox, inbox_opts(Backend)}
+     {mod_inbox, inbox_opts(Backend)},
+     {mod_inbox_commands, #{}}
     ].
 
 muclight_modules() ->
@@ -689,7 +694,8 @@ create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
     OwnerRoomJid = <<RoomJid/binary,"/", OwnerJid/binary>>,
     %% Owner sent the message so he has unread set to 0
     check_inbox(Owner, [#conv{unread = 0, from = OwnerRoomJid, to = OwnerJid, content = Msg}]),
-    foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg).
+    foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg),
+    RoomJid.
 
 verify_is_owner_aff_change(Client, Msg) ->
     verify_muc_light_aff_msg(Msg, [{Client,  owner}]).

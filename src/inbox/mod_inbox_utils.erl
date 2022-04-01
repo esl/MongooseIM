@@ -18,7 +18,7 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
--export([maybe_reset_unread_count/4,
+-export([maybe_reset_unread_count/5,
          reset_unread_count_to_zero/3,
          maybe_write_to_inbox/6,
          write_to_sender_inbox/5,
@@ -34,7 +34,10 @@
          binary_to_bool/1,
          bool_to_binary/1,
          build_inbox_entry_key/2,
-         build_forward_el/1
+         build_forward_el/1,
+         all_valid_boxes_for_query/1,
+         list_single_form_field/3,
+         calculate_ts_from/2
         ]).
 
 -ignore_xref([get_reset_markers/1, if_chat_marker_get_id/2]).
@@ -42,28 +45,33 @@
 -spec maybe_reset_unread_count(HostType :: mongooseim:host_type(),
                                User :: jid:jid(),
                                Remote :: jid:jid(),
-                               Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(HostType, User, Remote, Packet) ->
+                               Packet :: exml:element(),
+                               Acc :: mongoose_acc:t()) -> ok.
+maybe_reset_unread_count(HostType, User, Remote, Packet, Acc) ->
     ResetMarkers = get_reset_markers(HostType),
     case if_chat_marker_get_id(Packet, ResetMarkers) of
         undefined ->
             ok;
         Id ->
-            reset_unread_count(HostType, User, Remote, Id)
+            TS = mongoose_acc:timestamp(Acc),
+            reset_unread_count(HostType, User, Remote, Id, TS)
     end.
 
--spec reset_unread_count_to_zero(mongooseim:host_type(), jid:jid(), jid:jid()) -> ok.
-reset_unread_count_to_zero(HostType, From, Remote) ->
+-spec reset_unread_count_to_zero(mongoose_acc:t(), jid:jid(), jid:jid()) -> ok.
+reset_unread_count_to_zero(Acc, From, Remote) ->
+    TS = mongoose_acc:timestamp(Acc),
+    HostType = mongoose_acc:host_type(Acc),
     InboxEntryKey = build_inbox_entry_key(From, Remote),
-    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined).
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, undefined, TS).
 
 -spec reset_unread_count(HostType ::mongooseim:host_type(),
                          From :: jid:jid(),
                          Remote :: jid:jid(),
-                         MsgId :: id()) -> ok.
-reset_unread_count(HostType, From, Remote, MsgId) ->
+                         MsgId :: id(),
+                         TS :: integer()) -> ok.
+reset_unread_count(HostType, From, Remote, MsgId, TS) ->
     InboxEntryKey = build_inbox_entry_key(From, Remote),
-    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId).
+    ok = mod_inbox_backend:reset_unread(HostType, InboxEntryKey, MsgId, TS).
 
 -spec write_to_sender_inbox(HostType :: mongooseim:host_type(),
                             Sender :: jid:jid(),
@@ -72,12 +80,11 @@ reset_unread_count(HostType, From, Remote, MsgId) ->
                             Acc :: mongoose_acc:t()) -> ok.
 write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
-    Content = exml:to_binary(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = 0,
     InboxEntryKey = build_inbox_entry_key(Sender, Receiver),
-    mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Content, Count, MsgId, Timestamp).
+    mod_inbox_backend:set_inbox(HostType, InboxEntryKey, Packet, Count, MsgId, Timestamp).
 
 -spec write_to_receiver_inbox(HostType :: mongooseim:host_type(),
                               Sender :: jid:jid(),
@@ -86,11 +93,10 @@ write_to_sender_inbox(HostType, Sender, Receiver, Packet, Acc) ->
                               Acc :: mongoose_acc:t()) -> ok | {ok, integer()}.
 write_to_receiver_inbox(HostType, Sender, Receiver, Packet, Acc) ->
     MsgId = get_msg_id(Packet),
-    Content = exml:to_binary(Packet),
     Timestamp = mongoose_acc:timestamp(Acc),
     InboxEntryKey = build_inbox_entry_key(Receiver, Sender),
     mod_inbox_backend:set_inbox_incr_unread(HostType, InboxEntryKey,
-                                            Content, MsgId, Timestamp).
+                                            Packet, MsgId, Timestamp).
 
 -spec clear_inbox(HostType :: mongooseim:host_type(),
                   User :: jid:user(),
@@ -218,3 +224,38 @@ build_forward_el(#{msg := Content, timestamp := Timestamp}) ->
 build_delay_el(Timestamp) ->
     TS = calendar:system_time_to_rfc3339(Timestamp, [{offset, "Z"}, {unit, microsecond}]),
     jlib:timestamp_to_xml(TS, undefined, undefined).
+
+all_valid_boxes_for_query(HostType) ->
+    [<<"all">> | gen_mod:get_module_opt(HostType, mod_inbox, boxes)].
+
+-spec list_single_form_field(Var :: binary(),
+                             Default :: binary(),
+                             Options :: [ Option | {Label, Value}]) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
+list_single_form_field(Var, Default, Options) ->
+    Value = form_field_value(Default),
+    #xmlel{
+       name = <<"field">>,
+       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
+       children = [Value | [ form_field_option(Option) || Option <- Options ]]
+      }.
+
+-spec form_field_option(Option | {Label, Value}) -> exml:element() when
+      Option :: binary(), Label :: binary(), Value :: binary().
+form_field_option({Label, Value}) ->
+    #xmlel{
+       name = <<"option">>,
+       attrs = [{<<"label">>, Label}],
+       children = [form_field_value(Value)]
+      };
+form_field_option(Option) ->
+    form_field_option({Option, Option}).
+
+-spec form_field_value(Value :: binary()) -> exml:element().
+form_field_value(Value) ->
+    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
+
+-spec calculate_ts_from(integer(), non_neg_integer()) -> integer().
+calculate_ts_from(Now, Days) ->
+    DaysInMicroSeconds = 86400000000 * Days, % 8.64e+10 microseconds in a day
+    Now - DaysInMicroSeconds.

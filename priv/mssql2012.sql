@@ -518,6 +518,12 @@ GO
 CREATE INDEX i_inbox_su_ts ON inbox(lserver, luser, timestamp);
 GO
 
+CREATE INDEX i_inbox_us_box ON inbox(lserver, luser, box);
+GO
+
+CREATE INDEX i_inbox_box ON inbox(box);
+GO
+
 CREATE TABLE dbo.pubsub_nodes (
     nidx BIGINT           IDENTITY(1,1) PRIMARY KEY,
     p_key NVARCHAR(150)   NOT NULL,

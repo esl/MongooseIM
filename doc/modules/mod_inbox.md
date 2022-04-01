@@ -30,7 +30,23 @@ Number of workers in the pool. More than the number of available schedulers is r
 A list of supported inbox boxes by the server. This can be used by clients to classify their inbox entries in any way that fits the end-user. The strings provided here will be used verbatim in the IQ query as described in [Inbox – Filtering and Ordering](../open-extensions/inbox.md#filtering-and-ordering).
 
 !!! note
-    `inbox` and `archive` are always enabled, and therefore don't need to be specified here.
+    `inbox`, `archive`, and `bin` are reserved box names and are always enabled, therefore they don't need to –and must not– be specified in this section. `all` has a special meaning in the box query and therefore is also not allowed as a box name.
+
+    If the asynchronous backend is configured, automatic removals become moves to the `bin` box, also called "Trash bin". This is to ensure eventual consistency. Then the bin can be emptied, either on a [user request](../open-extensions/inbox.md#examples-emptying-the-trash-bin), or through an [admin API endpoint](../mod_inbox_commands#admin-endpoint).
+
+#### `modules.mod_inbox.bin_ttl`
+* **Syntax:** non-negative integer, expressed in days.
+* **Default:** `30`
+* **Example:** `modules.mod_inbox.bin_ttl = 7`
+
+How old entries in the bin can be before the automatic bin cleaner collects them. A value of `7` would mean that entries that have been in the bin for more than 7 days will be cleaned on the next bin collection.
+
+#### `modules.mod_inbox.bin_clean_after`
+* **Syntax:** non-negative integer, expressed in hours
+* **Default:** `1`
+* **Example:** `modules.mod_inbox.bin_clean_after = 24`
+
+How often the automatic garbage collection runs over the bin.
 
 ### `modules.mod_inbox.reset_markers`
 * **Syntax:** array of strings, out of `"displayed"`, `"received"`, `"acknowledged"`
@@ -93,6 +109,7 @@ or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 
 ```toml
 [modules.mod_inbox]
+  backend = "rdbms_async"
   reset_markers = ["displayed"]
   aff_changes = true
   remove_on_kicked = true

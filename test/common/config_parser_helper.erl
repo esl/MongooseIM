@@ -547,7 +547,9 @@ all_modules() ->
       mod_inbox =>
           #{backend => rdbms,
             async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
-            boxes => [<<"inbox">>, <<"archive">>],
+            boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
+            bin_ttl => 30,
+            bin_clean_after => timer:hours(1),
             iqdisc => no_queue,
             aff_changes => true,
             groupchat => [muclight],
@@ -870,7 +872,9 @@ default_mod_config(mod_http_upload) ->
 default_mod_config(mod_inbox) ->
     #{backend => rdbms,
       async_writer => #{pool_size => 2 * erlang:system_info(schedulers_online)},
-      boxes => [<<"inbox">>, <<"archive">>],
+      boxes => [<<"inbox">>, <<"archive">>, <<"bin">>],
+      bin_ttl => 30,
+      bin_clean_after => timer:hours(1),
       groupchat => [muclight],
       aff_changes => true,
       remove_on_kicked => true,

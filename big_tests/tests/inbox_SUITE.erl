@@ -119,26 +119,28 @@ groups() ->
        get_with_start_timestamp,
        get_with_end_timestamp
       ]},
-     {regular, [],
+     {bin, [],
       [
-       {group, generic},
-       {group, one_to_one},
-       {group, muclight},
-       {group, muclight_config},
-       {group, muc},
-       {group, timestamps}
+       timeout_cleaner_flush_all,
+       rest_api_bin_flush_all,
+       rest_api_bin_flush_user,
+       xmpp_bin_flush,
+       bin_is_not_included_by_default
       ]},
-     {async_pools, [],
-      [
-       {group, generic},
-       {group, one_to_one},
-       {group, muclight},
-       {group, muclight_config},
-       {group, muc},
-       {group, timestamps}
-      ]}
+     {regular, [], test_groups()},
+     {async_pools, [], [{group, bin} | test_groups()]}
     ],
     inbox_helper:maybe_run_in_parallel(Gs).
+
+test_groups() ->
+    [
+     {group, generic},
+     {group, one_to_one},
+     {group, muclight},
+     {group, muclight_config},
+     {group, muc},
+     {group, timestamps}
+    ].
 
 suite() ->
     escalus:suite().
@@ -193,6 +195,10 @@ end_per_group(muc, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+init_per_testcase(timeout_cleaner_flush_all, Config) ->
+    clear_inbox_all(),
+    inbox_helper:reload_inbox_option(Config, [{bin_ttl, 0}, {bin_clean_after, 10}]),
+    escalus:init_per_testcase(timeout_cleaner_flush_all, Config);
 init_per_testcase(TS, Config)
   when TS =:= create_groupchat_no_affiliation_stored;
        TS =:= system_message_is_correctly_avoided ->
@@ -218,6 +224,9 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(timeout_cleaner_flush_all, Config) ->
+    inbox_helper:restore_inbox_option(Config),
+    escalus:end_per_testcase(timeout_cleaner_flush_all, Config);
 end_per_testcase(TS, Config)
   when TS =:= create_groupchat_no_affiliation_stored;
        TS =:= system_message_is_correctly_avoided ->
@@ -279,7 +288,7 @@ returns_valid_form(Config) ->
                              value := <<"desc">>,
                              options := OrderOptions } } = Form,
         [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
-        [<<"all">>, <<"archive">>, <<"inbox">>, <<"other">>] = lists:sort(BoxOptions),
+        [<<"all">>, <<"archive">>, <<"bin">>, <<"inbox">>, <<"other">>] = lists:sort(BoxOptions),
         #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
       end).
 
@@ -318,8 +327,8 @@ returns_error_when_no_reset_field_jid(Config) ->
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza( #{ <<"start">> => <<"invalid">>,
-                                                   <<"end">> => <<"invalid">>}, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{<<"start">> => <<"invalid">>,
+                                                  <<"end">> => <<"invalid">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
@@ -329,7 +338,7 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
 
 returns_error_when_unknown_field_sent(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:make_inbox_stanza( #{ <<"unknown_field">> => <<"unknown_field_value">> }, false),
+        Stanza = inbox_helper:make_inbox_stanza(#{<<"unknown_field">> => <<"unknown_field_value">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
@@ -569,8 +578,6 @@ total_unread_count_and_active_convs_are_zero_at_no_activity(Config) ->
         inbox_helper:get_inbox(Kate, #{count => 0, unread_messages => 0, active_conversations => 0})
                                                 end).
 
-
-
 try_to_reset_unread_counter_with_bad_marker(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
         Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"okey dockey">>), <<"111">>),
@@ -625,7 +632,7 @@ simple_groupchat_stored_in_all_inbox(Config) ->
         RoomJid = room_bin_jid(Room),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         Stanza = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg), Id),
+                   escalus_stanza:groupchat_to(RoomJid, Msg), Id),
         %% Alice sends message to a room
         escalus:send(Alice, Stanza),
         inbox_helper:wait_for_groupchat_msg(Users),
@@ -706,16 +713,12 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
-        RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
-        Msg = <<"marker time!">>,
-        Users = [Alice, Bob, Kate],
         % %% WHEN DONE
-        Stanza1 = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg), escalus_stanza:id()),
-        escalus:send(Alice, Stanza1),
-        inbox_helper:wait_for_groupchat_msg(Users),
+        Id = <<"some_ID">>,
+        Msg = <<"marker time!">>,
+        RoomName = pubsub_tools:pubsub_node_name(),
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         % %% AND MARKED WRONG
         inbox_helper:mark_last_muclight_message(Bob, [Alice, Bob, Kate], <<"received">>),
         inbox_helper:mark_last_muclight_message(Kate, [Alice, Bob, Kate], <<"acknowledged">>),
@@ -734,20 +737,15 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
 groupchat_reset_stanza_resets_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         % %% WITH
+        Id = <<"some_ID">>,
+        Msg = <<"marker time!">>,
+        RoomName = pubsub_tools:pubsub_node_name(),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
-        RoomJid = room_bin_jid(Room),
-        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         % %% WHEN A MESSAGE IS SENT
-        MsgStanza = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), <<"some_ID">>),
-        escalus:send(Alice, MsgStanza),
-        inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
-        % verify that Bob has the message on inbox
-        check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid,
-                                to = BobJid, content = <<"marker time!">>}]),
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         % %% AND WHEN SEND RESET FOR ROOM
         inbox_helper:reset_inbox(Bob, RoomJid),
         % %% THEN INBOX IS RESET FOR BOB, WITHOUT FORWARDING
@@ -773,7 +771,6 @@ create_groupchat(Config) ->
         RoomName = pubsub_tools:pubsub_node_name(),
         inbox_helper:create_room_and_check_inbox(Bob, [Alice, Kate], RoomName)
       end).
-
 
 %% this test combines options:
 %% ...
@@ -810,33 +807,30 @@ create_groupchat_no_affiliation_stored(Config) ->
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}])
     end).
 
-
 %% this test combines options:
 %% ...
 %%{aff_changes, true},
 %%{remove_on_kicked, true},
 leave_and_remove_conversation(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        Msg = <<"Hi Room!">>,
-        Id = <<"MyID">>,
-        Users = [Alice, Bob, Kate],
+        RoomName = pubsub_tools:pubsub_node_name(),
         AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        Room = inbox_helper:create_room(Alice, [Bob, Kate]),
-        RoomJid = room_bin_jid(Room),
+        %% Alice creates a room and send msg
+        Msg = <<"Hi all">>,
+        Id = <<"leave-id">>,
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
-        Stanza = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg), Id),
-        %% Alice sends msg to room
-        escalus:send(Alice, Stanza),
-        inbox_helper:wait_for_groupchat_msg(Users),
         %% Bob leaves the room
-        muc_light_helper:user_leave(Room, Bob, [{Alice, owner}, {Kate, member}]),
+        muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have one message
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
         %% Bob doesn't have conversation in his inbox
-        check_inbox(Bob, [])
+        check_inbox(Bob, [], #{box => inbox}),
+        if_async_check_bin(Config, Bob, [#conv{unread = 2, from = RoomJid, to = BobJid,
+                                               verify = fun inbox_helper:verify_is_none_aff_change/2}])
       end).
 
 %% this test combines options:
@@ -845,16 +839,15 @@ leave_and_remove_conversation(Config) ->
 %%{remove_on_kicked, false},
 leave_and_store_conversation(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        RoomName = <<"kicking-room">>,
+        RoomName = pubsub_tools:pubsub_node_name(),
         AliceJid = inbox_helper:to_bare_lower(Alice),
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        RoomJid = room_bin_jid(RoomName),
-        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
-        Msg = <<"Hi all">>,
         %% Alice creates a room and send msg
-        inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName,
-                                                      Msg, <<"leave-id">>),
+        Msg = <<"Hi all">>,
+        Id = <<"leave-id">>,
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         %% Bob leaves room
         muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
         %% Alice and Kate have conversation
@@ -873,6 +866,7 @@ leave_and_store_conversation(Config) ->
 no_aff_stored_and_remove_on_kicked(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         AliceJid = inbox_helper:to_bare_lower(Alice),
+        BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = room_bin_jid(?ROOM3),
         AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
@@ -889,9 +883,9 @@ no_aff_stored_and_remove_on_kicked(Config) ->
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
         %% Bob doesnt have a conversation in inbox
-        check_inbox(Bob, [])
+        check_inbox(Bob, [], #{box => inbox}),
+        if_async_check_bin(Config, Bob, [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}])
       end).
-
 
 %% this test combines options:
 %% ...
@@ -917,21 +911,20 @@ no_stored_and_remain_after_kicked(Config) ->
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]),
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]),
         %% Bob have a conversation in inbox. First unread is message from Alice, the second the affiliation change
-        check_inbox(Bob, [#conv{ unread = 2, from = RoomJid, to = BobJid,
-                               verify = fun inbox_helper:verify_is_none_aff_change/2}])
+        check_inbox(Bob, [#conv{unread = 2, from = RoomJid, to = BobJid,
+                                verify = fun inbox_helper:verify_is_none_aff_change/2}])
       end).
-
 
 groupchat_markers_one_reset_room_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        Id = <<"random-id">>,
         Msg = <<"Welcome guys">>,
-        RoomName = <<"markers_room">>,
-        RoomJid = room_bin_jid(RoomName),
+        RoomName = pubsub_tools:pubsub_node_name(),
         AliceJid = inbox_helper:to_bare_lower(Alice),
-        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         BobJid = inbox_helper:to_bare_lower(Bob),
         KateJid = inbox_helper:to_bare_lower(Kate),
-        inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"1-id">>),
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         %% Now Bob sends marker
         inbox_helper:mark_last_muclight_message(Bob, [Alice, Bob, Kate]),
         %% The crew ask for inbox second time. Only Kate has unread messages
@@ -942,12 +935,12 @@ groupchat_markers_one_reset_room_created(Config) ->
 
 groupchat_markers_all_reset_room_created(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-        RoomName = <<"markers_room2">>,
-        AliceJid = inbox_helper:to_bare_lower(Alice),
-        RoomJid = room_bin_jid(RoomName),
-        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
+        Id = <<"random-id">>,
         Msg = <<"Mark me!">>,
-        inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"2-id">>),
+        RoomName = pubsub_tools:pubsub_node_name(),
+        AliceJid = inbox_helper:to_bare_lower(Alice),
+        RoomJid = inbox_helper:create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, Id),
+        AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
         [inbox_helper:mark_last_muclight_message(U, [Alice, Bob, Kate]) || U <- [Bob, Kate]],
         inbox_helper:foreach_check_inbox([Bob, Kate, Alice], 0, AliceRoomJid, Msg)
       end).
@@ -1307,6 +1300,85 @@ get_with_end_timestamp(Config) ->
     end).
 
 
+%% Bin flushes tests
+bin_is_not_included_by_default(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        RoomName = create_room_and_make_users_leave(Alice, Bob, Kate),
+        RoomJid = room_bin_jid(RoomName),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        Convs = [#conv{unread = 1, from = RoomJid, to = BobJid,
+                       verify = fun inbox_helper:verify_is_none_aff_change/2}],
+        %% Fetching all does include it
+        check_inbox(Bob, Convs, #{box => all}),
+        %% Fetching without explicit box name skips the bin
+        check_inbox(Bob, [], #{})
+    end).
+
+rest_api_bin_flush_user(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is not in his bin anymore after triggering a bin flush
+        BobName = escalus_utils:get_username(Bob),
+        BobDomain = escalus_utils:get_server(Bob),
+        Path = <<"/inbox", "/", (BobDomain)/binary, "/", (BobName)/binary, "/0/bin">>,
+        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
+        ?assertEqual(1, NumOfRows),
+        check_inbox(Bob, [], #{box => bin})
+    end).
+
+rest_api_bin_flush_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is not in any bin anymore after triggering a bin flush
+        HostTypePath = uri_string:normalize(#{path => domain_helper:host_type()}),
+        Path = <<"/inbox/", HostTypePath/binary, "/0/bin">>,
+        {{<<"200">>, <<"OK">>}, NumOfRows} = rest_helper:delete(admin, Path),
+        ?assertEqual(2, NumOfRows),
+        check_inbox(Bob, [], #{box => bin}),
+        check_inbox(Kate, [], #{box => bin})
+    end).
+
+timeout_cleaner_flush_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is eventually not in any bin thanks to the periodic cleanouts
+        check_inbox(Bob, [], #{box => bin}),
+        check_inbox(Kate, [], #{box => bin})
+    end).
+
+xmpp_bin_flush(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        create_room_and_make_users_leave(Alice, Bob, Kate),
+        %% It is eventually not in any bin thanks to the periodic cleanouts
+        %% Bob requests flush through xmpp
+        Iq = escalus_stanza:iq(<<"set">>,
+                               [#xmlel{name = <<"empty-bin">>,
+                                       attrs = [{<<"xmlns">>, inbox_helper:inbox_ns()}],
+                                       children = []}]),
+        escalus:send(Bob, Iq),
+        escalus:assert(is_iq_result, [Iq], escalus:wait_for_stanza(Bob)),
+        check_inbox(Bob, [], #{box => bin})
+    end).
+
+
+%% helpers
+create_room_and_make_users_leave(Alice, Bob, Kate) ->
+    RoomName = pubsub_tools:pubsub_node_name(),
+    inbox_helper:create_room_and_check_inbox(Alice, [Bob, Kate], RoomName),
+    %% Bob leaves the room
+    muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
+    muc_light_helper:user_leave(RoomName, Kate, [{Alice, owner}]),
+    %% Bob doesn't have conversation in his inbox, nor Kate
+    check_inbox(Bob, [], #{box => inbox}),
+    check_inbox(Kate, [], #{box => inbox}),
+    RoomName.
+
+if_async_check_bin(Config, Bob, Convs) ->
+    case maps:get(backend, ?config(inbox_opts, Config), rdbms) of
+        rdbms -> ok;
+        rdbms_async ->
+            check_inbox(Bob, Convs, #{box => bin})
+    end.
 
 start_hook_listener() ->
     TestCasePid = self(),

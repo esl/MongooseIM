@@ -31,7 +31,7 @@
         ]).
 
 -ignore_xref([
-    behaviour_info/1, disco_local_features/1, filter_local_packet/1, get_personal_data/3,
+    disco_local_features/1, filter_local_packet/1, get_personal_data/3,
     inbox_unread_count/2, remove_domain/3, remove_user/3, user_send_packet/4
 ]).
 
@@ -94,18 +94,20 @@ start(HostType, #{iqdisc := IQDisc, groupchat := MucTypes} = Opts) ->
                                              fun ?MODULE:process_iq/5, #{}, IQDisc),
     gen_iq_handler:add_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm,
                                              fun mod_inbox_entries:process_iq_conversation/5, #{}, IQDisc),
+    start_cleaner(HostType, Opts),
     ok.
 
 -spec stop(HostType :: mongooseim:host_type()) -> ok.
 stop(HostType) ->
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
+    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm),
+    ejabberd_hooks:delete(hooks(HostType)),
+    stop_cleaner(HostType),
     mod_inbox_muc:stop(HostType),
     case mongoose_config:get_opt([{modules, HostType}, ?MODULE, backend]) of
         rdbms_async -> mod_inbox_rdbms_async:stop(HostType);
         _ -> ok
-    end,
-    ejabberd_hooks:delete(hooks(HostType)),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX, ejabberd_sm),
-    gen_iq_handler:remove_iq_handler_for_domain(HostType, ?NS_ESL_INBOX_CONVERSATION, ejabberd_sm).
+    end.
 
 -spec supported_features() -> [atom()].
 supported_features() ->
@@ -123,6 +125,9 @@ config_spec() ->
                                                            validate = {enum, [muc, muclight]}}},
                   <<"boxes">> => #list{items = #option{type = binary, validate = non_empty},
                                        validate = unique},
+                  <<"bin_ttl">> => #option{type = integer, validate = non_negative},
+                  <<"bin_clean_after">> => #option{type = integer, validate = non_negative,
+                                                   process = fun timer:hours/1},
                   <<"aff_changes">> => #option{type = boolean},
                   <<"remove_on_kicked">> => #option{type = boolean},
                   <<"iqdisc">> => mongoose_config_spec:iqdisc()
@@ -130,6 +135,8 @@ config_spec() ->
         defaults = #{<<"backend">> => rdbms,
                      <<"groupchat">> => [muclight],
                      <<"boxes">> => [],
+                     <<"bin_ttl">> => 30, % 30 days
+                     <<"bin_clean_after">> => timer:hours(1),
                      <<"aff_changes">> => true,
                      <<"remove_on_kicked">> => true,
                      <<"reset_markers">> => [<<"displayed">>],
@@ -148,9 +155,27 @@ async_config_spec() ->
       }.
 
 process_inbox_boxes(Config = #{boxes := Boxes}) ->
-    false = lists:any(fun(Name) -> Name =:= <<"inbox">> orelse Name =:= <<"archive">> end, Boxes),
-    AllBoxes = [<<"inbox">>, <<"archive">> | Boxes ],
+    false = lists:any(fun(<<"all">>) -> true;
+                         (<<"inbox">>) -> true;
+                         (<<"archive">>) -> true;
+                         (<<"bin">>) -> true;
+                         (_) -> false
+                      end, Boxes),
+    AllBoxes = [<<"inbox">>, <<"archive">>, <<"bin">> | Boxes ],
     Config#{boxes := AllBoxes}.
+
+%% Cleaner gen_server callbacks
+start_cleaner(HostType, #{bin_ttl := TTL, bin_clean_after := Interval}) ->
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    WOpts = #{host_type => HostType, action => fun mod_inbox_commands:flush_global_bin/2,
+              opts => TTL, interval => Interval},
+    MFA = {mongoose_collector, start_link, [Name, WOpts]},
+    ChildSpec = {Name, MFA, permanent, 5000, worker, [?MODULE]},
+    ejabberd_sup:start_child(ChildSpec).
+
+stop_cleaner(HostType) ->
+    Name = gen_mod:get_module_proc(HostType, ?MODULE),
+    ejabberd_sup:stop_child(Name).
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
@@ -163,6 +188,12 @@ process_iq(Acc, _From, _To, #iq{type = get, sub_el = SubEl} = IQ, #{host_type :=
     Form = build_inbox_form(HostType),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
+process_iq(Acc, #jid{luser = LUser, lserver = LServer},
+           _To, #iq{type = set, sub_el = #xmlel{name = <<"empty-bin">>}} = IQ,
+           #{host_type := HostType}) ->
+    TS = mongoose_acc:timestamp(Acc),
+    NumRemRows = mod_inbox_backend:empty_user_bin(HostType, LServer, LUser, TS),
+    {Acc, IQ#iq{type = result, sub_el = [build_empty_bin(NumRemRows)]}};
 process_iq(Acc, From, _To, #iq{type = set, sub_el = QueryEl} = IQ, _Extra) ->
     HostType = mongoose_acc:host_type(Acc),
     LUser = From#jid.luser,
@@ -312,6 +343,12 @@ process_message(HostType, From, To, Message, _TS, Dir, Type) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
+build_empty_bin(Num) ->
+    #xmlel{name = <<"empty-bin">>,
+           attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+           children = [#xmlel{name = <<"num">>,
+                              children = [#xmlcdata{content = integer_to_binary(Num)}]}]}.
+
 -spec build_inbox_message(mongoose_acc:t(), inbox_res(), jlib:iq()) -> exml:element().
 build_inbox_message(Acc, InboxRes, IQ) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mongoose_bin:gen_from_timestamp()}],
@@ -345,7 +382,7 @@ build_result_iq(List) ->
 %% iq-get
 -spec build_inbox_form(mongooseim:host_type()) -> exml:element().
 build_inbox_form(HostType) ->
-    AllBoxes = all_valid_boxes_for_query(HostType),
+    AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
     OrderOptions = [
                     {<<"Ascending by timestamp">>, <<"asc">>},
                     {<<"Descending by timestamp">>, <<"desc">>}
@@ -354,9 +391,9 @@ build_inbox_form(HostType) ->
                   jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
                   text_single_form_field(<<"start">>),
                   text_single_form_field(<<"end">>),
-                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
                   text_single_form_field(<<"hidden_read">>, <<"false">>),
-                  list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
+                  mod_inbox_utils:list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
+                  mod_inbox_utils:list_single_form_field(<<"box">>, <<"all">>, AllBoxes),
                   jlib:form_field({<<"archive">>, <<"boolean">>, <<"false">>})
                  ],
     #xmlel{name = <<"x">>,
@@ -371,33 +408,6 @@ text_single_form_field(Var) ->
 text_single_form_field(Var, DefaultValue) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
-
--spec list_single_form_field(Var :: binary(),
-                             Default :: binary(),
-                             Options :: [ Option | {Label, Value}]) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-list_single_form_field(Var, Default, Options) ->
-    Value = form_field_value(Default),
-    #xmlel{
-       name = <<"field">>,
-       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
-       children = [Value | [ form_field_option(Option) || Option <- Options ]]
-      }.
-
--spec form_field_option(Option | {Label, Value}) -> exml:element() when
-      Option :: binary(), Label :: binary(), Value :: binary().
-form_field_option({Label, Value}) ->
-    #xmlel{
-       name = <<"option">>,
-       attrs = [{<<"label">>, Label}],
-       children = [form_field_value(Value)]
-      };
-form_field_option(Option) ->
-    form_field_option({Option, Option}).
-
--spec form_field_value(Value :: binary()) -> exml:element().
-form_field_value(Value) ->
-    #xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}.
 
 %%%%%%%%%%%%%%%%%%%
 %% iq-set
@@ -501,7 +511,7 @@ fields_to_params(HostType, [{<<"box">>, [Value]} | RFields], Acc) ->
     case validate_box(HostType, Value) of
         false ->
             ?LOG_WARNING(#{what => inbox_invalid_form_field,
-                           field => archive, value => Value}),
+                           field => box, value => Value}),
             {error, bad_request, invalid_field_value(<<"box">>, Value)};
         true ->
             fields_to_params(HostType, RFields, Acc#{ box => Value })
@@ -520,7 +530,7 @@ binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
 
 validate_box(HostType, Box) ->
-    AllBoxes = all_valid_boxes_for_query(HostType),
+    AllBoxes = mod_inbox_utils:all_valid_boxes_for_query(HostType),
     lists:member(Box, AllBoxes).
 
 invalid_field_value(Field, Value) ->
@@ -582,6 +592,3 @@ inbox_owner_exists(Acc, _, To, incoming, MessageType) -> % filter_local_packet
 inbox_owner_exists(Acc, From, _, outgoing, _) -> % user_send_packet
     HostType = mongoose_acc:host_type(Acc),
     ejabberd_auth:does_user_exist(HostType, From, stored).
-
-all_valid_boxes_for_query(HostType) ->
-    [<<"all">> | gen_mod:get_module_opt(HostType, ?MODULE, boxes)].

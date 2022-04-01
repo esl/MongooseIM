@@ -78,6 +78,7 @@ groups() ->
         box_full_archive_can_be_fetched_queryid,
         box_and_archive_box_has_preference,
         box_other_does_get_fetched,
+        box_all_full_fetch,
         % archive
         archive_active_entry_gets_archived,
         archive_archived_entry_gets_active_on_request,
@@ -415,6 +416,16 @@ box_other_does_get_fetched(Config) ->
         inbox_helper:check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = Body}],
                                  #{box => inbox}),
         inbox_helper:check_inbox(Bob, [], #{box => archive})
+    end).
+
+box_all_full_fetch(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        % Alice sends a message to Bob and Kate
+        #{ Alice := AliceConvs } = inbox_helper:given_conversations_between(Alice, [Bob, Kate]),
+        inbox_helper:check_inbox(Alice, AliceConvs),
+        set_inbox_properties(Alice, Bob, [{box, archive}]),
+        set_inbox_properties(Alice, Kate, [{box, other}]),
+        inbox_helper:check_inbox(Alice, AliceConvs, #{box => all})
     end).
 
 % archive

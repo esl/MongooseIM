@@ -59,6 +59,7 @@ The inbox is fetched using regular XMPP [Data Forms]. To request the supported f
         <option label='all'><value>all</value></option>
         <option label='inbox'><value>inbox</value></option>
         <option label='archive'><value>archive</value></option>
+        <option label='bin'><value>bin</value></option>
       </field>
       <field var='archive' type='boolean'/>
     </x>
@@ -120,7 +121,7 @@ A client may specify the following parameters:
 * variable `end`: End date for the result set (value: ISO timestamp)
 * variable `order`: Order by timestamp (values: `asc`, `desc`)
 * variable `hidden_read`: Show only conversations with unread messages (values: `true`, `false`)
-* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, and `archive`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes)
+* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, `archive` and `bin`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). If not provided, all except the bin are returned.
 * variable `archive` [deprecated, prefer `box`]: whether to query the archive inbox. `true` means querying only the archive box, `false` means querying only the active box. If the flag is not set, it is assumed all entries are requested. This is kept for backwards compatibility reasons, use the `box` flag instead.
 
 They are encoded inside a standard XMPP [Data Forms] format.
@@ -152,11 +153,11 @@ where `Max` is a non-negative integer.
 Given an entry, certain properties are defined for such an entry:
 
 ### Box
-Clients usually have two different boxes for the inbox: the regular one, simply called the inbox (or the active inbox), and an archive box, where clients can manually throw conversations they don't want displayed in the default UI.
+Clients usually have two different boxes for the inbox: the regular one, simply called the inbox (or the active inbox), and an archive box, where clients can manually throw conversations they don't want displayed in the default UI. A third box is the trash bin, where deleted entries go and are cleaned up in regular intervals.
 
 It is expected that entries will reside in the archive until they're either manually moved back to the active box, or they receive a new message: in such case the entry should jump back to the active box automatically.
 
-More boxes can be implemented, see [mod_inbox#boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). Movement between boxes can be achieved through the right XMPP IQ, no automatic movements are developed as in the case of inbox-archive.
+More boxes can be implemented, see [mod_inbox#boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). Movement between boxes can be achieved through the right XMPP IQ, no more automatic movements are developed as in the case of inbox-archive.
 
 ### Read
 Entries keep a count of unread messages that is incremented automatically upon receiving a new message, and (in the current implementation) set to zero upon receiving either a message by one-self, or an appropriate chat marker as defined in [XEP-0333](https://xmpp.org/extensions/xep-0333.html) (which markers reset the count is a matter of configuration, see [doc](../modules/mod_inbox.md#modulesmod_inboxreset_markers)).
@@ -187,6 +188,12 @@ The server would respond with:
       <field var='archive' type='boolean' value='false'/>
       <field var='read' type='boolean' value='false'/>
       <field var='mute' type='text-single' value='0'/>
+      <field var='box' type='list-simple' value='all'>
+        <option label='all'><value>all</value></option>
+        <option label='inbox'><value>inbox</value></option>
+        <option label='archive'><value>archive</value></option>
+        <option label='bin'><value>bin</value></option>
+      </field>
     </x>
   </query>
 </iq>
@@ -313,6 +320,23 @@ If the client had sent an invalid number (negative, or NaN), the server would an
 </iq>
 ```
 
+### Examples: emptying the trash bin
+A user can empty his trash bin, through the following request:
+```xml
+<iq id='some_unique_id' type='set'>
+  <empty-bin xmlns='erlang-solutions.com:xmpp:inbox:0'/>
+</iq>
+```
+On success, the server would return how many entries where dropped as in:
+```xml
+<iq id='some_unique_id' to='alice@localhost/res1' type='result'>
+  <empty-bin xmlns='erlang-solutions.com:xmpp:inbox:0'>
+    <num>2</num>
+  </empty-bin>
+</iq>
+```
+The server might answer with a corresponding error message, might anything go wrong.
+
 ### Examples: muting an entry
 To mute an entry for a full day (86400 seconds in a day, 604800 in a week, for example), a client can send:
 ```xml
@@ -388,7 +412,7 @@ And similarly, to set a conversation as unread:
 </iq>
 ```
 
-### Deprecated entry stanza:
+### Deprecated reset entry stanza:
 You can reset the inbox with the following stanza:
 ```xml
 <iq type='set'>
