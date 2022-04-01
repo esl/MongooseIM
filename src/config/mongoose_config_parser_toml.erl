@@ -69,7 +69,7 @@ process(Content) ->
     HostTypes = proplists:get_value(host_types, Config, []),
     case extract_errors(Config) of
         [] ->
-            build_state(Hosts, HostTypes, Config);
+            mongoose_config_parser:build_state(Hosts, HostTypes, Config);
         Errors ->
             error(config_error(Errors))
     end.
@@ -304,17 +304,6 @@ item_key([<<"host_config">>], #{<<"host">> := Host}) -> {host, Host};
 item_key(_, _) -> item.
 
 %% Processing of the parsed options
-
--spec build_state([jid:server()], [jid:server()], [top_level_config()]) ->
-          mongoose_config_parser:state().
-build_state(Hosts, HostTypes, Opts) ->
-    lists:foldl(fun(F, StateIn) -> F(StateIn) end,
-                mongoose_config_parser:new_state(),
-                [fun(S) -> mongoose_config_parser:set_hosts(Hosts, S) end,
-                 fun(S) -> mongoose_config_parser:set_host_types(HostTypes, S) end,
-                 fun(S) -> mongoose_config_parser:set_opts(Opts, S) end,
-                 fun mongoose_config_parser:unfold_globals/1,
-                 fun mongoose_config_parser:post_process_modules/1]).
 
 %% Any nested config_part() may be a config_error() - this function extracts them all recursively
 -spec extract_errors([config()]) -> [config_error()].

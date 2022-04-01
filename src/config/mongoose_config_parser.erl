@@ -7,15 +7,10 @@
 -export([parse_file/1]).
 
 %% state API
--export([new_state/0,
-         set_opts/2,
-         set_hosts/2,
-         set_host_types/2,
-         get_opts/1]).
+-export([build_state/3, get_opts/1]).
 
 %% config post-processing
--export([unfold_globals/1,
-         post_process_modules/1]).
+-export([unfold_opts/1]).
 
 -callback parse_file(FileName :: string()) -> state().
 
@@ -47,6 +42,17 @@ parse_file(FileName) ->
 parser_module(".toml") -> mongoose_config_parser_toml.
 
 %% State API
+
+-spec build_state([jid:server()], [jid:server()], opts()) -> state().
+build_state(Hosts, HostTypes, Opts) ->
+    lists:foldl(fun(F, StateIn) -> F(StateIn) end,
+                new_state(),
+                [fun(S) -> set_hosts(Hosts, S) end,
+                 fun(S) -> set_host_types(HostTypes, S) end,
+                 fun(S) -> set_opts(Opts, S) end,
+                 fun unfold_globals/1,
+                 fun post_process_services/1,
+                 fun post_process_modules/1]).
 
 -spec new_state() -> state().
 new_state() ->
@@ -125,19 +131,33 @@ keep_global_value(acl) -> true;
 keep_global_value(access) -> true;
 keep_global_value(_) -> false.
 
+-spec post_process_services(state()) -> state().
+post_process_services(State = #state{opts = Opts}) ->
+    Opts1 = lists:map(fun post_process_services_opt/1, Opts),
+    State#state{opts = Opts1}.
+
+post_process_services_opt({services, Services}) ->
+    ServicesWithDeps = mongoose_service_deps:resolve_deps(Services),
+    {services, unfold_all_opts(ServicesWithDeps)};
+post_process_services_opt(Other) ->
+    Other.
+
 -spec post_process_modules(state()) -> state().
 post_process_modules(State = #state{opts = Opts}) ->
-    Opts2 = lists:map(fun post_process_modules_opt/1, Opts),
-    State#state{opts = Opts2}.
+    Opts1 = lists:map(fun post_process_modules_opt/1, Opts),
+    State#state{opts = Opts1}.
 
 post_process_modules_opt({{modules, HostType}, Modules}) ->
     ModulesWithDeps = gen_mod_deps:resolve_deps(HostType, Modules),
-    {{modules, HostType}, unfold_opts(ModulesWithDeps)};
+    {{modules, HostType}, unfold_all_opts(ModulesWithDeps)};
 post_process_modules_opt(Other) ->
     Other.
 
-unfold_opts(Modules) ->
-    maps:map(fun(_Mod, Opts) -> mongoose_modules:unfold_opts(Opts) end, Modules).
+unfold_all_opts(Modules) ->
+    maps:map(fun(_Mod, Opts) -> unfold_opts(Opts) end, Modules).
+
+unfold_opts(Opts) when is_map(Opts) -> Opts;
+unfold_opts(Opts) -> proplists:unfold(Opts).
 
 %% local functions
 
