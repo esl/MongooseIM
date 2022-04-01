@@ -1054,11 +1054,11 @@ service_enabled(Node) ->
     sync_local(Node).
 
 service_enabled(Node, Opts) ->
-    rpc(Node, mongoose_service, start_service, [service_domain_db, Opts]),
+    rpc(Node, mongoose_service, ensure_started, [service_domain_db, Opts]),
     true = rpc(Node, service_domain_db, enabled, []).
 
 service_disabled(Node) ->
-    rpc(Node, mongoose_service, stop_service, [service_domain_db]),
+    rpc(Node, mongoose_service, ensure_stopped, [service_domain_db]),
     false = rpc(Node, service_domain_db, enabled, []).
 
 init_with(Node, Pairs, AllowedHostTypes) ->
@@ -1159,12 +1159,12 @@ force_check_for_updates(Node) ->
     ok = rpc(Node, service_domain_db, force_check_for_updates, []).
 
 restore_conf(Node, #{loaded := Loaded, service_opts := ServiceOpts, core_opts := CoreOpts}) ->
-    rpc(Node, mongoose_service, stop_service, [service_domain_db]),
+    rpc(Node, mongoose_service, ensure_stopped, [service_domain_db]),
     [Pairs, AllowedHostTypes] = CoreOpts,
     init_with(Node, Pairs, AllowedHostTypes),
     case Loaded of
         true ->
-            rpc(Node, mongoose_service, start_service, [service_domain_db, ServiceOpts]);
+            rpc(Node, mongoose_service, ensure_started, [service_domain_db, ServiceOpts]);
         _ ->
             ok
     end.

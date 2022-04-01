@@ -87,7 +87,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     http_helper:stop(),
     Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
-    [start_system_metrics_module(Node, Args) || Node <- [mim(), mim2()]],
+    [start_system_metrics_service(Node, Args) || Node <- [mim(), mim2()]],
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
@@ -285,7 +285,6 @@ config_type_is_reported(_Config) ->
 
 just_removed_from_config_logs_question(_Config) ->
     disable_system_metrics(mim3()),
-    remove_service_from_config(service_mongoose_system_metrics),
     %% WHEN
     Result = distributed_helper:rpc(
                mim3(), service_mongoose_system_metrics, verify_if_configured, []),
@@ -309,7 +308,7 @@ in_config_unmodified_logs_request_for_agreement(_Config) ->
 in_config_with_explicit_no_report_goes_off_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_module(mim(), [no_report]),
+    start_system_metrics_service(mim(), [{no_report, true}]),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -323,7 +322,7 @@ in_config_with_explicit_no_report_goes_off_silently(_Config) ->
 in_config_with_explicit_reporting_goes_on_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_module(mim(), [report]),
+    start_system_metrics_service(mim(), [{report, true}]),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -425,17 +424,17 @@ enable_system_metrics(Node) ->
 enable_system_metrics(Node, Timers) ->
     UrlArgs = [google_analytics_url, ?SERVER_URL],
     ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
-    start_system_metrics_module(Node, Timers).
+    start_system_metrics_service(Node, Timers).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
     enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, ?TRACKING_ID_EXTRA}]).
 
-start_system_metrics_module(Node, Args) ->
+start_system_metrics_service(Node, Args) ->
     distributed_helper:rpc(
-      Node, mongoose_service, start_service, [service_mongoose_system_metrics, Args]).
+      Node, mongoose_service, ensure_started, [service_mongoose_system_metrics, Args]).
 
 disable_system_metrics(Node) ->
-    distributed_helper:rpc(Node, mongoose_service, stop_service, [service_mongoose_system_metrics]),
+    distributed_helper:rpc(Node, mongoose_service, ensure_stopped, [service_mongoose_system_metrics]),
     mongoose_helper:successful_rpc(Node, mongoose_config, unset_opt, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->
@@ -453,11 +452,6 @@ system_metrics_service_is_enabled(Node) ->
 
 system_metrics_service_is_disabled(Node) ->
     not system_metrics_service_is_enabled(Node).
-
-remove_service_from_config(Service) ->
-    Services = distributed_helper:rpc(mim3(), mongoose_config, get_opt, [services]),
-    NewServices = proplists:delete(Service, Services),
-    distributed_helper:rpc(mim3(), mongoose_config, set_opt, [services, NewServices]).
 
 events_are_reported_to_primary_tracking_id() ->
     events_are_reported_to_tracking_ids([primary_tracking_id()]).
