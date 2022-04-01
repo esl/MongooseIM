@@ -1,7 +1,5 @@
 # Contribution Guidelines
 
-This document aims to provide guidelines for merging changesets into the MongooseIM master branch.
-
 For the purpose of this document, we classify changesets/pull requests as:
 
 * big: implementation of new XEPs or major changes to core code
@@ -13,7 +11,7 @@ For the purpose of this document, we classify changesets/pull requests as:
 We strive for Inaka's superb [guidelines](https://github.com/inaka/erlang_guidelines).
 
 MongooseIM has an extensive test suite.
-Find **unit** (white box) tests under `test/` and **functional** (black box) tests under `test.disabled/ejabberd_tests/tests`.
+Find **unit** (white box) tests under `test/` and **functional** (black box) tests under `big_tests/tests`.
 It's important that tests are comprehensible: consider any preconditions, the test itself, and any postconditions that must hold.
 Inspect the existing test suites to see how _we_ make these clear.
 
@@ -40,49 +38,24 @@ Do your work in the branch, push it to the ESL repository if you have access to 
 
 ### Run tests
 
-When done, run the whole CT suite and write tests related to what you've done.
-
-### Check coding style
-
-Check you coding style by running Elvis on your work. You need:
-
-https://github.com/inaka/elvis (make sure elvis_core is at least version 0.3.3)
-
-in your PATH. Then run:
-
-`make rock BRANCH=your_development_branch`
-
-to check all files you have modified within your branch. Alternatively, you can run:
-
-`make rock FILE=file_to_check`
-
-or just
-
-`make rock`
-
-to check only modified files (both staged and unstaged).
-
-Fix all issues Elvis reports, otherwise your build will fail.
+When done with writing tests related to what you've done, run the whole CT suite, as [described in the docs](https://esl.github.io/MongooseDocs/latest/developers-guide/Testing-MongooseIM/).
 
 ### Push
 
 Then push the changes and create a pull request to master, following the PR description template.
-Make sure all GitHub Actions tests pass (if only some jobs fail it is advisable to restart them, since they sometimes
+Make sure all our CI tests pass (if only some jobs fail it may be advisable to restart them, since they seldom
 fail at random).
 
-If tests fail, see why here: http://mongooseim-ct-results.s3-website-eu-west-1.amazonaws.com/ and resolve any issues.
+If the tests fail, you can see why here: https://esl.github.io/circleci-mim-results/s3_reports.html (the exact link is visible under the `Upload results` step) and resolve any issues.
 
 ## 2. Review
 
-Both trivial and non-trivial PRs have to be reviewed by at least one other person from the core development team.
-For big changesets consult the Tech Lead.
-The reviewer's remarks should be placed as inline comments on github for future reference.
+Both trivial and non-trivial PRs have to be reviewed by at least one person from the development team.
 
-Then, apply the reviewer's suggestions.
 If the changes are limited to documentation or code formatting, remember to prefix commit message with "[skip ci]" so as not to run redundant tests.
 
 The reviewer should make sure all of their suggestions are applied.
-It is the reviewer who actually does the merge, so he takes at least half of the responsibility.
+It is the reviewer who actually does the merge, so he takes at some of the responsibility.
 
 ## 3. Merging
 
@@ -95,8 +68,7 @@ II. After rebase, push your branch with -f, make sure all tests pass.
 
 III. Tell your reviewer he can proceed.
 
-He hits the green button, and you can both celebrate.
-
+IV. He hits the green button, and you can both celebrate.
 
 # Contributing to mobile libraries
 
@@ -114,4 +86,4 @@ We highly encourage to go directly to upstream repositories, and follow the rele
 
 # Influencing the MongooseIM roadmap
 
-We do not have a specific process for community roadmap building. You are encouraged and welcome to influence the roadmap with GitHub issues, code contributions, or you can simply contact us to invent the future.
+We do not have a specific process for community roadmap building. You are encouraged and welcome to influence the roadmap with GitHub issues, code contributions, or you can simply [contact us](https://www.erlang-solutions.com/contact/) to invent the future.
