@@ -27,6 +27,7 @@
 all() ->
     [start_and_stop,
      start_error,
+     start_with_service_deps,
      stop_error,
      loaded_modules,
      loaded_modules_with_opts,
@@ -44,10 +45,10 @@ end_per_testcase(_, Config) ->
     Config.
 
 start_and_stop(_Config) ->
-    ?assertEqual({ok, ok}, gen_mod:start_module(host(a), a_module, [])),
-    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(a), b_module, [{k, v}])),
-    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(b), a_module, [])),
-    ?assertEqual({ok, ok}, gen_mod:start_module(host(b), b_module, [{k, v}])),
+    ?assertEqual({ok, ok}, gen_mod:start_module(host(a), a_module, #{})),
+    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(a), b_module, #{k => v})),
+    ?assertError(#{what := module_not_loaded}, gen_mod:start_module(host(b), a_module, #{})),
+    ?assertEqual({ok, ok}, gen_mod:start_module(host(b), b_module, #{k => v})),
     ?assertEqual(ok, gen_mod:stop_module(host(a), a_module)),
     ?assertError(#{what := module_not_loaded}, gen_mod:stop_module(host(a), b_module)),
     ?assertError(#{what := module_not_loaded}, gen_mod:stop_module(host(b), a_module)),
@@ -55,7 +56,13 @@ start_and_stop(_Config) ->
 
 start_error(_Config) ->
     meck:expect(a_module, start, fun(_, _) -> error(bad_weather) end),
-    ?assertError(bad_weather, gen_mod:start_module(host(a), a_module, [])).
+    ?assertError(bad_weather, gen_mod:start_module(host(a), a_module, #{})).
+
+start_with_service_deps(_Config) ->
+    meck:expect(a_module, deps, fun(_, _) -> [{service, a_service}] end),
+    ?assertError(#{what := service_not_loaded}, gen_mod:start_module(host(a), a_module, #{})),
+    mongoose_config:set_opt(services, #{a_service => #{}}),
+    ?assertEqual({ok, ok}, gen_mod:start_module(host(a), a_module, #{})).
 
 stop_error(_Config) ->
     meck:expect(a_module, stop, fun(_) -> error(bad_mood) end),
@@ -67,8 +74,8 @@ loaded_modules(_Config) ->
     ?assertEqual([a_module, b_module], gen_mod:loaded_modules()).
 
 loaded_modules_with_opts(_Config) ->
-    MA = #{a_module => []},
-    MB = #{b_module => [{k, v}]},
+    MA = #{a_module => #{}},
+    MB = #{b_module => #{k => v}},
     ?assertEqual(MA, gen_mod:loaded_modules_with_opts(host(a))),
     ?assertEqual(MB, gen_mod:loaded_modules_with_opts(host(b))),
     ?assertEqual(#{host(a) => MA, host(b) => MB}, gen_mod:loaded_modules_with_opts()).
@@ -78,8 +85,8 @@ hosts_with_module(_Config) ->
     ?assertEqual([host(b)], gen_mod:hosts_with_module(b_module)).
 
 hosts_and_opts_with_module(_Config) ->
-    ?assertEqual(#{host(a) => []}, gen_mod:hosts_and_opts_with_module(a_module)),
-    ?assertEqual(#{host(b) => [{k, v}]}, gen_mod:hosts_and_opts_with_module(b_module)).
+    ?assertEqual(#{host(a) => #{}}, gen_mod:hosts_and_opts_with_module(a_module)),
+    ?assertEqual(#{host(b) => #{k => v}}, gen_mod:hosts_and_opts_with_module(b_module)).
 
 host(a) ->
     <<"localhost">>;
@@ -94,5 +101,6 @@ setup_meck(Module) ->
 opts() ->
     [{hosts, [host(a), host(b)]},
      {host_types, []},
-     {{modules, host(a)}, #{a_module => []}},
-     {{modules, host(b)}, #{b_module => [{k, v}]}}].
+     {services, #{}},
+     {{modules, host(a)}, #{a_module => #{}}},
+     {{modules, host(b)}, #{b_module => #{k => v}}}].
