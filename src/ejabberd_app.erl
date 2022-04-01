@@ -51,7 +51,6 @@ start(normal, _Args) ->
     ejabberd_ctl:init(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
-    mongoose_service:start(),
     mongoose_config:start(),
     mongoose_router:start(),
     mongoose_logs:set_global_loglevel(mongoose_config:get_opt(loglevel)),
@@ -65,7 +64,7 @@ start(normal, _Args) ->
     ejabberd_sm:start(),
     ejabberd_auth:start(),
     mongoose_cluster_id:start(),
-    start_services(),
+    mongoose_service:start(),
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_metrics:init(),
@@ -84,7 +83,7 @@ prep_stop(State) ->
     mongoose_deprecations:stop(),
     ejabberd_listener:stop_listeners(),
     mongoose_modules:stop(),
-    stop_services(),
+    mongoose_service:stop(),
     broadcast_c2s_shutdown(),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
@@ -113,20 +112,6 @@ db_init() ->
             ok
     end,
     mnesia:wait_for_tables(mnesia:system_info(local_tables), infinity).
-
--spec start_services() -> ok.
-start_services() ->
-    lists:foreach(
-        fun({Service, Opts}) -> mongoose_service:ensure_loaded(Service, Opts) end,
-        mongoose_config:get_opt(services, [])
-    ).
-
--spec stop_services() -> ok.
-stop_services() ->
-    lists:foreach(
-        fun({Service, _Options}) -> mongoose_service:stop_service(Service) end,
-        mongoose_service:loaded_services_with_opts()
-    ).
 
 -spec broadcast_c2s_shutdown() -> 'ok'.
 broadcast_c2s_shutdown() ->
