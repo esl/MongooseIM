@@ -184,6 +184,7 @@ minimal_config_opts() ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
+     {services, #{}},
      {sm_backend, {mnesia, []}},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
