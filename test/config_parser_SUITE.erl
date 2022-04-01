@@ -824,6 +824,11 @@ listen_http_handlers_static(_Config) ->
          http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
                                                  <<"app">> => <<"cowboy_swagger">>,
                                                  <<"content_path">> => <<"swagger">>})),
+    ?cfg(listener_config(ejabberd_cowboy, #{modules => [{"localhost", "/api", cowboy_static,
+                                                         {file, "swagger", [{mimetypes, cow_mimetypes, all}]}
+                                                        }]}),
+         http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"file">>,
+                                                 <<"content_path">> => <<"swagger">>})),
     ?err(http_handler_raw(<<"cowboy_static">>, #{<<"type">> => <<"priv_dir">>,
                                                  <<"app">> => <<"cowboy_swagger">>})).
 
