@@ -68,7 +68,7 @@ start_listeners() ->
             end, Ls),
     {ok, {{one_for_one, 10, 1}, Ls2}}.
 
--spec start_listener(mongoose_listenet_config:listener()) -> {'error', pid()} | {'ok', _}.
+-spec start_listener(mongoose_listener_config:listener()) -> {'error', pid()} | {'ok', _}.
 start_listener(Opts = #{module := Module}) ->
     try
         %% It is only required to start the supervisor in some cases.
