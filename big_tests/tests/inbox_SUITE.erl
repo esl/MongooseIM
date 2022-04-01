@@ -119,15 +119,16 @@ groups() ->
        get_with_start_timestamp,
        get_with_end_timestamp
       ]},
-     {bin_flushes, [],
+     {bin, [],
       [
        timeout_cleaner_flush_all,
        rest_api_bin_flush_all,
        rest_api_bin_flush_user,
-       xmpp_bin_flush
+       xmpp_bin_flush,
+       bin_is_not_included_by_default
       ]},
      {regular, [], test_groups()},
-     {async_pools, [], [{group, bin_flushes} | test_groups()]}
+     {async_pools, [], [{group, bin} | test_groups()]}
     ],
     inbox_helper:maybe_run_in_parallel(Gs).
 
@@ -1300,6 +1301,19 @@ get_with_end_timestamp(Config) ->
 
 
 %% Bin flushes tests
+bin_is_not_included_by_default(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        RoomName = create_room_and_make_users_leave(Alice, Bob, Kate),
+        RoomJid = room_bin_jid(RoomName),
+        BobJid = inbox_helper:to_bare_lower(Bob),
+        Convs = [#conv{unread = 1, from = RoomJid, to = BobJid,
+                       verify = fun inbox_helper:verify_is_none_aff_change/2}],
+        %% Fetching all does include it
+        check_inbox(Bob, Convs, #{box => all}),
+        %% Fetching without explicit box name skips the bin
+        check_inbox(Bob, [], #{})
+    end).
+
 rest_api_bin_flush_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         create_room_and_make_users_leave(Alice, Bob, Kate),
@@ -1349,10 +1363,8 @@ xmpp_bin_flush(Config) ->
 
 %% helpers
 create_room_and_make_users_leave(Alice, Bob, Kate) ->
-    Msg = <<"Hi all">>,
     RoomName = pubsub_tools:pubsub_node_name(),
-    inbox_helper:create_room_send_msg_check_inbox(
-      Alice, [Bob, Kate], RoomName, Msg, <<"leave-id">>),
+    inbox_helper:create_room_and_check_inbox(Alice, [Bob, Kate], RoomName),
     %% Bob leaves the room
     muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
     muc_light_helper:user_leave(RoomName, Kate, [{Alice, owner}]),

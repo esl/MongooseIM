@@ -121,7 +121,7 @@ A client may specify the following parameters:
 * variable `end`: End date for the result set (value: ISO timestamp)
 * variable `order`: Order by timestamp (values: `asc`, `desc`)
 * variable `hidden_read`: Show only conversations with unread messages (values: `true`, `false`)
-* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, `archive` and `bin`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes)
+* variable `box`: Indicate which box is desired. Supported are `all`, `inbox`, `archive` and `bin`. More boxes can be implemented, see [mod_inbox – Boxes](../modules/mod_inbox.md#modulesmod_inboxboxes). If not provided, all except the bin are returned.
 * variable `archive` [deprecated, prefer `box`]: whether to query the archive inbox. `true` means querying only the archive box, `false` means querying only the active box. If the flag is not set, it is assumed all entries are requested. This is kept for backwards compatibility reasons, use the `box` flag instead.
 
 They are encoded inside a standard XMPP [Data Forms] format.

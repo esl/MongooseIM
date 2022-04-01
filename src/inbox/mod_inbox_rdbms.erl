@@ -307,7 +307,10 @@ lookup_query_columns(Params) ->
 
 -spec lookup_arg_keys(mod_inbox:get_inbox_params()) -> [atom()].
 lookup_arg_keys(Params) ->
-    lists:filter(fun(Key) -> maps:is_key(Key, Params) end, [start, 'end', box]).
+    lists:filter(
+      fun(box) -> maps:is_key(box, Params) andalso maps:get(box, Params, undefined) =/= <<"all">>;
+         (Key) -> maps:is_key(Key, Params)
+      end, [start, 'end', box]).
 
 -spec lookup_query_name(mod_inbox:get_inbox_params()) -> atom().
 lookup_query_name(Params) ->
@@ -326,6 +329,9 @@ param_to_column('end') -> timestamp;
 param_to_column(box) -> box.
 
 -spec param_id(Key :: atom(), Value :: any()) -> string().
+param_id(box, undefined) -> "_no_bin";
+param_id(box, <<"all">>) -> "";
+param_id(box, _) -> "_box";
 param_id(_, undefined) -> "";
 param_id(order, desc) -> "_desc";
 param_id(order, asc) -> "_asc";
@@ -333,8 +339,7 @@ param_id(limit, _) -> "_lim";
 param_id(start, _) -> "_start";
 param_id('end', _) -> "_end";
 param_id(hidden_read, true) -> "_hr";
-param_id(hidden_read, false) -> "";
-param_id(box, _) -> "_box".
+param_id(hidden_read, false) -> "".
 
 -spec order_to_sql(Order :: asc | desc) -> binary().
 order_to_sql(asc) -> <<"ASC">>;
@@ -353,6 +358,10 @@ lookup_sql_condition('end', Timestamp) when is_integer(Timestamp) ->
     " AND timestamp <= ?";
 lookup_sql_condition(hidden_read, true) ->
     " AND unread_count > 0";
+lookup_sql_condition(box, undefined) ->
+    " AND box <> 'bin'";
+lookup_sql_condition(box, <<"all">>) ->
+    "";
 lookup_sql_condition(box, Val) when is_binary(Val) ->
     " AND box = ?";
 lookup_sql_condition(_, _) ->
