@@ -739,7 +739,7 @@ hooks(HostType) ->
     [{disco_local_features, HostType, ?MODULE, disco_local_features, 99},
      {user_send_packet, HostType, ?MODULE, user_send_packet, 60},
      {rest_user_send_packet, HostType, ?MODULE, user_send_packet, 60},
-     {filter_local_packet, HostType, ?MODULE, filter_packet, 90},
+     {filter_local_packet, HostType, ?MODULE, filter_packet, 60},
      {remove_user, HostType, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, HostType, ?MODULE, remove_user, 50},
      {amp_determine_strategy, HostType, ?MODULE, determine_amp_strategy, 20},
