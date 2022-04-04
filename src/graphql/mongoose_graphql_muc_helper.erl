@@ -60,7 +60,7 @@ muc_room_config_to_map(Conf) ->
       <<"public">> => Conf#config.public,
       <<"publicList">> => Conf#config.public_list,
       <<"persistent">> => Conf#config.persistent,
-      <<"moderated">> => Conf#config.persistent,
+      <<"moderated">> => Conf#config.moderated,
       <<"membersByDefault">> => Conf#config.members_by_default,
       <<"membersOnly">> => Conf#config.members_only,
       <<"allowUserInvites">> => Conf#config.allow_user_invites,

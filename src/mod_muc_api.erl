@@ -44,7 +44,7 @@
 -define(USER_CANNOT_ACCESS_ROOM_RESULT,
         {not_allowed, "Given user does not have permission to read this room"}).
 -define(ROOM_NOT_FOUND_RESULT, {room_not_found, "Room not found"}).
--define(DELETE_NOT_EXISTING_ROOM_RESULT, {room_not_found, "Cannot remove not existing room"}).
+-define(DELETE_NONEXISTENT_ROOM_RESULT, {room_not_found, "Cannot remove non-existent room"}).
 -define(USER_NOT_FOUND_RESULT, {user_not_found, "Given user not found"}).
 -define(MUC_SERVER_NOT_FOUND_RESULT, {muc_server_not_found, "MUC server not found"}).
 
@@ -86,7 +86,7 @@ get_room_config(RoomJID) ->
     {ok, short_room_desc()} | {internal | not_found, iolist()}.
 create_instant_room(MUCDomain, Name, OwnerJID, Nick) ->
     %% Because these stanzas are sent on the owner's behalf through
-    %% the HTTP API, they will certainly recieve stanzas as a
+    %% the HTTP API, they will certainly receive stanzas as a
     %% consequence, even if their client(s) did not initiate this.
     case ejabberd_auth:does_user_exist(OwnerJID) of
         true ->
@@ -117,7 +117,7 @@ modify_room_config(RoomJID, UserJID, Fun) ->
                 {ok, true} ->
                     modify_room_config_raw(Pid, Fun);
                 {ok, false} ->
-                    {not_allowed, "Given user does not have permission to chagne the config"}
+                    {not_allowed, "Given user does not have permission to change the config"}
             end;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
@@ -183,7 +183,7 @@ delete_room(RoomJID, Reason) ->
             gen_fsm_compat:send_all_state_event(Pid, {destroy, Reason}),
             ?ROOM_DELETED_SUCC_RESULT;
         {error, not_found} ->
-            ?DELETE_NOT_EXISTING_ROOM_RESULT
+            ?DELETE_NONEXISTENT_ROOM_RESULT
     end.
 
 -spec delete_room(jid:jid(), jid:jid(), binary()) ->
@@ -199,7 +199,7 @@ delete_room(RoomJID, OwnerJID, Reason) ->
                     {not_allowed, "Given user does not have permission to delete this room"}
             end;
         {error, not_found} ->
-            ?DELETE_NOT_EXISTING_ROOM_RESULT
+            ?DELETE_NONEXISTENT_ROOM_RESULT
     end.
 -spec get_room_users(jid:jid()) -> {ok, [user_map()]} | {room_not_found, iolist()}.
 get_room_users(RoomJID) ->
@@ -303,8 +303,7 @@ room_desc_to_map(Desc) ->
             #{title => Title, private => Private, users_number => Number}
     end.
 
--spec verify_room(jid:jid(), jid:jid()) ->
-    ok | {internal | not_found, term()}.
+-spec verify_room(jid:jid(), jid:jid()) -> ok | {internal | not_found, term()}.
 verify_room(BareRoomJID, OwnerJID) ->
     case mod_muc_room:can_access_room(BareRoomJID, OwnerJID) of
         {ok, true} ->
@@ -315,16 +314,14 @@ verify_room(BareRoomJID, OwnerJID) ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
-iq(Type, Sender, Recipient, Children)
-  when is_binary(Type), is_list(Children) ->
+iq(Type, Sender, Recipient, Children) when is_binary(Type), is_list(Children) ->
     Addresses = address_attributes(Sender, Recipient),
     #xmlel{name = <<"iq">>,
            attrs = Addresses ++ [{<<"type">>, Type}],
            children = Children
           }.
 
-message(Sender, Recipient, Type, Contents)
-  when is_binary(Type), is_list(Contents) ->
+message(Sender, Recipient, Type, Contents) when is_binary(Type), is_list(Contents) ->
     Addresses = address_attributes(Sender, Recipient),
     Attributes = case Type of
                      <<>> -> Addresses;
@@ -332,42 +329,36 @@ message(Sender, Recipient, Type, Contents)
                  end,
     #xmlel{name = <<"message">>,
            attrs = Attributes,
-           children = Contents
-          }.
+           children = Contents}.
 
 query(XMLNameSpace, Children)
   when is_binary(XMLNameSpace), is_list(Children) ->
     #xmlel{name = <<"query">>,
            attrs = [{<<"xmlns">>, XMLNameSpace}],
-           children = Children
-          }.
+           children = Children}.
 
 presence(Sender, Recipient) ->
     #xmlel{name = <<"presence">>,
            attrs = address_attributes(Sender, Recipient),
            children = [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_MUC}]}]
-          }.
+                              attrs = [{<<"xmlns">>, ?NS_MUC}]}]}.
 
 declination(Sender, Recipient) ->
-    iq(<<"set">>, Sender, Recipient, [ data_submission() ]).
+    iq(<<"set">>, Sender, Recipient, [data_submission()]).
 
 data_submission() ->
     query(?NS_MUC_OWNER, [#xmlel{name = <<"x">>,
-                              attrs = [{<<"xmlns">>, ?NS_XDATA},
-                                       {<<"type">>, <<"submit">>}]}]).
+                                 attrs = [{<<"xmlns">>, ?NS_XDATA},
+                                          {<<"type">>, <<"submit">>}]}]).
 
 address_attributes(Sender, Recipient) ->
-    [
-     {<<"from">>, jid:to_binary(jid:to_lower(Sender))},
-     {<<"to">>, jid:to_binary(jid:to_lower(Recipient))}
-    ].
+    [{<<"from">>, jid:to_binary(jid:to_lower(Sender))},
+     {<<"to">>, jid:to_binary(jid:to_lower(Recipient))}].
 
 room_moderator(RoomJID) ->
     [JIDStruct|_] =
-        [ UserJID
-          || #user{ jid = UserJID,
-                    role = moderator } <- room_users(RoomJID) ],
+        [UserJID || #user{jid = UserJID,
+                          role = moderator} <- room_users(RoomJID)],
     JIDStruct.
 
 room_users(RoomJID) ->

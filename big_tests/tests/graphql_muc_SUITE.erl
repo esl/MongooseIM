@@ -29,6 +29,7 @@ user_muc_handler() ->
      user_try_create_instant_room_with_nonexistent_domain,
      user_list_rooms,
      user_list_room_users,
+     user_list_room_users_without_anonymous_mode,
      user_try_list_room_users_without_permission,
      user_try_list_nonexistent_room_users,
      user_change_room_config,
@@ -165,14 +166,12 @@ admin_try_create_instant_room_with_nonexistent_user(Config) ->
 admin_try_delete_nonexistent_room(Config) ->
     RoomJID = jid:make_bare(<<"unknown">>, muc_helper:muc_host()),
     Res = execute_auth(delete_room_body(RoomJID, null), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res),
-                                          <<"not existing">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 admin_try_delete_room_with_nonexistent_domain(Config) ->
     RoomJID = jid:make_bare(<<"unknown">>, <<"unknown">>),
     Res = execute_auth(delete_room_body(RoomJID, null), Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res),
-                                          <<"not existing">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 admin_invite_user(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}], fun admin_invite_user_story/3).
@@ -222,15 +221,15 @@ admin_send_message_to_room(Config) ->
 
 admin_send_message_to_room_story(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Messsage = <<"Hello All!">>,
+    Message = <<"Hello All!">>,
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanza(Bob),
     % Send message
-    Res = execute_auth(admin_send_message_to_room_body(RoomJID, Bob, Messsage), Config),
+    Res = execute_auth(admin_send_message_to_room_body(RoomJID, Bob, Message), Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
-    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Messsage,
+    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
                               escalus:wait_for_stanza(Bob)).
 
 admin_get_room_config(Config) ->
@@ -358,7 +357,7 @@ user_try_delete_nonexistent_room(Config) ->
 user_try_delete_nonexistent_room_story(Config, Alice) ->
     RoomJID = jid:make_bare(<<"unknown">>, muc_helper:muc_host()),
     Res = execute_user(delete_room_body(RoomJID, null), Alice, Config),
-    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not existing">>)).
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"non-existent">>)).
 
 user_try_delete_room_by_not_owner(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
@@ -390,7 +389,7 @@ user_kick_user_story(Config, Alice, Bob) ->
     RoomJIDBin = ?config(room_jid, Config),
     RoomJID = jid:from_binary(RoomJIDBin),
     BobNick = <<"Bobek">>,
-    Reason = <<"You are too laud">>,
+    Reason = <<"You are too loud">>,
     enter_room(RoomJID, Alice, <<"ali">>),
     enter_room(RoomJID, Bob, BobNick),
     Res = execute_user(kick_user_body(RoomJID, BobNick, Reason), Alice, Config),
@@ -409,15 +408,15 @@ user_send_message_to_room(Config) ->
 
 user_send_message_to_room_story(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Messsage = <<"Hello All!">>,
+    Message = <<"Hello All!">>,
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanza(Bob),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, Messsage, null), Bob, Config),
+    Res = execute_user(user_send_message_to_room_body(RoomJID, Message, null), Bob, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
-    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Messsage,
+    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
                               escalus:wait_for_stanza(Bob)).
 
 user_send_message_to_room_with_specified_res(Config) ->
@@ -426,15 +425,15 @@ user_send_message_to_room_with_specified_res(Config) ->
 
 user_send_message_to_room_with_specified_res_story(Config, _Alice, Bob, Bob2) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Messsage = <<"Hello All!">>,
+    Message = <<"Hello All!">>,
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob2, BobNick),
     escalus:wait_for_stanza(Bob2),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, Messsage, <<"res2">>), Bob, Config),
+    Res = execute_user(user_send_message_to_room_body(RoomJID, Message, <<"res2">>), Bob, Config),
     ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
                                           <<"successfully">>)),
-    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Messsage,
+    assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
                               escalus:wait_for_stanza(Bob2)).
 
 user_without_session_send_message_to_room(Config) ->
@@ -443,11 +442,10 @@ user_without_session_send_message_to_room(Config) ->
 
 user_without_session_send_message_to_room_story(Config, Alice) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
-    Messsage = <<"Hello All!">>,
     JID = jid:from_binary(escalus_client:full_jid(Alice)),
     {exit, _} = rpc(mim(), ejabberd_c2s, terminate_session, [JID, <<"Kicked">>]),
     % Send message
-    Res = execute_user(user_send_message_to_room_body(RoomJID, Messsage, null), Alice, Config),
+    Res = execute_user(user_send_message_to_room_body(RoomJID, <<"Hello!">>, null), Alice, Config),
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have any session">>)).
 
 user_get_room_config(Config) ->
@@ -502,6 +500,21 @@ user_list_room_users(Config) ->
                                fun user_list_room_users_story/3).
 
 user_list_room_users_story(Config, Alice, Bob) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    BobNick = <<"Bobek">>,
+    AliceNick = <<"Ali">>,
+    enter_room(RoomJID, Bob, BobNick),
+    enter_room(RoomJID, Alice, AliceNick),
+    Res = execute_user(list_room_users_body(RoomJID), Alice, Config),
+    ExpectedUsers = [{null, BobNick, <<"PARTICIPANT">>},
+                     {null, AliceNick, <<"MODERATOR">>}],
+    assert_room_users(ExpectedUsers, get_ok_value(?LIST_ROOM_USERS_PATH, Res)).
+
+user_list_room_users_without_anonymous_mode(Config) ->
+    muc_helper:story_with_room(Config, [{anonymous, false}], [{alice, 1}, {bob, 1}],
+                               fun user_list_room_users_without_anonymous_mode_story/3).
+
+user_list_room_users_without_anonymous_mode_story(Config, Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     BobNick = <<"Bobek">>,
     AliceNick = <<"Ali">>,
@@ -574,23 +587,19 @@ rand_name() ->
 
 -spec assert_room_users([{jid:jid(), binary(), binary()}], [map()]) -> ok.
 assert_room_users(Expected, Actual) ->
-    lists:all(fun(#{<<"jid">> := JID, <<"role">> := Role, <<"nick">> := Nick}) ->
-                      lists:any(fun({JID2, Nick2, Role2}) ->
-                                        JID =:= JID2 andalso Nick =:= Nick2 andalso Role =:= Role2
-                                end, Expected)
-              end, Actual).
+    ActualTuples = [{JID, Nick, Role} || #{<<"jid">> := JID, <<"role">> := Role, <<"nick">> := Nick} <- Actual],
+    ?assertEqual(lists:sort(Expected), lists:sort(ActualTuples)).
 
 assert_is_message_correct(RoomJID, SenderNick, Type, Text, ReceivedMessage) ->
     escalus_pred:is_message(ReceivedMessage),
     From = jid:to_binary(jid:replace_resource(RoomJID, SenderNick)),
-    From  = exml_query:attr(ReceivedMessage, <<"from">>),
-    Type  = exml_query:attr(ReceivedMessage, <<"type">>),
+    From = exml_query:attr(ReceivedMessage, <<"from">>),
+    Type = exml_query:attr(ReceivedMessage, <<"type">>),
     Body = #xmlel{name = <<"body">>, children = [#xmlcdata{content=Text}]},
     Body = exml_query:subelement(ReceivedMessage, <<"body">>).
 
 enter_room(RoomJID, User, Nick) ->
     JID = jid:to_binary(jid:replace_resource(RoomJID, Nick)),
-    %X = #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_MUC}]},
     Pres = escalus_stanza:to(escalus_stanza:presence(<<"available">>, []), JID),
     escalus:send(User, Pres),
     escalus:wait_for_stanza(User).
@@ -611,7 +620,7 @@ assert_default_room_config(Response) ->
                    <<"public">> := true,
                    <<"publicList">> := true,
                    <<"persistent">> := false,
-                   <<"moderated">> := false,
+                   <<"moderated">> := true,
                    <<"membersByDefault">> := true,
                    <<"membersOnly">> := false,
                    <<"allowUserInvites">> := false,
