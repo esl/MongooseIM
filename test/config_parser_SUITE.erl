@@ -3120,7 +3120,9 @@ service_mongoose_system_metrics(_Config) ->
          T(#{<<"periodic_report">> => 5000})),
     ?cfg(servopts(M, [{tracking_id, "UA-123456789"}]),
          T(#{<<"tracking_id">> => <<"UA-123456789">>})),
-    ?cfg(servopts(M, [no_report]),
+    ?cfg(servopts(M, [{report, true}]),
+         T(#{<<"report">> => true})),
+    ?cfg(servopts(M, [{no_report, true}]),
          T(#{<<"report">> => false})),
     %% error cases
     ?err(T(#{<<"initial_report">> => <<"forever">>})),
@@ -3167,7 +3169,7 @@ modopts(Mod, Opts) ->
     [{[modules, Mod], Opts}].
 
 servopts(Service, Opts) ->
-    [{services, [{Service, Opts}]}].
+    [{[services, Service], Opts}].
 
 %% helpers for 'listen' tests
 
@@ -3284,18 +3286,6 @@ get_config_value([TopKey | Rest], Config) ->
     case lists:keyfind(TopKey, 1, Config) of
         false -> ct:fail({"option not found", TopKey, Config});
         {_, TopValue} -> lists:foldl(fun maps:get/2, TopValue, Rest)
-    end.
-
--spec assert_error([mongoose_config_parser_toml:config()]) ->
-          [mongoose_config_parser_toml:config_error()].
-assert_error(Config) ->
-    case extract_errors(Config) of
-        [] ->
-            ct:fail({"Expected errors but found none", Config});
-        Errors ->
-            [?assertMatch(#{class := error,
-                            what := toml_processing_failed}, Error) || Error <- Errors],
-            Errors
     end.
 
 %% helpers for file tests

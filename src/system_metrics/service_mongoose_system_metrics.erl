@@ -45,8 +45,7 @@
 
 -spec verify_if_configured() -> ok | ignore.
 verify_if_configured() ->
-    Services = mongoose_config:get_opt(services, []),
-    case proplists:is_defined(?MODULE, Services) of
+    case mongoose_service:is_loaded(?MODULE) of
         false ->
             %% Technically, notice level.
             %% Though make it louder, in case people set minimum level as warning.
