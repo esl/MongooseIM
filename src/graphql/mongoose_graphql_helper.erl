@@ -2,7 +2,9 @@
 
 -export([check_user/2]).
 
--export([format_result/2, make_error/2, make_error/3, null_to_default/2]).
+-export([null_to_default/2, null_to_undefined/1]).
+
+-export([format_result/2, make_error/2, make_error/3]).
 
 -include("jlib.hrl").
 -include("mongoose_graphql_types.hrl").
@@ -49,3 +51,6 @@ null_to_default(null, Default) ->
     Default;
 null_to_default(Value, _Default) ->
     Value.
+
+null_to_undefined(null) -> undefined;
+null_to_undefined(V) -> V.

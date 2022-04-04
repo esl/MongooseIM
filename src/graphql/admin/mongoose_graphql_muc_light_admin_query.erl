@@ -7,10 +7,9 @@
 
 -include("../mongoose_graphql_types.hrl").
 
--import(mongoose_graphql_helper, [make_error/2, format_result/2]).
+-import(mongoose_graphql_helper, [make_error/2, format_result/2, null_to_undefined/1]).
 -import(mongoose_graphql_muc_light_helper, [make_room/1,
                                             make_ok_user/1,
-                                            null_to_undefined/1,
                                             page_size_or_max_limit/2]).
 
 execute(_Ctx, _Obj, <<"listUserRooms">>, Args) ->

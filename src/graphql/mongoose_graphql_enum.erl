@@ -22,7 +22,11 @@ input(<<"SubAction">>, <<"ACCEPT">>) -> {ok, accept};
 input(<<"SubAction">>, <<"DECLINE">>) -> {ok, decline};
 input(<<"SubAction">>, <<"CANCEL">>) -> {ok, cancel};
 input(<<"MutualSubAction">>, <<"CONNECT">>) -> {ok, connect};
-input(<<"MutualSubAction">>, <<"DISCONNECT">>) -> {ok, disconnect}.
+input(<<"MutualSubAction">>, <<"DISCONNECT">>) -> {ok, disconnect};
+input(<<"MUCRoomRole">>, <<"NONE">>) -> {ok, none};
+input(<<"MUCRoomRole">>, <<"VISITOR">>) -> {ok, visitor};
+input(<<"MUCRoomRole">>, <<"PARTICIPANT">>) -> {ok, participant};
+input(<<"MUCRoomRole">>, <<"MODERATOR">>) -> {ok, moderator}.
 
 output(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Show)))};
@@ -47,4 +51,6 @@ output(<<"ContactAsk">>, Type) when Type =:= subscrube;
                                     Type =:= out;
                                     Type =:= both;
                                     Type =:= none ->
-    {ok, list_to_binary(string:to_upper(atom_to_list(Type)))}.
+    {ok, list_to_binary(string:to_upper(atom_to_list(Type)))};
+output(<<"MUCRoomRole">>, Role) ->
+    {ok, list_to_binary(string:to_upper(atom_to_list(Role)))}.

@@ -11,6 +11,8 @@ execute(_Ctx, _Obj, <<"domains">>, _Args) ->
     {ok, admin};
 execute(_Ctx, _Obj, <<"account">>, _Args) ->
     {ok, account};
+execute(_Ctx, _Obj, <<"muc">>, _Args) ->
+    {ok, muc};
 execute(_Ctx, _Obj, <<"muc_light">>, _Args) ->
     {ok, muc_light};
 execute(_Ctx, _Obj, <<"session">>, _Args) ->

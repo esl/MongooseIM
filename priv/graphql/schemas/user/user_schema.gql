@@ -12,6 +12,8 @@ type UserQuery{
   checkAuth: UserAuthInfo
   "Account management"
   account: AccountUserQuery
+  "MUC room management"
+  muc: MUCUserQuery
   "MUC Light room management"
   muc_light: MUCLightUserQuery
   "Session management"
@@ -29,6 +31,8 @@ Only an authenticated user can execute these mutations.
 type UserMutation @protected{
   "Account management"
   account: AccountUserMutation
+  "MUC room management"
+  muc: MUCUserMutation
   "MUC Light room management"
   muc_light: MUCLightUserMutation
   "Stanza management"
