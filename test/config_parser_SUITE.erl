@@ -3103,9 +3103,10 @@ incorrect_module(_Config) ->
 %% Services
 
 service_admin_extra(_Config) ->
+    P = [services, service_admin_extra],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_admin_extra">> => Opts}} end,
-    ?cfg(servopts(service_admin_extra, [{submods, [node]}]),
-         T(#{<<"submods">> => [<<"node">>]})),
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [submods], [node], T(#{<<"submods">> => [<<"node">>]})),
     ?err(T(#{<<"submods">> => 1})),
     ?err(T(#{<<"submods">> => [1]})),
     ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})),

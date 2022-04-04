@@ -246,9 +246,8 @@ options("mongooseim-pgsql") ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
       #{service_admin_extra =>
-            [{submods,
-              [node, accounts, sessions, vcard, gdpr, upload, roster, last, private,
-               stanza, stats]}],
+            #{submods => [node, accounts, sessions, vcard, gdpr, upload,
+                          roster, last, private, stanza, stats]},
         service_mongoose_system_metrics =>
             [{initial_report, 300000},
              {periodic_report, 10800000}]
@@ -1167,7 +1166,10 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
                           {<<"Organization Name">>, <<"ORGNAME">>},
                           {<<"Organization Unit">>, <<"ORGUNIT">>}],
       search_operator => 'and',
-      binary_search_fields => []}.
+      binary_search_fields => []};
+default_config([services, service_admin_extra]) ->
+    #{submods => [node, accounts, sessions, vcard, roster, last,
+                  private, stanza, stats, gdpr, upload, domain]}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
