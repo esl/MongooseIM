@@ -3109,29 +3109,22 @@ service_admin_extra(_Config) ->
     ?cfg(P ++ [submods], [node], T(#{<<"submods">> => [<<"node">>]})),
     ?err(T(#{<<"submods">> => 1})),
     ?err(T(#{<<"submods">> => [1]})),
-    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})),
-    ok.
+    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})).
 
 service_mongoose_system_metrics(_Config) ->
-    M = service_mongoose_system_metrics,
+    P = [services, service_mongoose_system_metrics],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_mongoose_system_metrics">> => Opts}} end,
-    ?cfg(servopts(M, [{initial_report, 5000}]),
-         T(#{<<"initial_report">> => 5000})),
-    ?cfg(servopts(M, [{periodic_report, 5000}]),
-         T(#{<<"periodic_report">> => 5000})),
-    ?cfg(servopts(M, [{tracking_id, "UA-123456789"}]),
-         T(#{<<"tracking_id">> => <<"UA-123456789">>})),
-    ?cfg(servopts(M, [{report, true}]),
-         T(#{<<"report">> => true})),
-    ?cfg(servopts(M, [{no_report, true}]),
-         T(#{<<"report">> => false})),
-    %% error cases
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [initial_report], 5000, T(#{<<"initial_report">> => 5000})),
+    ?cfg(P ++ [periodic_report], 5000, T(#{<<"periodic_report">> => 5000})),
+    ?cfg(P ++ [tracking_id], "UA-123456789", T(#{<<"tracking_id">> => <<"UA-123456789">>})),
+    ?cfg(P ++ [report], true, T(#{<<"report">> => true})),
     ?err(T(#{<<"initial_report">> => <<"forever">>})),
     ?err(T(#{<<"periodic_report">> => <<"forever">>})),
     ?err(T(#{<<"initial_report">> => -1})),
     ?err(T(#{<<"periodic_report">> => -1})),
     ?err(T(#{<<"tracking_id">> => 666})),
-    ok.
+    ?err(T(#{<<"report">> => <<"maybe">>})).
 
 %% Helpers for module tests
 

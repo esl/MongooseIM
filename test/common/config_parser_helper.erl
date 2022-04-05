@@ -80,10 +80,10 @@ options("miscellaneous") ->
      {routing_modules,
       [mongoose_router_global, mongoose_router_localdomain]},
      {services,
-      #{service_mongoose_system_metrics => [{initial_report, 300000},
-                                            {periodic_report, 10800000},
-                                            {report, true},
-                                            {tracking_id, "UA-123456789"}]}},
+      #{service_mongoose_system_metrics => #{initial_report => 20000,
+                                             periodic_report => 300000,
+                                             report => true,
+                                             tracking_id => "UA-123456789"}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, {mnesia, []}},
@@ -249,9 +249,8 @@ options("mongooseim-pgsql") ->
             #{submods => [node, accounts, sessions, vcard, gdpr, upload,
                           roster, last, private, stanza, stats]},
         service_mongoose_system_metrics =>
-            [{initial_report, 300000},
-             {periodic_report, 10800000}]
-       }},
+            #{initial_report => 300000,
+              periodic_report => 10800000}}},
      {sm_backend, {mnesia, []}},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{allow_multiple_connections => true,
@@ -1169,7 +1168,10 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
       binary_search_fields => []};
 default_config([services, service_admin_extra]) ->
     #{submods => [node, accounts, sessions, vcard, roster, last,
-                  private, stanza, stats, gdpr, upload, domain]}.
+                  private, stanza, stats, gdpr, upload, domain]};
+default_config([services, service_mongoose_system_metrics]) ->
+    #{initial_report => timer:minutes(5),
+      periodic_report => timer:hours(3)}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,
