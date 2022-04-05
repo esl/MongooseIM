@@ -31,9 +31,9 @@
 -export([loaded_services_with_opts/0]).
 
 %% Service management utilities for tests
--export([ensure_stopped/1, ensure_started/2]).
+-export([replace_services/2, ensure_stopped/1, ensure_started/2]).
 
--ignore_xref([loaded_services_with_opts/0, ensure_stopped/1, ensure_started/2]).
+-ignore_xref([loaded_services_with_opts/0, replace_services/2, ensure_stopped/1, ensure_started/2]).
 
 -type service() :: module().
 -type opt_key() :: atom().
@@ -53,14 +53,39 @@
 
 -optional_callbacks([deps/0]).
 
+%% @doc Start all configured services in the dependency order.
 -spec start() -> ok.
 start() ->
     [start_service(Service, Opts) || {Service, Opts} <- sorted_services()],
     ok.
 
+%% @doc Stop all configured services in the reverse dependency order
+%% to avoid stopping services which have other services dependent on them.
 -spec stop() -> ok.
 stop() ->
     [stop_service(Service) || {Service, _Opts} <- lists:reverse(sorted_services())],
+    ok.
+
+%% @doc Replace services at runtime - only for testing and debugging.
+%% Running services from ToStop are stopped and services from ToEnsure are (re)started when needed.
+%% Unused dependencies are stopped if no running services depend on them anymore.
+%% To prevent an unused dependency from being stopped, you need to include it in ToEnsure.
+-spec replace_services([service()], service_map()) -> ok.
+replace_services(ToStop, ToEnsure) ->
+    Current = loaded_services_with_opts(),
+    Old = maps:with(ToStop ++ maps:keys(ToEnsure), Current),
+    OldWithDeps = mongoose_service_deps:resolve_deps(Old),
+    SortedOldWithDeps = mongoose_service_deps:sort_deps(OldWithDeps),
+    WithoutOld = maps:without(maps:keys(OldWithDeps), Current),
+    WithNew = maps:merge(WithoutOld, ToEnsure),
+    Target = mongoose_service_deps:resolve_deps(WithNew),
+
+    %% Stop each affected service if it is not in Target (stop deps first)
+    [ensure_stopped(Service) || {Service, _} <- lists:reverse(SortedOldWithDeps),
+        not maps:is_key(Service, Target)],
+
+    %% Ensure each service from Target
+    [ensure_started(Service, Opts) || {Service, Opts} <- mongoose_service_deps:sort_deps(Target)],
     ok.
 
 -spec config_spec(service()) -> mongoose_config_spec:config_section().
