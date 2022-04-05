@@ -24,8 +24,7 @@
          config_spec/1,
          get_deps/1,
          is_loaded/1,
-         assert_loaded/1,
-         get_service_opts/1]).
+         assert_loaded/1]).
 
 %% Shell utilities
 -export([loaded_services_with_opts/0]).
@@ -197,10 +196,6 @@ is_loaded(Service) ->
         {ok, _Opts} -> true;
         {error, not_found} -> false
     end.
-
--spec get_service_opts(service()) -> options().
-get_service_opts(Service) ->
-    mongoose_config:get_opt([services, Service], []).
 
 -spec loaded_services_with_opts() -> service_map().
 loaded_services_with_opts() ->
