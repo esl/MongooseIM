@@ -21,7 +21,9 @@ options("host_types") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {services, #{}},
+     {services, #{service_domain_db => config([services, service_domain_db],
+                                              #{event_cleaning_interval => 1000,
+                                                event_max_age => 5000})}},
      {sm_backend, {mnesia, []}},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
@@ -1169,6 +1171,10 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
 default_config([services, service_admin_extra]) ->
     #{submods => [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats, gdpr, upload, domain]};
+default_config([services, service_domain_db]) ->
+    #{event_cleaning_interval => 1800,
+      event_max_age => 7200,
+      db_pool => global};
 default_config([services, service_mongoose_system_metrics]) ->
     #{initial_report => timer:minutes(5),
       periodic_report => timer:hours(3)}.

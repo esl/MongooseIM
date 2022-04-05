@@ -259,6 +259,7 @@ groups() ->
                             modules_without_config,
                             incorrect_module]},
      {services, [parallel], [service_admin_extra,
+                             service_domain_db,
                              service_mongoose_system_metrics]}
     ].
 
@@ -3110,6 +3111,17 @@ service_admin_extra(_Config) ->
     ?err(T(#{<<"submods">> => 1})),
     ?err(T(#{<<"submods">> => [1]})),
     ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})).
+
+service_domain_db(_Config) ->
+    P = [services, service_domain_db],
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_domain_db">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [event_cleaning_interval], 1000, T(#{<<"event_cleaning_interval">> => 1000})),
+    ?cfg(P ++ [event_max_age], 5000, T(#{<<"event_max_age">> => 5000})),
+    ?cfg(P ++ [db_pool], my_pool, T(#{<<"db_pool">> => <<"my_pool">>})),
+    ?err(T(#{<<"event_cleaning_interval">> => 0})),
+    ?err(T(#{<<"event_max_age">> => 0})),
+    ?err(T(#{<<"db_pool">> => 10})).
 
 service_mongoose_system_metrics(_Config) ->
     P = [services, service_mongoose_system_metrics],
