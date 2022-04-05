@@ -6,8 +6,6 @@
 
 -include("mongoose_config_spec.hrl").
 
--define(DEFAULT_INITIAL_REPORT, timer:minutes(5)).
--define(DEFAULT_REPORT_AFTER, timer:hours(3)).
 -ifdef(PROD_NODE).
 -define(TRACKING_ID, "UA-151671255-3").
 -else.
@@ -24,9 +22,6 @@
          handle_cast/2,
          handle_info/2,
          terminate/2]).
-
-%% config spec callbacks
--export([process_report_option/1]).
 
 -export([verify_if_configured/0]).
 
@@ -56,9 +51,9 @@ verify_if_configured() ->
             ok
     end.
 
--spec start(proplists:proplist()) -> {ok, pid()}.
-start(Args) ->
-    Spec = {?MODULE, {?MODULE, start_link, [Args]}, temporary, brutal_kill, worker, [?MODULE]},
+-spec start(mongoose_service:options()) -> {ok, pid()}.
+start(Opts) ->
+    Spec = {?MODULE, {?MODULE, start_link, [Opts]}, temporary, brutal_kill, worker, [?MODULE]},
     {ok, _} = ejabberd_sup:start_child(Spec).
 
 -spec stop() -> ok.
@@ -72,29 +67,28 @@ config_spec() ->
                                                  validate = non_negative},
                  <<"periodic_report">> => #option{type = integer,
                                                   validate = non_negative},
-                 <<"report">> => #option{type = boolean,
-                                         process = fun ?MODULE:process_report_option/1,
-                                         wrap = item},
+                 <<"report">> => #option{type = boolean},
                  <<"tracking_id">> => #option{type = string,
                                               validate = non_empty}
-                }
+                },
+       defaults = #{<<"initial_report">> => timer:minutes(5),
+                    <<"periodic_report">> => timer:hours(3)},
+       format_items = map
       }.
 
-process_report_option(true) -> report;
-process_report_option(false) -> no_report.
+-spec start_link(mongoose_service:options()) -> {ok, pid()}.
+start_link(Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
 
--spec start_link(proplists:proplist()) -> {ok, pid()}.
-start_link(Args) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
-
--spec init(proplists:proplist()) -> {ok, system_metrics_state()}.
-init(Args) ->
-    case report_transparency(Args) of
+-spec init(mongoose_service:options()) -> {ok, system_metrics_state()}.
+init(Opts) ->
+    case report_transparency(Opts) of
         skip -> ignore;
         continue ->
-            {InitialReport, ReportAfter, TrackingIds} = metrics_module_config(Args),
+            #{initial_report := InitialReport, periodic_report := PeriodicReport} = Opts,
+            TrackingIds = tracking_ids(Opts),
             erlang:send_after(InitialReport, self(), spawn_reporter),
-            {ok, #system_metrics_state{report_after = ReportAfter,
+            {ok, #system_metrics_state{report_after = PeriodicReport,
                                        tracking_ids = TrackingIds}}
     end.
 
@@ -142,41 +136,29 @@ get_client_id() ->
         {ok, ID} when is_binary(ID) -> {ok, binary_to_list(ID)}
     end.
 
--spec metrics_module_config(list()) -> {non_neg_integer(), non_neg_integer(), [tracking_id()]}.
-metrics_module_config(Args) ->
-    {InitialReport, ReportAfter, TrackingId} = get_config(Args, os:getenv("CI")),
-    TrackingIds = case proplists:lookup(tracking_id, Args) of
-        none -> [TrackingId];
-        {_, ExtraTrackingId} -> [TrackingId, ExtraTrackingId]
-    end,
-    {InitialReport, ReportAfter, TrackingIds}.
+-spec tracking_ids(mongoose_service:options()) -> [tracking_id()].
+tracking_ids(#{tracking_id := ExtraTrackingId}) ->
+    [predefined_tracking_id(), ExtraTrackingId];
+tracking_ids(#{}) ->
+    [predefined_tracking_id()].
 
-get_config(Args, "true") ->
-    I = proplists:get_value(initial_report, Args, timer:seconds(20)),
-    R = proplists:get_value(periodic_report, Args, timer:minutes(5)),
-    {I, R, ?TRACKING_ID_CI};
-get_config(Args, _) ->
-    I = proplists:get_value(initial_report, Args, ?DEFAULT_INITIAL_REPORT),
-    R = proplists:get_value(periodic_report, Args, ?DEFAULT_REPORT_AFTER),
-    {I, R, ?TRACKING_ID}.
-
--spec report_transparency(proplists:proplist()) -> skip | continue.
-report_transparency(Args) ->
-    case {explicit_no_report(Args), explicit_gathering_agreement(Args)} of
-        {true, _} -> skip;
-        {_, true} -> continue;
-        {_, _} ->
-            File = mongoose_system_metrics_file:location(),
-            Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
-            ?LOG_WARNING(#{what => report_transparency,
-                           text => Text, report_filename => File}),
-            continue
+-spec predefined_tracking_id() -> tracking_id().
+predefined_tracking_id() ->
+    case os:getenv("CI") of
+        "true" -> ?TRACKING_ID_CI;
+        _ -> ?TRACKING_ID
     end.
 
-explicit_no_report(Args) ->
-    proplists:get_value(no_report, Args, false).
-explicit_gathering_agreement(Args) ->
-    proplists:get_value(report, Args, false).
+-spec report_transparency(mongoose_service:options()) -> skip | continue.
+report_transparency(#{report := false}) ->
+    skip;
+report_transparency(#{report := true}) ->
+    continue;
+report_transparency(#{}) ->
+    File = mongoose_system_metrics_file:location(),
+    Text = iolist_to_binary(io_lib:format(msg_accept_terms_and_conditions(), [File])),
+    ?LOG_WARNING(#{what => report_transparency, text => Text, report_filename => File}),
+    continue.
 
 % %%-----------------------------------------
 % %% Unused
