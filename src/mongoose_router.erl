@@ -35,8 +35,7 @@ unregister_route(Domain) ->
         error ->
             {error, invalid_domain, Domain};
         LDomain ->
-            ets:delete(?TABLE, LDomain),
-            mongoose_hooks:unregister_subhost(LDomain)
+            ets:delete(?TABLE, LDomain)
     end.
 
 -spec is_registered_route(jid:lserver()) -> boolean().
