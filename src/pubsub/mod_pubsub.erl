@@ -400,11 +400,10 @@ init([ServerHost, Opts = #{host := SubdomainPattern}]) ->
     PacketHandler = mongoose_packet_handler:new(?MODULE, #{state => State}),
     %% TODO: Conversion of this module is not done, it doesn't support dynamic
     %%       domains yet. Only subdomain registration is done properly.
-    SubdomainPattern = gen_mod:get_module_opt(ServerHost, ?MODULE, host, default_host()),
     mongoose_domain_api:register_subdomain(ServerHost, SubdomainPattern, PacketHandler),
     {ok, State}.
 
-init_backend(ServerHost, Opts) ->
+init_backend(ServerHost, Opts = #{backend := Backend}) ->
     TrackedDBFuns = [create_node, del_node, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
                      get_states_by_full, get_own_nodes_states,
@@ -414,7 +413,7 @@ init_backend(ServerHost, Opts) ->
                      find_node_by_name, delete_node, get_subnodes,
                      get_subnodes_tree, get_parentnodes_tree
                     ],
-    gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
+    backend_module:create(mod_pubsub_db, Backend, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
     maybe_start_cache_module(ServerHost, Opts).
 
@@ -488,11 +487,10 @@ init_send_loop(ServerHost, #{last_item_cache := LastItemCache, max_items_node :=
 %% <p>The modules are initialized in alphabetical order and the list is checked
 %% and sorted to ensure that each module is initialized only once.</p>
 %% <p>See {@link node_hometree:init/1} for an example implementation.</p>
-init_plugins(Host, ServerHost, Opts = #{nodetree := TreePlugin}) ->
+init_plugins(Host, ServerHost, Opts = #{nodetree := TreePlugin, plugins := Plugins}) ->
     {ok, HostType} = mongoose_domain_api:get_host_type(ServerHost),
     ?LOG_DEBUG(#{what => pubsub_tree_plugin, tree_plugin => TreePlugin}),
     gen_pubsub_nodetree:init(TreePlugin, HostType, Opts),
-    Plugins = gen_mod:get_opt(plugins, Opts),
     PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
     lists:reverse(PluginsOK).
 
@@ -3560,7 +3558,7 @@ get_node_subs(#pubsub_node{type = Type, id = Nidx}) ->
 %% Execute broadcasting step in a new process
 %% F contains one or more broadcast_stanza calls, executed sequentially
 broadcast_step(Host, F) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, sync_broadcast, false) of
+    case gen_mod:get_module_opt(serverhost(Host), ?MODULE, sync_broadcast) of
         true ->
             F();
         false ->
@@ -4047,28 +4045,20 @@ get_max_items_node(Host) ->
 get_max_subscriptions_node({_, ServerHost, _}) ->
     get_max_subscriptions_node(ServerHost);
 get_max_subscriptions_node(Host) ->
-    config(serverhost(Host), max_subscriptions_node, undefined).
+    config(serverhost(Host), max_subscriptions_node).
 
 %%%% last item cache handling
-maybe_start_cache_module(ServerHost, Opts) ->
-    case gen_mod:get_opt(last_item_cache, Opts, false) of
-        false ->
-            ok;
-        _Backend ->
-            mod_pubsub_cache_backend:start(ServerHost, Opts)
+maybe_start_cache_module(ServerHost, #{last_item_cache := Cache} = Opts) ->
+    case Cache of
+        false -> ok;
+        _Backend -> mod_pubsub_cache_backend:start(ServerHost, Opts)
     end.
-
 
 is_last_item_cache_enabled(Host) ->
-    case cache_backend(Host) of
-        false ->
-            false;
-        _ ->
-            true
-    end.
+    cache_backend(Host) =/= false.
 
 cache_backend(Host) ->
-     gen_mod:get_module_opt(serverhost(Host), mod_pubsub, last_item_cache, false).
+    gen_mod:get_module_opt(serverhost(Host), mod_pubsub, last_item_cache).
 
 set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
     set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
@@ -4108,7 +4098,7 @@ host(HostType, ServerHost) ->
 serverhost({_U, Server, _R})->
     Server;
 serverhost(Host) ->
-    case config(Host, host, undefined) of
+    case config(Host, host) of
         undefined ->
             [_, ServerHost] = binary:split(Host, <<".">>),
             ServerHost;
