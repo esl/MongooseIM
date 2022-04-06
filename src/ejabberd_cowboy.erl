@@ -132,7 +132,7 @@ execute(Req, Env) ->
 %%--------------------------------------------------------------------
 
 start_cowboy(Ref, Opts) ->
-    {Retries, SleepTime} = gen_mod:get_opt(retries, Opts, {20, 50}),
+    {Retries, SleepTime} = proplists:get_value(retries, Opts, {20, 50}),
     do_start_cowboy(Ref, Opts, Retries, SleepTime).
 
 
@@ -148,14 +148,14 @@ do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
     end.
 
 do_start_cowboy(Ref, Opts) ->
-    SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
-    NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    TransportOpts0 = gen_mod:get_opt(transport_options, Opts, #{}),
+    SSLOpts = proplists:get_value(ssl, Opts),
+    NumAcceptors = proplists:get_value(num_acceptors, Opts, 100),
+    TransportOpts0 = proplists:get_value(transport_options, Opts, #{}),
     TransportOpts = TransportOpts0#{num_acceptors => NumAcceptors},
-    Modules = gen_mod:get_opt(modules, Opts),
+    Modules = proplists:get_value(modules, Opts),
     Dispatch = cowboy_router:compile(get_routes(Modules)),
     ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
-                    gen_mod:get_opt(protocol_options, Opts, [])],
+                    proplists:get_value(protocol_options, Opts, [])],
     ok = trails_store(Modules),
     case catch start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
@@ -194,7 +194,7 @@ add_common_middleware(Map) ->
     Map#{ middlewares => [cowboy_router, ?MODULE, cowboy_handler] }.
 
 reload_dispatch(Ref, Opts) ->
-    Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
+    Dispatch = cowboy_router:compile(get_routes(proplists:get_value(modules, Opts))),
     cowboy:set_env(Ref, dispatch, Dispatch).
 
 stop_cowboy(Ref) ->
@@ -267,7 +267,7 @@ filter_options(_, []) ->
     [].
 
 maybe_set_verify_fun(SSLOptions) ->
-    case proplists:get_value(verify_mode, SSLOptions, undefined) of
+    case proplists:get_value(verify_mode, SSLOptions) of
         undefined ->
             SSLOptions;
         Mode ->
@@ -279,7 +279,7 @@ maybe_set_verify_fun(SSLOptions) ->
 % used max_connections tuple for all ejabberd_cowboy listeners
 maybe_insert_max_connections(TransportOpts, Opts) ->
     Key = max_connections,
-    case gen_mod:get_opt(Key, Opts, undefined) of
+    case proplists:get_value(Key, Opts) of
         undefined ->
             TransportOpts;
         Value ->

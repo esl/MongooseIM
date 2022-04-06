@@ -58,7 +58,7 @@
 %% ejabberd_cowboy callbacks
 %%--------------------------------------------------------------------
 cowboy_router_paths(Base, Opts) ->
-    Handlers = gen_mod:get_opt(handlers, Opts, []),
+    Handlers = proplists:get_value(handlers, Opts, []),
     lists:flatmap(pa:bind(fun register_handler/2, Base), Handlers).
 
 register_handler(Base, Handler) ->
