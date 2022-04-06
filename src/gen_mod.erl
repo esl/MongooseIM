@@ -38,6 +38,7 @@
          % Get/set opts by host or from a list
          get_opt/2,
          get_opt/3,
+         lookup_module_opt/3,
          get_module_opt/3,
          get_module_opt/4,
          get_module_opts/2,
@@ -243,43 +244,44 @@ wait_for_stop(MonitorReference) ->
 get_opt(Path, Opts) when is_list(Path), is_map(Opts) ->
     lists:foldl(fun maps:get/2, Opts, Path);
 get_opt(Opt, Opts) when is_map(Opts) ->
-    maps:get(Opt, Opts);
-get_opt(Opt, Opts) ->
-    case lists:keysearch(Opt, 1, Opts) of
-        false ->
-            throw({undefined_option, Opt});
-        {value, {_, Val}} ->
-            Val
-    end.
+    maps:get(Opt, Opts).
 
 -spec get_opt(opt_key() | key_path(), module_opts(), opt_value()) -> opt_value().
 get_opt(Path, Opts, Default) ->
     try
         get_opt(Path, Opts)
     catch
-        error:{badkey, _} -> Default;
-        throw:{undefined_option, _} -> Default
+        error:{badkey, _} -> Default
     end.
+
+-spec lookup_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) ->
+          {ok, opt_value()} | {error, not_found}.
+lookup_module_opt(HostType, Module, Key) ->
+    mongoose_config:lookup_opt(config_path(HostType, Module, Key)).
 
 -spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path(), opt_value()) ->
           opt_value().
-get_module_opt(HostType, Module, Opt, Default) ->
+get_module_opt(HostType, Module, Key, Default) ->
     %% Fail in dev builds.
     %% It protects against passing something weird as a Module argument
     %% or against wrong argument order.
     ?ASSERT_MODULE(Module),
-    ModuleOpts = get_module_opts(HostType, Module),
-    get_opt(Opt, ModuleOpts, Default).
+    mongoose_config:get_opt(config_path(HostType, Module, Key), Default).
 
 -spec get_module_opt(mongooseim:host_type(), module(), opt_key() | key_path()) -> opt_value().
-get_module_opt(HostType, Module, Opt) ->
-    ?ASSERT_MODULE(Module),
-    ModuleOpts = get_loaded_module_opts(HostType, Module),
-    get_opt(Opt, ModuleOpts).
+get_module_opt(HostType, Module, Key) ->
+    mongoose_config:get_opt(config_path(HostType, Module, Key)).
+
+-spec config_path(mongooseim:host_type(), module(), opt_key() | key_path()) -> key_path().
+config_path(HostType, Module, Path) when is_list(Path) ->
+    [{modules, HostType}, Module] ++ Path;
+config_path(HostType, Module, Key) when is_atom(Key) ->
+    [{modules, HostType}, Module, Key].
 
 -spec get_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_module_opts(HostType, Module) ->
-    mongoose_config:get_opt([{modules, HostType}, Module], []).
+    ?ASSERT_MODULE(Module),
+    mongoose_config:get_opt([{modules, HostType}, Module], #{}).
 
 -spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
@@ -354,10 +356,7 @@ is_loaded(HostType, Module) ->
 
 -spec get_deps(host_type(), module(), module_opts()) -> gen_mod_deps:module_deps().
 get_deps(HostType, Module, Opts) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, deps, 2) of
+    case backend_module:is_exported(Module, deps, 2) of
         true ->
             Deps = Module:deps(HostType, Opts),
             lists:filter(fun(D) -> element(1, D) =/= service end, Deps);
@@ -367,10 +366,7 @@ get_deps(HostType, Module, Opts) ->
 
 -spec get_required_services(host_type(), module(), module_opts()) -> [mongoose_service:service()].
 get_required_services(HostType, Module, Options) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Module),
-    case erlang:function_exported(Module, deps, 2) of
+    case backend_module:is_exported(Module, deps, 2) of
         true ->
             [Service || {service, Service} <- Module:deps(HostType, Options)];
         _ ->

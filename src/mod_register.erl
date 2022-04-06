@@ -372,10 +372,10 @@ verify_password_and_register(HostType, #jid{} = JID, Password, SourceRaw, Lang) 
     end.
 
 send_welcome_message(HostType, #jid{lserver = Server} = JID) ->
-    case gen_mod:get_module_opt(HostType, ?MODULE, welcome_message, undefined) of
-        undefined ->
+    case gen_mod:lookup_module_opt(HostType, ?MODULE, welcome_message) of
+        {error, not_found} ->
             ok;
-        {Subj, Body} ->
+        {ok, {Subj, Body}} ->
             ejabberd_router:route(
               jid:make_noprep(<<>>, Server, <<>>),
               JID,

@@ -31,6 +31,8 @@ all() ->
      stop_error,
      loaded_modules,
      loaded_modules_with_opts,
+     get_module_opt,
+     lookup_module_opt,
      hosts_with_module,
      hosts_and_opts_with_module].
 
@@ -79,6 +81,18 @@ loaded_modules_with_opts(_Config) ->
     ?assertEqual(MA, gen_mod:loaded_modules_with_opts(host(a))),
     ?assertEqual(MB, gen_mod:loaded_modules_with_opts(host(b))),
     ?assertEqual(#{host(a) => MA, host(b) => MB}, gen_mod:loaded_modules_with_opts()).
+
+get_module_opt(_Config) ->
+    ?assertEqual(v, gen_mod:get_module_opt(host(b), b_module, k)),
+    ?assertError({badkey, k}, gen_mod:get_module_opt(host(a), a_module, k)),
+    ?assertError({badkey, b_module}, gen_mod:get_module_opt(host(a), b_module, k)),
+    ?assertEqual(default, gen_mod:get_module_opt(host(a), a_module, k, default)),
+    ?assertEqual(default, gen_mod:get_module_opt(host(a), b_module, k, default)).
+
+lookup_module_opt(_Config) ->
+    ?assertEqual({ok, v}, gen_mod:lookup_module_opt(host(b), b_module, k)),
+    ?assertEqual({error, not_found}, gen_mod:lookup_module_opt(host(a), a_module, k)),
+    ?assertEqual({error, not_found}, gen_mod:lookup_module_opt(host(a), b_module, k)).
 
 hosts_with_module(_Config) ->
     ?assertEqual([host(a)], gen_mod:hosts_with_module(a_module)),
