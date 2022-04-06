@@ -185,7 +185,7 @@ minimal_config_opts() ->
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"localhost">>}, config_parser_helper:default_auth()},
      {{modules, <<"localhost">>}, #{}},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},

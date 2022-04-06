@@ -25,7 +25,7 @@
          total_count/0,
          unique_count/0]).
 
--spec init(list()) -> any().
+-spec init(map()) -> any().
 init(_Opts) ->
     mnesia:create_table(session,
                         [{ram_copies, [node()]},

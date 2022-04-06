@@ -491,8 +491,8 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 -spec init(_) -> {ok, state()}.
 init([]) ->
-    {Backend, Opts} = mongoose_config:get_opt(sm_backend),
-    ejabberd_sm_backend:init([{backend, Backend}|Opts]),
+    Backend = mongoose_config:get_opt(sm_backend),
+    ejabberd_sm_backend:init(#{backend => Backend}),
 
     ets:new(sm_iqtable, [named_table, protected, {read_concurrency, true}]),
     ejabberd_hooks:add(node_cleanup, global, ?MODULE, node_cleanup, 50),

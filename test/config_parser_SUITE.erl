@@ -408,9 +408,9 @@ all_metrics_are_global(_Config) ->
     ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
 
 sm_backend(_Config) ->
-    ?cfg(sm_backend, {mnesia, []}, #{}), % default
-    ?cfg(sm_backend, {mnesia, []}, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
-    ?cfg(sm_backend, {redis, []}, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
+    ?cfg(sm_backend, mnesia, #{}), % default
+    ?cfg(sm_backend, mnesia, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
+    ?cfg(sm_backend, redis, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
 
 max_fsm_queue(_Config) ->
