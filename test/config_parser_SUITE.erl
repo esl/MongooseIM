@@ -316,8 +316,8 @@ supported_features(_Config) ->
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [],
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{},
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -3095,7 +3095,7 @@ mod_version(_Config) ->
     ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
-    ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?cfgh([modules, mod_amp], #{}, #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 incorrect_module(_Config) ->
@@ -3147,16 +3147,6 @@ iq_disc_generic(Module, RequiredOpts, Value) ->
     Opts = RequiredOpts#{<<"iqdisc">> => Value},
     #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
 
-check_iqdisc(Module) ->
-    check_iqdisc(Module, [], #{}).
-
-check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
-
 check_iqdisc_map(Module) ->
     check_iqdisc_map(Module, #{}).
 
@@ -3170,12 +3160,6 @@ check_iqdisc_map(Module, RequiredOpts) ->
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
-
-modopts(Mod, Opts) ->
-    [{[modules, Mod], Opts}].
-
-servopts(Service, Opts) ->
-    [{[services, Service], Opts}].
 
 %% helpers for 'listen' tests
 
