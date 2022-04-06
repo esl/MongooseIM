@@ -15,18 +15,18 @@
 
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
-    #section{items = #{
-        <<"host1">> =>
-            #option{type = string,
-                    validate = subdomain_template,
-                    process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
-        <<"host2">> =>
-            #option{type = string,
-                    validate = subdomain_template,
-                    process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
-        <<"namespace">> =>
-            #option{type = binary,
-                    validate = non_empty}}}.
+    #section{items = #{<<"host1">> =>
+                           #option{type = string,
+                                   validate = subdomain_template,
+                                   process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
+                       <<"host2">> =>
+                           #option{type = string,
+                                   validate = subdomain_template,
+                                   process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
+                       <<"namespace">> =>
+                           #option{type = binary,
+                                   validate = non_empty}},
+             format_items = map}.
 
 supported_features() -> [dynamic_domains].
 
