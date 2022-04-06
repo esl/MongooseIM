@@ -31,7 +31,6 @@
 -export([
          % Modules start & stop, do NOT use in the tests, use mongoose_modules API instead
          start_module/3,
-         start_backend_module/3,
          stop_module/2,
          does_module_support/2,
          config_spec/1,
@@ -169,11 +168,6 @@ is_common_test_running() ->
     catch _:_ ->
         false
     end.
-
-%% @deprecated To be removed when mod_pubsub does not use it anymore
-start_backend_module(Module, Opts, TrackedFuncs) ->
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
-    backend_module:create(Module, Backend, TrackedFuncs).
 
 -spec is_app_running(_) -> boolean().
 is_app_running(AppName) ->
