@@ -27,7 +27,7 @@
 
 -include("jlib.hrl").
 
--spec init(mongooseim:host_type(), list()) -> ok.
+-spec init(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 init(_HostType, _Opts) ->
     ok.
 

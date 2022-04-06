@@ -93,13 +93,13 @@
 
 -type state() :: #state{}.
 
--spec start_link(mongooseim:host_type(), list()) -> any().
+-spec start_link(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start_link(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE,
                           [HostType, Opts], []).
 
--spec start(mongooseim:host_type(), list()) -> any().
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     Proc = gen_mod:get_module_proc(HostType, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [HostType, Opts]},

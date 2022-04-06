@@ -171,7 +171,7 @@ delete_room({_, RoomS} = RoomUS) ->
 start(HostType, Opts) ->
     Codec = host_type_to_codec(HostType),
     mod_muc_light_db_backend:start(HostType, Opts),
-    mod_muc_light_codec_backend:start(HostType, [{backend, Codec}]),
+    mod_muc_light_codec_backend:start(HostType, #{backend => Codec}),
     ejabberd_hooks:add(hooks(HostType)),
     %% Handler
     SubdomainPattern = subdomain_pattern(HostType),

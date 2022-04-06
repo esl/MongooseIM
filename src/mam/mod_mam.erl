@@ -206,15 +206,15 @@ archive_id(Server, User)
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(HostType :: host_type(), Opts :: list()) -> any().
+-spec start(host_type(), gen_mod:module_opts()) -> any().
 start(HostType, Opts) ->
     ?LOG_INFO(#{what => mam_starting, host_type => HostType}),
     ensure_metrics(HostType),
     ejabberd_hooks:add(hooks(HostType)),
-    add_id_handlers(HostType, Opts),
+    add_iq_handlers(HostType, Opts),
     ok.
 
--spec stop(HostType :: host_type()) -> any().
+-spec stop(host_type()) -> any().
 stop(HostType) ->
     ?LOG_INFO(#{what => mam_stopping, host_type => HostType}),
     ejabberd_hooks:delete(hooks(HostType)),
@@ -747,7 +747,7 @@ hooks(HostType) ->
      {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
      | mongoose_metrics_mam_hooks:get_mam_hooks(HostType)].
 
-add_id_handlers(HostType, Opts) ->
+add_iq_handlers(HostType, Opts) ->
     Component = ejabberd_sm,
     %% `parallel' is the only one recommended here.
     ExecutionType = gen_mod:get_opt(iqdisc, Opts, parallel),

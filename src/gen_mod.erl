@@ -67,8 +67,7 @@
 -type key_path() :: mongoose_config:key_path().
 -type opt_key() :: atom().
 -type opt_value() :: mongoose_config:value().
--type module_opts() :: [{opt_key(), opt_value()}] % deprecated, will be removed
-                     | #{opt_key() => opt_value()}. % recommended
+-type module_opts() ::  #{opt_key() => opt_value()}.
 
 -callback start(HostType :: host_type(), Opts :: module_opts()) -> any().
 -callback stop(HostType :: host_type()) -> any().
@@ -92,9 +91,7 @@
 
 %% @doc This function should be called by mongoose_modules only.
 %% To start a new module at runtime, use mongoose_modules:ensure_module/3 instead.
--spec start_module(HostType :: host_type(),
-                   Module :: module(),
-                   Opts :: [any()]) -> {ok, term()}.
+-spec start_module(host_type(), module(), module_opts()) -> {ok, term()}.
 start_module(HostType, Module, Opts) ->
     assert_loaded(HostType, Module),
     start_module_for_host_type(HostType, Module, Opts).

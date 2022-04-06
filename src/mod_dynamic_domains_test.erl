@@ -13,8 +13,6 @@
 
 -ignore_xref([config_spec/0, process_packet/5, start/2, stop/1, supported_features/0]).
 
--define(DUMMY_NAMESPACE, <<"dummy.namespace">>).
-
 -spec config_spec() -> mongoose_config_spec:config_section().
 config_spec() ->
     #section{items = #{
@@ -32,7 +30,7 @@ config_spec() ->
 
 supported_features() -> [dynamic_domains].
 
--spec start(Host :: jid:server(), Opts :: list()) -> ok.
+-spec start(mongooseim:host_type(), gen_mod:module_opts()) -> ok.
 start(HostType, Opts) ->
     Namespace = gen_mod:get_opt(namespace, Opts),
 
@@ -70,7 +68,7 @@ start(HostType, Opts) ->
                                              one_queue),
     ok.
 
--spec stop(Host :: jid:server()) -> ok.
+-spec stop(mongooseim:host_type()) -> ok.
 stop(HostType) ->
     Opts = gen_mod:get_module_opts(HostType, ?MODULE),
     Namespace = gen_mod:get_opt(namespace, Opts),
