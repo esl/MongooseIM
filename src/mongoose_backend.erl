@@ -25,10 +25,10 @@
 -spec init(HostType :: host_type_or_global(),
            MainModule :: main_module(),
            TrackedFuns :: [function_name()],
-           Opts :: gen_mod:module_opts()) -> ok.
+           Opts :: map()) -> ok.
 init(HostType, MainModule, TrackedFuns, Opts) ->
     ensure_backend_metrics(MainModule, TrackedFuns),
-    Backend = gen_mod:get_opt(backend, Opts, mnesia),
+    Backend = maps:get(backend, Opts, mnesia),
     BackendModule = backend_module(MainModule, Backend),
     persist_backend_name(HostType, MainModule, Backend, BackendModule),
     ok.
