@@ -259,6 +259,7 @@ groups() ->
                             modules_without_config,
                             incorrect_module]},
      {services, [parallel], [service_admin_extra,
+                             service_domain_db,
                              service_mongoose_system_metrics]}
     ].
 
@@ -3103,34 +3104,39 @@ incorrect_module(_Config) ->
 %% Services
 
 service_admin_extra(_Config) ->
+    P = [services, service_admin_extra],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_admin_extra">> => Opts}} end,
-    ?cfg(servopts(service_admin_extra, [{submods, [node]}]),
-         T(#{<<"submods">> => [<<"node">>]})),
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [submods], [node], T(#{<<"submods">> => [<<"node">>]})),
     ?err(T(#{<<"submods">> => 1})),
     ?err(T(#{<<"submods">> => [1]})),
-    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})),
-    ok.
+    ?err(T(#{<<"submods">> => [<<"nodejshaha">>]})).
+
+service_domain_db(_Config) ->
+    P = [services, service_domain_db],
+    T = fun(Opts) -> #{<<"services">> => #{<<"service_domain_db">> => Opts}} end,
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [event_cleaning_interval], 1000, T(#{<<"event_cleaning_interval">> => 1000})),
+    ?cfg(P ++ [event_max_age], 5000, T(#{<<"event_max_age">> => 5000})),
+    ?cfg(P ++ [db_pool], my_pool, T(#{<<"db_pool">> => <<"my_pool">>})),
+    ?err(T(#{<<"event_cleaning_interval">> => 0})),
+    ?err(T(#{<<"event_max_age">> => 0})),
+    ?err(T(#{<<"db_pool">> => 10})).
 
 service_mongoose_system_metrics(_Config) ->
-    M = service_mongoose_system_metrics,
+    P = [services, service_mongoose_system_metrics],
     T = fun(Opts) -> #{<<"services">> => #{<<"service_mongoose_system_metrics">> => Opts}} end,
-    ?cfg(servopts(M, [{initial_report, 5000}]),
-         T(#{<<"initial_report">> => 5000})),
-    ?cfg(servopts(M, [{periodic_report, 5000}]),
-         T(#{<<"periodic_report">> => 5000})),
-    ?cfg(servopts(M, [{tracking_id, "UA-123456789"}]),
-         T(#{<<"tracking_id">> => <<"UA-123456789">>})),
-    ?cfg(servopts(M, [{report, true}]),
-         T(#{<<"report">> => true})),
-    ?cfg(servopts(M, [{no_report, true}]),
-         T(#{<<"report">> => false})),
-    %% error cases
+    ?cfg(P, default_config(P), T(#{})),
+    ?cfg(P ++ [initial_report], 5000, T(#{<<"initial_report">> => 5000})),
+    ?cfg(P ++ [periodic_report], 5000, T(#{<<"periodic_report">> => 5000})),
+    ?cfg(P ++ [tracking_id], "UA-123456789", T(#{<<"tracking_id">> => <<"UA-123456789">>})),
+    ?cfg(P ++ [report], true, T(#{<<"report">> => true})),
     ?err(T(#{<<"initial_report">> => <<"forever">>})),
     ?err(T(#{<<"periodic_report">> => <<"forever">>})),
     ?err(T(#{<<"initial_report">> => -1})),
     ?err(T(#{<<"periodic_report">> => -1})),
     ?err(T(#{<<"tracking_id">> => 666})),
-    ok.
+    ?err(T(#{<<"report">> => <<"maybe">>})).
 
 %% Helpers for module tests
 

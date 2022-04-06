@@ -16,6 +16,10 @@
 
 [modules.mod_amp]
 
+[services.service_domain_db]
+  event_cleaning_interval = 1000
+  event_max_age = 5000
+
 [[host_config]]
   host_type = "this is host type"
   ## this resets the modules for this host

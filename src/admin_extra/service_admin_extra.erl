@@ -41,12 +41,13 @@
 %%% gen_mod
 %%%
 
-start(Opts) ->
-    Submods = gen_mod:get_opt(submods, Opts, ?SUBMODS),
+-spec start(mongoose_service:options()) -> ok.
+start(#{submods := Submods}) ->
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:register_commands((mod_name(Submod)):commands())
         end, Submods).
 
+-spec stop() -> ok.
 stop() ->
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:unregister_commands((mod_name(Submod)):commands())
@@ -58,9 +59,10 @@ config_spec() ->
        items = #{<<"submods">> => #list{items = #option{type = atom,
                                                         validate = {enum, ?SUBMODS}},
                                         validate = unique}
-                }
+                },
+       defaults = #{<<"submods">> => ?SUBMODS},
+       format_items = map
       }.
 
 mod_name(ModAtom) ->
     list_to_existing_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(ModAtom)).
-

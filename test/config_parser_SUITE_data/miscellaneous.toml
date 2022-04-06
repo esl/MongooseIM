@@ -82,6 +82,6 @@
 
 [services.service_mongoose_system_metrics]
   report = true
-  initial_report = 300_000
-  periodic_report = 10_800_000
+  initial_report = 20_000
+  periodic_report = 300_000
   tracking_id = "UA-123456789"

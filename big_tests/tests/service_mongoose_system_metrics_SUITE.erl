@@ -74,20 +74,15 @@ groups() ->
 %% Suite configuration
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    case system_metrics_service_is_enabled(mim()) of
-        false ->
-            ct:fail("service_mongoose_system_metrics is not running");
-        true ->
-            [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
-            http_helper:start(8765, "/[...]", fun handler_init/1),
-            Config1 = escalus:init_per_suite(Config),
-            ejabberd_node_utils:init(Config1)
-    end.
+    [ {ok, _} = application:ensure_all_started(App) || App <- ?APPS ],
+    http_helper:start(8765, "/[...]", fun handler_init/1),
+    Config1 = escalus:init_per_suite(Config),
+    Config2 = dynamic_services:save_services([mim(), mim2()], Config1),
+    ejabberd_node_utils:init(Config2).
 
 end_per_suite(Config) ->
     http_helper:stop(),
-    Args = [{initial_report, timer:seconds(20)}, {periodic_report, timer:minutes(5)}],
-    [start_system_metrics_service(Node, Args) || Node <- [mim(), mim2()]],
+    dynamic_services:restore_services(Config),
     escalus:end_per_suite(Config).
 
 %%--------------------------------------------------------------------
@@ -308,7 +303,7 @@ in_config_unmodified_logs_request_for_agreement(_Config) ->
 in_config_with_explicit_no_report_goes_off_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_service(mim(), [{no_report, true}]),
+    start_system_metrics_service(mim(), #{report => false}),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -322,7 +317,7 @@ in_config_with_explicit_no_report_goes_off_silently(_Config) ->
 in_config_with_explicit_reporting_goes_on_silently(_Config) ->
     %% WHEN
     logger_ct_backend:capture(warning),
-    start_system_metrics_service(mim(), [{report, true}]),
+    start_system_metrics_service(mim(), #{report => true}),
     logger_ct_backend:stop_capture(),
     %% THEN
     FilterFun = fun(warning, Msg) ->
@@ -419,22 +414,23 @@ get_events_collection_size() ->
     ets:info(?ETS_TABLE, size).
 
 enable_system_metrics(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}]).
-
-enable_system_metrics(Node, Timers) ->
-    UrlArgs = [google_analytics_url, ?SERVER_URL],
-    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
-    start_system_metrics_service(Node, Timers).
+    enable_system_metrics(Node, #{initial_report => 100, periodic_report => 100}).
 
 enable_system_metrics_with_configurable_tracking_id(Node) ->
-    enable_system_metrics(Node, [{initial_report, 100}, {periodic_report, 100}, {tracking_id, ?TRACKING_ID_EXTRA}]).
+    enable_system_metrics(Node, #{initial_report => 100, periodic_report => 100,
+                                  tracking_id => ?TRACKING_ID_EXTRA}).
 
-start_system_metrics_service(Node, Args) ->
-    distributed_helper:rpc(
-      Node, mongoose_service, ensure_started, [service_mongoose_system_metrics, Args]).
+enable_system_metrics(Node, Opts) ->
+    UrlArgs = [google_analytics_url, ?SERVER_URL],
+    ok = mongoose_helper:successful_rpc(Node, mongoose_config, set_opt, UrlArgs),
+    start_system_metrics_service(Node, Opts).
+
+start_system_metrics_service(Node, ExtraOpts) ->
+    Opts = config([services, service_mongoose_system_metrics], ExtraOpts),
+    dynamic_services:ensure_started(Node, service_mongoose_system_metrics, Opts).
 
 disable_system_metrics(Node) ->
-    distributed_helper:rpc(Node, mongoose_service, ensure_stopped, [service_mongoose_system_metrics]),
+    dynamic_services:ensure_stopped(Node, service_mongoose_system_metrics),
     mongoose_helper:successful_rpc(Node, mongoose_config, unset_opt, [ google_analytics_url ]).
 
 delete_prev_client_id(Node) ->

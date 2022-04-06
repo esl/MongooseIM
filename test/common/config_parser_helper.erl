@@ -21,7 +21,9 @@ options("host_types") ->
      {rdbms_server_type, generic},
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
-     {services, #{}},
+     {services, #{service_domain_db => config([services, service_domain_db],
+                                              #{event_cleaning_interval => 1000,
+                                                event_max_age => 5000})}},
      {sm_backend, {mnesia, []}},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
@@ -80,10 +82,10 @@ options("miscellaneous") ->
      {routing_modules,
       [mongoose_router_global, mongoose_router_localdomain]},
      {services,
-      #{service_mongoose_system_metrics => [{initial_report, 300000},
-                                            {periodic_report, 10800000},
-                                            {report, true},
-                                            {tracking_id, "UA-123456789"}]}},
+      #{service_mongoose_system_metrics => #{initial_report => 20000,
+                                             periodic_report => 300000,
+                                             report => true,
+                                             tracking_id => "UA-123456789"}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {sm_backend, {mnesia, []}},
@@ -246,13 +248,11 @@ options("mongooseim-pgsql") ->
      {routing_modules, mongoose_router:default_routing_modules()},
      {services,
       #{service_admin_extra =>
-            [{submods,
-              [node, accounts, sessions, vcard, gdpr, upload, roster, last, private,
-               stanza, stats]}],
+            #{submods => [node, accounts, sessions, vcard, gdpr, upload,
+                          roster, last, private, stanza, stats]},
         service_mongoose_system_metrics =>
-            [{initial_report, 300000},
-             {periodic_report, 10800000}]
-       }},
+            #{initial_report => 300000,
+              periodic_report => 10800000}}},
      {sm_backend, {mnesia, []}},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{allow_multiple_connections => true,
@@ -1167,7 +1167,17 @@ default_config([modules, mod_vcard, ldap]) -> % included when backend => ldap
                           {<<"Organization Name">>, <<"ORGNAME">>},
                           {<<"Organization Unit">>, <<"ORGUNIT">>}],
       search_operator => 'and',
-      binary_search_fields => []}.
+      binary_search_fields => []};
+default_config([services, service_admin_extra]) ->
+    #{submods => [node, accounts, sessions, vcard, roster, last,
+                  private, stanza, stats, gdpr, upload, domain]};
+default_config([services, service_domain_db]) ->
+    #{event_cleaning_interval => 1800,
+      event_max_age => 7200,
+      db_pool => global};
+default_config([services, service_mongoose_system_metrics]) ->
+    #{initial_report => timer:minutes(5),
+      periodic_report => timer:hours(3)}.
 
 common_mam_config() ->
     #{no_stanzaid_element => false,

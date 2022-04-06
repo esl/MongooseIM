@@ -416,7 +416,7 @@ real_upload(Config, ContentType) ->
     ?assertMatch({_, 0}, Ret),
     ok.
 %%--------------------------------------------------------------------
-%% mod_admin_extra_accounts tests
+%% service_admin_extra_accounts tests
 %%--------------------------------------------------------------------
 
 change_password(Config) ->
@@ -528,7 +528,7 @@ delete_old_users_vhost(Config) ->
     true = (ErrCode =/= 0). %% Must return code other than 0
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_accounts tests
+%% service_admin_extra_accounts tests
 %%--------------------------------------------------------------------
 
 %% Checks both num_resources and resource_num
@@ -611,7 +611,7 @@ set_presence(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_vcard tests
+%% service_admin_extra_vcard tests
 %%--------------------------------------------------------------------
 
 vcard_rw(Config) ->
@@ -647,7 +647,7 @@ vcard2_multi_rw(Config) ->
     true = (lists:member("sales", OrgUnits) andalso lists:member("marketing", OrgUnits)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_vcard tests
+%% service_admin_extra_vcard tests
 %%--------------------------------------------------------------------
 
 rosteritem_rw(Config) ->
@@ -940,7 +940,7 @@ push_roster_alltoall(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_last tests
+%% service_admin_extra_last tests
 %%--------------------------------------------------------------------
 
 set_last(Config) ->
@@ -977,7 +977,7 @@ set_last(Config) ->
         end).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_private tests
+%% service_admin_extra_private tests
 %%--------------------------------------------------------------------
 
 private_rw(Config) ->
@@ -995,7 +995,7 @@ private_rw(Config) ->
                 children = [#xmlcdata{ content = <<"1">> }]}} = exml:parse(list_to_binary(Result)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_stanza tests
+%% service_admin_extra_stanza tests
 %%--------------------------------------------------------------------
 
 send_message(Config) ->
@@ -1075,7 +1075,7 @@ create_stanza(Name1, JID2) ->
     exml:to_binary(escalus_stanza:from(escalus_stanza:chat_to(Name1, "Hi"), JID2)).
 
 %%--------------------------------------------------------------------
-%% mod_admin_extra_stats tests
+%% service_admin_extra_stats tests
 %%--------------------------------------------------------------------
 
 stats_global(Config) ->
