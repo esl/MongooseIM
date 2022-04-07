@@ -342,7 +342,7 @@ register_command(Command) ->
     run_global_hook(register_command, Command, []).
 
 %%% @doc The `register_subhost' hook is called when a component
-%%% is registered for ejabberd_router.
+%%% is registered for ejabberd_router or a subdomain is added to mongoose_subdomain_core.
 -spec register_subhost(LDomain, IsHidden) -> Result when
     LDomain :: binary(),
     IsHidden :: boolean(),
@@ -433,7 +433,7 @@ unregister_command(Command) ->
     run_global_hook(unregister_command, Command, []).
 
 %%% @doc The `unregister_subhost' hook is called when a component
-%%% is unregistered from ejabberd_router.
+%%% is unregistered from ejabberd_router or a subdomain is removed from mongoose_subdomain_core.
 -spec unregister_subhost(LDomain) -> Result when
     LDomain :: binary(),
     Result :: any().
