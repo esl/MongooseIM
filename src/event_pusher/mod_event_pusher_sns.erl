@@ -20,7 +20,6 @@
 %%%===================================================================
 
 -define(TOPIC_BASE, ["arn", "aws", "sns"]).
--define(PUBLISH_RETRY_COUNT_DEFAULT, 2).
 
 -type user_guid() :: binary().
 -type topic_arn() :: string(). %% Full topic ARN in format arn:aws:sns:{REGION}:{ACCOUNT_ID}:{TOPIC}
@@ -115,11 +114,10 @@ push_event(Acc, _) ->
 -spec user_presence_changed(mongooseim:host_type(), UserJID :: jid:jid(),
                             IsOnline :: boolean()) -> ok.
 user_presence_changed(HostType, UserJID, IsOnline) ->
-    Topic = opt(HostType, presence_updates_topic),
-    case Topic of
-        undefined ->
+    case gen_mod:lookup_module_opt(HostType, ?MODULE, presence_updates_topic) of
+        {error, not_found} ->
             skip;
-        Topic ->
+        {ok, Topic} ->
             UserGUID = user_guid(HostType, UserJID),
             Content = #{user_id => UserGUID, present => IsOnline},
             TopicARN = make_topic_arn(HostType, Topic),
@@ -158,7 +156,7 @@ handle_packet(HostType, From, To, Packet) ->
 -spec async_publish(mongooseim:host_type(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> ok.
 async_publish(HostType, TopicARN, Content, Attributes) ->
-    Retry = opt(HostType, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
+    Retry = gen_mod:get_module_opt(HostType, ?MODULE, publish_retry_count),
     mongoose_wpool:cast(generic, HostType, pusher_sns,
                         {?MODULE, try_publish, [HostType, TopicARN, Content, Attributes, Retry]}).
 
@@ -198,10 +196,8 @@ publish(HostType, TopicARN, Content, Attributes) ->
 %% @doc Returns AWS SNS handle base on configured AWS credentials
 -spec aws_handle(mongooseim:host_type()) -> aws_config().
 aws_handle(HostType) ->
-    AccessKeyId = opt(HostType, access_key_id),
-    SecretKey = opt(HostType, secret_access_key),
-    SNSHost = opt(HostType, sns_host),
-
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    #{access_key_id := AccessKeyId, secret_access_key := SecretKey, sns_host := SNSHost} = Opts,
     erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost).
 
 %% @doc Returns notification topic based on packet type and module configuration
@@ -209,9 +205,9 @@ aws_handle(HostType) ->
 get_topic(HostType, Packet) ->
     case message_type(Packet) of
         pm ->
-            opt(HostType, pm_messages_topic);
+            gen_mod:get_module_opt(HostType, ?MODULE, pm_messages_topic, undefined);
         muc ->
-            opt(HostType, muc_messages_topic);
+            gen_mod:get_module_opt(HostType, ?MODULE, muc_messages_topic, undefined);
         _ ->
             undefined
     end.
@@ -219,9 +215,8 @@ get_topic(HostType, Packet) ->
 %% @doc Constructs SNS TopicArn from given topic suffix
 -spec make_topic_arn(mongooseim:host_type(), topic()) -> topic_arn().
 make_topic_arn(HostType, Topic) ->
-    AWSRegion = opt(HostType, region),
-    AWSAccountId = opt(HostType, account_id),
-
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    #{region := AWSRegion, account_id := AWSAccountId} = Opts,
     string:join(?TOPIC_BASE ++ [AWSRegion, AWSAccountId, Topic], ":").
 
 %% @doc Returns message type
@@ -233,43 +228,32 @@ message_type(Packet) ->
         _ -> undefined
     end.
 
-%% Getter for module options
--spec opt(mongooseim:host_type(), gen_mod:opt_key()) -> gen_mod:opt_value() | undefined.
-opt(HostType, Option) ->
-    opt(HostType, Option, undefined).
-
-%% Getter for module options with default value
--spec opt(mongooseim:host_type(), gen_mod:opt_key(), Default :: gen_mod:opt_value()) ->
-          gen_mod:opt_value().
-opt(HostType, Option, Default) ->
-    gen_mod:get_module_opt(HostType, ?MODULE, Option, Default).
-
 %% ----------------------------------------------------------------------
 %% Callbacks
 
 -spec user_guid(mongooseim:host_type(), UserJID :: jid:jid()) -> user_guid().
 user_guid(HostType, UserJID) ->
-    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
+    PluginModule = gen_mod:get_module_opt(HostType, ?MODULE, plugin_module),
     PluginModule:user_guid(UserJID).
 
 -spec message_attributes(mongooseim:host_type(), TopicARN :: topic_arn(),
                          UserJID :: jid:jid(), IsOnline :: boolean()) ->
                                 attributes().
 message_attributes(HostType, TopicARN, UserJID, IsOnline) ->
-    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
+    PluginModule = gen_mod:get_module_opt(HostType, ?MODULE, plugin_module),
     PluginModule:message_attributes(TopicARN, UserJID, IsOnline).
 
 -spec message_attributes(mongooseim:host_type(), TopicARN :: topic_arn(),
                          From :: jid:jid(), To :: jid:jid(), MessageType :: pm | muc,
                          Packet :: exml:element()) -> attributes().
 message_attributes(HostType, TopicARN, From, To, MessageType, Packet) ->
-    PluginModule = opt(HostType, plugin_module, mod_event_pusher_sns_defaults),
+    PluginModule = gen_mod:get_module_opt(HostType, ?MODULE, plugin_module),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
 
 -spec calc_backoff_time(mongooseim:host_type(), integer()) -> integer().
 calc_backoff_time(HostType, Retry) ->
-    MaxRetry = opt(HostType, publish_retry_count, ?PUBLISH_RETRY_COUNT_DEFAULT),
-    BaseTime = opt(HostType, publish_retry_time_ms, 50),
+    Opts = gen_mod:get_loaded_module_opts(HostType, ?MODULE),
+    #{publish_retry_count := MaxRetry, publish_retry_time_ms := BaseTime} = Opts,
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
     Random = rand:uniform(BaseTime),
     BackoffMaxTime - Random.

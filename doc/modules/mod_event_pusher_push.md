@@ -24,6 +24,13 @@ with 100 asynchronous workers that will handle all push notification related wor
 
 ## Options
 
+### `modules.mod_event_pusher.push.iqdisc.type`
+* **Syntax:** string, one of `"one_queue"`, `"no_queue"`, `"queues"`, `"parallel"`
+* **Default:** `"one_queue"`
+
+Strategy to handle incoming stanzas. For details, please refer to
+[IQ processing policies](../configuration/Modules.md#iq-processing-policies).
+
 ### `modules.mod_event_pusher.push.backend`
 * **Syntax:** string, one of `"mnesia"`, `"rdbms"`
 * **Default:** `"mnesia"`

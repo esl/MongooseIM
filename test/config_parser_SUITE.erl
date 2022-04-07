@@ -1970,6 +1970,7 @@ mod_event_pusher_push(_Config) ->
                            #{<<"mod_event_pusher">> => #{<<"push">> => Opts}}}
         end,
     ?cfgh(P, default_config(P), T(#{})),
+    check_iqdisc(P, T),
     test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
     ?cfgh(P ++ [plugin_module], mod_event_pusher_push_plugin_enhanced,
@@ -3140,22 +3141,28 @@ service_mongoose_system_metrics(_Config) ->
 
 %% Helpers for module tests
 
-iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
-iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
-
-iq_disc_generic(Module, RequiredOpts, Value) ->
-    Opts = RequiredOpts#{<<"iqdisc">> => Value},
-    #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
-
 check_iqdisc(Module) ->
-    check_iqdisc(Module, #{}).
+    P = [modules, Module],
+    T = fun(Opts) -> #{<<"modules">> => #{atom_to_binary(Module) => Opts}} end,
+    check_iqdisc(P, T).
 
-check_iqdisc(Module, RequiredOpts) ->
-    ?cfgh([modules, Module, iqdisc], {queues, 10},
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh([modules, Module, iqdisc], parallel,
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
+check_iqdisc(Module, RequiredOpts) when is_map(RequiredOpts) ->
+    P = [modules, Module],
+    T = fun(Opts) ->
+                #{<<"modules">> => #{atom_to_binary(Module) => maps:merge(RequiredOpts, Opts)}}
+        end,
+    check_iqdisc(P, T);
+check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
+    P = ParentP ++ [iqdisc],
+    T = fun(Opts) -> ParentT(#{<<"iqdisc">> => Opts}) end,
+    ?cfgh(P, {queues, 10}, T(#{<<"type">> => <<"queues">>, <<"workers">> => 10})),
+    ?cfgh(P, parallel, T(#{<<"type">> => <<"parallel">>})),
+    ?cfgh(P, one_queue, T(#{<<"type">> => <<"one_queue">>})),
+    ?cfgh(P, no_queue, T(#{<<"type">> => <<"no_queue">>})),
+    ?errh(T(#{<<"type">> => <<"one_queue_and_a_half">>})),
+    ?errh(T(#{<<"type">> => <<"queues">>, <<"workers">> => 0})),
+    ?errh(T(#{<<"type">> => <<"no_queue">>, <<"workers">> => 10})),
+    ?errh(T(#{<<"workers">> => 10})).
 
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),

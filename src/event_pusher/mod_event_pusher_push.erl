@@ -74,8 +74,7 @@ start(HostType, Opts) ->
 start_pool(HostType, #{wpool := WpoolOpts}) ->
     {ok, _} = mongoose_wpool:start(generic, HostType, pusher_push, maps:to_list(WpoolOpts)).
 
-init_iq_handlers(HostType, Opts) ->
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
+init_iq_handlers(HostType, #{iqdisc := IQDisc}) ->
     gen_iq_handler:add_iq_handler(ejabberd_local, HostType, ?NS_PUSH, ?MODULE,
                                   iq_handler, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, HostType, ?NS_PUSH, ?MODULE,
@@ -96,11 +95,13 @@ config_spec() ->
     VirtPubSubHost = #option{type = string, validate = subdomain_template,
                              process = fun mongoose_subdomain_utils:make_subdomain_pattern/1},
     #section{
-        items = #{<<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
+        items = #{<<"iqdisc">> => mongoose_config_spec:iqdisc(),
+                  <<"backend">> => #option{type = atom, validate = {module, ?MODULE}},
                   <<"wpool">> => wpool_spec(),
                   <<"plugin_module">> => #option{type = atom, validate = module},
                   <<"virtual_pubsub_hosts">> => #list{items = VirtPubSubHost}},
-        defaults = #{<<"backend">> => mnesia,
+        defaults = #{<<"iqdisc">> => one_queue,
+                     <<"backend">> => mnesia,
                      <<"plugin_module">> => mod_event_pusher_push_plugin:default_plugin_module(),
                      <<"virtual_pubsub_hosts">> => []},
         format_items = map

@@ -629,7 +629,8 @@ custom_mod_event_pusher_http() ->
              pool_name => http_pool}]}.
 
 custom_mod_event_pusher_push() ->
-    #{backend => mnesia,
+    #{iqdisc => one_queue,
+      backend => mnesia,
       plugin_module => mod_event_pusher_push_plugin_defaults,
       virtual_pubsub_hosts =>
           [{fqdn,<<"host1">>},{fqdn,<<"host2">>}],
@@ -1049,7 +1050,8 @@ default_config([modules, M]) ->
 default_config([modules, mod_event_pusher, http]) ->
     #{handlers => []};
 default_config([modules, mod_event_pusher, push]) ->
-    #{backend => mnesia,
+    #{iqdisc => one_queue,
+      backend => mnesia,
       wpool => default_config([modules, mod_event_pusher, push, wpool]),
       plugin_module => mod_event_pusher_push_plugin_defaults,
       virtual_pubsub_hosts => []};
