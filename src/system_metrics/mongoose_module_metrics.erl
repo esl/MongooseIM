@@ -8,7 +8,8 @@
 
 -optional_callbacks([config_metrics/1]).
 
--spec opts_for_module(mongooseim:host_type(), module(), list()) -> list().
+-spec opts_for_module(mongooseim:host_type(), module(), [gen_mod:opt_key()]) ->
+          [{gen_mod:opt_key(), gen_mod:opt_value()}].
 opts_for_module(HostType, Module, OptsToReport) ->
     try
         Opts = gen_mod:get_module_opts(HostType, Module),
@@ -17,8 +18,5 @@ opts_for_module(HostType, Module, OptsToReport) ->
         _:_ -> [{none, none}]
     end.
 
-get_opt({Opt, DefaultValue}, Opts) ->
-    % Deprecated, defaults should be specified in the config spec
-    {Opt, gen_mod:get_opt(Opt, Opts, DefaultValue)};
 get_opt(Opt, Opts) ->
     {Opt, gen_mod:get_opt(Opt, Opts)}.

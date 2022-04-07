@@ -562,9 +562,9 @@ hooks(HostType) ->
 get_groupchat_types(HostType) ->
     gen_mod:get_module_opt(HostType, ?MODULE, groupchat).
 
+-spec config_metrics(mongooseim:host_type()) -> [{gen_mod:opt_key(), gen_mod:opt_value()}].
 config_metrics(HostType) ->
-    OptsToReport = [{backend, rdbms}], %list of tuples {option, defualt_value}
-    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, OptsToReport).
+    mongoose_module_metrics:opts_for_module(HostType, ?MODULE, [backend]).
 
 -spec muclight_enabled(HostType :: mongooseim:host_type()) -> boolean().
 muclight_enabled(HostType) ->
