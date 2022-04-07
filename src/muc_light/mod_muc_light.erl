@@ -24,7 +24,6 @@
 -behaviour(mongoose_module_metrics).
 
 %% API
--export([default_host/0]).
 -export([server_host_to_muc_host/2]).
 -export([config_schema/1]).
 
