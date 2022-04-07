@@ -164,7 +164,7 @@ hooks(HostType) ->
         {failed_to_store_message, HostType, ?MODULE, amp_failed_event, 30},
         {get_personal_data, HostType, ?MODULE, get_personal_data, 50}
     ],
-    case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages, false) of
+    case gen_mod:get_module_opt(HostType, ?MODULE, store_groupchat_messages) of
         true ->
             GroupChatHook = {offline_groupchat_message_hook,
                              HostType, ?MODULE, inspect_packet, 50},
