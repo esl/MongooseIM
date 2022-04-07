@@ -9,9 +9,6 @@
 %% state API
 -export([build_state/3, get_opts/1]).
 
-%% config post-processing
--export([unfold_opts/1]).
-
 -callback parse_file(FileName :: string()) -> state().
 
 -include("mongoose.hrl").
@@ -138,7 +135,7 @@ post_process_services(State = #state{opts = Opts}) ->
 
 post_process_services_opt({services, Services}) ->
     ServicesWithDeps = mongoose_service_deps:resolve_deps(Services),
-    {services, unfold_all_opts(ServicesWithDeps)};
+    {services, ServicesWithDeps};
 post_process_services_opt(Other) ->
     Other.
 
@@ -149,15 +146,9 @@ post_process_modules(State = #state{opts = Opts}) ->
 
 post_process_modules_opt({{modules, HostType}, Modules}) ->
     ModulesWithDeps = gen_mod_deps:resolve_deps(HostType, Modules),
-    {{modules, HostType}, unfold_all_opts(ModulesWithDeps)};
+    {{modules, HostType}, ModulesWithDeps};
 post_process_modules_opt(Other) ->
     Other.
-
-unfold_all_opts(Modules) ->
-    maps:map(fun(_Mod, Opts) -> unfold_opts(Opts) end, Modules).
-
-unfold_opts(Opts) when is_map(Opts) -> Opts;
-unfold_opts(Opts) -> proplists:unfold(Opts).
 
 %% local functions
 
