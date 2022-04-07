@@ -881,7 +881,8 @@ services() ->
 configurable_services() ->
     [service_admin_extra,
      service_mongoose_system_metrics,
-     service_domain_db].
+     service_domain_db,
+     service_garbage_collect].
 
 %% path: (host_config[].)modules
 modules() ->
