@@ -25,8 +25,7 @@ register_route(Domain, Handler) ->
         error ->
             {error, invalid_domain, Domain};
         LDomain ->
-            ets:insert(?TABLE, {LDomain, Handler}),
-            mongoose_hooks:register_subhost(LDomain, false)
+            ets:insert(?TABLE, {LDomain, Handler})
     end.
 
 -spec unregister_route(jid:server()) -> any().
