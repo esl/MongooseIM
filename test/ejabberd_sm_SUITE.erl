@@ -608,10 +608,8 @@ opts(Config) ->
      {all_metrics_are_global, false},
      {sm_backend, sm_backend(?config(backend, Config))}].
 
-sm_backend(ejabberd_sm_redis) ->
-    {redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]};
-sm_backend(ejabberd_sm_mnesia) ->
-    {mnesia, []}.
+sm_backend(ejabberd_sm_redis) -> redis;
+sm_backend(ejabberd_sm_mnesia) -> mnesia.
 
 set_meck() ->
     meck:expect(gen_hook, add_handler, fun(_, _, _, _, _) -> ok end),

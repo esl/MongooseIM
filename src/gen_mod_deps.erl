@@ -111,10 +111,6 @@ resolve_deps(HostType, [{Module, Opts} | ModuleQueue], OptionalMods, KnownModule
 %% Merges module opts prioritizing the new ones, and warns on overrides.
 %% @end
 -spec merge_opts(module(), module_opts(), module_opts()) -> module_opts().
-merge_opts(Module, PreviousOpts, Opts) when is_list(PreviousOpts), is_list(Opts) ->
-    %% Temporary clause, should be removed when all modules support maps
-    maps:to_list(merge_opts(Module, maps:from_list(proplists:unfold(PreviousOpts)),
-                            maps:from_list(proplists:unfold(Opts))));
 merge_opts(Module, PreviousOpts, Opts) when is_map(PreviousOpts), is_map(Opts) ->
     case changed_opts(PreviousOpts, Opts) of
         [] ->

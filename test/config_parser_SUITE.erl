@@ -316,8 +316,8 @@ supported_features(_Config) ->
     ?cfg([{auth, <<"type1">>}, methods], [internal], maps:merge(Gen, Auth)),
     ?cfg([{auth, <<"type1">>}, methods], [internal],
          Gen#{<<"host_config">> => [Auth#{<<"host_type">> => <<"type1">>}]}),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [], maps:merge(Gen, Mod)),
-    ?cfg([{modules, <<"type1">>}, mod_amp], [],
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{}, maps:merge(Gen, Mod)),
+    ?cfg([{modules, <<"type1">>}, mod_amp], #{},
           Gen#{<<"host_config">> => [Mod#{<<"host_type">> => <<"type1">>}]}).
 
 unsupported_features(_Config) ->
@@ -408,9 +408,9 @@ all_metrics_are_global(_Config) ->
     ?err(#{<<"general">> => #{<<"all_metrics_are_global">> => <<"true">>}}).
 
 sm_backend(_Config) ->
-    ?cfg(sm_backend, {mnesia, []}, #{}), % default
-    ?cfg(sm_backend, {mnesia, []}, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
-    ?cfg(sm_backend, {redis, []}, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
+    ?cfg(sm_backend, mnesia, #{}), % default
+    ?cfg(sm_backend, mnesia, #{<<"general">> => #{<<"sm_backend">> => <<"mnesia">>}}),
+    ?cfg(sm_backend, redis, #{<<"general">> => #{<<"sm_backend">> => <<"redis">>}}),
     ?err(#{<<"general">> => #{<<"sm_backend">> => <<"amnesia">>}}).
 
 max_fsm_queue(_Config) ->
@@ -1583,7 +1583,7 @@ s2s_max_retry_delay(_Config) ->
 
 mod_adhoc(_Config) ->
     check_module_defaults(mod_adhoc),
-    check_iqdisc_map(mod_adhoc),
+    check_iqdisc(mod_adhoc),
     P = [modules, mod_adhoc],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_adhoc">> => #{K => V}}} end,
     %% report_commands_node is boolean
@@ -1594,7 +1594,7 @@ mod_adhoc(_Config) ->
 
 mod_auth_token(_Config) ->
     check_module_defaults(mod_auth_token),
-    check_iqdisc_map(mod_auth_token),
+    check_iqdisc(mod_auth_token),
     P = [modules, mod_auth_token],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_auth_token">> => #{K => V}}} end,
     ?cfgh(P ++ [backend], rdbms, T(<<"backend">>, <<"rdbms">>)),
@@ -1661,7 +1661,7 @@ mod_cache_users(_Config) ->
     ?errh(T(<<"number_of_segments">>, <<"infinity">>)).
 
 mod_carboncopy(_Config) ->
-    check_iqdisc_map(mod_carboncopy).
+    check_iqdisc(mod_carboncopy).
 
 mod_csi(_Config) ->
     check_module_defaults(mod_csi),
@@ -1673,7 +1673,7 @@ mod_csi(_Config) ->
 
 mod_disco(_Config) ->
     check_module_defaults(mod_disco),
-    check_iqdisc_map(mod_disco),
+    check_iqdisc(mod_disco),
     P = [modules, mod_disco],
     T = fun(K, V) -> #{<<"modules">> => #{<<"mod_disco">> => #{K => V}}} end,
     ?cfgh(P ++ [users_can_see_hidden_services], true,
@@ -1710,7 +1710,7 @@ mod_disco(_Config) ->
 
 mod_extdisco(_Config) ->
     check_module_defaults(mod_extdisco),
-    check_iqdisc_map(mod_extdisco),
+    check_iqdisc(mod_extdisco),
     P = [modules, mod_extdisco, service],
     T = fun(Opts) -> #{<<"modules">> =>
                            #{<<"mod_extdisco">> =>
@@ -1734,7 +1734,7 @@ mod_extdisco(_Config) ->
 
 mod_inbox(_Config) ->
     check_module_defaults(mod_inbox),
-    check_iqdisc_map(mod_inbox),
+    check_iqdisc(mod_inbox),
     P = [modules, mod_inbox],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_inbox">> => Opts}} end,
     ChatMarkers = [<<"displayed">>, <<"received">>, <<"acknowledged">>],
@@ -1970,6 +1970,7 @@ mod_event_pusher_push(_Config) ->
                            #{<<"mod_event_pusher">> => #{<<"push">> => Opts}}}
         end,
     ?cfgh(P, default_config(P), T(#{})),
+    check_iqdisc(P, T),
     test_wpool(P ++ [wpool], fun(Opts) -> T(#{<<"wpool">> => Opts}) end),
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
     ?cfgh(P ++ [plugin_module], mod_event_pusher_push_plugin_enhanced,
@@ -2077,7 +2078,7 @@ mod_http_upload(_Config) ->
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub@HOST@">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"invalid.sub.@HOST@.as.well">>]})),
     ?errh(T(RequiredOpts#{<<"host">> => [<<"not.supported.any.more.@HOSTS@">>]})),
-    check_iqdisc_map(mod_http_upload, RequiredOpts).
+    check_iqdisc(mod_http_upload, RequiredOpts).
 
 mod_http_upload_s3(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_http_upload">> =>
@@ -2164,7 +2165,7 @@ mod_keystore_keys(_Config) ->
                <<"path">> => <<"priv/access_psk">>}])).
 
 mod_last(_Config) ->
-    check_iqdisc_map(mod_last),
+    check_iqdisc(mod_last),
     check_module_defaults(mod_last),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_last">> => Opts}} end,
     P = [modules, mod_last],
@@ -2577,7 +2578,7 @@ mod_offline_chatmarkers(_Config) ->
 mod_ping(_Config) ->
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_ping">> => Opts}} end,
     P = [modules, mod_ping],
-    check_iqdisc_map(mod_ping),
+    check_iqdisc(mod_ping),
     check_module_defaults(mod_ping),
     ?cfgh(P ++ [send_pings], true,
           T(#{<<"send_pings">> => true})),
@@ -2619,7 +2620,7 @@ test_privacy_opts(Module) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_private(_Config) ->
-    check_iqdisc_map(mod_private),
+    check_iqdisc(mod_private),
     check_module_defaults(mod_private),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_private">> => Opts}} end,
     P = [modules, mod_private],
@@ -2631,7 +2632,7 @@ mod_private(_Config) ->
     ?errh(T(#{<<"riak">> => #{<<"bucket_type">> => 1}})).
 
 mod_pubsub(_Config) ->
-    check_iqdisc_map(mod_pubsub),
+    check_iqdisc(mod_pubsub),
     check_module_defaults(mod_pubsub),
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_pubsub">> => Opts}} end,
     P = [modules, mod_pubsub],
@@ -2757,7 +2758,7 @@ mod_push_service_mongoosepush(_Config) ->
 
 mod_register(_Config) ->
     check_module_defaults(mod_register),
-    check_iqdisc_map(mod_register),
+    check_iqdisc(mod_register),
     P = [modules, mod_register],
     ?cfgh(P ++ [access], register,
           ip_access_register(<<"127.0.0.1">>)),
@@ -2828,7 +2829,7 @@ registration_watchers(JidBins) ->
     #{<<"modules">> => #{<<"mod_register">> => Opts}}.
 
 mod_roster(_Config) ->
-    check_iqdisc_map(mod_roster),
+    check_iqdisc(mod_roster),
     check_module_defaults(mod_roster),
     P = [modules, mod_roster],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_roster">> => Opts}} end,
@@ -2922,11 +2923,11 @@ mod_shared_roster_ldap(_Config) ->
 
 mod_sic(_Config) ->
     check_module_defaults(mod_sic),
-    check_iqdisc_map(mod_sic).
+    check_iqdisc(mod_sic).
 
 mod_smart_markers(_Config) ->
     check_module_defaults(mod_smart_markers),
-    check_iqdisc_map(mod_smart_markers),
+    check_iqdisc(mod_smart_markers),
     P = [modules, mod_smart_markers],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_smart_markers">> => Opts}} end,
     ?cfgh(P ++ [backend], rdbms, T(#{<<"backend">> => <<"rdbms">>})),
@@ -2966,12 +2967,12 @@ mod_stream_management_stale_h(_Config) ->
     ?errh(T(#{<<"geriatric">> => <<"one">>})).
 
 mod_time(_Config) ->
-    check_iqdisc_map(mod_time),
+    check_iqdisc(mod_time),
     check_module_defaults(mod_time).
 
 mod_vcard(_Config) ->
     check_module_defaults(mod_vcard),
-    check_iqdisc_map(mod_vcard),
+    check_iqdisc(mod_vcard),
     P = [modules, mod_vcard],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_vcard">> => Opts}} end,
     ?cfgh(P ++ [iqdisc], one_queue,
@@ -3088,14 +3089,14 @@ mod_vcard_ldap_search_reported(_Config) ->
 
 mod_version(_Config) ->
     check_module_defaults(mod_version),
-    check_iqdisc_map(mod_version),
+    check_iqdisc(mod_version),
     P = [modules, mod_version],
     T = fun(Opts) -> #{<<"modules">> => #{<<"mod_version">> => Opts}} end,
     ?cfgh(P ++ [os_info], true, T(#{<<"os_info">> => true})),
     ?errh(T(#{<<"os_info">> => 1})).
 
 modules_without_config(_Config) ->
-    ?cfgh(modopts(mod_amp, []), #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
+    ?cfgh([modules, mod_amp], #{}, #{<<"modules">> => #{<<"mod_amp">> => #{}}}),
     ?errh(#{<<"modules">> => #{<<"mod_wrong">> => #{}}}).
 
 incorrect_module(_Config) ->
@@ -3140,42 +3141,32 @@ service_mongoose_system_metrics(_Config) ->
 
 %% Helpers for module tests
 
-iqdisc({queues, Workers}) -> #{<<"type">> => <<"queues">>, <<"workers">> => Workers};
-iqdisc(Atom) -> #{<<"type">> => atom_to_binary(Atom, utf8)}.
-
-iq_disc_generic(Module, RequiredOpts, Value) ->
-    Opts = RequiredOpts#{<<"iqdisc">> => Value},
-    #{<<"modules">> => #{atom_to_binary(Module, utf8) => Opts}}.
-
 check_iqdisc(Module) ->
-    check_iqdisc(Module, [], #{}).
+    P = [modules, Module],
+    T = fun(Opts) -> #{<<"modules">> => #{atom_to_binary(Module) => Opts}} end,
+    check_iqdisc(P, T).
 
-check_iqdisc(Module, ExpectedCfg, RequiredOpts) ->
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, {queues, 10}}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh(modopts(Module, ExpectedCfg ++ [{iqdisc, parallel}]),
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
-
-check_iqdisc_map(Module) ->
-    check_iqdisc_map(Module, #{}).
-
-check_iqdisc_map(Module, RequiredOpts) ->
-    ?cfgh([modules, Module, iqdisc], {queues, 10},
-          iq_disc_generic(Module, RequiredOpts, iqdisc({queues, 10}))),
-    ?cfgh([modules, Module, iqdisc], parallel,
-          iq_disc_generic(Module, RequiredOpts, iqdisc(parallel))),
-    ?errh(iq_disc_generic(Module, RequiredOpts, iqdisc(bad_haha))).
+check_iqdisc(Module, RequiredOpts) when is_map(RequiredOpts) ->
+    P = [modules, Module],
+    T = fun(Opts) ->
+                #{<<"modules">> => #{atom_to_binary(Module) => maps:merge(RequiredOpts, Opts)}}
+        end,
+    check_iqdisc(P, T);
+check_iqdisc(ParentP, ParentT) when is_function(ParentT, 1) ->
+    P = ParentP ++ [iqdisc],
+    T = fun(Opts) -> ParentT(#{<<"iqdisc">> => Opts}) end,
+    ?cfgh(P, {queues, 10}, T(#{<<"type">> => <<"queues">>, <<"workers">> => 10})),
+    ?cfgh(P, parallel, T(#{<<"type">> => <<"parallel">>})),
+    ?cfgh(P, one_queue, T(#{<<"type">> => <<"one_queue">>})),
+    ?cfgh(P, no_queue, T(#{<<"type">> => <<"no_queue">>})),
+    ?errh(T(#{<<"type">> => <<"one_queue_and_a_half">>})),
+    ?errh(T(#{<<"type">> => <<"queues">>, <<"workers">> => 0})),
+    ?errh(T(#{<<"type">> => <<"no_queue">>, <<"workers">> => 10})),
+    ?errh(T(#{<<"workers">> => 10})).
 
 check_module_defaults(Mod) ->
     ExpectedCfg = default_mod_config(Mod),
     ?cfgh([modules, Mod], ExpectedCfg, #{<<"modules">> => #{atom_to_binary(Mod) => #{}}}).
-
-modopts(Mod, Opts) ->
-    [{[modules, Mod], Opts}].
-
-servopts(Service, Opts) ->
-    [{[services, Service], Opts}].
 
 %% helpers for 'listen' tests
 
@@ -3331,8 +3322,6 @@ compare_nodes([listen], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_listener/2);
 compare_nodes([outgoing_pools], V1, V2) ->
     compare_unordered_lists(V1, V2, fun handle_conn_pool/2);
-compare_nodes([services], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_item_with_opts/2);
 compare_nodes([{auth_method, _}], V1, V2) when is_atom(V1) ->
     ?eq([V1], V2);
 compare_nodes([{s2s_addr, _}], {_, _, _, _} = IP1, IP2) ->
@@ -3342,8 +3331,6 @@ compare_nodes(Node, V1, V2) when is_map(V1), is_map(V2) ->
                                  ?eq(K1, K2),
                                  compare_nodes(Node ++ [K1], MV1, MV2)
                          end);
-compare_nodes([{modules, _}, _Module], V1, V2) ->
-    compare_unordered_lists(V1, V2, fun handle_module_options/2);
 compare_nodes(Node, V1, V2) ->
     ?eq({Node, V1}, {Node, V2}).
 
@@ -3407,14 +3394,6 @@ handle_conn_opt(V1, V2) -> ?eq(V1, V2).
 handle_db_server_opt({ssl_opts, O1}, {ssl_opts, O2}) ->
     compare_unordered_lists(O1, O2);
 handle_db_server_opt(V1, V2) -> ?eq(V1, V2).
-
-handle_module_options({configs, [Configs1]}, {configs, [Configs2]}) ->
-    compare_unordered_lists(Configs1, Configs2, fun handle_module_options/2);
-handle_module_options({Name, Opts = [{_, _}|_]}, {Name2, Opts2 = [{_, _}|_]}) ->
-    ?eq(Name, Name2),
-    compare_unordered_lists(Opts, Opts2, fun handle_module_options/2);
-handle_module_options(V1, V2) ->
-    ?eq(V1, V2).
 
 %% Generic assertions, use the 'F' handler for any custom cases
 compare_unordered_lists(L1, L2) when is_list(L1), is_list(L2) ->

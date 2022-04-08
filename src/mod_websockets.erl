@@ -68,7 +68,7 @@ init(Req, Opts) ->
     Req1 = add_sec_websocket_protocol_header(Req),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets request">>,
                  req => Req, opts => Opts}),
-    Timeout = gen_mod:get_opt(timeout, Opts, 60000),
+    Timeout = proplists:get_value(timeout, Opts, 60000),
 
     AllModOpts = [{peer, Peer}, {peercert, PeerCert} | Opts],
     %% upgrade protocol
@@ -83,10 +83,10 @@ terminate(_Reason, _Req, _State) ->
 
 % Called for every new websocket connection.
 websocket_init(Opts) ->
-    PingRate = gen_mod:get_opt(ping_rate, Opts, none),
-    MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
-    Peer = gen_mod:get_opt(peer, Opts),
-    PeerCert = gen_mod:get_opt(peercert, Opts),
+    PingRate = proplists:get_value(ping_rate, Opts, none),
+    MaxStanzaSize = proplists:get_value(max_stanza_size, Opts, infinity),
+    Peer = proplists:get_value(peer, Opts),
+    PeerCert = proplists:get_value(peercert, Opts),
     maybe_send_ping_request(PingRate),
     ?LOG_DEBUG(#{what => ws_init, text => <<"New websockets connection">>,
                  peer => Peer, opts => Opts}),
@@ -197,7 +197,7 @@ maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
                 #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
     case lists:keyfind(<<"xmlns">>, 1, Attrs) of
         {<<"xmlns">>, ?NS_COMPONENT} ->
-            ServiceOpts = gen_mod:get_opt(ejabberd_service, Opts, []),
+            ServiceOpts = proplists:get_value(ejabberd_service, Opts, []),
             do_start_fsm(ejabberd_service, ServiceOpts, State);
         _ ->
             {stop, State}

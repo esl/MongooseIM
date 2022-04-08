@@ -35,8 +35,7 @@ stop(_, _) ->
 do_start(HostType, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_map(RdbmsOpts) ->
     BackendName = backend_name(RdbmsOpts),
     KVRdbmsOpts = maps:to_list(RdbmsOpts),
-    BackendOpts = KVRdbmsOpts ++ [{backend, BackendName}],
-    mongoose_backend:init(global, mongoose_rdbms, [query, execute], BackendOpts),
+    mongoose_backend:init(global, mongoose_rdbms, [query, execute], #{backend => BackendName}),
 
     mongoose_metrics:ensure_db_pool_metric({rdbms, HostType, Tag}),
     WpoolOpts = make_wpool_opts(WpoolOpts0, KVRdbmsOpts),

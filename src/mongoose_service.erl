@@ -37,8 +37,7 @@
 -type service() :: module().
 -type opt_key() :: atom().
 -type opt_value() :: mongoose_config:value().
--type options() :: [{opt_key(), opt_value()}] % deprecated, will be removed
-                 | #{opt_key() => opt_value()}. % recommended
+-type options() :: #{opt_key() => opt_value()}.
 -type start_result() :: any().
 -type service_list() :: [{service(), options()}].
 -type service_map() :: #{service() => options()}.

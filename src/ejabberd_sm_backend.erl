@@ -1,7 +1,7 @@
 %% Generic module to access SM backend modules
 -module(ejabberd_sm_backend).
 
--callback init(list()) ->
+-callback init(map()) ->
     any().
 -callback get_sessions() ->
     [ejabberd_sm:session()].
@@ -29,7 +29,7 @@
 -callback total_count() -> integer().
 -callback unique_count() -> integer().
 
--export([init/1, 
+-export([init/1,
          get_sessions/0, get_sessions/1, get_sessions/2, get_sessions/3,
          create_session/4, update_session/4, delete_session/4, cleanup/1,
          total_count/0, unique_count/0]).
@@ -38,7 +38,7 @@
 
 -define(MAIN_MODULE, ejabberd_sm).
 
--spec init(list()) -> any().
+-spec init(map()) -> any().
 init(Opts) ->
     Args = [Opts],
     mongoose_backend:init(global, ?MAIN_MODULE, [], Opts),

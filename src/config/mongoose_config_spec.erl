@@ -12,7 +12,6 @@
 -export([process_root/1,
          process_host/1,
          process_general/1,
-         process_sm_backend/1,
          process_ctl_access_rule/1,
          process_listener/2,
          process_verify_peer/1,
@@ -184,7 +183,6 @@ general() ->
                                                          wrap = global_config},
                  <<"sm_backend">> => #option{type = atom,
                                              validate = {module, ejabberd_sm},
-                                             process = fun ?MODULE:process_sm_backend/1,
                                              wrap = global_config},
                  <<"max_fsm_queue">> => #option{type = integer,
                                                 validate = positive,
@@ -222,7 +220,7 @@ general_defaults() ->
       <<"registration_timeout">> => 600,
       <<"language">> => <<"en">>,
       <<"all_metrics_are_global">> => false,
-      <<"sm_backend">> => {mnesia, []},
+      <<"sm_backend">> => mnesia,
       <<"rdbms_server_type">> => generic,
       <<"mongooseimctl_access_commands">> => [],
       <<"routing_modules">> => mongoose_router:default_routing_modules(),
@@ -795,7 +793,7 @@ modules() ->
                || Module <- configurable_modules()],
     Items = maps:from_list(Modules),
     #section{
-       items = Items#{default => #section{items = #{}}},
+       items = Items#{default => #section{items = #{}, format_items = map}},
        validate_keys = module,
        format_items = map,
        wrap = host_config
@@ -1061,9 +1059,6 @@ process_ctl_access_rule(KVs) ->
     Commands = proplists:get_value(commands, KVs, all),
     ArgRestrictions = proplists:get_value(argument_restrictions, KVs, []),
     {Commands, ArgRestrictions}.
-
-process_sm_backend(Backend) ->
-    {Backend, []}.
 
 process_host(Host) ->
     Node = jid:nodeprep(Host),

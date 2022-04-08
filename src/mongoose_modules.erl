@@ -67,8 +67,7 @@ ensure_stopped(HostType, Module) ->
 %% @doc Make sure the module is running with the provided options.
 -spec ensure_started(mongooseim:host_type(), module(), module_opts()) ->
           already_started | {started, term()} | {restarted, module_opts(), term()}.
-ensure_started(HostType, Module, RawOpts) ->
-    Opts = mongoose_config_parser:unfold_opts(RawOpts),
+ensure_started(HostType, Module, Opts) ->
     Modules = get_modules(HostType),
     case maps:find(Module, Modules) of
         error ->

@@ -24,7 +24,7 @@ options("host_types") ->
      {services, #{service_domain_db => config([services, service_domain_db],
                                               #{event_cleaning_interval => 1000,
                                                 event_max_age => 5000})}},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{s2s, <<"another host type">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"some host type">>}, default_s2s()},
@@ -46,7 +46,7 @@ options("host_types") ->
      {{modules, <<"localhost">>}, #{mod_vcard => default_mod_config(mod_vcard)}},
      {{modules, <<"some host type">>}, #{}},
      {{modules, <<"this is host type">>}, #{}},
-     {{modules, <<"yet another host type">>}, #{mod_amp => []}},
+     {{modules, <<"yet another host type">>}, #{mod_amp => #{}}},
      {{replaced_wait_timeout, <<"another host type">>}, 2000},
      {{replaced_wait_timeout, <<"localhost">>}, 2000},
      {{replaced_wait_timeout, <<"some host type">>}, 2000},
@@ -88,7 +88,7 @@ options("miscellaneous") ->
                                              tracking_id => "UA-123456789"}}},
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, custom_auth()},
      {{auth, <<"localhost">>}, custom_auth()},
      {{modules, <<"anonymous.localhost">>}, #{}},
@@ -113,7 +113,7 @@ options("modules") ->
      {services, #{}},
      {{s2s, <<"dummy_host">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, all_modules()},
@@ -253,7 +253,7 @@ options("mongooseim-pgsql") ->
         service_mongoose_system_metrics =>
             #{initial_report => 300000,
               periodic_report => 10800000}}},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>},
       (default_auth())#{anonymous => #{allow_multiple_connections => true,
                                        protocol => both},
@@ -359,7 +359,7 @@ options("outgoing_pools") ->
      {{s2s, <<"anonymous.localhost">>}, default_s2s()},
      {{s2s, <<"localhost">>}, default_s2s()},
      {{s2s, <<"localhost.bis">>}, default_s2s()},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"anonymous.localhost">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{auth, <<"localhost.bis">>}, default_auth()},
@@ -383,7 +383,7 @@ options("s2s_only") ->
      {registration_timeout, 600},
      {routing_modules, mongoose_router:default_routing_modules()},
      {services, #{}},
-     {sm_backend, {mnesia, []}},
+     {sm_backend, mnesia},
      {{auth, <<"dummy_host">>}, default_auth()},
      {{auth, <<"localhost">>}, default_auth()},
      {{modules, <<"dummy_host">>}, #{}},
@@ -629,7 +629,8 @@ custom_mod_event_pusher_http() ->
              pool_name => http_pool}]}.
 
 custom_mod_event_pusher_push() ->
-    #{backend => mnesia,
+    #{iqdisc => one_queue,
+      backend => mnesia,
       plugin_module => mod_event_pusher_push_plugin_defaults,
       virtual_pubsub_hosts =>
           [{fqdn,<<"host1">>},{fqdn,<<"host2">>}],
@@ -665,12 +666,12 @@ custom_mod_event_pusher_sns() ->
 
 pgsql_modules() ->
     #{mod_adhoc => default_mod_config(mod_adhoc),
-      mod_amp => [], mod_blocking => default_mod_config(mod_blocking),
+      mod_amp => #{}, mod_blocking => default_mod_config(mod_blocking),
       mod_bosh => default_mod_config(mod_bosh),
-      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => [],
+      mod_carboncopy => default_mod_config(mod_carboncopy), mod_commands => #{},
       mod_disco => mod_config(mod_disco, #{users_can_see_hidden_services => false}),
       mod_last => mod_config(mod_last, #{backend => rdbms}),
-      mod_muc_commands => [], mod_muc_light_commands => [],
+      mod_muc_commands => #{}, mod_muc_light_commands => #{},
       mod_offline => mod_config(mod_offline, #{backend => rdbms}),
       mod_privacy => mod_config(mod_privacy, #{backend => rdbms}),
       mod_private => default_mod_config(mod_private),
@@ -1049,7 +1050,8 @@ default_config([modules, M]) ->
 default_config([modules, mod_event_pusher, http]) ->
     #{handlers => []};
 default_config([modules, mod_event_pusher, push]) ->
-    #{backend => mnesia,
+    #{iqdisc => one_queue,
+      backend => mnesia,
       wpool => default_config([modules, mod_event_pusher, push, wpool]),
       plugin_module => mod_event_pusher_push_plugin_defaults,
       virtual_pubsub_hosts => []};

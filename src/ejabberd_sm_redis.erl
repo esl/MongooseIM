@@ -27,7 +27,7 @@
 
 -ignore_xref([maybe_initial_cleanup/2]).
 
--spec init(list()) -> any().
+-spec init(map()) -> any().
 init(_Opts) ->
     %% Clean current node's sessions from previous life
     {Elapsed, RetVal} = timer:tc(?MODULE, maybe_initial_cleanup, [node(), true]),

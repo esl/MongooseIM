@@ -327,13 +327,17 @@ remove_domain_trans(HostType, MucHost) ->
     mongoose_rdbms:execute_successfully(HostType, mam_muc_remove_domain_users, [MucHost]).
 
 get_subhosts(HostType, Domain) ->
-    MucHostPattern = gen_mod:get_module_opt(HostType, mod_muc, host,
-                                            mod_muc:default_host()),
-    LightHostPattern = gen_mod:get_module_opt(HostType, mod_muc_light, host,
-                                              mod_muc_light:default_host()),
-    MucHost = mongoose_subdomain_utils:get_fqdn(MucHostPattern, Domain),
-    LightHost = mongoose_subdomain_utils:get_fqdn(LightHostPattern, Domain),
-    lists:usort([MucHost, LightHost]).
+    lists:usort(
+      lists:flatmap(fun(Module) -> get_subhosts_for_module(HostType, Domain, Module) end,
+                    [mod_muc, mod_muc_light])).
+
+get_subhosts_for_module(HostType, Domain, Module) ->
+    case gen_mod:get_module_opts(HostType, Module) of
+        #{host := HostPattern} ->
+            [mongoose_subdomain_utils:get_fqdn(HostPattern, Domain)];
+        #{} ->
+            []
+    end.
 
 %% GDPR logic
 extract_gdpr_messages(HostType, SenderID) ->
