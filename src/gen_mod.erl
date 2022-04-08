@@ -42,7 +42,6 @@
          get_module_opt/4,
          get_module_opts/2,
          get_loaded_module_opts/2,
-         get_module_opt_subhost/3,
 
          loaded_modules/0,
          loaded_modules/1,
@@ -62,7 +61,6 @@
 -include("mongoose.hrl").
 
 -type module_feature() :: atom().
--type domain_name() :: mongooseim:domain_name().
 -type host_type() :: mongooseim:host_type().
 -type key_path() :: mongoose_config:key_path().
 -type opt_key() :: atom().
@@ -280,17 +278,6 @@ get_module_opts(HostType, Module) ->
 -spec get_loaded_module_opts(mongooseim:host_type(), module()) -> module_opts().
 get_loaded_module_opts(HostType, Module) ->
     mongoose_config:get_opt([{modules, HostType}, Module]).
-
--spec get_module_opt_subhost(domain_name(),
-                             module(),
-                             mongoose_subdomain_utils:subdomain_pattern()) ->
-    domain_name().
-get_module_opt_subhost(Host, Module, Default) ->
-    %% TODO: try to get rid of this interface
-    %% note that get_module_opt/4 requires host_type(), while
-    %% mongoose_subdomain_utils:get_fqdn/2 expects domain_name()
-    Spec = get_module_opt(Host, Module, host, Default),
-    mongoose_subdomain_utils:get_fqdn(Spec, Host).
 
 -spec loaded_modules() -> [module()].
 loaded_modules() ->
