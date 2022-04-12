@@ -48,13 +48,16 @@ user_muc_handler() ->
      user_owner_set_user_affiliation,
      user_admin_set_user_affiliation,
      user_member_set_user_affiliation,
+     user_try_set_nonexistent_room_affiliation,
      user_moderator_set_user_role,
      user_participant_set_user_role,
+     user_try_set_nonexistent_room_role,
      user_can_enter_room,
      user_can_enter_room_with_password,
      user_can_exit_room,
      user_list_room_affiliation,
-     user_try_list_room_affiliation_without_permission
+     user_try_list_room_affiliation_without_permission,
+     user_try_list_nonexistent_room_affiliations
     ].
 
 admin_muc_handler() ->
@@ -895,6 +898,14 @@ user_member_set_user_affiliation(Config, Alice, Bob, Kate) ->
     Res3 = execute_user(set_user_affiliation_body(RoomJID, Kate, none), Bob, Config),
     assert_no_permission(Res3).
 
+user_try_set_nonexistent_room_affiliation(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_set_nonexistent_room_affiliation/2).
+
+user_try_set_nonexistent_room_affiliation(Config, Alice) ->
+    Res = execute_user(set_user_affiliation_body(?NONEXISTENT_ROOM, Alice, none), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
+
 user_moderator_set_user_role(Config) ->
     muc_helper:story_with_room(Config, [{anonymous, false}, {persistent, true}],
                                [{alice, 1}, {bob, 1}],
@@ -939,6 +950,14 @@ user_participant_set_user_role(Config, _Alice, Bob, Kate) ->
     % Try change from participant to moderator 
     Res2 = execute_user(set_user_role_body(RoomJID, KateNick, moderator), Bob, Config),
     assert_no_permission(Res2).
+
+user_try_set_nonexistent_room_role(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_set_nonexistent_room_role/2).
+
+user_try_set_nonexistent_room_role(Config, Alice) ->
+    Res = execute_user(set_user_role_body(?NONEXISTENT_ROOM, <<"Ali">>, participant), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 user_can_enter_room(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}], fun user_can_enter_room/2).
@@ -1022,6 +1041,14 @@ user_try_list_room_users_without_permission(Config, _Alice, Bob) ->
     RoomJID = jid:from_binary(?config(room_jid, Config)),
     Res = execute_user(list_room_affiliations_body(RoomJID, null), Bob, Config),
     assert_no_permission(Res).
+
+user_try_list_nonexistent_room_affiliations(Config) ->
+    escalus:fresh_story_with_config(Config, [{alice, 1}],
+                                    fun user_try_list_nonexistent_room_affiliations/2).
+
+user_try_list_nonexistent_room_affiliations(Config, Alice) ->
+    Res = execute_user(list_room_affiliations_body(?NONEXISTENT_ROOM, null), Alice, Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 %% Helpers
 
