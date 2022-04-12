@@ -37,6 +37,7 @@
 
 %% API exports
 -export([get_room_users/1,
+         get_room_affiliations/1,
          is_room_owner/2,
          can_access_room/2,
          can_access_identity/2]).
@@ -44,6 +45,7 @@
 %% gen_fsm callbacks
 -export([init/1,
          normal_state/2,
+         normal_state/3,
          locked_state/2,
          initial_state/2,
          handle_event/3,
@@ -52,7 +54,7 @@
          terminate/3,
          code_change/4]).
 
--ignore_xref([initial_state/2, locked_state/2, normal_state/2, start_link/1]).
+-ignore_xref([initial_state/2, locked_state/2, normal_state/2, normal_state/3, start_link/1]).
 
 -import(mongoose_lib, [maps_append/3,
                        maps_foreach/2,
@@ -197,12 +199,22 @@ start_link(Args = #{}) ->
 stop(Pid) ->
     gen_fsm_compat:stop(Pid).
 
--spec get_room_users(RoomJID :: jid:jid()) -> {ok, [user()]}
-                                             | {error, not_found}.
+-spec get_room_users(RoomJID :: jid:jid()) ->
+    {ok, [user()]} | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
             gen_fsm_compat:sync_send_all_state_event(Pid, get_room_users);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+-spec get_room_affiliations(RoomJID :: jid:jid()) ->
+    {ok, affiliations_map()} | {error, not_found}.
+get_room_affiliations(RoomJID) ->
+    case mod_muc:room_jid_to_pid(RoomJID) of
+        {ok, Pid} ->
+            gen_fsm_compat:sync_send_all_state_event(Pid, get_room_affiliations);
         {error, Reason} ->
             {error, Reason}
     end.
@@ -540,6 +552,15 @@ normal_state(timeout, StateData) ->
 normal_state(_Event, StateData) ->
     next_normal_state(StateData).
 
+normal_state({set_admin_items, UJID, Items}, _From,
+             #state{hibernate_timeout = Timeout} = StateData) ->
+    case process_admin_items_set(UJID, Items, <<"en">>, StateData) of
+        {result, [], StateData2} ->
+            {reply, ok, normal_state, StateData2, Timeout};
+        {error, Error} ->
+            {reply, {error, Error}, normal_state, StateData, Timeout}
+    end.
+
 handle_event({service_message, Msg}, _StateName, StateData) ->
     MessagePkt = #xmlel{name = <<"message">>,
                         attrs = [{<<"type">>, <<"groupchat">>}],
@@ -586,6 +607,8 @@ handle_sync_event(get_state, _From, StateName, StateData) ->
     reply_with_timeout({ok, StateData}, StateName, StateData);
 handle_sync_event(get_room_users, _From, StateName, StateData) ->
     reply_with_timeout({ok, maps:values(StateData#state.users)}, StateName, StateData);
+handle_sync_event(get_room_affiliations, _From, StateName, StateData) ->
+    reply_with_timeout({ok, StateData#state.affiliations}, StateName, StateData);
 handle_sync_event({is_room_owner, UserJID}, _From, StateName, StateData) ->
     reply_with_timeout({ok, get_affiliation(UserJID, StateData) =:= owner}, StateName, StateData);
 handle_sync_event({can_access_room, UserJID}, _From, StateName, StateData) ->
