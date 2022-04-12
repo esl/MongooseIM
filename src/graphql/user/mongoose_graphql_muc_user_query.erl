@@ -14,6 +14,8 @@ execute(Ctx, _Obj, <<"listRooms">>, Args) ->
     list_rooms(Ctx, Args);
 execute(Ctx, _Obj, <<"listRoomUsers">>, Args) ->
     list_room_users(Ctx, Args);
+execute(Ctx, _Obj, <<"listRoomAffiliations">>, Args) ->
+    list_room_affiliations(Ctx, Args);
 execute(Ctx, _Obj, <<"getRoomMessages">>, Args) ->
     get_room_messages(Ctx, Args);
 execute(Ctx, _Obj, <<"getRoomConfig">>, Args) ->
@@ -32,6 +34,16 @@ list_room_users(#{user := UserJID}, #{<<"room">> := RoomJID}) ->
     case mod_muc_api:get_room_users(RoomJID, UserJID) of
         {ok, Users} ->
             {ok, mongoose_graphql_muc_helper:format_users(Users)};
+        Error ->
+            make_error(Error, #{room => jid:to_binary(RoomJID)})
+    end.
+
+-spec list_room_affiliations(map(), map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
+list_room_affiliations(#{user := UserJID}, #{<<"room">> := RoomJID, <<"affiliation">> := Aff}) ->
+    Aff2 = null_to_undefined(Aff),
+    case mod_muc_api:get_room_affiliation(RoomJID, UserJID, Aff2) of
+        {ok, Affs} ->
+            {ok, mongoose_graphql_muc_helper:format_affs(Affs)};
         Error ->
             make_error(Error, #{room => jid:to_binary(RoomJID)})
     end.
