@@ -10,10 +10,20 @@ type MUCUserMutation @protected{
   kickUser(room: JID!, nick: String!, reason: String): String
   "Send a message to a MUC room"
   sendMessageToRoom(room: JID!, body: String!, resource: String): String
+  "Send a private message to a MUC room user, from with res"
+  sendPrivateMessage(room: JID!, toNick: String!, body: String!, resource: String): String
   "Remove a MUC room"
   deleteRoom(room: JID!, reason: String): String
   "Change configuration of a MUC room"
   changeRoomConfiguration(room: JID!, config: MUCRoomConfigInput!): MUCRoomConfig
+  "Change a user role"
+  setUserRole(room: JID!, nick: String!, role: MUCRole!): String
+  "Change a user affiliation"
+  setUserAffiliation(room: JID!, user: JID!, affiliation: MUCAffiliation!): String
+  "Enter the room with given resource and nick"
+  enterRoom(room: JID!, nick: String!, resource: String!, password: String): String
+  "Exit the room with given resource and nick"
+  exitRoom(room: JID!, nick: String!, resource: String!): String
 }
 
 """
@@ -24,8 +34,10 @@ type MUCUserQuery @protected{
   listRooms(mucDomain: String!, limit: Int, index: Int): MUCRoomsPayload!
   "Get configuration of the MUC room"
   getRoomConfig(room: JID!): MUCRoomConfig
-  "Get user list of a given MUC room"
+  "Get users list of a given MUC room"
   listRoomUsers(room: JID!): [MUCRoomUser!]
+  "Get affiliations list of given MUC room"
+  listRoomAffiliations(room: JID!, affiliation: MUCAffiliation): [MUCRoomAffiliation!]
   "Get the MUC room archived messages"
   getRoomMessages(room: JID!, pageSize: Int, before: DateTime): StanzasPayload
 }
