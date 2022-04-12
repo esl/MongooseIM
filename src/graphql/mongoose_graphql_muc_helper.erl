@@ -1,7 +1,7 @@
 -module(mongoose_graphql_muc_helper).
 
 -export([make_rooms_payload/2, make_room_desc/1, muc_room_config_to_map/1, make_muc_room_config/2,
-         format_user/1, format_users/1, add_user_resource/2]).
+         format_user/1, format_users/1, add_user_resource/2, format_affs/1]).
 
 -export([default_kick_reason/1, default_invite_reason/1, default_room_removal_reason/1]).
 
@@ -47,6 +47,12 @@ format_users(Users) ->
 
 format_user(#{jid := JID, role := Role, nick := Nick}) ->
     #{<<"jid">> => JID, <<"role">> => Role, <<"nick">> => Nick}.
+
+format_affs(Affs) ->
+    [{ok, format_aff(A)} || A <- Affs].
+
+format_aff({JID, Aff}) ->
+    #{<<"jid">> => JID, <<"affiliation">> => Aff}.
 
 -spec muc_room_config_to_map(mod_muc_room:config()) -> map().
 muc_room_config_to_map(Conf) ->

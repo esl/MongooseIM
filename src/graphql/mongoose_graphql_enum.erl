@@ -23,10 +23,14 @@ input(<<"SubAction">>, <<"DECLINE">>) -> {ok, decline};
 input(<<"SubAction">>, <<"CANCEL">>) -> {ok, cancel};
 input(<<"MutualSubAction">>, <<"CONNECT">>) -> {ok, connect};
 input(<<"MutualSubAction">>, <<"DISCONNECT">>) -> {ok, disconnect};
-input(<<"MUCRoomRole">>, <<"NONE">>) -> {ok, none};
-input(<<"MUCRoomRole">>, <<"VISITOR">>) -> {ok, visitor};
-input(<<"MUCRoomRole">>, <<"PARTICIPANT">>) -> {ok, participant};
-input(<<"MUCRoomRole">>, <<"MODERATOR">>) -> {ok, moderator}.
+input(<<"MUCRole">>, <<"VISITOR">>) -> {ok, visitor};
+input(<<"MUCRole">>, <<"PARTICIPANT">>) -> {ok, participant};
+input(<<"MUCRole">>, <<"MODERATOR">>) -> {ok, moderator};
+input(<<"MUCAffiliation">>, <<"NONE">>) -> {ok, none};
+input(<<"MUCAffiliation">>, <<"MEMBER">>) -> {ok, member};
+input(<<"MUCAffiliation">>, <<"OUTCAST">>) -> {ok, outcast};
+input(<<"MUCAffiliation">>, <<"ADMIN">>) -> {ok, admin};
+input(<<"MUCAffiliation">>, <<"OWNER">>) -> {ok, owner}.
 
 output(<<"PresenceShow">>, Show) ->
     {ok, list_to_binary(string:to_upper(binary_to_list(Show)))};
@@ -52,5 +56,7 @@ output(<<"ContactAsk">>, Type) when Type =:= subscrube;
                                     Type =:= both;
                                     Type =:= none ->
     {ok, list_to_binary(string:to_upper(atom_to_list(Type)))};
-output(<<"MUCRoomRole">>, Role) ->
-    {ok, list_to_binary(string:to_upper(atom_to_list(Role)))}.
+output(<<"MUCRole">>, Role) ->
+    {ok, list_to_binary(string:to_upper(atom_to_list(Role)))};
+output(<<"MUCAffiliation">>, Aff) ->
+    {ok, list_to_binary(string:to_upper(atom_to_list(Aff)))}.
