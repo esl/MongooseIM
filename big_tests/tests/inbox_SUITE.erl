@@ -569,14 +569,13 @@ check_total_unread_count_and_active_conv_count(Config) ->
 check_total_unread_count_when_there_are_no_active_conversations(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
         inbox_helper:send_and_mark_msg(Kate, Mike),
-
         inbox_helper:get_inbox(Mike, #{count => 1, unread_messages => 0, active_conversations => 0})
-  end).
+    end).
 
 total_unread_count_and_active_convs_are_zero_at_no_activity(Config) ->
     escalus:fresh_story(Config, [{kate, 1}], fun(Kate) ->
         inbox_helper:get_inbox(Kate, #{count => 0, unread_messages => 0, active_conversations => 0})
-                                                end).
+    end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
     escalus:fresh_story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
@@ -831,7 +830,7 @@ leave_and_remove_conversation(Config) ->
         check_inbox(Bob, [], #{box => inbox}),
         if_async_check_bin(Config, Bob, [#conv{unread = 2, from = RoomJid, to = BobJid,
                                                verify = fun inbox_helper:verify_is_none_aff_change/2}])
-      end).
+    end).
 
 %% this test combines options:
 %% ...

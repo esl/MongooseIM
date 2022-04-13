@@ -174,23 +174,15 @@ empty_global_bin(HostType, TS) ->
     mod_inbox_rdbms:empty_global_bin(HostType, TS).
 
 -spec aggregate(CurrentlyAccumulatedTask :: task(), NewTask :: task()) -> FinalTask :: task().
-%%% First task being processed, just take that one
-aggregate(undefined, Task) ->
-    Task;
-
 %%% if new task is remove_row, do the previous with an updated box
-    % {reset_unread, mod_inbox:entry_key(), id(), integer()}.
-aggregate({reset_unread, _, _, _},
-          {remove_inbox_row, _} = OldTask) ->
-    OldTask;
 aggregate({set_inbox, Entry, Content, Count, MsgId, Timestamp, _},
           {remove_inbox_row, _}) ->
     {set_inbox, Entry, Content, Count, MsgId, Timestamp, <<"bin">>};
 aggregate({set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, _},
           {remove_inbox_row, _}) ->
     {set_inbox_incr_unread, Entry, Content, MsgId, Timestamp, Incrs, <<"bin">>};
-aggregate(_, {remove_inbox_row, _} = OldTask) ->
-    OldTask;
+aggregate(_, {remove_inbox_row, _} = NewTask) ->
+    NewTask;
 
 %%% if the last task was remove_row, this task should now only be an insert
 aggregate({remove_inbox_row, _} = OldTask, {reset_unread, _, _, _}) ->
