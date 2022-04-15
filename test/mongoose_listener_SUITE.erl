@@ -1,4 +1,4 @@
--module(ejabberd_listener_SUITE).
+-module(mongoose_listener_SUITE).
 
 -compile([export_all, nowarn_export_all]).
 
@@ -15,14 +15,11 @@ all() ->
      tcp_socket_supports_proxy_protocol,
      tcp_socket_has_connection_details,
      tcp_socket_supports_proxy_protocol,
-     udp_socket_is_started_with_defaults,
      tcp_start_stop_reload
      ].
 
 init_per_testcase(_Case, Config) ->
-    meck:new([gen_udp, gen_tcp], [unstick, passthrough]),
-    meck:expect(gen_udp, open,
-                fun(Port, Opts) -> meck:passthrough([Port, Opts]) end),
+    meck:new([gen_tcp], [unstick, passthrough]),
     meck:expect(gen_tcp, listen,
                 fun(Port, Opts) -> meck:passthrough([Port, Opts]) end),
     Config.
@@ -39,24 +36,24 @@ end_per_suite(_C) ->
     mnesia:delete_schema([node()]).
 
 tcp_socket_is_started_with_default_backlog(_C) ->
-    {ok, _Pid} = listener_started(#{}),
+    ok = listener_started(#{}),
     [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
     100 = proplists:get_value(backlog, Opts).
 
 tcp_socket_is_started_with_options(_C) ->
-    {ok, _Pid} = listener_started(#{backlog => 50}),
+    ok = listener_started(#{backlog => 50}),
     [{_Pid, {gen_tcp, listen, [_, Opts]}, _Result}] =  meck:history(gen_tcp),
     50 = proplists:get_value(backlog, Opts).
 
 tcp_socket_has_connection_details(_C) ->
-    {ok, _Pid} = listener_started(#{}),
+    ok = listener_started(#{}),
     {Port, _, _} = tcp_port_ip(),
 
     meck:new(ejabberd_socket),
     TestPid = self(),
     meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts) ->
-                        TestPid ! {socket_started, Socket, Opts},
+                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+                        TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),
 
@@ -64,8 +61,7 @@ tcp_socket_has_connection_details(_C) ->
     {ok, SrcPort} = inet:port(Socket),
 
     receive
-        {socket_started, _Socket, Opts} ->
-            ConnectionDetails = proplists:get_value(connection_details, Opts),
+        {socket_started, _Socket, _Opts, ConnectionDetails} ->
             ?assertEqual(#{proxy => false,
                            src_address => {127, 0, 0, 1},
                            src_port => SrcPort,
@@ -77,7 +73,7 @@ tcp_socket_has_connection_details(_C) ->
     end.
 
 tcp_socket_supports_proxy_protocol(_C) ->
-    {ok, _Pid} = listener_started(#{proxy_protocol => true}),
+    ok = listener_started(#{proxy_protocol => true}),
 
     CommonProxyInfo = #{src_address => {1, 2, 3, 4},
                         src_port => 444,
@@ -92,8 +88,8 @@ tcp_socket_supports_proxy_protocol(_C) ->
     meck:new(ejabberd_socket),
     TestPid = self(),
     meck:expect(ejabberd_socket, start,
-                fun(_Module, _SockMode, Socket, Opts) ->
-                        TestPid ! {socket_started, Socket, Opts},
+                fun(_Module, _SockMode, Socket, Opts, ConnectionDetails) ->
+                        TestPid ! {socket_started, Socket, Opts, ConnectionDetails},
                         ok
                 end),
 
@@ -101,45 +97,31 @@ tcp_socket_supports_proxy_protocol(_C) ->
     ok = gen_tcp:send(Socket, [ranch_proxy_header:header(RanchProxyInfo)]),
 
     receive
-        {socket_started, _Socket, Opts} ->
-            ConnectionDetails = proplists:get_value(connection_details, Opts),
+        {socket_started, _Socket, _Opts, ConnectionDetails} ->
             ?assertEqual(CommonProxyInfo#{proxy => true}, ConnectionDetails)
     after
         5000 ->
             ct:fail(timeout_waiting_for_tcp_with_proxy_protocol)
     end.
 
-udp_socket_is_started_with_defaults(_C) ->
-    {ok, _Pid} = receiver_started(#{}),
-
-    [{_Pid, {gen_udp, open, [_, Opts]}, _Result}] =  meck:history(gen_udp),
-
-    {0,0,0,0} = proplists:get_value(ip, Opts).
-
 listener_started(Opts) ->
     mim_ct_sup:start_link(ejabberd_sup),
-    ejabberd_listener:start_link(),
-    ejabberd_listener:start_listener(maps:merge(listener_opts(tcp), Opts)).
-
-receiver_started(Opts) ->
-    mim_ct_sup:start_link(ejabberd_sup),
-    ejabberd_listener:start_link(),
-    ets:new(listen_sockets, [named_table, public]),
-    ejabberd_listener:start_listener(maps:merge(listener_opts(udp), Opts)).
-
-udp_port_ip() ->
-    {1805, {0,0,0,0}, udp}.
+    mongoose_listener_sup:start_link(),
+    mongoose_listener:start_listener(maps:merge(listener_opts(), Opts)).
 
 tcp_port_ip() ->
-    {1805, {0,0,0,0}, tcp}.
+    {1805, {0, 0, 0, 0}, tcp}.
 
-listener_opts(Proto) ->
+listener_opts() ->
     #{module => ?MODULE,
-      ip_address => "0",
-      ip_tuple => {0, 0, 0, 0},
-      ip_version => 4,
       port => 1805,
-      proto => Proto}.
+      ip_tuple => {0, 0, 0, 0},
+      ip_address => "0",
+      ip_version => 4,
+      proto => tcp,
+      num_acceptors => 1,
+      backlog => 100,
+      proxy_protocol => false}.
 
 tcp_start_stop_reload(C) ->
     %% start server
@@ -149,10 +131,11 @@ tcp_start_stop_reload(C) ->
     %% make sure all ports are open
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
     %% stop listeners, now they should be closed
-    ejabberd_listener:stop_listeners(),
+    Listeners = mongoose_config:get_opt(listen),
+    lists:foreach(fun mongoose_listener:stop_listener/1, Listeners),
     lists:map(fun assert_closed/1, ?DEFAULT_PORTS),
     %% and start them all again
-    ejabberd_listener:start_listeners(),
+    lists:foreach(fun mongoose_listener:start_listener/1, Listeners),
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
 
     %% we want to make sure that connection to an unchanged port survives reload
@@ -194,3 +177,6 @@ assert_connected(Sock, Port) ->
 
 socket_type() ->
     xml_stream.
+
+start_listener(Opts) ->
+    mongoose_tcp_listener:start_listener(Opts).
