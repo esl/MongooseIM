@@ -29,7 +29,7 @@
 -behaviour(mongoose_transport).
 
 %% API
--export([start/4,
+-export([start/5,
          connect/3,
          connect/4,
          starttls/2,
@@ -66,21 +66,23 @@
 %% Function:
 %% Description:
 %%--------------------------------------------------------------------
--spec start(ejabberd_listener:mod(), ejabberd:sockmod(),
-            Socket :: port(), Opts :: ejabberd_listener:opts()) -> ok.
-start(Module, SockMod, Socket, Opts) ->
-    case Module:socket_type() of
+-spec start(module(), ejabberd:sockmod(),
+            Socket :: port(), mongoose_tcp_listener:options(),
+            mongoose_tcp_listener:connection_details()) -> ok.
+start(Module, SockMod, Socket, Opts, ConnectionDetails) ->
+    case mongoose_listener:socket_type(Module) of
         xml_stream ->
-            start_xml_stream(Module, SockMod, Socket, Opts);
+            start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails);
         independent ->
             ok;
         raw ->
-            start_raw_stream(Module, SockMod, Socket, Opts)
+            start_raw_stream(Module, SockMod, Socket, Opts, ConnectionDetails)
     end.
 
--spec start_raw_stream(ejabberd_listener:mod(), ejabberd:sockmod(),
-                       Socket :: port(), Opts :: ejabberd_listener:opts()) -> ok.
-start_raw_stream(Module, SockMod, Socket, Opts) ->
+-spec start_raw_stream(module(), ejabberd:sockmod(),
+                       Socket :: port(), mongoose_tcp_listener:options(),
+                       mongoose_tcp_listener:connection_details()) -> ok.
+start_raw_stream(Module, SockMod, Socket, Opts, _ConnectionDetails) ->
     case Module:start({SockMod, Socket}, Opts) of
         {ok, Pid} ->
             case SockMod:controlling_process(Socket, Pid) of
@@ -94,8 +96,9 @@ start_raw_stream(Module, SockMod, Socket, Opts) ->
     end.
 
 -spec start_xml_stream(atom() | tuple(), ejabberd:sockmod(),
-                       Socket :: port(), Opts :: [{atom(), _}]) -> ok.
-start_xml_stream(Module, SockMod, Socket, Opts) ->
+                       Socket :: port(), mongoose_tcp_listener:options(),
+                       mongoose_tcp_listener:connection_details()) -> ok.
+start_xml_stream(Module, SockMod, Socket, Opts, ConnectionDetails) ->
     {ReceiverMod, Receiver, RecRef} =
         case catch SockMod:custom_receiver(Socket) of
             {receiver, RecMod, RecPid} ->
@@ -103,11 +106,6 @@ start_xml_stream(Module, SockMod, Socket, Opts) ->
             _ ->
                 RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
                 {ejabberd_receiver, RecPid, RecPid}
-        end,
-    ConnectionDetails =
-        case lists:keyfind(connection_details, 1, Opts) of
-            {_, CD} -> CD;
-            _ -> throw(connection_details_not_available)
         end,
     SocketData = #socket_state{sockmod = SockMod,
                                socket = Socket,
@@ -155,7 +153,10 @@ connect(Addr, Port, Opts) ->
 connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
-            Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, Opts),
+            %% Receiver options are configurable only for listeners
+            %% It might make sense to make them configurable for outgoing s2s connections as well
+            ReceiverOpts = #{max_stanza_size => infinity, hibernate_after => 0},
+            Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, ReceiverOpts),
             {SrcAddr, SrcPort} = case inet:sockname(Socket) of
                                      {ok, {A, P}} ->  {A, P};
                                      {error, _} -> {unknown, unknown}
