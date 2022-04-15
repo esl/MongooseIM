@@ -78,11 +78,11 @@ Hibernation greatly reduces memory consumption of client processes, but *may* re
 The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 
 ### `listen.*.max_stanza_size`
-* **Syntax:** positive integer
-* **Default:** not set, unlimited size
+* **Syntax:** positive integer or the string `"infinity"`
+* **Default:** `"infinity"`
 * **Example:** `max_stanza_size = 10_000`
 
-Maximum allowed incoming stanza size in bytes. 
+Maximum allowed incoming stanza size in bytes.
 !!! Warning
     This limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 
