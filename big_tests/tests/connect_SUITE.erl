@@ -169,9 +169,9 @@ init_per_group(feature_order, Config) ->
     configure_c2s_listener(Config, #{zlib => 10000,
                                      tls => [starttls_required | common_tls_opts(Config)]}),
     Config;
-init_per_group(just_tls,Config)->
+init_per_group(just_tls, Config)->
     [{tls_module, just_tls} | Config];
-init_per_group(fast_tls,Config)->
+init_per_group(fast_tls, Config)->
     [{tls_module, fast_tls} | Config];
 init_per_group(proxy_protocol, Config) ->
     configure_c2s_listener(Config, #{proxy_protocol => true}),
@@ -765,10 +765,13 @@ configure_c2s_listener(Config, ExtraC2SOpts) ->
     mongoose_helper:restart_listener(mim(), NewC2SListener).
 
 common_tls_opts(Config) ->
-    TLSModule = ?config(tls_module, Config),
-    [{tls_module, TLSModule},
-     {certfile, ?CERT_FILE},
-     {dhfile, ?DH_FILE}].
+    tls_module_opts(Config) ++ [{certfile, ?CERT_FILE}, {dhfile, ?DH_FILE}].
+
+tls_module_opts(Config) ->
+    case ?config(tls_module, Config) of
+        undefined -> [];
+        Module -> [{tls_module, Module}]
+    end.
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
