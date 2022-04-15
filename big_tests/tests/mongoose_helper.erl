@@ -493,8 +493,8 @@ get_listeners(#{} = Spec, Pattern) ->
 
 %% 'port', 'ip_tuple' and 'proto' options need to stay unchanged for a successful restart
 restart_listener(Spec, Listener) ->
-    rpc(Spec, ejabberd_listener, stop_listener, [Listener]),
-    rpc(Spec, ejabberd_listener, start_listener, [Listener]).
+    rpc(Spec, mongoose_listener, stop_listener, [Listener]),
+    rpc(Spec, mongoose_listener, start_listener, [Listener]).
 
 should_minio_be_running(Config) ->
     case proplists:get_value(preset, Config, undefined) of
