@@ -37,11 +37,11 @@ The port number to which the listening socket is bound.
 The IP address to which the listening socket is bound.
 
 ### `listen.*.proto`
-* **Syntax:** string, `"udp"` or `"tcp"`
+* **Syntax:** string, only `"tcp"` is accepted
 * **Default:** `"tcp"`
 * **Example:** `proto = "udp"`
 
-The protocol, which is TCP by default. There is no reason to change this for XMPP or HTTP listeners.
+The protocol, which is TCP by default. Currently this is the only valid option.
 
 ### `listen.*.ip_version`
 * **Syntax:** integer, `4` or `6`
