@@ -87,7 +87,7 @@
 reload_dispatches(drop) ->
     drop;
 reload_dispatches(_Command) ->
-    Listeners = supervisor:which_children(ejabberd_listeners),
+    Listeners = supervisor:which_children(mongoose_listener_sup),
     CowboyListeners = [Child || {_Id, Child, _Type, [ejabberd_cowboy]}  <- Listeners],
     [ejabberd_cowboy:reload_dispatch(Child) || Child <- CowboyListeners],
     drop.
