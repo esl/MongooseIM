@@ -3,17 +3,12 @@
 -module(commands_backend_SUITE).
 -compile([export_all, nowarn_export_all]).
 
--include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include("ejabberd_commands.hrl").
 
 -define(PORT, 5288).
 -define(HOST, "localhost").
 -define(IP,  {127,0,0,1}).
 
-%% Error messages
--define(ARGS_LEN_ERROR, <<"Bad parameters length.">>).
--define(ARGS_SPEC_ERROR, <<"Bad name of the parameter.">>).
 -type method() :: string().
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% suite configuration
@@ -31,7 +26,7 @@ all() ->
      {group, get_advanced_backend},
      {group, post_advanced_backend},
      {group, delete_advanced_backend},
-      {group, simple_client}
+     {group, simple_client}
     ].
 
 groups() ->
@@ -104,15 +99,18 @@ setup(Module) ->
     meck:expect(gen_hook, run_fold, fun(_, _, _, _) -> {ok, ok} end),
     spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,
-        fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,
-            infinity, worker, [_]}) -> {ok, self()};
-            (A,B) -> meck:passthrough([A,B])
+        fun(mongoose_listener_sup, _) -> {ok, self()};
+           (A, B) -> meck:passthrough([A, B])
         end),
+    mongoose_listener_sup:start_link(),
     %% HTTP API config
-    Opts = [{num_acceptors, 10},
-        {max_connections, 1024},
-        {modules, [{"localhost", "/api", Module, []}]}],
-    ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
+    Opts = #{transport => #{num_acceptors => 10, max_connections => 1024},
+             protocol => #{},
+             port => ?PORT,
+             ip_tuple => ?IP,
+             proto => tcp,
+             handlers => [{"localhost", "/api", Module, []}]},
+    ejabberd_cowboy:start_listener(Opts).
 
 teardown() ->
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
