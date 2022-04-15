@@ -32,7 +32,6 @@
          terminate_session/2,
          start_link/2,
          send_text/2,
-         socket_type/0,
          get_presence/1,
          get_aux_field/2,
          set_aux_field/3,
@@ -45,6 +44,10 @@
          get_info/1,
          run_remote_hook/3,
          run_remote_hook_after/4]).
+
+%% mongoose_listener API
+-export([socket_type/0,
+         start_listener/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -74,6 +77,7 @@
 -include_lib("exml/include/exml.hrl").
 -xep([{xep, 18}, {version, "0.2"}]).
 -behaviour(p1_fsm_old).
+-behaviour(mongoose_listener).
 
 -export_type([broadcast/0, packet/0, state/0]).
 
@@ -83,19 +87,29 @@
     | {ok, undefined | pid()}
     | {ok, undefined | pid(), _}.
 
+-type options() :: #{access := atom(),
+                     shaper := atom(),
+                     hibernate_after := non_neg_integer(),
+                     atom() => any()}.
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(sock_data(), ejabberd_listener:opts()) -> start_result().
+-spec start_listener(options()) -> ok.
+start_listener(Opts) ->
+    mongoose_tcp_listener:start_listener(Opts).
+
+-spec start(sock_data(), options()) -> start_result().
 start(SockData, Opts) ->
     ?SUPERVISOR_START(SockData, Opts).
 
--spec start_link(sock_data(), ejabberd_listener:opts()) -> start_result().
+-spec start_link(sock_data(), options()) -> start_result().
 start_link(SockData, Opts) ->
     p1_fsm_old:start_link(ejabberd_c2s, {SockData, Opts},
                           ?FSMOPTS ++ fsm_limit_opts(Opts)).
 
+-spec socket_type() -> mongoose_listener:socket_type().
 socket_type() ->
     xml_stream.
 
@@ -177,51 +191,23 @@ run_remote_hook_after(Delay, Pid, HandlerName, Args) ->
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 
--spec init({sock_data(), ejabberd_listener:opts()}) ->
+-spec init({sock_data(), options()}) ->
         {stop, normal} | {ok, wait_for_stream, state(), non_neg_integer()}.
 init({{SockMod, Socket}, Opts}) ->
-    Access = case lists:keyfind(access, 1, Opts) of
-                 {_, A} -> A;
-                 _ -> all
-             end,
-    Shaper = case lists:keyfind(shaper, 1, Opts) of
-                 {_, S} -> S;
-                 _ -> none
-             end,
-    XMLSocket =
-    case lists:keyfind(xml_socket, 1, Opts) of
-        {_, XS} -> XS;
-        _ -> false
-    end,
-    Zlib = case lists:keyfind(zlib, 1, Opts) of
-               {_, ZlibLimit} -> {true, ZlibLimit};
-               _ -> {false, 0}
-           end,
-    Verify = case lists:member(verify_peer, Opts) of
+    #{access := Access, shaper := Shaper, hibernate_after := HibernateAfter} = Opts,
+    XMLSocket = maps:get(xml_socket, Opts, false),
+    Zlib = zlib(Opts),
+    TLSConfig = maps:get(tls, Opts, []),
+    Verify = case lists:member(verify_peer, TLSConfig) of
                  true -> verify_peer;
                  false -> verify_none
              end,
-    HibernateAfter =
-        case lists:keyfind(hibernate_after, 1, Opts) of
-            {_, HA} -> HA;
-            _ -> 0
-        end,
-    StartTLS = lists:member(starttls, Opts) orelse Verify =:= verify_peer,
-    StartTLSRequired = lists:member(starttls_required, Opts),
-    TLSEnabled = lists:member(tls, Opts),
+    StartTLS = lists:member(starttls, TLSConfig) orelse Verify =:= verify_peer,
+    StartTLSRequired = lists:member(starttls_required, TLSConfig),
+    TLSEnabled = lists:member(tls, TLSConfig),
     TLS = StartTLS orelse StartTLSRequired orelse TLSEnabled,
-    TLSOpts1 =
-    lists:filter(fun({certfile, _}) -> true;
-                    ({cafile, _}) -> true;
-                    ({ciphers, _}) -> true;
-                    ({protocol_options, _}) -> true;
-                    ({dhfile, _}) -> true;
-                    ({tls_module, _}) -> true;
-                    ({ssl_options, _}) -> true;
-                    (_) -> false
-                 end, Opts),
-    TLSOpts = verify_opts(Verify) ++ TLSOpts1,
-    [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, Opts, [])],
+    TLSOpts = verify_opts(Verify) ++ TLSConfig,
+    [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, TLSConfig, [])],
     IP = peerip(SockMod, Socket),
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
@@ -258,6 +244,9 @@ init({{SockMod, Socket}, Opts}) ->
                                         },
              ?C2S_OPEN_TIMEOUT}
     end.
+
+zlib(#{zlib := Limit}) -> {true, Limit};
+zlib(#{}) -> {false, 0}.
 
 %% @doc Return list of all available resources of contacts,
 get_subscribed(FsmRef) ->
@@ -2498,18 +2487,15 @@ check_from(El, #jid{ luser = C2SU, lserver = C2SS, lresource = C2SR }) ->
             end
     end.
 
-
-fsm_limit_opts(Opts) ->
-    case lists:keyfind(max_fsm_queue, 1, Opts) of
-        {_, N} when is_integer(N) ->
+-spec fsm_limit_opts(options()) -> [{max_queue, integer()}].
+fsm_limit_opts(#{max_fsm_queue := N}) ->
+    [{max_queue, N}];
+fsm_limit_opts(#{}) ->
+    case mongoose_config:lookup_opt(max_fsm_queue) of
+        {ok, N} ->
             [{max_queue, N}];
-        _ ->
-            case mongoose_config:lookup_opt(max_fsm_queue) of
-                {ok, N} ->
-                    [{max_queue, N}];
-                {error, not_found} ->
-                    []
-            end
+        {error, not_found} ->
+            []
     end.
 
 -spec bounce_messages(list(), #state{}) -> 'ok'.
