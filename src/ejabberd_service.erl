@@ -29,13 +29,17 @@
 
 -behaviour(p1_fsm).
 -behaviour(mongoose_packet_handler).
+-behaviour(mongoose_listener).
+
+%% mongoose_listener API
+-export([socket_type/0,
+         start_listener/1]).
 
 %% External exports
 -export([start/2,
          start_link/2,
          send_text/2,
-         send_element/2,
-         socket_type/0]).
+         send_element/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -52,8 +56,8 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--ignore_xref([print_state/1, send_element/2, send_text/2, socket_type/0, start_link/2,
-              stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
+-ignore_xref([print_state/1, send_element/2, send_text/2, start_listener/1, socket_type/0,
+              start_link/2, stream_established/2, wait_for_handshake/2, wait_for_stream/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -114,29 +118,41 @@
         "</stream:stream>">>
        ).
 
+-type options() :: #{access := atom(),
+                     shaper_rule := atom(),
+                     password := binary(),
+                     check_from := boolean(),
+                     hidden_components := boolean(),
+                     conflict_behaviour := conflict_behaviour(),
+                     atom() => any()}.
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_, _) -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
+-spec start(_, options()) -> {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(SockData, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
 
 
--spec start_link(_, list()) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(_, options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
 
-
+-spec socket_type() -> mongoose_listener:socket_type().
 socket_type() ->
     xml_stream.
+
+-spec start_listener(options()) -> ok.
+start_listener(Opts) ->
+    mongoose_tcp_listener:start_listener(Opts).
 
 %%%----------------------------------------------------------------------
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
-    El :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
+                     El :: exml:element(), #{pid := pid()}) -> mongoose_acc:t().
 process_packet(Acc, From, To, _El, #{pid := Pid}) ->
     Pid ! {route, From, To, Acc},
     Acc.
@@ -152,28 +168,16 @@ process_packet(Acc, From, To, _El, #{pid := Pid}) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([list() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
+-spec init([options() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,
                 socket => Socket}),
-    Access = case lists:keysearch(access, 1, Opts) of
-                 {value, {_, A}} -> A;
-                 _ -> all
-             end,
-    {password, Password} = lists:keyfind(password, 1, Opts),
-    Shaper = case lists:keysearch(shaper_rule, 1, Opts) of
-                 {value, {_, S}} -> S;
-                 _ -> none
-             end,
-    CheckFrom = case lists:keysearch(service_check_from, 1, Opts) of
-                 {value, {_, CF}} -> CF;
-                 _ -> true
-             end,
+    #{access := Access, shaper_rule := Shaper, password := Password,
+      check_from := CheckFrom, hidden_components := HiddenComponents,
+      conflict_behaviour := ConflictBehaviour} = Opts,
     SockMod:change_shaper(Socket, Shaper),
     SocketMonitor = SockMod:monitor(Socket),
-    HiddenComponents = proplists:get_value(hidden_components, Opts, false),
-    ConflictBehaviour = proplists:get_value(conflict_behaviour, Opts, disconnect),
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
                                  socket_monitor = SocketMonitor,
@@ -441,18 +445,15 @@ new_id() ->
 component_host(#state{ host = undefined }) -> "undefined";
 component_host(#state{ host = Host }) -> Host.
 
--spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue', integer()}].
-fsm_limit_opts(Opts) ->
-    case lists:keysearch(max_fsm_queue, 1, Opts) of
-        {value, {_, N}} when is_integer(N) ->
+-spec fsm_limit_opts(options()) -> [{max_queue, integer()}].
+fsm_limit_opts(#{max_fsm_queue := N}) ->
+    [{max_queue, N}];
+fsm_limit_opts(#{}) ->
+    case mongoose_config:lookup_opt(max_fsm_queue) of
+        {ok, N} ->
             [{max_queue, N}];
-        _ ->
-            case mongoose_config:lookup_opt(max_fsm_queue) of
-                {ok, N} ->
-                    [{max_queue, N}];
-                {error, not_found} ->
-                    []
-            end
+        {error, not_found} ->
+            []
     end.
 
 try_register_routes(StateData) ->
