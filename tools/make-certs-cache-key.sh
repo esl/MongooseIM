@@ -5,4 +5,4 @@ week=$(date "+%V")
 year=$(date "+%Y")
 makefile_sum=$(sha1sum tools/ssl/Makefile | cut -d " " -f1)
 
-echo "${year}-week${num}-${makefile_sum}"
+echo "${year}-week${num}-${makefile_sum}-1"
