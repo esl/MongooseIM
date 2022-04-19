@@ -19,7 +19,7 @@
 
 -define(TABLE, cets_session).
 
--spec init(list()) -> any().
+-spec init(map()) -> any().
 init(_Opts) ->
     cets:start(?TABLE, #{}),
     cets_discovery:add_table(mongoose_cets_discovery, ?TABLE).
