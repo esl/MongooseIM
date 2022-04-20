@@ -68,7 +68,7 @@ start(normal, _Args) ->
     mongoose_modules:start(),
     service_mongoose_system_metrics:verify_if_configured(),
     mongoose_metrics:init(),
-    ejabberd_listener:start_listeners(),
+    mongoose_listener:start(),
     ejabberd_admin:start(),
     update_status_file(started),
     ?LOG_NOTICE(#{what => mongooseim_node_started, version => ?MONGOOSE_VERSION, node => node()}),
@@ -81,7 +81,7 @@ start(_, _) ->
 %% before shutting down the processes of the application.
 prep_stop(State) ->
     mongoose_deprecations:stop(),
-    ejabberd_listener:stop_listeners(),
+    mongoose_listener:stop(),
     mongoose_modules:stop(),
     mongoose_service:stop(),
     broadcast_c2s_shutdown(),

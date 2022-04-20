@@ -19,6 +19,7 @@
          stop_listener/1]).
 
 -import(distributed_helper, [mim/0, mim2/0, require_rpc_nodes/1, rpc/4]).
+-import(config_parser_helper, [default_config/1, config/2]).
 
 -define(TEST_PORT, 8866).
 
@@ -98,23 +99,19 @@ patch_custom(Config, Role, Path, Body) ->
 
 %% REST handler setup
 start_listener(Params) ->
-    rpc(mim(), ejabberd_listener, start_listener, [listener_opts(Params)]).
+    rpc(mim(), mongoose_listener, start_listener, [listener_opts(Params)]).
 
 stop_listener(Params) ->
-    rpc(mim(), ejabberd_listener, stop_listener, [listener_opts(Params)]).
+    rpc(mim(), mongoose_listener, stop_listener, [listener_opts(Params)]).
 
 listener_opts(Params) ->
-    #{port => ?TEST_PORT,
-      ip_tuple => {127, 0, 0, 1},
-      ip_address => "127.0.0.1",
-      ip_version => 4,
-      proto => tcp,
-      module => ejabberd_cowboy,
-      modules => [domain_handler(Params)],
-      transport_options => transport_options()}.
-
-transport_options() ->
-    [{max_connections, 1024}, {num_acceptors, 10}].
+    config([listen, http],
+           #{port => ?TEST_PORT,
+             ip_tuple => {127, 0, 0, 1},
+             ip_address => "127.0.0.1",
+             module => ejabberd_cowboy,
+             handlers => [domain_handler(Params)],
+             transport => config([listen, http, transport], #{num_acceptors => 10})}).
 
 domain_handler(Params) ->
     {"localhost", "/api", mongoose_domain_handler, handler_opts(Params)}.

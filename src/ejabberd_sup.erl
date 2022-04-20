@@ -73,12 +73,12 @@ init([]) ->
          worker,
          [ejabberd_local]},
     Listener =
-        {ejabberd_listener,
-         {ejabberd_listener, start_link, []},
+        {mongoose_listener_sup,
+         {mongoose_listener_sup, start_link, []},
          permanent,
          infinity,
          supervisor,
-         [ejabberd_listener]},
+         [mongoose_listener_sup]},
     ReceiverSupervisor =
         {ejabberd_receiver_sup,
          {ejabberd_tmp_sup, start_link,

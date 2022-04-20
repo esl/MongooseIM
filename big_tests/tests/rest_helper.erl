@@ -255,34 +255,34 @@ get_port(Role, Node, _Params) ->
 get_ssl_status(Role, Node) ->
     Listeners = rpc(Node, mongoose_config, get_opt, [listen]),
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, Role) end, Listeners),
-    maps:is_key(ssl, Opts).
+    maps:is_key(tls, Opts).
 
 % @doc Changes the control credentials for admin by restarting the listener
 % with new options.
 -spec change_admin_creds({User :: binary(), Password :: binary()}) -> 'ok' | 'error'.
 change_admin_creds(Creds) ->
     stop_admin_listener(),
-    {ok, _} =  start_admin_listener(Creds).
+    ok = start_admin_listener(Creds).
 
 -spec stop_admin_listener() -> 'ok' | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_admin_listener() ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
-    rpc(mim(), ejabberd_listener, stop_listener, [Opts]).
+    rpc(mim(), mongoose_listener, stop_listener, [Opts]).
 
 -spec start_admin_listener(Creds :: {binary(), binary()}) -> {'error', pid()} | {'ok', _}.
 start_admin_listener(Creds) ->
     Listeners = rpc(mim(), mongoose_config, get_opt, [listen]),
     [Opts] = lists:filter(fun (Opts) -> is_roles_config(Opts, admin) end, Listeners),
     NewOpts = insert_creds(Opts, Creds),
-    rpc(mim(), ejabberd_listener, start_listener, [NewOpts]).
+    rpc(mim(), mongoose_listener, start_listener, [NewOpts]).
 
-insert_creds(Opts = #{modules := Modules}, Creds) ->
+insert_creds(Opts = #{handlers := Modules}, Creds) ->
     {Host, Path, mongoose_api_admin, PathOpts} = lists:keyfind(mongoose_api_admin, 3, Modules),
     NewPathOpts = inject_creds_to_opts(PathOpts, Creds),
     NewModules = lists:keyreplace(mongoose_api_admin, 3, Modules,
                                   {Host, Path, mongoose_api_admin,  NewPathOpts}),
-    Opts#{modules := NewModules}.
+    Opts#{handlers := NewModules}.
 
 inject_creds_to_opts(PathOpts, any) ->
     lists:keydelete(auth, 1, PathOpts);
@@ -298,9 +298,9 @@ inject_creds_to_opts(PathOpts, Creds) ->
 % This is determined based on modules used. If there is any mongoose_api_admin module used,
 % it is admin config. If not and there is at least one mongoose_api_client* module used,
 % it's clients.
-is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, admin) ->
+is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, admin) ->
     lists:any(fun({_, _Path,  Mod, _Args}) -> Mod == mongoose_api_admin; (_) -> false  end, Modules);
-is_roles_config(#{module := ejabberd_cowboy, modules := Modules}, client) ->
+is_roles_config(#{module := ejabberd_cowboy, handlers := Modules}, client) ->
     ModulesTokens = lists:map(fun({_, _Path, Mod, _}) -> string:tokens(atom_to_list(Mod), "_");
                                  (_) -> []
                               end, Modules),

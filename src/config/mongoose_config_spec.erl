@@ -252,84 +252,107 @@ domain_cert() ->
 
 %% path: listen
 listen() ->
-    Keys = [<<"http">>, <<"c2s">>, <<"s2s">>, <<"service">>],
+    Keys = [c2s, s2s, service, http],
     #section{
-       items = maps:from_list([{Key, #list{items = listener(Key),
-                                           wrap = none}} || Key <- Keys]),
+       items = maps:from_list([{atom_to_binary(Key), #list{items = listener(Key), wrap = none}}
+                               || Key <- Keys]),
        process = fun mongoose_listener_config:verify_unique_listeners/1,
        wrap = global_config
       }.
 
 %% path: listen.*[]
 listener(Type) ->
-    ExtraItems = listener_items(Type),
-    #section{
-       items = ExtraItems#{<<"port">> => #option{type = integer,
-                                                 validate = port},
-                           <<"ip_address">> => #option{type = string,
-                                                       validate = ip_address},
-                           <<"proto">> => #option{type = atom,
-                                                  validate = {enum, [tcp, udp]}},
-                           <<"ip_version">> => #option{type = integer,
-                                                       validate = {enum, [4, 6]}}
-                          },
-       format_items = map,
-       required = [<<"port">>],
-       defaults = #{<<"proto">> => tcp},
-       process = fun ?MODULE:process_listener/2
-      }.
+    merge_sections(listener_common(), listener_extra(Type)).
 
-listener_items(<<"http">>) ->
-    #{<<"tls">> => http_listener_tls(),
-      <<"transport">> => http_transport(),
-      <<"protocol">> => http_protocol(),
-      <<"handlers">> => http_handlers()
-     };
-listener_items(Type) ->
-    ExtraItems = xmpp_listener_items(Type),
-    ExtraItems#{<<"hibernate_after">> => #option{type = integer,
-                                                 validate = non_negative},
-                <<"max_stanza_size">> => #option{type = integer,
-                                                 validate = positive},
-                <<"backlog">> => #option{type = integer,
-                                         validate = non_negative},
-                <<"proxy_protocol">> => #option{type = boolean},
-                <<"num_acceptors">> => #option{type = integer,
-                                               validate = positive,
-                                               wrap = {kv, acceptors_num}}
-               }.
+listener_common() ->
+    #section{items = #{<<"port">> => #option{type = integer,
+                                             validate = port},
+                       <<"ip_address">> => #option{type = string,
+                                                   validate = ip_address},
+                       <<"proto">> => #option{type = atom,
+                                              validate = {enum, [tcp]}},
+                       <<"ip_version">> => #option{type = integer,
+                                                   validate = {enum, [4, 6]}}
+                      },
+             format_items = map,
+             required = [<<"port">>],
+             defaults = #{<<"proto">> => tcp},
+             process = fun ?MODULE:process_listener/2
+            }.
 
-xmpp_listener_items(<<"c2s">>) ->
-    #{<<"access">> => #option{type = atom,
-                              validate = non_empty},
-      <<"shaper">> => #option{type = atom,
-                              validate = non_empty},
-      <<"xml_socket">> => #option{type = boolean},
-      <<"zlib">> => #option{type = integer,
-                            validate = positive},
-      <<"max_fsm_queue">> => #option{type = integer,
-                                     validate = positive},
-      <<"allowed_auth_methods">> => #list{items = #option{type = atom,
-                                                          validate = {module, ejabberd_auth}}},
-      <<"tls">> => c2s_tls()};
-xmpp_listener_items(<<"s2s">>) ->
-    #{<<"shaper">> => #option{type = atom,
-                              validate = non_empty},
-      <<"tls">> => s2s_tls()};
-xmpp_listener_items(<<"service">>) ->
-    #{<<"access">> => #option{type = atom,
-                              validate = non_empty},
-      <<"shaper_rule">> => #option{type = atom,
-                                   validate = non_empty},
-      <<"check_from">> => #option{type = boolean,
-                                  wrap = {kv, service_check_from}},
-      <<"hidden_components">> => #option{type = boolean},
-      <<"conflict_behaviour">> => #option{type = atom,
-                                          validate = {enum, [kick_old, disconnect]}},
-      <<"password">> => #option{type = string,
-                                validate = non_empty},
-      <<"max_fsm_queue">> => #option{type = integer,
-                                     validate = positive}}.
+listener_extra(http) ->
+    #section{items = #{<<"tls">> => http_listener_tls(),
+                       <<"transport">> => http_transport(),
+                       <<"protocol">> => http_protocol(),
+                       <<"handlers">> => http_handlers()}};
+listener_extra(Type) ->
+    merge_sections(xmpp_listener_common(), xmpp_listener_extra(Type)).
+
+xmpp_listener_common() ->
+    #section{items = #{<<"backlog">> => #option{type = integer,
+                                                validate = non_negative},
+                       <<"proxy_protocol">> => #option{type = boolean},
+                       <<"hibernate_after">> => #option{type = integer,
+                                                        validate = non_negative},
+                       <<"max_stanza_size">> => #option{type = int_or_infinity,
+                                                        validate = positive},
+                       <<"num_acceptors">> => #option{type = integer,
+                                               validate = positive}
+                      },
+             defaults = #{<<"backlog">> => 100,
+                          <<"proxy_protocol">> => false,
+                          <<"hibernate_after">> => 0,
+                          <<"max_stanza_size">> => infinity,
+                          <<"num_acceptors">> => 100},
+             format_items = map
+            }.
+
+xmpp_listener_extra(c2s) ->
+    #section{items = #{<<"access">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"zlib">> => #option{type = integer,
+                                             validate = positive},
+                       <<"max_fsm_queue">> => #option{type = integer,
+                                                      validate = positive},
+                       <<"allowed_auth_methods">> => #list{items = #option{type = atom,
+                                                                           validate = {module, ejabberd_auth}},
+                                          validate = unique},
+                       <<"tls">> => c2s_tls()},
+             defaults = #{<<"access">> => all,
+                          <<"shaper">> => none},
+             format_items = map
+            };
+xmpp_listener_extra(s2s) ->
+    #section{items = #{<<"shaper">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"tls">> => s2s_tls()},
+             defaults = #{<<"shaper">> => none},
+             format_items = map
+            };
+xmpp_listener_extra(service) ->
+    #section{items = #{<<"access">> => #option{type = atom,
+                                               validate = non_empty},
+                       <<"shaper_rule">> => #option{type = atom,
+                                                    validate = non_empty},
+                       <<"check_from">> => #option{type = boolean},
+                       <<"hidden_components">> => #option{type = boolean},
+                       <<"conflict_behaviour">> => #option{type = atom,
+                                                           validate = {enum, [kick_old, disconnect]}},
+                       <<"password">> => #option{type = string,
+                                                 validate = non_empty},
+                       <<"max_fsm_queue">> => #option{type = integer,
+                                                      validate = positive}
+                      },
+             required = [<<"password">>],
+             defaults = #{<<"access">> => all,
+                          <<"shaper_rule">> => none,
+                          <<"check_from">> => true,
+                          <<"hidden_components">> => false,
+                          <<"conflict_behaviour">> => disconnect},
+             format_items = map
+            }.
 
 %% path: listen.c2s[].tls
 c2s_tls() ->
@@ -389,7 +412,6 @@ http_listener_tls() ->
        items = Items#{<<"verify_mode">> => #option{type = atom,
                                                    validate = {enum, [peer, selfsigned_peer, none]}}
                      },
-       wrap = {kv, ssl},
        process = fun ?MODULE:process_tls_sni/1
       }.
 
@@ -401,14 +423,19 @@ http_transport() ->
                  <<"max_connections">> => #option{type = int_or_infinity,
                                                   validate = non_negative}
                 },
-       wrap = {kv, transport_options}
+       format_items = map,
+       defaults = #{<<"num_acceptors">> => 100,
+                    <<"max_connections">> => 1024},
+       include = always
       }.
 
 %% path: listen.http[].protocol
 http_protocol() ->
     #section{
        items = #{<<"compress">> => #option{type = boolean}},
-       wrap = {kv, protocol_options}
+       format_items = map,
+       defaults = #{<<"compress">> => false},
+       include = always
       }.
 
 %% path: listen.http[].handlers
@@ -424,7 +451,7 @@ http_handlers() ->
        items = maps:from_list([{Key, #list{items = http_handler(Key),
                                            wrap = none}} || Key <- Keys]),
        validate_keys = module,
-       wrap = {kv, modules}
+       include = always
       }.
 
 %% path: listen.http[].handlers.*[]
@@ -450,8 +477,8 @@ http_handler_items(<<"mod_websockets">>) ->
                                  validate = positive},
       <<"max_stanza_size">> => #option{type = int_or_infinity,
                                        validate = positive},
-      <<"service">> => #section{items = xmpp_listener_items(<<"service">>),
-                                wrap = {kv, ejabberd_service}}};
+      <<"service">> => xmpp_listener_extra(service)
+     };
 http_handler_items(<<"lasse_handler">>) ->
     #{<<"module">> => #option{type = atom,
                               validate = module}};
@@ -1313,3 +1340,12 @@ process_s2s_address(M) ->
 
 process_domain_cert(#{domain := Domain, certfile := Certfile}) ->
     {Domain, Certfile}.
+
+%% Helpers
+
+merge_sections(BasicSection, ExtraSection) ->
+    #section{items = Items1, required = Required1, defaults = Defaults1} = BasicSection,
+    #section{items = Items2, required = Required2, defaults = Defaults2} = ExtraSection,
+    BasicSection#section{items = maps:merge(Items1, Items2),
+                         required = Required1 ++ Required2,
+                         defaults = maps:merge(Defaults1, Defaults2)}.

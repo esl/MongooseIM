@@ -26,12 +26,16 @@
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
 -behaviour(gen_fsm_compat).
+-behaviour(mongoose_listener).
+
+%% mongoose_listener API
+-export([socket_type/0,
+         start_listener/1]).
 
 %% External exports
 -export([start/2,
          start_link/2,
-         match_domain/2,
-         socket_type/0]).
+         match_domain/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -99,21 +103,26 @@
          "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
 
+-type socket_data() :: {ejabberd:sockmod(), term()}.
+-type options() :: #{shaper := atom(), atom() => any()}.
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_, _) -> {'error', _}
-                  | {'ok', 'undefined' | pid()}
-                  | {'ok', 'undefined' | pid(), _}.
+-spec start(socket_data(), options()) ->
+          {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
-
--spec start_link(_, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     gen_fsm_compat:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
 
+-spec start_listener(options()) -> ok.
+start_listener(Opts) ->
+    mongoose_tcp_listener:start_listener(Opts).
 
+-spec socket_type() -> mongoose_listener:socket_type().
 socket_type() ->
     xml_stream.
 
@@ -128,21 +137,12 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init(_) -> {'ok', 'wait_for_stream', state()}.
-init([{SockMod, Socket}, Opts]) ->
+-spec init([socket_data() | options(), ...]) -> {ok, wait_for_stream, state()}.
+init([{SockMod, Socket}, Opts = #{shaper := Shaper}]) ->
     ?LOG_DEBUG(#{what => s2n_in_started,
                  text => <<"New incoming S2S connection">>,
                  sockmod => SockMod, socket => Socket}),
-    Shaper = case lists:keysearch(shaper, 1, Opts) of
-                 {value, {_, S}} -> S;
-                 _ -> none
-             end,
-    TLSOpts = lists:filter(fun({protocol_options, _}) -> true;
-                               ({dhfile, _}) -> true;
-                               ({cafile, _}) -> true;
-                               ({ciphers, _}) -> true;
-                               (_) -> false
-                            end, Opts),
+    TLSOpts = maps:get(tls, Opts, []),
     Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
