@@ -143,6 +143,8 @@ admin_mapping_rules() ->
         'MUCLightAdminMutation' => mongoose_graphql_muc_light_admin_mutation,
         'MUCLightAdminQuery' => mongoose_graphql_muc_light_admin_query,
         'RosterAdminQuery' => mongoose_graphql_roster_admin_query,
+        'VcardAdminMutation' => mongoose_graphql_vcard_admin_mutation,
+        'VcardAdminQuery' => mongoose_graphql_vcard_admin_query,
         'RosterAdminMutation' => mongoose_graphql_roster_admin_mutation,
         'Domain' => mongoose_graphql_domain,
         default => mongoose_graphql_default},

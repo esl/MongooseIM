@@ -44,6 +44,9 @@ err(_Ctx, ErrorTerm) ->
 %% callback invoked when resolver crashes
 -spec crash(map(), term()) -> err_msg().
 crash(_Ctx, Err = #{type := Type}) ->
+    io:format("---------------------------------------\n"),
+    io:format("~p", [Err]),
+    io:format("---------------------------------------\n"),
     ?LOG_ERROR(Err#{what => graphql_crash}),
     #{message => <<"Unexpected ", Type/binary, " resolver crash">>,
       extensions => #{code => resolver_crash}}.
