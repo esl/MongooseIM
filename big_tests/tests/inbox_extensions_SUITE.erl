@@ -70,6 +70,7 @@ groups() ->
         % box
         box_move_to_other_works_successfully,
         box_active_entry_gets_archived,
+        box_other_entry_does_not_get_unarchived,
         box_archived_entry_gets_active_on_request,
         box_archived_entry_gets_active_for_the_sender_on_new_message,
         box_archived_entry_gets_active_for_the_receiver_on_new_message,
@@ -310,6 +311,23 @@ box_active_entry_gets_archived(Config) ->
         inbox_helper:check_inbox(Bob, [], #{box => inbox}),
         inbox_helper:check_inbox(Bob, [#conv{unread = 0, from = Alice, to = Bob, content = Body}],
                                  #{box => archive})
+    end).
+
+box_other_entry_does_not_get_unarchived(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % Alice sends a message to Bob and then she moves the conversation to the 'other' box
+        Body1 = <<"Hi Bob">>,
+        inbox_helper:send_msg(Alice, Bob, Body1),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body1}]),
+        set_inbox_properties(Alice, Bob, [{box, other}]),
+        % But then Alice keeps writing
+        Body2 = <<"Hi Bob again">>,
+        inbox_helper:send_msg(Alice, Bob, Body2),
+        inbox_helper:get_inbox(Alice, #{box => all, hidden_read => false}, #{count => 1}),
+        % Then the conversation is still in the same box
+        inbox_helper:check_inbox(Alice, [], #{box => inbox}),
+        inbox_helper:check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = Body2}],
+                                 #{box => other})
     end).
 
 box_archived_entry_gets_active_on_request(Config) ->
