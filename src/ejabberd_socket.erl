@@ -66,8 +66,8 @@
 %% Function:
 %% Description:
 %%--------------------------------------------------------------------
--spec start(module(), ejabberd:sockmod(),
-            Socket :: port(), mongoose_tcp_listener:options(),
+-spec start(module(), ejabberd:sockmod(), gen_tcp:socket(),
+            mongoose_tcp_listener:options(),
             mongoose_tcp_listener:connection_details()) -> ok.
 start(Module, SockMod, Socket, Opts, ConnectionDetails) ->
     case mongoose_listener:socket_type(Module) of

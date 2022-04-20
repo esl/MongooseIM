@@ -82,7 +82,7 @@
 -export_type([broadcast/0, packet/0, state/0]).
 
 -type packet() :: {jid:jid(), jid:jid(), exml:element()}.
--type sock_data() :: term().
+-type socket_data() :: {ejabberd:sockmod(), term()}.
 -type start_result() :: {error, _}
     | {ok, undefined | pid()}
     | {ok, undefined | pid(), _}.
@@ -100,11 +100,11 @@
 start_listener(Opts) ->
     mongoose_tcp_listener:start_listener(Opts).
 
--spec start(sock_data(), options()) -> start_result().
+-spec start(socket_data(), options()) -> start_result().
 start(SockData, Opts) ->
     ?SUPERVISOR_START(SockData, Opts).
 
--spec start_link(sock_data(), options()) -> start_result().
+-spec start_link(socket_data(), options()) -> start_result().
 start_link(SockData, Opts) ->
     p1_fsm_old:start_link(ejabberd_c2s, {SockData, Opts},
                           ?FSMOPTS ++ fsm_limit_opts(Opts)).
@@ -191,7 +191,7 @@ run_remote_hook_after(Delay, Pid, HandlerName, Args) ->
 %%% Callback functions from gen_fsm
 %%%----------------------------------------------------------------------
 
--spec init({sock_data(), options()}) ->
+-spec init({socket_data(), options()}) ->
         {stop, normal} | {ok, wait_for_stream, state(), non_neg_integer()}.
 init({{SockMod, Socket}, Opts}) ->
     #{access := Access, shaper := Shaper, hibernate_after := HibernateAfter} = Opts,

@@ -118,6 +118,7 @@
         "</stream:stream>">>
        ).
 
+-type socket_data() :: {ejabberd:sockmod(), term()}.
 -type options() :: #{access := atom(),
                      shaper_rule := atom(),
                      password := binary(),
@@ -129,12 +130,13 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(_, options()) -> {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
+-spec start(socket_data(), options()) ->
+          {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(SockData, Opts) ->
     supervisor:start_child(ejabberd_service_sup, [SockData, Opts]).
 
 
--spec start_link(_, options()) -> ignore | {error, _} | {ok, pid()}.
+-spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     p1_fsm:start_link(ejabberd_service, [SockData, Opts],
                         fsm_limit_opts(Opts) ++ ?FSMOPTS).
@@ -168,7 +170,7 @@ process_packet(Acc, From, To, _El, #{pid := Pid}) ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([options() | {atom() | tuple(), _}, ...]) -> {'ok', 'wait_for_stream', state()}.
+-spec init([socket_data() | options(), ...]) -> {'ok', 'wait_for_stream', state()}.
 init([{SockMod, Socket}, Opts]) ->
     ?LOG_INFO(#{what => comp_started,
                 text => <<"External service connected">>,

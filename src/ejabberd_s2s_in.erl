@@ -103,17 +103,18 @@
          "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
 
+-type socket_data() :: {ejabberd:sockmod(), term()}.
 -type options() :: #{shaper := atom(), atom() => any()}.
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(tuple(), options()) ->
+-spec start(socket_data(), options()) ->
           {error, _} | {ok, undefined | pid()} | {ok, undefined | pid(), _}.
 start(SockData, Opts) ->
     ?SUPERVISOR_START.
 
--spec start_link(tuple(), options()) -> ignore | {error, _} | {ok, pid()}.
+-spec start_link(socket_data(), options()) -> ignore | {error, _} | {ok, pid()}.
 start_link(SockData, Opts) ->
     gen_fsm_compat:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
 
@@ -136,7 +137,7 @@ socket_type() ->
 %%          ignore                              |
 %%          {stop, StopReason}
 %%----------------------------------------------------------------------
--spec init([tuple() | options(), ...]) -> {ok, wait_for_stream, state()}.
+-spec init([socket_data() | options(), ...]) -> {ok, wait_for_stream, state()}.
 init([{SockMod, Socket}, Opts = #{shaper := Shaper}]) ->
     ?LOG_DEBUG(#{what => s2n_in_started,
                  text => <<"New incoming S2S connection">>,

@@ -39,7 +39,7 @@ The IP address to which the listening socket is bound.
 ### `listen.*.proto`
 * **Syntax:** string, only `"tcp"` is accepted
 * **Default:** `"tcp"`
-* **Example:** `proto = "udp"`
+* **Example:** `proto = "tcp"`
 
 The protocol, which is TCP by default. Currently this is the only valid option.
 

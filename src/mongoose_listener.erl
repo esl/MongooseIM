@@ -21,7 +21,7 @@
                      proto := proto(),
                      any() => any()}.
 -type id() :: {inet:port_number(), inet:ip_address(), proto()}.
--type proto() :: tcp | udp.
+-type proto() :: tcp.
 -type socket_type() :: independent | xml_stream | raw.
 
 -export_type([options/0, id/0, proto/0, socket_type/0]).
