@@ -41,7 +41,7 @@ list_room_users(#{user := UserJID}, #{<<"room">> := RoomJID}) ->
 -spec list_room_affiliations(map(), map()) -> {ok, [{ok, map()}]} | {error, resolver_error()}.
 list_room_affiliations(#{user := UserJID}, #{<<"room">> := RoomJID, <<"affiliation">> := Aff}) ->
     Aff2 = null_to_undefined(Aff),
-    case mod_muc_api:get_room_affiliation(RoomJID, UserJID, Aff2) of
+    case mod_muc_api:get_room_affiliations(RoomJID, UserJID, Aff2) of
         {ok, Affs} ->
             {ok, mongoose_graphql_muc_helper:format_affs(Affs)};
         Error ->

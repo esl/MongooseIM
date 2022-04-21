@@ -10,8 +10,8 @@
          modify_room_config/3,
          get_room_users/1,
          get_room_users/2,
-         get_room_affiliation/2,
-         get_room_affiliation/3,
+         get_room_affiliations/2,
+         get_room_affiliations/3,
          create_instant_room/4,
          invite_to_room/4,
          send_message_to_room/3,
@@ -282,21 +282,21 @@ get_room_messages(RoomJID, UserJID, PageSize, Before) ->
             ?MUC_SERVER_NOT_FOUND_RESULT
     end.
 
--spec get_room_affiliation(jid:jid(), jid:jid(), mod_muc:affiliation()  | undefined) ->
+-spec get_room_affiliations(jid:jid(), jid:jid(), mod_muc:affiliation()  | undefined) ->
     {ok, [aff_item()]} | {not_allowed | room_not_found, iolist()}.
-get_room_affiliation(RoomJID, UserJID, AffType) ->
+get_room_affiliations(RoomJID, UserJID, AffType) ->
     case mod_muc_room:can_access_room(RoomJID, UserJID) of
         {ok, true} ->
-            get_room_affiliation(RoomJID, AffType);
+            get_room_affiliations(RoomJID, AffType);
         {ok, false} ->
             ?USER_CANNOT_ACCESS_ROOM_RESULT;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
     end.
 
--spec get_room_affiliation(jid:jid(), mod_muc:affiliation()  | undefined) ->
+-spec get_room_affiliations(jid:jid(), mod_muc:affiliation()  | undefined) ->
     {ok, [aff_item()]} | {room_not_found, iolist()}.
-get_room_affiliation(RoomJID, AffType) ->
+get_room_affiliations(RoomJID, AffType) ->
     case room_users_aff(RoomJID) of
         {ok, Affiliations} ->
             Res = filter_affs_by_type(AffType, Affiliations),
