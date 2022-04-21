@@ -87,7 +87,9 @@ admin_muc_handler() ->
      admin_try_set_nonexistent_room_user_role,
      admin_make_user_enter_room,
      admin_make_user_enter_room_with_password,
+     admin_make_user_enter_room_bare_jid,
      admin_make_user_exit_room,
+     admin_make_user_exit_room_bare_jid,
      admin_list_room_affiliations,
      admin_try_list_nonexistent_room_affiliations
     ].
@@ -275,9 +277,13 @@ admin_send_message_to_room_story(Config, _Alice, Bob) ->
     BobNick = <<"Bobek">>,
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanza(Bob),
+    % Try send messsage from bare JID,
+    BareBob = escalus_client:short_jid(Bob),
+    Res = execute_auth(admin_send_message_to_room_body(RoomJID, BareBob, Message), Config),
+    assert_no_full_jid(Res),
     % Send message
-    Res = execute_auth(admin_send_message_to_room_body(RoomJID, Bob, Message), Config),
-    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res),
+    Res1 = execute_auth(admin_send_message_to_room_body(RoomJID, Bob, Message), Config),
+    ?assertNotEqual(nomatch, binary:match(get_ok_value(?SEND_MESSAGE_PATH, Res1),
                                           <<"successfully">>)),
     assert_is_message_correct(RoomJID, BobNick, <<"groupchat">>, Message,
                               escalus:wait_for_stanza(Bob)).
@@ -294,9 +300,14 @@ admin_send_private_message(Config, Alice, Bob) ->
     enter_room(RoomJID, Alice, AliceNick),
     enter_room(RoomJID, Bob, BobNick),
     escalus:wait_for_stanzas(Bob, 2),
+    % Try send private messsage from bare JID,
+    BareAlice = escalus_client:short_jid(Alice),
+    Res = execute_auth(admin_send_private_message_body(RoomJID, BareAlice, BobNick, Message),
+                       Config),
+    assert_no_full_jid(Res),
     % Send message
-    Res = execute_auth(admin_send_private_message_body(RoomJID, Alice, BobNick, Message), Config),
-    assert_success(?SEND_PRIV_MESG_PATH, Res),
+    Res1 = execute_auth(admin_send_private_message_body(RoomJID, Alice, BobNick, Message), Config),
+    assert_success(?SEND_PRIV_MESG_PATH, Res1),
     assert_is_message_correct(RoomJID, AliceNick, <<"chat">>, Message,
                               escalus:wait_for_stanza(Bob)).
 
@@ -466,6 +477,15 @@ admin_make_user_enter_room_with_password(Config, Alice, Bob) ->
     assert_success(?ENTER_ROOM_PATH, Res2),
     ?assertMatch([_, _], get_room_users(RoomJID)).
 
+admin_make_user_enter_room_bare_jid(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}], fun admin_make_user_enter_room_bare_jid/2).
+
+admin_make_user_enter_room_bare_jid(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    BareAlice = escalus_client:short_jid(Alice),
+    Res = execute_auth(admin_enter_room_body(RoomJID, BareAlice, <<"Ali">>, null), Config),
+    assert_no_full_jid(Res).
+
 admin_make_user_exit_room(Config) ->
     muc_helper:story_with_room(Config, [{persistent, true}], [{alice, 1}],
                                fun admin_make_user_exit_room/2).
@@ -478,6 +498,17 @@ admin_make_user_exit_room(Config, Alice) ->
     Res = execute_auth(admin_exit_room_body(RoomJID, Alice, Nick), Config),
     assert_success(?EXIT_ROOM_PATH, Res),
     ?assertMatch([], get_room_users(RoomJID)).
+
+admin_make_user_exit_room_bare_jid(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}], fun admin_make_user_exit_room_bare_jid/2).
+
+admin_make_user_exit_room_bare_jid(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    BareAlice = escalus_client:short_jid(Alice),
+    Nick = <<"ali">>,
+    enter_room(RoomJID, Alice, Nick),
+    Res = execute_auth(admin_exit_room_body(RoomJID, BareAlice, Nick), Config),
+    assert_no_full_jid(Res).
 
 admin_list_room_affiliations(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
@@ -1054,6 +1085,10 @@ user_try_list_nonexistent_room_affiliations(Config, Alice) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"not found">>)).
 
 %% Helpers
+
+assert_no_full_jid({{<<"400">>,<<"Bad Request">>},
+                    #{<<"errors">> := [#{<<"message">> := Msg}]}}) ->
+    ?assertNotEqual(nomatch, binary:match(Msg, <<"jid_without_resource">>)).
 
 assert_no_permission(Res) ->
     ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not have permission">>)).
