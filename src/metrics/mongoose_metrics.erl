@@ -20,10 +20,6 @@
 
 %% API
 -export([init/0,
-         create_global_metrics/0,
-         init_predefined_host_type_metrics/1,
-         init_subscriptions/0,
-         make_host_type_name/1,
          create_generic_hook_metric/2,
          ensure_db_pool_metric/1,
          update/3,
@@ -46,10 +42,9 @@
          get_report_interval/0
         ]).
 
--ignore_xref([create_global_metrics/0, get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
+-ignore_xref([get_dist_data_stats/0, get_mnesia_running_db_nodes_count/0,
               get_rdbms_data_stats/0, get_rdbms_data_stats/1, get_up_time/0,
-              init_subscriptions/0, make_host_type_name/1, remove_host_type_metrics/1,
-              get_report_interval/0]).
+              remove_host_type_metrics/1, get_report_interval/0]).
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
@@ -58,7 +53,6 @@
 -type metric_name() :: atom() | list(atom() | binary()).
 -type short_metric_type() :: spiral | histogram | counter | gauge.
 -type metric_type() :: tuple() | short_metric_type().
--type host_type_or_global() :: mongooseim:host_type() | global.
 
 %% ---------------------------------------------------------------------
 %% API
@@ -69,7 +63,7 @@ init() ->
     create_global_metrics(),
     lists:foreach(
         fun(HostType) ->
-            mongoose_metrics:init_predefined_host_type_metrics(HostType)
+            init_predefined_host_type_metrics(HostType)
         end, ?ALL_HOST_TYPES),
     init_subscriptions().
 
@@ -117,7 +111,7 @@ update(HostType, Name, Change) when is_list(Name) ->
 update(HostType, Name, Change) ->
     update(HostType, [Name], Change).
 
--spec ensure_metric(host_type_or_global(), metric_name(), metric_type()) ->
+-spec ensure_metric(mongooseim:host_type_or_global(), metric_name(), metric_type()) ->
     ok | {ok, already_present} | {error, any()}.
 ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
     ensure_metric(HostType, Metric, Type, element(1, Type));
@@ -196,22 +190,28 @@ remove_all_metrics() ->
 all_metrics_are_global() ->
     mongoose_config:get_opt(all_metrics_are_global).
 
+pick_prefix_by_all_metrics_are_global(HostType) ->
+    case all_metrics_are_global() of
+        true -> global;
+        false -> make_host_type_name(HostType)
+    end.
+
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
     case all_metrics_are_global() of
         true -> WhenGlobal;
         false -> WhenNot
     end.
 
--spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type() | global,
+-spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type_or_global(),
                                      Name :: list()) -> FinalName :: list().
 name_by_all_metrics_are_global(HostType, Name) ->
-    pick_by_all_metrics_are_global([global | Name], [make_host_type_name(HostType) | Name]).
+    [pick_prefix_by_all_metrics_are_global(HostType) | Name].
 
 get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(HostType :: mongooseim:host_type() | global,
+-spec do_create_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
                                     Hook :: hook_name(),
                                     UseOrSkip :: use_or_skip()) ->
     ok | {ok, already_present} | {error, any()}.
@@ -220,7 +220,7 @@ do_create_generic_hook_metric(_, _, skip) ->
 do_create_generic_hook_metric(HostType, Hook, use) ->
     ensure_metric(HostType, Hook, spiral).
 
--spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type() | global,
+-spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
                                        Hook :: hook_name(),
                                        UseOrSkip :: use_or_skip()) ->
     ok | {error, any()}.
@@ -400,7 +400,7 @@ ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
     end.
 
 %% @doc Creates a metric and subcribes it to the reporters
--spec ensure_subscribed_metric(HostType :: host_type_or_global(),
+-spec ensure_subscribed_metric(HostType :: mongooseim:host_type_or_global(),
                                Metric :: metric_name(),
                                Type :: metric_type()) -> ok | term().
 ensure_subscribed_metric(HostType, Metric, Type) ->
