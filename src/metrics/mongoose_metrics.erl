@@ -195,6 +195,12 @@ remove_all_metrics() ->
 all_metrics_are_global() ->
     mongoose_config:get_opt(all_metrics_are_global).
 
+pick_prefix_by_all_metrics_are_global(HostType) ->
+    case all_metrics_are_global() of
+        true -> global;
+        false -> make_host_type_name(HostType)
+    end.
+
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
     case all_metrics_are_global() of
         true -> WhenGlobal;
@@ -204,7 +210,7 @@ pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
 -spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type_or_global(),
                                      Name :: list()) -> FinalName :: list().
 name_by_all_metrics_are_global(HostType, Name) ->
-    pick_by_all_metrics_are_global([global | Name], [make_host_type_name(HostType) | Name]).
+    [pick_prefix_by_all_metrics_are_global(HostType) | Name].
 
 get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
