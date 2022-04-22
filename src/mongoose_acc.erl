@@ -326,11 +326,12 @@ stanza_from_params(#{ element := El } = Params) ->
 -spec jid_from_params(MapKey :: to_jid | from_jid,
                       StanzaAttrName :: binary(),
                       Params :: stanza_params()) -> jid:jid().
-jid_from_params(MapKey, StanzaAttrName, #{ element := El } = Params) ->
-    case maps:find(MapKey, Params) of
-        {ok, JID0} -> JID0;
-        error -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName))
-    end.
+jid_from_params(to_jid, _, #{to_jid := Jid}) ->
+    Jid;
+jid_from_params(from_jid, _, #{from_jid := Jid}) ->
+    Jid;
+jid_from_params(_, StanzaAttrName, #{element := El}) ->
+    #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName)).
 
 -spec default_non_strippable() -> [atom()].
 default_non_strippable() ->
