@@ -62,6 +62,7 @@
 -define(MODERATOR_NOT_FOUND_RESULT, {moderator_not_found, "Moderator user not found"}).
 -define(MODERATOR_RES_NOT_FOUND_RESULT,
         {moderator_not_found, "Resource with moderator role not found"}).
+-define(SET_ROLE_SUCC_RESULT, {ok, "Role set successfully"}).
 
 -spec get_rooms(jid:lserver(), jid:jid(), non_neg_integer() | undefined,
                 non_neg_integer()) -> get_rooms_result().
@@ -325,22 +326,22 @@ set_affiliation(RoomJID, FromJID, UserJID, Affiliation) ->
     case mod_muc_room:set_admin_items(RoomJID, FromJID, [AffItem]) of
         ok ->
             {ok, "Affiliation set successfully"};
-        {error, Error} ->
-            format_xml_error(Error, Affiliation, <<"affiliation">>);
         {error, not_found} ->
-            ?ROOM_NOT_FOUND_RESULT
+            ?ROOM_NOT_FOUND_RESULT;
+        {error, #xmlel{} = E} ->
+            format_xml_error(E, Affiliation)
     end.
 
 -spec set_role(jid:jid(), binary(), mod_muc:role()) ->
-    {ok | room_not_found | not_allowed, iolist()}.
+    {ok | moderator_not_found | room_not_found | not_allowed | cannot_modify, iolist()}.
 set_role(RoomJID, Nick, Role) ->
     case room_moderator(RoomJID) of
         {ok, ModJID} ->
             case mod_muc_room:set_admin_items(RoomJID, ModJID, [role_item(Nick, Role)]) of
                 ok ->
-                    {ok, "Role set successfully"};
-                {error, Error} ->
-                    format_xml_error(Error, Role, <<"role">>)
+                    ?SET_ROLE_SUCC_RESULT;
+                {error, #xmlel{} = E} ->
+                    format_xml_error(E, Role)
             end;
         {error, moderator_not_found} ->
             ?MODERATOR_NOT_FOUND_RESULT;
@@ -349,16 +350,16 @@ set_role(RoomJID, Nick, Role) ->
     end.
 
 -spec set_role(jid:jid(), jid:jid(), binary(), mod_muc:role()) ->
-    {ok | room_not_found | not_allowed, iolist()}.
+    {ok | moderator_not_found | room_not_found | not_allowed | cannot_modify, iolist()}.
 set_role(RoomJID, UserJID, Nick, Role) ->
     RoleItem = role_item(Nick, Role),
     case try_add_role_resource(RoomJID, UserJID, moderator) of
         {ok, ModJID} ->
             case mod_muc_room:set_admin_items(RoomJID, ModJID, [RoleItem]) of
                 ok ->
-                    {ok, "Role set successfully"};
-                {error, Error} ->
-                    format_xml_error(Error, Role, <<"role">>)
+                    ?SET_ROLE_SUCC_RESULT;
+                {error, #xmlel{} = E} ->
+                    format_xml_error(E, Role)
             end;
         {error, not_found} ->
             ?ROOM_NOT_FOUND_RESULT
@@ -411,9 +412,23 @@ try_add_role_resource(RoomJID, InUserJID, Role) ->
 filter_affs_by_type(undefined, Affs) -> Affs;
 filter_affs_by_type(Type, Affs) -> [Aff || Aff = {_, T} <- Affs, T =:= Type].
 
-format_xml_error(#xmlel{name = <<"error">>}, Aff, Op) ->
-    Msg = io_lib:format("Given user does not have permission to set the ~p ~s", [Aff, Op]),
-    {not_allowed, Msg}.
+format_xml_error(#xmlel{name = <<"error">>} = E, Value) ->
+    case unwrap_xml_error(E) of
+        {<<"406">>, <<"modify">>, <<"not-acceptable">>} ->
+            Msg = xml:get_path_s(E, [{elem, <<"text">>}, cdata]),
+            {cannot_modify, Msg};
+        {<<"403">>, <<"auth">>, <<"forbidden">>} ->
+            {not_allowed, no_permission_msg("affiliation", Value)};
+        {<<"405">>, <<"cancel">>, <<"not-allowed">>} ->
+            {not_allowed, no_permission_msg("role", Value)}
+    end.
+
+no_permission_msg(Op, Value) ->
+    io_lib:format("Given user does not have permission to set the ~p ~s", [Value, Op]).
+
+unwrap_xml_error(#xmlel{attrs = [{<<"code">>, Code}, {<<"type">>, Type}],
+                        children = [#xmlel{name = Condition} | _]}) ->
+    {Code, Type, Condition}.
 
 -spec modify_room_config_raw(jid:jid(), room_conf_mod_fun()) -> mod_muc_room:config().
 modify_room_config_raw(RoomJID, Fun) ->

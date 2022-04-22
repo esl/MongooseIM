@@ -89,6 +89,7 @@ admin_muc_handler() ->
      admin_try_set_nonexistent_room_user_affiliation,
      admin_set_user_role,
      admin_try_set_nonexistent_room_user_role,
+     admin_try_set_nonexistent_nick_role,
      admin_try_set_user_role_in_room_without_moderators,
      admin_make_user_enter_room,
      admin_make_user_enter_room_with_password,
@@ -458,6 +459,15 @@ admin_set_user_role(Config, Alice, Bob) ->
     Res2 = execute_auth(set_user_role_body(RoomJID, BobNick, moderator), Config),
     assert_success(?SET_ROLE_PATH, Res2),
     assert_user_role(RoomJID, Bob, moderator).
+
+admin_try_set_nonexistent_nick_role(Config) ->
+    muc_helper:story_with_room(Config, [], [{alice, 1}], fun admin_try_set_nonexistent_nick_role/2).
+
+admin_try_set_nonexistent_nick_role(Config, Alice) ->
+    RoomJID = jid:from_binary(?config(room_jid, Config)),
+    enter_room(RoomJID, Alice, escalus_client:username(Alice)),
+    Res = execute_auth(set_user_role_body(RoomJID, <<"kik">>, visitor), Config),
+    ?assertNotEqual(nomatch, binary:match(get_err_msg(Res), <<"does not exist">>)).
 
 admin_try_set_user_role_in_room_without_moderators(Config) ->
     muc_helper:story_with_room(Config, [], [{alice, 1}, {bob, 1}],
