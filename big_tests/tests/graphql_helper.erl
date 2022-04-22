@@ -58,14 +58,14 @@ init_admin_handler(Config) ->
     end.
 
 get_listener_opts(EpName) ->
-    #{modules := Modules} = get_listener_config(EpName),
+    #{handlers := Handlers} = get_listener_config(EpName),
     [Opts2] = lists:filtermap(
         fun
             ({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
                 {true, Args};
             (_) ->
                 false
-        end, Modules),
+        end, Handlers),
     Opts2.
 
 -spec get_err_msg(#{errors := [#{message := binary()}]}) -> binary().
@@ -105,10 +105,10 @@ get_value([Field | Fields], Data) ->
     Data2 = maps:get(BinField, Data),
     get_value(Fields, Data2).
 
-is_graphql_config(#{module := ejabberd_cowboy, modules := Modules}, EpName) ->
+is_graphql_config(#{handlers := Handlers}, EpName) ->
     lists:any(fun({_, _Path, mongoose_graphql_cowboy_handler, Args}) ->
                       atom_to_binary(EpName) == proplists:get_value(schema_endpoint, Args);
                  (_) -> false
-              end, Modules);
+              end, Handlers);
 is_graphql_config(_, _EpName) ->
     false.
