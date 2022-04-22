@@ -58,7 +58,6 @@
 -type metric_name() :: atom() | list(atom() | binary()).
 -type short_metric_type() :: spiral | histogram | counter | gauge.
 -type metric_type() :: tuple() | short_metric_type().
--type host_type_or_global() :: mongooseim:host_type() | global.
 
 %% ---------------------------------------------------------------------
 %% API
@@ -117,7 +116,7 @@ update(HostType, Name, Change) when is_list(Name) ->
 update(HostType, Name, Change) ->
     update(HostType, [Name], Change).
 
--spec ensure_metric(host_type_or_global(), metric_name(), metric_type()) ->
+-spec ensure_metric(mongooseim:host_type_or_global(), metric_name(), metric_type()) ->
     ok | {ok, already_present} | {error, any()}.
 ensure_metric(HostType, Metric, Type) when is_tuple(Type) ->
     ensure_metric(HostType, Metric, Type, element(1, Type));
@@ -202,7 +201,7 @@ pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
         false -> WhenNot
     end.
 
--spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type() | global,
+-spec name_by_all_metrics_are_global(HostType :: mongooseim:host_type_or_global(),
                                      Name :: list()) -> FinalName :: list().
 name_by_all_metrics_are_global(HostType, Name) ->
     pick_by_all_metrics_are_global([global | Name], [make_host_type_name(HostType) | Name]).
@@ -211,7 +210,7 @@ get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(HostType :: mongooseim:host_type() | global,
+-spec do_create_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
                                     Hook :: hook_name(),
                                     UseOrSkip :: use_or_skip()) ->
     ok | {ok, already_present} | {error, any()}.
@@ -220,7 +219,7 @@ do_create_generic_hook_metric(_, _, skip) ->
 do_create_generic_hook_metric(HostType, Hook, use) ->
     ensure_metric(HostType, Hook, spiral).
 
--spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type() | global,
+-spec do_increment_generic_hook_metric(HostType :: mongooseim:host_type_or_global(),
                                        Hook :: hook_name(),
                                        UseOrSkip :: use_or_skip()) ->
     ok | {error, any()}.
@@ -400,7 +399,7 @@ ensure_metric(HostType, Metric, Type, ShortType) when is_list(Metric) ->
     end.
 
 %% @doc Creates a metric and subcribes it to the reporters
--spec ensure_subscribed_metric(HostType :: host_type_or_global(),
+-spec ensure_subscribed_metric(HostType :: mongooseim:host_type_or_global(),
                                Metric :: metric_name(),
                                Type :: metric_type()) -> ok | term().
 ensure_subscribed_metric(HostType, Metric, Type) ->
